@@ -55,6 +55,8 @@ private:
 #ifdef __linux__
     static bool checkHidPermission();
     static bool checkBrlttyRunning();
+    static bool detectDevices(const std::vector<std::pair<uint16_t, uint16_t>>& devices);
+    static bool checkPermissions(const std::vector<std::pair<uint16_t, uint16_t>>& devices, bool isSerial);
 
     static const QString driverCommands;
     static const QString groupCommands;

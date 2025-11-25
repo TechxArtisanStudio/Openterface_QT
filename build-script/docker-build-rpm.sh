@@ -65,7 +65,7 @@ if [ -f "${SRC}/packaging/rpm/setup-env.sh" ]; then
 fi
 
 # Install patchelf and gcc for wrapper compilation
-apt update && apt install -y patchelf gcc
+apt update && apt install -y patchelf gcc libmfx1
 
 # Verify Qt6 build exists
 # CRITICAL: Must use a proper Qt6 build, NOT system libraries

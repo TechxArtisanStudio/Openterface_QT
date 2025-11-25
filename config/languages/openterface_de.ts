@@ -136,15 +136,18 @@
     <name>CornerWidgetManager</name>
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="74"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="74"/>
         <source>Select Keyboard Layout</source>
         <translation type="unfinished">Tastaturlayout auswählen</translation>
     </message>
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
         <source>Stop Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
         <source>Start Recording</source>
         <translation type="unfinished"></translation>
@@ -152,10 +155,14 @@
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
         <source>Unmute Audio</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
         <source>Mute Audio</source>
@@ -165,6 +172,7 @@
 <context>
     <name>DeviceCoordinator</name>
     <message>
+        <location filename="../../ui/coordinator/devicecoordinator.cpp" line="102"/>
         <location filename="../../ui/coordinator/devicecoordinator.cpp" line="102"/>
         <source>No devices available</source>
         <translation type="unfinished"></translation>
@@ -223,7 +231,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="121"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="146"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation type="unfinished"> Das Gerät ist nicht angeschlossen. Bitte schließen Sie es an und versuchen Sie es erneut.</translation>
     </message>
@@ -248,94 +256,94 @@
         <translation type="vanished">‣ BRLTTY-Prüfung: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="111"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="143"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="136"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="168"/>
         <source>◆ Driver Installed: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="112"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="147"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="137"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="172"/>
         <source>◆ Latest Firmware: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="144"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="169"/>
         <source>◆ In Serial Port Permission: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="145"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="170"/>
         <source>◆ HID Permission: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="146"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="171"/>
         <source> (needs removal)</source>
         <translation> (muss entfernt werden)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="146"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="171"/>
         <source> (not running)</source>
         <translation> (läuft nicht)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="146"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="171"/>
         <source>◆ BRLTTY checking: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="187"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="212"/>
         <source>Install Driver</source>
         <translation type="unfinished">Treiber installieren</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="194"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="219"/>
         <source>Copy Link</source>
         <translation type="unfinished">Link kopieren</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="210"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
         <source>Select Destination Directory</source>
         <translation>Zielverzeichnis auswählen</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="291"/>
         <source>Driver Installed: </source>
         <translation>Treiber installiert: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="268"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="291"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="292"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="293"/>
         <source>Yes</source>
         <translation>Ja</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="266"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="268"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="269"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="291"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="292"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="293"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="294"/>
         <source>No</source>
         <translation>Nein</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="267"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="292"/>
         <source>Serial port Permission: </source>
         <translation type="unfinished">Serielle Schnittstellenberechtigung: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="108"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="133"/>
         <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
         <translation type="unfinished">Die folgenden Schritte helfen Ihnen bei der Installation des Treibers und der Openterface-Firmware-Aktualisierung. Aktueller Status:</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="142"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="167"/>
         <source>The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:&lt;br&gt;</source>
         <translation type="unfinished">Die folgenden Schritte helfen Ihnen dabei, den Treiber zu installieren, auf die Geräteberechtigungen zuzugreifen und die Openterface-Firmware-Aktualisierung vorzunehmen. Aktueller Status:</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="188"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="213"/>
         <source>The driver is missing. Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html 
 
 After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.
@@ -348,27 +356,27 @@ Nach der Treiberinstallation ist ein Systemneustart und erneutes Anschließen de
 Starten Sie Ihren Computer nach der Treiberinstallation neu.</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="268"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="293"/>
         <source>HID Permission: </source>
         <translation>HID-Berechtigung: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="269"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="294"/>
         <source>BRLTTY is Running: </source>
         <translation>BRLTTY läuft: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="269"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="294"/>
         <source>Yes (needs removal)</source>
         <translation>Ja (muss entfernt werden)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="275"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="300"/>
         <source>Restart Required</source>
         <translation>Neustart erforderlich</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="276"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="301"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
@@ -377,12 +385,12 @@ Would you like to restart your computer now?</source>
 Möchten Sie Ihren Computer jetzt neu starten?</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="285"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="310"/>
         <source>Restart Later</source>
         <translation>Später neu starten</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="286"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="311"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation>Bitte denken Sie daran, Ihren Computer neu zu starten und das Gerät erneut anzuschließen, damit der Treiber ordnungsgemäß funktioniert.</translation>
     </message>
@@ -906,10 +914,15 @@ Bitte versuchen Sie es erneut nach einem Neustart der Anwendung.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="535"/>
+        <location filename="../../ui/mainwindow.cpp" line="535"/>
         <source>Recorded %1 sec</source>
         <translation>Aufgezeichnet %1 Sek.</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.cpp" line="609"/>
+        <location filename="../../ui/mainwindow.cpp" line="616"/>
+        <location filename="../../ui/mainwindow.cpp" line="643"/>
+        <location filename="../../ui/mainwindow.cpp" line="647"/>
         <location filename="../../ui/mainwindow.cpp" line="609"/>
         <location filename="../../ui/mainwindow.cpp" line="616"/>
         <location filename="../../ui/mainwindow.cpp" line="643"/>
@@ -919,70 +932,84 @@ Bitte versuchen Sie es erneut nach einem Neustart der Anwendung.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="610"/>
+        <location filename="../../ui/mainwindow.cpp" line="610"/>
         <source>Recording system is not initialized. Please restart the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.cpp" line="617"/>
         <location filename="../../ui/mainwindow.cpp" line="617"/>
         <source>Camera system is not initialized. Please restart the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="626"/>
+        <location filename="../../ui/mainwindow.cpp" line="626"/>
         <source>No Camera Available</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.cpp" line="627"/>
         <location filename="../../ui/mainwindow.cpp" line="627"/>
         <source>No camera devices detected. Please connect a camera and try again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="629"/>
+        <location filename="../../ui/mainwindow.cpp" line="629"/>
         <source>Camera Not Active</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.cpp" line="630"/>
         <location filename="../../ui/mainwindow.cpp" line="630"/>
         <source>Camera is not active. Please start the camera preview before recording.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="644"/>
+        <location filename="../../ui/mainwindow.cpp" line="644"/>
         <source>An unexpected error occurred: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.cpp" line="648"/>
         <location filename="../../ui/mainwindow.cpp" line="648"/>
         <source>An unexpected error occurred. Please try again or restart the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="682"/>
+        <location filename="../../ui/mainwindow.cpp" line="682"/>
         <source>Active Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.cpp" line="683"/>
         <location filename="../../ui/mainwindow.cpp" line="683"/>
         <source>There is an active recording session. Do you want to stop it before changing settings?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="836"/>
+        <location filename="../../ui/mainwindow.cpp" line="836"/>
         <source>Image Capture Error</source>
         <translation>Bildaufnahmefehler</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.cpp" line="905"/>
         <location filename="../../ui/mainwindow.cpp" line="905"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>Erfasst &quot;%1&quot;</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1463"/>
+        <location filename="../../ui/mainwindow.cpp" line="1463"/>
         <source>Firmware Update</source>
         <translation>Firmware-Aktualisierung</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.cpp" line="1464"/>
         <location filename="../../ui/mainwindow.cpp" line="1464"/>
         <source>The firmware is up to date.
 Current version: </source>
@@ -990,10 +1017,12 @@ Current version: </source>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1486"/>
+        <location filename="../../ui/mainwindow.cpp" line="1486"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.cpp" line="1487"/>
         <location filename="../../ui/mainwindow.cpp" line="1487"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
@@ -1125,24 +1154,31 @@ Technical details: %1</source>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="588"/>
         <source>System Reset</source>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="588"/>
+        <source>System Reset</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="589"/>
+        <source>FFmpeg backend automatically handles recovery. Please try recording again.</source>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="589"/>
         <source>FFmpeg backend automatically handles recovery. Please try recording again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="613"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="613"/>
         <source>Recording System Diagnostics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="624"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="624"/>
         <source>Copy to Clipboard</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="625"/>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="625"/>
         <source>Close</source>
         <translation type="unfinished">Schließen</translation>
@@ -1676,10 +1712,13 @@ Please:
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="79"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="79"/>
         <source>Preferences</source>
         <translation>Einstellungen</translation>
     </message>
     <message>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="180"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="180"/>
         <source>General</source>
@@ -1688,10 +1727,14 @@ Please:
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="182"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="182"/>
         <source>Video</source>
         <translation>Video</translation>
     </message>
     <message>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="184"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="184"/>
         <source>Audio</source>
@@ -1700,20 +1743,25 @@ Please:
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="186"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="186"/>
         <source>Target Control</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="133"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="133"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="134"/>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="134"/>
         <source>Apply</source>
         <translation>Anwenden</translation>
     </message>
     <message>
+        <location filename="../../ui/preferences/settingdialog.cpp" line="135"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="135"/>
         <source>Cancel</source>
         <translation>Abbrechen</translation>
@@ -2209,37 +2257,74 @@ Bitte überprüfen Sie Ihre Internetverbindung.
     <name>VideoPage</name>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="99"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="99"/>
         <source>General video setting</source>
         <translation>Allgemeine Videoeinstellungen</translation>
     </message>
     <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="103"/>
         <location filename="../../ui/preferences/videopage.cpp" line="103"/>
         <source>Capture resolutions: </source>
         <translation>Aufnahmeauflösungen: </translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="109"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="109"/>
         <source>Framerate: </source>
         <translation>Bildrate: </translation>
     </message>
     <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="118"/>
         <location filename="../../ui/preferences/videopage.cpp" line="118"/>
         <source>Pixel format: </source>
         <translation>Pixelformat: </translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="123"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="123"/>
         <source>Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="131"/>
         <location filename="../../ui/preferences/videopage.cpp" line="131"/>
         <source>Media Backend: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="146"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="146"/>
         <source>Note: Changing media backend requires application restart to take effect.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="153"/>
+        <source>Hardware Acceleration: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="159"/>
+        <source>Note: Hardware acceleration improves performance but may not be available on all systems. Changing this setting requires application restart to take effect.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="171"/>
+        <source>Auto (Recommended)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="173"/>
+        <source>NVIDIA CUDA</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="175"/>
+        <source>Intel Quick Sync Video</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="177"/>
+        <source>CPU</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

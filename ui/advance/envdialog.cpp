@@ -17,6 +17,8 @@
 #include <QSettings>
 #include <cstdlib>
 #include <QMessageBox>
+#include <vector>
+#include <utility>
 #ifdef _WIN32 // Check if compiling on Windows
 #include <windows.h> // Include Windows API header
 #include <setupapi.h> // Include SetupAPI for device installation functions
@@ -44,9 +46,26 @@ FirmwareResult EnvironmentSetupDialog::latestFirmware = FirmwareResult::Checking
 // Define the static commands
 static const uint16_t openterfaceVID = 0x534d;
 static const uint16_t openterfacePID = 0x2109;
+static const uint16_t openterfaceV2VID = 0x534F;
+static const uint16_t openterfaceV2PID = 0x2109;
+static const uint16_t openterfaceV3VID = 0x534F;
+static const uint16_t openterfaceV3PID = 0x2132;
 static const uint16_t ch341VID = 0x1a86;
 static const uint16_t ch341PID = 0x7523;
+static const uint16_t serialVID = 0x1A86;
+static const uint16_t serialPID = 0xFE0C;
 libusb_context *context = nullptr;
+
+std::vector<std::pair<uint16_t, uint16_t>> openterfaceDevices = {
+    {0x534D, 0x2109},
+    {0x534F, 0x2109},
+    {0x534F, 0x2132}
+};
+
+std::vector<std::pair<uint16_t, uint16_t>> serialDevices = {
+    {0x1A86, 0x7523},
+    {0x1A86, 0xFE0C}
+};
 
 const QString EnvironmentSetupDialog::driverCommands = "# Build and install the driver\n make ; sudo make install\n\n";
 const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout group\n sudo usermod -a -G dialout $USER\n\n";
@@ -54,8 +73,14 @@ const QString EnvironmentSetupDialog::udevCommands =
     "#Add udev rules for Openterface Mini-KVM\n"
     "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"534d\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
     "echo 'SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"534d\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"534f\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"534f\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"534f\", ATTRS{idProduct}==\"2132\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"534f\", ATTRS{idProduct}==\"2132\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "echo 'SUBSYSTEM==\"ttyUSB\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"7523\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"7523\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"ttyACM\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"fe0c\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"fe0c\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "sudo udevadm control --reload-rules\n"
     "sudo udevadm trigger\n\n";
 const QString EnvironmentSetupDialog::brlttyCommands =
@@ -409,6 +434,100 @@ bool EnvironmentSetupDialog::checkBrlttyRunning() {
     return isBrlttyRunning;
 }
 
+bool EnvironmentSetupDialog::detectDevices(const std::vector<std::pair<uint16_t, uint16_t>>& devices) {
+    libusb_device **dev_list = nullptr;
+    ssize_t dev_count = libusb_get_device_list(context, &dev_list);
+    if (dev_count < 0) {
+        qWarning() << "libusb_get_device_list failed: " << libusb_error_name(static_cast<int>(dev_count));
+        return false;
+    }
+
+    std::unique_ptr<libusb_device*[], void(*)(libusb_device**)> dev_list_guard(dev_list, [](libusb_device** list) {
+        libusb_free_device_list(list, 1);
+    });
+
+    bool found = false;
+
+    for (auto& dev_pair : devices) {
+        uint16_t vid = dev_pair.first;
+        uint16_t pid = dev_pair.second;
+        for (ssize_t i = 0; i < dev_count; i++) {
+            libusb_device *dev = dev_list[i];
+            libusb_device_descriptor desc;
+            int ret = libusb_get_device_descriptor(dev, &desc);
+            if (ret < 0) {
+                qWarning() << "libusb_get_device_descriptor failed: " << libusb_error_name(ret);
+                continue;
+            }
+            if (desc.idVendor == vid && desc.idProduct == pid) {
+                found = true;
+                isDevicePlugged = true;
+                qDebug() << "Device detected with VID: 0x" 
+                        << QString::number(vid, 16).rightJustified(4, '0')
+                        << " PID: 0x" 
+                        << QString::number(pid, 16).rightJustified(4, '0');
+                break;
+            }
+        }
+        if (found) break;
+    }
+    return found;
+}
+
+bool EnvironmentSetupDialog::checkPermissions(const std::vector<std::pair<uint16_t, uint16_t>>& devices, bool isSerial) {
+    libusb_device **dev_list = nullptr;
+    ssize_t dev_count = libusb_get_device_list(context, &dev_list);
+    if (dev_count < 0) {
+        qWarning() << "libusb_get_device_list failed: " << libusb_error_name(static_cast<int>(dev_count));
+        return false;
+    }
+
+    std::unique_ptr<libusb_device*[], void(*)(libusb_device**)> dev_list_guard(dev_list, [](libusb_device** list) {
+        libusb_free_device_list(list, 1);
+    });
+
+    for (auto& dev_pair : devices) {
+        uint16_t vid = dev_pair.first;
+        uint16_t pid = dev_pair.second;
+        for (ssize_t i = 0; i < dev_count; i++) {
+            libusb_device *dev = dev_list[i];
+            libusb_device_descriptor desc;
+            int ret = libusb_get_device_descriptor(dev, &desc);
+            if (ret < 0) {
+                qWarning() << "libusb_get_device_descriptor failed: " << libusb_error_name(ret);
+                continue;
+            }
+            if (desc.idVendor == vid && desc.idProduct == pid) {
+                qDebug() << "Name of device" << desc.iProduct;
+                libusb_device_handle* handle = nullptr;
+                int ret = libusb_open(dev, &handle);
+                if (ret == LIBUSB_SUCCESS) {
+                    // close the device handle
+                    libusb_close(handle);
+                    if (isSerial) {
+                        isSerialPermission = true;
+                        qDebug() << "Permission check passed for serial device VID: 0x" << QString::number(vid, 16) << " PID: 0x" << QString::number(pid, 16);
+                    } else {
+                        isHidPermission = true;
+                        qDebug() << "Permission check passed for HID device VID: 0x" << QString::number(vid, 16) << " PID: 0x" << QString::number(pid, 16);
+                    }
+                    return true; 
+                } else if (ret == LIBUSB_ERROR_ACCESS) {
+                    qWarning() << "Permission denied for the device VID: 0x" << QString::number(vid, 16) << " PID: 0x" << QString::number(pid, 16);
+                    return false;
+                } else if (ret == LIBUSB_ERROR_BUSY) {
+                    qWarning() << "Device is busy VID: 0x" << QString::number(vid, 16) << " PID: 0x" << QString::number(pid, 16);
+                    return false;
+                } else {
+                    qWarning() << "Failed to open device VID: 0x" << QString::number(vid, 16) << " PID: 0x" << QString::number(pid, 16) << ": " << libusb_error_name(ret);
+                    return false;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 #endif
 
 // Override reject method
@@ -522,7 +641,7 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     #ifdef _WIN32
     return checkDriverInstalled() && latestFirmware == FirmwareResult::Latest;
     #elif defined(__linux__)
-    qDebug() << "Checking if MS2109 is on Linux.";
+    qDebug() << "Checking if Openterface devices are on Linux.";
 
     // EnvironmentSetupDialog dialog;
     if (context == nullptr){
@@ -535,28 +654,28 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
         qDebug() << "libusb initialized successfully.";
     }
 
-    bool HIDret = detectDevice(openterfaceVID, openterfacePID);
+    bool openterfacePlugged = detectDevices(openterfaceDevices);
     bool skipCheck = false;
-    if (!HIDret) {
-        qDebug() << "MS2109 does not exist, so no Openterface plugged in";
+    if (!openterfacePlugged) {
+        qDebug() << "No Openterface device plugged in";
         skipCheck = true;
     }
-    bool isSerialPlugged = detectDevice(ch341VID, ch341PID);
-    if (!isSerialPlugged) {
-        qDebug() << "CH341 does not exist, so no Openterface plugged in";
+    bool serialPlugged = detectDevices(serialDevices);
+    if (!serialPlugged) {
+        qDebug() << "No serial device plugged in";
     }else{
-        qDebug() << "CH341 exists, so Openterface plugged in";
+        qDebug() << "Serial device plugged in";
     }
 
-    bool checkSerialPermission = checkDevicePermission(ch341VID, ch341PID);
+    bool checkSerialPermission = checkPermissions(serialDevices, true);
     if (!checkSerialPermission) {
-        qDebug() << "CH341 permission check failed.";
+        qDebug() << "Serial permission check failed.";
     } else {
-        qDebug() << "CH341 permission check passed.";
+        qDebug() << "Serial permission check passed.";
     }
     
     checkBrlttyRunning(); // No need to return value here
-    bool checkPermission = checkDevicePermission(openterfaceVID, openterfacePID);
+    bool checkPermission = checkPermissions(openterfaceDevices, false);
     qDebug() << "Check permission result: " << checkPermission;
     return (checkDriverInstalled() && checkSerialPermission && checkPermission && (latestFirmware == FirmwareResult::Latest) && !isBrlttyRunning) || skipCheck;
     #else
@@ -582,10 +701,13 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
     for (DWORD i = 0; SetupDiEnumDeviceInfo(deviceInfoSet, i, &deviceInfoData); i++) {
         if (SetupDiGetDeviceRegistryPropertyW(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL,
             (PBYTE)hwIdBuffer, sizeof(hwIdBuffer), NULL)) {
-            if (wcsstr(hwIdBuffer, L"USB\\VID_534D&PID_2109") != NULL) {
+            if (wcsstr(hwIdBuffer, L"USB\\VID_534D&PID_2109") != NULL ||
+                wcsstr(hwIdBuffer, L"USB\\VID_534F&PID_2109") != NULL ||
+                wcsstr(hwIdBuffer, L"USB\\VID_534F&PID_2132") != NULL) {
                 captureCardFound = true;
             }
-            if (wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_7523") != NULL) {
+            if (wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_7523") != NULL ||
+                wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_FE0C") != NULL) {
                 ch341Found = true;
             }
         }
