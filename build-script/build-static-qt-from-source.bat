@@ -35,6 +35,12 @@ if not exist "%OPENSSL_LIB_DIR%\libssl.a" (
     exit /b 1
 )
 
+REM Check for zlib static library
+if not exist "%OPENSSL_LIB_DIR%\libzlib.a" (
+    echo zlib static library libzlib.a not found in %OPENSSL_LIB_DIR%. Please install zlib static libraries.
+    exit /b 1
+)
+
 REM Create build directory
 mkdir "%BUILD_DIR%"
 cd "%BUILD_DIR%"
@@ -64,18 +70,18 @@ cmake -G "Ninja" ^
     -DFEATURE_openssl=ON ^
     -DFEATURE_openssl_linked=ON ^
     -DFEATURE_static_runtime=ON ^
+    -DFEATURE_zlib=system ^
     -DOPENSSL_ROOT_DIR="%OPENSSL_DIR%" ^
     -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
     -DOPENSSL_CRYPTO_LIBRARY="%OPENSSL_LIB_DIR%\libcrypto.a" ^
     -DOPENSSL_SSL_LIBRARY="%OPENSSL_LIB_DIR%\libssl.a" ^
-    -DCMAKE_C_FLAGS="-mconsole -I%OPENSSL_INCLUDE_DIR%" ^
-    -DCMAKE_CXX_FLAGS="-mconsole -I%OPENSSL_INCLUDE_DIR%" ^
-    -DCMAKE_EXE_LINKER_FLAGS="-Wl,--subsystem,console -L%OPENSSL_LIB_DIR% -lws2_32 -lcrypt32 -ladvapi32" ^
-
+    -DZLIB_LIBRARY="%OPENSSL_LIB_DIR%\libz.a" ^
+    -DZLIB_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
+    -DCMAKE_C_FLAGS="-I%OPENSSL_INCLUDE_DIR%" ^
+    -DCMAKE_CXX_FLAGS="-I%OPENSSL_INCLUDE_DIR%" ^
+    -DCMAKE_EXE_LINKER_FLAGS="-Wl,--subsystem,console -L%OPENSSL_LIB_DIR% -lws2_32 -lcrypt32 -ladvapi32 -lz" ^
     -DCMAKE_C_COMPILER=gcc ^
-
     -DCMAKE_CXX_COMPILER=g++ ^
-
     -DFEATURE_libb2=OFF ^
     ..
 ninja
@@ -92,10 +98,13 @@ for %%m in (%MODULES%) do (
             -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
             -DBUILD_SHARED_LIBS=OFF ^
             -DFEATURE_static_runtime=ON ^
+            -DFEATURE_zlib=system ^
             -DOPENSSL_ROOT_DIR="%OPENSSL_DIR%" ^
             -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
             -DOPENSSL_CRYPTO_LIBRARY="%OPENSSL_LIB_DIR%\libcrypto.a" ^
             -DOPENSSL_SSL_LIBRARY="%OPENSSL_LIB_DIR%\libssl.a" ^
+            -DZLIB_LIBRARY="%OPENSSL_LIB_DIR%\libzlib.a" ^
+            -DZLIB_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
             -DCMAKE_C_FLAGS="-mconsole -I%OPENSSL_INCLUDE_DIR%" ^
             -DCMAKE_CXX_FLAGS="-mconsole -I%OPENSSL_INCLUDE_DIR%" ^
             -DCMAKE_EXE_LINKER_FLAGS="-Wl,--subsystem,console -L%OPENSSL_LIB_DIR%" ^
