@@ -536,7 +536,7 @@ jobs:
                     # Build upload command with environment variables and optional parameters
                     export QINIU_AK="$QINIU_AK"
                     export QINIU_SK="$QINIU_SK"
-                    UPLOAD_CMD="$PYTHON_CMD ./docker/upload_to_qiniu.py"
+                    UPLOAD_CMD="$PYTHON_CMD ./docker/upload_to_qiniu.py --verbose"
                     
                     # Add bucket if set
                     if [ -n "$QINIU_BUCKET" ]; then
@@ -561,14 +561,8 @@ jobs:
                     
                     echo "📋 Upload exit code: $UPLOAD_EXIT_CODE"
                     echo "📄 Full upload output:"
-                    echo "$UPLOAD_OUTPUT" | head -50  # Limit output to first 50 lines
+                    echo "$UPLOAD_OUTPUT"
                     echo ""
-                    
-                    # If output is truncated, show a message
-                    OUTPUT_LINES=$(echo "$UPLOAD_OUTPUT" | wc -l)
-                    if [ "$OUTPUT_LINES" -gt 50 ]; then
-                      echo "⚠️ Output truncated (showing first 50 lines of $OUTPUT_LINES total lines)"
-                    fi
                     
                     # Extract URL from output
                     UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https://[^ "]*' | tail -1)
@@ -694,7 +688,7 @@ jobs:
           # Build bucket management command with environment variables
           export QINIU_AK="$QINIU_AK"
           export QINIU_SK="$QINIU_SK"
-          BUCKET_CMD="$PYTHON_CMD ./docker/manage_qiniu_bucket.py -k 50 --force"
+          BUCKET_CMD="$PYTHON_CMD ./docker/manage_qiniu_bucket.py -k 50 --force --verbose"
           
           # Add bucket if set
           if [ -n "$QINIU_BUCKET" ]; then
@@ -711,14 +705,8 @@ jobs:
           
           echo "📋 Bucket management exit code: $BUCKET_EXIT_CODE"
           echo "📄 Full bucket management output:"
-          echo "$BUCKET_OUTPUT" | head -50  # Limit output to first 50 lines
+          echo "$BUCKET_OUTPUT"
           echo ""
-          
-          # If output is truncated, show a message
-          OUTPUT_LINES=$(echo "$BUCKET_OUTPUT" | wc -l)
-          if [ "$OUTPUT_LINES" -gt 50 ]; then
-            echo "⚠️ Output truncated (showing first 50 lines of $OUTPUT_LINES total lines)"
-          fi
           
           if [ $BUCKET_EXIT_CODE -eq 0 ]; then
             echo "✅ Bucket management completed successfully"

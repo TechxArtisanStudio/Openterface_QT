@@ -338,6 +338,7 @@ ENVIRONMENT VARIABLES:
         print(result)
         sys.exit(0)
     else:
+        log_error(f"Upload failed: {result}")
         sys.exit(1)
 
 if __name__ == '__main__':
