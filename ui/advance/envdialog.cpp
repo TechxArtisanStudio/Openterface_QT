@@ -53,7 +53,7 @@ static const uint16_t openterfaceV3PID = 0x2132;
 static const uint16_t ch341VID = 0x1a86;
 static const uint16_t ch341PID = 0x7523;
 static const uint16_t serialVID = 0x1A86;
-static const uint16_t serialPID = 0xFE0C;
+static const uint16_t serialPID = 0xCH32V208;
 libusb_context *context = nullptr;
 
 std::vector<std::pair<uint16_t, uint16_t>> openterfaceDevices = {
@@ -64,7 +64,7 @@ std::vector<std::pair<uint16_t, uint16_t>> openterfaceDevices = {
 
 std::vector<std::pair<uint16_t, uint16_t>> serialDevices = {
     {0x1A86, 0x7523},
-    {0x1A86, 0xFE0C}
+    {0x1A86, 0xCH32V208}
 };
 
 const QString EnvironmentSetupDialog::driverCommands = "# Build and install the driver\n make ; sudo make install\n\n";
@@ -707,7 +707,7 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
                 captureCardFound = true;
             }
             if (wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_7523") != NULL ||
-                wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_FE0C") != NULL) {
+                wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_CH32V208") != NULL) {
                 ch341Found = true;
             }
         }
