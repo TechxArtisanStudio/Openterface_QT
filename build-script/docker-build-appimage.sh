@@ -333,6 +333,42 @@ echo "🔍 Diagnostic: Verifying FFmpeg libraries in appimage/AppDir/usr/lib/ope
 ls -1 "${APPDIR}/usr/lib/openterfaceqt/ffmpeg" 2>/dev/null | sed 's/^/   - /' || echo "   ⚠️ No files found"
 echo ""
 
+# ============================================================
+# Copy gst-plugin-scanner if present on the build host/container
+# GStreamer needs a plugin scanner helper binary; many distributions
+# put it under libexec/gstreamer-1.0 or under <prefix>/libexec/gstreamer-1.0.
+# AppRun and main.cpp already look for it at usr/libexec/gstreamer-1.0/gst-plugin-scanner
+# so make sure to copy it into the AppDir if available.
+# ============================================================
+echo "🔍 Looking for gst-plugin-scanner on build host/container..."
+mkdir -p "${APPDIR}/usr/libexec/gstreamer-1.0"
+SCANNER_CANDIDATES=( 
+	"/opt/gstreamer/libexec/gstreamer-1.0/gst-plugin-scanner"
+	"/opt/gstreamer/lib/${ARCH}-linux-gnu/libexec/gstreamer-1.0/gst-plugin-scanner"
+	"/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+	"/usr/lib/${ARCH}-linux-gnu/libexec/gstreamer-1.0/gst-plugin-scanner"
+	"/usr/lib/${ARCH}-linux-gnu/gstreamer-1.0/gst-plugin-scanner"
+	"/usr/lib/gstreamer-1.0/gst-plugin-scanner"
+	"/usr/bin/gst-plugin-scanner"
+)
+SCANNER_FOUND=""
+for c in "${SCANNER_CANDIDATES[@]}"; do
+	if [ -x "$c" ]; then
+		echo "   ✅ Found gst-plugin-scanner at: $c"
+		cp -avP "$c" "${APPDIR}/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+		chmod +x "${APPDIR}/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+		SCANNER_FOUND="$c"
+		break
+	fi
+done
+
+if [ -z "$SCANNER_FOUND" ]; then
+	echo "   ⚠️  No gst-plugin-scanner found in common locations; GStreamer will use host scanner if available"
+else
+	echo "   ✅ gst-plugin-scanner bundled in AppImage at: usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+fi
+
+
 # Try to find and copy icon
 mkdir -p appimage/AppDir/usr/share/pixmaps
 mkdir -p appimage/AppDir/usr/share/icons/hicolor/256x256/apps
