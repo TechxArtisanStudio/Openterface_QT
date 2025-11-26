@@ -469,7 +469,7 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
     CmdDataParamConfig config;
     static QSettings settings("Techxartisan", "Openterface");
-    uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
+    uint8_t mode = (settings.value("hardware/operatingMode", 0x00).toUInt());
     
     bool connectionSuccessful = false;
     int workingBaudrate = tryBaudrate;
