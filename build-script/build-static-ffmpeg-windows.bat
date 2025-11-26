@@ -31,7 +31,8 @@ if not exist "%MSYS2_ROOT%\msys2_shell.cmd" (
 REM Check external MinGW
 if not exist "%EXTERNAL_MINGW%\bin\gcc.exe" (
     echo [91mError: External MinGW not found at %EXTERNAL_MINGW%[0m
-    echo Please install MinGW-w64 (or update the EXTERNAL_MINGW variable) to point to your toolchain.
+    REM Avoid parentheses inside a parenthesized block which breaks cmd parsing
+    echo Please install MinGW-w64 or update the EXTERNAL_MINGW variable to point to your toolchain.
     exit /b 1
 )
 
