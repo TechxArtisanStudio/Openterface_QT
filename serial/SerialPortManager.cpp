@@ -1439,9 +1439,11 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
     while (timer.elapsed() < totalTimeoutMs && responseData.isEmpty()) {
         if (serialPort->waitForReadyRead(waitStepMs)) {
             responseData = serialPort->readAll();
+            QThread::msleep(5); // Add 5ms delay
             // Try to get any remaining data without blocking
             while (serialPort->bytesAvailable() > 0) {
                 responseData += serialPort->readAll();
+                QThread::msleep(5); // Add 5ms delay
             }
             if (!responseData.isEmpty()) {
                 emit dataReceived(responseData);
