@@ -103,7 +103,7 @@ void SerialPortManager::observeSerialPortNotification(){
 
     connect(serialThread, &QThread::started, serialTimer, [this]() {
         connect(serialTimer, &QTimer::timeout, this, &SerialPortManager::checkSerialPort);
-        checkSerialPort();
+        // checkSerialPort();
         serialTimer->start(SERIAL_TIMER_INTERVAL);
     });
     connect(serialThread, &QThread::finished, serialTimer, &QObject::deleteLater);
