@@ -650,7 +650,7 @@ QString GStreamerBackendHandler::generatePipelineString(const QString& device, c
                       "video/x-raw,pixel-aspect-ratio=1/1 ! "
                       "identity sync=true ! "
                       "tee name=t allow-not-linked=true "
-                      "t. ! queue max-size-buffers=2 leaky=downstream ! " + videoSink + " name=videosink sync=true force-aspect-ratio=true "
+                      "t. ! queue name=display-queue max-size-buffers=2 leaky=downstream ! " + videoSink + " name=videosink sync=true force-aspect-ratio=true "
                       "t. ! valve name=recording-valve drop=true ! queue name=recording-queue ! identity name=recording-ready";
     
     qCDebug(log_gstreamer_backend) << "Generated pipeline template with video scaling";
