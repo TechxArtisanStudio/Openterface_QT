@@ -469,15 +469,15 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
     CmdDataParamConfig config;
     static QSettings settings("Techxartisan", "Openterface");
-    uint8_t mode = (settings.value("hardware/operatingMode", 0x00).toUInt());
+    uint8_t hostConfigMode = (settings.value("hardware/operatingMode", 0x02).toUInt());
     
     bool connectionSuccessful = false;
     int workingBaudrate = tryBaudrate;
     
     if(retBtye.size() > 0){
         qCDebug(log_core_serial) << "Data read from serial port: " << retBtye.toHex(' ');
-        config = CmdDataParamConfig::fromByteArray(retBtye);
-        if(config.mode == mode){ 
+        deviceConfig = CmdDataParamConfig::fromByteArray(retBtye);
+        if(deviceConfig.mode == hostConfigMode){ 
             // Check if we're using wrong baudrate for CH32V208 chip
             if (isChipTypeCH32V208() && serialPort->baudRate() != BAUDRATE_HIGHSPEED) {
                 qCWarning(log_core_serial) << "CH32V208 chip detected at wrong baudrate" << serialPort->baudRate() << "- switching to 115200";
@@ -501,7 +501,7 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
             // Check for ARM architecture performance recommendation
             checkArmBaudratePerformance(serialPort->baudRate());
         } else { // the mode is not correct, need to re-config the chip
-            qCWarning(log_core_serial) << "The mode is incorrect, mode:" << config.mode << "expected:" << mode;
+            qCWarning(log_core_serial) << "The mode is incorrect, mode:" << deviceConfig.mode << "expected:" << hostConfigMode;
             
             // CH32V208 chip does NOT support command-based reconfiguration
             if (isChipTypeCH32V208()) {
@@ -538,9 +538,9 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
             QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
             qCDebug(log_core_serial) << "Data read from CH32V208 serial port at 115200: " << retBtye.toHex(' ');
             if(retBtye.size() > 0){
-                config = CmdDataParamConfig::fromByteArray(retBtye);
+                deviceConfig = CmdDataParamConfig::fromByteArray(retBtye);
                 qCDebug(log_core_serial) << "Connected with baudrate: " << BAUDRATE_HIGHSPEED;
-                qCDebug(log_core_serial) << "Current working mode is:" << "0x" + QString::number(config.mode, 16);
+                qCDebug(log_core_serial) << "Current working mode is:" << "0x" + QString::number(deviceConfig.mode, 16);
                 
                 // CH32V208 doesn't support mode changes, so just accept whatever mode it has
                 qCInfo(log_core_serial) << "CH32V208 chip connection successful (mode cannot be changed on CH32V208)";
@@ -560,17 +560,17 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
             QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
             qCDebug(log_core_serial) << "Data read from serial port with alternative baudrate: " << retBtye.toHex(' ');
             if(retBtye.size() > 0){
-                config = CmdDataParamConfig::fromByteArray(retBtye);
+                deviceConfig = CmdDataParamConfig::fromByteArray(retBtye);
                 qCDebug(log_core_serial) << "Connected with baudrate: " << workingBaudrate;
-                qCDebug(log_core_serial) << "Current working mode is:" << "0x" + QString::number(config.mode, 16);
+                qCDebug(log_core_serial) << "Current working mode is:" << "0x" + QString::number(deviceConfig.mode, 16);
                 
                 // Check if mode is correct
-                if(config.mode == mode) {
+                if(deviceConfig.mode == hostConfigMode){ 
                     qCDebug(log_core_serial) << "Mode is correct, connection successful";
                     connectionSuccessful = true;
                     setBaudRate(workingBaudrate);
                 } else {
-                    qCWarning(log_core_serial) << "Mode incorrect after CH9329 baudrate detection, mode:" << config.mode << "expected:" << mode;
+                    qCWarning(log_core_serial) << "Mode incorrect after CH9329 baudrate detection, mode:" << deviceConfig.mode << "expected:" << hostConfigMode;
                     // Try to reconfigure with current baudrate
                     if(reconfigureHidChip(workingBaudrate)) {
                         qCDebug(log_core_serial) << "Reconfigured HID chip successfully, sending reset command";

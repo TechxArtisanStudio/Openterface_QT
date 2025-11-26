@@ -131,7 +131,7 @@ struct CmdDataParamConfig
     uint8_t addr1;      //2, 0x00
     uint8_t cmd;        //3, 0x08
     uint8_t len;        //4, 0x32
-    uint8_t mode;       //5, 0x82
+    uint8_t mode;       //5, 0x82 or 0x02
     uint8_t cfg;        //6
     uint8_t addr2;      //7, 0x80
     uint32_t baudrate;  //8-11
