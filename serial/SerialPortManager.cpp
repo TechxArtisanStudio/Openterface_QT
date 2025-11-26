@@ -467,7 +467,7 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
 
     // send a command to get the parameter configuration with initial baudrate
     QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
-    CmdDataParamConfig config;
+    CmdDataParamConfig deviceConfig;
     static QSettings settings("Techxartisan", "Openterface");
     uint8_t hostConfigMode = (settings.value("hardware/operatingMode", 0x02).toUInt());
     
