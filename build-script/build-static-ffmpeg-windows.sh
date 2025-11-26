@@ -53,6 +53,40 @@ fi
 echo "Compiler:"
 which gcc
 gcc --version | head -n1
+echo "Linker and assembler tools:"
+which ar || true
+ar --version 2>/dev/null | head -n 1 || true
+which ranlib || true
+which windres || true
+windres --version 2>/dev/null || true
+
+echo "\n🔎 Running compiler diagnostics..."
+cat > __ffmpeg_build_test.c <<'EOF'
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <time.h>
+int main(void) { puts("ffmpeg-compiler-test"); return 0; }
+EOF
+
+if ! ${CC:-gcc} __ffmpeg_build_test.c -o __ffmpeg_build_test 2> __cc_compile.err; then
+    echo "⚠️  Compile step failed. Dumping first 50 lines of compile error:";
+    head -n 50 __cc_compile.err || true
+    echo "\nNote: If the compiler is a cross-compiler then configure will fail unless --enable-cross-compile is used. Will try to inspect further and continue to configure with --enable-cross-compile as a fallback.\n"
+    USE_CROSS_COMPILE=true
+else
+    echo "✅  Compiler produced an executable. Verifying runtime execution..."
+    file __ffmpeg_build_test || true
+    if ! ./__ffmpeg_build_test > /dev/null 2>&1; then
+        echo "⚠️  Execution of built test program failed — this usually means the binary can't run in this environment (possible cross-compiler, missing runtime, or wrong subsystem)."
+        USE_CROSS_COMPILE=true
+    else
+        echo "✅  Compiler executable runs fine. Proceeding with native configure."
+        USE_CROSS_COMPILE=false
+    fi
+fi
+rm -f __ffmpeg_build_test __ffmpeg_build_test.c __cc_compile.err 2>/dev/null || true
 
 # ==============================
 # Step 3: Build libjpeg-turbo
@@ -99,7 +133,8 @@ export PKG_CONFIG_PATH="${FFMPEG_INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH
 # ==============================
 echo "⚙️  Configuring FFmpeg..."
 
-./configure \
+# Create a safer wrapper: capture configure output + show ffbuild/config.log on failure
+FF_CONFIGURE_FLAGS=(
     --prefix="${FFMPEG_INSTALL_PREFIX}" \
     --arch=x86_64 \
     --target-os=mingw32 \
@@ -127,6 +162,26 @@ echo "⚙️  Configuring FFmpeg..."
     --pkg-config-flags="--static" \
     --extra-cflags="-I${FFMPEG_INSTALL_PREFIX}/include" \
     --extra-ldflags="-L${FFMPEG_INSTALL_PREFIX}/lib -lz -lbz2 -llzma -lmfx -lwinpthread -static"
+)
+
+if [ "${USE_CROSS_COMPILE:-false}" = "true" ]; then
+    echo "⚠️  Falling back to cross-compile configure (no runtime test)."
+    FF_CONFIGURE_FLAGS+=( --enable-cross-compile --cross-prefix=x86_64-w64-mingw32- )
+fi
+
+# Dump the full configure command into a file then run it — tee to capture output
+echo "Running configure: ./configure ${FF_CONFIGURE_FLAGS[*]}"
+./configure "${FF_CONFIGURE_FLAGS[@]}" 2>&1 | tee configure-output.log || {
+    echo "❌ Configure failed. Showing last 200 lines of configure-output.log"
+    tail -n 200 configure-output.log || true
+    echo "Showing ffbuild/config.log (if present) — this file gives the precise reason configure failed"
+    if [ -f ffbuild/config.log ]; then
+        tail -n 200 ffbuild/config.log
+    else
+        echo "ffbuild/config.log not present"
+    fi
+    exit 1
+}
 
 # ==============================
 # Step 6: Build and install
