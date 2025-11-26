@@ -522,7 +522,7 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
                         qCWarning(log_core_serial) << "Failed to send reset command after reconfiguration";
                     }
                 } else {
-                    qCWarning(log_core_serial) << "Failed to reconfigure HID chip with mode:" << mode;
+                    qCWarning(log_core_serial) << "Failed to reconfigure HID chip with mode:" << hostConfigMode;
                 }
             }
         }
