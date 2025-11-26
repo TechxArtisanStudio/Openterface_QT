@@ -30,6 +30,7 @@
 #include <QtMultimediaWidgets>
 #include <QDebug>
 #include <QTimer>
+#include <cmath>
 
 Q_LOGGING_CATEGORY(log_ui_video, "opf.ui.video")
 
@@ -451,49 +452,18 @@ void VideoPane::updateVideoItemTransform()
         targetItem = m_pixmapItem;
         itemRect = m_pixmapItem->boundingRect();
         // qDebug(log_ui_video) << "VideoPane: Updating FFmpeg pixmap transform";
-    } else if (m_videoItem) {
-        targetItem = m_videoItem;
-        itemRect = m_videoItem->boundingRect();
-        // qDebug() << "VideoPane: Updating Qt video item transform";
+    } else if (m_directGStreamerMode) {
+        // For GStreamer overlay mode, the Qt video item is not used; instead, ensure the overlay
+        // widget matches the viewport geometry and skip detailed QGraphics transforms.
+        if (m_overlayWidget) {
+            QRectF viewRect = viewport()->rect();
+            if (viewRect.width() > 0 && viewRect.height() > 0) {
+                m_overlayWidget->setGeometry(viewRect.toRect());
+            }
+        }
+        // Nothing further to transform; overlay handles the rendered video
+        return;
     }
-    
-    if (!targetItem) return;
-    
-    QRectF viewRect = viewport()->rect();
-    
-    if (itemRect.isEmpty() || viewRect.isEmpty()) return;
-    // qDebug() << "Updating item transform with itemRect:" << itemRect << "viewRect:" << viewRect;
-    
-    // Reset transform and position first
-    targetItem->setTransform(QTransform());
-    targetItem->setPos(0, 0);
-    
-    // Normalize the item rectangle to start from (0,0) to handle any offset in boundingRect
-    QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
-    QPointF itemOffset = itemRect.topLeft(); // Store the original offset
-    
-    if (m_scaleFactor > 1.0) {
-        // When zoomed in, return to default behavior - let the view's transform handle scaling
-        // Just position the video normally centered in the scene
-        
-        // Calculate scale to fit while maintaining aspect ratio (similar to non-zoom mode)
-        double scaleX = viewRect.width() / normalizedRect.width();
-        double scaleY = viewRect.height() / normalizedRect.height();
-        double scale = qMin(scaleX, scaleY);
-        
-        // Apply base transformation
-        QTransform transform;
-        transform.scale(scale, scale);
-        targetItem->setTransform(transform);
-        
-        // Center the item after scaling, accounting for the original offset
-        QRectF scaledRect = QRectF(0, 0, normalizedRect.width() * scale, normalizedRect.height() * scale);
-        double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * scale);
-        double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * scale);
-        targetItem->setPos(x, y);
-        
-        // qDebug() << "VideoPane: Zoomed mode - using view transform with normal item positioning";
-    } else if (m_maintainAspectRatio) {
         // Calculate scale to fit while maintaining aspect ratio
         double scaleX = viewRect.width() / normalizedRect.width();
         double scaleY = viewRect.height() / normalizedRect.height();
@@ -641,18 +611,38 @@ QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
     } else if (m_directGStreamerMode) {
         // Special handling for GStreamer mode
         QRectF viewRect = viewport()->rect();
-        double videoAspect = (double)m_originalVideoSize.width() / m_originalVideoSize.height();
-        double viewAspect = viewRect.width() / viewRect.height();
+        qDebug() << "      [getTransformed] viewRect:" << viewRect;
+
+        // Guard against invalid view or original video size
+        if (viewRect.width() <= 0 || viewRect.height() <= 0) {
+            qCWarning(log_ui_video) << "Invalid viewport size for GStreamer mapping:" << viewRect.size();
+            return QPointF(viewportPos);
+        }
+
+        int vwInt = m_originalVideoSize.width();
+        int vhInt = m_originalVideoSize.height();
+        if (vwInt <= 0 || vhInt <= 0) {
+            qCWarning(log_ui_video) << "Invalid original video size for GStreamer mapping:" << m_originalVideoSize;
+            // fallback to viewport coordinates
+            return QPointF(viewportPos);
+        }
+
+        double vw = static_cast<double>(vwInt);
+        double vh = static_cast<double>(vhInt);
+        double viewW = viewRect.width();
+        double viewH = viewRect.height();
+        double videoAspect = vw / vh;
+        double viewAspect = viewW / viewH;
         double scale;
         if (videoAspect > viewAspect) {
-            scale = viewRect.width() / m_originalVideoSize.width();
+            scale = viewW / vw;
         } else {
-            scale = viewRect.height() / m_originalVideoSize.height();
+            scale = viewH / vh;
         }
-        double scaledWidth = m_originalVideoSize.width() * scale;
-        double scaledHeight = m_originalVideoSize.height() * scale;
-        double x = (viewRect.width() - scaledWidth) / 2;
-        double y = (viewRect.height() - scaledHeight) / 2;
+        double scaledWidth = vw * scale;
+        double scaledHeight = vh * scale;
+        double x = (viewW - scaledWidth) / 2;
+        double y = (viewH - scaledHeight) / 2;
         QRectF videoRect(x, y, scaledWidth, scaledHeight);
         qDebug() << "      [videoRect] " << x << y << scaledWidth << scaledHeight;
         // Calculate itemPos manually
@@ -677,7 +667,7 @@ QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
         if (m_scaleFactor > 1.0) {
             transformedX += m_zoomOffsetCorrectionX;
             transformedY += m_zoomOffsetCorrectionY;
-            finalResult = QPointF(transformedX + m_zoomOffsetCorrectionX, transformedY + m_zoomOffsetCorrectionY);
+            finalResult = QPointF(transformedX, transformedY);
         }
         return finalResult;
     }
