@@ -32,7 +32,8 @@ DeviceManager::DeviceManager()
     
     // Start the HotplugMonitor to enable signal emission
     if (m_hotplugMonitor) {
-        m_hotplugMonitor->start(2000); // Start with 2 second interval
+        //TODO Rollback after test
+        m_hotplugMonitor->start(20000); // Start with 2 second interval
         qCDebug(log_device_manager) << "HotplugMonitor started";
     }
     
