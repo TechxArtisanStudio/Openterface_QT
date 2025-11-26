@@ -168,44 +168,14 @@ jobs:
         run: |
           mkdir ${{ runner.temp }}\build
           
-      - name: Prepare .pro File for Static Build
+      - name: Prepare CMake Build
         run: |
-          echo "Preparing static build configuration..."
-          if not exist "${{ env.SOURCE_DIR }}\openterfaceQT.pro" (
-            echo "Error: .pro file not found."
+          echo "Preparing CMake build environment..."
+          if not exist "${{ env.SOURCE_DIR }}\CMakeLists.txt" (
+            echo "Error: CMakeLists.txt not found."
             exit 1
           )
-          
-          echo "Creating static build configuration file..."
-          echo "# Static build configuration for GitHub Actions" > "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "CONFIG += static staticlib release" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "# OpenSSL static linking configuration" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "INCLUDEPATH += %OPENSSL_DIR%\include" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "# Static linking flags" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++ -I%OPENSSL_DIR%\include" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "# OpenSSL static libraries (order matters)" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "LIBS += %OPENSSL_DIR%\lib\libssl.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "LIBS += %OPENSSL_DIR%\lib\libcrypto.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "LIBS += -lws2_32 -lcrypt32 -ladvapi32 -luser32" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "# Windows subsystem" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "QMAKE_LFLAGS += -Wl,-subsystem,windows" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          
-          echo "Adding include to main .pro file..."
-          echo "" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-          echo "include(static_build.pri)" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-
-          echo "# FFmpeg static libraries and include path" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "INCLUDEPATH += %FFMPEG_INSTALL_PREFIX%\include" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "LIBS += %FFMPEG_INSTALL_PREFIX%\lib\libavcodec.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "LIBS += %FFMPEG_INSTALL_PREFIX%\lib\libavformat.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "LIBS += %FFMPEG_INSTALL_PREFIX%\lib\libavutil.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "LIBS += %FFMPEG_INSTALL_PREFIX%\lib\libswresample.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
-          echo "LIBS += %FFMPEG_INSTALL_PREFIX%\lib\libswscale.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "Using CMake project: %SOURCE_DIR%\CMakeLists.txt"
 
       - name: Prepare Driver Files
         run: |
@@ -231,47 +201,59 @@ jobs:
       - name: Build Portable Executable
         working-directory: ${{ runner.temp }}\build
         run: |
-          echo "Setting up build environment..."
-          set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;%PATH%
-          set INCLUDE=C:\Qt6\include;%OPENSSL_DIR%\include;%FFMPEG_INSTALL_PREFIX%\include;%INCLUDE%
-          set LIB=%FFMPEG_INSTALL_PREFIX%\lib;%OPENSSL_DIR%\lib;%LIB%
+          REM make sure we use the external MinGW first
+          set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;C:\msys64\usr\bin;C:\ProgramData\chocolatey\bin;%PATH%
           
-          echo "Verifying OpenSSL libraries..."
-          if not exist "%OPENSSL_DIR%\lib\libssl.a" (
-            echo "Error: libssl.a not found at %OPENSSL_DIR%\lib\libssl.a"
-            exit 1
+          echo "Configuring with CMake using vcpkg toolchain and explicit compiler paths..."
+          cmake -G "Ninja" ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" ^
+            -DVCPKG_TARGET_TRIPLET="x64-mingw-static" ^
+            -DCMAKE_PREFIX_PATH="C:/Qt6;C:/vcpkg/installed/x64-mingw-static" ^
+            -DFFMPEG_PREFIX="C:/ffmpeg-static" ^
+            -DFFMPEG_INCLUDE_DIR="C:/ffmpeg-static/include" ^
+            -DFFMPEG_LIBRARIES="C:/ffmpeg-static/lib/libavcodec.a;C:/ffmpeg-static/lib/libavformat.a;C:/ffmpeg-static/lib/libavutil.a;C:/ffmpeg-static/lib/libswscale.a;C:/ffmpeg-static/lib/libswresample.a" ^
+            -DZLIB_LIBRARY="C:/vcpkg/installed/x64-mingw-static/lib/libz.a" ^
+            -DOPENTERFACE_BUILD_STATIC=ON ^
+            -DCMAKE_C_COMPILER="%EXTERNAL_MINGW%\bin\gcc.exe" ^
+            -DCMAKE_CXX_COMPILER="%EXTERNAL_MINGW%\bin\g++.exe" ^
+            -DCMAKE_RC_COMPILER="%EXTERNAL_MINGW%\bin\windres.exe" ^
+            "%SOURCE_DIR%"
+
+          echo "Building..."
+          cmake --build . --config Release -- -j2
+
+          REM find the built EXE (search recursively)
+          for /f "delims=" %%F in ('dir /s /b openterfaceQT.exe 2^>nul') do set "EXE=%%F"
+          if not defined EXE (
+            echo "Build failed: openterfaceQT.exe not found"
+            dir /s /b .
+            exit /b 1
           )
-          if not exist "%OPENSSL_DIR%\lib\libcrypto.a" (
-            echo "Error: libcrypto.a not found at %OPENSSL_DIR%\lib\libcrypto.a"
-            exit 1
+          echo "Found EXE at %EXE%"
+
+          REM verify no DLL dependencies (shouldn't find system dlls for a static build)
+          C:\msys64\usr\bin\objdump.exe -p "%EXE%" | [grep.exe](http://_vscodecontentref_/0) -i "dll" && (
+            echo "ERROR: Found DLL dependencies!" && exit /b 1
+          ) || (
+            echo "OK: No DLL dependencies detected."
           )
-          
-          echo "Checking Qt configuration..."
-          C:\Qt6\bin\qmake -query
-          
-          echo "Building with qmake..."
-          qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" CONFIG+=release || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
-          
-          echo "Building with mingw32-make..."
-          set MINGW_STATIC_BUILD=1
-          mingw32-make VERBOSE=1 -j2 || (echo "mingw32-make failed. Please check the build configuration." && exit 1)
-          set ERRORLEVEL=0
-          
-          if not exist release\openterfaceQT.exe (
-            echo "Error: Failed to build openterfaceQT.exe"
-            exit 1
+
+          REM strip debug symbols
+          C:\msys64\usr\bin\strip.exe -s "%EXE%"
+
+          REM create package dir, install to known location
+          md package 2>nul || echo "package dir exists"
+          cmake --install . --config Release --prefix package
+
+          REM copy packaged EXE into final name
+          for /f "delims=" %%F in ('dir /s /b package\*openterfaceQT*.exe 2^>nul') do set "PACKED_EXE=%%F"
+          if not defined PACKED_EXE (
+            echo "Packaged EXE not present, falling back to %EXE% copy"
+            copy "%EXE%" package\openterfaceQT-portable.exe
+          ) else (
+            copy "%PACKED_EXE%" package\openterfaceQT-portable.exe
           )
-        
-          echo "Verifying executable dependencies..."
-          echo "Checking if the executable is truly static..."
-          objdump -p release\openterfaceQT.exe | findstr -i "dll" || echo "No external DLL dependencies found (good for static build)"
-        
-          echo "Stripping debug symbols from executable..."
-          strip -s release\openterfaceQT.exe || (echo "Failed to strip debug symbols" && exit 1)
-          
-          echo "Creating portable package..."
-          mkdir package
-          copy release\openterfaceQT.exe package\openterfaceQT-portable.exe
 
       - name: Save build artifact
         uses: actions/upload-artifact@v4
