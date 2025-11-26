@@ -948,12 +948,6 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     if (openResult) {
         qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate;
         serialPort->setRequestToSend(false);
-        
-        // Set read buffer size to 60 bytes (advisory, OS dependent)
-        constexpr qint64 READ_BUFFER_SIZE = 60;
-        serialPort->setReadBufferSize(READ_BUFFER_SIZE);
-        qCDebug(log_core_serial) << "Set serial read buffer size to" << READ_BUFFER_SIZE;
-        
 
         // Clear any stale data in the serial port buffers to prevent data corruption
         // This is critical when device is unplugged and replugged
