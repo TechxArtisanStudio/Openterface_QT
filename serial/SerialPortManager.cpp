@@ -1129,18 +1129,10 @@ void SerialPortManager::readData() {
         // Validate packet header before processing
         // All valid packets should start with 0x57 0xAB
         if (completeData[0] != 0x57 || static_cast<unsigned char>(completeData[1]) != 0xAB) {
-            qCWarning(log_core_serial) << "Invalid packet header detected - expected 0x57 0xAB, got:" 
-                                       << QString("0x%1 0x%2").arg(static_cast<unsigned char>(completeData[0]), 2, 16, QChar('0'))
-                                                               .arg(static_cast<unsigned char>(completeData[1]), 2, 16, QChar('0'))
-                                       << "Full data:" << completeData.toHex(' ');
-            
-            // Clear the buffer to prevent cascading errors
-            {
-                QMutexLocker bufferLocker(&m_bufferMutex);
-                m_incompleteDataBuffer.clear();
+            if (!resyncAndAlignHeader(completeData)) {
+                // Either buffered or dropped; wait for next readability event
+                return;
             }
-            m_consecutiveErrors++;
-            return;
         }
         
         // Reset consecutive errors on successful data read
@@ -2191,4 +2183,62 @@ void SerialPortManager::stopConnectionWatchdog()
     if (m_errorRecoveryTimer) {
         m_errorRecoveryTimer->stop();
     }
+}
+
+// Attempt to resynchronize the buffer to the next valid header sequence (0x57 0xAB).
+// If resynchronization succeeds and completeData contains at least the minimal packet length,
+// return true. Otherwise update m_incompleteDataBuffer accordingly and return false.
+bool SerialPortManager::resyncAndAlignHeader(QByteArray &completeData)
+{
+    // Confirm we don't already have a valid header
+    if (!completeData.isEmpty() && completeData.size() >= 2 &&
+        static_cast<unsigned char>(completeData[0]) == 0x57 &&
+        static_cast<unsigned char>(completeData[1]) == 0xAB) {
+        return true;
+    }
+
+    // Find the next valid header 0x57 0xAB within the buffer
+    int headerIndex = -1;
+    for (int i = 0; i + 1 < completeData.size(); ++i) {
+        if (static_cast<unsigned char>(completeData[i]) == 0x57 &&
+            static_cast<unsigned char>(completeData[i + 1]) == 0xAB) {
+            headerIndex = i;
+            break;
+        }
+    }
+
+    if (headerIndex == -1) {
+        // No header found: keep trailing 0x57 if present as probable partial header
+        QByteArray keep;
+        if (!completeData.isEmpty() && static_cast<unsigned char>(completeData.back()) == 0x57) {
+            keep = QByteArray(1, char(0x57));
+            qCWarning(log_core_serial) << "No valid header found. Keeping trailing 0x57 byte and dropping rest. Full data:" << completeData.toHex(' ');
+        } else {
+            qCWarning(log_core_serial) << "No valid header found. Dropping data:" << completeData.toHex(' ');
+        }
+        {
+            QMutexLocker bufferLocker(&m_bufferMutex);
+            m_incompleteDataBuffer = keep;
+        }
+        m_consecutiveErrors++;
+        return false;
+    }
+
+    // Found a header at some offset, drop everything before it
+    if (headerIndex > 0) {
+        qCWarning(log_core_serial) << "Skipping" << headerIndex << "bytes before valid header. Dropped:" << completeData.left(headerIndex).toHex(' ')
+                                   << "Remaining:" << completeData.mid(headerIndex).toHex(' ');
+    }
+
+    completeData = completeData.mid(headerIndex);
+
+    // If not enough bytes remain to be a valid minimal packet, buffer and wait
+    if (completeData.size() < 6) {
+        QMutexLocker bufferLocker(&m_bufferMutex);
+        m_incompleteDataBuffer = completeData;
+        qCDebug(log_core_serial) << "Buffered incomplete header after resync. Size:" << completeData.size() << "Data:" << completeData.toHex(' ');
+        return false;
+    }
+
+    return true;
 }

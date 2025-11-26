@@ -253,6 +253,10 @@ private:
     
     // Enhanced error handling
     void handleSerialError(QSerialPort::SerialPortError error);
+    // Attempt to resynchronize the buffer to the next valid header sequence (0x57 0xAB).
+    // If resynchronization succeeds and completeData contains at least the minimal packet length,
+    // return true. Otherwise update m_incompleteDataBuffer accordingly and return false.
+    bool resyncAndAlignHeader(QByteArray &completeData);
     void attemptRecovery();
     void resetErrorCounters();
     bool isRecoveryNeeded() const;
