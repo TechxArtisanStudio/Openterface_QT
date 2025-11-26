@@ -229,7 +229,7 @@ private:
     std::atomic<int> m_errorCount = 0;
     QElapsedTimer m_errorTrackingTimer;
     bool m_errorHandlerDisconnected = false;
-    static const int MAX_ERRORS_PER_SECOND = 5;
+    static const int MAX_ERRORS_PER_SECOND = 10;
     
     // Data buffering for incomplete packets
     QByteArray m_incompleteDataBuffer;
