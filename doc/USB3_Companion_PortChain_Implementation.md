@@ -3,7 +3,7 @@
 ## Problem Solved
 
 Previously, when USB 3.0 Openterface devices connected, they created two separate PortChains:
-1. **Serial PortChain** (e.g., "1-1") - Contains serial port device (1A86:CH32V208)
+1. **Serial PortChain** (e.g., "1-1") - Contains serial port device (1A86:FE0C)
 2. **Composite PortChain** (e.g., "1-18") - Contains camera, HID, and audio devices (345F:2132)
 
 This caused device switching to fail when only the serial PortChain was visible, as composite devices couldn't be located.

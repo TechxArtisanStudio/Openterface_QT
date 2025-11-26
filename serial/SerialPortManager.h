@@ -47,7 +47,7 @@ class DeviceInfo;
 enum class ChipType {
     UNKNOWN = 0,
     CH9329,     // 1A86:7523 - Supports both 9600 and 115200, requires commands for baudrate switching and reset
-    CH32V208        // 1A86:CH32V208 - Only supports 115200, uses simple close/reopen for baudrate changes
+    CH32V208        // 1A86:FE0C - Only supports 115200, uses simple close/reopen for baudrate changes
 };
 
 class SerialPortManager : public QObject

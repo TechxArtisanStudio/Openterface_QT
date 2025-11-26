@@ -1792,7 +1792,7 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
     
     qCDebug(log_device_windows) << "Starting optimized device discovery for USB 2.0/3.0 compatibility...";
     qCDebug(log_device_windows) << "Looking for Original generation: 1A86:7523 (USB 2.0/3.0 with Gen1 method)";
-    qCDebug(log_device_windows) << "Looking for New generation USB 2.0: 1A86:CH32V208 (USB 2.0 with Gen1 method)";
+    qCDebug(log_device_windows) << "Looking for New generation USB 2.0: 1A86:FE0C (USB 2.0 with Gen1 method)";
     qCDebug(log_device_windows) << "Looking for New generation USB 3.0: 345F:2132 (USB 3.0 with Gen2 method)";
     qCDebug(log_device_windows) << "Looking for V3 generation USB 3.0: 345F:2109 (USB 3.0 with Gen2 method)";
     
@@ -1839,7 +1839,7 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
     
     // Phase 2: Search for New generation USB 2.0 devices (VID_1A86&PID_CH32V208)
     // These behave like original generation when on USB 2.0 (use Generation 1 method)
-    qCDebug(log_device_windows) << "=== Phase 2: Searching for New generation USB 2.0 devices (1A86:CH32V208) ===";
+    qCDebug(log_device_windows) << "=== Phase 2: Searching for New generation USB 2.0 devices (1A86:FE0C) ===";
     QList<USBDeviceData> newGen2Devices = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::SERIAL_VID_V2, AbstractPlatformDeviceManager::SERIAL_PID_V2);
     qCDebug(log_device_windows) << "Found" << newGen2Devices.size() << "New generation USB 2.0 devices";
     
@@ -1886,7 +1886,7 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
     
     // Phase 3: Search for New generation USB 3.0 integrated devices (VID_345F&PID_2132)  
     // These are integrated devices that contain camera, HID, and audio interfaces
-    // The serial port is separate (1A86:CH32V208) and connected via CompanionPortChain
+    // The serial port is separate (1A86:FE0C) and connected via CompanionPortChain
     qCDebug(log_device_windows) << "=== Phase 3: Searching for New generation USB 3.0 integrated devices (345F:2132) ===";
     QList<USBDeviceData> integratedDevices = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::OPENTERFACE_VID_V2, AbstractPlatformDeviceManager::OPENTERFACE_PID_V2);
     qCDebug(log_device_windows) << "Found" << integratedDevices.size() << "integrated devices (345F:2132)";
@@ -1988,7 +1988,7 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
     
     // Phase 3B: Search for V3 generation USB 3.0 integrated devices (VID_345F&PID_2109)  
     // These are integrated devices that contain camera, HID, and audio interfaces
-    // The serial port is separate (1A86:CH32V208) and connected via CompanionPortChain
+    // The serial port is separate (1A86:FE0C) and connected via CompanionPortChain
     qCDebug(log_device_windows) << "=== Phase 3B: Searching for V3 generation USB 3.0 integrated devices (345F:2109) ===";
     QList<USBDeviceData> v3IntegratedDevices = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::OPENTERFACE_VID_V3, AbstractPlatformDeviceManager::OPENTERFACE_PID_V3);
     qCDebug(log_device_windows) << "Found" << v3IntegratedDevices.size() << "V3 integrated devices (345F:2109)";
@@ -2331,12 +2331,12 @@ void WindowsDeviceManager::processGeneration1SerialInterface(DeviceInfo& deviceI
         }
     }
     
-    // Also check for Generation 2 serial devices (1A86:CH32V208) in siblings
+    // Also check for Generation 2 serial devices (1A86:FE0C) in siblings
     for (const QVariantMap& sibling : deviceData.siblings) {
         QString hardwareId = sibling["hardwareId"].toString();
         QString deviceId = sibling["deviceId"].toString();
         
-        // Check if this sibling is a Gen2 serial port (1A86:CH32V208)
+        // Check if this sibling is a Gen2 serial port (1A86:FE0C)
         if (hardwareId.toUpper().contains(AbstractPlatformDeviceManager::SERIAL_VID_V2.toUpper()) &&
             hardwareId.toUpper().contains(AbstractPlatformDeviceManager::SERIAL_PID_V2.toUpper())) {
             deviceInfo.serialPortId = deviceId;
@@ -2431,7 +2431,7 @@ QString WindowsDeviceManager::findSerialPortForPortChain(const QString& portChai
 {
     qCDebug(log_device_windows) << "Searching for serial port associated with port chain:" << portChain;
     
-    // Try Generation 2 approach first - look for 1A86:CH32V208 devices
+    // Try Generation 2 approach first - look for 1A86:FE0C devices
     QList<USBDeviceData> serialDevicesV2 = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::SERIAL_VID_V2, AbstractPlatformDeviceManager::SERIAL_PID_V2);
     for (const USBDeviceData& serialDevice : serialDevicesV2) {
         if (arePortChainsRelated(portChain, serialDevice.portChain)) {
@@ -2508,7 +2508,7 @@ QString WindowsDeviceManager::findSerialPortByCompanionDevice(const USBDeviceDat
     
     // For Generation 2, the topology is:
     // USB Hub (General-purpose) -> contains both:
-    //   1. Serial device (1A86:CH32V208) 
+    //   1. Serial device (1A86:FE0C) 
     //   2. Companion device (345F:2130) - this is the Openterface device with camera/audio/HID
     
     // Find the parent hub of the companion device
@@ -2520,7 +2520,7 @@ QString WindowsDeviceManager::findSerialPortByCompanionDevice(const USBDeviceDat
     QString expectedSerialHubPort = calculateExpectedSerialHubPort(companionHubPort);
     qCDebug(log_device_windows) << "Expected serial hub port:" << expectedSerialHubPort;
     
-    // Find all serial devices with the V2 VID/PID (1A86:CH32V208)
+    // Find all serial devices with the V2 VID/PID (1A86:FE0C)
     QList<USBDeviceData> serialDevices = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::SERIAL_VID_V2, AbstractPlatformDeviceManager::SERIAL_PID_V2);
     qCDebug(log_device_windows) << "Found" << serialDevices.size() << "serial devices with VID/PID" << AbstractPlatformDeviceManager::SERIAL_VID_V2 << "/" << AbstractPlatformDeviceManager::SERIAL_PID_V2;
     
@@ -2833,12 +2833,12 @@ QString WindowsDeviceManager::findSerialPortByIntegratedDevice(const USBDeviceDa
     qCDebug(log_device_windows) << "  Integrated device ID:" << integratedDevice.deviceInstanceId;
     
     // For the integrated device approach:
-    // The integrated device (345F:2132) is at a different port chain than the serial port (1A86:CH32V208)
+    // The integrated device (345F:2132) is at a different port chain than the serial port (1A86:FE0C)
     // We need to find serial ports that have a CompanionPortChain relationship
     
-    // Find all serial devices with VID/PID 1A86:CH32V208
+    // Find all serial devices with VID/PID 1A86:FE0C
     QList<USBDeviceData> serialDevices = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::SERIAL_VID_V2, AbstractPlatformDeviceManager::SERIAL_PID_V2);
-    qCDebug(log_device_windows) << "Found" << serialDevices.size() << "serial devices (1A86:CH32V208)";
+    qCDebug(log_device_windows) << "Found" << serialDevices.size() << "serial devices (1A86:FE0C)";
     
     for (const USBDeviceData& serialDevice : serialDevices) {
         qCDebug(log_device_windows) << "  Checking serial device at port chain:" << serialDevice.portChain;

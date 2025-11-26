@@ -1737,7 +1737,7 @@ void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
                 QString vid = QString("%1").arg(portInfo.vendorIdentifier(), 4, 16, QChar('0')).toUpper();
                 QString pid = QString("%1").arg(portInfo.productIdentifier(), 4, 16, QChar('0')).toUpper();
                 
-                if (vid == "1A86" && pid == "CH32V208") {
+                if (vid == "1A86" && pid == "FE0C") {
                     if (baudRate != BAUDRATE_HIGHSPEED) {
                         qCWarning(log_core_serial) << "CH32V208 chip only supports 115200 baudrate. Ignoring user request for" << baudRate;
                         if (eventCallback) {
@@ -1833,7 +1833,7 @@ ChipType SerialPortManager::detectChipType(const QString &portName) const
             qCDebug(log_core_serial) << "Detected VID:PID =" << vid << ":" << pid << "for port" << portName;
             
             if (vid == "1A86") {
-                if (pid == "CH32V208") {
+                if (pid == "FE0C") {
                     qCInfo(log_core_serial) << "Detected CH32V208 chip - only supports 115200 baudrate, no command-based configuration";
                     return ChipType::CH32V208;
                 } else if (pid == "7523") {

@@ -529,7 +529,7 @@ QList<DeviceInfo> LinuxDeviceManager::discoverGeneration2DevicesLinux()
         qCDebug(log_device_linux) << "  Companion device:" << dev.syspath << "port:" << dev.portChain;
     }
     
-    // Find USB devices with serial VID/PID (1A86:CH32V208)
+    // Find USB devices with serial VID/PID (1A86:FE0C)
     QList<UdevDeviceData> serialDevices = findUdevDevicesByVidPid("usb", 
         AbstractPlatformDeviceManager::SERIAL_VID_V2, 
         AbstractPlatformDeviceManager::SERIAL_PID_V2);
@@ -584,7 +584,7 @@ QList<DeviceInfo> LinuxDeviceManager::discoverGeneration3DevicesLinux()
     
     qCDebug(log_device_linux) << "Discovering Generation 3 devices (V3 VID/PID approach)...";
     qCDebug(log_device_linux) << "Looking for V3 companion devices with VID/PID 345F:2109";
-    qCDebug(log_device_linux) << "Associated serial devices should have VID/PID 1A86:CH32V208";
+    qCDebug(log_device_linux) << "Associated serial devices should have VID/PID 1A86:FE0C";
     
     // Find USB devices with V3 companion VID/PID (345F:2109)
     QList<UdevDeviceData> companionUsbDevices = findUdevDevicesByVidPid("usb", 
@@ -595,7 +595,7 @@ QList<DeviceInfo> LinuxDeviceManager::discoverGeneration3DevicesLinux()
         qCDebug(log_device_linux) << "  V3 Companion device:" << dev.syspath << "port:" << dev.portChain;
     }
     
-    // Find USB devices with serial VID/PID (1A86:CH32V208) - same as Gen2
+    // Find USB devices with serial VID/PID (1A86:FE0C) - same as Gen2
     QList<UdevDeviceData> serialDevices = findUdevDevicesByVidPid("usb", 
         AbstractPlatformDeviceManager::SERIAL_VID_V3, 
         AbstractPlatformDeviceManager::SERIAL_PID_V3);
@@ -917,7 +917,7 @@ QString LinuxDeviceManager::findSerialPortByCompanionDeviceLinux(const UdevDevic
     
     // For Generation 2, the topology is:
     // USB Hub (General-purpose) -> contains both:
-    //   1. Serial device (1A86:CH32V208) 
+    //   1. Serial device (1A86:FE0C) 
     //   2. Companion device (345F:2130) - this is the Openterface device with camera/audio/HID
     
     // Find the parent hub of the companion device
@@ -931,7 +931,7 @@ QString LinuxDeviceManager::findSerialPortByCompanionDeviceLinux(const UdevDevic
     
     for (const UdevDeviceData& serialDevice : serialDevices) {
         // For Generation 2, we need to get the actual USB device port chain
-        // The serialDevice.portChain comes from the USB device with VID/PID 1A86:CH32V208
+        // The serialDevice.portChain comes from the USB device with VID/PID 1A86:FE0C
         QString serialPortChain = serialDevice.portChain;
         QString serialHubPort = extractHubPortFromDevicePortLinux(serialPortChain);
         
