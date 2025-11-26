@@ -1,24 +1,23 @@
 @echo off
 REM ============================================================================
 REM Static FFmpeg Build Script for Windows using MSYS2
-REM ============================================================================
-REM This script builds FFmpeg with static libraries for Windows
-REM Prerequisites: MSYS2 installed (default location: C:\msys64)
+REM Now uses an external MinGW (default C:\mingw64) for building; MSYS2 only manages dependencies
 REM ============================================================================
 
 setlocal enabledelayedexpansion
 
 REM Configuration
-set MSYS2_ROOT=C:\msys64
-set FFMPEG_VERSION=6.1.1
-set LIBJPEG_TURBO_VERSION=3.0.4
-set FFMPEG_INSTALL_PREFIX=C:\ffmpeg-static
+if not defined MSYS2_ROOT set MSYS2_ROOT=C:\msys64
+if not defined EXTERNAL_MINGW set EXTERNAL_MINGW=C:\mingw64
+if not defined FFMPEG_VERSION set FFMPEG_VERSION=6.1.1
+if not defined LIBJPEG_TURBO_VERSION set LIBJPEG_TURBO_VERSION=3.0.4
+if not defined FFMPEG_INSTALL_PREFIX set FFMPEG_INSTALL_PREFIX=C:\ffmpeg-static
 set BUILD_DIR=%cd%\ffmpeg-build-temp
 set SCRIPT_DIR=%~dp0
 
 REM Colors for output (Windows console codes)
 echo [92m============================================================================[0m
-echo [92mFFmpeg Static Build Script for Windows[0m
+echo [92mFFmpeg Static Build Script for Windows (using external MinGW)[0m
 echo [92m============================================================================[0m
 
 REM Check if MSYS2 is installed
@@ -29,7 +28,15 @@ if not exist "%MSYS2_ROOT%\msys2_shell.cmd" (
     exit /b 1
 )
 
+REM Check external MinGW
+if not exist "%EXTERNAL_MINGW%\bin\gcc.exe" (
+    echo [91mError: External MinGW not found at %EXTERNAL_MINGW%[0m
+    echo Please install MinGW-w64 (or update the EXTERNAL_MINGW variable) to point to your toolchain.
+    exit /b 1
+)
+
 echo [92mFound MSYS2 at: %MSYS2_ROOT%[0m
+echo [92mFound external MinGW at: %EXTERNAL_MINGW%[0m
 
 REM Check if build script exists
 if not exist "%SCRIPT_DIR%build-static-ffmpeg-windows.sh" (
@@ -37,18 +44,27 @@ if not exist "%SCRIPT_DIR%build-static-ffmpeg-windows.sh" (
     exit /b 1
 )
 
-REM Convert Windows path to MSYS2 path format (C:\path\to -> /c/path/to)
+REM Convert Windows paths to MSYS2 path format (C:\path\to -> /c/path/to)
 set SCRIPT_PATH=%SCRIPT_DIR%build-static-ffmpeg-windows.sh
 set SCRIPT_PATH_MSYS=%SCRIPT_PATH:\=/%
 set SCRIPT_PATH_MSYS=%SCRIPT_PATH_MSYS::=%
 set SCRIPT_PATH_MSYS=/%SCRIPT_PATH_MSYS%
 
-echo [92mLaunching MSYS2 MinGW64 environment...[0m
+set EXTERNAL_MINGW_MSYS=%EXTERNAL_MINGW:\=/%
+set EXTERNAL_MINGW_MSYS=%EXTERNAL_MINGW_MSYS::=%
+set EXTERNAL_MINGW_MSYS=/%EXTERNAL_MINGW_MSYS%
+
+set FFMPEG_INSTALL_PREFIX_MSYS=%FFMPEG_INSTALL_PREFIX:\=/%
+set FFMPEG_INSTALL_PREFIX_MSYS=%FFMPEG_INSTALL_PREFIX_MSYS::=%
+set FFMPEG_INSTALL_PREFIX_MSYS=/%FFMPEG_INSTALL_PREFIX_MSYS%
+
+echo [92mLaunching MSYS2 (MSYS) environment...[0m
+echo [93mUsing external MinGW: %EXTERNAL_MINGW%[0m
 echo [93mThis will take some time (30-60 minutes depending on your system)[0m
 echo.
 
-REM Launch MSYS2 MinGW64 shell and run the build script
-"%MSYS2_ROOT%\msys2_shell.cmd" -mingw64 -defterm -no-start -here -c "bash '%SCRIPT_PATH_MSYS%'"
+REM Launch MSYS2 MSYS shell and run the build script while exporting the external MinGW path
+"%MSYS2_ROOT%\msys2_shell.cmd" -msys -defterm -no-start -here -c "bash -lc \"export EXTERNAL_MINGW=%EXTERNAL_MINGW_MSYS%; export FFMPEG_INSTALL_PREFIX=%FFMPEG_INSTALL_PREFIX_MSYS%; export FFMPEG_VERSION=%FFMPEG_VERSION%; export LIBJPEG_TURBO_VERSION=%LIBJPEG_TURBO_VERSION%; bash '%SCRIPT_PATH_MSYS%'\""
 
 if %errorlevel% equ 0 (
     echo.

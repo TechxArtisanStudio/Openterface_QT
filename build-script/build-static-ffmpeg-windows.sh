@@ -8,10 +8,10 @@
 set -e  # Exit on error
 set -u  # Exit on undefined variable
 
-# Configuration
-FFMPEG_VERSION="6.1.1"
-LIBJPEG_TURBO_VERSION="3.0.4"
-FFMPEG_INSTALL_PREFIX="/c/ffmpeg-static"
+# Configuration (allow overriding via environment variables)
+FFMPEG_VERSION="${FFMPEG_VERSION:-6.1.1}"
+LIBJPEG_TURBO_VERSION="${LIBJPEG_TURBO_VERSION:-3.0.4}"
+FFMPEG_INSTALL_PREFIX="${FFMPEG_INSTALL_PREFIX:-/c/ffmpeg-static}"
 BUILD_DIR="$(pwd)/ffmpeg-build-temp"
 DOWNLOAD_URL="https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2"
 LIBJPEG_TURBO_URL="https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/${LIBJPEG_TURBO_VERSION}.tar.gz"
@@ -38,24 +38,47 @@ echo "This may take a while on first run..."
 pacman -Sy --noconfirm
 
 # Install build tools and dependencies
-pacman -S --needed --noconfirm \
-    mingw-w64-x86_64-gcc \
-    mingw-w64-x86_64-binutils \
-    mingw-w64-x86_64-nasm \
-    mingw-w64-x86_64-yasm \
-    mingw-w64-x86_64-pkgconf \
-    mingw-w64-x86_64-cmake \
-    mingw-w64-x86_64-ffnvcodec-headers \
-    mingw-w64-x86_64-libmfx \
-    mingw-w64-x86_64-zlib \
-    mingw-w64-x86_64-bzip2 \
-    mingw-w64-x86_64-xz \
-    make \
-    diffutils \
-    tar \
-    bzip2 \
-    wget \
-    git
+if [ -n "${EXTERNAL_MINGW:-}" ]; then
+    echo "EXTERNAL_MINGW is set: ${EXTERNAL_MINGW}"
+    # If an external MinGW is provided, we still use pacman for MSYS packages
+    # but avoid installing mingw-w64 GCC/Toolchain to prevent conflicts
+    pacman -S --needed --noconfirm \
+        mingw-w64-x86_64-nasm \
+        mingw-w64-x86_64-yasm \
+        mingw-w64-x86_64-pkgconf \
+        mingw-w64-x86_64-cmake \
+        mingw-w64-x86_64-ffnvcodec-headers \
+        mingw-w64-x86_64-libmfx \
+        mingw-w64-x86_64-zlib \
+        mingw-w64-x86_64-bzip2 \
+        mingw-w64-x86_64-xz \
+        make \
+        diffutils \
+        tar \
+        bzip2 \
+        wget \
+        git
+else
+    pacman -S --needed --noconfirm \
+        mingw-w64-x86_64-gcc \
+        mingw-w64-x86_64-binutils \
+        mingw-w64-x86_64-nasm \
+        mingw-w64-x86_64-yasm \
+        mingw-w64-x86_64-pkgconf \
+        mingw-w64-x86_64-cmake \
+        mingw-w64-x86_64-ffnvcodec-headers \
+        mingw-w64-x86_64-libmfx \
+        mingw-w64-x86_64-zlib \
+        mingw-w64-x86_64-bzip2 \
+        mingw-w64-x86_64-xz \
+        make \
+        diffutils \
+        tar \
+        bzip2 \
+        wget \
+        git
+fi
+ 
 
 echo "✓ Dependencies installed"
 echo ""
@@ -122,6 +145,33 @@ echo ""
 
 # Verify cross-compilation tools are available
 echo "Verifying MinGW64 toolchain..."
+# If an external MinGW path is provided, convert Windows path to MSYS path if necessary
+if [ -n "${EXTERNAL_MINGW:-}" ]; then
+    # EXTERNAL_MINGW should be a MSYS path like /c/mingw64 or a Windows path like C:\mingw64
+    EXTERNAL_MINGW_MSYS="$EXTERNAL_MINGW"
+    # convert C:\... to /c/... if found
+    if echo "$EXTERNAL_MINGW_MSYS" | grep -E '^[A-Za-z]:\\|^[A-Za-z]:/' >/dev/null 2>&1; then
+        # Convert Windows-style path like C:\mingw64 or C:/mingw64 to MSYS path: /c/mingw64
+        EXTERNAL_MINGW_MSYS=$(echo "$EXTERNAL_MINGW_MSYS" | sed -E 's#^([A-Za-z]):[\\/]+#/\1/#; s#\\#/#g')
+        # Lowercase the drive letter to follow MSYS style (/c/...)
+        first_char=$(echo "${EXTERNAL_MINGW_MSYS:1:1}" | tr '[:upper:]' '[:lower:]')
+        EXTERNAL_MINGW_MSYS="/${first_char}${EXTERNAL_MINGW_MSYS:2}"
+    fi
+    echo "Using external MinGW (MSYS path): ${EXTERNAL_MINGW_MSYS}"
+    export PATH="${EXTERNAL_MINGW_MSYS}/bin:$PATH"
+    export CC="${EXTERNAL_MINGW_MSYS}/bin/gcc"
+    export CXX="${EXTERNAL_MINGW_MSYS}/bin/g++"
+    export AR="${EXTERNAL_MINGW_MSYS}/bin/ar"
+    export LD="${EXTERNAL_MINGW_MSYS}/bin/ld"
+    export STRIP="${EXTERNAL_MINGW_MSYS}/bin/strip"
+    export PKG_CONFIG_PATH="${EXTERNAL_MINGW_MSYS}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+fi
+echo "Using EXTERNAL_MINGW: ${EXTERNAL_MINGW_MSYS:-not set}"
+echo "Using CC: ${CC:-$(which gcc 2>/dev/null || echo 'not found')}"
+echo "Using CXX: ${CXX:-$(which g++ 2>/dev/null || echo 'not found')}"
+echo "Using AR: ${AR:-$(which ar 2>/dev/null || echo 'not found')}"
+echo "Using LD: ${LD:-$(which ld 2>/dev/null || echo 'not found')}"
+echo "Using STRIP: ${STRIP:-$(which strip 2>/dev/null || echo 'not found')}"
 which gcc
 which nm
 which ar
@@ -187,7 +237,14 @@ echo "Step 6/8: Configuring FFmpeg for static build..."
 echo "This may take a few minutes..."
 echo ""
 
-# Set PKG_CONFIG_PATH to find libjpeg-turbo
+# Convert FFMPEG_INSTALL_PREFIX from Windows style (C:\path) to MSYS style (/c/path) if necessary
+if echo "$FFMPEG_INSTALL_PREFIX" | grep -E '^[A-Za-z]:\\|^[A-Za-z]:/' >/dev/null 2>&1; then
+    FFMPEG_INSTALL_PREFIX_MSYS="$FFMPEG_INSTALL_PREFIX"
+    FFMPEG_INSTALL_PREFIX_MSYS=$(echo "$FFMPEG_INSTALL_PREFIX_MSYS" | sed -E 's#^([A-Za-z]):[\\/]+#/\1/#; s#\\#/#g')
+    first_char=$(echo "${FFMPEG_INSTALL_PREFIX_MSYS:1:1}" | tr '[:upper:]' '[:lower:]')
+    FFMPEG_INSTALL_PREFIX_MSYS="/${first_char}${FFMPEG_INSTALL_PREFIX_MSYS:2}"
+    FFMPEG_INSTALL_PREFIX="$FFMPEG_INSTALL_PREFIX_MSYS"
+fi
 export PKG_CONFIG_PATH="${FFMPEG_INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 
 ./configure \

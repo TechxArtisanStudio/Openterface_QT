@@ -19,6 +19,9 @@ env:
   ORGANIZATION_NAME: "TechxArtisan"
   VCPKG_DIR: C:\vcpkg
   OPENSSL_DIR: C:\vcpkg\installed\x64-mingw-static
+  MSYS2_DIR: C:\msys64
+  EXTERNAL_MINGW: C:\mingw64
+  FFMPEG_INSTALL_PREFIX: C:\ffmpeg-static
 
 jobs:
   build:
@@ -42,7 +45,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            C:\mingw64
+            ${{ env.EXTERNAL_MINGW }}
             C:\ProgramData\chocolatey\lib\ninja
           key: mingw-ninja-windows-static
           restore-keys: |
@@ -57,6 +60,15 @@ jobs:
           restore-keys: |
             vcpkg-mingw-static-openssl-v2
 
+      - name: Cache FFmpeg build
+        id: cache-ffmpeg
+        uses: actions/cache@v3
+        with:
+          path: C:\ffmpeg-static
+          key: ffmpeg-static-6.1.1
+          restore-keys: |
+            ffmpeg-static-6.1.1
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -70,12 +82,22 @@ jobs:
     
           echo "Downloading pre-compiled static build of MinGW-w64"
           curl -L -o mingw-w64.zip https://sourceforge.net/projects/mingw-w64/files/latest/download
-          mkdir C:\mingw64
-          tar -xf mingw-w64.zip -C C:\mingw64 --strip-components=1
+          mkdir %EXTERNAL_MINGW%
+          tar -xf mingw-w64.zip -C %EXTERNAL_MINGW% --strip-components=1
     
           echo "Setting up PATH for MinGW-w64"
-          set PATH=C:\mingw64\bin;%PATH%
+          set PATH=%EXTERNAL_MINGW%\bin;%PATH%
           g++ --version || (echo "g++ installation failed. Please check the installation." && exit 1)
+
+      - name: Install MSYS2 (for dependency management)
+        id: install-msys2
+        run: |
+          echo "Installing MSYS2 via Chocolatey"
+          choco install msys2 -y || echo "msys2 may already be installed"
+          echo "Updating PATH for MSYS2..."
+          set PATH=%MSYS2_DIR%\usr\bin;%PATH%
+          echo "Updating MSYS2 packages and installing essential build packages"
+          %MSYS2_DIR%\usr\bin\bash.exe -lc "pacman -Sy --noconfirm && pacman -S --noconfirm --needed base-devel pkg-config git make yasm nasm mingw-w64-x86_64-make mingw-w64-x86_64-pkg-config mingw-w64-x86_64-libiconv mingw-w64-x86_64-cmake mingw-w64-x86_64-libmfx mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads"
 
       - name: Install vcpkg and OpenSSL
         if: steps.cache-vcpkg.outputs.cache-hit != 'true'
@@ -113,7 +135,34 @@ jobs:
       - name: Build Qt Statically
         if: steps.cache-qt.outputs.cache-hit != 'true'
         run: |
+          echo "Setting PATH to use external MinGW: %EXTERNAL_MINGW%"
+          set PATH=%EXTERNAL_MINGW%\bin;%PATH%
           call build-script/build-static-qt-from-source.bat
+
+      - name: Build FFmpeg (static) with external MinGW
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        # Build FFmpeg as part of the workflow; use MSYS2 to handle dependencies and external MinGW for compile
+        run: |
+          echo "Preparing to build FFmpeg statically using external MinGW and MSYS2 for handling dependencies"
+          set MSYS2_ROOT=%MSYS2_DIR%
+          REM ensure EXTERNAL_MINGW value from job environment is used; no need to override
+          set EXTERNAL_MINGW=%EXTERNAL_MINGW%
+          set FFMPEG_INSTALL_PREFIX=%FFMPEG_INSTALL_PREFIX%
+          set PATH=%MSYS2_DIR%\usr\bin;%EXTERNAL_MINGW%\bin;%PATH%
+          echo "Verifying msys2 bash and external mingw versions"
+          C:\msys64\usr\bin\bash.exe -lc "gcc --version || echo 'MSYS2 gcc not present or ignored'"
+          echo "Running build script for ffmpeg"
+          call build-script\build-static-ffmpeg-windows.bat
+
+      - name: Verify FFmpeg build output
+        run: |
+          echo "Checking FFmpeg install prefix: %FFMPEG_INSTALL_PREFIX%"
+          if not exist "%FFMPEG_INSTALL_PREFIX%\lib\libavcodec.a" (
+            echo "Error: FFmpeg build failed or libavcodec.a not found"
+            dir %FFMPEG_INSTALL_PREFIX%\lib
+            exit 1
+          )
+          echo "FFmpeg libraries found in %FFMPEG_INSTALL_PREFIX%\lib"
 
       - name: Create build directory
         run: |
@@ -150,6 +199,14 @@ jobs:
           echo "" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
           echo "include(static_build.pri)" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
 
+          echo "# FFmpeg static libraries and include path" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "INCLUDEPATH += %FFMPEG_INSTALL_PREFIX%\include" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "LIBS += %FFMPEG_INSTALL_PREFIX%\lib\libavcodec.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "LIBS += %FFMPEG_INSTALL_PREFIX%\lib\libavformat.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "LIBS += %FFMPEG_INSTALL_PREFIX%\lib\libavutil.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "LIBS += %FFMPEG_INSTALL_PREFIX%\lib\libswresample.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+          echo "LIBS += %FFMPEG_INSTALL_PREFIX%\lib\libswscale.a" >> "${{ env.SOURCE_DIR }}\static_build.pri"
+
       - name: Prepare Driver Files
         run: |
           mkdir ${{ env.SOURCE_DIR }}\drivers
@@ -160,7 +217,7 @@ jobs:
         working-directory: ${{ runner.temp }}\build
         run: |
           echo "Setting up Qt tools path..."
-          set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
+          set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;%PATH%
           echo "Verifying Qt tools..."
           if not exist "C:\Qt6\bin\lupdate.exe" (
             echo "Error: lupdate.exe not found in C:\Qt6\bin"
@@ -175,9 +232,9 @@ jobs:
         working-directory: ${{ runner.temp }}\build
         run: |
           echo "Setting up build environment..."
-          set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
-          set INCLUDE=C:\Qt6\include;%OPENSSL_DIR%\include;%INCLUDE%
-          set LIB=%OPENSSL_DIR%\lib;%LIB%
+          set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;%PATH%
+          set INCLUDE=C:\Qt6\include;%OPENSSL_DIR%\include;%FFMPEG_INSTALL_PREFIX%\include;%INCLUDE%
+          set LIB=%FFMPEG_INSTALL_PREFIX%\lib;%OPENSSL_DIR%\lib;%LIB%
           
           echo "Verifying OpenSSL libraries..."
           if not exist "%OPENSSL_DIR%\lib\libssl.a" (

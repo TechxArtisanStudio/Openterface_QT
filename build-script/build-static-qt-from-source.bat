@@ -15,7 +15,7 @@ set OPENSSL_DIR=%VCPKG_DIR%\installed\x64-mingw-static
 set OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib
 set OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include
 
-set PATH=C:\ProgramData\chocolatey\bin;C:\ProgramData\chocolatey\lib\ninja\tools;C:\mingw64\bin;%PATH%
+set PATH=C:\ProgramData\chocolatey\bin;C:\ProgramData\chocolatey\lib\ninja\tools;%EXTERNAL_MINGW%\bin;%PATH%
 
 REM Check for Ninja
 where ninja >nul 2>nul
