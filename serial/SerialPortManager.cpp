@@ -591,7 +591,7 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
             openPort(portName, workingBaudrate);
             QByteArray retBtye = sendSyncCommand(CMD_GET_PARA_CFG, true);
             if(retBtye.size() > 0){
-                config = CmdDataParamConfig::fromByteArray(retBtye);
+                deviceConfig = CmdDataParamConfig::fromByteArray(retBtye);
                 qCDebug(log_core_serial) << "Connected with alternative baudrate: " << workingBaudrate;
                 connectionSuccessful = true;
                 setBaudRate(workingBaudrate);
