@@ -949,6 +949,12 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate;
         serialPort->setRequestToSend(false);
         
+        // Set read buffer size to 60 bytes (advisory, OS dependent)
+        constexpr qint64 READ_BUFFER_SIZE = 60;
+        serialPort->setReadBufferSize(READ_BUFFER_SIZE);
+        qCDebug(log_core_serial) << "Set serial read buffer size to" << READ_BUFFER_SIZE;
+        
+
         // Clear any stale data in the serial port buffers to prevent data corruption
         // This is critical when device is unplugged and replugged
         qCDebug(log_core_serial) << "Clearing serial port buffers to remove stale data";
@@ -1435,15 +1441,15 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
     
     const int totalTimeoutMs = 1000;
     const int waitStepMs = 100;
+    QThread::msleep(60); // Add 60ms delay, at least 50ms to process 60bytes for the longest CH9329 Get Parameter command
 
     while (timer.elapsed() < totalTimeoutMs && responseData.isEmpty()) {
         if (serialPort->waitForReadyRead(waitStepMs)) {
             responseData = serialPort->readAll();
-            QThread::msleep(40); // Add 40ms delay, at least 20ms to process 24bytes for the reset of CH9329 Get Parameter 2nd command
+            QThread::msleep(40); // Add 40ms delay
             // Try to get any remaining data without blocking
             while (serialPort->bytesAvailable() > 0) {
                 responseData += serialPort->readAll();
-                QThread::msleep(40); // Add 40ms delay
             }
             if (!responseData.isEmpty()) {
                 emit dataReceived(responseData);
