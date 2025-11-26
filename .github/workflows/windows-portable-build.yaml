@@ -110,11 +110,22 @@ jobs:
           set FFMPEG_INSTALL_PREFIX=%FFMPEG_INSTALL_PREFIX%
           set PATH=%MSYS2_DIR%\usr\bin;%EXTERNAL_MINGW%\bin;%PATH%
           echo "Verifying msys2 bash and external mingw versions"
-          C:\msys64\usr\bin\bash.exe -lc "export PATH=/mingw64/bin:$PATH; gcc --version || echo 'MSYS2 gcc not present or ignored'"
-          echo "Running build script for ffmpeg"
-          REM exit early if gcc not available
-          C:\msys64\usr\bin\bash.exe -lc "command -v /mingw64/bin/gcc >/dev/null 2>&1 || { echo 'Error: gcc missing in msys2 or mingw64. Install mingw toolchain or ensure PATH'; exit 1; }"
-          call build-script\build-static-ffmpeg-windows.bat
+
+          REM --> enforce Windows PATH inside MSYS2 to prefer C:\mingw64 first
+          C:\msys64\usr\bin\bash.exe -lc "export MSYS2_PATH_TYPE=inherit; export PATH=/c/mingw64/bin:$PATH; echo 'bash PATH:' $PATH; which -a gcc || true; gcc --version || echo 'gcc not available'"
+
+          echo "Running build script for ffmpeg (ensure external mingw used)"
+          REM export toolchain variables for both cmd and msys2/bash
+          set CC=%EXTERNAL_MINGW%\bin\gcc.exe
+          set CXX=%EXTERNAL_MINGW%\bin\g++.exe
+          set AR=%EXTERNAL_MINGW%\bin\ar.exe
+          set RANLIB=%EXTERNAL_MINGW%\bin\ranlib.exe
+          set WINDRES=%EXTERNAL_MINGW%\bin\windres.exe
+          
+          REM run the batch under cmd with delayed expansion for robust parsing (and show environment for debug)
+          echo "Debug: PATH=%PATH%"
+          echo "Debug: CC=%CC% CXX=%CXX% AR=%AR% WINDRES=%WINDRES%"
+          cmd /V:ON /C "set MSYS2_PATH_TYPE=inherit & set PATH=%EXTERNAL_MINGW%\bin;%MSYS2_DIR%\usr\bin;%PATH% & call build-script\build-static-ffmpeg-windows.bat"
 
       - name: Verify FFmpeg build output
         run: |
