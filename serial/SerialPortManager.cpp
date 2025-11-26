@@ -1439,11 +1439,11 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
     while (timer.elapsed() < totalTimeoutMs && responseData.isEmpty()) {
         if (serialPort->waitForReadyRead(waitStepMs)) {
             responseData = serialPort->readAll();
-            QThread::msleep(50); // Add 50ms delay
+            QThread::msleep(40); // Add 40ms delay, at least 20ms to process 24bytes for the reset of CH9329 Get Parameter 2nd command
             // Try to get any remaining data without blocking
             while (serialPort->bytesAvailable() > 0) {
                 responseData += serialPort->readAll();
-                QThread::msleep(50); // Add 50ms delay
+                QThread::msleep(40); // Add 40ms delay
             }
             if (!responseData.isEmpty()) {
                 emit dataReceived(responseData);
