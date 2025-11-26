@@ -633,11 +633,11 @@ QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
     if (m_directFFmpegMode && m_pixmapItem && m_pixmapItem->isVisible()) {
         targetItem = m_pixmapItem;
         itemRect = m_pixmapItem->boundingRect();
-        // qCDebug(log_ui_video) << "      [getTransformed] Using FFmpeg pixmap item";
+        qCDebug(log_ui_video) << "      [getTransformed] Using FFmpeg pixmap item";
     } else if (m_videoItem && m_videoItem->isVisible()) {
         targetItem = m_videoItem;
         itemRect = m_videoItem->boundingRect();
-        // qCDebug(log_ui_video) << "      [getTransformed] Using video item";
+        qCDebug(log_ui_video) << "      [getTransformed] Using video item";
     } else if (m_directGStreamerMode) {
         // Special handling for GStreamer mode
         QRectF viewRect = viewport()->rect();
@@ -654,14 +654,16 @@ QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
         double x = (viewRect.width() - scaledWidth) / 2;
         double y = (viewRect.height() - scaledHeight) / 2;
         QRectF videoRect(x, y, scaledWidth, scaledHeight);
-        
+        qDebug() << "      [videoRect] " << x << y << scaledWidth << scaledHeight;
         // Calculate itemPos manually
         QPointF itemPos = viewportPos - videoRect.topLeft();
         double itemWidth = videoRect.width();
         double itemHeight = videoRect.height();
+        qDebug() << "      [getTransformed] itemPos, itemWidth, itemHeight:" << itemPos << itemWidth << itemHeight;
         if (itemWidth <= 0 || itemHeight <= 0) {
             return viewportPos;
         }
+        qDebug() << "      [getTransformed] itemWidth/itemHeight:" << itemWidth << itemHeight;
         double relativeX = itemPos.x() / itemWidth;
         double relativeY = itemPos.y() / itemHeight;
         double normalizedX = qBound(0.0, relativeX, 1.0);
@@ -671,6 +673,7 @@ QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
         int transformedX = qRound(transformedXDouble);
         int transformedY = qRound(transformedYDouble);
         QPointF finalResult(transformedXDouble, transformedYDouble);
+        qDebug() << "      [getTransformed] Before zoom correction:" << finalResult;
         if (m_scaleFactor > 1.0) {
             transformedX += m_zoomOffsetCorrectionX;
             transformedY += m_zoomOffsetCorrectionY;
