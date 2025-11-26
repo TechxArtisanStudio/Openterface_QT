@@ -1441,8 +1441,11 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
     timer.start();
     QByteArray responseData;
     
-    while (timer.elapsed() < 100 && responseData.isEmpty()) {
-        if (serialPort->waitForReadyRead(10)) {
+    const int totalTimeoutMs = 1000;
+    const int waitStepMs = 100;
+
+    while (timer.elapsed() < totalTimeoutMs && responseData.isEmpty()) {
+        if (serialPort->waitForReadyRead(waitStepMs)) {
             responseData = serialPort->readAll();
             // Try to get any remaining data without blocking
             while (serialPort->bytesAvailable() > 0) {
