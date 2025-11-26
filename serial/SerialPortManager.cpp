@@ -1126,93 +1126,162 @@ void SerialPortManager::readData() {
     }
     
     if (completeData.size() >= 6) {
-        // Validate packet header before processing
-        // All valid packets should start with 0x57 0xAB
-        if (completeData[0] != 0x57 || static_cast<unsigned char>(completeData[1]) != 0xAB) {
-            if (!resyncAndAlignHeader(completeData)) {
-                // Either buffered or dropped; wait for next readability event
-                return;
+        // Process one or more complete packets in the buffer
+        while (!completeData.isEmpty()) {
+            // If not enough bytes for the minimal packet, keep as incomplete
+            if (completeData.size() < 6) {
+                QMutexLocker bufferLocker(&m_bufferMutex);
+                m_incompleteDataBuffer = completeData;
+                qCDebug(log_core_serial) << "Buffered incomplete data packet of size:" << completeData.size() << "Data:" << completeData.toHex(' ');
+                break;
             }
-        }
-        
-        // Reset consecutive errors on successful data read
-        resetErrorCounters();
-        m_lastSuccessfulCommand.restart();
 
-        unsigned char status = completeData[5];
-        unsigned char cmdCode = completeData[3];
+            // Validate header; resync if necessary
+            if (static_cast<unsigned char>(completeData[0]) != 0x57 || static_cast<unsigned char>(completeData[1]) != 0xAB) {
+                if (!resyncAndAlignHeader(completeData)) {
+                    // No header found, resync function has already buffered state
+                    break;
+                }
+                // After resync, check again for minimal length
+                if (completeData.size() < 6) {
+                    QMutexLocker bufferLocker(&m_bufferMutex);
+                    m_incompleteDataBuffer = completeData;
+                    qCDebug(log_core_serial) << "Buffered incomplete header after resync. Size:" << completeData.size() << "Data:" << completeData.toHex(' ');
+                    break;
+                }
+            }
 
-        if(status != DEF_CMD_SUCCESS && (cmdCode >= 0xC0 && cmdCode <= 0xCF)){
-            dumpError(status, completeData);
-            m_consecutiveErrors++;
-        }
-        else{
-            qCDebug(log_core_serial) << "Receive from serial port @" << serialPort->baudRate() << ":" << completeData.toHex(' ');
-            static QSettings settings("Techxartisan", "Openterface");
-            latestUpdateTime = QDateTime::currentDateTime();
-            ready = true;
-            unsigned char code = cmdCode | 0x80;
-            int checkedBaudrate = 0;
-            uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
-            uint8_t chip_mode = completeData[5];
-            switch (code)
+            // Extract payload length from 5th byte (index 4)
+            int payloadLen = static_cast<unsigned char>(completeData[4]);
+            int packetSize = 6 + payloadLen; // header (2) + reserved(1) + cmd(1) + len(1) + payload(len) + checksum(1)
+
+            if (completeData.size() < packetSize) {
+                // Not enough bytes yet - buffer and wait for next read
+                QMutexLocker bufferLocker(&m_bufferMutex);
+                m_incompleteDataBuffer = completeData;
+                qCDebug(log_core_serial) << "Incomplete packet: expected size" << packetSize << "have size" << completeData.size();
+                break;
+            }
+
+            // Extract the whole packet
+            QByteArray packet = completeData.left(packetSize);
+            // Remove processed packet from buffer
+            completeData = completeData.mid(packetSize);
+
+            // Validate packet header just in case
+            if (static_cast<unsigned char>(packet[0]) != 0x57 || static_cast<unsigned char>(packet[1]) != 0xAB) {
+                qCWarning(log_core_serial) << "Packet header invalid, skipping and resyncing. Data:" << packet.toHex(' ');
+                if (!resyncAndAlignHeader(completeData)) {
+                    break;
+                }
+                continue;
+            }
+
+            // Optional checksum validation: calculate over packet without the last checksum byte
+            quint8 computed = 0;
+            for (int i = 0; i < packetSize - 1; ++i) {
+                computed = static_cast<quint8>((computed + static_cast<unsigned char>(packet[i])) & 0xFF);
+            }
+            quint8 pktChecksum = static_cast<unsigned char>(packet[packetSize - 1]);
+            if (computed != pktChecksum) {
+                qCWarning(log_core_serial) << "Checksum mismatch for packet (computed: 0x" << QString::number(computed, 16)
+                                           << ", given: 0x" << QString::number(pktChecksum, 16) << "). Dropping packet:" << packet.toHex(' ');
+                m_consecutiveErrors++;
+                continue;
+            }
+
+            // Reset consecutive errors on successful data read
+            resetErrorCounters();
+            m_lastSuccessfulCommand.restart();
+
+            unsigned char cmdCode = static_cast<unsigned char>(packet[3]);
+            unsigned char responseKey = static_cast<unsigned char>(cmdCode | 0x80);
+
+            // If there's a pending synchronous request, check for match
+            bool handledBySync = false;
             {
-            case 0x81:
-                isTargetUsbConnected = CmdGetInfoResult::fromByteArray(completeData).targetConnected == 0x01;
-                if (eventCallback != nullptr) {
-                    eventCallback->onTargetUsbConnected(isTargetUsbConnected);
+                QMutexLocker syncLocker(&m_syncResponseMutex);
+                if (m_pendingSyncCommand && responseKey == m_pendingSyncExpectedKey) {
+                    // Store the response packet and notify the waiting thread
+                    m_syncCommandResponse = packet;
+                    m_syncResponseCondition.wakeAll();
+                    handledBySync = true;
+                } else if (m_pendingSyncCommand && responseKey != m_pendingSyncExpectedKey) {
+                    // A sync request is pending but this packet does not match - ignore it for now
+                    qCWarning(log_core_serial) << "Sync request pending but got unmatched command" << QString("0x%1").arg(cmdCode, 2, 16, QChar('0')) << "- ignoring until expected response arrives";
+                    // intentionally drop this packet when a sync is pending
+                    continue;
                 }
-                updateSpecialKeyState(CmdGetInfoResult::fromByteArray(completeData).indicators);
-                break;
-            case 0x82:
-                qCDebug(log_core_serial) << "Keyboard event sent, status" << statusCodeToString(completeData[5]);
-                break;
-            case 0x84:
-                qCDebug(log_core_serial) << "Absolute mouse event sent, status" << statusCodeToString(completeData[5]);
-                break;
-            case 0x85:
-                qCDebug(log_core_serial) << "Relative mouse event sent, status" << statusCodeToString(completeData[5]);
-                break;
-            case 0x88:
-                // get parameter configuration
-                // baud rate 8...11 bytes - need at least 12 bytes total
-                if (completeData.size() >= 12) {
-                    checkedBaudrate = ((unsigned char)completeData[8] << 24) | ((unsigned char)completeData[9] << 16) | ((unsigned char)completeData[10] << 8) | (unsigned char)completeData[11];
-
-                    qCDebug(log_core_serial) << "Current serial port baudrate rate:" << checkedBaudrate << ", Mode:" << "0x" + QString::number(mode, 16);
-                } else {
-                    qCWarning(log_core_serial) << "Incomplete parameter configuration response - expected at least 12 bytes, got:" << completeData.size() << "Data:" << completeData.toHex(' ');
-                }
-                // if (checkedBaudrate == SerialPortManager::DEFAULT_BAUDRATE && chip_mode == mode) {
-                //     qCDebug(log_core_serial) << "Serial is ready for communication.";
-                //     setBaudRate(checkedBaudrate);
-                // }else{
-                //     qCDebug(log_core_serial) << "Serial is not ready for communication.";
-                //     //reconfigureHidChip();
-                //     QThread::sleep(1);
-                //     resetHipChip();
-                //     ready=false;
-                // }
-                //baudrate = checkedBaudrate;
-                break;
-            case 0x89:
-                qCDebug(log_core_serial) << "Set parameter configuration, status" << statusCodeToString(completeData[5]);
-                // If parameter configuration was successful, emit signal to trigger reset
-                if (completeData[5] == DEF_CMD_SUCCESS) {
-                    qCDebug(log_core_serial) << "Parameter configuration successful, emitting signal for reset command";
-                    emit parameterConfigurationSuccess();
-                }
-                break;
-            case 0x8F:
-                qCDebug(log_core_serial) << "Reset command, status" << statusCodeToString(completeData[5]);
-                if (completeData[5] == DEF_CMD_SUCCESS) {
-                    qCDebug(log_core_serial) << "Factory reset successful, clearing stored baudrate";
-                } 
-                break;
-            default:
-                qCDebug(log_core_serial) << "Unknown command: " << completeData.toHex(' ');
-                break;
             }
+
+            if (handledBySync) {
+                // Do not process synced packet further here; it's delivered to whoever called sendSyncCommand
+                continue;
+            }
+
+            // Normal async processing for non-sync flows
+            unsigned char status = static_cast<unsigned char>(packet[5]);
+
+            if (status != DEF_CMD_SUCCESS && (cmdCode >= 0xC0 && cmdCode <= 0xCF)) {
+                dumpError(status, packet);
+                m_consecutiveErrors++;
+            } else {
+                qCDebug(log_core_serial) << "Receive from serial port @" << (serialPort ? serialPort->baudRate() : 0) << ":" << packet.toHex(' ');
+                static QSettings settings("Techxartisan", "Openterface");
+                latestUpdateTime = QDateTime::currentDateTime();
+                ready = true;
+                unsigned char code = static_cast<unsigned char>(cmdCode | 0x80);
+                int checkedBaudrate = 0;
+                uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
+                uint8_t chip_mode = packet[5];
+
+                switch (code) {
+                    case 0x81:
+                        isTargetUsbConnected = CmdGetInfoResult::fromByteArray(packet).targetConnected == 0x01;
+                        if (eventCallback != nullptr) {
+                            eventCallback->onTargetUsbConnected(isTargetUsbConnected);
+                        }
+                        updateSpecialKeyState(CmdGetInfoResult::fromByteArray(packet).indicators);
+                        break;
+                    case 0x82:
+                        qCDebug(log_core_serial) << "Keyboard event sent, status" << statusCodeToString(packet[5]);
+                        break;
+                    case 0x84:
+                        qCDebug(log_core_serial) << "Absolute mouse event sent, status" << statusCodeToString(packet[5]);
+                        break;
+                    case 0x85:
+                        qCDebug(log_core_serial) << "Relative mouse event sent, status" << statusCodeToString(packet[5]);
+                        break;
+                    case 0x88:
+                        // get parameter configuration
+                        if (packet.size() >= 12) {
+                            checkedBaudrate = ((unsigned char)packet[8] << 24) | ((unsigned char)packet[9] << 16) | ((unsigned char)packet[10] << 8) | (unsigned char)packet[11];
+                            qCDebug(log_core_serial) << "Current serial port baudrate rate:" << checkedBaudrate << ", Mode:" << "0x" + QString::number(mode, 16);
+                        } else {
+                            qCWarning(log_core_serial) << "Incomplete parameter configuration response - expected at least 12 bytes, got:" << packet.size() << "Data:" << packet.toHex(' ');
+                        }
+                        break;
+                    case 0x89:
+                        qCDebug(log_core_serial) << "Set parameter configuration, status" << statusCodeToString(packet[5]);
+                        if (packet[5] == DEF_CMD_SUCCESS) {
+                            qCDebug(log_core_serial) << "Parameter configuration successful, emitting signal for reset command";
+                            emit parameterConfigurationSuccess();
+                        }
+                        break;
+                    case 0x8F:
+                        qCDebug(log_core_serial) << "Reset command, status" << statusCodeToString(packet[5]);
+                        if (packet[5] == DEF_CMD_SUCCESS) {
+                            qCDebug(log_core_serial) << "Factory reset successful, clearing stored baudrate";
+                        }
+                        break;
+                    default:
+                        qCDebug(log_core_serial) << "Unknown command: " << packet.toHex(' ');
+                        break;
+                }
+            }
+
+            // Callback for processed packet
+            emit dataReceived(packet);
         }
     } else {
         // Store incomplete data in buffer for next batch
@@ -1239,7 +1308,6 @@ void SerialPortManager::readData() {
     }
     
     // qCDebug(log_core_serial) << "Recv read" << data;
-    emit dataReceived(completeData);
 }
 
 QString SerialPortManager::statusCodeToString(uint8_t status) {
@@ -1415,44 +1483,56 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
 QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force) {
     if(!force && !ready) return QByteArray();
     
+    if (data.size() < 4) {
+        qCWarning(log_core_serial) << "Invalid command length for sendSyncCommand";
+        return QByteArray();
+    }
+
+    // Determine request command and expected response code
+    unsigned char requestCmd = static_cast<unsigned char>(data[3]);
+    unsigned char expectedRespKey = static_cast<unsigned char>(requestCmd | 0x80);
+
+    // Prepare for sync response
+    {
+        QMutexLocker locker(&m_syncResponseMutex);
+        m_pendingSyncCommand = true;
+        m_pendingSyncExpectedKey = expectedRespKey;
+        m_syncCommandResponse.clear();
+    }
+
     emit dataSent(data);
     QByteArray command = data;
-    
     command.append(calculateChecksum(command));
-    qCDebug(log_core_serial) <<  "Check sum" << command.toHex(' ');
+    // qCDebug(log_core_serial) <<  "Check sum" << command.toHex(' ');
     writeData(command);
-    
-    // Use signal-based approach instead of blocking wait
-    // The response will be handled by readData() signal handler
-    // For now, return empty array - calling code should use async signals
-    // This prevents UI blocking
-    
-    // DEPRECATED: This synchronous method should be refactored to use callbacks
-    // Temporarily keeping minimal blocking for backwards compatibility
+
+    // Wait for response from readData() which will fill m_syncCommandResponse
     QElapsedTimer timer;
     timer.start();
-    QByteArray responseData;
-    
     const int totalTimeoutMs = 1000;
-    const int waitStepMs = 100;
-    QThread::msleep(60); // Add 60ms delay, at least 50ms to process 60bytes for the longest CH9329 Get Parameter command
+    const int waitStepMs = 50;
+    QByteArray responseData;
 
-    while (timer.elapsed() < totalTimeoutMs && responseData.isEmpty()) {
-        if (serialPort->waitForReadyRead(waitStepMs)) {
-            responseData = serialPort->readAll();
-            QThread::msleep(40); // Add 40ms delay
-            // Try to get any remaining data without blocking
-            while (serialPort->bytesAvailable() > 0) {
-                responseData += serialPort->readAll();
-            }
-            if (!responseData.isEmpty()) {
-                emit dataReceived(responseData);
-                return responseData;
-            }
+    // Small initial delay to allow device processing
+    QThread::msleep(60);
+
+    {
+        QMutexLocker lock(&m_syncResponseMutex);
+        while (timer.elapsed() < totalTimeoutMs && m_syncCommandResponse.isEmpty()) {
+            m_syncResponseCondition.wait(&m_syncResponseMutex, waitStepMs);
         }
-        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 5);
+        responseData = m_syncCommandResponse;
+        // clear pending flag always
+        m_pendingSyncCommand = false;
+        m_pendingSyncExpectedKey = 0;
     }
-    
+
+    if (!responseData.isEmpty()) {
+        emit dataReceived(responseData);
+    } else {
+        qCWarning(log_core_serial) << "Timeout waiting for sync response for command" << QString("0x%1").arg(requestCmd, 2, 16, QChar('0'));
+    }
+
     return responseData;
 }
 

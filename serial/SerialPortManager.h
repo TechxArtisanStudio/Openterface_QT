@@ -241,6 +241,7 @@ private:
     QByteArray m_syncCommandResponse;
     QMutex m_syncResponseMutex;
     QWaitCondition m_syncResponseCondition;
+    unsigned char m_pendingSyncExpectedKey = 0;
     
     // Command tracking for auto-restart logic
     std::atomic<int> m_commandsSent = 0;
