@@ -97,7 +97,34 @@ jobs:
           echo "Updating PATH for MSYS2..."
           set PATH=%MSYS2_DIR%\usr\bin;%PATH%
           echo "Updating MSYS2 packages and installing essential build packages"
-          %MSYS2_DIR%\usr\bin\bash.exe -lc "pacman -Sy --noconfirm && pacman -S --noconfirm --needed base-devel pkg-config git make yasm nasm mingw-w64-x86_64-make mingw-w64-x86_64-pkg-config mingw-w64-x86_64-libiconv mingw-w64-x86_64-cmake mingw-w64-x86_64-libmfx mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads"
+          %MSYS2_DIR%\usr\bin\bash.exe -lc "pacman -Sy --noconfirm && pacman -S --noconfirm --needed base-devel pkg-config git make yasm nasm mingw-w64-x86_64-make mingw-w64-x86_64-pkg-config mingw-w64-x86_64-libiconv mingw-w64-x86_64-cmake mingw-w64-x86_64-libmfx mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads mingw-w64-x86_64-toolchain"
+
+      - name: Build FFmpeg (static) with external MinGW
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        # Build FFmpeg as part of the workflow; use MSYS2 to handle dependencies and external MinGW for compile
+        run: |
+          echo "Preparing to build FFmpeg statically using external MinGW and MSYS2 for handling dependencies"
+          set MSYS2_ROOT=%MSYS2_DIR%
+          REM ensure EXTERNAL_MINGW value from job environment is used; no need to override
+          set EXTERNAL_MINGW=%EXTERNAL_MINGW%
+          set FFMPEG_INSTALL_PREFIX=%FFMPEG_INSTALL_PREFIX%
+          set PATH=%MSYS2_DIR%\usr\bin;%EXTERNAL_MINGW%\bin;%PATH%
+          echo "Verifying msys2 bash and external mingw versions"
+          C:\msys64\usr\bin\bash.exe -lc "export PATH=/mingw64/bin:$PATH; gcc --version || echo 'MSYS2 gcc not present or ignored'"
+          echo "Running build script for ffmpeg"
+          REM exit early if gcc not available
+          C:\msys64\usr\bin\bash.exe -lc "command -v /mingw64/bin/gcc >/dev/null 2>&1 || { echo 'Error: gcc missing in msys2 or mingw64. Install mingw toolchain or ensure PATH'; exit 1; }"
+          call build-script\build-static-ffmpeg-windows.bat
+
+      - name: Verify FFmpeg build output
+        run: |
+          echo "Checking FFmpeg install prefix: %FFMPEG_INSTALL_PREFIX%"
+          if not exist "%FFMPEG_INSTALL_PREFIX%\lib\libavcodec.a" (
+            echo "Error: FFmpeg build failed or libavcodec.a not found"
+            dir %FFMPEG_INSTALL_PREFIX%\lib
+            exit 1
+          )
+          echo "FFmpeg libraries found in %FFMPEG_INSTALL_PREFIX%\lib"
 
       - name: Install vcpkg and OpenSSL
         if: steps.cache-vcpkg.outputs.cache-hit != 'true'
@@ -138,31 +165,6 @@ jobs:
           echo "Setting PATH to use external MinGW: %EXTERNAL_MINGW%"
           set PATH=%EXTERNAL_MINGW%\bin;%PATH%
           call build-script/build-static-qt-from-source.bat
-
-      - name: Build FFmpeg (static) with external MinGW
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-        # Build FFmpeg as part of the workflow; use MSYS2 to handle dependencies and external MinGW for compile
-        run: |
-          echo "Preparing to build FFmpeg statically using external MinGW and MSYS2 for handling dependencies"
-          set MSYS2_ROOT=%MSYS2_DIR%
-          REM ensure EXTERNAL_MINGW value from job environment is used; no need to override
-          set EXTERNAL_MINGW=%EXTERNAL_MINGW%
-          set FFMPEG_INSTALL_PREFIX=%FFMPEG_INSTALL_PREFIX%
-          set PATH=%MSYS2_DIR%\usr\bin;%EXTERNAL_MINGW%\bin;%PATH%
-          echo "Verifying msys2 bash and external mingw versions"
-          C:\msys64\usr\bin\bash.exe -lc "gcc --version || echo 'MSYS2 gcc not present or ignored'"
-          echo "Running build script for ffmpeg"
-          call build-script\build-static-ffmpeg-windows.bat
-
-      - name: Verify FFmpeg build output
-        run: |
-          echo "Checking FFmpeg install prefix: %FFMPEG_INSTALL_PREFIX%"
-          if not exist "%FFMPEG_INSTALL_PREFIX%\lib\libavcodec.a" (
-            echo "Error: FFmpeg build failed or libavcodec.a not found"
-            dir %FFMPEG_INSTALL_PREFIX%\lib
-            exit 1
-          )
-          echo "FFmpeg libraries found in %FFMPEG_INSTALL_PREFIX%\lib"
 
       - name: Create build directory
         run: |
