@@ -44,10 +44,17 @@ Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 class DeviceInfo;
 
 // Chip type enumeration
-enum class ChipType {
+enum class ChipType : uint32_t {
     UNKNOWN = 0,
-    CH9329,     // 1A86:7523 - Supports both 9600 and 115200, requires commands for baudrate switching and reset
-    CH32V208        // 1A86:FE0C - Only supports 115200, uses simple close/reopen for baudrate changes
+    CH9329 = 0x1A867523,     // 1A86:7523 - Supports both 9600 and 115200, requires commands for baudrate switching and reset
+    CH32V208 = 0x1A86FE0C        // 1A86:FE0C - Only supports 115200, uses simple close/reopen for baudrate changes
+};
+
+// Struct to hold configuration command results
+struct ConfigResult {
+    bool success = false;
+    int workingBaudrate = SerialPortManager::DEFAULT_BAUDRATE;
+    uint8_t mode = 0;
 };
 
 class SerialPortManager : public QObject
@@ -105,7 +112,7 @@ public:
     void stop(); //stop the serial port manager
 
     // DeviceManager integration methods
-    void checkDeviceConnections(const QList<DeviceInfo>& devices);
+    // void checkDeviceConnections(const QList<DeviceInfo>& devices);
     
     // Serial port switching by port chain (similar to CameraManager and VideoHid)
     bool switchSerialPortByPortChain(const QString& portChain);
@@ -184,6 +191,14 @@ private:
     QSerialPort *serialPort;
 
     void sendCommand(const QByteArray &command, bool waitForAck);
+
+    // Refactored helper methods for onSerialPortConnected
+    int determineBaudrate() const;
+    bool openPortWithRetries(const QString &portName, int tryBaudrate);
+    ConfigResult sendAndProcessConfigCommand();
+    ConfigResult attemptBaudrateDetection();
+    void handleChipSpecificLogic(const ConfigResult &config);
+    void storeBaudrateIfNeeded(int workingBaudrate);
 
     QSet<QString> availablePorts;
     
@@ -264,7 +279,29 @@ private:
     void setupConnectionWatchdog();
     void stopConnectionWatchdog();
     int anotherBaudrate();
-    QString statusCodeToString(uint8_t status);
+    QString statusCodeToString(uint8_t status) {
+        switch (status) {
+            case 0x00:
+                return "Success"; 
+            case 0xE1:
+                return "Serial port recived one byte timeout";
+            case 0xE2:
+                return "Serial port recived package frist byte error";
+            case 0xE3:
+                return "Serial port recived command code error";
+            case 0xE4:
+                return "Serial port recived package checksum error";
+            case 0xE5:
+                return "Command parameter error";
+            case 0xE6:
+                return "The data frame failed to execute properly";
+            default:
+                return "Unknown status code";
+        } 
+    }
+    
+    // Command-based baudrate change for CH9329 and unknown chips
+    void applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix);
     
     // Command tracking methods
     void checkCommandLossRate();
