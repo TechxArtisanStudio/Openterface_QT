@@ -79,21 +79,21 @@ jobs:
           g++ --version
 
       - name: Install vcpkg and static libraries (OpenSSL, FFmpeg, zlib)
-        if: steps.cache-vcpkg.outputs.cache-hit != 'true'
         run: |
-          echo Cloning vcpkg...
-          git clone https://github.com/microsoft/vcpkg.git %VCPKG_DIR%
+          echo Cloning or updating vcpkg...
+          if not exist "%VCPKG_DIR%\vcpkg.exe" (
+            echo "vcpkg.exe not found, cloning vcpkg repo..."
+            git clone https://github.com/microsoft/vcpkg.git %VCPKG_DIR%
+            cd %VCPKG_DIR%
+          ) else (
+            echo "%VCPKG_DIR%\vcpkg.exe already exists, using existing vcpkg"
+            cd %VCPKG_DIR%
+          )
           cd %VCPKG_DIR%
           call bootstrap-vcpkg.bat
 
-          echo Installing static packages for MinGW...
-          call "%VCPKG_DIR%\vcpkg.exe" install ^
-            openssl:x64-mingw-static ^
-            ffmpeg:x64-mingw-static ^
-            zlib:x64-mingw-static ^
-            --triplet=x64-mingw-static ^
-            --host-triplet=x64-mingw-static ^
-            --clean-after-build
+          echo Installing static packages for MinGW using manifest mode (vcpkg.json)...
+          call "%VCPKG_DIR%\vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build
 
           call "%VCPKG_DIR%\vcpkg.exe" integrate install
 
