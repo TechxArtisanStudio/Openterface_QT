@@ -92,6 +92,9 @@ extern "C" {
 #endif
 #endif // HAVE_GSTREAMER
 
+#include "gstreamer/sinkselector.h"
+#include "gstreamer/pipelinebuilder.h"
+
 GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
     : MultimediaBackendHandler(parent),
       m_pipeline(nullptr),
@@ -390,7 +393,6 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     m_currentResolution = resolution;
     m_currentFramerate = framerate;
     
-#ifdef HAVE_GSTREAMER
     // Determine the appropriate video sink for current environment
     const QString platform = QGuiApplication::platformName();
     const bool isXcb = platform.contains("xcb", Qt::CaseInsensitive);
@@ -398,53 +400,8 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     const bool hasXDisplay = !qgetenv("DISPLAY").isEmpty();
     const bool hasWaylandDisplay = !qgetenv("WAYLAND_DISPLAY").isEmpty();
     
-    // Choose a video sink. Use OPENTERFACE_GST_SINK if provided; otherwise detect available sinks
-    QString videoSink;
-    const QByteArray sinkOverride = qgetenv("OPENTERFACE_GST_SINK");
-    if (!sinkOverride.isEmpty()) {
-        // Fix: correctly read override environment variable
-        videoSink = QString::fromLatin1(sinkOverride);
-        qCDebug(log_gstreamer_backend) << "Using sink from OPENTERFACE_GST_SINK override:" << videoSink;
-
-        // Validate the override actually exists in this GStreamer build
-        GstElementFactory* f = gst_element_factory_find(videoSink.toUtf8().constData());
-        if (!f) {
-            qCWarning(log_gstreamer_backend) << "OPENTERFACE_GST_SINK refers to element that is not available:" << videoSink;
-            videoSink.clear(); // fallback to auto-detectable sinks below
-        } else {
-            gst_object_unref(f);
-        }
-    }
-
-    // If we still don't have a video sink from env, detect the most appropriate sink available.
-    if (videoSink.isEmpty()) {
-        // Prefer xvimagesink (XVideo extension) -> fall back to ximagesink -> autovideosink -> qtsink
-        const char* preferred[] = {"xvimagesink", "ximagesink", "autovideosink", "qtsink", nullptr};
-        for (const char** trySink = preferred; *trySink; ++trySink) {
-            GstElementFactory* factory = gst_element_factory_find(*trySink);
-            if (factory) {
-                videoSink = QString::fromUtf8(*trySink);
-                qCDebug(log_gstreamer_backend) << "Selected available sink:" << videoSink;
-                gst_object_unref(factory);
-                break;
-            }
-        }
-
-        if (videoSink.isEmpty()) {
-            // Last resort: try autovideosink even if factory_find failed
-            videoSink = "autovideosink";
-            qCWarning(log_gstreamer_backend) << "No preferred X sinks found, defaulting to autovideosink (may open external window)";
-        }
-        else {
-            // If xvimagesink not present but we picked ximagesink or autovideosink, log a diagnostic so devices like Mali are clear.
-            if (videoSink == QLatin1String("ximagesink")) {
-                qCWarning(log_gstreamer_backend) << "xvimagesink not available; using ximagesink instead. On some systems (e.g. Mali), ximagesink is the correct choice.";
-            } else if (videoSink == QLatin1String("autovideosink")) {
-                qCWarning(log_gstreamer_backend) << "No X sinks found (xvimagesink/ximagesink); using autovideosink which may open a separate window.";
-            }
-        }
-    }
-#endif
+    // Choose a video sink. Use OPENTERFACE_GST_SINK if provided; otherwise auto-detect.
+    QString videoSink = Openterface::GStreamer::SinkSelector::selectSink(platform);
     
     qCDebug(log_gstreamer_backend) << "Selected video sink:" << videoSink << "(platform:" << platform
                                    << ", X DISPLAY:" << hasXDisplay << ", WAYLAND_DISPLAY:" << hasWaylandDisplay << ")";
@@ -464,7 +421,6 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
         // Try fallback with available elements only
         qCDebug(log_gstreamer_backend) << "Trying fallback pipeline with available elements...";
         
-#ifdef HAVE_GSTREAMER
         // Check what's actually available and create appropriate fallback
         GstElementFactory* v4l2Factory = gst_element_factory_find("v4l2src");
         GstElementFactory* jpegFactory = gst_element_factory_find("jpegdec");
@@ -476,64 +432,25 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
         if (!v4l2Factory && videotestFactory && jpegFactory) {
             // Use videotestsrc with JPEG encoding/decoding for testing
             qCDebug(log_gstreamer_backend) << "Using videotestsrc fallback (v4l2src not available in static build)";
-            fallbackPipeline = QString(
-                "videotestsrc pattern=0 is-live=true ! "
-                "video/x-raw,width=%1,height=%2,framerate=%3/1 ! "
-                "videoconvert ! "
-                "tee name=t ! queue name=display-queue max-size-buffers=5 leaky=downstream ! %4 name=videosink sync=false "
-                "t. ! valve name=recording-valve drop=true ! queue name=recording-queue max-size-buffers=10 leaky=upstream ! identity name=recording-ready"
-            ).arg(resolution.width())
-             .arg(resolution.height())
-             .arg(framerate)
-             .arg(videoSink);
+            fallbackPipeline = PipelineBuilder::buildVideotestMjpegFallback(resolution, framerate, videoSink);
             gst_object_unref(videotestFactory);
             gst_object_unref(jpegFactory);
         } else if (v4l2Factory && jpegFactory) {
             // V4L2 + JPEG decode available (unlikely in static build)
             qCDebug(log_gstreamer_backend) << "Using v4l2src + jpegdec fallback";
-            fallbackPipeline = QString(
-                "v4l2src device=%1 ! "
-                "image/jpeg,width=%2,height=%3,framerate=%4/1 ! "
-                "jpegdec ! "
-                "videoconvert ! "
-                "tee name=t ! queue name=display-queue max-size-buffers=5 leaky=downstream ! %5 name=videosink sync=false "
-                "t. ! valve name=recording-valve drop=true ! queue name=recording-queue max-size-buffers=10 leaky=upstream ! identity name=recording-ready"
-            ).arg(device)
-             .arg(resolution.width())
-             .arg(resolution.height())
-             .arg(framerate)
-             .arg(videoSink);
+            fallbackPipeline = PipelineBuilder::buildV4l2JpegFallback(device, resolution, framerate, videoSink);
             gst_object_unref(v4l2Factory);
             gst_object_unref(jpegFactory);
         } else if (v4l2Factory) {
             // V4L2 available but no JPEG, try raw format (unlikely in static build)
             qCDebug(log_gstreamer_backend) << "Using v4l2src with raw format fallback";
-            fallbackPipeline = QString(
-                "v4l2src device=%1 ! "
-                "video/x-raw,width=%2,height=%3,framerate=%4/1 ! "
-                "videoconvert ! "
-                "tee name=t ! queue name=display-queue max-size-buffers=5 leaky=downstream ! %5 name=videosink sync=false "
-                "t. ! valve name=recording-valve drop=true ! queue name=recording-queue max-size-buffers=10 leaky=upstream ! identity name=recording-ready"
-            ).arg(device)
-             .arg(resolution.width())
-             .arg(resolution.height())
-             .arg(framerate)
-             .arg(videoSink);
+            fallbackPipeline = PipelineBuilder::buildV4l2RawFallback(device, resolution, framerate, videoSink);
             gst_object_unref(v4l2Factory);
             if (jpegFactory) gst_object_unref(jpegFactory);
         } else if (videotestFactory) {
             // No V4L2, use test source (expected for static build)
             qCDebug(log_gstreamer_backend) << "Using videotestsrc fallback (static build - no v4l2src available)";
-            fallbackPipeline = QString(
-                "videotestsrc pattern=0 is-live=true ! "
-                "video/x-raw,width=%1,height=%2,framerate=%3/1 ! "
-                "videoconvert ! "
-                "tee name=t ! queue name=display-queue max-size-buffers=5 leaky=downstream ! %4 name=videosink sync=false "
-                "t. ! valve name=recording-valve drop=true ! queue name=recording-queue max-size-buffers=10 leaky=upstream ! identity name=recording-ready"
-            ).arg(resolution.width())
-             .arg(resolution.height())
-             .arg(framerate)
-             .arg(videoSink);
+            fallbackPipeline = PipelineBuilder::buildVideotestFallback(resolution, framerate, videoSink);
             gst_object_unref(videotestFactory);
             if (jpegFactory) gst_object_unref(jpegFactory);
         } else {
@@ -545,21 +462,6 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
                 "fakesink name=videosink"
             );
         }
-#else
-        // QProcess fallback - assume system elements available
-        fallbackPipeline = QString(
-            "v4l2src device=%1 ! "
-            "image/jpeg,width=%2,height=%3,framerate=%4/1 ! "
-            "jpegdec ! "
-            "videoconvert ! "
-            "tee name=t ! queue name=display-queue max-size-buffers=5 leaky=downstream ! %5 name=videosink sync=false "
-            "t. ! valve name=recording-valve drop=true ! queue name=recording-queue max-size-buffers=10 leaky=upstream ! identity name=recording-ready"
-        ).arg(device)
-         .arg(resolution.width())
-         .arg(resolution.height())
-         .arg(framerate)
-         .arg(videoSink);
-#endif
         
         qCDebug(log_gstreamer_backend) << "Trying fallback pipeline:" << fallbackPipeline;
         error = nullptr;
@@ -572,13 +474,7 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
             
             // Last resort: conservative test source pipeline
             qCDebug(log_gstreamer_backend) << "Trying final fallback with test source...";
-            QString testPipeline = QString(
-                "videotestsrc pattern=0 is-live=true ! "
-                "video/x-raw,width=640,height=480,framerate=15/1 ! "
-                "videoconvert ! "
-                "tee name=t ! queue name=display-queue max-size-buffers=5 leaky=downstream ! %1 name=videosink sync=false "
-                "t. ! valve name=recording-valve drop=true ! queue name=recording-queue max-size-buffers=10 leaky=upstream ! identity name=recording-ready"
-            ).arg(videoSink);
+            QString testPipeline = PipelineBuilder::buildConservativeTestPipeline(videoSink);
             
             error = nullptr;
             m_pipeline = gst_parse_launch(testPipeline.toUtf8().data(), &error);
@@ -674,44 +570,8 @@ QString GStreamerBackendHandler::generatePipelineString(const QString& device, c
         return generatePipelineString(device, resolution, 30, videoSink);
     }
     
-    // Generate pipeline with video scaling directly - no configurable templates
-    QString pipelineTemplate;
-    qCDebug(log_gstreamer_backend) << "Creating pipeline with video scaling for proper display fitting";
-    qCDebug(log_gstreamer_backend) << "Using video sink:" << videoSink;
-    // Always create a pipeline with video scaling for proper display fitting
-    QString sourceElement = "v4l2src device=%DEVICE% do-timestamp=true";
-    QString decoderElement = "image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! jpegdec";
-    
-    // Build the complete pipeline template with video scaling
-    pipelineTemplate = sourceElement + " ! " + 
-                      decoderElement + " ! " +
-                      "videoconvert ! "
-                      "videoscale method=lanczos add-borders=true ! "
-                      "video/x-raw,pixel-aspect-ratio=1/1 ! "
-                      "identity sync=true ! "
-                      "tee name=t allow-not-linked=true "
-                      "t. ! queue name=display-queue max-size-buffers=2 leaky=downstream ! " + videoSink + " name=videosink sync=true force-aspect-ratio=true "
-                      "t. ! valve name=recording-valve drop=true ! queue name=recording-queue ! identity name=recording-ready";
-    
-    qCDebug(log_gstreamer_backend) << "Generated pipeline template with video scaling";
-    
-    // Replace placeholders with actual values
-    QString pipelineStr = pipelineTemplate;
-    pipelineStr.replace("%DEVICE%", device);
-    pipelineStr.replace("%WIDTH%", QString::number(resolution.width()));
-    pipelineStr.replace("%HEIGHT%", QString::number(resolution.height()));
-    pipelineStr.replace("%FRAMERATE%", QString::number(framerate));
-    
-    qCDebug(log_gstreamer_backend) << "Generated recording-compatible pipeline:" << pipelineStr;
-    qCDebug(log_gstreamer_backend) << "Template used:" << pipelineTemplate;
-    
-    // Validate the final pipeline string contains tee
-    if (!pipelineStr.contains("tee name=t")) {
-        qCCritical(log_gstreamer_backend) << "FATAL: Generated pipeline lacks tee element - recording will fail!";
-        qCCritical(log_gstreamer_backend) << "Generated pipeline was:" << pipelineStr;
-    }
-    
-    return pipelineStr;
+    // Delegate to PipelineBuilder which centralizes pipeline templates
+    return PipelineBuilder::buildFlexiblePipeline(device, resolution, framerate, videoSink);
 }
 
 bool GStreamerBackendHandler::startGStreamerPipeline()

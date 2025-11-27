@@ -81,9 +81,13 @@ SOURCES += main.cpp \
 # Platform-specific backend handlers (exclude on Windows)
 !win32 {
     SOURCES += host/backend/ffmpegbackendhandler.cpp \
-               host/backend/gstreamerbackendhandler.cpp
+               host/backend/gstreamerbackendhandler.cpp \
+               host/backend/gstreamer/sinkselector.cpp \
+               host/backend/gstreamer/pipelinebuilder.cpp
     HEADERS += host/backend/ffmpegbackendhandler.h \
-               host/backend/gstreamerbackendhandler.h
+               host/backend/gstreamerbackendhandler.h \
+               host/backend/gstreamer/sinkselector.h \
+               host/backend/gstreamer/pipelinebuilder.h
 }
 
 

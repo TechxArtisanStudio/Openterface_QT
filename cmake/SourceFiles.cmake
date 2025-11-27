@@ -42,7 +42,11 @@ set(HOST_SOURCES
 if(NOT WIN32)
     list(APPEND HOST_SOURCES
         host/backend/gstreamerbackendhandler.cpp
+        host/backend/gstreamer/sinkselector.cpp
+        host/backend/gstreamer/pipelinebuilder.cpp
         host/backend/gstreamerbackendhandler.h
+        host/backend/gstreamer/sinkselector.h
+        host/backend/gstreamer/pipelinebuilder.h
     )
 endif()
 
