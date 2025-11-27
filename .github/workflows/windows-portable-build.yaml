@@ -56,14 +56,14 @@ jobs:
           restore-keys: |
             mingw-ninja-windows-static-
 
-      - name: Cache vcpkg
-        id: cache-vcpkg
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.VCPKG_DIR }}
-          key: vcpkg-mingw-static-openssl-v4  # ⬅️ BUMP THIS TO CLEAR BAD CACHE
-          restore-keys: |
-            vcpkg-mingw-static-openssl-
+      # - name: Cache vcpkg
+      #   id: cache-vcpkg
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: ${{ env.VCPKG_DIR }}
+      #     key: vcpkg-mingw-static-openssl-v4  # ⬅️ BUMP THIS TO CLEAR BAD CACHE
+      #     restore-keys: |
+      #       vcpkg-mingw-static-openssl-
 
       - name: Cache FFmpeg build
         id: cache-ffmpeg
