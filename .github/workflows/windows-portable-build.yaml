@@ -85,16 +85,22 @@ jobs:
             echo "vcpkg.exe not found, cloning vcpkg repo..."
             git clone https://github.com/microsoft/vcpkg.git %VCPKG_DIR%
             cd %VCPKG_DIR%
+            call bootstrap-vcpkg.bat
           ) else (
             echo "%VCPKG_DIR%\vcpkg.exe already exists, using existing vcpkg"
             cd %VCPKG_DIR%
+            REM Optional: update vcpkg tool if needed
+            REM call .\vcpkg upgrade --no-dry-run
           )
-          cd %VCPKG_DIR%
-          call bootstrap-vcpkg.bat
 
-          echo Installing static packages for MinGW using manifest mode (vcpkg.json)...
-          call "%VCPKG_DIR%\vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build
+          cd "%SOURCE_DIR%"
 
+          echo Installing static packages via manifest (vcpkg.json)...
+          call "%VCPKG_DIR%\vcpkg.exe" install ^
+            --triplet=x64-mingw-static ^
+            --host-triplet=x64-mingw-static ^
+            --clean-after-build
+          
           call "%VCPKG_DIR%\vcpkg.exe" integrate install
 
       - name: Verify vcpkg static libraries (with debug output)
