@@ -653,22 +653,6 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     
     qCDebug(log_gstreamer_backend) << "GStreamer pipeline created and validated successfully";
     return true;
-    
-#else
-    // Fallback: Use QProcess to launch gst-launch-1.0
-    qCDebug(log_gstreamer_backend) << "Using QProcess fallback for GStreamer pipeline";
-    
-    if (!m_gstProcess) {
-        m_gstProcess = new QProcess(this);
-        connect(m_gstProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-                this, [this](int exitCode, QProcess::ExitStatus exitStatus) {
-                    qCDebug(log_gstreamer_backend) << "GStreamer process finished with code:" << exitCode;
-                    m_pipelineRunning = false;
-                });
-    }
-    
-    return true;
-#endif
 }
 
 QString GStreamerBackendHandler::generatePipelineString(const QString& device, const QSize& resolution, int framerate, const QString& videoSink) const
