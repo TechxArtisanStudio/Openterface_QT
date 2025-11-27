@@ -166,7 +166,7 @@ jobs:
           xcopy /E /I driver\windows %SOURCE_DIR%\drivers\windows
 
       - name: Update and Release Translations
-        working-directory: %RUNNER_TEMP%\build
+        working-directory: "%RUNNER_TEMP%/build"
         run: |
           set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;%PATH%
           if not exist "C:\Qt6\bin\lupdate.exe" (
@@ -177,46 +177,36 @@ jobs:
           C:\Qt6\bin\lrelease.exe "%SOURCE_DIR%\openterfaceQT.pro"
 
       - name: Build Portable Executable
-        working-directory: %RUNNER_TEMP%\build
-        run: |
-          set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;C:\msys64\usr\bin;C:\ProgramData\chocolatey\bin;%PATH%
-
-          cmake -G "Ninja" ^
-            -DCMAKE_BUILD_TYPE=Release ^
-            -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" ^
-            -DVCPKG_TARGET_TRIPLET="x64-mingw-static" ^
-            -DCMAKE_PREFIX_PATH="C:/Qt6;C:/vcpkg/installed/x64-mingw-static" ^
-            -DFFMPEG_PREFIX="C:/ffmpeg-static" ^
-            -DFFMPEG_INCLUDE_DIR="C:/ffmpeg-static/include" ^
-            -DFFMPEG_LIBRARIES="C:/ffmpeg-static/lib/libavcodec.a;C:/ffmpeg-static/lib/libavformat.a;C:/ffmpeg-static/lib/libavutil.a;C:/ffmpeg-static/lib/libswscale.a;C:/ffmpeg-static/lib/libswresample.a" ^
-            -DZLIB_LIBRARY="C:/vcpkg/installed/x64-mingw-static/lib/libz.a" ^
-            -DOPENTERFACE_BUILD_STATIC=ON ^
-            -DCMAKE_C_COMPILER="%EXTERNAL_MINGW%\bin\gcc.exe" ^
-            -DCMAKE_CXX_COMPILER="%EXTERNAL_MINGW%\bin\g++.exe" ^
-            -DCMAKE_RC_COMPILER="%EXTERNAL_MINGW%\bin\windres.exe" ^
-            "%SOURCE_DIR%"
-
-          cmake --build . --config Release -- -j2
-
-          for /f "delims=" %%F in ('dir /s /b openterfaceQT.exe 2^>nul') do set "EXE=%%F"
+        working-directory: "%RUNNER_TEMP%/build"
+        run: >-
+          set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;C:\msys64\usr\bin;C:\ProgramData\chocolatey\bin;%PATH% &&
+          cmake -G "Ninja"
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+          -DVCPKG_TARGET_TRIPLET="x64-mingw-static"
+          -DCMAKE_PREFIX_PATH="C:/Qt6;C:/vcpkg/installed/x64-mingw-static"
+          -DFFMPEG_PREFIX="C:/ffmpeg-static"
+          -DFFMPEG_INCLUDE_DIR="C:/ffmpeg-static/include"
+          -DFFMPEG_LIBRARIES="C:/ffmpeg-static/lib/libavcodec.a;C:/ffmpeg-static/lib/libavformat.a;C:/ffmpeg-static/lib/libavutil.a;C:/ffmpeg-static/lib/libswscale.a;C:/ffmpeg-static/lib/libswresample.a"
+          -DZLIB_LIBRARY="C:/vcpkg/installed/x64-mingw-static/lib/libz.a"
+          -DOPENTERFACE_BUILD_STATIC=ON
+          -DCMAKE_C_COMPILER="%EXTERNAL_MINGW%\bin\gcc.exe"
+          -DCMAKE_CXX_COMPILER="%EXTERNAL_MINGW%\bin\g++.exe"
+          -DCMAKE_RC_COMPILER="%EXTERNAL_MINGW%\bin\windres.exe"
+          "%SOURCE_DIR%" &&
+          cmake --build . --config Release -- -j2 &&
+          for /f "delims=" %F in ('dir /s /b openterfaceQT.exe 2^>nul') do set "EXE=%F" &&
           if not defined EXE (
-            echo Build failed: openterfaceQT.exe not found
-            dir /s /b .
-            exit /b 1
-          )
-
+            echo Build failed: openterfaceQT.exe not found && dir /s /b . && exit /b 1
+          ) &&
           C:\msys64\usr\bin\objdump.exe -p "%EXE%" | C:\msys64\usr\bin\grep.exe -i "\.dll" >nul && (
-            echo ERROR: DLL dependencies detected!
-            exit /b 1
+            echo ERROR: DLL dependencies detected! && exit /b 1
           ) || (
             echo OK: No DLL dependencies.
-          )
-
-          C:\msys64\usr\bin\strip.exe -s "%EXE%"
-
-          md package
-          cmake --install . --config Release --prefix package
-
+          ) &&
+          C:\msys64\usr\bin\strip.exe -s "%EXE%" &&
+          md package &&
+          cmake --install . --config Release --prefix package &&
           copy "%EXE%" package\openterfaceQT-portable.exe
 
       - name: Save build artifact
