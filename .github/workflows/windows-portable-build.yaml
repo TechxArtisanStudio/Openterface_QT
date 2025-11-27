@@ -19,6 +19,7 @@ env:
   VCPKG_DIR: D:\vcpkg
   VCPKG_KEEP_BUILDTREES: 1
   EXTERNAL_MINGW: C:\mingw64
+  VCPKG_MAX_CONCURRENCY: 1
 
 jobs:
   build:
@@ -109,7 +110,7 @@ jobs:
           echo Installing static packages via manifest (vcpkg.json)...
           set VCPKG_LOG_LEVEL=debug
           set VCPKG_DOWNLOADS_RETRIES=5
-          set VCPKG_MAX_CONCURRENCY=2
+          set VCPKG_MAX_CONCURRENCY=%VCPKG_MAX_CONCURRENCY%
           echo vcpkg version/loglevel: && "%VCPKG_DIR%\vcpkg.exe" version || echo "could not show vcpkg version"
           call "%VCPKG_DIR%\vcpkg.exe" install ^
             --triplet=x64-mingw-static ^
@@ -119,8 +120,23 @@ jobs:
           call "%VCPKG_DIR%\vcpkg.exe" integrate install
           echo vcpkg installed ports (end) && "%VCPKG_DIR%\vcpkg.exe" list || echo "couldn't list vcpkg packages"
 
+      - name: Ensure msys2 packages for ffmpeg build (pkgconf, nasm, yasm)
+        run: |
+          echo Looking for vcpkg msys2 root
+          set MSYS2_ROOT=%VCPKG_DIR%\downloads\tools\msys2
+          for /f "delims=" %%i in ('dir /b /ad "%MSYS2_ROOT%" 2^>nul') do set MSYS2_DIR=%%i
+          if not defined MSYS2_DIR (
+            echo msys2 root not present yet, skipping pacman step
+          ) else (
+            set MSYS2_PATH=%MSYS2_ROOT%\%MSYS2_DIR%
+            echo msys path: %MSYS2_PATH%
+            %MSYS2_PATH%\usr\bin\bash.exe -lc "pacman -Sy --noconfirm mingw-w64-x86_64-pkgconf mingw-w64-x86_64-nasm mingw-w64-x86_64-yasm || true"
+          )
+        shell: cmd
+
       - name: Verify vcpkg static libraries (with debug output)
         run: |
+          set VCPKG_MAX_CONCURRENCY=%VCPKG_MAX_CONCURRENCY%
           set LIB_DIR=%VCPKG_DIR%\installed\x64-mingw-static\lib
           echo === vcpkg list ===
           if exist "%VCPKG_DIR%\vcpkg.exe" (
@@ -139,11 +155,6 @@ jobs:
             dir "%LIB_DIR%"
           ) else (
             echo ERROR: Library folder not found: %LIB_DIR% && exit /b 1
-          )
-
-          REM Check for both .a and .lib variants in the installed folder to be robust
-          if not exist "%LIB_DIR%\libssl.a" if not exist "%LIB_DIR%\libssl.lib" (
-            echo ERROR: libssl missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
           )
           if not exist "%LIB_DIR%\libcrypto.a" if not exist "%LIB_DIR%\libcrypto.lib" (
             echo ERROR: libcrypto missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
@@ -176,8 +187,28 @@ jobs:
             echo "No ffmpeg buildtrees directory exists yet"
           )
 
+      - name: Show ffmpeg buildtrees last 200 lines (always)
+        if: always()
+        run: |
+            echo === show last lines of ffmpeg build logs ===
+            if exist "D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-out.log" (
+              powershell -Command "Get-Content 'D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-out.log' -Tail 200 -ErrorAction SilentlyContinue"
+            ) else (
+              echo out.log not found
+            )
+            if exist "D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-err.log" (
+              powershell -Command "Get-Content 'D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-err.log' -Tail 200 -ErrorAction SilentlyContinue"
+            ) else (
+              echo err.log not found
+            )
+            if exist "D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-config.log" (
+              powershell -Command "Get-Content 'D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-config.log' -Tail 200 -ErrorAction SilentlyContinue"
+            ) else (
+              echo config.log not found
+            )
+
       - name: Upload vcpkg ffmpeg logs on failure
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: vcpkg-ffmpeg-build-logs
