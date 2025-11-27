@@ -1,0 +1,40 @@
+{
+  "name": "openterface-qt",
+  "version": "1.0.0",
+  "dependencies": [
+    {
+      "name": "zlib",
+      "version>=": "1.2.13"
+    },
+    {
+      "name": "bzip2",
+      "version>=": "1.0.8"
+    },
+    {
+      "name": "liblzma",
+      "version>=": "5.4.0"
+    },
+    {
+      "name": "openssl",
+      "version>=": "3.0.0"
+    },
+    {
+      "name": "ffmpeg",
+      "version": "6.1",
+      "features": [
+        "core",
+        "avcodec",
+        "avdevice",
+        "avfilter",
+        "avformat",
+        "swscale",
+        "swresample",
+        "ffmpeg",
+        "nvenc",
+        "cuda",
+        "libmfx"
+      ]
+    }
+  ],
+  "builtin-baseline": "d9a7f6e8c0b3a1f4e2d5c8b7a6f3e0d9c2b5a8f1"
+}
