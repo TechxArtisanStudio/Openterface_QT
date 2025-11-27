@@ -113,10 +113,12 @@ jobs:
           call "%VCPKG_DIR%\vcpkg.exe" integrate install
           echo vcpkg installed ports (end) && "%VCPKG_DIR%\vcpkg.exe" list || echo "couldn't list vcpkg packages"
 
-      - name: Pre-create msys2 root by installing pkgconf (fast)
+      # vcpkg manifest will install pkgconf (manifest mode), which will create the msys2 root.
+
+      - name: Install vcpkg manifest (ffmpeg, zlib, openssl, pkgconf)
         run: |
-          echo Installing minimal pkgconf to create msys2 root (classic mode)
-          call "%VCPKG_DIR%\vcpkg.exe" install pkgconf --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --classic || echo "pkgconf install may have failed; proceeding"
+          echo Installing static packages via manifest (vcpkg.json)...
+          call "%VCPKG_DIR%\vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build
 
       - name: Ensure msys2 packages for ffmpeg build (pkgconf, nasm, yasm)
         run: |
@@ -134,10 +136,7 @@ jobs:
 
       # vcpkg verification (moved to run after manifest installation)
 
-      - name: Install vcpkg manifest (ffmpeg, zlib, openssl) after msys2 prep
-        run: |
-          echo Installing static packages via manifest (vcpkg.json)...
-          call "%VCPKG_DIR%\vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build
+      # (manifest install moved above) - leave this space intentionally
 
       - name: Verify vcpkg static libraries (with debug output)
         run: |

@@ -23,8 +23,6 @@
       "version>=": "6.1.1",
       "default-features": false,
       "features": [
-        "core",
-        "ffmpeg",
         "avcodec",
         "avdevice",
         "avfilter",
@@ -56,6 +54,10 @@
     {
       "name": "ffmpeg",
       "version": "6.1.1"
+    },
+    {
+      "name": "pkgconf",
+      "version>=": "2.2.0"
     }
   ],
   "builtin-baseline": "2017886818a9a88d303548b53709f5ef922efb39"
