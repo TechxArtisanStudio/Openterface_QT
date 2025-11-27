@@ -87,7 +87,7 @@ jobs:
           call bootstrap-vcpkg.bat
 
           echo Installing static packages for MinGW...
-          call vcpkg install ^
+          call "%VCPKG_DIR%\vcpkg.exe" install ^
             openssl:x64-mingw-static ^
             ffmpeg:x64-mingw-static ^
             zlib:x64-mingw-static ^
@@ -95,18 +95,46 @@ jobs:
             --host-triplet=x64-mingw-static ^
             --clean-after-build
 
-          call vcpkg integrate install
+          call "%VCPKG_DIR%\vcpkg.exe" integrate install
 
-      - name: Verify vcpkg static libraries
+      - name: Verify vcpkg static libraries (with debug output)
         run: |
           set LIB_DIR=%VCPKG_DIR%\installed\x64-mingw-static\lib
-          if not exist "%LIB_DIR%\libssl.a" ( echo ERROR: libssl.a missing & exit /b 1 )
-          if not exist "%LIB_DIR%\libcrypto.a" ( echo ERROR: libcrypto.a missing & exit /b 1 )
-          if not exist "%LIB_DIR%\libavcodec.a" ( echo ERROR: libavcodec.a missing & exit /b 1 )
-          if not exist "%LIB_DIR%\libavformat.a" ( echo ERROR: libavformat.a missing & exit /b 1 )
-          if not exist "%LIB_DIR%\libavutil.a" ( echo ERROR: libavutil.a missing & exit /b 1 )
-          if not exist "%LIB_DIR%\libswscale.a" ( echo ERROR: libswscale.a missing & exit /b 1 )
-          if not exist "%LIB_DIR%\libz.a" ( echo ERROR: libz.a missing & exit /b 1 )
+          echo === vcpkg list ===
+          if exist "%VCPKG_DIR%\vcpkg.exe" (
+            call "%VCPKG_DIR%\vcpkg.exe" list
+          ) else (
+            echo WARNING: vcpkg.exe not found in %VCPKG_DIR% - skipping vcpkg list
+          )
+          echo === Directory listing: %LIB_DIR% ===
+          if exist "%LIB_DIR%" (
+            dir "%LIB_DIR%"
+          ) else (
+            echo ERROR: Library folder not found: %LIB_DIR% && exit /b 1
+          )
+
+          REM Check for both .a and .lib variants in the installed folder to be robust
+          if not exist "%LIB_DIR%\libssl.a" if not exist "%LIB_DIR%\libssl.lib" (
+            echo ERROR: libssl missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
+          )
+          if not exist "%LIB_DIR%\libcrypto.a" if not exist "%LIB_DIR%\libcrypto.lib" (
+            echo ERROR: libcrypto missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
+          )
+          if not exist "%LIB_DIR%\libavcodec.a" if not exist "%LIB_DIR%\avcodec.lib" (
+            echo ERROR: libavcodec missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
+          )
+          if not exist "%LIB_DIR%\libavformat.a" if not exist "%LIB_DIR%\avformat.lib" (
+            echo ERROR: libavformat missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
+          )
+          if not exist "%LIB_DIR%\libavutil.a" if not exist "%LIB_DIR%\avutil.lib" (
+            echo ERROR: libavutil missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
+          )
+          if not exist "%LIB_DIR%\libswscale.a" if not exist "%LIB_DIR%\swscale.lib" (
+            echo ERROR: libswscale missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
+          )
+          if not exist "%LIB_DIR%\libz.a" if not exist "%LIB_DIR%\zlib.lib" (
+            echo ERROR: libz (zlib) missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
+          )
           echo All static libraries present.
 
       - name: Build Qt Statically (if not cached)
