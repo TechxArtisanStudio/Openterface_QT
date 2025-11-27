@@ -136,18 +136,15 @@
     <name>CornerWidgetManager</name>
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="74"/>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="74"/>
         <source>Select Keyboard Layout</source>
         <translation type="unfinished">キーボードレイアウトを選択</translation>
     </message>
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
         <source>Stop Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
         <source>Start Recording</source>
         <translation type="unfinished"></translation>
@@ -155,14 +152,10 @@
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
         <source>Unmute Audio</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
         <source>Mute Audio</source>
@@ -172,8 +165,7 @@
 <context>
     <name>DeviceCoordinator</name>
     <message>
-        <location filename="../../ui/coordinator/devicecoordinator.cpp" line="102"/>
-        <location filename="../../ui/coordinator/devicecoordinator.cpp" line="102"/>
+        <location filename="../../ui/coordinator/devicecoordinator.cpp" line="106"/>
         <source>No devices available</source>
         <translation type="unfinished"></translation>
     </message>
@@ -234,26 +226,6 @@
         <location filename="../../ui/advance/envdialog.cpp" line="146"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation type="unfinished"> デバイスが接続されていません。接続してから、もう一度お試しください。</translation>
-    </message>
-    <message>
-        <source>‣ Driver Installed: </source>
-        <translation type="vanished">‣ ドライバーインストール済み: </translation>
-    </message>
-    <message>
-        <source>‣ Latest Firmware: </source>
-        <translation type="obsolete">‣ 最新のファームウェア： </translation>
-    </message>
-    <message>
-        <source>‣ In Serial Port Permission: </source>
-        <translation type="obsolete">‣ シリアルポートの権限で： </translation>
-    </message>
-    <message>
-        <source>‣ HID Permission: </source>
-        <translation type="vanished">‣ HID権限: </translation>
-    </message>
-    <message>
-        <source>‣ BRLTTY checking: </source>
-        <translation type="vanished">‣ BRLTTY確認: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="136"/>
@@ -919,15 +891,10 @@ Please try again after restarting the application.</source>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="535"/>
-        <location filename="../../ui/mainwindow.cpp" line="535"/>
         <source>Recorded %1 sec</source>
         <translation>%1秒録画しました</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="609"/>
-        <location filename="../../ui/mainwindow.cpp" line="616"/>
-        <location filename="../../ui/mainwindow.cpp" line="643"/>
-        <location filename="../../ui/mainwindow.cpp" line="647"/>
         <location filename="../../ui/mainwindow.cpp" line="609"/>
         <location filename="../../ui/mainwindow.cpp" line="616"/>
         <location filename="../../ui/mainwindow.cpp" line="643"/>
@@ -937,84 +904,70 @@ Please try again after restarting the application.</source>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="610"/>
-        <location filename="../../ui/mainwindow.cpp" line="610"/>
         <source>Recording system is not initialized. Please restart the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="617"/>
         <location filename="../../ui/mainwindow.cpp" line="617"/>
         <source>Camera system is not initialized. Please restart the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="626"/>
-        <location filename="../../ui/mainwindow.cpp" line="626"/>
         <source>No Camera Available</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="627"/>
         <location filename="../../ui/mainwindow.cpp" line="627"/>
         <source>No camera devices detected. Please connect a camera and try again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="629"/>
-        <location filename="../../ui/mainwindow.cpp" line="629"/>
         <source>Camera Not Active</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="630"/>
         <location filename="../../ui/mainwindow.cpp" line="630"/>
         <source>Camera is not active. Please start the camera preview before recording.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="644"/>
-        <location filename="../../ui/mainwindow.cpp" line="644"/>
         <source>An unexpected error occurred: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="648"/>
         <location filename="../../ui/mainwindow.cpp" line="648"/>
         <source>An unexpected error occurred. Please try again or restart the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="682"/>
-        <location filename="../../ui/mainwindow.cpp" line="682"/>
         <source>Active Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="683"/>
         <location filename="../../ui/mainwindow.cpp" line="683"/>
         <source>There is an active recording session. Do you want to stop it before changing settings?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="836"/>
-        <location filename="../../ui/mainwindow.cpp" line="836"/>
         <source>Image Capture Error</source>
         <translation>画像キャプチャエラー</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="905"/>
         <location filename="../../ui/mainwindow.cpp" line="905"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>&quot;%1&quot;をキャプチャしました</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1463"/>
-        <location filename="../../ui/mainwindow.cpp" line="1463"/>
         <source>Firmware Update</source>
         <translation>ファームウェア更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1464"/>
         <location filename="../../ui/mainwindow.cpp" line="1464"/>
         <source>The firmware is up to date.
 Current version: </source>
@@ -1022,12 +975,10 @@ Current version: </source>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1486"/>
-        <location filename="../../ui/mainwindow.cpp" line="1486"/>
         <source>Firmware fetch timeout</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1487"/>
         <location filename="../../ui/mainwindow.cpp" line="1487"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
@@ -1159,31 +1110,24 @@ Technical details: %1</source>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="588"/>
         <source>System Reset</source>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="588"/>
-        <source>System Reset</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="589"/>
         <source>FFmpeg backend automatically handles recovery. Please try recording again.</source>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="589"/>
-        <source>FFmpeg backend automatically handles recovery. Please try recording again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="613"/>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="613"/>
         <source>Recording System Diagnostics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="624"/>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="624"/>
         <source>Copy to Clipboard</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="625"/>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="625"/>
         <source>Close</source>
         <translation type="unfinished">閉じる</translation>
@@ -1717,13 +1661,10 @@ Please:
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="79"/>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="79"/>
         <source>Preferences</source>
         <translation>プリファレンス</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="180"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="180"/>
         <source>General</source>
@@ -1732,14 +1673,10 @@ Please:
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="182"/>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="182"/>
         <source>Video</source>
         <translation>ビデオ</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="184"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="184"/>
         <source>Audio</source>
@@ -1748,25 +1685,20 @@ Please:
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="186"/>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="186"/>
         <source>Target Control</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="133"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="133"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="134"/>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="134"/>
         <source>Apply</source>
         <translation>適用</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/settingdialog.cpp" line="135"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="135"/>
         <source>Cancel</source>
         <translation>キャンセル</translation>
@@ -2262,74 +2194,37 @@ Please check your internet connection.
     <name>VideoPage</name>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="99"/>
-        <location filename="../../ui/preferences/videopage.cpp" line="99"/>
         <source>General video setting</source>
         <translation>一般的なビデオ設定</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="103"/>
         <location filename="../../ui/preferences/videopage.cpp" line="103"/>
         <source>Capture resolutions: </source>
         <translation>キャプチャ解像度: </translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="109"/>
-        <location filename="../../ui/preferences/videopage.cpp" line="109"/>
         <source>Framerate: </source>
         <translation>フレームレート: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="118"/>
         <location filename="../../ui/preferences/videopage.cpp" line="118"/>
         <source>Pixel format: </source>
         <translation>ピクセル形式: </translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="123"/>
-        <location filename="../../ui/preferences/videopage.cpp" line="123"/>
         <source>Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="131"/>
         <location filename="../../ui/preferences/videopage.cpp" line="131"/>
         <source>Media Backend: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="146"/>
-        <location filename="../../ui/preferences/videopage.cpp" line="146"/>
         <source>Note: Changing media backend requires application restart to take effect.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="153"/>
-        <source>Hardware Acceleration: </source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="159"/>
-        <source>Note: Hardware acceleration improves performance but may not be available on all systems. Changing this setting requires application restart to take effect.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="171"/>
-        <source>Auto (Recommended)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="173"/>
-        <source>NVIDIA CUDA</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="175"/>
-        <source>Intel Quick Sync Video</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="177"/>
-        <source>CPU</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

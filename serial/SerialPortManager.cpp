@@ -663,6 +663,14 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     qCDebug(log_core_serial) << "Observe" << portName << "data ready and bytes written.";
     connect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
     connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
+    // Extra debug: confirm readyRead signals and thread id (and bytesAvailable at the moment)
+    // This lambda helps validate whether readyRead is fired and on which thread context.
+    connect(serialPort, &QSerialPort::readyRead, this, [this]() {
+        qCDebug(log_core_serial) << "readyRead: emitted; threadId:" << (qulonglong)QThread::currentThreadId()
+                                 << "port:" << (serialPort ? serialPort->portName() : QString("null"))
+                                 << "bytesAvailable:" << (serialPort ? serialPort->bytesAvailable() : -1)
+                                 << "bytesToWrite:" << (serialPort ? serialPort->bytesToWrite() : -1);
+    });
     
     // Connect error signal for enhanced error handling
     connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
@@ -1109,12 +1117,16 @@ void SerialPortManager::updateSpecialKeyState(uint8_t data){
  */
 void SerialPortManager::readData() {
     if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
+        qCDebug(log_core_serial) << "readData: Ignored read - shutting down or port not open";
         return;
     }
+    
+    qCDebug(log_core_serial) << "readData: Called, reading data from serial port";
     
     QByteArray data;
     try {
         data = serialPort->readAll();
+        qCDebug(log_core_serial) << "readData: Read" << data.size() << "bytes:" << data.toHex(' ');
     } catch (...) {
         qCWarning(log_core_serial) << "Exception occurred while reading serial data";
         m_consecutiveErrors++;
@@ -1128,6 +1140,8 @@ void SerialPortManager::readData() {
         qCDebug(log_core_serial) << "Received empty data from serial port";
         return;
     }
+
+    qCDebug(log_core_serial) << "readData: Received raw data from serial port:" << data.toHex(' ');
 
         // Prepend any buffered incomplete data from previous reads
     QByteArray completeData;
@@ -1214,6 +1228,8 @@ void SerialPortManager::readData() {
             unsigned char cmdCode = static_cast<unsigned char>(packet[3]);
             unsigned char responseKey = static_cast<unsigned char>(cmdCode | 0x80);
 
+            qCDebug(log_core_serial) << "readData: Extracted packet:" << packet.toHex(' ') << "cmdCode: 0x" << QString::number(cmdCode, 16);
+
             // If there's a pending synchronous request, check for match
             bool handledBySync = false;
             {
@@ -1221,13 +1237,17 @@ void SerialPortManager::readData() {
                 if (m_pendingSyncCommand && responseKey == m_pendingSyncExpectedKey) {
                     // Store the response packet and notify the waiting thread
                     m_syncCommandResponse = packet;
-                    m_syncResponseCondition.wakeAll();
+                    m_syncResponseCondition.wakeAll();  // Keep for compatibility, but we'll replace the wait
                     handledBySync = true;
+                    qCDebug(log_core_serial) << "readData: Matched sync response for command 0x" << QString::number(cmdCode, 16) << ", emitting syncResponseReady";
+                    emit syncResponseReady();  // NEW: Emit signal to notify async waiters
                 } else if (m_pendingSyncCommand && responseKey != m_pendingSyncExpectedKey) {
                     // A sync request is pending but this packet does not match - ignore it for now
-                    qCWarning(log_core_serial) << "Sync request pending but got unmatched command" << QString("0x%1").arg(cmdCode, 2, 16, QChar('0')) << "- ignoring until expected response arrives";
+                    qCWarning(log_core_serial) << "readData: Sync request pending but got unmatched command" << QString("0x%1").arg(cmdCode, 2, 16, QChar('0')) << " (expected 0x" << QString::number(m_pendingSyncExpectedKey, 16) << ") - ignoring until expected response arrives";
                     // intentionally drop this packet when a sync is pending
                     continue;
+                } else if (m_pendingSyncCommand) {
+                    qCDebug(log_core_serial) << "readData: Pending sync command, but responseKey 0x" << QString::number(responseKey, 16) << " != expected 0x" << QString::number(m_pendingSyncExpectedKey, 16);
                 }
             }
 
@@ -1413,7 +1433,7 @@ bool SerialPortManager::writeData(const QByteArray &data) {
     }
 
     try {
-        qint64 bytesWritten = serialPort->write(data);
+    qint64 bytesWritten = serialPort->write(data);
         if (bytesWritten == -1) {
             qCWarning(log_core_serial) << "Failed to write data to serial port:" << serialPort->errorString();
             m_consecutiveErrors++;
@@ -1424,12 +1444,73 @@ bool SerialPortManager::writeData(const QByteArray &data) {
             return false;
         }
         
-        // Flush immediately instead of blocking wait - serial port should handle buffering
-        serialPort->flush();
-        
-        qCDebug(log_core_serial) << "Data written to serial port:" << serialPort->portName()
+    // Ensure data is flushed to OS driver and wait for kernel write completion
+    serialPort->flush();
+    bool waitOk = false;
+
+    // If nothing left to write, succeed immediately
+    if (serialPort->bytesToWrite() == 0) {
+        waitOk = true;
+    } else {
+        // Use a QEventLoop and signal-based waiting instead of waitForBytesWritten
+        // This avoids platform-specific deadlocks and gives us a reliable timeout.
+        QEventLoop loop;
+        QTimer timeoutTimer;
+        timeoutTimer.setSingleShot(true);
+        const int writeTimeoutMs = 1000; // 1s timeout for kernel write completion
+
+        bool timedOut = false;
+        bool writeError = false;
+
+        timeoutTimer.start(writeTimeoutMs);
+
+        QMetaObject::Connection connWrite = connect(serialPort, &QSerialPort::bytesWritten, &loop, [&](qint64){
+            // Break out if all data has been written
+            if (serialPort->bytesToWrite() == 0) {
+                loop.quit();
+            }
+        });
+        QMetaObject::Connection connErr = connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred), &loop, [&](QSerialPort::SerialPortError err){
+            Q_UNUSED(err);
+            writeError = true;
+            loop.quit();
+        });
+        QMetaObject::Connection connTimeout = connect(&timeoutTimer, &QTimer::timeout, &loop, [&](){
+            timedOut = true;
+            loop.quit();
+        });
+
+        // Run nested event loop until bytesWritten or timeout or error triggers exit
+        loop.exec();
+
+        // Disconnect the temporary connections
+        disconnect(connWrite);
+        disconnect(connErr);
+        disconnect(connTimeout);
+
+        waitOk = (!timedOut && !writeError && serialPort->bytesToWrite() == 0);
+    }
+
+    qCDebug(log_core_serial) << "writeData: bytesWritten=" << bytesWritten << "writeWaitOk=" << waitOk
+             << "bytesToWrite(after):" << serialPort->bytesToWrite()
+             << "bytesAvailable(after):" << serialPort->bytesAvailable();
+
+    qCDebug(log_core_serial) << "Data written to serial port:" << serialPort->portName()
                      << "baudrate:" << serialPort->baudRate() << ":" << data.toHex(' ');
         
+        if (!waitOk) {
+            qCWarning(log_core_serial) << "writeData: write did not finish within timeout or error occurred; bytesToWrite:" 
+                                       << (serialPort ? serialPort->bytesToWrite() : -1) 
+                                       << "error:" << (serialPort ? serialPort->errorString() : QString("N/A"));
+            // Count this as a write failure
+            m_consecutiveErrors++;
+            ready = false;
+            if (isRecoveryNeeded()) {
+                attemptRecovery();
+            }
+            return false;
+        }
+
         // Reset error count on successful write
         if (m_consecutiveErrors > 0) {
             m_consecutiveErrors = qMax(0, m_consecutiveErrors - 1);
@@ -1473,62 +1554,49 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
     return result;
 }
 
-/*
+ /*
  * Send the sync command to the serial port
  */
 QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force) {
     if(!force && !ready) return QByteArray();
     
-    if (data.size() < 4) {
-        qCWarning(log_core_serial) << "Invalid command length for sendSyncCommand";
-        return QByteArray();
-    }
-
-    // Determine request command and expected response code
-    unsigned char requestCmd = static_cast<unsigned char>(data[3]);
-    unsigned char expectedRespKey = static_cast<unsigned char>(requestCmd | 0x80);
-
-    // Prepare for sync response
-    {
-        QMutexLocker locker(&m_syncResponseMutex);
-        m_pendingSyncCommand = true;
-        m_pendingSyncExpectedKey = expectedRespKey;
-        m_syncCommandResponse.clear();
-    }
-
     emit dataSent(data);
     QByteArray command = data;
+    
     command.append(calculateChecksum(command));
-    // qCDebug(log_core_serial) <<  "Check sum" << command.toHex(' ');
+    qCDebug(log_core_serial) <<  "Check sum" << command.toHex(' ');
     writeData(command);
-
-    // Wait for response from readData() which will fill m_syncCommandResponse
+    
+    // Use signal-based approach instead of blocking wait
+    // The response will be handled by readData() signal handler
+    // For now, return empty array - calling code should use async signals
+    // This prevents UI blocking
+    
+    // DEPRECATED: This synchronous method should be refactored to use callbacks
+    // Temporarily keeping minimal blocking for backwards compatibility
     QElapsedTimer timer;
     timer.start();
-    const int totalTimeoutMs = 1000;
-    const int waitStepMs = 50;
     QByteArray responseData;
+    
+    const int totalTimeoutMs = 1000;
+    const int waitStepMs = 100;
 
-    // Small initial delay to allow device processing
-    QThread::msleep(60);
-
-    {
-        QMutexLocker lock(&m_syncResponseMutex);
-        while (timer.elapsed() < totalTimeoutMs && m_syncCommandResponse.isEmpty()) {
-            m_syncResponseCondition.wait(&m_syncResponseMutex, waitStepMs);
+    while (timer.elapsed() < totalTimeoutMs && responseData.isEmpty()) {
+        if (serialPort->waitForReadyRead(waitStepMs)) {
+            responseData = serialPort->readAll();
+            QThread::msleep(40); // Add 40ms delay
+            // Try to get any remaining data without blocking
+            while (serialPort->bytesAvailable() > 0) {
+                responseData += serialPort->readAll();
+            }
+            if (!responseData.isEmpty()) {
+                emit dataReceived(responseData);
+                return responseData;
+            }
         }
-        responseData = m_syncCommandResponse;
-        // clear pending flag always
-        m_pendingSyncCommand = false;
-        m_pendingSyncExpectedKey = 0;
+        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 5);
     }
-
-    if (!responseData.isEmpty()) {
-        emit dataReceived(responseData);
-    } else {
-        qCWarning(log_core_serial) << "Timeout waiting for sync response for command" << QString("0x%1").arg(requestCmd, 2, 16, QChar('0'));
-    }
-
+    
     return responseData;
 }
 

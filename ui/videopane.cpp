@@ -443,7 +443,9 @@ void VideoPane::resizeEvent(QResizeEvent *event)
 
 // Helper methods
 void VideoPane::updateVideoItemTransform()
-{
+// {
+//     qCDebug(log_ui_video) << "Updating video item transform: scale factor=" << m_scaleFactor
+//                          << "maintain aspect ratio=" << m_maintainAspectRatio;
     // Handle both Qt video item and FFmpeg pixmap item
     QGraphicsItem* targetItem = nullptr;
     QRectF itemRect;
@@ -461,12 +463,14 @@ void VideoPane::updateVideoItemTransform()
                 m_overlayWidget->setGeometry(viewRect.toRect());
             }
         }
+        qCDebug(log_ui_video) << "VideoPane: Updated GStreamer overlay widget geometry to:" << m_overlayWidget->geometry();
         // Nothing further to transform; overlay handles the rendered video
         return;
     } else if (m_videoItem) {
         // Default: use the Qt video item when not in FFmpeg mode and not in GStreamer overlay mode
         targetItem = m_videoItem;
         itemRect = m_videoItem->boundingRect();
+        qCDebug(log_ui_video) << "VideoPane: Updating Qt video item transform";
     }
 
     // If we don't have a valid target item, nothing to transform

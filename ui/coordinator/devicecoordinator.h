@@ -153,6 +153,16 @@ private:
      * @return bool True if a device was auto-selected
      */
     bool autoSelectFirstDevice();
+    /**
+     * @brief Schedule auto-selection of the first device to run off the GUI thread
+     *
+     * This schedules a background task that will perform any long-running
+     * work (if needed) and then invoke the actual serial switch on the
+     * SerialPortManager via a queued invocation so it executes in the
+     * SerialPortManager's thread context. This method is fire-and-forget and
+     * will not wait for the switch to complete.
+     */
+    void scheduleAutoSelectFirstDevice(const QString &portChain);
 
     // Member variables
     QMenu *m_deviceMenu;                    ///< Pointer to device menu (not owned)

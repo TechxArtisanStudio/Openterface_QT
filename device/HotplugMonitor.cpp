@@ -63,6 +63,7 @@ void HotplugMonitor::start(int pollIntervalMs)
         return;
     }
     
+    qCDebug(log_hotplug_monitor) << "Starting hotplug monitor with interval:" << pollIntervalMs << "ms";
     m_pollInterval = pollIntervalMs;
     m_timer->setInterval(m_pollInterval);
     

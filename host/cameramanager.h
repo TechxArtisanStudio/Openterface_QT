@@ -151,6 +151,14 @@ private:
     
     // Helper method for device ID matching
     QString extractShortIdentifier(const QString& fullId) const;
+
+    // Helper method to find the first Qt camera device that looks like an Openterface device
+    QCameraDevice findQtOpenterfaceDevice(const QList<QCameraDevice>& devices) const;
+
+    // Helper to determine device path for direct capture (FFmpeg/GStreamer).
+    // Returns an empty string on failure. On success, outPortChain will be set
+    // to the port chain if available and ok will be set to true.
+    QString determineDirectCaptureDevicePath(QString &outPortChain, bool &ok) const;
     
     // FFmpeg backend specific methods
     void handleFFmpegDeviceDisconnection(const QString& devicePath);

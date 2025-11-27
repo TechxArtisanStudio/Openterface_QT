@@ -34,6 +34,7 @@
 #include <QMutex>
 #include <QQueue>
 #include <QWaitCondition>
+#include <QEventLoop>
 #include <atomic>
 
 #include "ch9329.h"
@@ -161,6 +162,7 @@ signals:
     void serialPortDeviceChanged(const QString& oldPortPath, const QString& newPortPath);
     void armBaudratePerformanceRecommendation(int currentBaudrate); // Signal for ARM performance recommendation
     void parameterConfigurationSuccess(); // Signal emitted when parameter configuration is successful and reset is needed
+    void syncResponseReady();  // Emitted when m_syncCommandResponse is filled for sync commands
     
 private slots:
     void checkSerialPort();

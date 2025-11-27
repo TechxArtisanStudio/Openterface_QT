@@ -391,8 +391,8 @@ void VideoHid::start() {
             qCDebug(log_host_hid)  << "Exception occurred during timer processing";
         }
     });
-    // TODO: Rollback after test
-    // timer->start(1000);
+
+    timer->start(1000);
 }
 
 void VideoHid::stop() {

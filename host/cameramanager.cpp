@@ -1027,6 +1027,79 @@ QString CameraManager::convertCameraDeviceToPath(const QCameraDevice& device) co
 #endif
 }
 
+QCameraDevice CameraManager::findQtOpenterfaceDevice(const QList<QCameraDevice>& devices) const
+{
+    QList<QCameraDevice> devList = devices;
+    if (devList.isEmpty()) {
+        devList = getAvailableCameraDevices();
+    }
+
+    for (const QCameraDevice& device : devList) {
+        if (device.description().contains("Openterface", Qt::CaseInsensitive) ||
+            device.description().contains("MACROSILICON", Qt::CaseInsensitive) ||
+            device.description().contains("345F", Qt::CaseInsensitive) ||
+            device.description() == "Openterface") {
+            return device;
+        }
+    }
+
+    return QCameraDevice();
+}
+
+QString CameraManager::determineDirectCaptureDevicePath(QString &outPortChain, bool &ok) const
+{
+    ok = false;
+    outPortChain.clear();
+    QString devicePath;
+
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    DeviceInfo selectedDevice = deviceManager.getCurrentSelectedDevice();
+
+    QList<QCameraDevice> devices = getAvailableCameraDevices();
+
+#ifdef Q_OS_WIN
+    // Windows: prefer DeviceManager selected device, then search Qt devices for Openterface
+    if (selectedDevice.isValid()) {
+        outPortChain = selectedDevice.portChain;
+        QCameraDevice found = findQtOpenterfaceDevice(devices);
+        if (!found.isNull()) {
+            devicePath = convertCameraDeviceToPath(found);
+        }
+    }
+
+    if (devicePath.isEmpty()) {
+        // fallback: use any available camera via Qt detection
+        if (!devices.isEmpty()) {
+            devicePath = convertCameraDeviceToPath(devices.first());
+        }
+    }
+#else
+    // Linux/macOS: prefer DeviceManager cameraDevicePath, otherwise detect via Qt
+    if (selectedDevice.isValid() && !selectedDevice.cameraDevicePath.isEmpty()) {
+        devicePath = selectedDevice.cameraDevicePath;
+        outPortChain = selectedDevice.portChain;
+    } else {
+        QCameraDevice found = findQtOpenterfaceDevice(devices);
+        if (!found.isNull()) {
+            devicePath = convertCameraDeviceToPath(found);
+        }
+
+        if (devicePath.isEmpty() && !devices.isEmpty()) {
+            devicePath = convertCameraDeviceToPath(devices.first());
+        }
+
+        if (devicePath.isEmpty()) {
+            devicePath = QStringLiteral("/dev/video0");
+        }
+    }
+#endif
+
+    if (!devicePath.isEmpty()) {
+        ok = true;
+    }
+    return devicePath;
+}
+
 // REMOVED: displayAllCameraDeviceIds() - QCamera-dependent method
 
 
@@ -1232,16 +1305,10 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
             QList<QCameraDevice> allDevices = getAvailableCameraDevices();
             
             qDebug() << "Available camera devices:";
-            for (const QCameraDevice& device : allDevices) {
-                qDebug() << "  -" << device.description() << "ID:" << QString::fromUtf8(device.id());
-                
-                if (device.description().contains("Openterface", Qt::CaseInsensitive) ||
-                    device.description().contains("345F", Qt::CaseInsensitive) ||
-                    device.description() == "Openterface") {
-                    openterfaceDevice = device;
-                    qDebug() << "Windows: Found Openterface-like device:" << device.description();
-                    break;
-                }
+            QCameraDevice found = findQtOpenterfaceDevice(allDevices);
+            if (!found.isNull()) {
+                qDebug() << "Windows: Found Openterface-like device:" << found.description();
+                openterfaceDevice = found;
             }
         }
 
@@ -1293,13 +1360,7 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
     if (!switchSuccess) {
         // Enforce camera device description to be "Openterface"
         QList<QCameraDevice> devices = getAvailableCameraDevices();
-        QCameraDevice openterfaceDevice;
-        for (const QCameraDevice& device : devices) {
-            if (device.description() == "Openterface") {
-                openterfaceDevice = device;
-                break;
-            }
-        }
+        QCameraDevice openterfaceDevice = findQtOpenterfaceDevice(devices);
 
         if (!openterfaceDevice.isNull()) {
             switchSuccess = switchToCameraDevice(openterfaceDevice, QString());  // No port chain available for fallback
@@ -1341,46 +1402,32 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
         // Cast to FFmpegBackendHandler to access direct capture methods
         auto* ffmpegHandler = dynamic_cast<FFmpegBackendHandler*>(m_backendHandler.get());
         if (ffmpegHandler) {
-            // Enable direct FFmpeg mode in VideoPane
-            videoPane->enableDirectFFmpegMode(true);
-            
-            // Set VideoPane as the output for the FFmpeg backend
-            // This will automatically connect the frameReady signal
-            ffmpegHandler->setVideoOutput(videoPane);
-            
-            // Connect error signal
-            connect(ffmpegHandler, &FFmpegBackendHandler::captureError,
-                    this, [this](const QString& error) {
-                        qCWarning(log_ui_camera) << "FFmpeg capture error:" << error;
-                        emit cameraError(error);
-                    });
-            
-            // Connect enhanced hotplug signals for VideoPane integration
-            connect(ffmpegHandler, &FFmpegBackendHandler::deviceActivated,
-                    this, [this](const QString& devicePath) {
-                        qCInfo(log_ui_camera) << "FFmpeg device activated (VideoPane):" << devicePath;
-                        emit cameraActiveChanged(true);
-                    });
-                    
-            connect(ffmpegHandler, &FFmpegBackendHandler::deviceDeactivated,
-                    this, [this](const QString& devicePath) {
-                        qCInfo(log_ui_camera) << "FFmpeg device deactivated (VideoPane):" << devicePath;
-                        emit cameraActiveChanged(false);
-                    });
-                    
-            connect(ffmpegHandler, &FFmpegBackendHandler::waitingForDevice,
-                    this, [this](const QString& devicePath) {
-                        qCInfo(log_ui_camera) << "FFmpeg waiting for device (VideoPane):" << devicePath;
-                        emit cameraActiveChanged(false);
-                    });
-            
-            // Connect camera active changed to VideoPane
-            connect(this, &CameraManager::cameraActiveChanged, videoPane, &VideoPane::onCameraActiveChanged);
-            
-            // Get device path and configuration
-            QString devicePath;
-            QSize resolution(0, 0); // Auto-detect maximum resolution
-            int framerate = 0; // Auto-detect maximum framerate
+                // Enable direct FFmpeg mode in VideoPane and set the video output
+                videoPane->enableDirectFFmpegMode(true);
+                ffmpegHandler->setVideoOutput(videoPane);
+
+                // Capture errors from FFmpeg backend — use Qt::UniqueConnection to avoid duplicate connects
+                connect(ffmpegHandler, &FFmpegBackendHandler::captureError,
+                        this, [this](const QString& error) {
+                            qCWarning(log_ui_camera) << "FFmpeg capture error:" << error;
+                            emit cameraError(error);
+                        }, Qt::UniqueConnection);
+
+                // Connect camera active changed to VideoPane (UniqueConnection)
+                connect(this, &CameraManager::cameraActiveChanged, videoPane, &VideoPane::onCameraActiveChanged, Qt::UniqueConnection);
+
+                // Get device path and configuration via helper
+                QString devicePath;
+                QSize resolution(0, 0); // Auto-detect maximum resolution
+                int framerate = 0; // Auto-detect maximum framerate
+                QString detectedPortChain;
+                bool deviceOk = false;
+                devicePath = determineDirectCaptureDevicePath(detectedPortChain, deviceOk);
+
+                if (!deviceOk || devicePath.isEmpty()) {
+                    qCWarning(log_ui_camera) << "Could not determine device path for FFmpeg direct capture";
+                    return false;
+                }
             
 #ifdef Q_OS_WIN
             // Windows: Use DirectShow device name from Qt camera device
@@ -1390,14 +1437,11 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
             if (selectedDevice.isValid()) {
                 // Try to get camera device from available devices
                 QList<QCameraDevice> devices = getAvailableCameraDevices();
-                for (const QCameraDevice& device : devices) {
-                    if (device.description().contains("Openterface", Qt::CaseInsensitive) || 
-                        device.description().contains("MACROSILICON", Qt::CaseInsensitive)) {
-                        // Convert Qt camera device to DirectShow format
-                        devicePath = convertCameraDeviceToPath(device);
-                        qDebug() << "Found Openterface device via Qt detection (Windows):" << devicePath;
-                        break;
-                    }
+                QCameraDevice found = findQtOpenterfaceDevice(devices);
+                if (!found.isNull()) {
+                    // Convert Qt camera device to DirectShow format
+                    devicePath = convertCameraDeviceToPath(found);
+                    qDebug() << "Found Openterface device via Qt detection (Windows):" << devicePath;
                 }
             }
             
@@ -1425,14 +1469,11 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
                 
                 // Fallback: Try to detect Openterface device path from Qt cameras
                 QList<QCameraDevice> devices = getAvailableCameraDevices();
-                for (const QCameraDevice& device : devices) {
-                    if (device.description().contains("Openterface", Qt::CaseInsensitive) || 
-                        device.description().contains("MACROSILICON", Qt::CaseInsensitive)) {
-                        // Convert Qt device ID to V4L2 device path
-                        devicePath = convertCameraDeviceToPath(device);
-                        qDebug() << "Found Openterface device via Qt detection:" << devicePath;
-                        break;
-                    }
+                QCameraDevice found = findQtOpenterfaceDevice(devices);
+                if (!found.isNull()) {
+                    // Convert Qt device ID to V4L2 device path
+                    devicePath = convertCameraDeviceToPath(found);
+                    qDebug() << "Found Openterface device via Qt detection:" << devicePath;
                 }
                 
                 if (devicePath.isEmpty()) {
@@ -1450,7 +1491,8 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
                 if (captureStarted) {
                     qDebug() << "✓ FFmpeg direct capture started successfully";
                     qDebug() << "✓ Camera successfully initialized with video output";
-                    m_currentCameraPortChain = devicePath; // Store device path as port chain
+                    // Prefer known port chain from DeviceManager if available
+                    m_currentCameraPortChain = detectedPortChain.isEmpty() ? devicePath : detectedPortChain;
                     
                     // Emit camera active signal to trigger UI updates (e.g., switch to VideoPane)
                     emit cameraActiveChanged(true);
@@ -1462,11 +1504,14 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
                 }
             } else {
                 qDebug() << "✓ FFmpeg video pipeline set up (capture will start on device switch)";
+                m_currentCameraPortChain = detectedPortChain.isEmpty() ? devicePath : detectedPortChain;
                 return true;
             }
         } else {
             qCWarning(log_ui_camera) << "Failed to cast to FFmpegBackendHandler";
         }
+    } else {
+        qDebug() << "Not using FFmpeg backend for direct capture";
     }
     
     // Check if we're using GStreamer backend for direct pipeline capture (Linux only)
@@ -1483,72 +1528,28 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
 
             // No captureError or deviceActivated signals to connect for GStreamer handler here
 
-            // Get device path and configuration like FFmpeg
+            // Determine device path and port chain via helper
             QString devicePath;
             QSize resolution(0, 0);
             int framerate = 0;
-            QString portChain;
-
-#ifdef Q_OS_WIN
-            DeviceManager& deviceManager = DeviceManager::getInstance();
-            DeviceInfo selectedDevice = deviceManager.getCurrentSelectedDevice();
-            if (selectedDevice.isValid()) {
-                for (const QCameraDevice& device : getAvailableCameraDevices()) {
-                    if (device.description().contains("Openterface", Qt::CaseInsensitive) || 
-                        device.description().contains("MACROSILICON", Qt::CaseInsensitive)) {
-                        devicePath = convertCameraDeviceToPath(device);
-                        portChain = selectedDevice.portChain;
-                        qDebug() << "Found Openterface device via Qt detection (Windows) for GStreamer:" << devicePath;
-                        break;
-                    }
-                }
+            QString detectedPortChain;
+            bool deviceOk = false;
+            devicePath = determineDirectCaptureDevicePath(detectedPortChain, deviceOk);
+            if (!deviceOk || devicePath.isEmpty()) {
+                qCWarning(log_ui_camera) << "Could not determine device path for GStreamer direct capture";
+                return false;
             }
-            if (devicePath.isEmpty()) {
-                qCWarning(log_ui_camera) << "No Openterface device found for GStreamer, searching for any available camera";
-                QList<QCameraDevice> devices = getAvailableCameraDevices();
-                if (!devices.isEmpty()) {
-                    devicePath = convertCameraDeviceToPath(devices.first());
-                    qCDebug(log_ui_camera) << "Using first available camera (GStreamer):" << devicePath;
-                } else {
-                    qCCritical(log_ui_camera) << "No camera devices available for GStreamer";
-                    return false;
-                }
-            }
-#else
-            DeviceManager& deviceManager = DeviceManager::getInstance();
-            DeviceInfo selectedDevice = deviceManager.getCurrentSelectedDevice();
-            if (selectedDevice.isValid() && !selectedDevice.cameraDevicePath.isEmpty()) {
-                devicePath = selectedDevice.cameraDevicePath;
-                portChain = selectedDevice.portChain;
-                qDebug() << "Using detected camera device path for GStreamer:" << devicePath;
-            } else {
-                qCWarning(log_ui_camera) << "No valid camera device path found in selected device for GStreamer, trying Qt camera detection";
-                QList<QCameraDevice> devices = getAvailableCameraDevices();
-                for (const QCameraDevice& device : devices) {
-                    if (device.description().contains("Openterface", Qt::CaseInsensitive) || 
-                        device.description().contains("MACROSILICON", Qt::CaseInsensitive)) {
-                        devicePath = convertCameraDeviceToPath(device);
-                        qDebug() << "Found Openterface device via Qt detection for GStreamer:" << devicePath;
-                        break;
-                    }
-                }
-                if (devicePath.isEmpty()) {
-                    devicePath = "/dev/video0";
-                    qCWarning(log_ui_camera) << "Using default device path for GStreamer:" << devicePath;
-                }
-            }
-#endif
 
             // Only start capture if requested
             if (startCapture) {
                 qDebug() << "Starting GStreamer direct capture with device:" << devicePath;
                 // Set device and port chain into the handler and start
-                gstHandler->setCurrentDevicePortChain(portChain);
+                gstHandler->setCurrentDevicePortChain(detectedPortChain);
                 gstHandler->setCurrentDevice(devicePath);
                 gstHandler->startCamera();
 
                 // Track the current camera port chain locally as we do for FFmpeg
-                m_currentCameraPortChain = portChain.isEmpty() ? devicePath : portChain;
+                m_currentCameraPortChain = detectedPortChain.isEmpty() ? devicePath : detectedPortChain;
                 emit cameraActiveChanged(true);
                 qCDebug(log_ui_camera) << "GStreamer direct capture attempted for device:" << devicePath;
                 return true;
@@ -1558,9 +1559,10 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
             }
         } else {
             qCWarning(log_ui_camera) << "Failed to cast to GStreamerBackendHandler";
+        }
     }
 #endif
-    }
+
     // Fall back to standard Qt camera approach with QGraphicsVideoItem
     qDebug() << "Using standard Qt camera approach";
     videoPane->enableDirectFFmpegMode(false);
@@ -1999,12 +2001,10 @@ void CameraManager::connectToHotplugMonitor()
                 bool hasOpenterfaceCameraInQt = false;
                 if (!hasCameraInfoFromDeviceManager) {
                     qCDebug(log_ui_camera) << "DeviceManager has no camera info - checking QMediaDevices for Openterface camera";
-                    for (const QCameraDevice& cam : m_availableCameraDevices) {
-                        if (cam.description().contains("Openterface", Qt::CaseInsensitive)) {
-                            hasOpenterfaceCameraInQt = true;
-                            qCDebug(log_ui_camera) << "  ✓ Found Openterface camera in Qt:" << cam.description();
-                            break;
-                        }
+                    QCameraDevice found = findQtOpenterfaceDevice(m_availableCameraDevices);
+                    if (!found.isNull()) {
+                        hasOpenterfaceCameraInQt = true;
+                        qCDebug(log_ui_camera) << "  ✓ Found Openterface camera in Qt:" << found.description();
                     }
                 }
                 
@@ -2042,19 +2042,18 @@ void CameraManager::connectToHotplugMonitor()
                     qCDebug(log_ui_camera) << "Using fallback: switching to Qt-detected Openterface camera";
                     
                     // Find the Openterface camera in Qt devices
-                    for (const QCameraDevice& cam : m_availableCameraDevices) {
-                        if (cam.description().contains("Openterface", Qt::CaseInsensitive)) {
-                            qCDebug(log_ui_camera) << "Switching to Openterface camera:" << cam.description();
-                            bool switchSuccess = switchToCameraDevice(cam, device.portChain);
-                            if (switchSuccess && m_graphicsVideoOutput) {
-                                startCamera();
-                                qCInfo(log_ui_camera) << "✓ Camera auto-switched to Openterface device (fallback method)";
-                            } else {
-                                qCWarning(log_ui_camera) << "✗ Camera auto-switch FAILED (fallback method)";
-                            }
-                            qCDebug(log_ui_camera) << "========================================";
-                            return;
+                    QCameraDevice found = findQtOpenterfaceDevice(m_availableCameraDevices);
+                    if (!found.isNull()) {
+                        qCDebug(log_ui_camera) << "Switching to Openterface camera:" << found.description();
+                        bool switchSuccess = switchToCameraDevice(found, device.portChain);
+                        if (switchSuccess && m_graphicsVideoOutput) {
+                            startCamera();
+                            qCInfo(log_ui_camera) << "✓ Camera auto-switched to Openterface device (fallback method)";
+                        } else {
+                            qCWarning(log_ui_camera) << "✗ Camera auto-switch FAILED (fallback method)";
                         }
+                        qCDebug(log_ui_camera) << "========================================";
+                        return;
                     }
                 }
                 

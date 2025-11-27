@@ -211,20 +211,40 @@ void GStreamerBackendHandler::startCamera()
     
     if (useDirectPipeline && !m_currentDevice.isEmpty()) {
         qCDebug(log_gstreamer_backend) << "GStreamer: Using direct pipeline";
-        
-        if (!createGStreamerPipeline(m_currentDevice, m_currentResolution, m_currentFramerate)) {
-            qCWarning(log_gstreamer_backend) << "Failed to create GStreamer pipeline";
-            useDirectPipeline = false;
-        } else if (!startGStreamerPipeline()) {
-            qCWarning(log_gstreamer_backend) << "Failed to start GStreamer pipeline";
-            useDirectPipeline = false;
-        } else {
+        // Use extracted helper to create and start the direct pipeline
+        if (startDirectPipeline()) {
             qCDebug(log_gstreamer_backend) << "GStreamer pipeline started successfully";
             return; // SUCCESS: Direct pipeline is running
         }
+        // Failure will fall through and we may try alternative paths later
+        useDirectPipeline = false;
     } else {
         qCWarning(log_gstreamer_backend) << "GStreamer: No valid device configured";
     }
+}
+
+bool GStreamerBackendHandler::startDirectPipeline()
+{
+    qCDebug(log_gstreamer_backend) << "GStreamer: Attempting to start direct pipeline for device:" << m_currentDevice
+                                   << "resolution:" << m_currentResolution << "framerate:" << m_currentFramerate;
+
+    if (m_currentDevice.isEmpty()) {
+        qCWarning(log_gstreamer_backend) << "Cannot start direct pipeline: no device configured";
+        return false;
+    }
+
+    if (!createGStreamerPipeline(m_currentDevice, m_currentResolution, m_currentFramerate)) {
+        qCWarning(log_gstreamer_backend) << "Failed to create GStreamer pipeline";
+        return false;
+    }
+
+    if (!startGStreamerPipeline()) {
+        qCWarning(log_gstreamer_backend) << "Failed to start GStreamer pipeline";
+        return false;
+    }
+
+    qCDebug(log_gstreamer_backend) << "Direct GStreamer pipeline started successfully for device:" << m_currentDevice;
+    return true;
 }
 
 void GStreamerBackendHandler::stopCamera()
@@ -761,6 +781,8 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
         } else {
             qCWarning(log_gstreamer_backend) << "Graphics video item has no scene";
         }
+    }else {
+        qCWarning(log_gstreamer_backend) << "No video output widget available for overlay setup";
     }
     
     if (windowId) {

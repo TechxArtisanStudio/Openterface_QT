@@ -302,7 +302,6 @@ int main(int argc, char *argv[])
         }
         return -1;
     }
-    qDebug() << "GStreamer initialized successfully";
     
     // Install custom GLib log handler to suppress non-critical messages
     g_log_set_default_handler(suppressGLibMessages, nullptr);
