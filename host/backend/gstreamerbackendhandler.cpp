@@ -432,25 +432,25 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
         if (!v4l2Factory && videotestFactory && jpegFactory) {
             // Use videotestsrc with JPEG encoding/decoding for testing
             qCDebug(log_gstreamer_backend) << "Using videotestsrc fallback (v4l2src not available in static build)";
-            fallbackPipeline = PipelineBuilder::buildVideotestMjpegFallback(resolution, framerate, videoSink);
+            fallbackPipeline = Openterface::GStreamer::PipelineBuilder::buildVideotestMjpegFallback(resolution, framerate, videoSink);
             gst_object_unref(videotestFactory);
             gst_object_unref(jpegFactory);
         } else if (v4l2Factory && jpegFactory) {
             // V4L2 + JPEG decode available (unlikely in static build)
             qCDebug(log_gstreamer_backend) << "Using v4l2src + jpegdec fallback";
-            fallbackPipeline = PipelineBuilder::buildV4l2JpegFallback(device, resolution, framerate, videoSink);
+            fallbackPipeline = Openterface::GStreamer::PipelineBuilder::buildV4l2JpegFallback(device, resolution, framerate, videoSink);
             gst_object_unref(v4l2Factory);
             gst_object_unref(jpegFactory);
         } else if (v4l2Factory) {
             // V4L2 available but no JPEG, try raw format (unlikely in static build)
             qCDebug(log_gstreamer_backend) << "Using v4l2src with raw format fallback";
-            fallbackPipeline = PipelineBuilder::buildV4l2RawFallback(device, resolution, framerate, videoSink);
+            fallbackPipeline = Openterface::GStreamer::PipelineBuilder::buildV4l2RawFallback(device, resolution, framerate, videoSink);
             gst_object_unref(v4l2Factory);
             if (jpegFactory) gst_object_unref(jpegFactory);
         } else if (videotestFactory) {
             // No V4L2, use test source (expected for static build)
             qCDebug(log_gstreamer_backend) << "Using videotestsrc fallback (static build - no v4l2src available)";
-            fallbackPipeline = PipelineBuilder::buildVideotestFallback(resolution, framerate, videoSink);
+            fallbackPipeline = Openterface::GStreamer::PipelineBuilder::buildVideotestFallback(resolution, framerate, videoSink);
             gst_object_unref(videotestFactory);
             if (jpegFactory) gst_object_unref(jpegFactory);
         } else {
@@ -474,7 +474,7 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
             
             // Last resort: conservative test source pipeline
             qCDebug(log_gstreamer_backend) << "Trying final fallback with test source...";
-            QString testPipeline = PipelineBuilder::buildConservativeTestPipeline(videoSink);
+            QString testPipeline = Openterface::GStreamer::PipelineBuilder::buildConservativeTestPipeline(videoSink);
             
             error = nullptr;
             m_pipeline = gst_parse_launch(testPipeline.toUtf8().data(), &error);
@@ -571,7 +571,7 @@ QString GStreamerBackendHandler::generatePipelineString(const QString& device, c
     }
     
     // Delegate to PipelineBuilder which centralizes pipeline templates
-    return PipelineBuilder::buildFlexiblePipeline(device, resolution, framerate, videoSink);
+    return Openterface::GStreamer::PipelineBuilder::buildFlexiblePipeline(device, resolution, framerate, videoSink);
 }
 
 bool GStreamerBackendHandler::startGStreamerPipeline()
