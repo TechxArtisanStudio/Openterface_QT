@@ -18,11 +18,12 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   VCPKG_DIR: C:\vcpkg
   EXTERNAL_MINGW: C:\mingw64
-  BUILD_DIR: ${{ runner.temp }}\build
 
 jobs:
   build:
     runs-on: windows-2022
+    env:
+      BUILD_DIR: ${{ runner.temp }}\build
     steps:
       - uses: actions/checkout@v4
         with:
@@ -167,5 +168,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT }}
-          path: ${{ runner.temp }}\build\package\openterfaceQT-portable.exe
+          path: ${{ env.BUILD_DIR }}\package\openterfaceQT-portable.exe
           if-no-files-found: error
