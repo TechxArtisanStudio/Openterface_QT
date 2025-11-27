@@ -61,6 +61,8 @@ RecordingController::RecordingController(QWidget *parent, CameraManager *cameraM
     , m_durationLabel(nullptr)
     , m_layout(nullptr)
     , m_controlsWidget(nullptr)
+     , m_floatingWidget(nullptr)
+     , m_floatingDurationLabel(nullptr)
 {
     qCDebug(log_ui_recordingcontroller) << "Creating RecordingController";
     
@@ -80,6 +82,13 @@ RecordingController::~RecordingController()
     // Stop recording if still active
     if (m_isRecording) {
         stopRecording();
+    }
+    
+    // Ensure floating widget is cleaned up if it was created
+    if (m_floatingWidget) {
+        // If it's parented elsewhere, delete it explicitly
+        m_floatingWidget->deleteLater();
+        m_floatingWidget = nullptr;
     }
 }
 
@@ -109,6 +118,26 @@ QWidget* RecordingController::createControlsWidget()
     
     return m_controlsWidget;
 }
+
+    QWidget* RecordingController::createFloatingDurationWidget(QWidget* parent)
+    {
+        if (!m_floatingWidget) {
+            QWidget* wParent = parent ? parent : nullptr;
+            m_floatingWidget = new QWidget(wParent, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+            m_floatingWidget->setAttribute(Qt::WA_ShowWithoutActivating);
+            m_floatingWidget->setWindowTitle(tr("Recording"));
+            QHBoxLayout* layout = new QHBoxLayout(m_floatingWidget);
+            layout->setContentsMargins(6, 4, 6, 4);
+            layout->setSpacing(4);
+            // Create a label dedicated to the floating widget to avoid reparenting
+            m_floatingDurationLabel = new QLabel("00:00:00", m_floatingWidget);
+            m_floatingDurationLabel->setAlignment(Qt::AlignCenter);
+            layout->addWidget(m_floatingDurationLabel);
+            m_floatingWidget->setLayout(layout);
+            m_floatingWidget->hide();
+        }
+        return m_floatingWidget;
+    }
 
 bool RecordingController::isRecording() const
 {
@@ -273,6 +302,9 @@ void RecordingController::updateRecordingTime()
     
     // Update duration label
     m_durationLabel->setText(formatDuration(elapsedTime));
+    if (m_floatingDurationLabel) {
+        m_floatingDurationLabel->setText(formatDuration(elapsedTime));
+    }
 }
 
 void RecordingController::onRecordingStarted(const QString& outputPath)
@@ -290,6 +322,10 @@ void RecordingController::onRecordingStarted(const QString& outputPath)
     
     // Update UI
     updateUIStates();
+    // Show floating widget if present
+    if (m_floatingWidget) {
+        m_floatingWidget->show();
+    }
 }
 
 void RecordingController::onRecordingStopped()
@@ -306,6 +342,9 @@ void RecordingController::onRecordingStopped()
     // Update UI
     m_durationLabel->setText("00:00:00");
     updateUIStates();
+    if (m_floatingWidget) {
+        m_floatingWidget->hide();
+    }
 }
 
 void RecordingController::onRecordingPaused()
@@ -494,6 +533,9 @@ void RecordingController::onCameraRecordingStarted()
     
     // Update UI
     updateUIStates();
+    if (m_floatingWidget) {
+        m_floatingWidget->show();
+    }
 }
 
 void RecordingController::onRecordingError(const QString &errorString)
