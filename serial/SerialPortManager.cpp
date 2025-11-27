@@ -535,12 +535,12 @@ ConfigResult SerialPortManager::sendAndProcessConfigCommand() {
 ConfigResult SerialPortManager::attemptBaudrateDetection() {
     ConfigResult result;
     qCDebug(log_core_serial) << "No data with initial baudrate, starting baudrate detection process";
-    
+    QString portName = serialPort->portName();
     // Handle CH32V208 chip: Only supports 115200 baudrate, no command-based configuration
     if (isChipTypeCH32V208()) {
         qCInfo(log_core_serial) << "CH32V208 chip: Only supports 115200, retrying at 115200";
         closePort();
-        openPort(serialPort->portName(), BAUDRATE_HIGHSPEED);
+        openPort(portName, BAUDRATE_HIGHSPEED);
         QByteArray retByte = sendSyncCommand(CMD_GET_PARA_CFG, true);
         qCDebug(log_core_serial) << "Data read from CH32V208 serial port at 115200: " << retByte.toHex(' ');
         if (retByte.size() > 0) {
@@ -559,7 +559,7 @@ ConfigResult SerialPortManager::attemptBaudrateDetection() {
         int altBaudrate = anotherBaudrate();
         qCDebug(log_core_serial) << "CH9329 chip: Trying alternative baudrate" << altBaudrate;
         closePort();
-        openPort(serialPort->portName(), altBaudrate);
+        openPort(portName, altBaudrate);
         QByteArray retByte = sendSyncCommand(CMD_GET_PARA_CFG, true);
         qCDebug(log_core_serial) << "Data read from serial port with alternative baudrate: " << retByte.toHex(' ');
         if (retByte.size() > 0) {
@@ -597,7 +597,7 @@ ConfigResult SerialPortManager::attemptBaudrateDetection() {
         qCWarning(log_core_serial) << "Unknown chip type - attempting baudrate fallback";
         int altBaudrate = anotherBaudrate();
         closePort();
-        openPort(serialPort->portName(), altBaudrate);
+        openPort(portName, altBaudrate);
         QByteArray retByte = sendSyncCommand(CMD_GET_PARA_CFG, true);
         if (retByte.size() > 0) {
             CmdDataParamConfig config = CmdDataParamConfig::fromByteArray(retByte);
