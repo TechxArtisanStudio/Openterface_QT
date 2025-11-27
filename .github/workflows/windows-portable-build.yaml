@@ -52,7 +52,7 @@ jobs:
           path: |
             ${{ env.EXTERNAL_MINGW }}
             C:\ProgramData\chocolatey\lib\ninja
-          key: mingw-ninja-windows-static-v1
+          key: mingw-ninja-windows-static-v2  # bump to force refresh if needed
           restore-keys: |
             mingw-ninja-windows-static-
 
@@ -61,7 +61,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.VCPKG_DIR }}
-          key: vcpkg-mingw-static-openssl-v3
+          key: vcpkg-mingw-static-openssl-v4  # ⬅️ BUMP THIS TO CLEAR BAD CACHE
           restore-keys: |
             vcpkg-mingw-static-openssl-
 
@@ -94,7 +94,7 @@ jobs:
           set PATH=%EXTERNAL_MINGW%\bin;%PATH%
           g++ --version || (echo "g++ installation failed" && exit /b 1)
 
-      - name: Install vcpkg and all static dependencies
+      - name: Install vcpkg and Static Libraries (OpenSSL, zlib, etc.)
         if: steps.cache-vcpkg.outputs.cache-hit != 'true'
         run: |
           echo Cloning vcpkg...
@@ -102,31 +102,50 @@ jobs:
           cd %VCPKG_DIR%
           call bootstrap-vcpkg.bat
 
-          echo Installing static libraries for MinGW...
+          echo Updating vcpkg registry...
+          call vcpkg update
+
+          echo Installing static libraries for MinGW (explicit ports)...
           call vcpkg install ^
+            openssl:x64-mingw-static ^
             zlib:x64-mingw-static ^
             bzip2:x64-mingw-static ^
             liblzma:x64-mingw-static ^
-            openssl:x64-mingw-static ^
             --triplet=x64-mingw-static ^
+            --host-triplet=x64-mingw-static ^
             --overlay-triplets="%SOURCE_DIR%/triplets" ^
             --clean-after-build
 
           call vcpkg integrate install
 
-      - name: Verify vcpkg libraries
+      - name: Debug vcpkg output (list files)
+        run: |
+          echo === Checking vcpkg lib directory ===
+          dir "%OPENSSL_DIR%\lib"
+          echo === Checking vcpkg bin directory ===
+          dir "%OPENSSL_DIR%\bin" 2>nul || echo (bin may be empty for static)
+
+      - name: Verify vcpkg libraries (strict static check)
         run: |
           if not exist "%OPENSSL_DIR%\lib\libssl.a" (
-            echo ERROR: libssl.a missing
+            echo ERROR: libssl.a is missing! This indicates OpenSSL was not built statically.
+            echo Possible causes:
+            echo   - Outdated vcpkg
+            echo   - Triplet misconfiguration
+            echo   - Cache pollution (try bumping cache key)
             exit /b 1
           )
           if not exist "%OPENSSL_DIR%\lib\libcrypto.a" (
             echo ERROR: libcrypto.a missing
             exit /b 1
           )
-          echo vcpkg libraries verified.
+          if not exist "%OPENSSL_DIR%\lib\libz.a" (
+            echo ERROR: libz.a missing
+            exit /b 1
+          )
+          echo OK: All required static libraries found.
 
-      - name: Install MSYS2 (shell + build tools only)
+      - name: Install MSYS2 (for objdump, grep, strip, and FFmpeg build tools)
         run: |
           echo Installing MSYS2 via Chocolatey...
           choco install msys2 -y
@@ -202,7 +221,7 @@ jobs:
           C:\msys64\usr\bin\objdump.exe -p "%EXE%" | C:\msys64\usr\bin\grep.exe -i "\.dll" >nul && (
             echo ERROR: DLL dependencies detected! && exit /b 1
           ) || (
-            echo OK: No DLL dependencies.
+            echo OK: No DLL dependencies — fully static.
           ) &&
           C:\msys64\usr\bin\strip.exe -s "%EXE%" &&
           md package &&
