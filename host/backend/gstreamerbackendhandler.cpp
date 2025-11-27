@@ -398,17 +398,53 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     const bool hasXDisplay = !qgetenv("DISPLAY").isEmpty();
     const bool hasWaylandDisplay = !qgetenv("WAYLAND_DISPLAY").isEmpty();
     
+    // Choose a video sink. Use OPENTERFACE_GST_SINK if provided; otherwise detect available sinks
     QString videoSink;
     const QByteArray sinkOverride = qgetenv("OPENTERFACE_GST_SINK");
     if (!sinkOverride.isEmpty()) {
+        // Fix: correctly read override environment variable
         videoSink = QString::fromLatin1(sinkOverride);
-        qCDebug(log_gstreamer_backend) << "Using sink from OPENTERFACE_GST_SINK:" << videoSink;
-    } else {
-        // Simplified: Always use xvimagesink for video display
-        // This provides reliable cross-platform compatibility for X11/XWayland
-        videoSink = "xvimagesink";
-        qCDebug(log_gstreamer_backend) << "Using xvimagesink for video display (simplified configuration)";
+        qCDebug(log_gstreamer_backend) << "Using sink from OPENTERFACE_GST_SINK override:" << videoSink;
+
+        // Validate the override actually exists in this GStreamer build
+        GstElementFactory* f = gst_element_factory_find(videoSink.toUtf8().constData());
+        if (!f) {
+            qCWarning(log_gstreamer_backend) << "OPENTERFACE_GST_SINK refers to element that is not available:" << videoSink;
+            videoSink.clear(); // fallback to auto-detectable sinks below
+        } else {
+            gst_object_unref(f);
+        }
     }
+
+    // If we still don't have a video sink from env, detect the most appropriate sink available.
+    if (videoSink.isEmpty()) {
+        // Prefer xvimagesink (XVideo extension) -> fall back to ximagesink -> autovideosink -> qtsink
+        const char* preferred[] = {"xvimagesink", "ximagesink", "autovideosink", "qtsink", nullptr};
+        for (const char** trySink = preferred; *trySink; ++trySink) {
+            GstElementFactory* factory = gst_element_factory_find(*trySink);
+            if (factory) {
+                videoSink = QString::fromUtf8(*trySink);
+                qCDebug(log_gstreamer_backend) << "Selected available sink:" << videoSink;
+                gst_object_unref(factory);
+                break;
+            }
+        }
+
+        if (videoSink.isEmpty()) {
+            // Last resort: try autovideosink even if factory_find failed
+            videoSink = "autovideosink";
+            qCWarning(log_gstreamer_backend) << "No preferred X sinks found, defaulting to autovideosink (may open external window)";
+        }
+        else {
+            // If xvimagesink not present but we picked ximagesink or autovideosink, log a diagnostic so devices like Mali are clear.
+            if (videoSink == QLatin1String("ximagesink")) {
+                qCWarning(log_gstreamer_backend) << "xvimagesink not available; using ximagesink instead. On some systems (e.g. Mali), ximagesink is the correct choice.";
+            } else if (videoSink == QLatin1String("autovideosink")) {
+                qCWarning(log_gstreamer_backend) << "No X sinks found (xvimagesink/ximagesink); using autovideosink which may open a separate window.";
+            }
+        }
+    }
+#endif
     
     qCDebug(log_gstreamer_backend) << "Selected video sink:" << videoSink << "(platform:" << platform
                                    << ", X DISPLAY:" << hasXDisplay << ", WAYLAND_DISPLAY:" << hasWaylandDisplay << ")";

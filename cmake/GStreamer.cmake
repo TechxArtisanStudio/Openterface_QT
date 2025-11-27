@@ -14,13 +14,6 @@ endif()
 # Option to control GStreamer support
 option(USE_GSTREAMER "Enable GStreamer multimedia backend" ON)
 
-# Option to disable static GStreamer plugins (for debugging)
-# Note: Static plugins are embedded in the binary for standalone deployment
-# If static plugins are not found, the application will use system plugins at runtime
-# This requires GStreamer to be installed on the target system
-# If you encounter linking errors with static plugins, try setting this to OFF
-option(USE_GSTREAMER_STATIC_PLUGINS "Link GStreamer plugins statically" ON)
-
 # Find additional packages required for static GStreamer linking (Linux only)
 if(NOT WIN32)
     pkg_check_modules(GUDEV REQUIRED gudev-1.0)
@@ -238,121 +231,8 @@ if(USE_GSTREAMER AND EXISTS "${GSTREAMER_INCLUDE_DIR}/gst/gst.h" AND EXISTS "${G
     # Add static GStreamer plugin libraries that need to be linked
     set(GSTREAMER_PLUGIN_LIBRARIES)
     
-    if(USE_GSTREAMER_STATIC_PLUGINS)
-        # First, let's check what plugin directories exist
-        set(PLUGIN_SEARCH_DIRS
-            "/usr/lib/x86_64-linux-gnu/gstreamer-1.0"    # System plugins first
-            "/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
-            "/usr/local/lib/gstreamer-1.0"
-            "${GSTREAMER_PREFIX}/lib/gstreamer-1.0"
-            "${GSTREAMER_PREFIX}/lib/x86_64-linux-gnu/gstreamer-1.0"
-            "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/gstreamer-1.0"
-        )
-        
-        message(STATUS "Searching for GStreamer plugins in:")
-        foreach(PLUGIN_DIR ${PLUGIN_SEARCH_DIRS})
-            if(EXISTS "${PLUGIN_DIR}")
-                message(STATUS "  - ${PLUGIN_DIR} (exists)")
-                file(GLOB AVAILABLE_PLUGINS "${PLUGIN_DIR}/lib*${GSTREAMER_PLUGIN_EXT}")
-                if(AVAILABLE_PLUGINS)
-                    message(STATUS "    Found plugins: ${AVAILABLE_PLUGINS}")
-                endif()
-            else()
-                message(STATUS "  - ${PLUGIN_DIR} (not found)")
-            endif()
-        endforeach()
-        
-    # List of plugins to try to find - names correspond to lib<name>.a/.so in gstreamer-1.0 plugin directories
-        # Essential plugins - core functionality
-        set(ESSENTIAL_PLUGIN_CANDIDATES
-            "gstvideo4linux2"     # v4l2src plugin - required for video input
-            "gstcoreelements"     # queue, capsfilter, etc. - essential elements
-            "gstjpeg"             # JPEG codec support - often required
-        )
-        
-        # Optional plugins - enhanced functionality (including Qt6 support)
-        set(OPTIONAL_PLUGIN_CANDIDATES
-            "gstvideoconvertscale" # videoconvert, videoscale
-            "gsttypefindfunctions" # typefind elements
-            "gstvideofilter"      # video filter base
-            "gstvideotestsrc"     # videotestsrc
-            "gstximagesink"       # ximagesink
-            "gstxvimagesink"      # xvimagesink
-            "gstautodetect"       # autovideosink
-            "gstplayback"         # playback elements
-            "gstavi"              # AVI muxer/demuxer (avimux)
-            "gstmatroska"         # Matroska muxer/demuxer (matroskamux)
-            "gstqml6"             # qtsink, qml6glsink - Qt6 video sink - NOW AVAILABLE
-            "gstqmlgl"            # qmlglsink - for QML video rendering
-            # Note: DMA buffer and allocator support is provided by libgstallocators-1.0 core library
-        )
-        
-        # Combine all plugins for searching
-        set(PLUGIN_CANDIDATES ${ESSENTIAL_PLUGIN_CANDIDATES} ${OPTIONAL_PLUGIN_CANDIDATES})
-        
-        # Check for each plugin and add if found
-        foreach(PLUGIN ${PLUGIN_CANDIDATES})
-            # Try multiple possible locations for GStreamer plugins (prioritize system locations)
-            set(PLUGIN_PATH_CANDIDATES)
-            
-            # Prioritize system plugin locations first (for Qt6 plugin and others)
-            list(APPEND PLUGIN_PATH_CANDIDATES
-                "/usr/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
-                "/usr/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
-                "/usr/local/lib/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
-            )
-            
-            # Add GSTREAMER_LIB_DIR path if defined (for ARM64 static builds)
-            if(DEFINED GSTREAMER_LIB_DIR)
-                list(APPEND PLUGIN_PATH_CANDIDATES "${GSTREAMER_LIB_DIR}/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}")
-            endif()
-            
-            # Add Qt6 build paths as fallback
-            list(APPEND PLUGIN_PATH_CANDIDATES
-                "${GSTREAMER_PREFIX}/lib/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
-                "${GSTREAMER_PREFIX}/lib/x86_64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
-                "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/gstreamer-1.0/lib${PLUGIN}${GSTREAMER_PLUGIN_EXT}"
-            )
-            
-            set(PLUGIN_FOUND FALSE)
-            foreach(PLUGIN_PATH ${PLUGIN_PATH_CANDIDATES})
-                if(EXISTS "${PLUGIN_PATH}")
-                    list(APPEND GSTREAMER_PLUGIN_LIBRARIES "${PLUGIN_PATH}")
-                    message(STATUS "Found GStreamer plugin: ${PLUGIN_PATH}")
-                    set(PLUGIN_FOUND TRUE)
-                    break()
-                endif()
-            endforeach()
-            
-            if(NOT PLUGIN_FOUND)
-                message(WARNING "GStreamer plugin not found: ${PLUGIN} (searched multiple locations)")
-            endif()
-        endforeach()
-        
-        if(NOT GSTREAMER_PLUGIN_LIBRARIES)
-            message(WARNING "No GStreamer static plugins found - disabling static plugin linking")
-            message(STATUS "Will rely on system GStreamer plugins at runtime")
-            set(USE_GSTREAMER_STATIC_PLUGINS OFF)
-        else()
-            list(LENGTH GSTREAMER_PLUGIN_LIBRARIES PLUGIN_COUNT)
-            message(STATUS "Found ${PLUGIN_COUNT} GStreamer static plugins for linking:")
-            foreach(FOUND_PLUGIN ${GSTREAMER_PLUGIN_LIBRARIES})
-                message(STATUS "  - ${FOUND_PLUGIN}")
-            endforeach()
-        endif()
-    else()
-        message(STATUS "GStreamer static plugins disabled by USE_GSTREAMER_STATIC_PLUGINS=OFF")
-        message(STATUS "Will rely on system GStreamer plugins at runtime")
-    endif()
-    
-    # Finalize STATIC vs DYNAMIC macros based on availability
-    if(USE_GSTREAMER_STATIC_PLUGINS AND GSTREAMER_PLUGIN_LIBRARIES)
-        add_definitions(-DGSTREAMER_STATIC_LINKING)
-        message(STATUS "GStreamer static plugin registration enabled (plugins found)")
-    else()
-        add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
-        message(STATUS "GStreamer dynamic plugin usage enabled (no static plugins linked)")
-    endif()
+    add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
+    message(STATUS "GStreamer dynamic plugin usage enabled (no static plugins linked)")
 
     # Add system GLib libraries using pkg-config (only for dynamic builds)
     if(NOT OPENTERFACE_BUILD_STATIC)
@@ -409,7 +289,6 @@ else()
             if(OPENTERFACE_BUILD_STATIC)
                 message(STATUS "Static Qt6 build with system GStreamer - using dynamic plugin loading")
                 add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
-                set(USE_GSTREAMER_STATIC_PLUGINS OFF)
             else()
                 add_definitions(-DGSTREAMER_DYNAMIC_LINKING)
             endif()
@@ -482,7 +361,6 @@ if(GSTREAMER_FOUND)
         endif()
     else()
         message(STATUS "Detection method: Manual (static/Qt6 build)")
-        message(STATUS "Static plugins: ${USE_GSTREAMER_STATIC_PLUGINS}")
         if(GSTREAMER_PLUGIN_LIBRARIES)
             list(LENGTH GSTREAMER_PLUGIN_LIBRARIES PLUGIN_COUNT)
             message(STATUS "Static plugins found: ${PLUGIN_COUNT}")
@@ -597,56 +475,31 @@ function(link_gstreamer_libraries)
             message(STATUS "Using manually detected GStreamer libraries")
             configure_gstreamer_orc()
             
-            # Link GStreamer core libraries and static plugins
-            if(USE_GSTREAMER_STATIC_PLUGINS AND GSTREAMER_PLUGIN_LIBRARIES)
-                message(STATUS "Linking static GStreamer plugins: ${GSTREAMER_PLUGIN_LIBRARIES}")
-                target_link_libraries(openterfaceQT PRIVATE 
-                    # Force static ORC first
-                    -Wl,--whole-archive
-                    ${ORC_LIB}
-                    -Wl,--no-whole-archive
-                    -Wl,--no-whole-archive
-                    # Link static plugins with whole-archive to ensure registration functions are included
-                    -Wl,--whole-archive
-                    -Wl,--whole-archive
-                    ${GSTREAMER_PLUGIN_LIBRARIES}
-                    -Wl,--no-whole-archive
-                    # Then GStreamer core libraries
-                    -Wl,--whole-archive
-                    -Wl,--whole-archive
-                    ${GSTREAMER_LIBRARIES}
-                    ${GSTREAMER_VIDEO_LIBRARIES}
-                    -Wl,--no-whole-archive
-                    -Wl,--no-whole-archive
-                    -lm -pthread
-                    -Wl,--allow-multiple-definition
-                )
-            else()
-                message(STATUS "Linking GStreamer core libraries only (no static plugins)")
-                target_link_libraries(openterfaceQT PRIVATE 
-                    # Force static ORC first
-                    -Wl,--whole-archive
-                    ${ORC_LIB}
-                    -Wl,--no-whole-archive
-                    # Then GStreamer libraries
-                    -Wl,--whole-archive
-                    -Wl,--whole-archive
-                    ${GSTREAMER_LIBRARIES}
-                    ${GSTREAMER_VIDEO_LIBRARIES}
-                    -Wl,--no-whole-archive
-                    -Wl,--no-whole-archive
-                    -lm -pthread
-                    -Wl,--allow-multiple-definition
-                )
+            message(STATUS "Linking GStreamer core libraries only (no static plugins)")
+            target_link_libraries(openterfaceQT PRIVATE 
+                # Force static ORC first
+                -Wl,--whole-archive
+                ${ORC_LIB}
+                -Wl,--no-whole-archive
+                # Then GStreamer libraries
+                -Wl,--whole-archive
+                -Wl,--whole-archive
+                ${GSTREAMER_LIBRARIES}
+                ${GSTREAMER_VIDEO_LIBRARIES}
+                -Wl,--no-whole-archive
+                -Wl,--no-whole-archive
+                -lm -pthread
+                -Wl,--allow-multiple-definition
+            )
 
-                # Ensure appsink/source symbols resolve when using system GStreamer
-                pkg_check_modules(GSTREAMER_APP gstreamer-app-1.0)
-                if(GSTREAMER_APP_FOUND)
-                    target_link_libraries(openterfaceQT PRIVATE ${GSTREAMER_APP_LIBRARIES})
-                    target_include_directories(openterfaceQT PRIVATE ${GSTREAMER_APP_INCLUDE_DIRS})
-                    message(STATUS "Linked GStreamer app library (manual path): ${GSTREAMER_APP_LIBRARIES}")
-                endif()
+            # Ensure appsink/source symbols resolve when using system GStreamer
+            pkg_check_modules(GSTREAMER_APP gstreamer-app-1.0)
+            if(GSTREAMER_APP_FOUND)
+                target_link_libraries(openterfaceQT PRIVATE ${GSTREAMER_APP_LIBRARIES})
+                target_include_directories(openterfaceQT PRIVATE ${GSTREAMER_APP_INCLUDE_DIRS})
+                message(STATUS "Linked GStreamer app library (manual path): ${GSTREAMER_APP_LIBRARIES}")
             endif()
+
             
             # Add strong linker flags for static builds
             if(OPENTERFACE_BUILD_STATIC)

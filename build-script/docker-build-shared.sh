@@ -3,7 +3,6 @@ set -e
 
 # Wrapper for shared (dynamic) build packaging
 export OPENTERFACE_BUILD_STATIC=OFF
-export USE_GSTREAMER_STATIC_PLUGINS=OFF
 
 # Allow optional overrides via environment
 # - DEB_DEPENDS: override Debian Depends string
@@ -114,7 +113,6 @@ echo "Qt installation prefix: $(qmake -query QT_INSTALL_PREFIX)"
 cd /workspace/build
 cmake -DCMAKE_BUILD_TYPE=Release \
       -DOPENTERFACE_BUILD_STATIC=${OPENTERFACE_BUILD_STATIC} \
-      -DUSE_GSTREAMER_STATIC_PLUGINS=${USE_GSTREAMER_STATIC_PLUGINS} \
       -DCMAKE_PREFIX_PATH="/opt/Qt6" \
       -DQt6_DIR="/opt/Qt6/lib/cmake/Qt6" \
       /workspace/src
