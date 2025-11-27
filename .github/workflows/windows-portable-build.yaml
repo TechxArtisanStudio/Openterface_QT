@@ -84,7 +84,7 @@ jobs:
           choco install nasm -y || echo "nasm install failed or already installed"
           choco install yasm -y || echo "yasm install failed or already installed"
 
-      - name: Install vcpkg and static libraries (OpenSSL, FFmpeg, zlib)
+      - name: Install or Update vcpkg (bootstrap only)
         run: |
           echo Cloning or updating vcpkg...
           if not exist "%VCPKG_DIR%\vcpkg.exe" (
@@ -106,19 +106,17 @@ jobs:
           )
 
           cd "%SOURCE_DIR%"
-
-          echo Installing static packages via manifest (vcpkg.json)...
           set VCPKG_LOG_LEVEL=debug
           set VCPKG_DOWNLOADS_RETRIES=5
           set VCPKG_MAX_CONCURRENCY=%VCPKG_MAX_CONCURRENCY%
           echo vcpkg version/loglevel: && "%VCPKG_DIR%\vcpkg.exe" version || echo "could not show vcpkg version"
-          call "%VCPKG_DIR%\vcpkg.exe" install ^
-            --triplet=x64-mingw-static ^
-            --host-triplet=x64-mingw-static ^
-            --clean-after-build
-          
           call "%VCPKG_DIR%\vcpkg.exe" integrate install
           echo vcpkg installed ports (end) && "%VCPKG_DIR%\vcpkg.exe" list || echo "couldn't list vcpkg packages"
+
+      - name: Pre-create msys2 root by installing pkgconf (fast)
+        run: |
+          echo Installing minimal pkgconf to create msys2 root
+          call "%VCPKG_DIR%\vcpkg.exe" install pkgconf --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build || echo "pkgconf install may have failed; proceeding"
 
       - name: Ensure msys2 packages for ffmpeg build (pkgconf, nasm, yasm)
         run: |
@@ -130,9 +128,16 @@ jobs:
           ) else (
             set MSYS2_PATH=%MSYS2_ROOT%\%MSYS2_DIR%
             echo msys path: %MSYS2_PATH%
-            %MSYS2_PATH%\usr\bin\bash.exe -lc "pacman -Sy --noconfirm mingw-w64-x86_64-pkgconf mingw-w64-x86_64-nasm mingw-w64-x86_64-yasm || true"
+            %MSYS2_PATH%\usr\bin\bash.exe -lc "pacman -Sy --noconfirm mingw-w64-x86_64-pkgconf mingw-w64-x86_64-nasm mingw-w64-x86_64-yasm mingw-w64-x86_64-toolchain base-devel perl --needed || true"
           )
         shell: cmd
+
+      # vcpkg verification (moved to run after manifest installation)
+
+      - name: Install vcpkg manifest (ffmpeg, zlib, openssl) after msys2 prep
+        run: |
+          echo Installing static packages via manifest (vcpkg.json)...
+          call "%VCPKG_DIR%\vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build
 
       - name: Verify vcpkg static libraries (with debug output)
         run: |
@@ -192,17 +197,17 @@ jobs:
         run: |
             echo === show last lines of ffmpeg build logs ===
             if exist "D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-out.log" (
-              powershell -Command "Get-Content 'D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-out.log' -Tail 200 -ErrorAction SilentlyContinue"
+              powershell -Command "Get-Content 'D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-out.log' -Tail 1000 -ErrorAction SilentlyContinue"
             ) else (
               echo out.log not found
             )
             if exist "D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-err.log" (
-              powershell -Command "Get-Content 'D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-err.log' -Tail 200 -ErrorAction SilentlyContinue"
+              powershell -Command "Get-Content 'D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-err.log' -Tail 1000 -ErrorAction SilentlyContinue"
             ) else (
               echo err.log not found
             )
             if exist "D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-config.log" (
-              powershell -Command "Get-Content 'D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-config.log' -Tail 200 -ErrorAction SilentlyContinue"
+              powershell -Command "Get-Content 'D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-config.log' -Tail 1000 -ErrorAction SilentlyContinue"
             ) else (
               echo config.log not found
             )
