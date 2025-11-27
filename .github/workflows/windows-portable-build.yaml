@@ -58,7 +58,7 @@ jobs:
 
       - name: Cache vcpkg
         id: cache-vcpkg
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.VCPKG_DIR }}
           key: vcpkg-mingw-static-openssl-v3
