@@ -87,10 +87,11 @@ jobs:
             cd %VCPKG_DIR%
             call bootstrap-vcpkg.bat
           ) else (
-            echo "%VCPKG_DIR%\vcpkg.exe already exists, using existing vcpkg"
+            echo "%VCPKG_DIR%\vcpkg.exe already exists, updating vcpkg repo"
             cd %VCPKG_DIR%
-            REM Optional: update vcpkg tool if needed
-            REM call .\vcpkg upgrade --no-dry-run
+            git fetch --all || echo "git fetch failed"
+            git reset --hard origin/master || echo "git reset failed"
+            call bootstrap-vcpkg.bat
           )
 
           cd "%SOURCE_DIR%"
