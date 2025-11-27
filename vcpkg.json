@@ -20,7 +20,8 @@
     },
     {
       "name": "ffmpeg",
-      "version": "6.1.1",
+      "version>=": "6.1.1",
+      "default-features": false,
       "features": [
         "core",
         "avcodec",
