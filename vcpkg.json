@@ -28,11 +28,7 @@
         "avfilter",
         "avformat",
         "swscale",
-        "swresample",
-        "ffmpeg",
-        "nvenc",
-        "cuda",
-        "libmfx"
+        "swresample"
       ]
     }
   ],

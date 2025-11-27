@@ -85,12 +85,17 @@ jobs:
             echo "vcpkg.exe not found, cloning vcpkg repo..."
             git clone https://github.com/microsoft/vcpkg.git %VCPKG_DIR%
             cd %VCPKG_DIR%
+            git fetch --all --tags || echo "git fetch failed"
             call bootstrap-vcpkg.bat
           ) else (
             echo "%VCPKG_DIR%\vcpkg.exe already exists, updating vcpkg repo"
             cd %VCPKG_DIR%
-            git fetch --all || echo "git fetch failed"
-            git reset --hard origin/master || echo "git reset failed"
+            git fetch --all --tags || echo "git fetch failed"
+            if defined VCPKG_BASELINE (
+              git checkout %VCPKG_BASELINE% || git checkout tags/%VCPKG_BASELINE% || echo "git checkout baseline failed"
+            ) else (
+              git reset --hard origin/HEAD || echo "git reset failed"
+            )
             call bootstrap-vcpkg.bat
           )
 
