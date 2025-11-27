@@ -19,10 +19,6 @@
       "version>=": "3.0.3"
     },
     {
-        "name": "ffnvcodec",
-        "version>=": "12.1.14.0"
-    },
-    {
       "name": "ffmpeg",
       "version>=": "6.1.1",
       "default-features": false,
@@ -32,8 +28,7 @@
         "avfilter",
         "avformat",
         "swscale",
-        "swresample",
-        "nvcodec"
+        "swresample"
       ]
     }
   ],
