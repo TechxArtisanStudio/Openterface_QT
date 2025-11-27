@@ -1,4 +1,4 @@
-name: Portable Build for Windows
+name: Portable Build for Windows (CMake + vcpkg + MinGW Static)
 
 on:
   push:
@@ -14,14 +14,11 @@ defaults:
 env:
   ARTIFACT: openterfaceQT.windows.amd64.portable.exe
   SOURCE_DIR: ${{ github.workspace }}
-  QT_VERSION: 6.5.3 
+  QT_VERSION: 6.5.3
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  ORGANIZATION_NAME: "TechxArtisan"
   VCPKG_DIR: C:\vcpkg
-  OPENSSL_DIR: C:\vcpkg\installed\x64-mingw-static
-  MSYS2_DIR: C:\msys64
   EXTERNAL_MINGW: C:\mingw64
-  FFMPEG_INSTALL_PREFIX: C:\ffmpeg-static
+  BUILD_DIR: ${{ runner.temp }}\build
 
 jobs:
   build:
@@ -31,70 +28,58 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get FFmpeg script hash
-        id: ffmpeg-script-hash
-        run: |
-          powershell -Command "$h=(Get-FileHash build-script/build-static-ffmpeg-windows.sh -Algorithm SHA256).Hash.Substring(0,8); echo \"hash=$h\" >> $env:GITHUB_OUTPUT"
-
       - name: Cache Qt Build
         id: cache-qt
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: C:\Qt6
-          key: qt-${{ env.QT_VERSION }}-mingw-windows-static-openssl-v1
+          key: qt-6.5.3-mingw-windows-static-vcpkg
           restore-keys: |
-            qt-${{ env.QT_VERSION }}-mingw-windows-static-openssl-
+            qt-6.5.3-mingw-windows-static-
 
       - name: Cache MinGW and Ninja
         id: cache-mingw
-        uses: actions/cache@v4
+        uses: actions/cache@v3
         with:
           path: |
-            ${{ env.EXTERNAL_MINGW }}
+            C:\mingw64
             C:\ProgramData\chocolatey\lib\ninja
-          key: mingw-ninja-windows-static-v2  # bump to force refresh if needed
+          key: mingw-ninja-static-2025
           restore-keys: |
-            mingw-ninja-windows-static-
+            mingw-ninja-static-
 
-      # - name: Cache vcpkg
-      #   id: cache-vcpkg
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ${{ env.VCPKG_DIR }}
-      #     key: vcpkg-mingw-static-openssl-v4  # ⬅️ BUMP THIS TO CLEAR BAD CACHE
-      #     restore-keys: |
-      #       vcpkg-mingw-static-openssl-
-
-      - name: Cache FFmpeg build
-        id: cache-ffmpeg
-        uses: actions/cache@v4
+      - name: Cache vcpkg
+        id: cache-vcpkg
+        uses: actions/cache@v3
         with:
-          path: ${{ env.FFMPEG_INSTALL_PREFIX }}
-          key: ffmpeg-static-6.1.1-${{ steps.ffmpeg-script-hash.outputs.hash }}
+          path: C:\vcpkg
+          key: vcpkg-x64-mingw-static-openssl-ffmpeg-zlib-v1
           restore-keys: |
-            ffmpeg-static-6.1.1-
+            vcpkg-x64-mingw-static-
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install Build environment (MinGW + Ninja)
+      - name: Install Ninja and MinGW (if not cached)
         if: steps.cache-mingw.outputs.cache-hit != 'true'
         run: |
           echo Installing Ninja...
           choco install ninja -y
-    
-          echo Downloading pre-compiled static MinGW-w64...
-          curl -L -o mingw-w64.zip https://sourceforge.net/projects/mingw-w64/files/latest/download
-          mkdir %EXTERNAL_MINGW%
-          tar -xf mingw-w64.zip -C %EXTERNAL_MINGW% --strip-components=1
-    
-          echo Verifying MinGW installation...
-          set PATH=%EXTERNAL_MINGW%\bin;%PATH%
-          g++ --version || (echo "g++ installation failed" && exit /b 1)
 
-      - name: Install vcpkg and Static Libraries (OpenSSL, zlib, etc.)
+          echo Downloading MinGW-w64 static build...
+          curl -L -o mingw-w64.zip https://github.com/niXman/mingw-builds-binaries/releases/download/13.2.0-rt_v11-rev1/x86_64-13.2.0-release-win32-seh-ucrt-rt_v11-rev1.7z
+          mkdir C:\mingw64_tmp
+          7z x mingw-w64.zip -oC:\mingw64_tmp
+          move C:\mingw64_tmp\x86_64-13.2.0-release-win32-seh-ucrt-rt_v11-rev1\* C:\mingw64\
+          rmdir /s /q C:\mingw64_tmp
+
+          echo Verifying g++...
+          set PATH=C:\mingw64\bin;%PATH%
+          g++ --version
+
+      - name: Install vcpkg and static libraries (OpenSSL, FFmpeg, zlib)
         if: steps.cache-vcpkg.outputs.cache-hit != 'true'
         run: |
           echo Cloning vcpkg...
@@ -102,133 +87,83 @@ jobs:
           cd %VCPKG_DIR%
           call bootstrap-vcpkg.bat
 
-          echo Updating vcpkg registry...
-          call vcpkg update
-
-          echo Installing static libraries for MinGW (explicit ports)...
+          echo Installing static packages for MinGW...
           call vcpkg install ^
             openssl:x64-mingw-static ^
+            ffmpeg:x64-mingw-static ^
             zlib:x64-mingw-static ^
-            bzip2:x64-mingw-static ^
-            liblzma:x64-mingw-static ^
             --triplet=x64-mingw-static ^
             --host-triplet=x64-mingw-static ^
-            --overlay-triplets="%SOURCE_DIR%/triplets" ^
             --clean-after-build
 
           call vcpkg integrate install
 
-      - name: Debug vcpkg output (list files)
+      - name: Verify vcpkg static libraries
         run: |
-          echo === Checking vcpkg lib directory ===
-          dir "%OPENSSL_DIR%\lib"
-          echo === Checking vcpkg bin directory ===
-          dir "%OPENSSL_DIR%\bin" 2>nul || echo (bin may be empty for static)
+          set LIB_DIR=%VCPKG_DIR%\installed\x64-mingw-static\lib
+          if not exist "%LIB_DIR%\libssl.a" ( echo ERROR: libssl.a missing & exit /b 1 )
+          if not exist "%LIB_DIR%\libcrypto.a" ( echo ERROR: libcrypto.a missing & exit /b 1 )
+          if not exist "%LIB_DIR%\libavcodec.a" ( echo ERROR: libavcodec.a missing & exit /b 1 )
+          if not exist "%LIB_DIR%\libavformat.a" ( echo ERROR: libavformat.a missing & exit /b 1 )
+          if not exist "%LIB_DIR%\libavutil.a" ( echo ERROR: libavutil.a missing & exit /b 1 )
+          if not exist "%LIB_DIR%\libswscale.a" ( echo ERROR: libswscale.a missing & exit /b 1 )
+          if not exist "%LIB_DIR%\libz.a" ( echo ERROR: libz.a missing & exit /b 1 )
+          echo All static libraries present.
 
-      - name: Verify vcpkg libraries (strict static check)
-        run: |
-          if not exist "%OPENSSL_DIR%\lib\libssl.a" (
-            echo ERROR: libssl.a is missing! This indicates OpenSSL was not built statically.
-            echo Possible causes:
-            echo   - Outdated vcpkg
-            echo   - Triplet misconfiguration
-            echo   - Cache pollution (try bumping cache key)
-            exit /b 1
-          )
-          if not exist "%OPENSSL_DIR%\lib\libcrypto.a" (
-            echo ERROR: libcrypto.a missing
-            exit /b 1
-          )
-          if not exist "%OPENSSL_DIR%\lib\libz.a" (
-            echo ERROR: libz.a missing
-            exit /b 1
-          )
-          echo OK: All required static libraries found.
-
-      - name: Install MSYS2 (for objdump, grep, strip, and FFmpeg build tools)
-        run: |
-          echo Installing MSYS2 via Chocolatey...
-          choco install msys2 -y
-          set PATH=%MSYS2_DIR%\usr\bin;%PATH%
-          echo Updating and installing base tools...
-          %MSYS2_DIR%\usr\bin\bash.exe -lc "pacman -Sy --noconfirm && pacman -S --needed --noconfirm base-devel git make cmake yasm nasm pkg-config"
-
-      - name: Build FFmpeg (static) with external MinGW
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-        run: |
-          echo Building FFmpeg using external MinGW (NO QSV)...
-          set PATH=%EXTERNAL_MINGW%\bin;%MSYS2_DIR%\usr\bin;%PATH%
-          call build-script\build-static-ffmpeg-windows.bat
-
-      - name: Verify FFmpeg build output
-        run: |
-          if not exist "%FFMPEG_INSTALL_PREFIX%\lib\libavcodec.a" (
-            echo ERROR: libavcodec.a not found
-            dir "%FFMPEG_INSTALL_PREFIX%\lib"
-            exit /b 1
-          )
-          echo FFmpeg static libraries built successfully.
-
-      - name: Build Qt Statically
+      - name: Build Qt Statically (if not cached)
         if: steps.cache-qt.outputs.cache-hit != 'true'
         run: |
-          set PATH=%EXTERNAL_MINGW%\bin;%PATH%
-          call build-script\build-static-qt-from-source.bat
+          call build-script/build-static-qt-from-source.bat
 
-      - name: Create build directory
+      - name: Create Build Directory
         run: |
-          mkdir %RUNNER_TEMP%\build
+          mkdir "%BUILD_DIR%"
 
       - name: Prepare Driver Files
         run: |
-          mkdir %SOURCE_DIR%\drivers\windows
-          xcopy /E /I driver\windows %SOURCE_DIR%\drivers\windows
+          mkdir "%SOURCE_DIR%\drivers\windows"
+          copy "driver\windows\*" "%SOURCE_DIR%\drivers\windows\" /Y
 
-      - name: Update and Release Translations
-        working-directory: "%RUNNER_TEMP%/build"
+      - name: Update Translations (lupdate + lrelease)
+        working-directory: "%BUILD_DIR%"
         run: |
-          set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;%PATH%
-          if not exist "C:\Qt6\bin\lupdate.exe" (
-            echo ERROR: lupdate.exe not found
-            exit /b 1
-          )
+          set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
+          if not exist "C:\Qt6\bin\lupdate.exe" ( echo lupdate not found & exit /b 1 )
           C:\Qt6\bin\lupdate.exe "%SOURCE_DIR%\openterfaceQT.pro"
           C:\Qt6\bin\lrelease.exe "%SOURCE_DIR%\openterfaceQT.pro"
 
-      - name: Build Portable Executable
-        working-directory: "%RUNNER_TEMP%/build"
+      - name: Build Portable Executable with CMake
+        working-directory: "%BUILD_DIR%"
         run: >-
-          set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;C:\msys64\usr\bin;C:\ProgramData\chocolatey\bin;%PATH% &&
+          set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;%PATH% &&
           cmake -G "Ninja"
-          -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
-          -DVCPKG_TARGET_TRIPLET="x64-mingw-static"
-          -DCMAKE_PREFIX_PATH="C:/Qt6;C:/vcpkg/installed/x64-mingw-static"
-          -DFFMPEG_PREFIX="C:/ffmpeg-static"
-          -DFFMPEG_INCLUDE_DIR="C:/ffmpeg-static/include"
-          -DFFMPEG_LIBRARIES="C:/ffmpeg-static/lib/libavcodec.a;C:/ffmpeg-static/lib/libavformat.a;C:/ffmpeg-static/lib/libavutil.a;C:/ffmpeg-static/lib/libswscale.a;C:/ffmpeg-static/lib/libswresample.a"
-          -DZLIB_LIBRARY="C:/vcpkg/installed/x64-mingw-static/lib/libz.a"
-          -DOPENTERFACE_BUILD_STATIC=ON
-          -DCMAKE_C_COMPILER="%EXTERNAL_MINGW%\bin\gcc.exe"
-          -DCMAKE_CXX_COMPILER="%EXTERNAL_MINGW%\bin\g++.exe"
-          -DCMAKE_RC_COMPILER="%EXTERNAL_MINGW%\bin\windres.exe"
-          "%SOURCE_DIR%" &&
+            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+            -DVCPKG_TARGET_TRIPLET="x64-mingw-static"
+            -DCMAKE_PREFIX_PATH="C:/Qt6"
+            -DOPENTERFACE_BUILD_STATIC=ON
+            -DCMAKE_C_COMPILER="%EXTERNAL_MINGW%/bin/gcc.exe"
+            -DCMAKE_CXX_COMPILER="%EXTERNAL_MINGW%/bin/g++.exe"
+            -DCMAKE_RC_COMPILER="%EXTERNAL_MINGW%/bin/windres.exe"
+            "%SOURCE_DIR%" &&
           cmake --build . --config Release -- -j2 &&
           for /f "delims=" %F in ('dir /s /b openterfaceQT.exe 2^>nul') do set "EXE=%F" &&
           if not defined EXE (
             echo Build failed: openterfaceQT.exe not found && dir /s /b . && exit /b 1
           ) &&
-          C:\msys64\usr\bin\objdump.exe -p "%EXE%" | C:\msys64\usr\bin\grep.exe -i "\.dll" >nul && (
-            echo ERROR: DLL dependencies detected! && exit /b 1
+          echo Checking for DLL dependencies... &&
+          %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" >nul && (
+            echo ERROR: DLL dependencies detected! &&
+            %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" &&
+            exit /b 1
           ) || (
             echo OK: No DLL dependencies — fully static.
           ) &&
-          C:\msys64\usr\bin\strip.exe -s "%EXE%" &&
-          md package &&
-          cmake --install . --config Release --prefix package &&
+          %EXTERNAL_MINGW%\bin\strip.exe -s "%EXE%" &&
+          mkdir package &&
           copy "%EXE%" package\openterfaceQT-portable.exe
 
-      - name: Save build artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT }}
