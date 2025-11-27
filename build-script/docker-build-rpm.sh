@@ -64,9 +64,6 @@ if [ -f "${SRC}/packaging/rpm/setup-env.sh" ]; then
 	echo "✅ Environment setup script copied to SOURCES"
 fi
 
-# Install patchelf and gcc for wrapper compilation
-apt update && apt install -y patchelf gcc libmfx1
-
 # Verify Qt6 build exists
 # CRITICAL: Must use a proper Qt6 build, NOT system libraries
 QT_LIB_DIR="/opt/Qt6/lib"
@@ -327,7 +324,7 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "SWRESAMPLE|FFmpeg swresample|libswresample.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
     "AVFILTER|FFmpeg avfilter|libavfilter.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
     "POSTPROC|FFmpeg postproc|libpostproc.so|WARNING|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
-    "MFX|Intel Media SDK|libmfx.so.1|ERROR|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
+    "MFX|Intel Media SDK|libmfx.so|ERROR|ffmpeg|${FFMPEG_LIB_SEARCH_DIRS}"
     
     # GStreamer libraries -> ${RPMTOP}/SOURCES/gstreamer
     # Using common GStreamer library search directories
@@ -512,4 +509,25 @@ if [ -n "${FOUND_RPM}" ]; then
 else
 	echo "Error: RPM build did not produce an output." >&2
 	exit 1
+fi
+
+# Diagnostic: Ensure FFmpeg libs (incl. libmfx) exist in buildroot and are included in RPM
+echo "🔍 RPM Build Diagnostics: Listing FFmpeg libs in BUILDROOT and package contents"
+BUILDROOT_DIR=$(find "${RPMTOP}/BUILDROOT" -maxdepth 1 -type d -name "*openterfaceqt-*" | head -n1 || true)
+if [ -n "${BUILDROOT_DIR}" ]; then
+    echo "Buildroot directory: ${BUILDROOT_DIR}"
+    ls -la "${BUILDROOT_DIR}/usr/lib/openterfaceqt/ffmpeg" || echo "   ⚠️  No ffmpeg directory in buildroot"
+else
+    echo "   ⚠️  No BUILDROOT directory found"
+fi
+
+if [ -f "${BUILD}/${RPM_OUT_NAME}" ]; then
+    echo "Listing ffmpeg files inside RPM package:" 
+    rpm -qpl "${BUILD}/${RPM_OUT_NAME}" | grep -i "openterfaceqt/ffmpeg" || echo "   ⚠️  No ffmpeg libs found in RPM package"
+    # Check specifically for libmfx
+    if rpm -qpl "${BUILD}/${RPM_OUT_NAME}" | grep -i "openterfaceqt/ffmpeg/libmfx" >/dev/null 2>&1; then
+        echo "✅ libmfx found inside RPM package"
+    else
+        echo "⚠️  libmfx NOT found inside RPM package"
+    fi
 fi

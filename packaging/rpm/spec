@@ -188,15 +188,17 @@ fi
 # FFmpeg core libraries (from ffmpeg subdirectory - all components needed for video processing)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/ffmpeg
 if [ -d "%{_sourcedir}/ffmpeg" ]; then
-    FFMPEG_COUNT=$(find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libav*.so*" -o -name "libsw*.so*" -type f | wc -l)
+    FFMPEG_COUNT=$(find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libav*.so*" -o -name "libsw*.so*" -o -name "libmfx*.so*" -type f | wc -l)
     if [ $FFMPEG_COUNT -gt 0 ]; then
-        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavdevice*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavdevice*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavcodec*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavformat*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavutil*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswscale*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswresample*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavfilter*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        # Intel Media SDK (libmfx) - copy if present
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libmfx*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         echo "✅ Installed $FFMPEG_COUNT FFmpeg libraries ($(ls -1 %{buildroot}/usr/lib/openterfaceqt/ffmpeg/*.so* 2>/dev/null | wc -l) files)"
     else
         echo "⚠️  No FFmpeg libraries found in %{_sourcedir}/ffmpeg"
@@ -229,6 +231,28 @@ if [ -d %{buildroot}/usr/lib/openterfaceqt/ffmpeg ]; then
     done
     
     echo "✅ FFmpeg library symlinks verified in buildroot"
+fi
+
+if [ -d %{buildroot}/usr/lib/openterfaceqt/ffmpeg ]; then
+    cd %{buildroot}/usr/lib/openterfaceqt/ffmpeg
+    # Handle libraries with single-dot sonames (e.g., libmfx.so.1)
+    for fullfile in *.so.* ; do
+        [ -f "$fullfile" ] || continue
+        base=$(echo "$fullfile" | sed 's/\.so\..*//')
+        soname=$(echo "$fullfile" | sed 's/\(.*\.so\.[0-9]*\)\.*.*/\1/')
+
+        if [ ! -L "$soname" ] && [ ! -f "$soname" ]; then
+            ln -sf "$fullfile" "$soname"
+            echo "  ✅ Created symlink: $soname -> $fullfile"
+        fi
+
+        if [ ! -L "${base}.so" ] && [ ! -f "${base}.so" ]; then
+            ln -sf "$fullfile" "${base}.so"
+            echo "  ✅ Created symlink: ${base}.so -> $fullfile"
+        fi
+    done
+    echo "✅ FFmpeg single-dot symlink normalization complete"
+    cd - > /dev/null
 fi
 
 # GStreamer library symlinks
@@ -312,7 +336,7 @@ echo ""
 
 # Count bundled libraries
 QT6_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6 -name "libQt6*.so*" -type f | wc -l)
-FFMPEG_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/ffmpeg -name "libav*.so*" -o -name "libsw*.so*" -type f | wc -l)
+FFMPEG_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/ffmpeg -name "libav*.so*" -o -name "libsw*.so*" -o -name "libmfx*.so*" -type f | wc -l)
 GSTREAMER_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer -name "libgst*.so*" -type f | wc -l)
 QT_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6/plugins -name "*.so" -type f | wc -l)
 GSTREAMER_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 -name "*.so" -type f | wc -l)
@@ -324,6 +348,13 @@ echo "  ✅ GStreamer Libraries: $GSTREAMER_LIBS"
 echo "  ✅ Qt6 Plugins: $QT_PLUGINS"
 echo "  ✅ GStreamer Plugins: $GSTREAMER_PLUGINS"
 echo ""
+
+# Verify that libmfx (Intel Media SDK) exists if it was expected
+if ls %{buildroot}/usr/lib/openterfaceqt/ffmpeg/libmfx*.so* >/dev/null 2>&1; then
+    echo "  ✅ libmfx (Intel Media SDK) bundled: $(ls %{buildroot}/usr/lib/openterfaceqt/ffmpeg/libmfx*.so* 2>/dev/null | tr '\n' ' ')"
+else
+    echo "  ⚠️  libmfx (Intel Media SDK) not found in buildroot. If you need Intel QSV support, ensure libmfx is present in SOURCES/ffmpeg or installed on the host system."
+fi
 
 # Check binary
 if [ -f "%{buildroot}/usr/bin/openterfaceQT-bin" ]; then

@@ -45,6 +45,11 @@ fi
 
 # Set GStreamer plugin path to our bundled plugins
 export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
+# If we have a bundled gst-plugin-scanner, make sure GStreamer uses it
+if [ -x "${HERE}/usr/libexec/gstreamer-1.0/gst-plugin-scanner" ]; then
+    export GST_PLUGIN_SCANNER="${HERE}/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
+    echo "GST_PLUGIN_SCANNER set to ${GST_PLUGIN_SCANNER}"
+fi
 
 # Set Qt plugin path and Wayland support
 export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${HERE}/usr/plugins:${QT_PLUGIN_PATH}:/usr/lib64"

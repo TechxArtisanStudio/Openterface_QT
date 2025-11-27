@@ -182,8 +182,16 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     # JPEG libraries
     "JPEG|libjpeg|libjpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     "TURBOJPEG|libturbojpeg|libturbojpeg.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
-    "POSTPROC|FFmpeg postproc|libpostproc.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
-    "MFX|Intel Media SDK|libmfx.so|WARNING||/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+	"POSTPROC|FFmpeg postproc|libpostproc.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+	"MFX|Intel Media SDK|libmfx.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+	# FFmpeg libraries -> AppImage bundle under /usr/lib/openterfaceqt/ffmpeg
+	"AVDEVICE|FFmpeg avdevice|libavdevice.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+	"AVCODEC|FFmpeg avcodec|libavcodec.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+	"AVFORMAT|FFmpeg avformat|libavformat.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+	"AVUTIL|FFmpeg avutil|libavutil.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+	"SWSCALE|FFmpeg swscale|libswscale.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+	"SWRESAMPLE|FFmpeg swresample|libswresample.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
+	"AVFILTER|FFmpeg avfilter|libavfilter.so|WARNING|openterfaceqt/ffmpeg|/opt/ffmpeg/lib /usr/lib/x86_64-linux-gnu /usr/lib"
     
     # Compression libraries
     "BZ2|libbz2|libbz2.so|WARNING||/usr/lib/x86_64-linux-gnu /usr/lib /lib"
@@ -244,6 +252,7 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
 # Process merged AppImage library configurations for initial AppDir
 echo "🔍 Copying required libraries to initial AppImage AppDir..."
 mkdir -p "${APPDIR}/usr/lib"
+mkdir -p "${APPDIR}/usr/lib/openterfaceqt/ffmpeg"
 for config in "${APPIMAGE_LIBRARY_CONFIGS[@]}"; do
     IFS='|' read -r var_name display_name lib_pattern severity target_subdir search_dirs_str <<< "$config"
     
@@ -272,6 +281,56 @@ echo "   Checking for libGL libraries:"
 ls -1 appimage/AppDir/usr/lib/libGL* 2>/dev/null || echo "   ⚠️  NO libGL files found!"
 echo "   Total .so files in appimage/AppDir/usr/lib:"
 find appimage/AppDir/usr/lib -maxdepth 1 -name "*.so*" -type f -o -type l 2>/dev/null | wc -l
+echo ""
+
+# Normalize FFmpeg soname symlinks under the openterfaceqt/ffmpeg directory
+if [ -d "${APPDIR}/usr/lib/openterfaceqt/ffmpeg" ]; then
+	echo "🔧 Normalizing FFmpeg symlinks in ${APPDIR}/usr/lib/openterfaceqt/ffmpeg..."
+	pushd "${APPDIR}/usr/lib/openterfaceqt/ffmpeg" >/dev/null || true
+	# Avoid literal globbing when no files found
+	shopt -s nullglob
+	# Create symlinks for multi-dot versioned libraries (libname.so.1.2.3)
+	for fullfile in *.so.*.*; do
+		[ -f "$fullfile" ] || continue
+		base=$(echo "$fullfile" | sed 's/\.so\..*//')
+		soname=$(echo "$fullfile" | sed 's/\(.*\.so\.[0-9]*\)\.*.*/\1/')
+		if [ "$soname" != "$fullfile" ]; then
+			if [ ! -L "$soname" ] && [ ! -f "$soname" ]; then
+				ln -sf "$fullfile" "$soname"
+				echo "  ✅ Created symlink: $soname -> $fullfile"
+			elif [ -f "$soname" ]; then
+				rm -f "$soname"
+				ln -sf "$fullfile" "$soname"
+				echo "  ✅ Converted to symlink: $soname -> $fullfile"
+			fi
+		fi
+		if [ ! -L "${base}.so" ] && [ ! -f "${base}.so" ]; then
+			ln -sf "$fullfile" "${base}.so"
+			echo "  ✅ Created symlink: ${base}.so -> $fullfile"
+		fi
+	done
+	# Also handle single-dot sonames (libname.so.1)
+	for fullfile in *.so.*; do
+		[ -f "$fullfile" ] || continue
+		base=$(echo "$fullfile" | sed 's/\.so\..*//')
+		soname=$(echo "$fullfile" | sed 's/\(.*\.so\.[0-9]*\)\.*.*/\1/')
+		if [ ! -L "$soname" ] && [ ! -f "$soname" ]; then
+			ln -sf "$fullfile" "$soname"
+			echo "  ✅ Created symlink: $soname -> $fullfile"
+		fi
+		if [ ! -L "${base}.so" ] && [ ! -f "${base}.so" ]; then
+			ln -sf "$fullfile" "${base}.so"
+			echo "  ✅ Created symlink: ${base}.so -> $fullfile"
+		fi
+	done
+	popd >/dev/null || true
+	# Turn off nullglob now that we are done
+	shopt -u nullglob
+	echo "✅ FFmpeg symlink normalization complete"
+fi
+
+echo "🔍 Diagnostic: Verifying FFmpeg libraries in appimage/AppDir/usr/lib/openterfaceqt/ffmpeg..."
+ls -1 "${APPDIR}/usr/lib/openterfaceqt/ffmpeg" 2>/dev/null | sed 's/^/   - /' || echo "   ⚠️ No files found"
 echo ""
 
 # Try to find and copy icon

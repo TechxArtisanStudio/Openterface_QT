@@ -249,6 +249,14 @@ void applyMediaBackendSetting(){
             qputenv("GST_PLUGIN_PATH", bundledPluginPath.toUtf8());
             qputenv("GST_PLUGIN_SYSTEM_PATH", bundledPluginPath.toUtf8());
             qDebug() << "Using bundled GStreamer plugins from:" << bundledPluginPath;
+            // Also set GST_PLUGIN_SCANNER to point to the bundled helper binary if present
+            QString bundledScannerPath = appDirPath + "/../libexec/gstreamer-1.0/gst-plugin-scanner";
+            if (QFile::exists(bundledScannerPath)) {
+                qputenv("GST_PLUGIN_SCANNER", bundledScannerPath.toUtf8());
+                qDebug() << "Using bundled gst-plugin-scanner at:" << bundledScannerPath;
+            } else {
+                qDebug() << "No bundled gst-plugin-scanner at:" << bundledScannerPath;
+            }
         } else {
             // Fallback to system plugins
             qputenv("GST_PLUGIN_PATH", "/usr/lib/gstreamer-1.0:/usr/lib/aarch64-linux-gnu/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0");
