@@ -35,5 +35,6 @@
         "libmfx"
       ]
     }
-  ]
+  ],
+  "builtin-baseline": "2017886818a9a88d303548b53709f5ef922efb39"
 }
