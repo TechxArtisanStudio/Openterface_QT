@@ -17,6 +17,7 @@ env:
   QT_VERSION: 6.5.3
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   VCPKG_DIR: C:\vcpkg
+  VCPKG_KEEP_BUILDTREES: 1
   EXTERNAL_MINGW: C:\mingw64
 
 jobs:
@@ -148,6 +149,15 @@ jobs:
             echo ERROR: libz (zlib) missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
           )
           echo All static libraries present.
+
+      - name: Upload vcpkg ffmpeg logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vcpkg-ffmpeg-build-logs
+          path: |
+            C:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-config.log
+            C:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-out.log
 
       - name: Build Qt Statically (if not cached)
         if: steps.cache-qt.outputs.cache-hit != 'true'
