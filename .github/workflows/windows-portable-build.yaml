@@ -22,8 +22,6 @@ env:
 jobs:
   build:
     runs-on: windows-2022
-    env:
-      BUILD_DIR: ${{ runner.temp }}\build
     steps:
       - uses: actions/checkout@v4
         with:
@@ -118,7 +116,7 @@ jobs:
 
       - name: Create Build Directory
         run: |
-          mkdir "%BUILD_DIR%"
+          mkdir "%RUNNER_TEMP%\build"
 
       - name: Prepare Driver Files
         run: |
@@ -126,7 +124,7 @@ jobs:
           copy "driver\windows\*" "%SOURCE_DIR%\drivers\windows\" /Y
 
       - name: Update Translations (lupdate + lrelease)
-        working-directory: "%BUILD_DIR%"
+        working-directory: ${{ runner.temp }}\build
         run: |
           set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
           if not exist "C:\Qt6\bin\lupdate.exe" ( echo lupdate not found & exit /b 1 )
@@ -134,7 +132,7 @@ jobs:
           C:\Qt6\bin\lrelease.exe "%SOURCE_DIR%\openterfaceQT.pro"
 
       - name: Build Portable Executable with CMake
-        working-directory: "%BUILD_DIR%"
+        working-directory: ${{ runner.temp }}\build
         run: >-
           set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;%PATH% &&
           cmake -G "Ninja"
@@ -168,5 +166,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT }}
-          path: ${{ env.BUILD_DIR }}\package\openterfaceQT-portable.exe
+          path: ${{ runner.temp }}\build\package\openterfaceQT-portable.exe
           if-no-files-found: error
