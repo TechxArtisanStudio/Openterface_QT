@@ -441,7 +441,7 @@ if [ -f "${CONTROL_TEMPLATE}" ]; then
 	if command -v envsubst >/dev/null 2>&1; then
 		VERSION="${VERSION}" ARCH="${ARCH}" envsubst < "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
 	else
-		perl -pe 's/\$\{VERSION\}/'"${VERSION}"'/g; s/\$\{ARCH\}/'"${UNAME_M}"'/g' "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
+		perl -pe 's/\$\{VERSION\}/'"${VERSION}"'/g; s/\$\{ARCH\}/'"${ARCH}"'/g' "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
 	fi
 else
 	cat > "${CONTROL_FILE}" <<EOF
