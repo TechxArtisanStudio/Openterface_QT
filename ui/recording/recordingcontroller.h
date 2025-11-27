@@ -65,6 +65,8 @@ public:
      * @return QWidget* The recording control widget
      */
     QWidget* createControlsWidget();
+    // Create and return a floating, read-only duration widget to display recording time
+    QWidget* createFloatingDurationWidget(QWidget* parent = nullptr);
     
     /**
      * @brief Get the current recording status
@@ -201,6 +203,9 @@ private:
     QLabel *m_durationLabel;
     QHBoxLayout *m_layout;
     QWidget *m_controlsWidget;
+    // Floating duration-only widget (for display-only mode)
+    QWidget *m_floatingWidget;
+    QLabel *m_floatingDurationLabel;
 };
 
 #endif // RECORDINGCONTROLLER_H

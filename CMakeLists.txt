@@ -125,8 +125,14 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt
 
 # For static Qt builds on Windows with MinGW, link MinGW runtime libraries
 if(OPENTERFACE_BUILD_STATIC AND WIN32)
-    target_link_libraries(${PROJECT_NAME} PRIVATE mingw32 mingwex)
+    # Set static linking for GCC and C++ standard library
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++ -static")
+    
+    # Force -lmingw32 -lmingwex to appear at the END of the linker command
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lmingw32 -lmingwex")
+    
+    # Avoid UCRT/MSVCRT conflicts by using MinGW's ANSI stdio
+    target_compile_definitions(${PROJECT_NAME} PRIVATE __USE_MINGW_ANSI_STDIO=1)
 endif()
 
 # For static Qt builds, we need to link platform plugins and their dependencies (Linux only)
