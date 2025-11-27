@@ -17,21 +17,6 @@
     {
       "name": "openssl",
       "version>=": "3.0.3"
-    },
-    {
-      "name": "ffmpeg",
-      "version>=": "6.1.1",
-      "default-features": false,
-      "features": [
-        "avcodec",
-        "avdevice",
-        "avfilter",
-        "avformat",
-        "swscale",
-        "swresample",
-        "zlib",
-        "openssl"
-      ]
     }
   ],
   "overrides": [
@@ -50,10 +35,6 @@
     {
       "name": "openssl",
       "version": "3.0.3"
-    },
-    {
-      "name": "ffmpeg",
-      "version": "6.1.1"
     },
     {
       "name": "pkgconf",
