@@ -79,6 +79,10 @@ jobs:
           set PATH=C:\mingw64\bin;%PATH%
           g++ --version
 
+          echo Installing assembly tools (nasm, yasm) that ffmpeg configure may require...
+          choco install nasm -y || echo "nasm install failed or already installed"
+          choco install yasm -y || echo "yasm install failed or already installed"
+
       - name: Install vcpkg and static libraries (OpenSSL, FFmpeg, zlib)
         run: |
           echo Cloning or updating vcpkg...
@@ -103,12 +107,17 @@ jobs:
           cd "%SOURCE_DIR%"
 
           echo Installing static packages via manifest (vcpkg.json)...
+          set VCPKG_LOG_LEVEL=debug
+          set VCPKG_DOWNLOADS_RETRIES=5
+          set VCPKG_MAX_CONCURRENCY=2
+          echo vcpkg version/loglevel: && "%VCPKG_DIR%\vcpkg.exe" version || echo "could not show vcpkg version"
           call "%VCPKG_DIR%\vcpkg.exe" install ^
             --triplet=x64-mingw-static ^
             --host-triplet=x64-mingw-static ^
             --clean-after-build
           
           call "%VCPKG_DIR%\vcpkg.exe" integrate install
+          echo vcpkg installed ports (end) && "%VCPKG_DIR%\vcpkg.exe" list || echo "couldn't list vcpkg packages"
 
       - name: Verify vcpkg static libraries (with debug output)
         run: |
@@ -118,6 +127,12 @@ jobs:
             call "%VCPKG_DIR%\vcpkg.exe" list
           ) else (
             echo WARNING: vcpkg.exe not found in %VCPKG_DIR% - skipping vcpkg list
+          )
+          echo === vcpkg bootstrap/log/version info ===
+          if exist "%VCPKG_DIR%\.git" (
+            cd "%VCPKG_DIR%" && git rev-parse --short HEAD && git describe --tags --dirty || echo "git info unavailable"
+          ) else (
+            echo "No git info for vcpkg"
           )
           echo === Directory listing: %LIB_DIR% ===
           if exist "%LIB_DIR%" (
@@ -150,6 +165,17 @@ jobs:
           )
           echo All static libraries present.
 
+      - name: Print ffmpeg buildtrees listing after vcpkg install
+        run: |
+          echo === Listing vcpkg buildtrees for ffmpeg ===
+          if exist "D:\vcpkg\buildtrees\ffmpeg" (
+            dir "D:\vcpkg\buildtrees\ffmpeg" /b /s || echo "dir failed"
+            echo --- src subdir ---
+            dir "D:\vcpkg\buildtrees\ffmpeg\src" /b /s || echo "no src dir yet"
+          ) else (
+            echo "No ffmpeg buildtrees directory exists yet"
+          )
+
       - name: Upload vcpkg ffmpeg logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -158,6 +184,15 @@ jobs:
           path: |
             D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-config.log
             D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-out.log
+            D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-err.log
+            D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-*
+
+      - name: Dump ffmpeg buildtrees folder on failure
+        if: failure()
+        run: |
+          echo Dumping full buildtrees directory for ffmpeg
+          dir D:\vcpkg\buildtrees\ffmpeg /s
+          echo Done dumping
 
       - name: Build Qt Statically (if not cached)
         if: steps.cache-qt.outputs.cache-hit != 'true'
