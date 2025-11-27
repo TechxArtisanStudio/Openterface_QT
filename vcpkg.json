@@ -28,7 +28,9 @@
         "avfilter",
         "avformat",
         "swscale",
-        "swresample"
+        "swresample",
+        "nvcodec",
+        "qsv"
       ]
     }
   ],
