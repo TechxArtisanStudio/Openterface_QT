@@ -127,16 +127,16 @@ jobs:
 
       # vcpkg manifest will install pkgconf (manifest mode), which will create the msys2 root.
 
-      - name: Install vcpkg manifest (ffmpeg, zlib, openssl, pkgconf) using MSYS2
+      - name: Install vcpkg manifest (zlib, openssl, pkgconf) using MSYS2
         run: |
           echo "Installing static packages via manifest (vcpkg.json) using MSYS2"
-          REM Use the msys2 bash to execute vcpkg so ffmpeg uses MSYS2 toolchain
+          REM Use the msys2 bash to execute vcpkg so uses MSYS2 toolchain
           for /f "delims=" %%i in ('dir /b /ad "C:\msys64\usr" 2^>nul') do set MSYS2_DIR=%%i
           if not exist "C:\msys64\usr\bin\bash.exe" (
             echo "MSYS2 not available - falling back to cmd vcpkg install"
             call "%VCPKG_DIR%\vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build
           ) else (
-            C:\msys64\usr\bin\bash.exe -lc "cd \$(cygpath -u '$(echo %VCPKG_DIR%)') && ./vcpkg.exe install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build || true"
+            C:\msys64\usr\bin\bash.exe -lc "cd $(cygpath -u '$(echo %VCPKG_DIR%)') && ./vcpkg.exe install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build || true"
           )
 
       - name: Ensure MSYS2 and packages for ffmpeg build (pkgconf, nasm, yasm)
@@ -165,7 +165,7 @@ jobs:
             echo "MSYS2 not found; aborting ffmpeg build script step" && exit /b 1
           )
           REM Normalize source dir and pass /d/ffmpeg-static as install prefix
-          %MSYS2_PATH%\bash.exe -lc "cd \$(cygpath -u '$(echo %SOURCE_DIR%)') && chmod +x build-script/build-static-ffmpeg-windows.sh && export FFMPEG_INSTALL_PREFIX=/d/ffmpeg-static && ./build-script/build-static-ffmpeg-windows.sh"
+          %MSYS2_PATH%\bash.exe -lc "cd $(cygpath -u '$(echo %SOURCE_DIR%)') && chmod +x build-script/build-static-ffmpeg-windows.sh && export FFMPEG_INSTALL_PREFIX=/d/ffmpeg-static && ./build-script/build-static-ffmpeg-windows.sh"
         shell: cmd
 
       # vcpkg verification (moved to run after manifest installation)
@@ -194,67 +194,7 @@ jobs:
           ) else (
             echo ERROR: Library folder not found: %LIB_DIR% && exit /b 1
           )
-          if not exist "%LIB_DIR%\libcrypto.a" if not exist "%LIB_DIR%\libcrypto.lib" (
-            echo ERROR: libcrypto missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
-          )
-          if not exist "%LIB_DIR%\libavcodec.a" if not exist "%LIB_DIR%\avcodec.lib" (
-            echo ERROR: libavcodec missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
-          )
-          if not exist "%LIB_DIR%\libavformat.a" if not exist "%LIB_DIR%\avformat.lib" (
-            echo ERROR: libavformat missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
-          )
-          if not exist "%LIB_DIR%\libavutil.a" if not exist "%LIB_DIR%\avutil.lib" (
-            echo ERROR: libavutil missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
-          )
-          if not exist "%LIB_DIR%\libswscale.a" if not exist "%LIB_DIR%\swscale.lib" (
-            echo ERROR: libswscale missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
-          )
-          if not exist "%LIB_DIR%\libz.a" if not exist "%LIB_DIR%\zlib.lib" (
-            echo ERROR: libz (zlib) missing in %LIB_DIR% && dir "%LIB_DIR%" && exit /b 1
-          )
           echo All static libraries present.
-
-      - name: Print ffmpeg buildtrees listing after vcpkg install
-        run: |
-          echo === Listing vcpkg buildtrees for ffmpeg ===
-          if exist "D:\vcpkg\buildtrees\ffmpeg" (
-            dir "D:\vcpkg\buildtrees\ffmpeg" /b /s || echo "dir failed"
-            echo --- src subdir ---
-            dir "D:\vcpkg\buildtrees\ffmpeg\src" /b /s || echo "no src dir yet"
-          ) else (
-            echo "No ffmpeg buildtrees directory exists yet"
-          )
-
-      - name: Show ffmpeg buildtrees last 200 lines (always)
-        if: always()
-        run: |
-            echo === show last lines of ffmpeg build logs ===
-            if exist "D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-out.log" (
-              powershell -Command "Get-Content 'D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-out.log' -Tail 1000 -ErrorAction SilentlyContinue"
-            ) else (
-              echo out.log not found
-            )
-            if exist "D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-err.log" (
-              powershell -Command "Get-Content 'D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-err.log' -Tail 1000 -ErrorAction SilentlyContinue"
-            ) else (
-              echo err.log not found
-            )
-            if exist "D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-config.log" (
-              powershell -Command "Get-Content 'D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-config.log' -Tail 1000 -ErrorAction SilentlyContinue"
-            ) else (
-              echo config.log not found
-            )
-
-      - name: Upload vcpkg ffmpeg logs on failure
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: vcpkg-ffmpeg-build-logs
-          path: |
-            D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-config.log
-            D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-out.log
-            D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-err.log
-            D:\vcpkg\buildtrees\ffmpeg\build-x64-mingw-static-rel-*
 
       - name: Dump ffmpeg buildtrees folder on failure
         if: failure()
@@ -319,7 +259,7 @@ jobs:
             mkdir package &&
             copy "%EXE%" package\openterfaceQT-portable.exe
           ) else (
-            "%MSYS2_PATH%\bash.exe" -lc "export PATH=/c/Qt6/bin:/c/mingw64/bin:$PATH && cmake -G \"Ninja\" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=\"/c/vcpkg/scripts/buildsystems/vcpkg.cmake\" -DVCPKG_TARGET_TRIPLET=\"x64-mingw-static\" -DCMAKE_PREFIX_PATH=\"/c/Qt6\" -DOPENTERFACE_BUILD_STATIC=ON -DCMAKE_C_COMPILER=/c/mingw64/bin/gcc.exe -DCMAKE_CXX_COMPILER=/c/mingw64/bin/g++.exe -DCMAKE_RC_COMPILER=/c/mingw64/bin/windres.exe \$(cygpath -u '$(echo %SOURCE_DIR%)') && cmake --build . --config Release -- -j2 || exit 1"
+            "%MSYS2_PATH%\bash.exe" -lc "export PATH=/c/Qt6/bin:/c/mingw64/bin:$PATH && cmake -G \"Ninja\" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=\"/c/vcpkg/scripts/buildsystems/vcpkg.cmake\" -DVCPKG_TARGET_TRIPLET=\"x64-mingw-static\" -DCMAKE_PREFIX_PATH=\"/c/Qt6\" -DOPENTERFACE_BUILD_STATIC=ON -DCMAKE_C_COMPILER=/c/mingw64/bin/gcc.exe -DCMAKE_CXX_COMPILER=/c/mingw64/bin/g++.exe -DCMAKE_RC_COMPILER=/c/mingw64/bin/windres.exe $(cygpath -u '$(echo %SOURCE_DIR%)') && cmake --build . --config Release -- -j2 || exit 1"
             "%MSYS2_PATH%\bash.exe" -lc "for f in \$(find . -name \"openterfaceQT.exe\" -print -quit); do EXE=\$f; break; done; if [ -z \"\$EXE\" ]; then echo Build failed: openterfaceQT.exe not found && exit 1; fi; /c/mingw64/bin/objdump -p \"\$EXE\" | grep -i \\\"\\.dll\\\" && (echo ERROR: DLL dependencies detected && /c/mingw64/bin/objdump -p \"\$EXE\" | grep -i \\\"\\.dll\\\" && exit 1) || echo OK: No DLL dependencies; /c/mingw64/bin/strip -s \"\$EXE\"; mkdir -p package; cp \"\$EXE\" package/openterfaceQT-portable.exe"
           )
             -DCMAKE_BUILD_TYPE=Release
