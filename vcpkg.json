@@ -36,5 +36,27 @@
       ]
     }
   ],
+  "overrides": [
+    {
+      "name": "bzip2",
+      "version": "1.0.8#5"
+    },
+    {
+      "name": "zlib",
+      "version": "1.2.13#3"
+    },
+    {
+      "name": "liblzma",
+      "version": "5.4.0#2"
+    },
+    {
+      "name": "openssl",
+      "version": "3.0.0#10"
+    },
+    {
+      "name": "ffmpeg",
+      "version": "6.1.1#4"
+    }
+  ],
   "builtin-baseline": "2017886818a9a88d303548b53709f5ef922efb39"
 }
