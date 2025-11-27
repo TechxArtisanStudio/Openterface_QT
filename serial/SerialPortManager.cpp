@@ -913,6 +913,7 @@ SerialPortManager::~SerialPortManager() {
  * Open the serial port
  */
 bool SerialPortManager::openPort(const QString &portName, int baudRate) {
+    qCDebug(log_core_serial) << "Trying to open serial port: " << portName << ", baudrate: " << baudRate;
     if (m_isShuttingDown) {
         qCDebug(log_core_serial) << "Cannot open port during shutdown";
         return false;
