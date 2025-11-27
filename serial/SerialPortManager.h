@@ -53,7 +53,7 @@ enum class ChipType : uint32_t {
 // Struct to hold configuration command results
 struct ConfigResult {
     bool success = false;
-    int workingBaudrate = SerialPortManager::DEFAULT_BAUDRATE;
+    int workingBaudrate = 9600;  // Use literal value instead of SerialPortManager::DEFAULT_BAUDRATE
     uint8_t mode = 0;
 };
 
