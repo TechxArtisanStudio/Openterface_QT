@@ -439,7 +439,7 @@ CONTROL_TEMPLATE="${SRC}/packaging/debian/control"
 CONTROL_FILE="${PKG_ROOT}/DEBIAN/control"
 if [ -f "${CONTROL_TEMPLATE}" ]; then
 	if command -v envsubst >/dev/null 2>&1; then
-		VERSION="${VERSION}" ARCH="${UNAME_M}" envsubst < "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
+		VERSION="${VERSION}" ARCH="${ARCH}" envsubst < "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
 	else
 		perl -pe 's/\$\{VERSION\}/'"${VERSION}"'/g; s/\$\{ARCH\}/'"${UNAME_M}"'/g' "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
 	fi
@@ -449,7 +449,7 @@ Package: openterfaceQT
 Version: ${VERSION}
 Section: base
 Priority: optional
-Architecture: ${UNAME_M}
+Architecture: ${ARCH}
 Depends: libxkbcommon0, libwayland-client0, libegl1, libgles2, libpulse0, libxcb1, libxcb-shm0, libxcb-xfixes0, libxcb-shape0, libx11-6, zlib1g, libbz2-1.0, liblzma5, libva2, libva-drm2, libva-x11-2, libvdpau1, liborc-0.4-0, libgstreamer1.0-0, libv4l-0, libgl1, libglx0, libglvnd0
 Maintainer: TechxArtisan <info@techxartisan.com>
 Description: OpenterfaceQT Mini-KVM Linux Edition
