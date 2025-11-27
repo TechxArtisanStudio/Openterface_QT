@@ -29,6 +29,9 @@ Requires:       libv4l
 # libxkbcommon is available on all Fedora versions
 Requires:       libxkbcommon
 
+# X Video extension support
+Requires:       libXv
+
 # X11/XCB support libraries (OPTIONAL - only if running on X11)
 # These are not bundled and only needed for X11 mode
 # If not available, app will auto-detect and use Wayland instead
@@ -162,6 +165,8 @@ if [ -d "%{_sourcedir}/gstreamer" ]; then
         find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgsttag*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
         find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstvideo*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
         find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstapp*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstcodecs*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
+        find %{_sourcedir}/gstreamer -maxdepth 1 -name "libgstcodecparsers*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
         find %{_sourcedir}/gstreamer -maxdepth 1 -name "liborc*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
         find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
         find %{_sourcedir}/gstreamer -maxdepth 1 -name "libv4l1*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/ \;
@@ -176,10 +181,16 @@ fi
 
 # GStreamer plugins (video capture, audio processing, codecs)
 if [ -d "%{_sourcedir}/gstreamer/gstreamer-1.0" ]; then
-    PLUGIN_COUNT=$(find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so" -type f | wc -l)
+    # Allow both unversioned and versioned plugin files (e.g., libgstcodecs-1.0.so and libgstcodecs-1.0.so.0.2606.0)
+    PLUGIN_COUNT=$(find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so*" \( -type f -o -type l \) | wc -l)
     if [ $PLUGIN_COUNT -gt 0 ]; then
-        find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ \;
+        # Copy both versioned and unversioned plugin files, preserving symlinks
+        find %{_sourcedir}/gstreamer/gstreamer-1.0 -maxdepth 1 -name "*.so*" \( -type f -o -type l \) -exec cp -aP {} %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/ \;
         echo "✅ Installed $PLUGIN_COUNT GStreamer plugins"
+        # Log if libgstcodecs is among the copied plugins for quick verification
+        if ls %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0/libgstcodecs-1.0.so* >/dev/null 2>&1; then
+            echo "  ✅ libgstcodecs-1.0 plugin copied to buildroot"
+        fi
     else
         echo "⚠️  No GStreamer plugins found in %{_sourcedir}/gstreamer/gstreamer-1.0"
     fi
@@ -188,15 +199,17 @@ fi
 # FFmpeg core libraries (from ffmpeg subdirectory - all components needed for video processing)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/ffmpeg
 if [ -d "%{_sourcedir}/ffmpeg" ]; then
-    FFMPEG_COUNT=$(find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libav*.so*" -o -name "libsw*.so*" -o -name "libmfx*.so*" -type f | wc -l)
+    FFMPEG_COUNT=$(find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libav*.so*" -o -name "libsw*.so*" -o -name "libmfx*.so*" -o -name "libpostproc*.so*" -type f | wc -l)
     if [ $FFMPEG_COUNT -gt 0 ]; then
-    find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavdevice*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavdevice*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavcodec*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavformat*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavutil*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswscale*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libswresample*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libavfilter*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
+        # FFmpeg postproc library - copy if present
+        find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libpostproc*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         # Intel Media SDK (libmfx) - copy if present
         find %{_sourcedir}/ffmpeg -maxdepth 1 -name "libmfx*.so*" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/ffmpeg/ \;
         echo "✅ Installed $FFMPEG_COUNT FFmpeg libraries ($(ls -1 %{buildroot}/usr/lib/openterfaceqt/ffmpeg/*.so* 2>/dev/null | wc -l) files)"
@@ -281,6 +294,28 @@ if [ -d %{buildroot}/usr/lib/openterfaceqt/gstreamer ]; then
     echo "✅ GStreamer library symlinks verified in buildroot"
 fi
 
+# GStreamer PLUGINS symlink normalization (plugins live in gstreamer/gstreamer-1.0)
+if [ -d %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 ]; then
+    cd %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
+    echo "Verifying GStreamer plugin symlinks in buildroot..."
+    for fullfile in *.so.*.* ; do
+        [ -f "$fullfile" ] || continue
+        base=$(echo "$fullfile" | sed 's/\.so\..*//')
+        soname=$(echo "$fullfile" | sed 's/\(.*\.so\.[0-9]*\)\.*.*/\1/')
+
+        if [ ! -L "$soname" ] && [ ! -f "$soname" ]; then
+            ln -sf "$fullfile" "$soname"
+            echo "  ✅ Created symlink: $soname -> $fullfile"
+        fi
+        if [ ! -L "${base}.so" ] && [ ! -f "${base}.so" ]; then
+            ln -sf "$fullfile" "${base}.so"
+            echo "  ✅ Created symlink: ${base}.so -> $fullfile"
+        fi
+    done
+    echo "✅ GStreamer plugin symlinks verified in buildroot"
+    cd - > /dev/null
+fi
+
 # Qt plugins and QML modules (from qt6 subdirectory structure)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/plugins
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/qml
@@ -336,10 +371,10 @@ echo ""
 
 # Count bundled libraries
 QT6_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6 -name "libQt6*.so*" -type f | wc -l)
-FFMPEG_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/ffmpeg -name "libav*.so*" -o -name "libsw*.so*" -o -name "libmfx*.so*" -type f | wc -l)
+FFMPEG_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/ffmpeg -name "libav*.so*" -o -name "libsw*.so*" -o -name "libmfx*.so*" -o -name "libpostproc*.so*" -type f | wc -l)
 GSTREAMER_LIBS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer -name "libgst*.so*" -type f | wc -l)
 QT_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/qt6/plugins -name "*.so" -type f | wc -l)
-GSTREAMER_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 -name "*.so" -type f | wc -l)
+GSTREAMER_PLUGINS=$(find %{buildroot}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0 -name "*.so*" -type f | wc -l)
 
 echo "Bundled Libraries Summary:"
 echo "  ✅ Qt6 Libraries: $QT6_LIBS"
@@ -490,6 +525,7 @@ DISPLAY_DEPS=(
     "libxkbcommon"
     "libxkbcommon-x11"
     "libwayland-client"
+    "libXv"
 )
 
 OPENGL_DEPS=(

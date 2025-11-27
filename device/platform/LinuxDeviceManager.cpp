@@ -1122,7 +1122,7 @@ void LinuxDeviceManager::findAndAssociateInterfaceDevicesLinux(DeviceInfo& devic
                     QString vidStr = QString("%1").arg(portInfo.vendorIdentifier(), 4, 16, QChar('0')).toUpper();
                     QString pidStr = QString("%1").arg(portInfo.productIdentifier(), 4, 16, QChar('0')).toUpper();
                     
-                    // Check for FE0C devices (Gen2/Gen3)
+                    // Check for CH32V208 devices (Gen2/Gen3)
                     if (vidStr == AbstractPlatformDeviceManager::SERIAL_VID_V3.toUpper() && 
                         pidStr == AbstractPlatformDeviceManager::SERIAL_PID_V3.toUpper()) {
                         

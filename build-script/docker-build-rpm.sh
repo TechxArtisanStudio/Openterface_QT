@@ -308,7 +308,7 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "VADRM|VA-API DRM|libva-drm.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     "VAX11|VA-API X11|libva-x11.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     "VDPAU|VDPAU|libvdpau.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
-    
+
     # Compression libraries (FFmpeg dependencies)
     "BZ2|libbz2|libbz2.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     "Z|zlib|libz.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
@@ -358,6 +358,7 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "GSTPLUGIN_APP|GStreamer application integration|libgstapp.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
     "GSTPLUGIN_PLAYBACK|GStreamer playback elements|libgstplayback.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
     "GSTPLUGIN_JPEG|GStreamer JPEG codec|libgstjpeg.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
+    "GSTPLUGIN_CODECS|GStreamer codecs plugin|libgstcodecs-1.0.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
     "GSTPLUGIN_XIMAGESINK|GStreamer X11 video sink|libgstximagesink.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
     "GSTPLUGIN_XVIMAGESINK|GStreamer XVideo sink|libgstxvimagesink.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
     "GSTPLUGIN_AUTODETECT|GStreamer auto detection|libgstautodetect.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"

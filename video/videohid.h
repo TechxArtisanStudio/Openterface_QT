@@ -85,7 +85,7 @@ public:
     void switchToHost();
     void switchToTarget();
     
-    // New USB switch status query method using serial command (for FE0C chips)
+    // New USB switch status query method using serial command (for CH32V208 chips)
     int getUsbStatusViaSerial();  // Returns: 0=host, 1=target, -1=error
 
     void setEventCallback(StatusEventCallback* callback);

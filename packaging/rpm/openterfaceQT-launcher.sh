@@ -205,6 +205,7 @@ COMMON_LIBS=(
     "libv4l2"
     "libv4l2rds"
     "libv4lconvert"
+    "libXv"
 )
 
 # Load common libraries
@@ -270,6 +271,7 @@ XCB_SUPPORT_LIBS=(
     "libxcb-xkb"
     "libxkbcommon"
     "libxkbcommon-x11"
+    "libXv"
 )
 
 # Search for XCB libraries in system locations (not bundled)

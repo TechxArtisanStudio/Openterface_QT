@@ -27,6 +27,10 @@
 #include <QAction>
 #include <QMap>
 #include <QDebug>
+#include <QtConcurrent>
+#include <QMetaObject>
+#include <QPointer>
+#include <QThread>
 
 Q_LOGGING_CATEGORY(log_ui_devicecoordinator, "opf.ui.devicecoordinator")
 
@@ -188,9 +192,12 @@ void DeviceCoordinator::updateDeviceMenu()
     
     // Auto-select first device if there's exactly one device and not already auto-selected
     if (uniqueDevicesByPortChain.size() == 1 && !m_deviceAutoSelected) {
-        autoSelectFirstDevice();
-        currentPortChain = GlobalSetting::instance().getOpenterfacePortChain();
-        m_deviceAutoSelected = true;
+        // Immediately set the selection in settings so the UI can reflect it
+        QString firstPortChain = uniqueDevicesByPortChain.firstKey();
+        GlobalSetting::instance().setOpenterfacePortChain(firstPortChain);
+        currentPortChain = firstPortChain;
+        m_deviceAutoSelected = true; // mark scheduled so we don't schedule multiple times
+        scheduleAutoSelectFirstDevice(firstPortChain);
     }
     
     // Add action for each unique device
@@ -502,4 +509,36 @@ bool DeviceCoordinator::autoSelectFirstDevice()
         emit deviceSwitchCompleted();
         return false; // Return false immediately, but retry happens asynchronously
     }
+}
+
+void DeviceCoordinator::scheduleAutoSelectFirstDevice(const QString &portChain)
+{
+    qCDebug(log_ui_devicecoordinator) << "Scheduling auto-select for port chain:" << portChain;
+
+    // Use QPointer to safely reference this object from background threads
+    QPointer<DeviceCoordinator> safeThis(this);
+    CameraManager *cameraManager = m_cameraManager;
+
+    // Run device switching scheduled on DeviceManager thread; do not block UI
+    QtConcurrent::run([portChain, cameraManager, safeThis]() {
+        if (!safeThis) {
+            qCWarning(log_ui_devicecoordinator) << "DeviceCoordinator destroyed before scheduling auto-select";
+            return;
+        }
+
+        // Optional small delay to allow UI to reflect selection and other threads (HID) to settle
+        QThread::msleep(10);
+
+        DeviceManager &deviceManager = DeviceManager::getInstance();
+        // Schedule the actual switching to run in the DeviceManager's QObject thread via queued invocation
+        QMetaObject::invokeMethod(&deviceManager, [portChain, cameraManager]() {
+            qCDebug(log_ui_devicecoordinator) << "Queued auto-select switch to port chain:" << portChain;
+            // Resolve deviceManager inside the queued functor to ensure correct context
+            DeviceManager &dm = DeviceManager::getInstance();
+            auto result = dm.switchToDeviceByPortChainWithCamera(portChain, cameraManager);
+            Q_UNUSED(result);
+        }, Qt::QueuedConnection);
+
+        // We're intentionally not waiting for switch completion — UI should already be updated
+    });
 }

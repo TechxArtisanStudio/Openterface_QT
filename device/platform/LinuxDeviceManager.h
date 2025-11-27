@@ -87,7 +87,7 @@ private:
     // Cache management
     QList<DeviceInfo> m_cachedDevices;
     QDateTime m_lastCacheUpdate;
-    static const int CACHE_TIMEOUT_MS = 1000; // 1 second cache
+    static const int CACHE_TIMEOUT_MS = 5000; // 1 second cache
     
     // Async discovery
     QFutureWatcher<QList<DeviceInfo>>* m_futureWatcher;

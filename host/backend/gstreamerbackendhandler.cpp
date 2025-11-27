@@ -211,20 +211,40 @@ void GStreamerBackendHandler::startCamera()
     
     if (useDirectPipeline && !m_currentDevice.isEmpty()) {
         qCDebug(log_gstreamer_backend) << "GStreamer: Using direct pipeline";
-        
-        if (!createGStreamerPipeline(m_currentDevice, m_currentResolution, m_currentFramerate)) {
-            qCWarning(log_gstreamer_backend) << "Failed to create GStreamer pipeline";
-            useDirectPipeline = false;
-        } else if (!startGStreamerPipeline()) {
-            qCWarning(log_gstreamer_backend) << "Failed to start GStreamer pipeline";
-            useDirectPipeline = false;
-        } else {
+        // Use extracted helper to create and start the direct pipeline
+        if (startDirectPipeline()) {
             qCDebug(log_gstreamer_backend) << "GStreamer pipeline started successfully";
             return; // SUCCESS: Direct pipeline is running
         }
+        // Failure will fall through and we may try alternative paths later
+        useDirectPipeline = false;
     } else {
         qCWarning(log_gstreamer_backend) << "GStreamer: No valid device configured";
     }
+}
+
+bool GStreamerBackendHandler::startDirectPipeline()
+{
+    qCDebug(log_gstreamer_backend) << "GStreamer: Attempting to start direct pipeline for device:" << m_currentDevice
+                                   << "resolution:" << m_currentResolution << "framerate:" << m_currentFramerate;
+
+    if (m_currentDevice.isEmpty()) {
+        qCWarning(log_gstreamer_backend) << "Cannot start direct pipeline: no device configured";
+        return false;
+    }
+
+    if (!createGStreamerPipeline(m_currentDevice, m_currentResolution, m_currentFramerate)) {
+        qCWarning(log_gstreamer_backend) << "Failed to create GStreamer pipeline";
+        return false;
+    }
+
+    if (!startGStreamerPipeline()) {
+        qCWarning(log_gstreamer_backend) << "Failed to start GStreamer pipeline";
+        return false;
+    }
+
+    qCDebug(log_gstreamer_backend) << "Direct GStreamer pipeline started successfully for device:" << m_currentDevice;
+    return true;
 }
 
 void GStreamerBackendHandler::stopCamera()
@@ -281,6 +301,18 @@ void GStreamerBackendHandler::configureCameraDevice()
     
     // Call parent implementation for standard Qt camera configuration
     MultimediaBackendHandler::configureCameraDevice();
+}
+
+void GStreamerBackendHandler::setCurrentDevicePortChain(const QString& portChain)
+{
+    m_currentDevicePortChain = portChain;
+    qCDebug(log_gstreamer_backend) << "Set current device port chain to:" << m_currentDevicePortChain;
+}
+
+void GStreamerBackendHandler::setCurrentDevice(const QString& devicePath)
+{
+    m_currentDevice = devicePath;
+    qCDebug(log_gstreamer_backend) << "Set current device to:" << m_currentDevice;
 }
 
 QList<int> GStreamerBackendHandler::getSupportedFrameRates(const QCameraFormat& format) const
@@ -638,7 +670,7 @@ QString GStreamerBackendHandler::generatePipelineString(const QString& device, c
                       "video/x-raw,pixel-aspect-ratio=1/1 ! "
                       "identity sync=true ! "
                       "tee name=t allow-not-linked=true "
-                      "t. ! queue max-size-buffers=2 leaky=downstream ! " + videoSink + " name=videosink sync=true force-aspect-ratio=true "
+                      "t. ! queue name=display-queue max-size-buffers=2 leaky=downstream ! " + videoSink + " name=videosink sync=true force-aspect-ratio=true "
                       "t. ! valve name=recording-valve drop=true ! queue name=recording-queue ! identity name=recording-ready";
     
     qCDebug(log_gstreamer_backend) << "Generated pipeline template with video scaling";
@@ -749,6 +781,8 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
         } else {
             qCWarning(log_gstreamer_backend) << "Graphics video item has no scene";
         }
+    }else {
+        qCWarning(log_gstreamer_backend) << "No video output widget available for overlay setup";
     }
     
     if (windowId) {

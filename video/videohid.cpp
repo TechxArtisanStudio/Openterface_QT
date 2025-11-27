@@ -391,6 +391,7 @@ void VideoHid::start() {
             qCDebug(log_host_hid)  << "Exception occurred during timer processing";
         }
     });
+
     timer->start(1000);
 }
 

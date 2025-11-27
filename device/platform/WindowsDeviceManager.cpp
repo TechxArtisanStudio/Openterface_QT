@@ -1837,7 +1837,7 @@ QList<DeviceInfo> WindowsDeviceManager::discoverOptimizedDevices()
         qCDebug(log_device_windows) << "Original generation device added with port chain:" << deviceInfo.portChain;
     }
     
-    // Phase 2: Search for New generation USB 2.0 devices (VID_1A86&PID_FE0C)
+    // Phase 2: Search for New generation USB 2.0 devices (VID_1A86&PID_CH32V208)
     // These behave like original generation when on USB 2.0 (use Generation 1 method)
     qCDebug(log_device_windows) << "=== Phase 2: Searching for New generation USB 2.0 devices (1A86:FE0C) ===";
     QList<USBDeviceData> newGen2Devices = findUSBDevicesWithVidPid(AbstractPlatformDeviceManager::SERIAL_VID_V2, AbstractPlatformDeviceManager::SERIAL_PID_V2);

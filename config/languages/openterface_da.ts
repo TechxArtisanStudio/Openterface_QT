@@ -165,7 +165,7 @@
 <context>
     <name>DeviceCoordinator</name>
     <message>
-        <location filename="../../ui/coordinator/devicecoordinator.cpp" line="102"/>
+        <location filename="../../ui/coordinator/devicecoordinator.cpp" line="106"/>
         <source>No devices available</source>
         <translation type="unfinished"></translation>
     </message>
@@ -226,26 +226,6 @@
         <location filename="../../ui/advance/envdialog.cpp" line="146"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation type="unfinished"> Enheten er ikke tilkoblet. Koble den til og prøv igjen.</translation>
-    </message>
-    <message>
-        <source>‣ Driver Installed: </source>
-        <translation type="vanished">‣ Driver installeret: </translation>
-    </message>
-    <message>
-        <source>‣ Latest Firmware: </source>
-        <translation type="obsolete">‣ Seneste firmware: </translation>
-    </message>
-    <message>
-        <source>‣ In Serial Port Permission: </source>
-        <translation type="obsolete">‣ I seriel porttilladelse:</translation>
-    </message>
-    <message>
-        <source>‣ HID Permission: </source>
-        <translation type="vanished">‣ HID-tilladelse: </translation>
-    </message>
-    <message>
-        <source>‣ BRLTTY checking: </source>
-        <translation type="vanished">‣ BRLTTY-tjek: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="136"/>

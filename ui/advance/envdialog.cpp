@@ -707,7 +707,7 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
                 captureCardFound = true;
             }
             if (wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_7523") != NULL ||
-                wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_FE0C") != NULL) {
+                wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_CH32V208") != NULL) {
                 ch341Found = true;
             }
         }

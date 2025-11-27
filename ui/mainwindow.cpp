@@ -371,8 +371,8 @@ void MainWindow::onActionResetSerialPortTriggered()
 
 void MainWindow::onActionSwitchToHostTriggered()
 {
-    bool isFE0C = SerialPortManager::getInstance().isChipTypeFE0C();
-    if(isFE0C){
+    bool isCH32V208 = SerialPortManager::getInstance().isChipTypeCH32V208();
+    if(isCH32V208){
         SerialPortManager::getInstance().switchUsbToHostViaSerial();
     }else{
         qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
@@ -385,8 +385,8 @@ void MainWindow::onActionSwitchToHostTriggered()
 
 void MainWindow::onActionSwitchToTargetTriggered()
 {
-    bool isFE0C = SerialPortManager::getInstance().isChipTypeFE0C();
-    if(isFE0C){
+    bool isCH32V208 = SerialPortManager::getInstance().isChipTypeCH32V208();
+    if(isCH32V208){
         SerialPortManager::getInstance().switchUsbToTargetViaSerial();
     }else{
         qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
