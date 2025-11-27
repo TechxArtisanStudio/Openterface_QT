@@ -1,143 +1,92 @@
 #!/bin/bash
-# ============================================================================
-# FFmpeg Static Build with QSV + CUDA Support
-# Runs in MSYS2 MinGW64 environment, uses external MinGW toolchain
-# ============================================================================
+# ========================================================================
+# Static FFmpeg Build for Windows (MinGW-w64 standalone)
+# NO QSV (libmfx disabled), CUDA enabled via ffnvcodec headers
+# Uses EXTERNAL_MINGW only — no MSYS2 toolchain!
+# ========================================================================
 
 set -e
-set -u
 
 FFMPEG_VERSION="${FFMPEG_VERSION:-6.1.1}"
 LIBJPEG_TURBO_VERSION="${LIBJPEG_TURBO_VERSION:-3.0.4}"
 FFMPEG_INSTALL_PREFIX="${FFMPEG_INSTALL_PREFIX:-/c/ffmpeg-static}"
+EXTERNAL_MINGW="${EXTERNAL_MINGW:-/c/mingw64}"
+VCPKG_DIR="${VCPKG_DIR:-/c/vcpkg}"
+
 BUILD_DIR="$(pwd)/ffmpeg-build-temp"
+NUM_CORES=$(nproc || echo "2")
 
-NUM_CORES=$(nproc)
+echo "=================================================================="
+echo "FFmpeg Static Build (NO QSV, CUDA via ffnvcodec)"
+echo "FFmpeg: ${FFMPEG_VERSION} | Prefix: ${FFMPEG_INSTALL_PREFIX}"
+echo "External MinGW: ${EXTERNAL_MINGW}"
+echo "=================================================================="
 
-echo "============================================================================"
-echo "FFmpeg Static Build (QSV + CUDA)"
-echo "FFmpeg: ${FFMPEG_VERSION} | libjpeg-turbo: ${LIBJPEG_TURBO_VERSION}"
-echo "Install: ${FFMPEG_INSTALL_PREFIX} | Cores: ${NUM_CORES}"
-echo "============================================================================"
-
-# ==============================
-# Step 1: Install MSYS2 dependencies (MinGW64 packages)
-# ==============================
-echo "📦 Installing MinGW64 dependencies..."
-pacman -Sy --noconfirm
-pacman -S --needed --noconfirm \
-    mingw-w64-x86_64-nasm \
-    mingw-w64-x86_64-yasm \
-    mingw-w64-x86_64-pkgconf \
-    mingw-w64-x86_64-cmake \
-    mingw-w64-x86_64-ffnvcodec-headers \
-    mingw-w64-x86_64-libmfx \
-    mingw-w64-x86_64-zlib \
-    mingw-w64-x86_64-bzip2 \
-    mingw-w64-x86_64-xz \
-    make git wget tar bzip2 diffutils
-
-# ==============================
-# Step 2: Setup external MinGW toolchain
-# ==============================
-if [ -n "${EXTERNAL_MINGW:-}" ]; then
-    echo "🔧 Using external MinGW: ${EXTERNAL_MINGW}"
-    export PATH="${EXTERNAL_MINGW}/bin:$PATH"
-    export CC="${EXTERNAL_MINGW}/bin/gcc"
-    export CXX="${EXTERNAL_MINGW}/bin/g++"
-    export AR="${EXTERNAL_MINGW}/bin/ar"
-    export LD="${EXTERNAL_MINGW}/bin/ld"
-    export STRIP="${EXTERNAL_MINGW}/bin/strip"
-fi
+# === Use external MinGW toolchain ===
+export PATH="${EXTERNAL_MINGW}/bin:${PATH}"
+export CC="${EXTERNAL_MINGW}/bin/gcc"
+export CXX="${EXTERNAL_MINGW}/bin/g++"
+export AR="${EXTERNAL_MINGW}/bin/ar"
+export LD="${EXTERNAL_MINGW}/bin/ld"
+export STRIP="${EXTERNAL_MINGW}/bin/strip"
+export RANLIB="${EXTERNAL_MINGW}/bin/ranlib"
+export WINDRES="${EXTERNAL_MINGW}/bin/windres"
 
 echo "Compiler:"
 which gcc
 gcc --version | head -n1
-echo "Linker and assembler tools:"
-which ar || true
-ar --version 2>/dev/null | head -n 1 || true
-which ranlib || true
-which windres || true
-windres --version 2>/dev/null || true
 
-echo "\n🔎 Running compiler diagnostics..."
-cat > __ffmpeg_build_test.c <<'EOF'
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include <time.h>
-int main(void) { puts("ffmpeg-compiler-test"); return 0; }
-EOF
-
-if ! ${CC:-gcc} __ffmpeg_build_test.c -o __ffmpeg_build_test 2> __cc_compile.err; then
-    echo "⚠️  Compile step failed. Dumping first 50 lines of compile error:";
-    head -n 50 __cc_compile.err || true
-    echo "\nNote: If the compiler is a cross-compiler then configure will fail unless --enable-cross-compile is used. Will try to inspect further and continue to configure with --enable-cross-compile as a fallback.\n"
-    USE_CROSS_COMPILE=true
-else
-    echo "✅  Compiler produced an executable. Verifying runtime execution..."
-    file __ffmpeg_build_test || true
-    if ! ./__ffmpeg_build_test > /dev/null 2>&1; then
-        echo "⚠️  Execution of built test program failed — this usually means the binary can't run in this environment (possible cross-compiler, missing runtime, or wrong subsystem)."
-        USE_CROSS_COMPILE=true
-    else
-        echo "✅  Compiler executable runs fine. Proceeding with native configure."
-        USE_CROSS_COMPILE=false
-    fi
+# === Install ffnvcodec headers (for CUDA/NVDEC) ===
+FFNV_CODEC_DIR="${BUILD_DIR}/FFmpeg-nv-codec-headers"
+if [ ! -d "${FFNV_CODEC_DIR}" ]; then
+    git clone --depth=1 https://git.videolan.org/git/ffmpeg/nv-codec-headers.git "${FFNV_CODEC_DIR}"
+    cd "${FFNV_CODEC_DIR}"
+    make PREFIX="${FFMPEG_INSTALL_PREFIX}" install
+    cd ..
 fi
-rm -f __ffmpeg_build_test __ffmpeg_build_test.c __cc_compile.err 2>/dev/null || true
 
-# ==============================
-# Step 3: Build libjpeg-turbo
-# ==============================
-mkdir -p "${BUILD_DIR}" && cd "${BUILD_DIR}"
-
+# === Build libjpeg-turbo ===
 if [ ! -f "${FFMPEG_INSTALL_PREFIX}/lib/libturbojpeg.a" ]; then
-    echo "🏗️  Building libjpeg-turbo ${LIBJPEG_TURBO_VERSION}..."
+    mkdir -p "${BUILD_DIR}" && cd "${BUILD_DIR}"
     wget -c "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/${LIBJPEG_TURBO_VERSION}.tar.gz" -O libjpeg-turbo.tar.gz
     tar xzf libjpeg-turbo.tar.gz
     cd "libjpeg-turbo-${LIBJPEG_TURBO_VERSION}"
-    mkdir -p build && cd build
+    mkdir build && cd build
     cmake .. \
+        -G "Unix Makefiles" \
         -DCMAKE_INSTALL_PREFIX="${FFMPEG_INSTALL_PREFIX}" \
         -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_TOOLCHAIN_FILE="${VCPKG_DIR}/scripts/buildsystems/vcpkg.cmake" \
+        -DVCPKG_TARGET_TRIPLET=x64-mingw-static \
         -DENABLE_STATIC=ON \
         -DENABLE_SHARED=OFF \
         -DWITH_JPEG8=ON \
-        -DWITH_TURBOJPEG=ON
+        -DCMAKE_C_COMPILER="${CC}" \
+        -DCMAKE_CXX_COMPILER="${CXX}"
     make -j${NUM_CORES}
     make install
-    cd "${BUILD_DIR}"
+    cd ../..
 fi
 
-# ==============================
-# Step 4: Download and build FFmpeg
-# ==============================
+# === Download FFmpeg ===
+cd "${BUILD_DIR}"
 FFMPEG_TARBALL="ffmpeg-${FFMPEG_VERSION}.tar.bz2"
-if [ ! -f "${FFMPEG_TARBALL}" ]; then
-    wget -c "https://ffmpeg.org/releases/${FFMPEG_TARBALL}" -O "${FFMPEG_TARBALL}"
-fi
-
-if [ ! -d "ffmpeg-${FFMPEG_VERSION}" ]; then
-    tar -xf "${FFMPEG_TARBALL}"
-fi
-
+[ -f "${FFMPEG_TARBALL}" ] || wget -c "https://ffmpeg.org/releases/${FFMPEG_TARBALL}"
+[ -d "ffmpeg-${FFMPEG_VERSION}" ] || tar -xf "${FFMPEG_TARBALL}"
 cd "ffmpeg-${FFMPEG_VERSION}"
 
-# Ensure pkg-config finds our static libs
-export PKG_CONFIG_PATH="${FFMPEG_INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+# === Set pkg-config path to vcpkg + our prefix ===
+export PKG_CONFIG_PATH="${FFMPEG_INSTALL_PREFIX}/lib/pkgconfig:/c/vcpkg/installed/x64-mingw-static/lib/pkgconfig"
 
-# ==============================
-# Step 5: Configure FFmpeg
-# ==============================
-echo "⚙️  Configuring FFmpeg..."
+# === Configure FFmpeg (NO libmfx!) ===
+echo "⚙️ Configuring FFmpeg (cross-compile mode)..."
 
-# Create a safer wrapper: capture configure output + show ffbuild/config.log on failure
-FF_CONFIGURE_FLAGS=(
+./configure \
     --prefix="${FFMPEG_INSTALL_PREFIX}" \
     --arch=x86_64 \
     --target-os=mingw32 \
+    --enable-cross-compile \
+    --cross-prefix="" \
     --disable-shared \
     --enable-static \
     --enable-gpl \
@@ -155,49 +104,17 @@ FF_CONFIGURE_FLAGS=(
     --enable-pthreads \
     --disable-w32threads \
     --enable-zlib --enable-bzlib --enable-lzma \
-    --enable-libmfx \
-    --enable-dxva2 --enable-d3d11va --enable-hwaccels \
     --enable-decoder=mjpeg \
-    --enable-cuda --enable-cuvid --enable-nvdec --enable-ffnvcodec \
+    --enable-cuda --enable-cuvid --enable-nvdec --enable-ffnvcodec \     
+    --disable-d3d11va \
     --pkg-config-flags="--static" \
-    --extra-cflags="-I${FFMPEG_INSTALL_PREFIX}/include" \
-    --extra-ldflags="-L${FFMPEG_INSTALL_PREFIX}/lib -lz -lbz2 -llzma -lmfx -lwinpthread -static"
-)
+    --extra-cflags="-I${FFMPEG_INSTALL_PREFIX}/include -I/c/vcpkg/installed/x64-mingw-static/include" \
+    --extra-ldflags="-L${FFMPEG_INSTALL_PREFIX}/lib -L/c/vcpkg/installed/x64-mingw-static/lib -static -lz -lbz2 -llzma -lwinpthread" \
+    || { echo "❌ Configure failed"; cat ffbuild/config.log; exit 1; }
 
-if [ "${USE_CROSS_COMPILE:-false}" = "true" ]; then
-    echo "⚠️  Falling back to cross-compile configure (no runtime test)."
-    FF_CONFIGURE_FLAGS+=( --enable-cross-compile --cross-prefix=x86_64-w64-mingw32- )
-fi
-
-# Dump the full configure command into a file then run it — tee to capture output
-echo "Running configure: ./configure ${FF_CONFIGURE_FLAGS[*]}"
-./configure "${FF_CONFIGURE_FLAGS[@]}" 2>&1 | tee configure-output.log || {
-    echo "❌ Configure failed. Showing last 200 lines of configure-output.log"
-    tail -n 200 configure-output.log || true
-    echo "Showing ffbuild/config.log (if present) — this file gives the precise reason configure failed"
-    if [ -f ffbuild/config.log ]; then
-        tail -n 200 ffbuild/config.log
-    else
-        echo "ffbuild/config.log not present"
-    fi
-    exit 1
-}
-
-# ==============================
-# Step 6: Build and install
-# ==============================
-echo "🔨 Building FFmpeg (this takes time)..."
+# === Build ===
 make -j${NUM_CORES}
 make install
 
-# ==============================
-# Step 7: Verification
-# ==============================
-echo "✅ Verifying installation..."
-if [ -f "${FFMPEG_INSTALL_PREFIX}/lib/libavcodec.a" ] && [ -f "${FFMPEG_INSTALL_PREFIX}/lib/libturbojpeg.a" ]; then
-    echo "🎉 Success! FFmpeg static libraries built with QSV + CUDA support."
-    echo "📁 Libraries: ${FFMPEG_INSTALL_PREFIX}/lib"
-else
-    echo "❌ Verification failed!"
-    exit 1
-fi
+echo "✅ FFmpeg static build complete!"
+ls -l "${FFMPEG_INSTALL_PREFIX}/lib/libavcodec.a"
