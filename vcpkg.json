@@ -23,7 +23,6 @@
       "version>=": "6.1.1",
       "default-features": false,
       "features": [
-        "core",
         "avcodec",
         "avdevice",
         "avfilter",
