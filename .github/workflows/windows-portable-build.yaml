@@ -58,6 +58,15 @@ jobs:
           restore-keys: |
             vcpkg-x64-mingw-static-
 
+      - name: Cache FFmpeg Build
+        id: cache-ffmpeg
+        uses: actions/cache@v3
+        with:
+          path: D:\vcpkg\installed\x64-mingw-static\lib
+          key: ffmpeg-static-${{ runner.os }}-v1
+          restore-keys: |
+            ffmpeg-static-
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -84,17 +93,53 @@ jobs:
           choco install nasm -y || echo "nasm install failed or already installed"
           choco install yasm -y || echo "yasm install failed or already installed"
 
-      - name: Install MSYS2 (if not present)
-        if: always()
+      - name: Install MSYS2
         run: |
           echo "Installing MSYS2..."
-          if not exist "C:\msys64\usr\bin\bash.exe" (
-            curl -L -o msys2.exe https://github.com/msys2/msys2-installer/releases/download/2023-10-26/msys2-x86_64-20231026.exe
-            start /wait msys2.exe /S
-            del msys2.exe
-          ) else (
-            echo "MSYS2 already installed"
+          curl -L -o msys2.exe https://github.com/msys2/msys2-installer/releases/download/2023-10-26/msys2-x86_64-20231026.exe
+          .\msys2.exe /S
+          del msys2.exe
+
+      - name: Install Build Tools
+        run: |
+          echo "Installing Ninja"
+          choco install ninja -y
+
+          echo "Updating MSYS2 and installing MinGW-w64 toolchain..."
+          C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
+          C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm --overwrite=* mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads"
+
+          echo "Verifying compiler..."
+          set PATH=C:\msys64\mingw64\bin;%PATH%
+          g++ --version
+
+      - name: Verify MinGW Static Linking Capability
+        run: |
+          set PATH=C:\msys64\mingw64\bin;%PATH%
+          echo "Testing static compilation with MinGW..."
+          echo #include ^<iostream^> > test.cpp
+          echo int main() { std::cout ^<^< "Static build OK!" ^<^< std::endl; return 0; } >> test.cpp
+          g++ -static -O2 -s -o test.exe test.cpp
+          if errorlevel 1 (
+            echo "❌ Failed to compile a static C++ program."
+            exit /b 1
           )
+          test.exe
+          if errorlevel 1 (
+            echo "❌ Compiled executable failed to run."
+            exit /b 1
+          )
+          echo "✅ MinGW static linking verified successfully."
+          echo "Listing all .a libraries in C:\msys64\mingw64\lib:"
+          dir C:\msys64\mingw64\lib\*.a
+          if not exist "C:\msys64\mingw64\lib\libbz2.a" (
+            echo "❌ libbz2.a not found in MinGW lib directory."
+            exit /b 1
+          )
+          echo "✅ libbz2.a verified."
+          del test.cpp test.exe
+
 
       - name: Install or Update vcpkg (bootstrap only)
         run: |
@@ -153,24 +198,12 @@ jobs:
           )
         shell: cmd
 
-      - name: Build FFmpeg using MSYS2 build script (only if vcpkg didn't provide it)
+      - name: Build Static FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
-          echo "Building FFmpeg using MSYS2 build script"
-          if exist "D:\vcpkg\installed\x64-mingw-static\lib\libavcodec.a" (
-            echo "vcpkg already built ffmpeg; skipping MSYS2 build script"
-            exit /b 0
-          )
-          for /f "delims=" %%i in ('dir /b /ad "C:\msys64\usr" 2^>nul') do set MSYS2_DIR=%%i && set MSYS2_PATH=C:\msys64\usr\bin
-          if not exist "%MSYS2_PATH%\bash.exe" (
-            echo "MSYS2 not found; aborting ffmpeg build script step" && exit /b 1
-          )
-          REM Normalize source dir and pass /d/ffmpeg-static as install prefix
-          %MSYS2_PATH%\bash.exe -lc "cd $(cygpath -u '$(echo %SOURCE_DIR%)') && chmod +x build-script/build-static-ffmpeg-windows.sh && export FFMPEG_INSTALL_PREFIX=/d/ffmpeg-static && ./build-script/build-static-ffmpeg-windows.sh"
-        shell: cmd
-
-      # vcpkg verification (moved to run after manifest installation)
-
-      # (manifest install moved above) - leave this space intentionally
+          echo "Building static FFmpeg..."
+          cd build-script
+          call build-static-ffmpeg-windows.bat
 
       - name: Verify vcpkg static libraries (with debug output)
         run: |

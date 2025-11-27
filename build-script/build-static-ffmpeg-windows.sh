@@ -19,14 +19,6 @@ LIBJPEG_TURBO_URL="https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/t
 # Number of CPU cores for parallel compilation
 NUM_CORES=$(nproc)
 
-# Normalize any Windows style path (e.g. C:\foo or C:/foo) to MSYS2 /c/foo
-if echo "$FFMPEG_INSTALL_PREFIX" | grep -E '^[A-Za-z]:\\|^[A-Za-z]:/' >/dev/null 2>&1; then
-    # Convert C:\path or C:/path to /c/path
-    letter=$(echo "$FFMPEG_INSTALL_PREFIX" | sed -E 's|^([A-Za-z]):.*|\1|')
-    rest=$(echo "$FFMPEG_INSTALL_PREFIX" | sed -E 's|^[A-Za-z]:(.*)|\1|' | sed 's|\\|/|g')
-    FFMPEG_INSTALL_PREFIX="/$(echo "$letter" | tr '[:upper:]' '[:lower:]')$rest"
-fi
-
 echo "============================================================================"
 echo "FFmpeg Static Build - MSYS2 MinGW64"
 echo "============================================================================"
@@ -37,14 +29,6 @@ echo "Build Directory: ${BUILD_DIR}"
 echo "CPU Cores: ${NUM_CORES}"
 echo "============================================================================"
 echo ""
-
-# Confirm we're running inside MSYS2 or MinGW
-if ! command -v pacman >/dev/null 2>&1; then
-    echo "WARNING: pacman not found. This script is intended to run inside MSYS2 MinGW64 environment."
-    echo "Continuing anyway — pacman may be available via PATH or running from a full MSYS2 shell."
-fi
-
-echo "Normalized FFMPEG_INSTALL_PREFIX: ${FFMPEG_INSTALL_PREFIX}"
 
 # Update MSYS2 and install required packages
 echo "Step 1/8: Updating MSYS2 and installing dependencies..."
