@@ -443,7 +443,7 @@ void VideoPane::resizeEvent(QResizeEvent *event)
 
 // Helper methods
 void VideoPane::updateVideoItemTransform()
-// {
+{
 //     qCDebug(log_ui_video) << "Updating video item transform: scale factor=" << m_scaleFactor
 //                          << "maintain aspect ratio=" << m_maintainAspectRatio;
     // Handle both Qt video item and FFmpeg pixmap item
