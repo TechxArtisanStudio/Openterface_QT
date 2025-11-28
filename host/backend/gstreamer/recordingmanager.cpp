@@ -1,6 +1,10 @@
 #include "recordingmanager.h"
 #include <QDebug>
 #include <QLoggingCategory>
+#include <QThread>
+#ifdef HAVE_GSTREAMER
+#include <gst/app/gstappsink.h>
+#endif
 
 Q_LOGGING_CATEGORY(log_gst_recording, "opf.backend.gstreamer.recording")
 
@@ -52,7 +56,8 @@ bool RecordingManager::startRecording(GstElement* mainPipeline, const QString& o
         return false;
     }
 
-    if (!outputDir.isWritable()) {
+    QFileInfo outDirInfo(outputDir.absolutePath());
+    if (!outDirInfo.isWritable()) {
         QString error = QString("Output directory is not writable: %1").arg(outputDir.absolutePath());
         qCCritical(log_gst_recording) << error;
         emit recordingError(error);
@@ -366,6 +371,38 @@ bool RecordingManager::initializeFrameBasedRecording(const QString& format)
     qCInfo(log_gst_recording) << "Initialized appsink-based recording";
     return true;
 }
+
+#ifdef HAVE_GSTREAMER
+GstFlowReturn RecordingManager::onNewRecordingSample(GstAppSink* sink)
+{
+    if (!sink) return GST_FLOW_OK;
+
+    GstSample* sample = gst_app_sink_pull_sample(sink);
+    if (!sample) return GST_FLOW_OK;
+
+    GstBuffer* buffer = gst_sample_get_buffer(sample);
+    if (!buffer) {
+        gst_sample_unref(sample);
+        return GST_FLOW_OK;
+    }
+
+    GstMapInfo map;
+    if (gst_buffer_map(buffer, &map, GST_MAP_READ)) {
+        if (m_recordingProcess && m_recordingProcess->state() == QProcess::Running) {
+            qint64 written = m_recordingProcess->write(reinterpret_cast<const char*>(map.data), static_cast<qint64>(map.size));
+            Q_UNUSED(written);
+        }
+        gst_buffer_unmap(buffer, &map);
+    }
+
+    gst_sample_unref(sample);
+
+    // Basic frame counting / throttling if needed
+    ++m_recordingFrameNumber;
+
+    return GST_FLOW_OK;
+}
+#endif
 
 bool RecordingManager::initializeDirectFilesinkRecording(const QString& outputPath, const QString& format)
 {

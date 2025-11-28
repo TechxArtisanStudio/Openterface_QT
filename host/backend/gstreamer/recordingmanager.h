@@ -40,6 +40,9 @@ public:
 #ifdef HAVE_GSTREAMER
     // Appsink callback used for frame-based recording (appsink -> ffmpeg)
     GstFlowReturn onNewRecordingSample(GstAppSink* sink);
+    // Exposed helpers that create separate recording branches (available only if GStreamer present)
+    bool createSeparateRecordingPipeline(const QString& outputPath, const QString& format, int videoBitrate);
+    bool initializeDirectFilesinkRecording(const QString& outputPath, const QString& format);
 #endif
 
 signals:
@@ -84,9 +87,7 @@ private:
     // Helpers
     bool initializeValveBasedRecording(const QString& format);
     bool initializeFrameBasedRecording(const QString& format);
-    // Fallbacks and helpers for recording branch creation (exposed so callers can request specific flows)
-    bool createSeparateRecordingPipeline(const QString& outputPath, const QString& format, int videoBitrate);
-    bool initializeDirectFilesinkRecording(const QString& outputPath, const QString& format);
+    // Fallbacks and helpers for recording branch creation (internal)
     // FFmpeg process and appsink integration for frame-based recording
     QProcess* m_recordingProcess = nullptr;
     QTimer* m_frameCaptureTimer = nullptr;
