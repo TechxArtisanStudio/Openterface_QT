@@ -13,6 +13,7 @@
 
 #ifdef HAVE_GSTREAMER
 #include <gst/gst.h>
+#include <gst/app/gstappsink.h>
 #endif
 
 class RecordingManager : public QObject
@@ -35,6 +36,11 @@ public:
 
     // Configure recording behavior
     void setRecordingConfig(const QString& codec, const QString& format, int bitrate);
+
+#ifdef HAVE_GSTREAMER
+    // Appsink callback used for frame-based recording (appsink -> ffmpeg)
+    GstFlowReturn onNewRecordingSample(GstAppSink* sink);
+#endif
 
 signals:
     void recordingStarted(const QString& path);
@@ -78,7 +84,7 @@ private:
     // Helpers
     bool initializeValveBasedRecording(const QString& format);
     bool initializeFrameBasedRecording(const QString& format);
-    // Fallbacks and helpers for recording branch creation (made public so callers can request specific flows)
+    // Fallbacks and helpers for recording branch creation (exposed so callers can request specific flows)
     bool createSeparateRecordingPipeline(const QString& outputPath, const QString& format, int videoBitrate);
     bool initializeDirectFilesinkRecording(const QString& outputPath, const QString& format);
     // FFmpeg process and appsink integration for frame-based recording
