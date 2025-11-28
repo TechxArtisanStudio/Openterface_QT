@@ -26,6 +26,7 @@
 #include "../multimediabackend.h"
 #include <QProcess>
 #include <QWidget>
+#include <QEvent>
 #include <QTimer>
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
@@ -217,6 +218,21 @@ private:
     bool embedVideoInVideoPane(VideoPane* videoPane);
     void handleGStreamerMessage(GstMessage* message);
     void completePendingOverlaySetup();
+
+protected:
+    // Override to track video widget/view lifecycle events and respond to winId/show/resize
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
+private:
+    // helper to install/uninstall event filter on widgets
+    void installVideoWidgetEventFilter();
+    void uninstallVideoWidgetEventFilter();
+    void installGraphicsViewEventFilter(QGraphicsView* view);
+    void uninstallGraphicsViewEventFilter(QGraphicsView* view);
+    
+    // Ensure a QWidget has a native window (winId()) by creating the window and waiting up to timeoutMs.
+    // Returns true if a native window is available.
+    bool ensureNativeWindowForWidget(QWidget* widget, int timeoutMs = 200) const;
     
     // Enhanced overlay methods
     bool setupVideoOverlay(GstElement* videoSink, WId windowId);

@@ -983,59 +983,64 @@ Current version: </source>
 <context>
     <name>RecordingController</name>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="136"/>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="158"/>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="539"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="128"/>
+        <source>Recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="165"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="187"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="581"/>
         <source>Recording Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="137"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="166"/>
         <source>No active camera device for recording. Please ensure a camera is connected.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="159"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="188"/>
         <source>Cannot start recording - camera system not initialized.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="344"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="383"/>
         <source>Start Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="349"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="388"/>
         <source>Stop Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="354"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="393"/>
         <source>Pause Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="359"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="398"/>
         <source>Resume Recording</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="364"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="403"/>
         <source>Recording Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="370"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="409"/>
         <source>Reset Recording System</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="376"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="415"/>
         <source>Recording Diagnostics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="516"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="558"/>
         <source>Failed to start recording.
 
 Possible causes:
@@ -1048,7 +1053,7 @@ Technical details: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="523"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="565"/>
         <source>Failed to save recording.
 
 Possible causes:
@@ -1060,7 +1065,7 @@ Technical details: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="529"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="571"/>
         <source>The recording file may be corrupted.
 
 Possible causes:
@@ -1072,58 +1077,58 @@ Technical details: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="535"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="577"/>
         <source>An error occurred with the recording:
 %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="545"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="587"/>
         <source>Retry</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="561"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="603"/>
         <source>Reset Failed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="562"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="604"/>
         <source>Cannot reset recording system - camera manager is not available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="570"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="612"/>
         <source>Recording in Progress</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="571"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="613"/>
         <source>A recording is currently in progress. Stop it and reset the recording system?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="588"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="630"/>
         <source>System Reset</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="589"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="631"/>
         <source>FFmpeg backend automatically handles recovery. Please try recording again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="613"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="655"/>
         <source>Recording System Diagnostics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="624"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="666"/>
         <source>Copy to Clipboard</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="625"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="667"/>
         <source>Close</source>
         <translation type="unfinished">Schließen</translation>
     </message>

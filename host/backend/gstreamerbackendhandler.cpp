@@ -27,6 +27,9 @@
 #include <QApplication>
 #include <QDebug>
 #include <QWidget>
+#include <QEvent>
+#include <QResizeEvent>
+#include <QGraphicsView>
 #include <QFile>
 #include <QDir>
 #include <QFileInfo>
@@ -51,6 +54,20 @@
 
 // logging category for this translation unit
 Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
+
+// Small helper that maps common QEvent types to readable names used in debug logging
+static const char* qEventTypeName(QEvent::Type t)
+{
+    switch (t) {
+    case QEvent::Show: return "Show";
+    case QEvent::Hide: return "Hide";
+    case QEvent::WinIdChange: return "WinIdChange";
+    case QEvent::ShowToParent: return "ShowToParent";
+    case QEvent::Resize: return "Resize";
+    case QEvent::Destroy: return "Destroy";
+    default: return "Other";
+    }
+}
 
 #ifdef HAVE_GSTREAMER
 #include <gst/video/videooverlay.h>
@@ -494,6 +511,10 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
             if (ok) {
                 m_pipelineRunning = true;
                 qCDebug(log_gstreamer_backend) << "Pipeline started successfully with sink:" << trySink;
+                // Try to bind overlay now that pipeline is running
+                qCDebug(log_gstreamer_backend) << "Attempting overlay setup after in-process pipeline start (sink:" << trySink << ")";
+                setupVideoOverlayForCurrentPipeline();
+                if (m_overlaySetupPending) completePendingOverlaySetup();
                 return true;
             }
 
@@ -516,9 +537,12 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
             continue;
         }
 
-        m_pipelineRunning = true;
-        qCDebug(log_gstreamer_backend) << "Pipeline set to PLAYING with sink:" << trySink;
-        return true;
+    m_pipelineRunning = true;
+    qCDebug(log_gstreamer_backend) << "Pipeline set to PLAYING with sink:" << trySink;
+    // Attempt overlay binding now that the pipeline is playing
+    qCDebug(log_gstreamer_backend) << "Attempting overlay setup after gst_element_set_state (sink:" << trySink << ")";
+    setupVideoOverlayForCurrentPipeline();
+    return true;
     }
 
     qCCritical(log_gstreamer_backend) << "Failed to start any pipeline using candidate sinks. Last error:" << lastErr;
@@ -596,6 +620,9 @@ void GStreamerBackendHandler::onExternalRunnerStarted()
     qCDebug(log_gstreamer_backend) << "External GStreamer process started";
     m_pipelineRunning = true;
     m_healthCheckTimer->start(1000);
+    // Try to set up overlay when an external runner starts
+    qCDebug(log_gstreamer_backend) << "Attempting overlay setup after external GStreamer runner started (sink:" << m_selectedSink << ")";
+    setupVideoOverlayForCurrentPipeline();
 }
 
 void GStreamerBackendHandler::onExternalRunnerFailed(const QString& error)
@@ -615,6 +642,9 @@ void GStreamerBackendHandler::onExternalRunnerFinished(int exitCode, QProcess::E
 
 void GStreamerBackendHandler::setVideoOutput(QWidget* widget)
 {
+    // Uninstall event filter from any previous widget
+    uninstallVideoWidgetEventFilter();
+
     m_videoWidget = widget;
     m_graphicsVideoItem = nullptr;  // Clear graphics video item if widget is set
 
@@ -643,14 +673,24 @@ void GStreamerBackendHandler::setVideoOutput(QWidget* widget)
         qCDebug(log_gstreamer_backend) << "Forced native window creation for video widget";
     }
 
+    // Install event filter to track lifecycle events (show/winId/resize)
+    installVideoWidgetEventFilter();
+
     // If pipeline exists, attempt overlay setup now
     if (m_pipeline) {
-        setupVideoOverlayForCurrentPipeline();
+    setupVideoOverlayForCurrentPipeline();
+    if (m_overlaySetupPending) completePendingOverlaySetup();
     }
 }
 
 void GStreamerBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
 {
+    // Uninstall event filter from previous graphics view
+    if (m_graphicsVideoItem && m_graphicsVideoItem->scene()) {
+        QList<QGraphicsView*> prevViews = m_graphicsVideoItem->scene()->views();
+        if (!prevViews.isEmpty()) uninstallGraphicsViewEventFilter(prevViews.first());
+    }
+
     m_graphicsVideoItem = videoItem;
     m_videoWidget = nullptr;
     m_videoPane = nullptr;
@@ -658,6 +698,12 @@ void GStreamerBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
     if (!videoItem) return;
 
     qCDebug(log_gstreamer_backend) << "Configuring QGraphicsVideoItem as video output";
+
+    // Install event filter on the first host view (if any)
+    if (videoItem && videoItem->scene()) {
+        QList<QGraphicsView*> views = videoItem->scene()->views();
+        if (!views.isEmpty()) installGraphicsViewEventFilter(views.first());
+    }
 
     // Trigger overlay setup if needed
     if (m_pipeline) setupVideoOverlayForCurrentPipeline();
@@ -680,6 +726,16 @@ bool GStreamerBackendHandler::embedVideoInVideoPane(VideoPane* videoPane)
 
 void GStreamerBackendHandler::setVideoOutput(VideoPane* videoPane)
 {
+    // Uninstall event filter from previous VideoPane overlay
+    if (m_videoPane && m_videoPane->getOverlayWidget()) {
+        QWidget* prevOv = m_videoPane->getOverlayWidget();
+        prevOv->removeEventFilter(this);
+        if (QWidget* top = prevOv->window()) {
+            if (top != prevOv) top->removeEventFilter(this);
+        }
+        qCDebug(log_gstreamer_backend) << "Removed event filter from previous VideoPane overlay widget (" << prevOv << ")";
+    }
+
     m_videoPane = videoPane;
     m_videoWidget = nullptr;
     m_graphicsVideoItem = nullptr;
@@ -687,16 +743,29 @@ void GStreamerBackendHandler::setVideoOutput(VideoPane* videoPane)
     if (!videoPane) return;
 
     qCDebug(log_gstreamer_backend) << "Configuring VideoPane as video output";
+    // If the VideoPane exposes an overlay widget, install event filter
+    if (QWidget* ov = videoPane->getOverlayWidget()) {
+        ov->installEventFilter(this);
+        if (QWidget* top = ov->window()) {
+            if (top != ov) top->installEventFilter(this);
+        }
+        if (!ov->isVisible()) ov->show();
+        if (ov->winId() == 0) ov->createWinId();
+        qCDebug(log_gstreamer_backend) << "Installed event filter on VideoPane overlay widget (" << ov << ") and top-level";
+    }
+
     if (m_pipeline) setupVideoOverlayForCurrentPipeline();
 }
 
 void GStreamerBackendHandler::completePendingOverlaySetup()
 {
-    Openterface::GStreamer::VideoOverlayManager::completePendingOverlaySetup(m_pipeline,
+    qCDebug(log_gstreamer_backend) << "Completing pending overlay setup (pendingFlag=" << m_overlaySetupPending << ")";
+    bool ok = Openterface::GStreamer::VideoOverlayManager::completePendingOverlaySetup(m_pipeline,
                                                                               m_videoWidget,
                                                                               m_graphicsVideoItem,
                                                                               m_videoPane,
                                                                               m_overlaySetupPending);
+    qCDebug(log_gstreamer_backend) << "completePendingOverlaySetup result:" << ok << "pendingFlag now=" << m_overlaySetupPending;
 }
 
 bool GStreamerBackendHandler::setupVideoOverlay(GstElement* videoSink, WId windowId)
@@ -714,12 +783,30 @@ void GStreamerBackendHandler::setupVideoOverlayForCurrentPipeline()
 
     WId windowId = getVideoWidgetWindowId();
     if (windowId != 0) {
-        bool ok = Openterface::GStreamer::VideoOverlayManager::setupVideoOverlayForPipeline(m_pipeline, windowId);
+        // Choose the target widget to pass into the overlay setup - prefer VideoPane overlay widget when available
+        QWidget* targetWidget = nullptr;
+        if (m_videoPane && m_videoPane->getOverlayWidget()) targetWidget = m_videoPane->getOverlayWidget();
+        else if (m_videoWidget) targetWidget = m_videoWidget;
+
+    qCDebug(log_gstreamer_backend) << "Attempting overlay setup for pipeline with windowId:" << windowId << "targetWidget:" << targetWidget << "graphicsItem:" << m_graphicsVideoItem;
+    bool ok = Openterface::GStreamer::VideoOverlayManager::setupVideoOverlayForPipeline(m_pipeline, windowId, targetWidget, m_graphicsVideoItem);
         if (ok) {
             m_overlaySetupPending = false;
             qCDebug(log_gstreamer_backend) << "Overlay setup completed for current pipeline";
         } else {
-            qCWarning(log_gstreamer_backend) << "Failed to setup overlay for current pipeline";
+            m_overlaySetupPending = true;
+            qCWarning(log_gstreamer_backend) << "Failed to setup overlay for current pipeline - marking overlay as pending for retry";
+            // Add sink type diagnostics for failed overlay
+#ifdef HAVE_GSTREAMER
+            GstElement* videoSink = gst_bin_get_by_name(GST_BIN(m_pipeline), "videosink");
+            if (!videoSink) videoSink = gst_bin_get_by_interface(GST_BIN(m_pipeline), GST_TYPE_VIDEO_OVERLAY);
+            if (videoSink) {
+                const GstElementFactory* factory = gst_element_get_factory(videoSink);
+                const gchar* sinkName = factory ? gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory)) : "unknown";
+                qCDebug(log_gstreamer_backend) << "Overlay failed for sink:" << (sinkName ? sinkName : "unknown");
+                gst_object_unref(videoSink);
+            }
+#endif
         }
     } else {
         qCWarning(log_gstreamer_backend) << "No valid window ID available for overlay setup";
@@ -731,6 +818,167 @@ void GStreamerBackendHandler::refreshVideoOverlay()
 {
     qCDebug(log_gstreamer_backend) << "Refreshing video overlay";
     setupVideoOverlayForCurrentPipeline();
+    if (m_overlaySetupPending) completePendingOverlaySetup();
+}
+
+// Event filter helpers and lifecycle handling
+void GStreamerBackendHandler::installVideoWidgetEventFilter()
+{
+    if (m_videoWidget) {
+        // Install on the widget itself
+        m_videoWidget->removeEventFilter(this);
+        m_videoWidget->installEventFilter(this);
+        // Also install on the top-level window, so we catch WinId changes associated with
+        // the native window of the top-level (when the video widget is a child)
+    if (QWidget* top = m_videoWidget->window()) {
+            if (top != m_videoWidget) {
+                top->removeEventFilter(this);
+                top->installEventFilter(this);
+                qCDebug(log_gstreamer_backend) << "Installed event filter on video widget top-level (" << top << ")";
+            }
+            qCDebug(log_gstreamer_backend) << "Installed event filter on video widget (" << m_videoWidget << ") class:" << m_videoWidget->metaObject()->className() << "winId:" << m_videoWidget->winId();
+        }
+    }
+}
+
+void GStreamerBackendHandler::uninstallVideoWidgetEventFilter()
+{
+    if (m_videoWidget) {
+        // Remove from the widget itself
+        m_videoWidget->removeEventFilter(this);
+        // Also remove from the top-level window if present
+        if (QWidget* top = m_videoWidget->window()) {
+            if (top != m_videoWidget) top->removeEventFilter(this);
+            qCDebug(log_gstreamer_backend) << "Removed event filter from video widget top-level (" << top << ")";
+        }
+        qCDebug(log_gstreamer_backend) << "Removed event filter from video widget (" << m_videoWidget << ")";
+    }
+}
+
+void GStreamerBackendHandler::installGraphicsViewEventFilter(QGraphicsView* view)
+{
+    if (view) {
+        view->removeEventFilter(this);
+        view->installEventFilter(this);
+        // Also install on top-level window to catch winId related events
+        if (QWidget* top = view->window()) {
+            if (top != view) {
+                top->removeEventFilter(this);
+                top->installEventFilter(this);
+            }
+        }
+        qCDebug(log_gstreamer_backend) << "Installed event filter on graphics view (" << view << ") and top-level";
+    }
+}
+
+void GStreamerBackendHandler::uninstallGraphicsViewEventFilter(QGraphicsView* view)
+{
+    if (view) {
+        view->removeEventFilter(this);
+        if (QWidget* top = view->window()) {
+            if (top != view) top->removeEventFilter(this);
+        }
+        qCDebug(log_gstreamer_backend) << "Removed event filter from graphics view (" << view << ")";
+    }
+}
+
+bool GStreamerBackendHandler::eventFilter(QObject *watched, QEvent *event)
+{
+    // Video widget events
+    if (m_videoWidget && (watched == m_videoWidget || watched == m_videoWidget->window())) {
+        switch (event->type()) {
+            case QEvent::Show:
+            case QEvent::WinIdChange:
+            case QEvent::ShowToParent:
+            {
+                QWidget* target = m_videoWidget;
+                WId wid = target ? target->winId() : 0;
+                qCDebug(log_gstreamer_backend) << "Overlay trigger (video widget): target=" << target << "watched=" << watched << "event=" << qEventTypeName(event->type()) << "winId=" << wid;
+                setupVideoOverlayForCurrentPipeline();
+                if (m_overlaySetupPending) completePendingOverlaySetup();
+                break;
+            }
+            case QEvent::Resize:
+            {
+                QResizeEvent* re = static_cast<QResizeEvent*>(event);
+                if (re) {
+                    qCDebug(log_gstreamer_backend) << "Video widget resize event: new size=" << re->size();
+                    updateVideoRenderRectangle(re->size());
+                }
+                break;
+            }
+            case QEvent::Destroy:
+                qCDebug(log_gstreamer_backend) << "Video widget destroyed - removing event filters: target=" << m_videoWidget << "watched=" << watched;
+                uninstallVideoWidgetEventFilter();
+                break;
+            default:
+                break;
+        }
+    }
+
+    // Graphics view events
+    // If event is on the graphics view or its top-level window
+    QGraphicsView* viewPtr = nullptr;
+    if (m_graphicsVideoItem && m_graphicsVideoItem->scene()) {
+        QList<QGraphicsView*> views = m_graphicsVideoItem->scene()->views();
+        if (!views.isEmpty()) viewPtr = views.first();
+    }
+    if ((viewPtr && (watched == viewPtr || watched == viewPtr->window())) || qobject_cast<QGraphicsView*>(watched)) {
+        QGraphicsView* view = qobject_cast<QGraphicsView*>(watched);
+        if (!view) view = viewPtr;
+        switch (event->type()) {
+            case QEvent::Show:
+            case QEvent::WinIdChange:
+                qCDebug(log_gstreamer_backend) << "Overlay trigger (graphics view): targetView=" << view << "watched=" << watched << "event=" << qEventTypeName(event->type()) << "winId=" << (view ? view->winId() : 0);
+                setupVideoOverlayForCurrentPipeline();
+                if (m_overlaySetupPending) completePendingOverlaySetup();
+                break;
+            case QEvent::Resize:
+            {
+                QResizeEvent* re = static_cast<QResizeEvent*>(event);
+                if (re) {
+                    qCDebug(log_gstreamer_backend) << "Graphics view resize event: new size=" << re->size();
+                    updateVideoRenderRectangle(re->size());
+                }
+                break;
+            }
+            case QEvent::Destroy:
+                qCDebug(log_gstreamer_backend) << "Graphics view destroyed - removing event filters, view=" << view << "watched=" << watched;
+                uninstallGraphicsViewEventFilter(view);
+                break;
+            default:
+                break;
+        }
+    }
+
+    // VideoPane overlay widget events
+    QWidget* ovWidget = (m_videoPane ? m_videoPane->getOverlayWidget() : nullptr);
+    if (ovWidget && (watched == ovWidget || watched == ovWidget->window())) {
+        switch (event->type()) {
+            case QEvent::Show:
+            case QEvent::WinIdChange:
+                qCDebug(log_gstreamer_backend) << "Overlay trigger (VideoPane overlay widget): targetOverlay=" << ovWidget << "watched=" << watched << "event=" << qEventTypeName(event->type()) << "winId=" << (ovWidget ? ovWidget->winId() : 0);
+                setupVideoOverlayForCurrentPipeline();
+                break;
+            case QEvent::Resize:
+            {
+                QResizeEvent* re = static_cast<QResizeEvent*>(event);
+                if (re) {
+                    qCDebug(log_gstreamer_backend) << "VideoPane overlay resize event: new size=" << re->size();
+                    updateVideoRenderRectangle(re->size());
+                }
+                break;
+            }
+            case QEvent::Destroy:
+                qCDebug(log_gstreamer_backend) << "VideoPane overlay widget destroyed - removing event filters, overlay=" << ovWidget << "watched=" << watched;
+                if (auto w = m_videoPane->getOverlayWidget()) w->removeEventFilter(this);
+                break;
+            default:
+                break;
+        }
+    }
+
+    return QObject::eventFilter(watched, event);
 }
 
 bool GStreamerBackendHandler::isValidWindowId(WId windowId) const
@@ -860,6 +1108,29 @@ bool GStreamerBackendHandler::checkCameraAvailable(const QString& device)
 
 WId GStreamerBackendHandler::getVideoWidgetWindowId() const
 {
+    // Prefer VideoPane overlay widget if available
+    if (m_videoPane) {
+        if (QWidget* ov = m_videoPane->getOverlayWidget()) {
+            if (!ov->isVisible()) {
+                qCDebug(log_gstreamer_backend) << "VideoPane overlay widget not visible, making it visible";
+                ov->show();
+            }
+            if (!ov->testAttribute(Qt::WA_NativeWindow)) {
+                qCDebug(log_gstreamer_backend) << "Setting native window attribute for VideoPane overlay";
+                ov->setAttribute(Qt::WA_NativeWindow, true);
+                ov->setAttribute(Qt::WA_PaintOnScreen, true);
+            }
+            WId ovId = ov->winId();
+            if (ovId == 0) {
+                qCDebug(log_gstreamer_backend) << "VideoPane overlay window ID is 0 - forcing window creation";
+                ov->createWinId();
+                ovId = ov->winId();
+            }
+            qCDebug(log_gstreamer_backend) << "VideoPane overlay window ID:" << ovId;
+            return ovId;
+        }
+    }
+
     if (m_videoWidget) {
         // Ensure widget is visible and has native window
         if (!m_videoWidget->isVisible()) {
