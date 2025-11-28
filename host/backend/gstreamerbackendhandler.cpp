@@ -32,6 +32,10 @@
 #include <QFileInfo>
 #include <QLoggingCategory>
 #include <QGraphicsVideoItem>
+#ifdef Q_OS_LINUX
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#endif
 
 #include "gstreamer/sinkselector.h"
 #include "gstreamer/pipelinebuilder.h"
@@ -47,6 +51,10 @@
 
 // logging category for this translation unit
 Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
+
+#ifdef HAVE_GSTREAMER
+#include <gst/video/videooverlay.h>
+#endif
 
 QList<int> GStreamerBackendHandler::getSupportedFrameRates(const QCameraFormat& format) const
 {

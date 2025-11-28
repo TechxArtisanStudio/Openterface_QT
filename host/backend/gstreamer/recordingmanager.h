@@ -78,7 +78,7 @@ private:
     // Helpers
     bool initializeValveBasedRecording(const QString& format);
     bool initializeFrameBasedRecording(const QString& format);
-    // Fallbacks and helpers for recording branch creation
+    // Fallbacks and helpers for recording branch creation (made public so callers can request specific flows)
     bool createSeparateRecordingPipeline(const QString& outputPath, const QString& format, int videoBitrate);
     bool initializeDirectFilesinkRecording(const QString& outputPath, const QString& format);
     // FFmpeg process and appsink integration for frame-based recording
