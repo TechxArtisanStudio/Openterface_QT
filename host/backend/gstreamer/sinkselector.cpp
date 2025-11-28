@@ -57,3 +57,46 @@ QString SinkSelector::selectSink(const QString &platform)
     qCWarning(log_gst_sink_selector) << "No preferred sinks found or GStreamer not available - defaulting to autovideosink";
     return QStringLiteral("autovideosink");
 }
+
+QStringList SinkSelector::candidateSinks(const QString &platform)
+{
+    QStringList candidates;
+
+    // If OPENTERFACE_GST_SINK is set, make it first in the list so it will be tried first
+    const QByteArray envOverride = qgetenv("OPENTERFACE_GST_SINK");
+    if (!envOverride.isEmpty()) {
+        const QString override = QString::fromLatin1(envOverride);
+        candidates.append(override);
+#ifdef HAVE_GSTREAMER
+        // If the override exists but is not present, we still keep it first so callers can log/diagnose
+#endif
+    }
+
+    // Preferred sinks in order
+    const char* preferred[] = {"xvimagesink", "ximagesink", "autovideosink", "qtsink", nullptr};
+
+#ifdef HAVE_GSTREAMER
+    for (const char** trySink = preferred; *trySink; ++trySink) {
+        const QString s = QString::fromUtf8(*trySink);
+        // Avoid duplicates (e.g., override matches one of these)
+        if (candidates.contains(s)) continue;
+
+        GstElementFactory* factory = gst_element_factory_find(*trySink);
+        if (factory) {
+            candidates.append(s);
+            gst_object_unref(factory);
+        }
+    }
+#else
+    Q_UNUSED(preferred);
+    for (const char** trySink = preferred; *trySink; ++trySink) {
+        const QString s = QString::fromUtf8(*trySink);
+        if (!candidates.contains(s)) candidates.append(s);
+    }
+#endif
+
+    // Make sure we always have at least a fallback
+    if (candidates.isEmpty()) candidates.append(QStringLiteral("autovideosink"));
+
+    return candidates;
+}

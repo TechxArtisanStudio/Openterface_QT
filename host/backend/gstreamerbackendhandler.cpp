@@ -65,7 +65,7 @@ GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
       m_recordingAppSink(nullptr), m_recordingTeeSrcPad(nullptr),
       m_recordingManager(nullptr),
       m_videoWidget(nullptr), m_graphicsVideoItem(nullptr), m_videoPane(nullptr),
-      m_healthCheckTimer(nullptr), m_gstProcess(nullptr), m_pipelineRunning(false),
+    m_healthCheckTimer(nullptr), m_gstProcess(nullptr), m_pipelineRunning(false), m_selectedSink(),
       m_overlaySetupPending(false), m_recordingActive(false), m_recordingPaused(false),
       m_recordingStartTime(0), m_recordingPausedTime(0), m_totalPausedDuration(0), m_recordingFrameNumber(0),
       m_inProcessRunner(nullptr), m_externalRunner(nullptr)
@@ -303,24 +303,54 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     const bool hasXDisplay = !qgetenv("DISPLAY").isEmpty();
     const bool hasWaylandDisplay = !qgetenv("WAYLAND_DISPLAY").isEmpty();
     
-    // Choose a video sink. Use OPENTERFACE_GST_SINK if provided; otherwise auto-detect.
-    QString videoSink = Openterface::GStreamer::SinkSelector::selectSink(platform);
-    
-    qCDebug(log_gstreamer_backend) << "Selected video sink:" << videoSink << "(platform:" << platform
+    // Get candidate sinks (env override first then preferred list). We'll try each sink until pipeline creation succeeds.
+    QStringList candidateSinks = Openterface::GStreamer::SinkSelector::candidateSinks(platform);
+    qCDebug(log_gstreamer_backend) << "Candidate sinks to try:" << candidateSinks << "(platform:" << platform
                                    << ", X DISPLAY:" << hasXDisplay << ", WAYLAND_DISPLAY:" << hasWaylandDisplay << ")";
-    
+
     // Centralize pipeline creation and fallbacks in PipelineFactory (HAVE_GSTREAMER)
 #ifdef HAVE_GSTREAMER
     QString err;
-    m_pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(device, resolution, framerate, videoSink, err);
+    for (const QString &trySink : candidateSinks) {
+        qCDebug(log_gstreamer_backend) << "Trying to create pipeline with sink:" << trySink;
+        GstElement* pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(device, resolution, framerate, trySink, err);
+        if (!pipeline) {
+            qCWarning(log_gstreamer_backend) << "Pipeline creation failed for sink" << trySink << ":" << err;
+            continue; // try the next sink
+        }
+        qCDebug(log_gstreamer_backend) << "PipelineFactory created pipeline successfully with sink:" << trySink;
+
+        // Basic sanity check: ensure pipeline can reach NULL state (some sinks/elements may fail early)
+        GstStateChangeReturn sanityRet = gst_element_set_state(pipeline, GST_STATE_NULL);
+        if (sanityRet == GST_STATE_CHANGE_FAILURE) {
+            qCWarning(log_gstreamer_backend) << "Sanity check (set NULL) failed for sink" << trySink << "- trying next candidate";
+            gst_object_unref(pipeline);
+            err = QStringLiteral("Pipeline failed basic state change (NULL)");
+            continue; // try next sink
+        }
+
+        // Assign pipeline and selected sink
+        m_pipeline = pipeline;
+        m_selectedSink = trySink;
+        err.clear();
+        break; // stop trying further sinks
+    }
+
     if (!m_pipeline) {
-        qCCritical(log_gstreamer_backend) << "Failed to create any GStreamer pipeline:" << err;
+        qCCritical(log_gstreamer_backend) << "Failed to create any GStreamer pipeline from candidate sinks. Last error:" << err;
         return false;
     }
-    qCDebug(log_gstreamer_backend) << "PipelineFactory created pipeline successfully";
 #else
     // No in-process GStreamer: just generate the pipeline string for external launch
-    QString pipelineStr = generatePipelineString(device, resolution, framerate, videoSink);
+    // For external gst-launch builds, we will try the candidate sinks and pick the first pipeline string that is non-empty.
+    QString pipelineStr;
+    for (const QString &trySink : candidateSinks) {
+        pipelineStr = generatePipelineString(device, resolution, framerate, trySink);
+        if (!pipelineStr.isEmpty()) {
+            m_selectedSink = trySink;
+            break;
+        }
+    }
     qCDebug(log_gstreamer_backend) << "Generated pipeline string (external gst-launch expected):" << pipelineStr;
 #endif
     
@@ -421,49 +451,103 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
 {
     qCDebug(log_gstreamer_backend) << "Starting GStreamer pipeline";
 #ifdef HAVE_GSTREAMER
-    if (!m_pipeline) {
-        qCWarning(log_gstreamer_backend) << "No in-process pipeline available";
-        return false;
+    // Build a list of candidate sinks and attempt to start the pipeline using each
+    const QString platform = QGuiApplication::platformName();
+    QStringList candidates = Openterface::GStreamer::SinkSelector::candidateSinks(platform);
+
+    // If we already have a selected sink, make sure it is tried first
+    if (!m_selectedSink.isEmpty()) {
+        // move the current sink to front if present
+        if (candidates.contains(m_selectedSink)) {
+            candidates.removeAll(m_selectedSink);
+            candidates.prepend(m_selectedSink);
+        } else {
+            candidates.prepend(m_selectedSink);
+        }
     }
 
-    // Prefer In-process runner if available
-    if (m_inProcessRunner) {
-        QString err;
-        bool ok = m_inProcessRunner->start(m_pipeline, 5000, &err);
-        if (!ok) {
-            qCCritical(log_gstreamer_backend) << "Failed to start pipeline in-process:" << err;
-            Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "START_PIPELINE");
-            return false;
+    QString lastErr;
+    for (const QString &trySink : candidates) {
+        qCDebug(log_gstreamer_backend) << "Attempting to start pipeline using sink:" << trySink;
+
+        // If we don't have a pipeline or pipeline sink doesn't match trySink, (re)create it
+        if (!m_pipeline || m_selectedSink != trySink) {
+            // Cleanup any existing pipeline first
+            cleanupGStreamer();
+
+            QString createErr;
+            m_pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(m_currentDevice, m_currentResolution, m_currentFramerate, trySink, createErr);
+            if (!m_pipeline) {
+                qCWarning(log_gstreamer_backend) << "Failed to create pipeline with sink" << trySink << ":" << createErr;
+                lastErr = createErr;
+                continue; // try next sink
+            }
+            m_selectedSink = trySink;
+            // get bus for error diagnostics
+            m_bus = gst_element_get_bus(m_pipeline);
         }
+
+        // Try start in-process first
+        if (m_inProcessRunner) {
+            QString err;
+            bool ok = m_inProcessRunner->start(m_pipeline, 5000, &err);
+            if (ok) {
+                m_pipelineRunning = true;
+                qCDebug(log_gstreamer_backend) << "Pipeline started successfully with sink:" << trySink;
+                return true;
+            }
+
+            qCWarning(log_gstreamer_backend) << "In-process runner failed with sink" << trySink << ":" << err;
+            Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "START_PIPELINE");
+            lastErr = err;
+            // Try next sink
+            cleanupGStreamer();
+            continue;
+        }
+
+        // Fallback to gst_element_set_state
+        GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
+        if (ret == GST_STATE_CHANGE_FAILURE) {
+            qCWarning(log_gstreamer_backend) << "gst_element_set_state PLAYING failed for sink" << trySink;
+            Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "START_PIPELINE");
+            lastErr = QStringLiteral("gst_element_set_state failed");
+            // try next sink
+            cleanupGStreamer();
+            continue;
+        }
+
         m_pipelineRunning = true;
+        qCDebug(log_gstreamer_backend) << "Pipeline set to PLAYING with sink:" << trySink;
         return true;
     }
 
-    // Fallback to direct gst_element_set_state
-    GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
-    if (ret == GST_STATE_CHANGE_FAILURE) {
-        qCCritical(log_gstreamer_backend) << "gst_element_set_state PLAYING failed";
-        Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "START_PIPELINE");
-        return false;
-    }
-
-    m_pipelineRunning = true;
-    return true;
+    qCCritical(log_gstreamer_backend) << "Failed to start any pipeline using candidate sinks. Last error:" << lastErr;
+    return false;
 #else
-    // Fallback: external runner (gst-launch) if available
+    // Fallback: external runner (gst-launch) if available. Try candidate sinks in order.
     QString program = "gst-launch-1.0";
-    QString pipelineStr = generatePipelineString(m_currentDevice, m_currentResolution, m_currentFramerate, "ximagesink");
-    if (pipelineStr.isEmpty()) {
-        qCWarning(log_gstreamer_backend) << "Empty pipeline string - cannot start external runner";
-        return false;
-    }
 
     bool started = false;
-    if (m_externalRunner) {
-        if (m_gstProcess) started = m_externalRunner->start(m_gstProcess, pipelineStr, program);
-        else started = m_externalRunner->start(pipelineStr, program);
-    } else {
-        qCWarning(log_gstreamer_backend) << "No external runner available";
+    for (const QString &trySink : Openterface::GStreamer::SinkSelector::candidateSinks(QGuiApplication::platformName())) {
+        QString candidatePipeline = generatePipelineString(m_currentDevice, m_currentResolution, m_currentFramerate, trySink);
+        if (candidatePipeline.isEmpty()) continue;
+
+        qCDebug(log_gstreamer_backend) << "Trying external runner with sink:" << trySink << "pipeline:" << candidatePipeline;
+
+        if (!m_externalRunner) {
+            qCWarning(log_gstreamer_backend) << "No external runner available";
+            break;
+        }
+
+        bool ok = false;
+        if (m_gstProcess) ok = m_externalRunner->start(m_gstProcess, candidatePipeline, program);
+        else ok = m_externalRunner->start(candidatePipeline, program);
+
+        if (ok) {
+            m_selectedSink = trySink;
+            started = true;
+            break;
+        }
     }
 
     if (!started) return false;

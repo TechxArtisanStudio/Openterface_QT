@@ -3,6 +3,7 @@
 #define OPENTERFACE_GSTREAMER_SINKSELECTOR_H
 
 #include <QString>
+#include <QStringList>
 
 namespace Openterface {
 namespace GStreamer {
@@ -15,6 +16,8 @@ public:
     // The implementation will consult OPENTERFACE_GST_SINK if set, and fall back
     // to probing available GStreamer elements when possible.
     static QString selectSink(const QString &platform = QString());
+    // Return an ordered list of candidate sinks to try (respecting the OPENTERFACE_GST_SINK override first)
+    static QStringList candidateSinks(const QString &platform = QString());
 };
 
 } // namespace GStreamer

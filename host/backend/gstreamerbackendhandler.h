@@ -180,6 +180,7 @@ private:
     
     // Pipeline state
     bool m_pipelineRunning;
+    QString m_selectedSink; // textual name of the selected video sink element
     QString m_currentDevice;
     QString m_currentDevicePortChain; // Track port chain for hotplug support
     QSize m_currentResolution;
