@@ -6,10 +6,10 @@
 #include <QGraphicsVideoItem>
 #include <QGraphicsView>
 
+class VideoPane; // forward-declare the UI VideoPane (global) so header doesn't need UI include
+
 namespace Openterface {
 namespace GStreamer {
-
-class VideoPane; // forward declare to avoid header cycle
 
 class VideoOverlayManager
 {
@@ -21,7 +21,7 @@ public:
     static bool embedVideoInGraphicsView(void* pipeline, QGraphicsView* view);
 
     // Embed into a VideoPane overlay (VideoPane provides getVideoOverlayWindowId())
-    static bool embedVideoInVideoPane(void* pipeline, VideoPane* videoPane);
+    static bool embedVideoInVideoPane(void* pipeline, ::VideoPane* videoPane);
 
     // Setup overlay for a specific videoSink element and windowId
     // Accept optional targets to set render rectangle / widget bindings
@@ -36,7 +36,7 @@ public:
     static bool completePendingOverlaySetup(void* pipeline,
                                             QWidget* videoWidget,
                                             QGraphicsVideoItem* graphicsVideoItem,
-                                            VideoPane* videoPane,
+                                            ::VideoPane* videoPane,
                                             bool &pendingFlag);
 };
 

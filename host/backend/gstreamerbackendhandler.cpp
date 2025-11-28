@@ -43,13 +43,9 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
-// X11 error handler for video overlay setup
-static bool x11_overlay_error_occurred = false;
-static int x11_overlay_error_handler(Display* display, XErrorEvent* error) {
-    x11_overlay_error_occurred = true;
-    // Don't print error message as we handle it gracefully
-    return 0;
-}
+#if 0 // X11 overlay error handling moved into VideoOverlayManager
+// Legacy X11 error handler left here intentionally in case of regressions.
+#endif
 #endif
 
 // Logging category for GStreamer backend

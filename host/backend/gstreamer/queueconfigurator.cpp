@@ -2,6 +2,7 @@
 #include "queueconfigurator.h"
 
 #include <QDebug>
+#include <QLoggingCategory>
 
 #ifdef HAVE_GSTREAMER
 #include <gst/gst.h>

@@ -2,6 +2,7 @@
 #include "videooverlaymanager.h"
 
 #include <QDebug>
+#include <QLoggingCategory>
 #include <QGuiApplication>
 
 #ifdef HAVE_GSTREAMER
@@ -9,7 +10,7 @@
 #include <gst/video/videooverlay.h>
 #endif
 
-#include "../../ui/videopane.h"
+#include "../../../ui/videopane.h"
 
 Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 
@@ -91,7 +92,7 @@ bool VideoOverlayManager::embedVideoInGraphicsView(void* pipeline, QGraphicsView
 #endif
 }
 
-bool VideoOverlayManager::embedVideoInVideoPane(void* pipeline, VideoPane* videoPane)
+bool VideoOverlayManager::embedVideoInVideoPane(void* pipeline, ::VideoPane* videoPane)
 {
 #ifdef HAVE_GSTREAMER
     if (!videoPane || !pipeline) {
@@ -285,7 +286,7 @@ bool VideoOverlayManager::setupVideoOverlayForPipeline(void* pipeline, WId windo
 bool VideoOverlayManager::completePendingOverlaySetup(void* pipeline,
                                                     QWidget* videoWidget,
                                                     QGraphicsVideoItem* graphicsVideoItem,
-                                                    VideoPane* videoPane,
+                                                    ::VideoPane* videoPane,
                                                     bool &pendingFlag)
 {
     qCDebug(log_gstreamer_backend) << "VideoOverlayManager: Completing pending overlay setup...";
