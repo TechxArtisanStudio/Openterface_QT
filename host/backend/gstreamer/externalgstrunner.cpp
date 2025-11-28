@@ -1,4 +1,4 @@
-#include "gstreamer/externalgstrunner.h"
+#include "externalgstrunner.h"
 #include <QDebug>
 #include <QLoggingCategory>
 

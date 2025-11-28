@@ -33,6 +33,21 @@
 #include <QLoggingCategory>
 #include <QGraphicsVideoItem>
 
+#include "gstreamer/sinkselector.h"
+#include "gstreamer/pipelinebuilder.h"
+#include "gstreamer/queueconfigurator.h"
+#include "gstreamer/videooverlaymanager.h"
+#include "gstreamer/pipelinefactory.h"
+#include "gstreamer/gstreamerhelpers.h"
+
+// Runner and recording helpers
+#include "gstreamer/inprocessgstrunner.h"
+#include "gstreamer/externalgstrunner.h"
+#include "gstreamer/recordingmanager.h"
+
+// logging category for this translation unit
+Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
+
 QList<int> GStreamerBackendHandler::getSupportedFrameRates(const QCameraFormat& format) const
 {
     if (m_config.useStandardFrameRatesOnly) {

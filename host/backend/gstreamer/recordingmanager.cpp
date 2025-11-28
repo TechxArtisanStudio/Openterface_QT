@@ -1,4 +1,4 @@
-#include "gstreamer/recordingmanager.h"
+#include "recordingmanager.h"
 #include <QDebug>
 #include <QLoggingCategory>
 

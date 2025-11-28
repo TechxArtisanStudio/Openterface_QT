@@ -1,5 +1,5 @@
-#include "gstreamer/inprocessgstrunner.h"
-#include "gstreamer/gstreamerhelpers.h"
+#include "inprocessgstrunner.h"
+#include "gstreamerhelpers.h"
 #include <QDebug>
 #include <QLoggingCategory>
 #include <QtConcurrent>

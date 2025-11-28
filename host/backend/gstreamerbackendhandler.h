@@ -226,7 +226,11 @@ private:
     bool isValidWindowId(WId windowId) const;
     
     // Recording helper moved to RecordingManager
-    
+    // Delegating recording helper methods (thin wrappers -> RecordingManager)
+    void removeRecordingBranch();
+    QString generateRecordingElements(const QString& outputPath, const QString& format, int videoBitrate) const;
+    bool createSeparateRecordingPipeline(const QString& outputPath, const QString& format, int videoBitrate);
+    bool initializeDirectFilesinkRecording();
     // Recording samples are handled by RecordingManager when GStreamer is available
 };
 
