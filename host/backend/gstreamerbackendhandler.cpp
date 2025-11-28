@@ -56,6 +56,171 @@ Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 #include <gst/video/videooverlay.h>
 #endif
 
+GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
+    : MultimediaBackendHandler(parent),
+      m_pipeline(nullptr), m_source(nullptr), m_sink(nullptr), m_bus(nullptr),
+      m_recordingPipeline(nullptr), m_recordingTee(nullptr), m_recordingValve(nullptr),
+      m_recordingSink(nullptr), m_recordingQueue(nullptr), m_recordingEncoder(nullptr),
+      m_recordingVideoConvert(nullptr), m_recordingMuxer(nullptr), m_recordingFileSink(nullptr),
+      m_recordingAppSink(nullptr), m_recordingTeeSrcPad(nullptr),
+      m_recordingManager(nullptr),
+      m_videoWidget(nullptr), m_graphicsVideoItem(nullptr), m_videoPane(nullptr),
+      m_healthCheckTimer(nullptr), m_gstProcess(nullptr), m_pipelineRunning(false),
+      m_overlaySetupPending(false), m_recordingActive(false), m_recordingPaused(false),
+      m_recordingStartTime(0), m_recordingPausedTime(0), m_totalPausedDuration(0), m_recordingFrameNumber(0),
+      m_inProcessRunner(nullptr), m_externalRunner(nullptr)
+{
+    qCDebug(log_gstreamer_backend) << "GStreamerBackendHandler initializing";
+
+    // Load default configuration
+    m_config = getDefaultConfig();
+
+    // create health check timer
+    m_healthCheckTimer = new QTimer(this);
+    m_healthCheckTimer->setInterval(1000);
+    connect(m_healthCheckTimer, &QTimer::timeout, this, &GStreamerBackendHandler::checkPipelineHealth);
+
+    // runners
+    m_inProcessRunner = new InProcessGstRunner(this);
+    m_externalRunner = new ExternalGstRunner(this);
+    connect(m_externalRunner, &ExternalGstRunner::started, this, &GStreamerBackendHandler::onExternalRunnerStarted);
+    connect(m_externalRunner, &ExternalGstRunner::failed, this, &GStreamerBackendHandler::onExternalRunnerFailed);
+    connect(m_externalRunner, &ExternalGstRunner::finished, this, &GStreamerBackendHandler::onExternalRunnerFinished);
+
+    // recording manager
+    m_recordingManager = new RecordingManager(this);
+    connect(m_recordingManager, &RecordingManager::recordingStarted, this, &GStreamerBackendHandler::recordingStarted);
+    connect(m_recordingManager, &RecordingManager::recordingStopped, this, &GStreamerBackendHandler::recordingStopped);
+    connect(m_recordingManager, &RecordingManager::recordingError, this, &GStreamerBackendHandler::recordingError);
+}
+
+GStreamerBackendHandler::~GStreamerBackendHandler()
+{
+    qCDebug(log_gstreamer_backend) << "GStreamerBackendHandler destructor";
+
+    // Stop camera / pipelines cleanly
+    stopCamera();
+
+    // Clean up any GStreamer objects
+    cleanupGStreamer();
+
+    if (m_healthCheckTimer) {
+        m_healthCheckTimer->stop();
+        delete m_healthCheckTimer;
+        m_healthCheckTimer = nullptr;
+    }
+
+    if (m_externalRunner) {
+        m_externalRunner->stop();
+        delete m_externalRunner;
+        m_externalRunner = nullptr;
+    }
+
+    if (m_inProcessRunner) {
+        delete m_inProcessRunner;
+        m_inProcessRunner = nullptr;
+    }
+
+    if (m_recordingManager) {
+        delete m_recordingManager;
+        m_recordingManager = nullptr;
+    }
+}
+
+MultimediaBackendType GStreamerBackendHandler::getBackendType() const
+{
+    return MultimediaBackendType::GStreamer;
+}
+
+QString GStreamerBackendHandler::getBackendName() const
+{
+    return QStringLiteral("GStreamer");
+}
+
+MultimediaBackendConfig GStreamerBackendHandler::getDefaultConfig() const
+{
+    MultimediaBackendConfig cfg;
+    cfg.cameraInitDelay = 200;
+    cfg.deviceSwitchDelay = 300;
+    cfg.videoOutputSetupDelay = 200;
+    cfg.captureSessionDelay = 50;
+    cfg.useConservativeFrameRates = true;
+    cfg.useStandardFrameRatesOnly = true;
+    return cfg;
+}
+
+void GStreamerBackendHandler::prepareCameraCreation()
+{
+    qCDebug(log_gstreamer_backend) << "GStreamer: prepareCameraCreation";
+    // Placeholder for any GStreamer-specific camera init steps
+}
+
+void GStreamerBackendHandler::configureCameraDevice()
+{
+    qCDebug(log_gstreamer_backend) << "GStreamer: configureCameraDevice";
+    // Configure device parameters if needed
+}
+
+void GStreamerBackendHandler::setupCaptureSession(QMediaCaptureSession* session)
+{
+    qCDebug(log_gstreamer_backend) << "GStreamer: setupCaptureSession";
+    Q_UNUSED(session);
+}
+
+void GStreamerBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput)
+{
+    qCDebug(log_gstreamer_backend) << "GStreamer: prepareVideoOutputConnection";
+    Q_UNUSED(session);
+    Q_UNUSED(videoOutput);
+}
+
+void GStreamerBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput)
+{
+    qCDebug(log_gstreamer_backend) << "GStreamer: finalizeVideoOutputConnection";
+    Q_UNUSED(session);
+
+    // Accept different video output types
+    if (!videoOutput) return;
+
+    if (auto widget = qobject_cast<QWidget*>(videoOutput)) {
+        setVideoOutput(widget);
+        return;
+    }
+
+    if (auto graphicsItem = qobject_cast<QGraphicsVideoItem*>(videoOutput)) {
+        setVideoOutput(graphicsItem);
+        return;
+    }
+
+    if (auto vp = qobject_cast<VideoPane*>(videoOutput)) {
+        setVideoOutput(vp);
+        return;
+    }
+}
+
+void GStreamerBackendHandler::stopCamera()
+{
+    qCDebug(log_gstreamer_backend) << "GStreamer: stopCamera called";
+
+#ifdef HAVE_GSTREAMER
+    if (m_pipeline) {
+        stopGStreamerPipeline();
+        gst_element_set_state(m_pipeline, GST_STATE_NULL);
+    }
+#else
+    if (m_gstProcess && m_gstProcess->state() == QProcess::Running) {
+        m_gstProcess->terminate();
+        if (!m_gstProcess->waitForFinished(2000)) m_gstProcess->kill();
+    }
+#endif
+
+    if (m_externalRunner && m_externalRunner->isRunning()) {
+        m_externalRunner->stop();
+    }
+
+    m_pipelineRunning = false;
+}
+
 QList<int> GStreamerBackendHandler::getSupportedFrameRates(const QCameraFormat& format) const
 {
     if (m_config.useStandardFrameRatesOnly) {
@@ -400,6 +565,20 @@ void GStreamerBackendHandler::setVideoOutput(QWidget* widget)
     }
 }
 
+void GStreamerBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
+{
+    m_graphicsVideoItem = videoItem;
+    m_videoWidget = nullptr;
+    m_videoPane = nullptr;
+
+    if (!videoItem) return;
+
+    qCDebug(log_gstreamer_backend) << "Configuring QGraphicsVideoItem as video output";
+
+    // Trigger overlay setup if needed
+    if (m_pipeline) setupVideoOverlayForCurrentPipeline();
+}
+
 bool GStreamerBackendHandler::embedVideoInWidget(QWidget* widget)
 {
     return Openterface::GStreamer::VideoOverlayManager::embedVideoInWidget(m_pipeline, widget);
@@ -413,6 +592,18 @@ bool GStreamerBackendHandler::embedVideoInGraphicsView(QGraphicsView* view)
 bool GStreamerBackendHandler::embedVideoInVideoPane(VideoPane* videoPane)
 {
     return Openterface::GStreamer::VideoOverlayManager::embedVideoInVideoPane(m_pipeline, videoPane);
+}
+
+void GStreamerBackendHandler::setVideoOutput(VideoPane* videoPane)
+{
+    m_videoPane = videoPane;
+    m_videoWidget = nullptr;
+    m_graphicsVideoItem = nullptr;
+
+    if (!videoPane) return;
+
+    qCDebug(log_gstreamer_backend) << "Configuring VideoPane as video output";
+    if (m_pipeline) setupVideoOverlayForCurrentPipeline();
 }
 
 void GStreamerBackendHandler::completePendingOverlaySetup()
@@ -642,6 +833,59 @@ WId GStreamerBackendHandler::getVideoWidgetWindowId() const
     }
     
     return 0;
+}
+
+void GStreamerBackendHandler::setCurrentDevicePortChain(const QString& portChain)
+{
+    m_currentDevicePortChain = portChain;
+    qCDebug(log_gstreamer_backend) << "GStreamer: current device port chain set to" << portChain;
+}
+
+void GStreamerBackendHandler::setCurrentDevice(const QString& devicePath)
+{
+    m_currentDevice = devicePath;
+    qCDebug(log_gstreamer_backend) << "GStreamer: current device set to" << devicePath;
+}
+
+bool GStreamerBackendHandler::initializeGStreamer()
+{
+#ifdef HAVE_GSTREAMER
+    if (!gst_is_initialized()) {
+        int argc = 0;
+        char **argv = nullptr;
+        gst_init(&argc, &argv);
+        qCDebug(log_gstreamer_backend) << "GStreamer initialized in-process";
+    }
+    return true;
+#else
+    return false;
+#endif
+}
+
+void GStreamerBackendHandler::cleanupGStreamer()
+{
+    qCDebug(log_gstreamer_backend) << "cleanupGStreamer invoked";
+#ifdef HAVE_GSTREAMER
+    if (m_pipeline) {
+        gst_element_set_state(m_pipeline, GST_STATE_NULL);
+        if (m_bus) {
+            gst_bus_remove_signal_watch(m_bus);
+            gst_object_unref(m_bus);
+            m_bus = nullptr;
+        }
+        gst_object_unref(m_pipeline);
+        m_pipeline = nullptr;
+    }
+#endif
+    // Ensure external process stopped
+    if (m_gstProcess) {
+        if (m_gstProcess->state() == QProcess::Running) {
+            m_gstProcess->terminate();
+            if (!m_gstProcess->waitForFinished(2000)) m_gstProcess->kill();
+        }
+        delete m_gstProcess;
+        m_gstProcess = nullptr;
+    }
 }
 
 void GStreamerBackendHandler::setResolutionAndFramerate(const QSize& resolution, int framerate)
