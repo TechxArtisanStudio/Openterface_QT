@@ -873,6 +873,12 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice, cons
             // Set the current device path for GStreamer backend
             QString devicePath = convertCameraDeviceToPath(cameraDevice);
             gstHandler->setCurrentDevice(devicePath);
+            // Ensure the GStreamer backend has sensible defaults for resolution and framerate
+            // if none were explicitly set by the caller. Use 1280x720@30 as a safe default.
+            QSize defaultResolution(1920, 1080);
+            int defaultFramerate = 30;
+            gstHandler->setResolutionAndFramerate(defaultResolution, defaultFramerate);
+            qCDebug(log_ui_camera) << "GStreamer default resolution/framerate set to" << defaultResolution << defaultFramerate;
             qCDebug(log_ui_camera) << "Set device path in GStreamer backend:" << devicePath;
         }
         #endif
@@ -1546,6 +1552,12 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
                 // Set device and port chain into the handler and start
                 gstHandler->setCurrentDevicePortChain(detectedPortChain);
                 gstHandler->setCurrentDevice(devicePath);
+                // Ensure the GStreamer backend has sensible defaults for resolution and framerate
+                // if not otherwise configured. Use 1280x720@30 as a safe default.
+                QSize defaultResolution(1280, 720);
+                int defaultFramerate = 30;
+                gstHandler->setResolutionAndFramerate(defaultResolution, defaultFramerate);
+                qCDebug(log_ui_camera) << "GStreamer default resolution/framerate set to" << defaultResolution << defaultFramerate;
                 gstHandler->startCamera();
 
                 // Track the current camera port chain locally as we do for FFmpeg
