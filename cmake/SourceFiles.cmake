@@ -47,12 +47,20 @@ if(NOT WIN32)
         host/backend/gstreamer/videooverlaymanager.cpp
         host/backend/gstreamer/pipelinebuilder.cpp
         host/backend/gstreamer/pipelinefactory.cpp
+        host/backend/gstreamer/gstreamerhelpers.cpp
+        host/backend/gstreamer/inprocessgstrunner.cpp
+        host/backend/gstreamer/inprocessgstrunner.h
+        host/backend/gstreamer/externalgstrunner.cpp
+        host/backend/gstreamer/externalgstrunner.h
+        host/backend/gstreamer/recordingmanager.cpp
+        host/backend/gstreamer/recordingmanager.h
         host/backend/gstreamerbackendhandler.h
         host/backend/gstreamer/sinkselector.h
         host/backend/gstreamer/queueconfigurator.h
         host/backend/gstreamer/videooverlaymanager.h
         host/backend/gstreamer/pipelinebuilder.h
         host/backend/gstreamer/pipelinefactory.h
+        host/backend/gstreamer/gstreamerhelpers.h
     )
 endif()
 

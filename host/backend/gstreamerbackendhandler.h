@@ -142,13 +142,12 @@ public:
 private slots:
     void onPipelineMessage();
     void checkPipelineHealth();
+    // External runner event handlers
+    void onExternalRunnerStarted();
+    void onExternalRunnerFailed(const QString& error);
+    void onExternalRunnerFinished(int exitCode, QProcess::ExitStatus status);
     
-    // Recording process signal handlers
-    void onRecordingProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
-    void onRecordingProcessError(QProcess::ProcessError error);
-    
-    // Frame capture for recording
-    void captureAndWriteFrame();
+    // Recording lifecycle events are handled by RecordingManager
 
 private:
     // GStreamer pipeline components
@@ -157,7 +156,7 @@ private:
     GstElement* m_sink;
     GstBus* m_bus;
     
-    // Recording pipeline components
+    // Recording pipeline components (kept for compatibility during refactor)
     GstElement* m_recordingPipeline;
     GstElement* m_recordingTee;
     GstElement* m_recordingValve;    // Controls recording flow
@@ -169,6 +168,8 @@ private:
     GstElement* m_recordingFileSink;
     GstElement* m_recordingAppSink;  // For frame capture
     GstPad* m_recordingTeeSrcPad;
+    // Recording manager (encapsulates recording branch logic)
+    class RecordingManager* m_recordingManager;
     
     // Qt integration
     QWidget* m_videoWidget;
@@ -187,7 +188,7 @@ private:
     // Overlay setup state
     bool m_overlaySetupPending;
     
-    // Recording state
+    // Recording state (kept for compatibility during refactor)
     bool m_recordingActive;
     bool m_recordingPaused;
     QString m_recordingOutputPath;
@@ -200,9 +201,11 @@ private:
     // Error tracking
     QString m_lastError;
     
-    // Frame-based recording using external process
-    QProcess* m_recordingProcess;
-    QTimer* m_frameCaptureTimer;
+    // Frame-based recording handled by RecordingManager
+
+    // Runner objects (in-process and external)
+    class InProcessGstRunner* m_inProcessRunner;
+    class ExternalGstRunner* m_externalRunner;
     
     // Helper methods
     bool initializeGStreamer();
@@ -222,19 +225,9 @@ private:
     // Window validation for overlay setup
     bool isValidWindowId(WId windowId) const;
     
-    // Recording helper methods
-    bool initializeValveBasedRecording();
-    bool initializeFrameBasedRecording();
-    bool initializeDirectFilesinkRecording();
-    bool createRecordingBranch(const QString& outputPath, const QString& format, int videoBitrate);
-    bool createSeparateRecordingPipeline(const QString& outputPath, const QString& format, int videoBitrate);
-    void removeRecordingBranch();
-    QString generateRecordingElements(const QString& outputPath, const QString& format, int videoBitrate) const;
+    // Recording helper moved to RecordingManager
     
-#ifdef HAVE_GSTREAMER
-    // GStreamer appsink callback for frame capture
-    GstFlowReturn onNewRecordingSample(GstAppSink* sink);
-#endif
+    // Recording samples are handled by RecordingManager when GStreamer is available
 };
 
 #endif // GSTREAMERBACKENDHANDLER_H
