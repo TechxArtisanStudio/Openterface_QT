@@ -1,3 +1,5 @@
+               host/backend/gstreamer/pipelinefactory.cpp
+               host/backend/gstreamer/pipelinefactory.h
 #-------------------------------------------------
 #
 # Project created by QtCreator 2024-04-02T19:21:24
@@ -82,11 +84,15 @@ SOURCES += main.cpp \
 !win32 {
     SOURCES += host/backend/ffmpegbackendhandler.cpp \
                host/backend/gstreamerbackendhandler.cpp \
-               host/backend/gstreamer/sinkselector.cpp \
+               host/backend/gstreamer/sinkselector.cpp \\
+               host/backend/gstreamer/queueconfigurator.cpp \\
+               host/backend/gstreamer/videooverlaymanager.cpp \\
                host/backend/gstreamer/pipelinebuilder.cpp
     HEADERS += host/backend/ffmpegbackendhandler.h \
                host/backend/gstreamerbackendhandler.h \
-               host/backend/gstreamer/sinkselector.h \
+               host/backend/gstreamer/sinkselector.h \\
+               host/backend/gstreamer/queueconfigurator.h \\
+               host/backend/gstreamer/videooverlaymanager.h \\
                host/backend/gstreamer/pipelinebuilder.h
 }
 
