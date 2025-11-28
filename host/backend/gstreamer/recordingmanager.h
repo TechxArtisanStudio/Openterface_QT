@@ -42,10 +42,10 @@ signals:
     void recordingPaused();
     void recordingResumed();
     void recordingError(const QString& error);
-    
-     Q_SLOTS:
-     void handleRecordingProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
-     void handleRecordingProcessError(QProcess::ProcessError error);
+
+public slots:
+    void handleRecordingProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void handleRecordingProcessError(QProcess::ProcessError error);
 
 private:
     // Internal state
