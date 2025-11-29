@@ -1173,7 +1173,6 @@ void SerialPortManager::readData() {
     QByteArray data;
     try {
         data = serialPort->readAll();
-        qCDebug(log_core_serial) << "readData: Read" << data.size() << "bytes:" << data.toHex(' ');
     } catch (...) {
         qCWarning(log_core_serial) << "Exception occurred while reading serial data";
         m_consecutiveErrors++;
@@ -1187,8 +1186,6 @@ void SerialPortManager::readData() {
         qCDebug(log_core_serial) << "Received empty data from serial port";
         return;
     }
-
-    qCDebug(log_core_serial) << "readData: Received raw data from serial port:" << data.toHex(' ');
 
     // Prepend any buffered incomplete data from previous reads
     QByteArray completeData;
@@ -1274,8 +1271,6 @@ void SerialPortManager::readData() {
 
             unsigned char cmdCode = static_cast<unsigned char>(packet[3]);
             unsigned char responseKey = static_cast<unsigned char>(cmdCode | 0x80);
-
-            qCDebug(log_core_serial) << "readData: Extracted packet:" << packet.toHex(' ') << "cmdCode: 0x" << QString::number(cmdCode, 16);
 
             // If there's a pending synchronous request, check for match
             bool handledBySync = false;
@@ -1826,7 +1821,8 @@ int SerialPortManager::checkUsbStatusViaSerial() {
 */
 void SerialPortManager::setUSBconfiguration(int targetBaudrate){
     QSettings settings("Techxartisan", "Openterface");
-    
+    uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
+
     // Select the appropriate command prefix based on target baudrate
     QByteArray command;
     if (targetBaudrate == BAUDRATE_LOWSPEED) {
@@ -1836,6 +1832,7 @@ void SerialPortManager::setUSBconfiguration(int targetBaudrate){
         command = CMD_SET_PARA_CFG_PREFIX_115200;
         qCDebug(log_core_serial) << "Using 115200 baudrate configuration for USB setup";
     }
+    command[5] = mode;  // Set mode byte at index 5 (6th byte)
 
     QString VID = settings.value("serial/vid", "86 1A").toString();
     QString PID = settings.value("serial/pid", "29 E1").toString();
@@ -2460,6 +2457,7 @@ void SerialPortManager::applyCommandBasedBaudrateChange(int baudRate, const QStr
     QByteArray command;
     static QSettings settings("Techxartisan", "Openterface");
     uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
+    
     if (baudRate == BAUDRATE_LOWSPEED) {
         command = CMD_SET_PARA_CFG_PREFIX_9600;
     } else {
