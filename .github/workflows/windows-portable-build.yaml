@@ -2,9 +2,22 @@ name: Portable Build for Windows (CMake + vcpkg + MinGW Static)
 
 on:
   push:
-    branches: ["main", "dev_20250611_add_vertical_screen_operate"]
+    branches: ["main", "dev"]
+    paths:
+      - '.github/workflows/windows-portable-build.yaml'
+      - 'vcpkg.json'
+      - 'CMakeLists.txt'
+      - '**/*.bat'
+      - '**/*.cpp'
   pull_request:
     branches: ["dev"]
+    paths:
+      - '.github/workflows/windows-portable-build.yaml'
+      - 'vcpkg.json'
+      - 'CMakeLists.txt'
+      - '**/*.bat'
+      - '**/*.cpp'
+      - '**/*.h'
   workflow_dispatch:
 
 defaults:
@@ -182,7 +195,11 @@ jobs:
             call "%VCPKG_DIR%\vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build
           ) else (
             # Ensure the path is treated as a single argument in bash: wrap the cygpath result in quotes
-            C:\msys64\usr\bin\bash.exe -lc "cd \"$(cygpath -u '%VCPKG_DIR%')\" && ./vcpkg.exe install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build || true"
+            C:\msys64\usr\bin\bash.exe -lc ^
+              "cd $(cygpath -u %VCPKG_DIR%) && ./vcpkg.exe install ^
+                --triplet=x64-mingw-static ^
+                --host-triplet=x64-mingw-static ^
+                --clean-after-build || true"
           )
 
       - name: Ensure MSYS2 and packages for ffmpeg build (pkgconf, nasm, yasm)
