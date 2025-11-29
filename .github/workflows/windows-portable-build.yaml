@@ -181,7 +181,8 @@ jobs:
             echo "MSYS2 not available - falling back to cmd vcpkg install"
             call "%VCPKG_DIR%\vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build
           ) else (
-            C:\msys64\usr\bin\bash.exe -lc "cd $(cygpath -u '$(echo %VCPKG_DIR%)') && ./vcpkg.exe install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build || true"
+            # Ensure the path is treated as a single argument in bash: wrap the cygpath result in quotes
+            C:\msys64\usr\bin\bash.exe -lc "cd \"$(cygpath -u '%VCPKG_DIR%')\" && ./vcpkg.exe install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build || true"
           )
 
       - name: Ensure MSYS2 and packages for ffmpeg build (pkgconf, nasm, yasm)
@@ -292,7 +293,8 @@ jobs:
             mkdir package &&
             copy "%EXE%" package\openterfaceQT-portable.exe
           ) else (
-            "%MSYS2_PATH%\bash.exe" -lc "export PATH=/c/Qt6/bin:/c/mingw64/bin:$PATH && cmake -G \"Ninja\" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=\"/c/vcpkg/scripts/buildsystems/vcpkg.cmake\" -DVCPKG_TARGET_TRIPLET=\"x64-mingw-static\" -DCMAKE_PREFIX_PATH=\"/c/Qt6\" -DOPENTERFACE_BUILD_STATIC=ON -DCMAKE_C_COMPILER=/c/mingw64/bin/gcc.exe -DCMAKE_CXX_COMPILER=/c/mingw64/bin/g++.exe -DCMAKE_RC_COMPILER=/c/mingw64/bin/windres.exe $(cygpath -u '$(echo %SOURCE_DIR%)') && cmake --build . --config Release -- -j2 || exit 1"
+            # Quote the cygpath converted SOURCE_DIR to avoid splitting on spaces
+            "%MSYS2_PATH%\bash.exe" -lc "export PATH=/c/Qt6/bin:/c/mingw64/bin:$PATH && cmake -G \"Ninja\" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=\"/c/vcpkg/scripts/buildsystems/vcpkg.cmake\" -DVCPKG_TARGET_TRIPLET=\"x64-mingw-static\" -DCMAKE_PREFIX_PATH=\"/c/Qt6\" -DOPENTERFACE_BUILD_STATIC=ON -DCMAKE_C_COMPILER=/c/mingw64/bin/gcc.exe -DCMAKE_CXX_COMPILER=/c/mingw64/bin/g++.exe -DCMAKE_RC_COMPILER=/c/mingw64/bin/windres.exe \"$(cygpath -u '%SOURCE_DIR%')\" && cmake --build . --config Release -- -j2 || exit 1"
             "%MSYS2_PATH%\bash.exe" -lc "for f in \$(find . -name \"openterfaceQT.exe\" -print -quit); do EXE=\$f; break; done; if [ -z \"\$EXE\" ]; then echo Build failed: openterfaceQT.exe not found && exit 1; fi; /c/mingw64/bin/objdump -p \"\$EXE\" | grep -i \\\"\\.dll\\\" && (echo ERROR: DLL dependencies detected && /c/mingw64/bin/objdump -p \"\$EXE\" | grep -i \\\"\\.dll\\\" && exit 1) || echo OK: No DLL dependencies; /c/mingw64/bin/strip -s \"\$EXE\"; mkdir -p package; cp \"\$EXE\" package/openterfaceQT-portable.exe"
           )
             -DCMAKE_BUILD_TYPE=Release
