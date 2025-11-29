@@ -8,6 +8,7 @@
 #include <QLoggingCategory>
 #include "DeviceInfo.h"
 #include "HotplugMonitor.h"
+#include "../video/videohid.h"
 
 class AbstractPlatformDeviceManager;
 class SerialPortManager;
@@ -117,6 +118,12 @@ public:
     bool switchSerialPortByPortChain(const QString& portChain);
     bool switchHIDDeviceByPortChain(const QString& portChain);
     bool switchAudioDeviceByPortChain(const QString& portChain);
+
+    // Chipset detection helpers
+    VideoChipType getChipTypeForDevice(const DeviceInfo& device);
+    VideoChipType getChipTypeForPortChain(const QString& portChain);
+    bool isMS2109(const DeviceInfo& device);
+    bool isMS2130S(const DeviceInfo& device);
     
     // Hotplug monitoring
     void startHotplugMonitoring(int intervalMs = 5000);

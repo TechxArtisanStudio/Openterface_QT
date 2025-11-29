@@ -37,7 +37,7 @@ QString SinkSelector::selectSink(const QString &platform)
     }
 
     // Probe for preferred sinks in order of preference
-    const char* preferred[] = {"xvimagesink", "ximagesink", "autovideosink", "qtsink", nullptr};
+    const char* preferred[] = {"qt6videosink", "qtvideosink", "qtsink", "xvimagesink", "ximagesink", "autovideosink", nullptr};
 
 #ifdef HAVE_GSTREAMER
     for (const char** trySink = preferred; *trySink; ++trySink) {
@@ -73,7 +73,7 @@ QStringList SinkSelector::candidateSinks(const QString &platform)
     }
 
     // Preferred sinks in order
-    const char* preferred[] = {"xvimagesink", "ximagesink", "autovideosink", "qtsink", nullptr};
+    const char* preferred[] = {"qt6videosink", "qtvideosink", "qtsink", "xvimagesink", "ximagesink", "autovideosink", nullptr};
 
 #ifdef HAVE_GSTREAMER
     for (const char** trySink = preferred; *trySink; ++trySink) {

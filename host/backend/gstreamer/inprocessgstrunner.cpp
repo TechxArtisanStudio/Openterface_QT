@@ -114,6 +114,12 @@ bool InProcessGstRunner::playAsync(GstElement* pipeline, int timeoutMs)
 void InProcessGstRunner::stop(GstElement* pipeline)
 {
     if (!pipeline) return;
-    gst_element_set_state(pipeline, GST_STATE_NULL);
+    QString err;
+    bool ok = Openterface::GStreamer::GstHelpers::setPipelineStateWithTimeout(pipeline, GST_STATE_NULL, 2000, &err);
+    if (!ok) {
+        qCWarning(log_gst_runner_inproc) << "InProcessGstRunner::stop: failed to set pipeline to NULL:" << err;
+        // Fallback: try a simple set to NULL without waiting
+        gst_element_set_state(pipeline, GST_STATE_NULL);
+    }
 }
 #endif

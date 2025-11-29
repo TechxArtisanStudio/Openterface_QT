@@ -21,7 +21,7 @@
 */
 
 #include "gstreamerbackendhandler.h"
-#include "../../ui/videopane.h"
+    // Increment frame count logic remains unchanged
 #include "../../ui/globalsetting.h"
 #include <QThread>
 #include <QApplication>
@@ -69,8 +69,41 @@ static const char* qEventTypeName(QEvent::Type t)
     }
 }
 
+QList<int> GStreamerBackendHandler::getSupportedFrameRates(const QCameraFormat& format) const
+{
+    if (m_config.useStandardFrameRatesOnly) {
+        qCDebug(log_gstreamer_backend) << "GStreamer: Providing only standard, safe frame rates.";
+        QList<int> rates;
+        std::vector<int> safeRates = {5, 10, 15, 20, 24, 25, 30, 50, 60};
+        for (int rate : safeRates) {
+            if (rate >= format.minFrameRate() && rate <= format.maxFrameRate()) {
+                rates.append(rate);
+            }
+        }
+        return rates;
+    }
+    return MultimediaBackendHandler::getSupportedFrameRates(format);
+}
+
 #ifdef HAVE_GSTREAMER
 #include <gst/video/videooverlay.h>
+#include <gst/gstpad.h>
+#endif
+
+#ifdef HAVE_GSTREAMER
+// Pad probe used to count frames for realtime FPS logging
+GstPadProbeReturn GStreamerBackendHandler::gstreamer_frame_probe_cb(GstPad* pad, GstPadProbeInfo* info, gpointer user_data)
+{
+    Q_UNUSED(pad)
+    if (!user_data) return GST_PAD_PROBE_OK;
+    if (info->type & GST_PAD_PROBE_TYPE_BUFFER) {
+        GStreamerBackendHandler* self = static_cast<GStreamerBackendHandler*>(user_data);
+        if (self) {
+            self->incrementFrameCount();
+        }
+    }
+    return GST_PAD_PROBE_OK;
+}
 #endif
 
 GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
@@ -110,6 +143,8 @@ GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
     connect(m_recordingManager, &RecordingManager::recordingStopped, this, &GStreamerBackendHandler::recordingStopped);
     connect(m_recordingManager, &RecordingManager::recordingError, this, &GStreamerBackendHandler::recordingError);
 }
+
+// incrementFrameCount is implemented under HAVE_GSTREAMER guard later in the file
 
 GStreamerBackendHandler::~GStreamerBackendHandler()
 {
@@ -224,34 +259,6 @@ void GStreamerBackendHandler::stopCamera()
         stopGStreamerPipeline();
         gst_element_set_state(m_pipeline, GST_STATE_NULL);
     }
-#else
-    if (m_gstProcess && m_gstProcess->state() == QProcess::Running) {
-        m_gstProcess->terminate();
-        if (!m_gstProcess->waitForFinished(2000)) m_gstProcess->kill();
-    }
-#endif
-
-    if (m_externalRunner && m_externalRunner->isRunning()) {
-        m_externalRunner->stop();
-    }
-
-    m_pipelineRunning = false;
-}
-
-QList<int> GStreamerBackendHandler::getSupportedFrameRates(const QCameraFormat& format) const
-{
-    if (m_config.useStandardFrameRatesOnly) {
-        qCDebug(log_gstreamer_backend) << "GStreamer: Providing only standard, safe frame rates.";
-        QList<int> rates;
-        std::vector<int> safeRates = {5, 10, 15, 20, 24, 25, 30, 50, 60};
-        for (int rate : safeRates) {
-            if (rate >= format.minFrameRate() && rate <= format.maxFrameRate()) {
-                rates.append(rate);
-            }
-        }
-        return rates;
-    }
-    return MultimediaBackendHandler::getSupportedFrameRates(format);
 }
 
 QCameraFormat GStreamerBackendHandler::selectOptimalFormat(const QList<QCameraFormat>& formats,
@@ -434,6 +441,12 @@ void GStreamerBackendHandler::startCamera()
 
     // Prefer direct pipeline when we have a configured device
     if (!m_currentDevice.isEmpty()) {
+#else
+    if (m_gstProcess && m_gstProcess->state() == QProcess::Running) {
+        m_gstProcess->terminate();
+        if (!m_gstProcess->waitForFinished(2000)) m_gstProcess->kill();
+    }
+#endif
         if (startDirectPipeline()) {
             qCDebug(log_gstreamer_backend) << "Direct GStreamer pipeline started";
             return;
@@ -515,6 +528,10 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
                 qCDebug(log_gstreamer_backend) << "Attempting overlay setup after in-process pipeline start (sink:" << trySink << ")";
                 setupVideoOverlayForCurrentPipeline();
                 if (m_overlaySetupPending) completePendingOverlaySetup();
+                // Attach frame probe to count buffers and show realtime FPS
+                m_frameCount.store(0, std::memory_order_relaxed);
+                attachFrameProbe();
+                if (m_healthCheckTimer && !m_healthCheckTimer->isActive()) m_healthCheckTimer->start(1000);
                 return true;
             }
 
@@ -542,6 +559,10 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
     // Attempt overlay binding now that the pipeline is playing
     qCDebug(log_gstreamer_backend) << "Attempting overlay setup after gst_element_set_state (sink:" << trySink << ")";
     setupVideoOverlayForCurrentPipeline();
+    // Attach frame probe and start health check timer
+    m_frameCount.store(0, std::memory_order_relaxed);
+    attachFrameProbe();
+    if (m_healthCheckTimer && !m_healthCheckTimer->isActive()) m_healthCheckTimer->start(1000);
     return true;
     }
 
@@ -595,8 +616,24 @@ void GStreamerBackendHandler::stopGStreamerPipeline()
         if (m_inProcessRunner) {
             m_inProcessRunner->stop(m_pipeline);
         } else {
-            gst_element_set_state(m_pipeline, GST_STATE_NULL);
+            // Use helper to set NULL and wait for state transition to avoid unref'ing playing elements
+            QString err;
+            if (!Openterface::GStreamer::GstHelpers::setPipelineStateWithTimeout(m_pipeline, GST_STATE_NULL, 2000, &err)) {
+                qCWarning(log_gstreamer_backend) << "stopGStreamerPipeline: failed to set pipeline to NULL:" << err;
+                // Try a direct set as a last resort
+                gst_element_set_state(m_pipeline, GST_STATE_NULL);
+            }
         }
+        // Also clear cached overlay sink before unref'ing pipeline - do this unconditionally
+        if (m_currentOverlaySink) {
+            if (GST_IS_VIDEO_OVERLAY(m_currentOverlaySink))
+                gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(m_currentOverlaySink), 0);
+            if (GST_IS_OBJECT(m_currentOverlaySink)) gst_object_unref(m_currentOverlaySink);
+            m_currentOverlaySink = nullptr;
+            qCDebug(log_gstreamer_backend) << "Cleared cached overlay sink";
+        }
+        // Detach any frame probe we may have installed
+        detachFrameProbe();
         qCDebug(log_gstreamer_backend) << "GStreamer pipeline stopped";
     }
 #else
@@ -620,6 +657,8 @@ void GStreamerBackendHandler::onExternalRunnerStarted()
     qCDebug(log_gstreamer_backend) << "External GStreamer process started";
     m_pipelineRunning = true;
     m_healthCheckTimer->start(1000);
+    // For external runner we can't attach pad probes (no in-process pipeline). Reset buffers counter for logging.
+    m_frameCount.store(0, std::memory_order_relaxed);
     // Try to set up overlay when an external runner starts
     qCDebug(log_gstreamer_backend) << "Attempting overlay setup after external GStreamer runner started (sink:" << m_selectedSink << ")";
     setupVideoOverlayForCurrentPipeline();
@@ -789,10 +828,25 @@ void GStreamerBackendHandler::setupVideoOverlayForCurrentPipeline()
         else if (m_videoWidget) targetWidget = m_videoWidget;
 
     qCDebug(log_gstreamer_backend) << "Attempting overlay setup for pipeline with windowId:" << windowId << "targetWidget:" << targetWidget << "graphicsItem:" << m_graphicsVideoItem;
-    bool ok = Openterface::GStreamer::VideoOverlayManager::setupVideoOverlayForPipeline(m_pipeline, windowId, targetWidget, m_graphicsVideoItem);
+        bool ok = Openterface::GStreamer::VideoOverlayManager::setupVideoOverlayForPipeline(m_pipeline, windowId, targetWidget, m_graphicsVideoItem);
         if (ok) {
             m_overlaySetupPending = false;
             qCDebug(log_gstreamer_backend) << "Overlay setup completed for current pipeline";
+            // Cache the overlay sink for future render rectangle updates
+            GstElement* overlay = findOverlaySinkInPipeline();
+            if (overlay) {
+                // Replace previous cached overlay sink if any
+                if (m_currentOverlaySink && m_currentOverlaySink != overlay) {
+                    if (GST_IS_VIDEO_OVERLAY(m_currentOverlaySink)) {
+                        gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(m_currentOverlaySink), 0);
+                    }
+                    if (GST_IS_OBJECT(m_currentOverlaySink)) gst_object_unref(m_currentOverlaySink);
+                }
+                m_currentOverlaySink = overlay;
+                const GstElementFactory* f = gst_element_get_factory(overlay);
+                const gchar* name = f ? gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(f)) : "unknown";
+                qCDebug(log_gstreamer_backend) << "Cached overlay sink for pipeline:" << (name ? name : "unknown");
+            }
         } else {
             m_overlaySetupPending = true;
             qCWarning(log_gstreamer_backend) << "Failed to setup overlay for current pipeline - marking overlay as pending for retry";
@@ -812,6 +866,46 @@ void GStreamerBackendHandler::setupVideoOverlayForCurrentPipeline()
         qCWarning(log_gstreamer_backend) << "No valid window ID available for overlay setup";
         m_overlaySetupPending = true; // Retry later
     }
+}
+
+GstElement* GStreamerBackendHandler::findOverlaySinkInPipeline() const
+{
+    if (!m_pipeline) return nullptr;
+
+    GstElement* videoSink = gst_bin_get_by_name(GST_BIN(m_pipeline), "videosink");
+    GstElement* overlaySink = nullptr;
+    if (videoSink) {
+        if (GST_IS_VIDEO_OVERLAY(videoSink)) {
+            overlaySink = videoSink;
+        } else if (GST_IS_BIN(videoSink)) {
+            GstIterator* iter = gst_bin_iterate_sinks(GST_BIN(videoSink));
+            GValue item = G_VALUE_INIT;
+            while (gst_iterator_next(iter, &item) == GST_ITERATOR_OK) {
+                GstElement* childSink = GST_ELEMENT(g_value_get_object(&item));
+                if (childSink && GST_IS_VIDEO_OVERLAY(childSink)) {
+                    overlaySink = childSink;
+                    g_value_unset(&item);
+                    break;
+                }
+                g_value_unset(&item);
+            }
+            gst_iterator_free(iter);
+        }
+    }
+
+    if (!overlaySink) {
+        overlaySink = gst_bin_get_by_interface(GST_BIN(m_pipeline), GST_TYPE_VIDEO_OVERLAY);
+    }
+
+    if (!overlaySink) {
+        // Return a reference to the element
+        overlaySink = gst_bin_get_by_interface(GST_BIN(m_pipeline), GST_TYPE_VIDEO_OVERLAY);
+        if (videoSink && overlaySink != videoSink) gst_object_unref(videoSink);
+        return overlaySink;
+    }
+
+    if (videoSink) gst_object_unref(videoSink);
+    return nullptr;
 }
 
 void GStreamerBackendHandler::refreshVideoOverlay()
@@ -1006,14 +1100,15 @@ bool GStreamerBackendHandler::isValidWindowId(WId windowId) const
             // Check if the window exists
             XWindowAttributes attrs;
             int result = XGetWindowAttributes(display, static_cast<Window>(windowId), &attrs);
-            XCloseDisplay(display);
             
             if (result == 0) {
                 qCWarning(log_gstreamer_backend) << "Window ID" << windowId << "is not a valid X11 window";
+                if (display) XCloseDisplay(display);
                 return false;
             }
-            
+
             qCDebug(log_gstreamer_backend) << "Window ID" << windowId << "validated successfully (X11)";
+            if (display) XCloseDisplay(display);
             return true;
             
         } catch (...) {
@@ -1073,6 +1168,9 @@ void GStreamerBackendHandler::checkPipelineHealth()
             qCDebug(log_gstreamer_backend) << "GStreamer pipeline state change in progress (ASYNC), current state:" << state;
         } else if (ret == GST_STATE_CHANGE_SUCCESS && state == GST_STATE_PLAYING) {
             qCDebug(log_gstreamer_backend) << "GStreamer pipeline health check: OK (PLAYING)";
+            // Log realtime FPS measured via pad probe (frames counted since last health check tick)
+            quint64 framesSinceLast = m_frameCount.exchange(0, std::memory_order_relaxed);
+            qCDebug(log_gstreamer_backend) << "Realtime GStreamer FPS (last interval):" << framesSinceLast;
         }
     }
 #else
@@ -1222,7 +1320,23 @@ void GStreamerBackendHandler::cleanupGStreamer()
     qCDebug(log_gstreamer_backend) << "cleanupGStreamer invoked";
 #ifdef HAVE_GSTREAMER
     if (m_pipeline) {
+        // Detach any frame probe attached to this pipeline
+        detachFrameProbe();
+        // Clear any overlay sink cached
+        if (m_currentOverlaySink) {
+            if (GST_IS_VIDEO_OVERLAY(m_currentOverlaySink))
+                gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(m_currentOverlaySink), 0);
+            if (GST_IS_OBJECT(m_currentOverlaySink)) gst_object_unref(m_currentOverlaySink);
+            m_currentOverlaySink = nullptr;
+            qCDebug(log_gstreamer_backend) << "Cleared cached overlay sink";
+        }
         gst_element_set_state(m_pipeline, GST_STATE_NULL);
+        // Wait for pipeline to reach NULL to avoid unreffing elements while still PLAYING
+        GstState state, pending;
+        gst_element_get_state(m_pipeline, &state, &pending, 2000 * GST_MSECOND);
+        if (state != GST_STATE_NULL) {
+            qCWarning(log_gstreamer_backend) << "cleanupGStreamer: pipeline did not reach NULL state in time";
+        }
         if (m_bus) {
             gst_bus_remove_signal_watch(m_bus);
             gst_object_unref(m_bus);
@@ -1269,19 +1383,151 @@ void GStreamerBackendHandler::updateVideoRenderRectangle(int x, int y, int width
     
     // Find the video sink element in the pipeline
     GstElement* videoSink = gst_bin_get_by_name(GST_BIN(m_pipeline), "videosink");
-    if (!videoSink) {
-        // Try to find any element that supports video overlay
-        videoSink = gst_bin_get_by_interface(GST_BIN(m_pipeline), GST_TYPE_VIDEO_OVERLAY);
+    GstElement* overlaySink = nullptr;
+
+    if (videoSink) {
+        // If the element itself supports overlay, use it directly
+        if (GST_IS_VIDEO_OVERLAY(videoSink)) {
+            overlaySink = videoSink;
+        } else if (GST_IS_BIN(videoSink)) {
+            // Some sinks like autovideosink are a bin; find overlay-capable child
+            GstIterator* iter = gst_bin_iterate_sinks(GST_BIN(videoSink));
+            GValue item = G_VALUE_INIT;
+            while (gst_iterator_next(iter, &item) == GST_ITERATOR_OK) {
+                GstElement* childSink = GST_ELEMENT(g_value_get_object(&item));
+                if (childSink && GST_IS_VIDEO_OVERLAY(childSink)) {
+                    overlaySink = childSink;
+                    g_value_unset(&item);
+                    break;
+                }
+                g_value_unset(&item);
+            }
+            gst_iterator_free(iter);
+        }
     }
-    
-    if (videoSink && GST_IS_VIDEO_OVERLAY(videoSink)) {
-        gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(videoSink), x, y, width, height);
+
+    if (!overlaySink) {
+        // Fallback: find any overlay-capable element in pipeline
+        overlaySink = gst_bin_get_by_interface(GST_BIN(m_pipeline), GST_TYPE_VIDEO_OVERLAY);
+        if (!overlaySink) {
+            // Try iterating all elements to find any which implements the overlay interface
+            GstIterator* iter = gst_bin_iterate_elements(GST_BIN(m_pipeline));
+            GValue val = G_VALUE_INIT;
+            while (gst_iterator_next(iter, &val) == GST_ITERATOR_OK) {
+                GstElement* el = GST_ELEMENT(g_value_get_object(&val));
+                if (el && GST_IS_VIDEO_OVERLAY(el)) {
+                    overlaySink = el;
+                    g_value_unset(&val);
+                    break;
+                }
+                g_value_unset(&val);
+            }
+            gst_iterator_free(iter);
+        }
+    }
+
+    if (m_currentOverlaySink) {
+        // Prefer cached overlay sink if present
+        overlaySink = m_currentOverlaySink;
+    }
+
+    if (m_currentOverlaySink && GST_IS_VIDEO_OVERLAY(m_currentOverlaySink)) {
+        overlaySink = m_currentOverlaySink;
+    }
+
+    if (!overlaySink) {
+        overlaySink = gst_bin_get_by_interface(GST_BIN(m_pipeline), GST_TYPE_VIDEO_OVERLAY);
+    }
+
+    if (overlaySink && GST_IS_VIDEO_OVERLAY(overlaySink)) {
+        gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(overlaySink), x, y, width, height);
+        // Force sink to re-render if supported, improving responsiveness to rectangle updates
+        gst_video_overlay_expose(GST_VIDEO_OVERLAY(overlaySink));
         qCDebug(log_gstreamer_backend) << "Updated render rectangle to:" << x << y << width << height;
-        gst_object_unref(videoSink);
+        // If overlaySink is different from videoSink (child), unref both appropriately
+        if (overlaySink != videoSink && overlaySink != m_currentOverlaySink) gst_object_unref(overlaySink);
+        if (videoSink) gst_object_unref(videoSink);
     } else {
         qCWarning(log_gstreamer_backend) << "Cannot update render rectangle: video sink not found or doesn't support overlay";
+        if (videoSink) gst_object_unref(videoSink);
     }
 }
+
+// Frame probe management (only when building with GStreamer)
+#ifdef HAVE_GSTREAMER
+void GStreamerBackendHandler::attachFrameProbe()
+{
+    if (!m_pipeline) return;
+
+    // Ensure we don't attach twice
+    if (m_frameProbePad && m_frameProbeId) return;
+
+    GstPad* sinkPad = nullptr;
+    GstElement* q = gst_bin_get_by_name(GST_BIN(m_pipeline), "display-queue");
+    if (q) {
+        sinkPad = gst_element_get_static_pad(q, "src");
+        gst_object_unref(q);
+    }
+
+    GstElement* videoSink = nullptr;
+    if (!sinkPad) {
+        videoSink = gst_bin_get_by_name(GST_BIN(m_pipeline), "videosink");
+        if (!videoSink) {
+            // Try to find any element that supports video overlay as a fallback
+            videoSink = gst_bin_get_by_interface(GST_BIN(m_pipeline), GST_TYPE_VIDEO_OVERLAY);
+        }
+
+        if (!videoSink) {
+            qCWarning(log_gstreamer_backend) << "attachFrameProbe: videosink element not found in pipeline";
+            return;
+        }
+
+        sinkPad = gst_element_get_static_pad(videoSink, "sink");
+    }
+
+    if (!sinkPad) {
+        qCWarning(log_gstreamer_backend) << "attachFrameProbe: sink pad not found on videosink/display-queue";
+        if (videoSink) gst_object_unref(videoSink);
+        return;
+    }
+
+    // Keep a reference to the pad while probe is installed to avoid dangling pointers
+    gst_object_ref(sinkPad);
+    m_frameProbePad = sinkPad;
+    m_frameProbeId = gst_pad_add_probe(sinkPad, GST_PAD_PROBE_TYPE_BUFFER, (GstPadProbeCallback)GStreamerBackendHandler::gstreamer_frame_probe_cb, this, nullptr);
+    if (m_frameProbeId == 0) {
+        qCWarning(log_gstreamer_backend) << "attachFrameProbe: failed to add pad probe";
+        gst_object_unref(m_frameProbePad);
+        m_frameProbePad = nullptr;
+    } else {
+        qCDebug(log_gstreamer_backend) << "attachFrameProbe: Pad probe added for realtime FPS counting";
+    }
+
+    if (videoSink) gst_object_unref(videoSink);
+}
+
+void GStreamerBackendHandler::detachFrameProbe()
+{
+    if (!m_frameProbePad) return;
+    if (m_frameProbeId) {
+        gst_pad_remove_probe(m_frameProbePad, m_frameProbeId);
+        m_frameProbeId = 0;
+    }
+    gst_object_unref(m_frameProbePad);
+    m_frameProbePad = nullptr;
+    qCDebug(log_gstreamer_backend) << "detachFrameProbe: pad probe removed";
+}
+#endif
+
+// No-op fallback if HAVE_GSTREAMER is not defined
+#ifdef HAVE_GSTREAMER
+void GStreamerBackendHandler::incrementFrameCount()
+{
+    m_frameCount.fetch_add(1, std::memory_order_relaxed);
+}
+#else
+void GStreamerBackendHandler::incrementFrameCount() { Q_UNUSED(this); }
+#endif
 
 // ============================================================================
 // Video Recording Implementation

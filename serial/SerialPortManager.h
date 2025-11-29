@@ -193,7 +193,8 @@ private:
     QSerialPort *serialPort;
 
     void sendCommand(const QByteArray &command, bool waitForAck);
-
+    QByteArray collectSyncResponse(int totalTimeoutMs = 1000, int waitStepMs = 100);
+    
     // Refactored helper methods for onSerialPortConnected
     int determineBaudrate() const;
     bool openPortWithRetries(const QString &portName, int tryBaudrate);

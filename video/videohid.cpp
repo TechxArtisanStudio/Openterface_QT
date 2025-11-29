@@ -6,6 +6,8 @@
 #include <QThread>
 #include <QLoggingCategory>
 #include <QRegularExpression>
+#include <QFile>
+#include <QFileInfo>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -66,7 +68,7 @@ void VideoHid::detectChipType() {
     QString devicePath = m_currentHIDDevicePath;
     qCDebug(log_host_hid) << "Detecting chip type from device path:" << devicePath;
     qCDebug(log_host_hid) << "Current port chain:" << m_currentHIDPortChain;
-    
+
     // We need to check both hidDevicePath and DeviceInfo's VID/PID since different platforms
     // format the device path differently. On some systems the VID/PID might not be in the path.
     
@@ -74,7 +76,8 @@ void VideoHid::detectChipType() {
     bool isMS2109 = false;
     
     // We'll rely on the device path instead of trying to access protected VID/PIDs
-    
+    // On Windows: rely on the path /VID_/PID_ tokens (device path already often contains them)
+    #ifdef _WIN32
     // Look for MS2130S identifiers (VID: 345F, PID: 2132)
     if (devicePath.contains("345F", Qt::CaseInsensitive) && 
         devicePath.contains("2132", Qt::CaseInsensitive)) {
@@ -98,6 +101,76 @@ void VideoHid::detectChipType() {
         isMS2109 = true;
         qCDebug(log_host_hid) << "Detected MS2109 chipset from Windows-style path";
     }
+    #elif defined(__linux__)
+    // On Linux: we may have /dev/hidrawX paths. Use sysfs to find idVendor/idProduct.
+    {
+        QString devPath(devicePath);
+        // Extract hidraw device name if full path provided
+        QString hidrawName = devPath;
+        if (hidrawName.startsWith("/dev/")) {
+            hidrawName = QFileInfo(hidrawName).fileName();
+        }
+
+        QString sysDevicePath = QString("/sys/class/hidraw/%1/device").arg(hidrawName);
+        QFileInfo fi(sysDevicePath);
+        QString resolvedPath = fi.canonicalFilePath();
+        if (resolvedPath.isEmpty()) {
+            resolvedPath = sysDevicePath; // fallback
+        }
+
+        // Walk up the device tree to find idVendor/idProduct files
+        QString curPath = resolvedPath;
+        int up = 0;
+        while (!curPath.isEmpty() && up < 6) {
+            QString idVendorPath = curPath + "/idVendor";
+            QString idProductPath = curPath + "/idProduct";
+            if (QFile::exists(idVendorPath) && QFile::exists(idProductPath)) {
+                QString vidStr, pidStr;
+                QFile vfile(idVendorPath), pfile(idProductPath);
+                if (vfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    vidStr = QString::fromUtf8(vfile.readAll()).trimmed();
+                    vfile.close();
+                }
+                if (pfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                    pidStr = QString::fromUtf8(pfile.readAll()).trimmed();
+                    pfile.close();
+                }
+
+                // Normalize hex strings (remove 0x and uppercase)
+                vidStr = vidStr.remove("0x", Qt::CaseInsensitive).trimmed().toUpper();
+                pidStr = pidStr.remove("0x", Qt::CaseInsensitive).trimmed().toUpper();
+
+                if (vidStr == QStringLiteral("345F") && pidStr == QStringLiteral("2132")) {
+                    isMS2130S = true;
+                    qCDebug(log_host_hid) << "Detected MS2130S chipset from hidraw sysfs (VID:345F PID:2132)";
+                    break;
+                } else if (vidStr == QStringLiteral("534D") && pidStr == QStringLiteral("2109")) {
+                    isMS2109 = true;
+                    qCDebug(log_host_hid) << "Detected MS2109 chipset from hidraw sysfs (VID:534D PID:2109)";
+                    break;
+                } else {
+                    qCDebug(log_host_hid) << "HID sysfs vendor/product read:" << vidStr << pidStr << "(no match)";
+                }
+            }
+            // Move to parent directory and continue searching
+            QFileInfo cfi(curPath);
+            QString parent = cfi.dir().path();
+            if (parent == curPath || parent.isEmpty()) break;
+            curPath = parent;
+            ++up;
+        }
+        // If nothing found via sysfs, also consider matching the original device path content
+        if (!isMS2130S && !isMS2109) {
+            if (devicePath.contains("345F", Qt::CaseInsensitive) && devicePath.contains("2132", Qt::CaseInsensitive)) {
+                isMS2130S = true;
+                qCDebug(log_host_hid) << "Detected MS2130S chipset from path (fallback)";
+            } else if (devicePath.contains("534D", Qt::CaseInsensitive) && devicePath.contains("2109", Qt::CaseInsensitive)) {
+                isMS2109 = true;
+                qCDebug(log_host_hid) << "Detected MS2109 chipset from path (fallback)";
+            }
+        }
+    }
+    #endif
     
     if (isMS2130S) {
         m_chipType = VideoChipType::MS2130S;
@@ -125,6 +198,8 @@ void VideoHid::detectChipType() {
 
 // Update the start method to keep HID device continuously open
 void VideoHid::start() {
+    qCDebug(log_host_hid) << "Starting VideoHid monitoring...";
+
     // Prevent multiple starts
     if (timer) {
         qCDebug(log_host_hid) << "VideoHid already started, ignoring duplicate start call";
@@ -150,7 +225,7 @@ void VideoHid::start() {
     }
     
     std::string captureCardFirmwareVersion = getFirmwareVersion();
-    qCDebug(log_host_hid) << "MS2109 firmware VERSION:" << QString::fromStdString(captureCardFirmwareVersion);    //firmware VERSION
+    qCDebug(log_host_hid) << "Firmware VERSION:" << QString::fromStdString(captureCardFirmwareVersion);    //firmware VERSION
     
     GlobalVar::instance().setCaptureCardFirmwareVersion(captureCardFirmwareVersion);
     isHardSwitchOnTarget = getSpdifout();
@@ -231,58 +306,27 @@ void VideoHid::start() {
                     }
                     
                     // Get resolution-related information using the appropriate registers
-                    qCDebug(log_host_hid) << "Reading width_h from address:" << QString("0x%1").arg(width_h_addr, 4, 16, QChar('0'));
                     quint8 width_h = safeRead(width_h_addr);
-                    qCDebug(log_host_hid) << "Width high byte raw value:" << width_h << "(" << QString("0x%1").arg(width_h, 2, 16, QChar('0')) << ")";
-                    
-                    qCDebug(log_host_hid) << "Reading width_l from address:" << QString("0x%1").arg(width_l_addr, 4, 16, QChar('0'));
                     quint8 width_l = safeRead(width_l_addr);
-                    qCDebug(log_host_hid) << "Width low byte raw value:" << width_l << "(" << QString("0x%1").arg(width_l, 2, 16, QChar('0')) << ")";
                     quint16 width = (width_h << 8) + width_l;
                     
-                    qCDebug(log_host_hid) << "Reading height_h from address:" << QString("0x%1").arg(height_h_addr, 4, 16, QChar('0'));
+
                     quint8 height_h = safeRead(height_h_addr);
-                    qCDebug(log_host_hid) << "Height high byte raw value:" << height_h << "(" << QString("0x%1").arg(height_h, 2, 16, QChar('0')) << ")";
-                    
-                    qCDebug(log_host_hid) << "Reading height_l from address:" << QString("0x%1").arg(height_l_addr, 4, 16, QChar('0'));
                     quint8 height_l = safeRead(height_l_addr);
-                    qCDebug(log_host_hid) << "Height low byte raw value:" << height_l << "(" << QString("0x%1").arg(height_l, 2, 16, QChar('0')) << ")";
                     quint16 height = (height_h << 8) + height_l;
                     
-                    qCDebug(log_host_hid) << "Reading fps_h from address:" << QString("0x%1").arg(fps_h_addr, 4, 16, QChar('0'));
                     quint8 fps_h = safeRead(fps_h_addr);
-                    qCDebug(log_host_hid) << "FPS high byte raw value:" << fps_h << "(" << QString("0x%1").arg(fps_h, 2, 16, QChar('0')) << ")";
-                    
-                    qCDebug(log_host_hid) << "Reading fps_l from address:" << QString("0x%1").arg(fps_l_addr, 4, 16, QChar('0'));
                     quint8 fps_l = safeRead(fps_l_addr);
-                    qCDebug(log_host_hid) << "FPS low byte raw value:" << fps_l << "(" << QString("0x%1").arg(fps_l, 2, 16, QChar('0')) << ")";
                     quint16 fps_raw = (fps_h << 8) + fps_l;
                     float fps = static_cast<float>(fps_raw) / 100;
                     
-                    qCDebug(log_host_hid) << "Reading pixel clock high byte from address:" << QString("0x%1").arg(clk_h_addr, 4, 16, QChar('0'));
                     quint8 clk_h = safeRead(clk_h_addr);
-                    qCDebug(log_host_hid) << "Pixel clock high byte raw value:" << clk_h << "(" << QString("0x%1").arg(clk_h, 2, 16, QChar('0')) << ")";
-                    
-                    qCDebug(log_host_hid) << "Reading pixel clock low byte from address:" << QString("0x%1").arg(clk_l_addr, 4, 16, QChar('0'));
                     quint8 clk_l = safeRead(clk_l_addr);
-                    qCDebug(log_host_hid) << "Pixel clock low byte raw value:" << clk_l << "(" << QString("0x%1").arg(clk_l, 2, 16, QChar('0')) << ")";
                     quint16 clk_raw = (clk_h << 8) + clk_l;
                     float pixclk = clk_raw / 100.0;
                     
                     // Enhanced logging with register addresses and calculations
                     if (m_chipType == VideoChipType::MS2130S) {
-                        qCDebug(log_host_hid) << "MS2130S Resolution Calculation:";
-                        qCDebug(log_host_hid) << "  Width = (width_h << 8) + width_l = (" 
-                                             << width_h << " << 8) + " << width_l << " = " << width;
-                        qCDebug(log_host_hid) << "  Height = (height_h << 8) + height_l = (" 
-                                             << height_h << " << 8) + " << height_l << " = " << height;
-                        qCDebug(log_host_hid) << "  FPS raw = (fps_h << 8) + fps_l = (" 
-                                             << fps_h << " << 8) + " << fps_l << " = " << fps_raw;
-                        qCDebug(log_host_hid) << "  FPS = fps_raw / 100 = " << fps_raw << " / 100 = " << fps;
-                        qCDebug(log_host_hid) << "  Pixel Clock raw = (clk_h << 8) + clk_l = (" 
-                                             << clk_h << " << 8) + " << clk_l << " = " << clk_raw;
-                        qCDebug(log_host_hid) << "  Pixel Clock = clk_raw / 100 = " << clk_raw << " / 100 = " << pixclk << " MHz";
-                        
                         qCDebug(log_host_hid) << "MS2130S Read resolution:" << width << "x" << height 
                             << ", FPS:" << fps << ", PixelClk:" << pixclk << " MHz"
                             << " (From registers: width=" << QString::number(width_h_addr, 16).toUpper() << "/"
@@ -292,18 +336,6 @@ void VideoHid::start() {
                             << ", fps=" << QString::number(fps_h_addr, 16).toUpper() << "/"
                             << QString::number(fps_l_addr, 16).toUpper() << ")";
                     } else {
-                        qCDebug(log_host_hid) << "MS2109 Resolution Calculation:";
-                        qCDebug(log_host_hid) << "  Width = (width_h << 8) + width_l = (" 
-                                             << width_h << " << 8) + " << width_l << " = " << width;
-                        qCDebug(log_host_hid) << "  Height = (height_h << 8) + height_l = (" 
-                                             << height_h << " << 8) + " << height_l << " = " << height;
-                        qCDebug(log_host_hid) << "  FPS raw = (fps_h << 8) + fps_l = (" 
-                                             << fps_h << " << 8) + " << fps_l << " = " << fps_raw;
-                        qCDebug(log_host_hid) << "  FPS = fps_raw / 100 = " << fps_raw << " / 100 = " << fps;
-                        qCDebug(log_host_hid) << "  Pixel Clock raw = (clk_h << 8) + clk_l = (" 
-                                             << clk_h << " << 8) + " << clk_l << " = " << clk_raw;
-                        qCDebug(log_host_hid) << "  Pixel Clock = clk_raw / 100 = " << clk_raw << " / 100 = " << pixclk << " MHz";
-                        
                         qCDebug(log_host_hid) << "MS2109 Read resolution:" << width << "x" << height 
                             << ", FPS:" << fps << ", PixelClk:" << pixclk << " MHz"
                             << " (From registers: width=" << QString::number(width_h_addr, 16).toUpper() << "/"
@@ -895,9 +927,10 @@ void VideoHid::refreshHIDDevice() {
 
 QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
     // Different approaches for different chip types
-    qCDebug(log_host_hid) << "usbXdataRead4Byte called for address:" << QString("0x%1").arg(u16_address, 4, 16, QChar('0'))
-                         << "chip type:" << (m_chipType == VideoChipType::MS2109 ? "MS2109" : 
-                                           m_chipType == VideoChipType::MS2130S ? "MS2130S" : "Unknown");
+    qCDebug(log_host_hid).nospace().noquote() << QString("usbXdataRead4Byte called for address: 0x%1 chip type: %2")
+        .arg(QString::number(u16_address, 16).rightJustified(4, '0').toUpper())
+        .arg(m_chipType == VideoChipType::MS2109 ? "MS2109" :
+             m_chipType == VideoChipType::MS2130S ? "MS2130S" : "Unknown");
     auto result = (m_chipType == VideoChipType::MS2130S) ? usbXdataRead4ByteMS2130S(u16_address) : usbXdataRead4ByteMS2109(u16_address);
     
     // Normalize the result to have the data byte at position 0
@@ -1081,13 +1114,13 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4ByteMS2109(quint16 u16_address) {
     ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
     ctrlData[3] = static_cast<char>(u16_address & 0xFF);
     
-    qCDebug(log_host_hid) << "MS2109 reading from address:" << QString("0x%1").arg(u16_address, 4, 16, QChar('0'));
+    qCDebug(log_host_hid).nospace() << "MS2109 reading from address:" << QString("0x%1").arg(u16_address, 4, 16, QChar('0'));
     
     // 0: Some devices use report ID 0 to indicate that no specific report ID is used.
     if (this->sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size())) {
         if (this->getFeatureReport((uint8_t*)result.data(), result.size())) {
             QByteArray readResult = result.mid(4, 1);
-            qCDebug(log_host_hid) << "MS2109 read success from address:" << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
+            qCDebug(log_host_hid).nospace() << "MS2109 read success from address:" << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
                                  << "value:" << QString("0x%1").arg((quint8)readResult.at(0), 2, 16, QChar('0'));
             return qMakePair(readResult, true);
         }

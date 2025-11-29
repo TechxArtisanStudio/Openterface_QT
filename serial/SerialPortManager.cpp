@@ -507,7 +507,8 @@ ConfigResult SerialPortManager::sendAndProcessConfigCommand() {
             checkArmBaudratePerformance(serialPort->baudRate());
         }
     } else {
-        qCWarning(log_core_serial) << "The mode is incorrect, mode:" << config.mode << "expected:" << hostConfigMode;
+        qCWarning(log_core_serial).nospace() << "The mode is incorrect, mode: 0x" << QString::number(config.mode, 16)
+                       << ", expected: 0x" << QString::number(hostConfigMode, 16);
         if (isChipTypeCH32V208()) {
             qCWarning(log_core_serial) << "CH32V208 chip does not support mode reconfiguration via commands";
             result.success = true;  // Still successful, just mode is different
@@ -561,7 +562,6 @@ ConfigResult SerialPortManager::attemptBaudrateDetection() {
         closePort();
         openPort(portName, altBaudrate);
         QByteArray retByte = sendSyncCommand(CMD_GET_PARA_CFG, true);
-        qCDebug(log_core_serial) << "Data read from serial port with alternative baudrate: " << retByte.toHex(' ');
         if (retByte.size() > 0) {
             CmdDataParamConfig config = CmdDataParamConfig::fromByteArray(retByte);
             qCDebug(log_core_serial) << "Connected with baudrate: " << altBaudrate;
@@ -971,13 +971,22 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     }
     
     if (openResult) {
-        qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate;
+        serialPort->setReadBufferSize(4096);  // Set a larger read buffer size
+        qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate << "with read buffer size" << serialPort->readBufferSize();
         serialPort->setRequestToSend(false);
+
+        // Show existing buffer sizes before clearing them (read and write sizes)
+        qCDebug(log_core_serial) << "Serial buffer sizes before clear - bytesAvailable:" << serialPort->bytesAvailable()
+                                 << "bytesToWrite:" << serialPort->bytesToWrite();
 
         // Clear any stale data in the serial port buffers to prevent data corruption
         // This is critical when device is unplugged and replugged
         qCDebug(log_core_serial) << "Clearing serial port buffers to remove stale data";
         serialPort->clear(QSerialPort::AllDirections);
+
+        // Log buffer sizes after clearing to confirm the clear worked
+        qCDebug(log_core_serial) << "Serial buffer sizes after clear - bytesAvailable:" << serialPort->bytesAvailable()
+                                 << "bytesToWrite:" << serialPort->bytesToWrite();
         
         // Also clear our internal incomplete data buffer
         {
@@ -1024,8 +1033,10 @@ void SerialPortManager::closePort() {
     
     QMutexLocker locker(&m_serialPortMutex);
     
-    if (serialPort != nullptr) {
+        if (serialPort != nullptr) {
         if (serialPort->isOpen()) {
+            qCDebug(log_core_serial) << "Close serial port - current buffer sizes before flush/clear - bytesAvailable:" << serialPort->bytesAvailable()
+                                     << "bytesToWrite:" << serialPort->bytesToWrite();
             // Disconnect all signals first
             disconnect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
             disconnect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
@@ -1036,6 +1047,8 @@ void SerialPortManager::closePort() {
             try {
                 serialPort->flush();
                 serialPort->clear();
+                qCDebug(log_core_serial) << "Close serial port - buffer sizes after flush/clear - bytesAvailable:" << serialPort->bytesAvailable()
+                                         << "bytesToWrite:" << serialPort->bytesToWrite();
                 serialPort->clearError();
                 serialPort->close();
                 qCDebug(log_core_serial) << "Serial port closed successfully";
@@ -1143,7 +1156,7 @@ void SerialPortManager::readData() {
 
     qCDebug(log_core_serial) << "readData: Received raw data from serial port:" << data.toHex(' ');
 
-        // Prepend any buffered incomplete data from previous reads
+    // Prepend any buffered incomplete data from previous reads
     QByteArray completeData;
     {
         QMutexLocker bufferLocker(&m_bufferMutex);
@@ -1563,43 +1576,92 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
     emit dataSent(data);
     QByteArray command = data;
     
+    const int commandCode = static_cast<unsigned char>(data[3]);
+
+    serialPort->readAll(); // Clear any existing data in the buffer before sending command
     command.append(calculateChecksum(command));
-    qCDebug(log_core_serial) <<  "Check sum" << command.toHex(' ');
     writeData(command);
     
-    // Use signal-based approach instead of blocking wait
-    // The response will be handled by readData() signal handler
-    // For now, return empty array - calling code should use async signals
-    // This prevents UI blocking
-    
-    // DEPRECATED: This synchronous method should be refactored to use callbacks
-    // Temporarily keeping minimal blocking for backwards compatibility
-    QElapsedTimer timer;
-    timer.start();
-    QByteArray responseData;
-    
-    const int totalTimeoutMs = 1000;
-    const int waitStepMs = 100;
+    // Use new helper to wait for and collect the sync response
+    QByteArray responseData = collectSyncResponse(/* totalTimeoutMs = */ 1000, /* waitStepMs = */ 100);
 
-    while (timer.elapsed() < totalTimeoutMs && responseData.isEmpty()) {
-        if (serialPort->waitForReadyRead(waitStepMs)) {
-            responseData = serialPort->readAll();
-            QThread::msleep(40); // Add 40ms delay
-            // Try to get any remaining data without blocking
-            while (serialPort->bytesAvailable() > 0) {
-                responseData += serialPort->readAll();
-            }
-            if (!responseData.isEmpty()) {
-                emit dataReceived(responseData);
-                return responseData;
+    // verify response command code matches expected
+    if (responseData.size() >= 4) {
+        unsigned char respCmdCode = static_cast<unsigned char>(responseData[3]);
+        if (respCmdCode != (commandCode | 0x80)) {
+            qCWarning(log_core_serial).nospace().noquote() << "sendSyncCommand: Mismatched response command. Expected 0x" 
+                                       << QString::number(commandCode | 0x80, 16) << "but got 0x" 
+                                       << QString::number(respCmdCode, 16) << ". Response data:" << responseData.toHex(' ');
+
+            // Special case: if we got a previous get info response, keep receive until get the expected one or timeout
+            if(respCmdCode == 0x81 && commandCode == 0x88){
+                qCWarning(log_core_serial) << "sendSyncCommand: Received previous get info response from device, get the expected one or timeout.";
+                QElapsedTimer timer;
+                timer.start();
+                while(respCmdCode == 0x81 && timer.elapsed() < 1000){
+                    responseData = collectSyncResponse(/* totalTimeoutMs = */ 1000, /* waitStepMs = */ 100);
+                    if(responseData.size() < 4) break;
+                    respCmdCode = static_cast<unsigned char>(responseData[3]);
+                }
+            }else {
+                // Resend command again
+                writeData(command);
+                responseData = collectSyncResponse(/* totalTimeoutMs = */ 1000, /* waitStepMs = */ 100);
             }
         }
-        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 5);
+    } else {
+        qCWarning(log_core_serial) << "sendSyncCommand: Incomplete response data received. Size:" 
+                                   << responseData.size() << "Data:" << responseData.toHex(' ');
+        return QByteArray();
     }
-    
+
+    // Notify serial console of received data
+    if (!responseData.isEmpty()) {
+        emit dataReceived(responseData);
+        return responseData;
+    }
     return responseData;
 }
 
+QByteArray SerialPortManager::collectSyncResponse(int totalTimeoutMs, int waitStepMs)
+{
+    if (!serialPort || !serialPort->isOpen()) {
+        qCWarning(log_core_serial) << "collectSyncResponse: Serial port not open";
+        return QByteArray();
+    }
+
+    QElapsedTimer timer;
+    timer.start();
+    QByteArray responseData;
+
+    int expectedResponseLength = 6; // minimal header + checksum
+    const int MAX_ACCEPTABLE_PACKET = 4096;
+
+    while (timer.elapsed() < totalTimeoutMs && responseData.size() < expectedResponseLength) {
+        if (serialPort->waitForReadyRead(waitStepMs)) {
+            QByteArray chunk = serialPort->readAll();
+            if (!chunk.isEmpty()) {
+                responseData += chunk;
+                qCDebug(log_core_serial) << "collectSyncResponse: Read" << responseData.size() << "bytes:" << responseData.toHex(' ');
+
+                // If we already have at least the header, recompute expected length from response header
+                if (responseData.size() > 4) {
+                    int respLen = static_cast<unsigned char>(responseData[4]);
+                    int newExpected = respLen + 6; // payload + header.. + checksum
+                    // Sanity bounds to avoid pathological values
+                    if (newExpected >= 6 && newExpected <= MAX_ACCEPTABLE_PACKET && newExpected > expectedResponseLength) {
+                        expectedResponseLength = newExpected;
+                        qCDebug(log_core_serial) << "collectSyncResponse: Updated expected response length from header to" << expectedResponseLength;
+                    }
+                }
+            }
+        }
+        qCDebug(log_core_serial) << "collectSyncResponse: Elapsed time:" << timer.elapsed() << "ms, current response size:" << responseData.size();
+    }
+
+    qCDebug(log_core_serial) << "collectSyncResponse: Total response size after wait:" << responseData.size() << "Data:" << responseData.toHex(' ');
+    return responseData;
+}
 
 quint8 SerialPortManager::calculateChecksum(const QByteArray &data) {
     quint32 sum = 0;

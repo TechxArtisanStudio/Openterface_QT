@@ -32,6 +32,7 @@ QList<DeviceInfo> AbstractPlatformDeviceManager::getDevicesByPortChain(const QSt
 QList<DeviceInfo> AbstractPlatformDeviceManager::getDevicesByAnyPortChain(const QString& targetPortChain)
 {
     QList<DeviceInfo> allDevices = discoverDevices();
+    qDebug() << "There are" << allDevices.size() << " devices discovered in total.";
     return filterDevicesByAnyPortChain(allDevices, targetPortChain);
 }
 

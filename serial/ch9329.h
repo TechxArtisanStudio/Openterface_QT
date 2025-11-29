@@ -176,8 +176,7 @@ struct CmdDataParamConfig
             // Debugging: Print the parsed fields
             config.dump();
         } else {
-            qWarning(log_core_serial) << "Data size is too small to parse CmdDataParamConfig";
-            qWarning(log_core_serial) << data.size() <<  sizeof(CmdDataParamConfig);
+            qWarning(log_core_serial) << "Data size is too small to parse CmdDataParamConfig, expected size:" << sizeof(CmdDataParamConfig) << ", actual size:" << data.size();
         }
         return config;
     }

@@ -17,6 +17,7 @@
 // Chipset enumeration
 enum class VideoChipType {
     MS2109,
+    MS2109S,
     MS2130S,
     UNKNOWN
 };

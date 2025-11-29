@@ -173,8 +173,9 @@ bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, QW
 
             // Configure video sink for proper scaling and aspect ratio
             if (g_object_class_find_property(G_OBJECT_GET_CLASS(videoSink), "force-aspect-ratio")) {
-                g_object_set(videoSink, "force-aspect-ratio", TRUE, NULL);
-                qCDebug(log_gstreamer_backend) << "Enabled force-aspect-ratio on video sink";
+                // Allow the sink to stretch to the configured render rectangle so overlay scales to widget size
+                g_object_set(videoSink, "force-aspect-ratio", FALSE, NULL);
+                qCDebug(log_gstreamer_backend) << "Disabled force-aspect-ratio on video sink to allow fill scaling";
             }
 
             if (g_object_class_find_property(G_OBJECT_GET_CLASS(videoSink), "pixel-aspect-ratio")) {
@@ -243,7 +244,22 @@ bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, QW
                 if (actualSink && GST_IS_VIDEO_OVERLAY(actualSink)) {
                     qCDebug(log_gstreamer_backend) << "Found overlay-capable sink inside autovideosink";
                     gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(actualSink), windowId);
-                    gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(actualSink), 0, 0, -1, -1);
+                    // Use target widget size if available to set explicit render rectangle so scaling works
+                    if (videoWidget) {
+                        QSize widgetSize = videoWidget->size();
+                        if (widgetSize.width() > 0 && widgetSize.height() > 0) {
+                            gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(actualSink), 0, 0, widgetSize.width(), widgetSize.height());
+                            qCDebug(log_gstreamer_backend) << "Set render rectangle to widget size for autovideosink child sink:" << widgetSize;
+                            if (g_object_class_find_property(G_OBJECT_GET_CLASS(actualSink), "force-aspect-ratio")) {
+                                g_object_set(actualSink, "force-aspect-ratio", FALSE, NULL);
+                                qCDebug(log_gstreamer_backend) << "Disabled force-aspect-ratio on autovideosink child sink";
+                            }
+                        } else {
+                            gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(actualSink), 0, 0, -1, -1);
+                        }
+                    } else {
+                        gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(actualSink), 0, 0, -1, -1);
+                    }
                     gst_video_overlay_expose(GST_VIDEO_OVERLAY(actualSink));
                     g_value_unset(&item);
                     gst_iterator_free(iter);

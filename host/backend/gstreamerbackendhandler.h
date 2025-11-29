@@ -30,11 +30,12 @@
 #include <QTimer>
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
+#include <atomic>
 
 // Forward declarations for Qt types
-class QGraphicsVideoItem;
-class QGraphicsView;
-class VideoPane;
+#include "../../ui/videopane.h"
+#include <QGraphicsView>
+#include <QGraphicsVideoItem>
 
 // Forward declarations for GStreamer types - now properly defined via includes above
 // typedef struct _GstElement GstElement;
@@ -94,6 +95,9 @@ public:
     // Video scaling and render rectangle configuration
     void updateVideoRenderRectangle(const QSize& widgetSize);
     void updateVideoRenderRectangle(int x, int y, int width, int height);
+
+    // Called by pad probe to increment the internal frame counter (thread-safe)
+    void incrementFrameCount();
     
     // Pipeline string generation
     QString generatePipelineString(const QString& device, const QSize& resolution, int framerate, const QString& videoSink) const;
@@ -189,6 +193,10 @@ private:
     
     // Overlay setup state
     bool m_overlaySetupPending;
+    // Cached overlay sink pointer (refcount held while pipeline running)
+#ifdef HAVE_GSTREAMER
+    GstElement* m_currentOverlaySink{nullptr};
+#endif
     
     // Recording state (kept for compatibility during refactor)
     bool m_recordingActive;
@@ -238,6 +246,7 @@ private:
     bool setupVideoOverlay(GstElement* videoSink, WId windowId);
     void setupVideoOverlayForCurrentPipeline();
     void refreshVideoOverlay();
+    GstElement* findOverlaySinkInPipeline() const;
     
     // Window validation for overlay setup
     bool isValidWindowId(WId windowId) const;
@@ -249,6 +258,18 @@ private:
     bool createSeparateRecordingPipeline(const QString& outputPath, const QString& format, int videoBitrate);
     bool initializeDirectFilesinkRecording();
     // Recording samples are handled by RecordingManager when GStreamer is available
+    // FPS probe members
+    std::atomic<quint64> m_frameCount{0};
+#ifdef HAVE_GSTREAMER
+    GstPad* m_frameProbePad{nullptr};
+    guint m_frameProbeId{0};
+    // GstPad probe callback (static so it can be passed to C API without instance)
+    static GstPadProbeReturn gstreamer_frame_probe_cb(GstPad* pad, GstPadProbeInfo* info, gpointer user_data);
+#endif
+
+    // Add helpers to manage frame probe
+    void attachFrameProbe();
+    void detachFrameProbe();
 };
 
 #endif // GSTREAMERBACKENDHANDLER_H
