@@ -82,6 +82,7 @@ void DeviceCoordinator::setupDeviceMenu()
 
 void DeviceCoordinator::updateDeviceMenu()
 {
+    qCDebug(log_ui_devicecoordinator) << "Updating device menu";
     if (!m_deviceMenuGroup || !m_deviceMenu) {
         qCWarning(log_ui_devicecoordinator) << "Device menu or action group not initialized";
         return;
