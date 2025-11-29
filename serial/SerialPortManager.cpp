@@ -1168,8 +1168,6 @@ void SerialPortManager::readData() {
         return;
     }
     
-    qCDebug(log_core_serial) << "readData: Called, reading data from serial port";
-    
     QByteArray data;
     try {
         data = serialPort->readAll();
@@ -1475,7 +1473,7 @@ bool SerialPortManager::writeData(const QByteArray &data) {
     }
 
     try {
-    qint64 bytesWritten = serialPort->write(data);
+        qint64 bytesWritten = serialPort->write(data);
         if (bytesWritten == -1) {
             qCWarning(log_core_serial) << "Failed to write data to serial port:" << serialPort->errorString();
             m_consecutiveErrors++;
@@ -1486,60 +1484,60 @@ bool SerialPortManager::writeData(const QByteArray &data) {
             return false;
         }
         
-    // Ensure data is flushed to OS driver and wait for kernel write completion
-    serialPort->flush();
-    bool waitOk = false;
+        // Ensure data is flushed to OS driver and wait for kernel write completion
+        serialPort->flush();
+        bool waitOk = false;
 
-    // If nothing left to write, succeed immediately
-    if (serialPort->bytesToWrite() == 0) {
-        waitOk = true;
-    } else {
-        // Use a QEventLoop and signal-based waiting instead of waitForBytesWritten
-        // This avoids platform-specific deadlocks and gives us a reliable timeout.
-        QEventLoop loop;
-        QTimer timeoutTimer;
-        timeoutTimer.setSingleShot(true);
-        const int writeTimeoutMs = 1000; // 1s timeout for kernel write completion
+        // If nothing left to write, succeed immediately
+        if (serialPort->bytesToWrite() == 0) {
+            waitOk = true;
+        } else {
+            // Use a QEventLoop and signal-based waiting instead of waitForBytesWritten
+            // This avoids platform-specific deadlocks and gives us a reliable timeout.
+            QEventLoop loop;
+            QTimer timeoutTimer;
+            timeoutTimer.setSingleShot(true);
+            const int writeTimeoutMs = 1000; // 1s timeout for kernel write completion
 
-        bool timedOut = false;
-        bool writeError = false;
+            bool timedOut = false;
+            bool writeError = false;
 
-        timeoutTimer.start(writeTimeoutMs);
+            timeoutTimer.start(writeTimeoutMs);
 
-        QMetaObject::Connection connWrite = connect(serialPort, &QSerialPort::bytesWritten, &loop, [&](qint64){
-            // Break out if all data has been written
-            if (serialPort->bytesToWrite() == 0) {
+            QMetaObject::Connection connWrite = connect(serialPort, &QSerialPort::bytesWritten, &loop, [&](qint64){
+                // Break out if all data has been written
+                if (serialPort->bytesToWrite() == 0) {
+                    loop.quit();
+                }
+            });
+            QMetaObject::Connection connErr = connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred), &loop, [&](QSerialPort::SerialPortError err){
+                Q_UNUSED(err);
+                writeError = true;
                 loop.quit();
-            }
-        });
-        QMetaObject::Connection connErr = connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred), &loop, [&](QSerialPort::SerialPortError err){
-            Q_UNUSED(err);
-            writeError = true;
-            loop.quit();
-        });
-        QMetaObject::Connection connTimeout = connect(&timeoutTimer, &QTimer::timeout, &loop, [&](){
-            timedOut = true;
-            loop.quit();
-        });
+            });
+            QMetaObject::Connection connTimeout = connect(&timeoutTimer, &QTimer::timeout, &loop, [&](){
+                timedOut = true;
+                loop.quit();
+            });
 
-        // Run nested event loop until bytesWritten or timeout or error triggers exit
-        loop.exec();
+            // Run nested event loop until bytesWritten or timeout or error triggers exit
+            loop.exec();
 
-        // Disconnect the temporary connections
-        disconnect(connWrite);
-        disconnect(connErr);
-        disconnect(connTimeout);
+            // Disconnect the temporary connections
+            disconnect(connWrite);
+            disconnect(connErr);
+            disconnect(connTimeout);
 
-        waitOk = (!timedOut && !writeError && serialPort->bytesToWrite() == 0);
-    }
+            waitOk = (!timedOut && !writeError && serialPort->bytesToWrite() == 0);
+        }
 
-    qCDebug(log_core_serial) << "writeData: bytesWritten=" << bytesWritten << "writeWaitOk=" << waitOk
-             << "bytesToWrite(after):" << serialPort->bytesToWrite()
-             << "bytesAvailable(after):" << serialPort->bytesAvailable();
+        qCDebug(log_core_serial) << "writeData: bytesWritten=" << bytesWritten << "writeWaitOk=" << waitOk
+                << "bytesToWrite(after):" << serialPort->bytesToWrite()
+                << "bytesAvailable(after):" << serialPort->bytesAvailable();
 
-    qCDebug(log_core_serial) << "Data written to serial port:" << serialPort->portName()
-                     << "baudrate:" << serialPort->baudRate() << ":" << data.toHex(' ');
-        
+        qCDebug(log_core_serial) << "Data written to serial port:" << serialPort->portName()
+                        << "baudrate:" << serialPort->baudRate() << ":" << data.toHex(' ');
+            
         if (!waitOk) {
             qCWarning(log_core_serial) << "writeData: write did not finish within timeout or error occurred; bytesToWrite:" 
                                        << (serialPort ? serialPort->bytesToWrite() : -1) 
@@ -1619,7 +1617,7 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
         unsigned char respCmdCode = static_cast<unsigned char>(responseData[3]);
         if (respCmdCode != (commandCode | 0x80)) {
             qCWarning(log_core_serial).nospace().noquote() << "sendSyncCommand: Mismatched response command. Expected 0x" 
-                                       << QString::number(commandCode | 0x80, 16) << "but got 0x" 
+                                       << QString::number(commandCode | 0x80, 16) << ", but got 0x" 
                                        << QString::number(respCmdCode, 16) << ". Response data:" << responseData.toHex(' ');
 
             // Special case: if we got a previous get info response, keep receive until get the expected one or timeout
@@ -1962,27 +1960,14 @@ bool SerialPortManager::setBaudRate(int baudRate) {
 void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
     qCDebug(log_core_serial) << "User manually selected baudrate:" << baudRate;
     
-    // Check if this is an CH32V208 chip (only supports 115200)
-    if (serialPort && serialPort->isOpen()) {
-        QString portName = serialPort->portName();
-        QList<QSerialPortInfo> availablePorts = QSerialPortInfo::availablePorts();
-        for (const QSerialPortInfo &portInfo : availablePorts) {
-            if (portName.indexOf(portInfo.portName())>=0) {
-                QString vid = QString("%1").arg(portInfo.vendorIdentifier(), 4, 16, QChar('0')).toUpper();
-                QString pid = QString("%1").arg(portInfo.productIdentifier(), 4, 16, QChar('0')).toUpper();
-                
-                uint32_t detectedVidPid = (vid.toUInt(nullptr, 16) << 16) | pid.toUInt(nullptr, 16);
-                if (detectedVidPid == static_cast<uint32_t>(ChipType::CH32V208)) {
-                    if (baudRate != BAUDRATE_HIGHSPEED) {
-                        qCWarning(log_core_serial) << "CH32V208 chip only supports 115200 baudrate. Ignoring user request for" << baudRate;
-                        if (eventCallback) {
-                            eventCallback->onStatusUpdate("CH32V208 chip only supports 115200 baudrate");
-                        }
-                        return;
-                    }
-                }
-                break;
+    // If we already know the chip type, prefer that check rather than re-detecting using VID/PID
+    if (serialPort && serialPort->isOpen() && isChipTypeCH32V208()) {
+        if (baudRate != BAUDRATE_HIGHSPEED) {
+            qCWarning(log_core_serial) << "CH32V208 chip only supports 115200 baudrate. Ignoring user request for" << baudRate;
+            if (eventCallback) {
+                eventCallback->onStatusUpdate("CH32V208 chip only supports 115200 baudrate");
             }
+            return;
         }
     }
     
@@ -2465,8 +2450,12 @@ void SerialPortManager::applyCommandBasedBaudrateChange(int baudRate, const QStr
     }
     command[5] = mode; 
     command.append(CMD_SET_PARA_CFG_MID);
-    sendAsyncCommand(command, true);
-    bool success = sendResetCommand() && setBaudRate(baudRate) && restartPort();
+    sendSyncCommand(command, true);
+    bool success = sendResetCommand();
+    QThread::msleep(500);
+    success = success && setBaudRate(baudRate);
+    QThread::msleep(500);
+    success = success && restartPort();
     if (success) {
         qCInfo(log_core_serial) << logPrefix << "applied successfully:" << baudRate;
     } else {

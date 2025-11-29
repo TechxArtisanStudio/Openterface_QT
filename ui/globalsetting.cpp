@@ -60,12 +60,12 @@ void GlobalSetting::getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool 
     HID = m_settings.value("filter/HID", true).toBool();
 }
 
-void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device, bool backend)
+void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host, bool device, bool backend)
 {
     m_settings.setValue("log/core", core);
     m_settings.setValue("log/serial", serial);
     m_settings.setValue("log/ui", ui);
-    m_settings.setValue("log/hostLayout", hostLayout);
+    m_settings.setValue("log/host", host);
     m_settings.setValue("log/device", device);
     m_settings.setValue("log/backend", backend); 
 }

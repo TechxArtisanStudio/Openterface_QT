@@ -165,7 +165,7 @@
 <context>
     <name>DeviceCoordinator</name>
     <message>
-        <location filename="../../ui/coordinator/devicecoordinator.cpp" line="106"/>
+        <location filename="../../ui/coordinator/devicecoordinator.cpp" line="107"/>
         <source>No devices available</source>
         <translation type="unfinished"></translation>
     </message>

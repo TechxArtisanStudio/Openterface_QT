@@ -129,6 +129,7 @@ signals:
     void cameraDeviceSwitchComplete(const QString& device);
     void availableCameraDevicesChanged(int deviceCount);
     void newDeviceAutoConnected(const QCameraDevice& device, const QString& portChain);
+    void fpsChanged(double fps);
     
 public slots:
     // Note: Automatic device coordination slots have been removed

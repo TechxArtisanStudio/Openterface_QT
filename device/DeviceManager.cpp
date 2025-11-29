@@ -11,6 +11,7 @@
 #include "../host/audiomanager.h"
 #include <QMutexLocker>
 #include <QtConcurrent>
+#include <QtSerialPort/QSerialPortInfo>
 
 Q_LOGGING_CATEGORY(log_device_manager, "opf.device.manager")
 
@@ -199,6 +200,7 @@ DeviceInfo DeviceManager::selectDeviceByPortChain(const QString& portChain)
 
 DeviceInfo DeviceManager::getFirstAvailableDevice()
 {
+    qCDebug(log_device_manager) << "Getting first available device...";
     QList<DeviceInfo> devices = discoverDevices();
     if (!devices.isEmpty()) {
         m_selectedDevice = devices.first();
@@ -341,6 +343,12 @@ void DeviceManager::startHotplugMonitoring(int intervalMs)
     
     // Take initial snapshot
     m_lastSnapshot = discoverDevices();
+    // Initialize serial port snapshot to detect real changes before running discovery
+    m_lastSerialPorts.clear();
+    const auto initialPorts = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo& port : initialPorts) {
+        m_lastSerialPorts.insert(port.systemLocation());
+    }
     
     // Start monitoring
     m_hotplugTimer->setInterval(intervalMs);
@@ -372,10 +380,36 @@ QList<DeviceInfo> DeviceManager::getCurrentDevices() const
 
 void DeviceManager::onHotplugTimerTimeout()
 {
+    qCDebug(log_device_manager) << "Hotplug timer timeout - checking for device changes";
     if (!m_monitoring) {
         return;
     }
-    
+    // Check serial ports first; skip expensive discovery if no serial change
+    QSet<QString> currentSerialPorts;
+    const auto ports = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo& p : ports) {
+        currentSerialPorts.insert(p.systemLocation());
+    }
+
+    QSet<QString> previousSerialPorts;
+    {
+        QMutexLocker locker(&m_mutex);
+        previousSerialPorts = m_lastSerialPorts;
+    }
+
+    if (currentSerialPorts == previousSerialPorts) {
+        qCDebug(log_device_manager) << "No serial port changes detected; skipping discoverDevices";
+        return;
+    }
+
+    QSet<QString> added = currentSerialPorts - previousSerialPorts;
+    QSet<QString> removed = previousSerialPorts - currentSerialPorts;
+    qCDebug(log_device_manager) << "Serial changes detected; running discoverDevices; now:" << currentSerialPorts.size() << "added:" << added.size() << "removed:" << removed.size();
+    {
+        QMutexLocker locker(&m_mutex);
+        m_lastSerialPorts = currentSerialPorts;
+    }
+
     QList<DeviceInfo> currentDevices = discoverDevices();
     compareDeviceSnapshots(currentDevices, m_lastSnapshot);
     m_lastSnapshot = currentDevices;
@@ -427,12 +461,8 @@ DeviceInfo DeviceManager::findDeviceByKey(const QList<DeviceInfo>& devices, cons
 
 void DeviceManager::checkForChanges()
 {
-    if (m_hotplugMonitor) {
-        m_hotplugMonitor->checkForChanges();
-    } else {
-        // Fallback to manual check
-        onHotplugTimerTimeout();
-    }
+    // Always use DeviceManager's own detection logic. Avoid delegating to HotplugMonitor
+    onHotplugTimerTimeout();
 }
 
 void DeviceManager::forceRefresh()

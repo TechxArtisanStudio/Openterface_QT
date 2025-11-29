@@ -5,6 +5,7 @@
 #include <QTimer>
 #include <QThread>
 #include <QMutex>
+#include <QSet>
 #include <QLoggingCategory>
 #include "DeviceInfo.h"
 #include "HotplugMonitor.h"
@@ -171,6 +172,7 @@ private:
     mutable QMutex m_mutex;
     bool m_monitoring;
     QString m_platformName;
+    QSet<QString> m_lastSerialPorts; // track systemLocation() of last serial ports to avoid unnecessary discover
 };
 
 #endif // DEVICEMANAGER_H

@@ -52,6 +52,9 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     cpuUsageLabel = new QLabel(this);
     cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "0%"));
     
+    fpsLabel = new QLabel(this);
+    fpsLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "0fps"));
+    
     resolutionLabel = new QLabel(this);
     resolutionLabel->setPixmap(createIconTextLabel(":/images/laptop.svg", ""));
     inputResolutionLabel = new QLabel("INPUT(NA)", this);
@@ -90,6 +93,8 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     layout->addWidget(statusLabel);
     layout->addWidget(new QLabel("| ", this));
     layout->addWidget(cpuUsageLabel);
+    layout->addWidget(new QLabel("| ", this));
+    layout->addWidget(fpsLabel);
     layout->addWidget(new QLabel("| ", this));
     layout->addWidget(keyboardIndicatorsLabel);
     layout->addWidget(new QLabel("|", this));
@@ -327,28 +332,55 @@ void StatusWidget::updateCpuUsage()
     update();
 }
 
+void StatusWidget::setFps(const double &fps, const QString &backend) {
+    QString backendPrefix = backend.toUpper();
+    if (fps >= 0) {
+        QString text = QString("%1: %2fps").arg(backendPrefix).arg(QString::number(fps, 'f', 1));
+        QColor color;
+        
+        // Choose color based on fps (green for good, yellow for ok, red for poor)
+        if (fps >= 25) {
+            color = QColor("green");
+        } else if (fps >= 15) {
+            color = QColor("orange");
+        } else {
+            color = QColor("red");
+        }
+        
+        fpsLabel->setPixmap(createIconTextLabel("", text, color));
+        fpsLabel->setToolTip(QString("Video FPS (%1): %2").arg(backend).arg(QString::number(fps, 'f', 1)));
+    } else {
+        fpsLabel->setPixmap(createIconTextLabel("", QString("%1: N/A").arg(backendPrefix)));
+        fpsLabel->setToolTip(QString("Video FPS (%1) unavailable").arg(backend));
+    }
+    update();
+}
+
 QPixmap StatusWidget::createIconTextLabel(const QString &svgPath, const QString &text, const QColor &textColor, const QColor &iconColor)
 {
     // Determine colors to use
     QColor finalIconColor = iconColor.isValid() ? iconColor : getIconColorForCurrentTheme();
     QColor finalTextColor = textColor.isValid() ? textColor : palette().color(QPalette::WindowText);
     
-    // Load SVG icon
+    // Load SVG icon if path is provided
     QPixmap iconPixmap(16, 16);
-    iconPixmap.fill(Qt::transparent);
-    QPainter iconPainter(&iconPixmap);
-    QSvgRenderer renderer(svgPath);
-    renderer.render(&iconPainter, QRectF(0, 0, 16, 16));
-    
-    // Apply color overlay to make icon adapt to theme
-    iconPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-    iconPainter.fillRect(iconPixmap.rect(), finalIconColor);
-    iconPainter.end();
+    bool hasIcon = !svgPath.isEmpty();
+    if (hasIcon) {
+        iconPixmap.fill(Qt::transparent);
+        QPainter iconPainter(&iconPixmap);
+        QSvgRenderer renderer(svgPath);
+        renderer.render(&iconPainter, QRectF(0, 0, 16, 16));
+        
+        // Apply color overlay to make icon adapt to theme
+        iconPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        iconPainter.fillRect(iconPixmap.rect(), finalIconColor);
+        iconPainter.end();
+    }
     
     // Calculate text width
     QFontMetrics fm(font());
     int textWidth = fm.horizontalAdvance(text);
-    int totalWidth = 16 + 4 + textWidth; // icon + spacing + text
+    int totalWidth = hasIcon ? (16 + 4 + textWidth) : textWidth; // icon + spacing + text, or just text
     int height = 16;
     
     // Create combined pixmap
@@ -356,12 +388,19 @@ QPixmap StatusWidget::createIconTextLabel(const QString &svgPath, const QString 
     combinedPixmap.fill(Qt::transparent);
     QPainter painter(&combinedPixmap);
     
-    // Draw icon
-    painter.drawPixmap(0, 0, iconPixmap);
+    // Draw icon if present
+    if (hasIcon) {
+        painter.drawPixmap(0, 0, iconPixmap);
+        
+        // Draw text
+        painter.setPen(finalTextColor);
+        painter.drawText(20, fm.ascent(), text);
+    } else {
+        // Draw text only (centered vertically)
+        painter.setPen(finalTextColor);
+        painter.drawText(0, fm.ascent(), text);
+    }
     
-    // Draw text
-    painter.setPen(finalTextColor);
-    painter.drawText(20, fm.ascent(), text);
     painter.end();
     
     return combinedPixmap;

@@ -8,6 +8,7 @@
 #include <QWidget>
 #include <QTimer>
 #include "statuswidget.h"
+#include "../globalsetting.h"
 
 class StatusBarManager : public QObject
 {
@@ -23,6 +24,7 @@ public:
     void setStatusUpdate(const QString& status);
     void setInputResolution(int width, int height, float fps, float pixelClk);
     void setCaptureResolution(int width, int height, int fps);
+    void setFps(double fps);
     void setTargetUsbConnected(bool isConnected);
     void factoryReset(bool isStarted);
     void serialPortReset(bool isStarted);

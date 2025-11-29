@@ -147,6 +147,10 @@ void CameraManager::initializeBackendHandler()
                         emit cameraError(error);
                     });
             
+            // Connect fpsChanged signal from backend to CameraManager
+            connect(m_backendHandler.get(), &MultimediaBackendHandler::fpsChanged,
+                    this, &CameraManager::fpsChanged);
+            
             // Connect FFmpeg-specific signals if this is an FFmpeg backend
             if (auto ffmpegHandler = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {
                 qCDebug(log_ui_camera) << "Setting up FFmpeg backend specific signal connections";

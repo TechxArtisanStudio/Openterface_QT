@@ -126,6 +126,7 @@ signals:
     void backendMessage(const QString& message);
     void backendWarning(const QString& warning);
     void backendError(const QString& error);
+    void fpsChanged(double fps);
     
     // Recording signals
     void recordingStarted(const QString& outputPath);

@@ -40,7 +40,7 @@ extern "C"
 #include <linux/hidraw.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_host_hid, "opf.device.hid");
+Q_LOGGING_CATEGORY(log_host_hid, "opf.host.hid");
 
 VideoHid::VideoHid(QObject *parent) : QObject(parent), m_inTransaction(false) {
     // Initialize current device tracking
