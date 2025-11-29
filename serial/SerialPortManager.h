@@ -305,6 +305,8 @@ private:
     
     // Command-based baudrate change for CH9329 and unknown chips
     void applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix);
+    // Schedule configuration retry attempts asynchronously without blocking the UI
+    void scheduleConfigRetry(const QString &portName, int attempt, int maxAttempts, int delayMs);
     
     // Command tracking methods
     void checkCommandLossRate();

@@ -431,14 +431,17 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     }
     
     ConfigResult config = sendAndProcessConfigCommand();
-    if (!config.success) {
-        config = attemptBaudrateDetection();
-    }
-    
+    const int maxRetries = 2; // Keep same retry behavior as before
+    const int retryDelayMs = 1000; // 1 second delay between retries (non-blocking)
+
     if (config.success) {
         handleChipSpecificLogic(config);
         storeBaudrateIfNeeded(config.workingBaudrate);
         emit serialPortConnectionSuccess(portName);
+    } else {
+        qCWarning(log_core_serial) << "Configuration command failed, scheduling async retry attempts (maxRetries=" << maxRetries << ")";
+        // Schedule the first asynchronous retry (attempt #1)
+        scheduleConfigRetry(portName, 1, maxRetries, retryDelayMs);
     }
 }
 
@@ -1107,6 +1110,37 @@ bool SerialPortManager::restartPort() {
     });
     
     return ready;
+}
+
+void SerialPortManager::scheduleConfigRetry(const QString &portName, int attempt, int maxAttempts, int delayMs)
+{
+    QTimer::singleShot(delayMs, this, [this, portName, attempt, maxAttempts, delayMs]() {
+        if (m_isShuttingDown) {
+            qCWarning(log_core_serial) << "scheduleConfigRetry: shutdown in progress, aborting retry";
+            return;
+        }
+        if (!serialPort || !serialPort->isOpen()) {
+            qCWarning(log_core_serial) << "scheduleConfigRetry: Serial port not open, aborting retry";
+            return;
+        }
+
+        qCWarning(log_core_serial) << "Configuration retry attempt:" << attempt << "of" << maxAttempts;
+        ConfigResult config = attemptBaudrateDetection();
+        if (config.success) {
+            qCInfo(log_core_serial) << "Configuration retry succeeded on attempt:" << attempt;
+            handleChipSpecificLogic(config);
+            storeBaudrateIfNeeded(config.workingBaudrate);
+            emit serialPortConnectionSuccess(portName);
+            return;
+        }
+
+        if (attempt < maxAttempts) {
+            qCWarning(log_core_serial) << "Configuration still failed, scheduling next attempt:" << (attempt + 1);
+            scheduleConfigRetry(portName, attempt + 1, maxAttempts, delayMs);
+        } else {
+            qCWarning(log_core_serial) << "Configuration attempts exhausted after" << attempt << "tries";
+        }
+    });
 }
 
 

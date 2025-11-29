@@ -3,6 +3,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QTimer>
+#include <atomic>
 #include <QThread>
 #include <QLoggingCategory>
 #include <QRegularExpression>
@@ -49,6 +50,36 @@ VideoHid::VideoHid(QObject *parent) : QObject(parent), m_inTransaction(false) {
     // Connect to hotplug monitor for automatic device management
     connectToHotplugMonitor();
 }
+
+VideoHid::~VideoHid() {
+    // Ensure we stop polling and close any open device before destruction
+    stop();
+}
+
+// Nested PollingThread type definition for VideoHid
+class VideoHid::PollingThread : public QThread {
+public:
+    PollingThread(VideoHid* owner, int intervalMs = 1000) : m_owner(owner), m_intervalMs(intervalMs), m_running(true) {}
+    void run() override {
+        qCDebug(log_host_hid) << "PollingThread started with interval (ms):" << m_intervalMs;
+        while (m_running) {
+            if (m_owner) {
+                try {
+                    m_owner->pollDeviceStatus();
+                } catch (...) {
+                    qCWarning(log_host_hid) << "Exception in PollingThread while calling pollDeviceStatus";
+                }
+            }
+            QThread::msleep(m_intervalMs);
+        }
+        qCDebug(log_host_hid) << "PollingThread stopping";
+    }
+    void stop() { m_running = false; }
+private:
+    VideoHid* m_owner{nullptr};
+    int m_intervalMs{1000};
+    std::atomic_bool m_running{true};
+};
 
 // Detect chipset type based on VID/PID or other identifiers
 void VideoHid::detectChipType() {
@@ -201,7 +232,7 @@ void VideoHid::start() {
     qCDebug(log_host_hid) << "Starting VideoHid monitoring...";
 
     // Prevent multiple starts
-    if (timer) {
+    if (m_pollingThread) {
         qCDebug(log_host_hid) << "VideoHid already started, ignoring duplicate start call";
         return;
     }
@@ -246,194 +277,24 @@ void VideoHid::start() {
     QThread::msleep(500);
 
     // Log the detected chip type
-    qCDebug(log_host_hid) << "Starting timer with chip type:" << 
+    qCDebug(log_host_hid) << "Starting polling thread with chip type:" << 
                          (m_chipType == VideoChipType::MS2109 ? "MS2109" :
                           m_chipType == VideoChipType::MS2130S ? "MS2130S" : "Unknown");
-                          
-    //start a timer to get the HDMI connection status every 1 second
-    timer = new QTimer(this);
-    connect(timer, &QTimer::timeout, this, [=](){
-        // Device is already open - no need for beginTransaction/endTransaction
-        try {
-            bool currentSwitchOnTarget = getGpio0();
-            bool hdmiConnected = isHdmiConnected();
-
-            if (eventCallback) {
-                auto safeRead = [this](quint16 addr, quint8 defaultValue = 0) -> quint8 {
-                    auto result = usbXdataRead4Byte(addr);
-                    if (!result.second || result.first.isEmpty()) {
-                        qCWarning(log_host_hid) << "HID READ FAILED from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
-                                               << "result.second:" << result.second 
-                                               << "result.first.size():" << result.first.size()
-                                               << "chip type:" << (m_chipType == VideoChipType::MS2109 ? "MS2109" : 
-                                                                  m_chipType == VideoChipType::MS2130S ? "MS2130S" : "Unknown")
-                                               << "returning default value:" << defaultValue;
-                        return defaultValue;
-                    }
-                    quint8 value = static_cast<quint8>(result.first.at(0));
-                    qCDebug(log_host_hid) << "HID READ SUCCESS from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
-                                         << "value:" << QString("0x%1").arg(value, 2, 16, QChar('0')) << "(" << value << ")";
-                    return value;
-                };
-                
-                if (hdmiConnected) {
-                    // Determine which registers to use based on chip type
-                    uint16_t width_h_addr, width_l_addr, height_h_addr, height_l_addr;
-                    uint16_t fps_h_addr, fps_l_addr, clk_h_addr, clk_l_addr;
-                    
-                    if (m_chipType == VideoChipType::MS2130S) {
-                        // Use MS2130S registers
-                        width_h_addr = MS2130S_ADDR_INPUT_WIDTH_H;
-                        width_l_addr = MS2130S_ADDR_INPUT_WIDTH_L;
-                        height_h_addr = MS2130S_ADDR_INPUT_HEIGHT_H;
-                        height_l_addr = MS2130S_ADDR_INPUT_HEIGHT_L;
-                        fps_h_addr = MS2130S_ADDR_INPUT_FPS_H;
-                        fps_l_addr = MS2130S_ADDR_INPUT_FPS_L;
-                        clk_h_addr = MS2130S_ADDR_INPUT_PIXELCLK_H;
-                        clk_l_addr = MS2130S_ADDR_INPUT_PIXELCLK_L;
-                        qCDebug(log_host_hid) << "Using MS2130S registers for resolution";
-                    } else {
-                        // Default to MS2109 registers
-                        width_h_addr = ADDR_INPUT_WIDTH_H;
-                        width_l_addr = ADDR_INPUT_WIDTH_L;
-                        height_h_addr = ADDR_INPUT_HEIGHT_H;
-                        height_l_addr = ADDR_INPUT_HEIGHT_L;
-                        fps_h_addr = ADDR_INPUT_FPS_H;
-                        fps_l_addr = ADDR_INPUT_FPS_L;
-                        clk_h_addr = ADDR_INPUT_PIXELCLK_H;
-                        clk_l_addr = ADDR_INPUT_PIXELCLK_L;
-                        qCDebug(log_host_hid) << "Using MS2109 registers for resolution";
-                    }
-                    
-                    // Get resolution-related information using the appropriate registers
-                    quint8 width_h = safeRead(width_h_addr);
-                    quint8 width_l = safeRead(width_l_addr);
-                    quint16 width = (width_h << 8) + width_l;
-                    
-
-                    quint8 height_h = safeRead(height_h_addr);
-                    quint8 height_l = safeRead(height_l_addr);
-                    quint16 height = (height_h << 8) + height_l;
-                    
-                    quint8 fps_h = safeRead(fps_h_addr);
-                    quint8 fps_l = safeRead(fps_l_addr);
-                    quint16 fps_raw = (fps_h << 8) + fps_l;
-                    float fps = static_cast<float>(fps_raw) / 100;
-                    
-                    quint8 clk_h = safeRead(clk_h_addr);
-                    quint8 clk_l = safeRead(clk_l_addr);
-                    quint16 clk_raw = (clk_h << 8) + clk_l;
-                    float pixclk = clk_raw / 100.0;
-                    
-                    // Enhanced logging with register addresses and calculations
-                    if (m_chipType == VideoChipType::MS2130S) {
-                        qCDebug(log_host_hid) << "MS2130S Read resolution:" << width << "x" << height 
-                            << ", FPS:" << fps << ", PixelClk:" << pixclk << " MHz"
-                            << " (From registers: width=" << QString::number(width_h_addr, 16).toUpper() << "/"
-                            << QString::number(width_l_addr, 16).toUpper()
-                            << ", height=" << QString::number(height_h_addr, 16).toUpper() << "/"
-                            << QString::number(height_l_addr, 16).toUpper()
-                            << ", fps=" << QString::number(fps_h_addr, 16).toUpper() << "/"
-                            << QString::number(fps_l_addr, 16).toUpper() << ")";
-                    } else {
-                        qCDebug(log_host_hid) << "MS2109 Read resolution:" << width << "x" << height 
-                            << ", FPS:" << fps << ", PixelClk:" << pixclk << " MHz"
-                            << " (From registers: width=" << QString::number(width_h_addr, 16).toUpper() << "/"
-                            << QString::number(width_l_addr, 16).toUpper()
-                            << ", height=" << QString::number(height_h_addr, 16).toUpper() << "/"
-                            << QString::number(height_l_addr, 16).toUpper()
-                            << ", fps=" << QString::number(fps_h_addr, 16).toUpper() << "/"
-                            << QString::number(fps_l_addr, 16).toUpper() << ")";
-                    }
-                    
-                    float aspectRatio = height ? static_cast<float>(width) / height : 0;
-                    GlobalVar::instance().setInputAspectRatio(aspectRatio);
-
-                    // Apply resolution adjustment based on pixel clock and chip type
-                    // Following the same logic from the other implementation
-                    if (m_chipType == VideoChipType::MS2109) {
-                        if (pixclk > 189) { // The magic value for MS2109 4K resolution correction
-                            qCDebug(log_host_hid) << "MS2109 with high pixel clock detected (" << pixclk 
-                                                 << " MHz > 189 MHz), adjusting resolution";
-                            
-                            // Only double width if it's not already 4096
-                            if (width != 4096) {
-                                width *= 2;
-                                qCDebug(log_host_hid) << "Doubling width to " << width;
-                            }
-                            
-                            // Only double height if it's not already 2160
-                            if (height != 2160) {
-                                height *= 2;
-                                qCDebug(log_host_hid) << "Doubling height to " << height;
-                            }
-                        }
-                    } else {
-                        // Special handling for MS2130S with specific resolutions
-                        if (width == 3840 && height == 1080) {
-                            qCDebug(log_host_hid) << "Detected special case: 3840x1080, adjusting height to 2160";
-                            height = 2160;
-                        }
-                    }
-
-                    if (GlobalVar::instance().getInputWidth() != width || GlobalVar::instance().getInputHeight() != height) {
-                        qCDebug(log_host_hid) << "Resolution changed from " 
-                                             << GlobalVar::instance().getInputWidth() << "x" << GlobalVar::instance().getInputHeight()
-                                             << " to " << width << "x" << height;
-                        emit inputResolutionChanged(GlobalVar::instance().getInputWidth(), GlobalVar::instance().getInputHeight(), width, height);
-                    }
-                    
-                    qCDebug(log_host_hid) << "Emitting resolution update - Width:" << width 
-                                         << "Height:" << height << "FPS:" << fps 
-                                         << "PixelClock:" << pixclk << "MHz";
-                    emit resolutionChangeUpdate(width, height, fps, pixclk);
-                } else {
-                    qCDebug(log_host_hid) << "No HDMI connection detected, emitting zero resolution";
-                    emit resolutionChangeUpdate(0, 0, 0, 0);
-                }
-
-                // Handle hardware switch status changes
-                if (isHardSwitchOnTarget != currentSwitchOnTarget) {
-                    qCDebug(log_host_hid)  << "isHardSwitchOnTarget" << isHardSwitchOnTarget << "currentSwitchOnTarget" << currentSwitchOnTarget;
-                    eventCallback->onSwitchableUsbToggle(currentSwitchOnTarget);
-                    
-                    // Set SPDIF out
-                    int bit = 1;
-                    int mask = 0xFE;
-                    if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
-                        bit = 0x10;
-                        mask = 0xEF;
-                    }
-
-                    quint8 spdifout = safeRead(ADDR_SPDIFOUT);
-                    if (currentSwitchOnTarget) {
-                        spdifout |= bit;
-                    } else {
-                        spdifout &= mask;
-                    }
-                    QByteArray data(4, 0);
-                    data[0] = spdifout;
-                    usbXdataWrite4Byte(ADDR_SPDIFOUT, data);
-                    
-                    isHardSwitchOnTarget = currentSwitchOnTarget;
-                }
-            }
-        }
-        catch (...) {
-            qCDebug(log_host_hid)  << "Exception occurred during timer processing";
-        }
-    });
-
-    timer->start(1000);
+    // Start the polling thread to get the HDMI connection status every m_pollIntervalMs
+    m_pollingThread = new PollingThread(this, m_pollIntervalMs);
+    m_pollingThread->start();
 }
 
 void VideoHid::stop() {
-    qCDebug(log_host_hid)  << "Stopping VideoHid timer.";
-    if (timer) {
-        timer->stop();
-        disconnect(timer, &QTimer::timeout, this, nullptr);
-        delete timer;
-        timer = nullptr;
+    qCDebug(log_host_hid)  << "Stopping VideoHid polling thread.";
+    if (m_pollingThread) {
+        m_pollingThread->stop();
+        m_pollingThread->quit();
+        if (!m_pollingThread->wait(2000)) {
+            qCWarning(log_host_hid) << "Polling thread did not stop within 2 seconds";
+        }
+        delete m_pollingThread;
+        m_pollingThread = nullptr;
     }
     
     // Close the HID device when stopping
@@ -444,93 +305,22 @@ void VideoHid::stop() {
 Get the input resolution from capture card. 
 */
 QPair<int, int> VideoHid::getResolution() {
-    uint16_t width_h_addr, width_l_addr, height_h_addr, height_l_addr;
+    VideoHidResolutionInfo info = getInputStatus();
+    normalizeResolution(info);
+    quint32 width = info.width;
+    quint32 height = info.height;
     
-    // Use the appropriate registers based on chip type
-    if (m_chipType == VideoChipType::MS2130S) {
-        width_h_addr = MS2130S_ADDR_INPUT_WIDTH_H;
-        width_l_addr = MS2130S_ADDR_INPUT_WIDTH_L;
-        height_h_addr = MS2130S_ADDR_INPUT_HEIGHT_H;
-        height_l_addr = MS2130S_ADDR_INPUT_HEIGHT_L;
-        qCDebug(log_host_hid) << "getResolution: Using MS2130S registers" 
-                            << QString::number(width_h_addr, 16).toUpper() << "/"
-                            << QString::number(width_l_addr, 16).toUpper() << "/"
-                            << QString::number(height_h_addr, 16).toUpper() << "/"
-                            << QString::number(height_l_addr, 16).toUpper();
-    } else {
-        // Default to MS2109 registers
-        width_h_addr = ADDR_INPUT_WIDTH_H;
-        width_l_addr = ADDR_INPUT_WIDTH_L;
-        height_h_addr = ADDR_INPUT_HEIGHT_H;
-        height_l_addr = ADDR_INPUT_HEIGHT_L;
-        qCDebug(log_host_hid) << "getResolution: Using MS2109 registers"
-                            << QString::number(width_h_addr, 16).toUpper() << "/"
-                            << QString::number(width_l_addr, 16).toUpper() << "/"
-                            << QString::number(height_h_addr, 16).toUpper() << "/"
-                            << QString::number(height_l_addr, 16).toUpper();
-    }
+    qCDebug(log_host_hid) << "getResolution: Read values --> " << width << "x" << height;
     
-    auto safeRead = [this](quint16 addr, quint8 defaultValue = 0) -> quint8 {
-        auto result = usbXdataRead4Byte(addr);
-        if (!result.second || result.first.isEmpty()) {
-            qCWarning(log_host_hid) << "Failed to read from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
-                                   << "returning default value:" << defaultValue;
-            return defaultValue;
-        }
-        return static_cast<quint8>(result.first.at(0));
-    };
-    
-    quint8 width_h = safeRead(width_h_addr);
-    quint8 width_l = safeRead(width_l_addr);
-    quint16 width = (width_h << 8) + width_l;
-    quint8 height_h = safeRead(height_h_addr);
-    quint8 height_l = safeRead(height_l_addr);
-    quint16 height = (height_h << 8) + height_l;
-    
-    qCDebug(log_host_hid) << "getResolution: Read values width_h=" << width_h 
-                        << " width_l=" << width_l << " height_h=" << height_h 
-                        << " height_l=" << height_l << " --> " << width << "x" << height;
-    
-    return qMakePair(width, height);
+    return qMakePair(static_cast<int>(width), static_cast<int>(height));
 }
 
 float VideoHid::getFps() {
-    uint16_t fps_h_addr, fps_l_addr;
+    VideoHidResolutionInfo info = getInputStatus();
+    normalizeResolution(info);
+    float fps = info.fps;
     
-    // Use the appropriate registers based on chip type
-    if (m_chipType == VideoChipType::MS2130S) {
-        fps_h_addr = MS2130S_ADDR_INPUT_FPS_H;
-        fps_l_addr = MS2130S_ADDR_INPUT_FPS_L;
-        qCDebug(log_host_hid) << "getFps: Using MS2130S registers" 
-                            << QString::number(fps_h_addr, 16).toUpper() << "/"
-                            << QString::number(fps_l_addr, 16).toUpper();
-    } else {
-        // Default to MS2109 registers
-        fps_h_addr = ADDR_INPUT_FPS_H;
-        fps_l_addr = ADDR_INPUT_FPS_L;
-        qCDebug(log_host_hid) << "getFps: Using MS2109 registers"
-                            << QString::number(fps_h_addr, 16).toUpper() << "/"
-                            << QString::number(fps_l_addr, 16).toUpper();
-    }
-    
-    auto safeRead = [this](quint16 addr, quint8 defaultValue = 0) -> quint8 {
-        auto result = usbXdataRead4Byte(addr);
-        if (!result.second || result.first.isEmpty()) {
-            qCWarning(log_host_hid) << "Failed to read from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
-                                   << "returning default value:" << defaultValue;
-            return defaultValue;
-        }
-        return static_cast<quint8>(result.first.at(0));
-    };
-    
-    quint8 fps_h = safeRead(fps_h_addr);
-    quint8 fps_l = safeRead(fps_l_addr);
-    quint16 fps_raw = (fps_h << 8) + fps_l;
-    float fps = static_cast<float>(fps_raw) / 100;
-    
-    qCDebug(log_host_hid) << "getFps: Read values fps_h=" << fps_h 
-                        << " fps_l=" << fps_l << " raw=" << fps_raw
-                        << " --> fps=" << fps;
+    qCDebug(log_host_hid) << "getFps: Read FPS:" << fps;
     
     return fps;
 }
@@ -549,17 +339,7 @@ bool VideoHid::getGpio0() {
         gpio_addr = ADDR_GPIO0;
     }
     
-    auto safeRead = [this](quint16 addr, quint8 defaultValue = 0) -> quint8 {
-        auto result = usbXdataRead4Byte(addr);
-        if (!result.second || result.first.isEmpty()) {
-            qCWarning(log_host_hid) << "Failed to read from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
-                                   << "returning default value:" << defaultValue;
-            return defaultValue;
-        }
-        return static_cast<quint8>(result.first.at(0));
-    };
-    
-    bool result = safeRead(gpio_addr) & 0x01;
+    bool result = readRegisterSafe(gpio_addr, 0, "gpio0") & 0x01;
     return result;
 }
 
@@ -582,30 +362,10 @@ float VideoHid::getPixelclk() {
                             << QString::number(clk_l_addr, 16).toUpper();
     }
     
-    qCDebug(log_host_hid) << "getPixelclk: Reading high byte from address:" << QString("0x%1").arg(clk_h_addr, 4, 16, QChar('0'));
-    auto safeRead = [this](quint16 addr, quint8 defaultValue = 0) -> quint8 {
-        auto result = usbXdataRead4Byte(addr);
-        if (!result.second || result.first.isEmpty()) {
-            qCWarning(log_host_hid) << "Failed to read from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
-                                   << "returning default value:" << defaultValue;
-            return defaultValue;
-        }
-        return static_cast<quint8>(result.first.at(0));
-    };
-    
-    quint8 clk_h = safeRead(clk_h_addr);
-    
-    qCDebug(log_host_hid) << "getPixelclk: Reading low byte from address:" << QString("0x%1").arg(clk_l_addr, 4, 16, QChar('0'));
-    quint8 clk_l = safeRead(clk_l_addr);
-    
-    quint16 clk_raw = (clk_h << 8) + clk_l;
-    float result = clk_raw/100.0;
-    
-    qCDebug(log_host_hid) << "getPixelclk: Read values clk_h=" << clk_h 
-                        << " clk_l=" << clk_l << " raw=" << clk_raw
-                        << " --> Pixel Clock=" << result << "MHz";
-    
-    return result;
+    VideoHidResolutionInfo info = getInputStatus();
+    normalizeResolution(info);
+    qCDebug(log_host_hid) << "getPixelclk: Returning Pixel Clock=" << info.pixclk << "MHz (from registers)";
+    return info.pixclk;
 }
 
 
@@ -627,17 +387,7 @@ bool VideoHid::getSpdifout() {
     }
     Q_UNUSED(mask)  // Suppress unused variable warning
     
-    auto safeRead = [this](quint16 addr, quint8 defaultValue = 0) -> quint8 {
-        auto result = usbXdataRead4Byte(addr);
-        if (!result.second || result.first.isEmpty()) {
-            qCWarning(log_host_hid) << "Failed to read from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
-                                   << "returning default value:" << defaultValue;
-            return defaultValue;
-        }
-        return static_cast<quint8>(result.first.at(0));
-    };
-    
-    bool result = safeRead(spdifout_addr) & bit;
+    bool result = readRegisterSafe(spdifout_addr, 0, "spdifout") & bit;
     return result;
 }
 
@@ -678,17 +428,7 @@ void VideoHid::setSpdifout(bool enable) {
         mask = 0xEF;
     }
 
-    auto safeRead = [this](quint16 addr, quint8 defaultValue = 0) -> quint8 {
-        auto result = usbXdataRead4Byte(addr);
-        if (!result.second || result.first.isEmpty()) {
-            qCWarning(log_host_hid) << "Failed to read from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
-                                   << "returning default value:" << defaultValue;
-            return defaultValue;
-        }
-        return static_cast<quint8>(result.first.at(0));
-    };
-    
-    quint8 spdifout = safeRead(spdifout_addr);
+    quint8 spdifout = readRegisterSafe(spdifout_addr, 0, "spdifout");
     if (enable) {
         spdifout |= bit;
     } else {
@@ -696,7 +436,7 @@ void VideoHid::setSpdifout(bool enable) {
     }
     QByteArray data(4, 0); // Create a 4-byte array initialized to zero
     data[0] = spdifout;
-    if(usbXdataWrite4Byte(spdifout_addr, data)){
+    if(writeRegisterSafe(spdifout_addr, data, "setSpdifout")){
         qCDebug(log_host_hid)  << "SPDIFOUT set successfully";
     }else{
         qCDebug(log_host_hid)  << "SPDIFOUT set failed";
@@ -897,6 +637,186 @@ bool VideoHid::isHdmiConnected() {
     bool connected = result.first.at(0) & 0x01;
     qCDebug(log_host_hid) << "HDMI connected:" << connected << ", raw value:" << (int)result.first.at(0);
     return connected;
+}
+
+// Get register set for current chip
+VideoHidRegisterSet VideoHid::getRegisterSetForCurrentChip() const {
+    VideoHidRegisterSet rs;
+    if (m_chipType == VideoChipType::MS2130S) {
+        rs.width_h = MS2130S_ADDR_INPUT_WIDTH_H;
+        rs.width_l = MS2130S_ADDR_INPUT_WIDTH_L;
+        rs.height_h = MS2130S_ADDR_INPUT_HEIGHT_H;
+        rs.height_l = MS2130S_ADDR_INPUT_HEIGHT_L;
+        rs.fps_h = MS2130S_ADDR_INPUT_FPS_H;
+        rs.fps_l = MS2130S_ADDR_INPUT_FPS_L;
+        rs.clk_h = MS2130S_ADDR_INPUT_PIXELCLK_H;
+        rs.clk_l = MS2130S_ADDR_INPUT_PIXELCLK_L;
+    } else {
+        rs.width_h = ADDR_INPUT_WIDTH_H;
+        rs.width_l = ADDR_INPUT_WIDTH_L;
+        rs.height_h = ADDR_INPUT_HEIGHT_H;
+        rs.height_l = ADDR_INPUT_HEIGHT_L;
+        rs.fps_h = ADDR_INPUT_FPS_H;
+        rs.fps_l = ADDR_INPUT_FPS_L;
+        rs.clk_h = ADDR_INPUT_PIXELCLK_H;
+        rs.clk_l = ADDR_INPUT_PIXELCLK_L;
+    }
+    return rs;
+}
+
+// Safe single-byte register reader for reuse
+quint8 VideoHid::readRegisterSafe(quint16 addr, quint8 defaultValue, const QString& tag) {
+    auto result = usbXdataRead4Byte(addr);
+    if (!result.second || result.first.isEmpty()) {
+        if (!tag.isEmpty()) {
+            qCWarning(log_host_hid) << "HID READ FAILED (tag:" << tag << ") from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+                                   << "result.second:" << result.second << "result.first.size():" << result.first.size();
+        } else {
+            qCWarning(log_host_hid) << "HID READ FAILED from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+                                   << "result.second:" << result.second << "result.first.size():" << result.first.size();
+        }
+        return defaultValue;
+    }
+    quint8 value = static_cast<quint8>(result.first.at(0));
+    if (!tag.isEmpty()) {
+        qCDebug(log_host_hid) << "HID READ SUCCESS (tag:" << tag << ") from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+                              << "value:" << QString("0x%1").arg(value, 2, 16, QChar('0')) << "(" << value << ")";
+    }
+    return value;
+}
+
+bool VideoHid::writeRegisterSafe(quint16 addr, const QByteArray &data, const QString &tag) {
+    bool result = usbXdataWrite4Byte(addr, data);
+    if (!result) {
+        if (!tag.isEmpty()) {
+            qCWarning(log_host_hid) << "HID WRITE FAILED (tag:" << tag << ") to address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+                                   << "data:" << data.toHex(' ').toUpper();
+        } else {
+            qCWarning(log_host_hid) << "HID WRITE FAILED to address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+                                   << "data:" << data.toHex(' ').toUpper();
+        }
+    } else {
+        if (!tag.isEmpty()) {
+            qCDebug(log_host_hid) << "HID WRITE SUCCESS (tag:" << tag << ") to address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+                                  << "data:" << data.toHex(' ').toUpper();
+        }
+    }
+    return result;
+}
+
+// Read the full input status
+VideoHidResolutionInfo VideoHid::getInputStatus() {
+    VideoHidResolutionInfo info;
+    info.hdmiConnected = isHdmiConnected();
+    if (!info.hdmiConnected) return info;
+
+    VideoHidRegisterSet set = getRegisterSetForCurrentChip();
+    quint8 wh = readRegisterSafe(set.width_h, 0, "width_h");
+    quint8 wl = readRegisterSafe(set.width_l, 0, "width_l");
+    quint8 hh = readRegisterSafe(set.height_h, 0, "height_h");
+    quint8 hl = readRegisterSafe(set.height_l, 0, "height_l");
+    quint16 width = (static_cast<quint16>(wh) << 8) + static_cast<quint16>(wl);
+    quint16 height = (static_cast<quint16>(hh) << 8) + static_cast<quint16>(hl);
+
+    quint8 fh = readRegisterSafe(set.fps_h, 0, "fps_h");
+    quint8 fl = readRegisterSafe(set.fps_l, 0, "fps_l");
+    quint16 fps_raw = (static_cast<quint16>(fh) << 8) + static_cast<quint16>(fl);
+    float fps = static_cast<float>(fps_raw) / 100.0f;
+
+    quint8 ch = readRegisterSafe(set.clk_h, 0, "clk_h");
+    quint8 cl = readRegisterSafe(set.clk_l, 0, "clk_l");
+    quint16 clk_raw = (static_cast<quint16>(ch) << 8) + static_cast<quint16>(cl);
+    float pixclk = static_cast<float>(clk_raw) / 100.0f;
+
+    info.width = width;
+    info.height = height;
+    info.fps = fps;
+    info.pixclk = pixclk;
+    return info;
+}
+
+// Normalize resolution based on chip-specific quirks
+void VideoHid::normalizeResolution(VideoHidResolutionInfo &info) {
+    if (!info.hdmiConnected) return;
+    if (m_chipType == VideoChipType::MS2109) {
+        if (info.pixclk > 189.0f) {
+            if (info.width != 4096) info.width *= 2;
+            if (info.height != 2160) info.height *= 2;
+        }
+    } else if (m_chipType == VideoChipType::MS2130S) {
+        if (info.width == 3840 && info.height == 1080) {
+            info.height = 2160;
+        }
+    }
+}
+
+// SPDIF toggle handling moved here from timer lambda
+void VideoHid::handleSpdifToggle(bool currentSwitchOnTarget) {
+    qCDebug(log_host_hid)  << "isHardSwitchOnTarget" << isHardSwitchOnTarget << "currentSwitchOnTarget" << currentSwitchOnTarget;
+    if (eventCallback) {
+        // Dispatch callback to the VideoHid object's thread (likely main thread) to ensure callbacks run on the UI/main thread
+        QMetaObject::invokeMethod(this, "dispatchSwitchableUsbToggle", Qt::QueuedConnection,
+                                  Q_ARG(bool, currentSwitchOnTarget));
+    }
+
+    int bit = 1;
+    int mask = 0xFE;
+    if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
+        bit = 0x10;
+        mask = 0xEF;
+    }
+
+    quint8 spdifout = readRegisterSafe(m_chipType == VideoChipType::MS2130S ? MS2130S_ADDR_SPDIFOUT : ADDR_SPDIFOUT, 0, "spdifout");
+    if (currentSwitchOnTarget) spdifout |= bit; else spdifout &= mask;
+    QByteArray data(4, 0);
+    data[0] = spdifout;
+    writeRegisterSafe(m_chipType == VideoChipType::MS2130S ? MS2130S_ADDR_SPDIFOUT : ADDR_SPDIFOUT, data, "handleSpdifToggle");
+    isHardSwitchOnTarget = currentSwitchOnTarget;
+}
+
+void VideoHid::dispatchSwitchableUsbToggle(bool isToTarget) {
+    if (eventCallback) {
+        eventCallback->onSwitchableUsbToggle(isToTarget);
+    }
+}
+
+// Poll device status previously implemented inline in the timer lambda
+void VideoHid::pollDeviceStatus() {
+    // Device is already open - no need for beginTransaction/endTransaction
+    try {
+        bool currentSwitchOnTarget = getGpio0();
+        bool hdmiConnected = isHdmiConnected();
+
+        if (eventCallback) {
+            VideoHidResolutionInfo info = getInputStatus();
+            normalizeResolution(info);
+
+            float aspectRatio = info.height ? static_cast<float>(info.width) / info.height : 0;
+            GlobalVar::instance().setInputAspectRatio(aspectRatio);
+
+            if (info.hdmiConnected) {
+                if (GlobalVar::instance().getInputWidth() != static_cast<int>(info.width) || GlobalVar::instance().getInputHeight() != static_cast<int>(info.height)) {
+                    qCDebug(log_host_hid).nospace() << "Resolution changed from "
+                                         << GlobalVar::instance().getInputWidth() << "x" << GlobalVar::instance().getInputHeight()
+                                         << " to " << info.width << "x" << info.height;
+                    emit inputResolutionChanged(GlobalVar::instance().getInputWidth(), GlobalVar::instance().getInputHeight(), info.width, info.height);
+                }
+                qCDebug(log_host_hid) << "Emitting resolution update - Width:" << info.width << "Height:" << info.height << "FPS:" << info.fps << "PixelClock:" << info.pixclk << "MHz";
+                emit resolutionChangeUpdate(static_cast<int>(info.width), static_cast<int>(info.height), info.fps, info.pixclk);
+            } else {
+                qCDebug(log_host_hid) << "No HDMI connection detected, emitting zero resolution";
+                emit resolutionChangeUpdate(0, 0, 0, 0);
+            }
+
+            // Handle SPDIF toggle based on hard switch state change
+            if (isHardSwitchOnTarget != currentSwitchOnTarget) {
+                handleSpdifToggle(currentSwitchOnTarget);
+            }
+        }
+    }
+    catch (...) {
+        qCDebug(log_host_hid)  << "Exception occurred during timer processing";
+    }
 }
 
 void VideoHid::setEventCallback(StatusEventCallback* callback) {
