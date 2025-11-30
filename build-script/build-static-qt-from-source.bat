@@ -11,9 +11,27 @@ set BUILD_DIR=%cd%\qt-build
 set MODULES=qtbase qtshadertools qtmultimedia qtsvg qtserialport qttools
 set DOWNLOAD_BASE_URL=https://download.qt.io/archive/qt/%QT_MAJOR_VERSION%/%QT_VERSION%/submodules
 set VCPKG_DIR=D:\vcpkg
+
+REM Allow openssl to come from either the central vcpkg installation or a
+REM repo-local manifest install (vcpkg_installed). Prefer central vcpkg but
+REM fall back to repo-local to avoid CI failures when vcpkg copies installs
+REM into the repository instead of the shared vcpkg folder.
 set OPENSSL_DIR=%VCPKG_DIR%\installed\x64-mingw-static
 set OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib
 set OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include
+
+if not exist "%OPENSSL_LIB_DIR%" (
+    REM Try the repo-local install performed when running vcpkg from the repo
+    if defined SOURCE_DIR (
+        set REPO_OPENSSL_DIR=%SOURCE_DIR%\vcpkg_installed\x64-mingw-static
+        if exist "%REPO_OPENSSL_DIR%\lib" (
+            echo INFO: Central vcpkg path %OPENSSL_LIB_DIR% not found; falling back to repo-local %REPO_OPENSSL_DIR%.
+            set OPENSSL_DIR=%REPO_OPENSSL_DIR%
+            set OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib
+            set OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include
+        )
+    )
+)
 
 set PATH=C:\ProgramData\chocolatey\bin;C:\ProgramData\chocolatey\lib\ninja\tools;%EXTERNAL_MINGW%\bin;%PATH%
 
@@ -25,13 +43,32 @@ if %errorlevel% neq 0 (
 )
 
 REM Check for OpenSSL static libraries
-dir "%OPENSSL_LIB_DIR%"
-if not exist "%OPENSSL_LIB_DIR%\libcrypto.a" (
-    echo OpenSSL static library libcrypto.a not found in %OPENSSL_LIB_DIR%. Please install OpenSSL static libraries.
+echo Listing candidate OpenSSL library folder: %OPENSSL_LIB_DIR%
+if exist "%OPENSSL_LIB_DIR%" (
+    dir "%OPENSSL_LIB_DIR%"
+) else (
+    echo ERROR: OpenSSL library folder not found at %OPENSSL_LIB_DIR%
+    echo Please ensure vcpkg installed OpenSSL for triplet x64-mingw-static or run vcpkg install --triplet=x64-mingw-static from the repository manifest.
     exit /b 1
 )
+
+if not exist "%OPENSSL_LIB_DIR%\libcrypto.a" (
+    echo ERROR: OpenSSL static library libcrypto.a not found in %OPENSSL_LIB_DIR%.
+    echo Searching for repo-local fallback: %SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib
+    if exist "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib\libcrypto.a" (
+        echo Found libcrypto.a in repo-local vcpkg_installed; switching OPENSSL_DIR to repo-local path
+        set OPENSSL_DIR=%SOURCE_DIR%\vcpkg_installed\x64-mingw-static
+        set OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib
+        set OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include
+    ) else (
+        echo OpenSSL static library libcrypto.a not found. Please install OpenSSL static libraries (vcpkg install openssl --triplet x64-mingw-static).
+        exit /b 1
+    )
+)
+
 if not exist "%OPENSSL_LIB_DIR%\libssl.a" (
-    echo OpenSSL static library libssl.a not found in %OPENSSL_LIB_DIR%. Please install OpenSSL static libraries.
+    echo ERROR: OpenSSL static library libssl.a not found in %OPENSSL_LIB_DIR%.
+    echo Please install OpenSSL static libraries (vcpkg install openssl --triplet x64-mingw-static).
     exit /b 1
 )
 
