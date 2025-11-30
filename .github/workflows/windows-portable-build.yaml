@@ -98,6 +98,17 @@ jobs:
           restore-keys: |
             ffmpeg-static-
 
+      - name: Cache vcpkg binary archives & downloads
+        id: cache-vcpkg-archives
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:\Users\runneradmin\AppData\Local\vcpkg\archives
+            D:\vcpkg\downloads
+          key: vcpkg-archives-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-v1
+          restore-keys: |
+            vcpkg-archives-${{ runner.os }}-
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -240,14 +251,52 @@ jobs:
             # When running under MSYS2, use the vcpkg.exe from its directory but instruct it to use the repository manifest
             if [ -x "$MSYS_VCPKG_DIR/vcpkg.exe" ]; then
               echo "Running vcpkg install FROM the manifest directory: $MSYS_SOURCE_DIR"
-              (cd "$MSYS_SOURCE_DIR" && "$MSYS_VCPKG_DIR/vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug)
+              # Retry loop (bash) for network/transient failures when ports fetch from remote git/http locations
+              attempts=0
+              max_attempts=3
+              until [ $attempts -ge $max_attempts ]
+              do
+                attempts=$((attempts+1))
+                (cd "$MSYS_SOURCE_DIR" && "$MSYS_VCPKG_DIR/vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug) && break
+                echo "vcpkg install attempt $attempts failed; sleeping then retrying..."
+                sleep $((attempts * 5))
+              done
+              if [ $attempts -gt $max_attempts ]; then
+                echo "vcpkg install failed after $max_attempts attempts"
+                exit 1
+              fi
             else
               echo "vcpkg.exe not found at $MSYS_VCPKG_DIR; falling back to CMD vcpkg.exe"
-              cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug && popd"
+              # fallback: call cmd.exe but do a few attempts to avoid a single transient failure failing the run
+              attempt=1
+              max_attempts=3
+              while [ $attempt -le $max_attempts ]
+              do
+                cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug && popd" && break
+                echo "vcpkg (cmd) install attempt $attempt failed; retrying after sleep..."
+                attempt=$((attempt+1))
+                sleep $((attempt * 5))
+              done
+              if [ $attempt -gt $max_attempts ]; then
+                echo "vcpkg (cmd) install failed after $max_attempts attempts"
+                exit 1
+              fi
             fi
           else
             echo "System MSYS2 not available. Running vcpkg via cmd.exe from the manifest directory: %SOURCE_DIR%"
-            cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug && popd"
+            attempt=1
+            max_attempts=3
+            while [ $attempt -le $max_attempts ]
+            do
+              cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug && popd" && break
+              echo "vcpkg (cmd) install attempt $attempt failed; retrying..."
+              attempt=$((attempt+1))
+              sleep $((attempt * 5))
+            done
+            if [ $attempt -gt $max_attempts ]; then
+              echo "vcpkg install (cmd) failed after $max_attempts attempts"
+              exit 1
+            fi
           fi
 
           echo "vcpkg list (after install):"
