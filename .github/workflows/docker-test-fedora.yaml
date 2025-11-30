@@ -1,4 +1,4 @@
-name: Docker Test - Openterface Fedora 36
+name: Docker Test / Openterface Fedora
 
 on:
   push:

@@ -1,4 +1,4 @@
-name: Linux Build
+name: Build / Linux Build
 
 # This workflow depends on pre-built Docker images from build-qt-environments.yml
 # Ensure that workflow has been run successfully before running this build
