@@ -1,0 +1,52 @@
+name: Windows cross-build using Docker (mingw-w64)
+
+on:
+  push:
+    branches: ["main", "dev"]
+    paths:
+      - 'docker/**'
+      - '.github/workflows/windows-docker-cross-build.yaml'
+      - 'vcpkg.json'
+      - 'CMakeLists.txt'
+  pull_request:
+    branches: ["dev"]
+    paths:
+      - 'docker/**'
+      - 'vcpkg.json'
+      - 'CMakeLists.txt'
+  workflow_dispatch:
+
+jobs:
+  cross-build:
+    name: Build cross-compiled portable Windows artifact inside Docker
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build windows-builder docker image
+        run: |
+          docker build -f docker/Dockerfile.windows-builder -t openterface/windows-builder:latest .
+
+      - name: Show image info
+        run: docker images openterface/windows-builder:latest --format "{{.Repository}}:{{.Tag}} {{.Size}}"
+
+      - name: Run build inside container (cross compile)
+        env:
+          CI: true
+        run: |
+          mkdir -p $RUNNER_TEMP/build-output
+          # run container mounting repo into /src and execute default entrypoint
+          docker run --rm -v ${{ github.workspace }}:/src -w /src openterface/windows-builder:latest
+
+      - name: Upload built portable exe (if produced)
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.amd64.portable.from-docker
+          path: |
+            build/package/openterfaceQT-portable.exe
+          if-no-files-found: warn
