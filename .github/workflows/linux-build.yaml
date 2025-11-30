@@ -7,8 +7,20 @@ on:
   push:
     branches: ["main", "dev_251027_add_GPU_support"]
     tags: ["v*"]
+    paths:
+      - '.github/workflows/linux-build.yaml'
+      - 'vcpkg.json'
+      - 'CMakeLists.txt'
+      - '**/*.bat'
+      - '**/*.cpp'
   pull_request:
     branches: ["dev"]
+    paths:
+      - '.github/workflows/linux-build.yaml'
+      - 'vcpkg.json'
+      - 'CMakeLists.txt'
+      - '**/*.bat'
+      - '**/*.cpp'
   workflow_dispatch:
     inputs:
       build_type:

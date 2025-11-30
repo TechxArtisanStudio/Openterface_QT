@@ -186,21 +186,21 @@ jobs:
       # vcpkg manifest will install pkgconf (manifest mode), which will create the msys2 root.
 
       - name: Install vcpkg manifest (zlib, openssl, pkgconf) using MSYS2
+        # Run using bash so we can safely use cygpath and a POSIX-style invocation.
+        shell: bash
         run: |
           echo "Installing static packages via manifest (vcpkg.json) using MSYS2"
-          REM Use the msys2 bash to execute vcpkg so uses MSYS2 toolchain
-          for /f "delims=" %%i in ('dir /b /ad "C:\msys64\usr" 2^>nul') do set MSYS2_DIR=%%i
-          if not exist "C:\msys64\usr\bin\bash.exe" (
-            echo "MSYS2 not available - falling back to cmd vcpkg install"
-            call "%VCPKG_DIR%\vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build
-          ) else (
-            # Ensure the path is treated as a single argument in bash: wrap the cygpath result in quotes
-            C:\msys64\usr\bin\bash.exe -lc ^
-              "cd $(cygpath -u %VCPKG_DIR%) && ./vcpkg.exe install ^
-                --triplet=x64-mingw-static ^
-                --host-triplet=x64-mingw-static ^
-                --clean-after-build || true"
-          )
+          # If MSYS2 bash exists, convert the configured VCPKG_DIR to a unix path and run vcpkg there
+          if [ -x "/c/msys64/usr/bin/bash" ]; then
+            MSYS_VCPKG_DIR="$(cygpath -u "$VCPKG_DIR")"
+            echo "Using MSYS2 path: $MSYS_VCPKG_DIR"
+            cd "$MSYS_VCPKG_DIR" || exit 1
+            ./vcpkg.exe install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build || true
+          else
+            # Fallback to running the Windows vcpkg.exe via cmd if MSYS2 isn't present
+            echo "MSYS2 not available - falling back to Windows vcpkg.exe"
+            cmd.exe /C "\"%VCPKG_DIR%\\vcpkg.exe\" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build"
+          fi
 
       - name: Ensure MSYS2 and packages for ffmpeg build (pkgconf, nasm, yasm)
         run: |
