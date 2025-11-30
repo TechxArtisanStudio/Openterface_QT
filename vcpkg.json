@@ -4,19 +4,19 @@
   "dependencies": [
     {
       "name": "zlib",
-      "version>=": "1.2.13"
+      "version": "1.2.13"
     },
     {
       "name": "bzip2",
-      "version>=": "1.0.8"
+      "version": "1.0.8"
     },
     {
       "name": "liblzma",
-      "version>=": "5.4.0"
+      "version": "5.4.0"
     },
     {
       "name": "openssl",
-      "version>=": "3.0.3"
+      "version": "3.0.3"
     }
   ],
   "overrides": [
@@ -38,7 +38,7 @@
     },
     {
       "name": "pkgconf",
-      "version>=": "2.2.0"
+      "version": "2.2.0"
     }
   ],
   "builtin-baseline": "2017886818a9a88d303548b53709f5ef922efb39"

@@ -34,11 +34,22 @@ mkdir -p "${BUILD_DIR}"
 cd "${BUILD_DIR}"
 
 echo "[container] Running vcpkg install for x64-mingw-static (this is optional, may take a while)"
+VCPKG_INSTALL_OK=1
 if [[ -x "${VCPKG}/vcpkg" ]]; then
   # only attempt to install minimal deps declared in vcpkg.json if it exists
   if [[ -f "${SRC_DIR}/vcpkg.json" ]]; then
     echo "[container] Found vcpkg.json, installing packages (triplet x64-mingw-static)"
-    ${VCPKG}/vcpkg install --triplet x64-mingw-static --clean-after-build || echo "vcpkg install failed but continuing"
+    set +e
+    ${VCPKG}/vcpkg install --triplet x64-mingw-static --clean-after-build 2>&1 | sed -n '1,200p'
+    VCPKG_RC=$?
+    set -e
+    if [[ ${VCPKG_RC} -ne 0 ]]; then
+      echo "[container] vcpkg install returned ${VCPKG_RC} — continuing but CMake will skip auto-install"
+      VCPKG_INSTALL_OK=0
+    else
+      echo "[container] vcpkg install succeeded"
+      VCPKG_INSTALL_OK=1
+    fi
   else
     echo "[container] No vcpkg.json in repo, skipping automatic vcpkg installs"
   fi
@@ -47,7 +58,28 @@ else
 fi
 
 echo "[container] Configuring project with CMake for cross compile to Windows (x64)"
-cmake -G "Ninja" \
+# Detect a local build program (prefer ninja)
+GENERATOR="Ninja"
+MAKE_PROG=""
+if command -v ninja >/dev/null 2>&1; then
+  MAKE_PROG=$(command -v ninja)
+  echo "[container] Using generator: Ninja (program: ${MAKE_PROG})"
+elif command -v make >/dev/null 2>&1; then
+  GENERATOR="Unix Makefiles"
+  MAKE_PROG=$(command -v make)
+  echo "[container] Ninja not found - falling back to Make (program: ${MAKE_PROG})"
+else
+  echo "ERROR: neither ninja nor make are available in container PATH"
+  exit 7
+fi
+
+# If vcpkg manifest install previously failed, tell CMake not to attempt autoinstall so configure can proceed
+VCPKG_CMAKE_FLAG="-DVCPKG_MANIFEST_INSTALL=ON"
+if [[ ${VCPKG_INSTALL_OK} -eq 0 ]]; then
+  VCPKG_CMAKE_FLAG="-DVCPKG_MANIFEST_INSTALL=OFF"
+fi
+
+cmake -G "${GENERATOR}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_TOOLCHAIN_FILE=${VCPKG}/scripts/buildsystems/vcpkg.cmake \
   -DVCPKG_TARGET_TRIPLET=x64-mingw-static \
@@ -58,7 +90,12 @@ cmake -G "Ninja" \
   "${SRC_DIR}"
 
 echo "[container] Building (parallel)"
-ninja -j$(nproc || echo 2)
+if [[ "${GENERATOR}" == "Ninja" ]]; then
+  ${MAKE_PROG} -j$(nproc || echo 2)
+else
+  # unix makefiles uses 'make'
+  ${MAKE_PROG} -j$(nproc || echo 2)
+fi
 
 echo "[container] Searching for built Windows executables"
 EXE=$(find . -maxdepth 4 -type f -iname "openterfaceQT.exe" -print -quit || true)
