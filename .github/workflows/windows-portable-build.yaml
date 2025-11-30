@@ -70,7 +70,7 @@ jobs:
           key: vcpkg-x64-mingw-static-openssl-ffmpeg-zlib-v1
           restore-keys: |
             vcpkg-x64-mingw-static-
-
+          uses: msys2/setup-msys2@v2
       - name: Cache FFmpeg Build
         id: cache-ffmpeg
         uses: actions/cache@v3
@@ -107,7 +107,7 @@ jobs:
           choco install yasm -y || echo "yasm install failed or already installed"
 
       - name: Setup MSYS2 (use action)
-        uses: msys2/setup-msys2@v3
+        uses: msys2/setup-msys2@v2
         with:
           update: true
 
