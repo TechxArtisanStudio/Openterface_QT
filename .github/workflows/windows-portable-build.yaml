@@ -187,17 +187,38 @@ jobs:
         # Run using bash so we can safely use cygpath and a POSIX-style invocation.
         shell: bash
         run: |
-          echo "Installing static packages via manifest (vcpkg.json) using MSYS2"
-          # If MSYS2 bash exists, convert the configured VCPKG_DIR to a unix path and run vcpkg there
+          echo "Installing static packages via manifest (vcpkg.json) using vcpkg"
+          echo "VCPKG_DIR: $VCPKG_DIR"
+          echo "SOURCE_DIR: $SOURCE_DIR"
+
+          # Convert windows paths to MSYS2-friendly unix paths
+          MSYS_VCPKG_DIR="$(cygpath -u "$VCPKG_DIR")"
+          MSYS_SOURCE_DIR="$(cygpath -u "$SOURCE_DIR")"
+
+          echo "MSYS_VCPKG_DIR: $MSYS_VCPKG_DIR"
+          echo "MSYS_SOURCE_DIR: $MSYS_SOURCE_DIR"
+
+          # Prefer invoking vcpkg under MSYS2 if available, otherwise run via cmd
           if [ -x "/c/msys64/usr/bin/bash" ]; then
-            MSYS_VCPKG_DIR="$(cygpath -u "$VCPKG_DIR")"
-            echo "Using MSYS2 path: $MSYS_VCPKG_DIR"
-            cd "$MSYS_VCPKG_DIR" || exit 1
-            ./vcpkg.exe install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build || true
+            echo "System MSYS2 detected at /c/msys64/usr/bin/bash"
+            # When running under MSYS2, use the vcpkg.exe from its directory but instruct it to use the repository manifest
+            if [ -x "$MSYS_VCPKG_DIR/vcpkg.exe" ]; then
+              echo "Running vcpkg install with --manifest-root=$MSYS_SOURCE_DIR"
+              "$MSYS_VCPKG_DIR/vcpkg.exe" install --manifest-root="$MSYS_SOURCE_DIR" --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build
+            else
+              echo "vcpkg.exe not found at $MSYS_VCPKG_DIR; falling back to CMD vcpkg.exe"
+              cmd.exe /C "\"%VCPKG_DIR%\\vcpkg.exe\" install --manifest-root=\"%SOURCE_DIR%\" --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build"
+            fi
           else
-            # Fallback to running the Windows vcpkg.exe via cmd if MSYS2 isn't present
-            echo "MSYS2 not available - falling back to Windows vcpkg.exe"
-            cmd.exe /C "\"%VCPKG_DIR%\\vcpkg.exe\" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build"
+            echo "System MSYS2 not available. Running vcpkg via cmd.exe with --manifest-root=%SOURCE_DIR%"
+            cmd.exe /C "\"%VCPKG_DIR%\\vcpkg.exe\" install --manifest-root=\"%SOURCE_DIR%\" --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build"
+          fi
+
+          echo "vcpkg list (after install):"
+          if [ -x "$MSYS_VCPKG_DIR/vcpkg.exe" ]; then
+            "$MSYS_VCPKG_DIR/vcpkg.exe" list || true
+          else
+            cmd.exe /C "\"%VCPKG_DIR%\\vcpkg.exe\" list" || true
           fi
 
       - name: Ensure MSYS2 and packages for ffmpeg build (pkgconf, nasm, yasm)
