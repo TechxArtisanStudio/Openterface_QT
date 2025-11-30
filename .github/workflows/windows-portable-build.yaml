@@ -51,17 +51,21 @@ jobs:
           restore-keys: |
             qt-6.6.3-mingw-windows-static-
 
-      - name: Cache MinGW and Ninja
+      - name: Cache MinGW, Ninja and assembly packages
         id: cache-mingw
         uses: actions/cache@v3
         with:
           path: |
             C:\mingw64
+            # cache common Chocolatey libraries and bin so binary tools like ninja, nasm, yasm are preserved across runs
             C:\ProgramData\chocolatey\lib\ninja
+            C:\ProgramData\chocolatey\lib\nasm
+            C:\ProgramData\chocolatey\lib\yasm
             C:\ProgramData\chocolatey\bin
-          key: mingw-ninja-static-2025
+          # keep a stable cache key so restorations can hit for typical runner snapshots
+          key: mingw-ninja-nasm-yasm-static-2025
           restore-keys: |
-            mingw-ninja-static-
+            mingw-ninja-nasm-yasm-static-
 
       - name: Cache MSYS2 / MinGW packages
         id: cache-msys2
@@ -116,7 +120,7 @@ jobs:
           set PATH=C:\mingw64\bin;%PATH%
           g++ --version
 
-      - name: Ensure ninja available (cache may restore files but ensure shim exists)
+      - name: Ensure ninja and assembler tools available (cache may restore files but ensure shims exist)
         run: |
           echo "Checking for ninja executable..."
           where ninja || (
@@ -124,9 +128,17 @@ jobs:
             choco install ninja -y
           )
 
-          echo Installing assembly tools (nasm, yasm) that ffmpeg configure may require...
-          choco install nasm -y || echo "nasm install failed or already installed"
-          choco install yasm -y || echo "yasm install failed or already installed"
+          echo "Checking for nasm executable..."
+          where nasm || (
+            echo "nasm not found on PATH, installing via choco"
+            choco install nasm -y || echo "nasm install failed"
+          )
+
+          echo "Checking for yasm executable..."
+          where yasm || (
+            echo "yasm not found on PATH, installing via choco"
+            choco install yasm -y || echo "yasm install failed"
+          )
 
       - name: Setup MSYS2 (use action)
         uses: msys2/setup-msys2@v2
