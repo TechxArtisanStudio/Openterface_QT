@@ -27,7 +27,7 @@ defaults:
 env:
   ARTIFACT: openterfaceQT.windows.amd64.portable.exe
   SOURCE_DIR: ${{ github.workspace }}
-  QT_VERSION: 6.5.3
+  QT_VERSION: 6.6.3
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   VCPKG_DIR: D:\vcpkg
   VCPKG_KEEP_BUILDTREES: 1
@@ -47,9 +47,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: C:\Qt6
-          key: qt-6.5.3-mingw-windows-static-vcpkg
+          key: qt-6.6.3-mingw-windows-static-vcpkg
           restore-keys: |
-            qt-6.5.3-mingw-windows-static-
+            qt-6.6.3-mingw-windows-static-
 
       - name: Cache MinGW and Ninja
         id: cache-mingw
@@ -58,9 +58,23 @@ jobs:
           path: |
             C:\mingw64
             C:\ProgramData\chocolatey\lib\ninja
+            C:\ProgramData\chocolatey\bin
           key: mingw-ninja-static-2025
           restore-keys: |
             mingw-ninja-static-
+
+      - name: Cache MSYS2 / MinGW packages
+        id: cache-msys2
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:\msys64\mingw64
+            C:\msys64\usr\bin
+            C:\msys64\var\lib\pacman\local
+            D:\vcpkg\downloads\tools\msys2
+          key: msys2-${{ runner.os }}-mingw64-${{ hashFiles('vcpkg.json') }}-v1
+          restore-keys: |
+            msys2-${{ runner.os }}-mingw64-
 
       - name: Cache vcpkg
         id: cache-vcpkg
@@ -70,6 +84,7 @@ jobs:
           key: vcpkg-x64-mingw-static-openssl-ffmpeg-zlib-v1
           restore-keys: |
             vcpkg-x64-mingw-static-
+              
       - name: Cache FFmpeg Build
         id: cache-ffmpeg
         uses: actions/cache@v3
@@ -101,6 +116,14 @@ jobs:
           set PATH=C:\mingw64\bin;%PATH%
           g++ --version
 
+      - name: Ensure ninja available (cache may restore files but ensure shim exists)
+        run: |
+          echo "Checking for ninja executable..."
+          where ninja || (
+            echo "ninja not found on PATH, installing via choco"
+            choco install ninja -y
+          )
+
           echo Installing assembly tools (nasm, yasm) that ffmpeg configure may require...
           choco install nasm -y || echo "nasm install failed or already installed"
           choco install yasm -y || echo "yasm install failed or already installed"
@@ -112,10 +135,8 @@ jobs:
 
 
       - name: Install Build Tools
+        if: steps.cache-msys2.outputs.cache-hit != 'true'
         run: |
-          echo "Installing Ninja"
-          choco install ninja -y
-
           echo "Updating MSYS2 and installing MinGW-w64 toolchain..."
           C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
           C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
@@ -320,12 +341,12 @@ jobs:
             )
           )
 
-      # - name: Build Static FFmpeg
-      #   if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-      #   run: |
-      #     echo "Building static FFmpeg..."
-      #     cd build-script
-      #     call build-static-ffmpeg-windows.bat
+      - name: Build Static FFmpeg
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        run: |
+          echo "Building static FFmpeg..."
+          cd build-script
+          call build-static-ffmpeg-windows.bat
 
       # - name: Verify vcpkg static libraries (with debug output)
       #   run: |
