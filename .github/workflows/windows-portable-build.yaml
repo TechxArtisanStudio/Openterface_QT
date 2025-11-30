@@ -306,46 +306,46 @@ jobs:
             cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" list && popd"
           fi
 
-      # - name: Verify vcpkg manifest installation and artifact directory
-      #   run: |
-      #     echo "=== Workspace vcpkg.json presence ==="
-      #     if exist "%SOURCE_DIR%\vcpkg.json" (
-      #       echo "vcpkg.json found at %SOURCE_DIR%\vcpkg.json"
-      #       type "%SOURCE_DIR%\vcpkg.json"
-      #     ) else (
-      #       echo "ERROR: vcpkg.json not found at %SOURCE_DIR% -- the manifest install will do nothing"
-      #       dir "%SOURCE_DIR%" || true
-      #       exit /b 1
-      #     )
+      - name: Verify vcpkg manifest installation and artifact directory
+        shell: cmd
+        run: |
+          echo "=== Workspace vcpkg.json presence ==="
+          if exist "%SOURCE_DIR%\vcpkg.json" (
+            echo "vcpkg.json found at %SOURCE_DIR%\vcpkg.json"
+            type "%SOURCE_DIR%\vcpkg.json"
+          ) else (
+            echo "ERROR: vcpkg.json not found at %SOURCE_DIR% -- the manifest install will do nothing"
+            dir "%SOURCE_DIR%" || true
+            exit /b 1
+          )
 
-      #     echo "=== vcpkg executable and installed list ==="
-      #     if exist "%VCPKG_DIR%\vcpkg.exe" (
-      #       call "%VCPKG_DIR%\vcpkg.exe" version || echo "vcpkg version command failed"
-      #       call "%VCPKG_DIR%\vcpkg.exe" list || echo "vcpkg list failed"
-      #     ) else (
-      #       echo "WARNING: vcpkg.exe not found at %VCPKG_DIR%"
-      #     )
+          echo "=== vcpkg executable and installed list ==="
+          if exist "%VCPKG_DIR%\vcpkg.exe" (
+            call "%VCPKG_DIR%\vcpkg.exe" version || echo "vcpkg version command failed"
+            call "%VCPKG_DIR%\vcpkg.exe" list || echo "vcpkg list failed"
+          ) else (
+            echo "WARNING: vcpkg.exe not found at %VCPKG_DIR%"
+          )
 
-      #     echo "=== Installed libraries folder check ==="
-      #     echo "Checking possible installed locations ( repo-local vcpkg_installed or central vcpkg installed )"
-      #     set REPO_LIB_DIR=%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib
-      #     set CENTRAL_LIB_DIR=%VCPKG_DIR%\installed\x64-mingw-static\lib
+          echo "=== Installed libraries folder check ==="
+          echo "Checking possible installed locations ( repo-local vcpkg_installed or central vcpkg installed )"
+          set REPO_LIB_DIR=%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib
+          set CENTRAL_LIB_DIR=%VCPKG_DIR%\installed\x64-mingw-static\lib
 
-      #     echo REPO_LIB_DIR=%REPO_LIB_DIR%
-      #     echo CENTRAL_LIB_DIR=%CENTRAL_LIB_DIR%
+          echo REPO_LIB_DIR=%REPO_LIB_DIR%
+          echo CENTRAL_LIB_DIR=%CENTRAL_LIB_DIR%
 
-      #     if exist "%REPO_LIB_DIR%" (
-      #       echo Found repo-local installed libraries at %REPO_LIB_DIR%
-      #       dir "%REPO_LIB_DIR%"
-      #     ) else if exist "%CENTRAL_LIB_DIR%" (
-      #       echo Found central installed libraries at %CENTRAL_LIB_DIR%
-      #       dir "%CENTRAL_LIB_DIR%"
-      #     ) else (
-      #       echo ERROR: No installed libraries found in either %REPO_LIB_DIR% or %CENTRAL_LIB_DIR%
-      #       echo "Hint: vcpkg install may have failed or installed to a different location. Inspect the vcpkg debug output above."
-      #       exit /b 1
-      #     )
-      #   shell: cmd
+          if exist "%REPO_LIB_DIR%" (
+            echo Found repo-local installed libraries at %REPO_LIB_DIR%
+            dir "%REPO_LIB_DIR%"
+          ) else if exist "%CENTRAL_LIB_DIR%" (
+            echo Found central installed libraries at %CENTRAL_LIB_DIR%
+            dir "%CENTRAL_LIB_DIR%"
+          ) else (
+            echo ERROR: No installed libraries found in either %REPO_LIB_DIR% or %CENTRAL_LIB_DIR%
+            echo "Hint: vcpkg install may have failed or installed to a different location. Inspect the vcpkg debug output above."
+            exit /b 1
+          )
 
       # - name: Ensure MSYS2 and packages for ffmpeg build (pkgconf, nasm, yasm)
       #   shell: cmd
