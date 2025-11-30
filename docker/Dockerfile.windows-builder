@@ -39,8 +39,9 @@ RUN pip3 install --no-cache-dir meson==1.2.1
 WORKDIR /opt
 
 # Install vcpkg (used by the repository in many workflows). This speeds reproducing vcpkg-based flows
-RUN git clone --depth 1 https://github.com/microsoft/vcpkg.git ${VCPKG_ROOT} \
+RUN git clone https://github.com/microsoft/vcpkg.git ${VCPKG_ROOT} \
  && cd ${VCPKG_ROOT} \
+ && git fetch --all --tags || true \
  && ./bootstrap-vcpkg.sh -disableMetrics
 
 # Add vcpkg to PATH for convenience

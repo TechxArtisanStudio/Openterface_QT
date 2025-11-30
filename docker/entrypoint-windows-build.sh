@@ -40,9 +40,23 @@ if [[ -x "${VCPKG}/vcpkg" ]]; then
   if [[ -f "${SRC_DIR}/vcpkg.json" ]]; then
     echo "[container] Found vcpkg.json, installing packages (triplet x64-mingw-static)"
     set +e
-    ${VCPKG}/vcpkg install --triplet x64-mingw-static --clean-after-build 2>&1 | sed -n '1,200p'
+    # capture output so we can detect shallow-repo errors and retry
+    VCPKG_OUTPUT="$(${VCPKG}/vcpkg install --triplet x64-mingw-static --clean-after-build 2>&1 || true)"
     VCPKG_RC=$?
-    set -e
+    echo "${VCPKG_OUTPUT}" | sed -n '1,200p'
+    # automatic recovery for shallow-clone problems: attempt to unshallow vcpkg repo and retry once
+    if [[ ${VCPKG_RC} -ne 0 ]]; then
+      if echo "${VCPKG_OUTPUT}" | grep -qi "shallow" || echo "${VCPKG_OUTPUT}" | grep -qi "shallow repository"; then
+        echo "[container] Detected shallow vcpkg clone, attempting to fetch full history and retry"
+        set +e
+        git -C "${VCPKG}" fetch --unshallow --tags --prune || git -C "${VCPKG}" fetch --all --tags || true
+        set -e
+        echo "[container] Retry vcpkg install after unshallow"
+        VCPKG_OUTPUT="$(${VCPKG}/vcpkg install --triplet x64-mingw-static --clean-after-build 2>&1 || true)"
+        VCPKG_RC=$?
+        echo "${VCPKG_OUTPUT}" | sed -n '1,200p'
+      fi
+    fi
     if [[ ${VCPKG_RC} -ne 0 ]]; then
       echo "[container] vcpkg install returned ${VCPKG_RC} — continuing but CMake will skip auto-install"
       VCPKG_INSTALL_OK=0
