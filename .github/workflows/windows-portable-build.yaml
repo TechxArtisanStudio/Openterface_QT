@@ -204,22 +204,55 @@ jobs:
             # When running under MSYS2, use the vcpkg.exe from its directory but instruct it to use the repository manifest
             if [ -x "$MSYS_VCPKG_DIR/vcpkg.exe" ]; then
               echo "Running vcpkg install with --manifest-root=$MSYS_SOURCE_DIR"
-              "$MSYS_VCPKG_DIR/vcpkg.exe" install --manifest-root="$MSYS_SOURCE_DIR" --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build
+              "$MSYS_VCPKG_DIR/vcpkg.exe" install --manifest-root="$MSYS_SOURCE_DIR" --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug
             else
               echo "vcpkg.exe not found at $MSYS_VCPKG_DIR; falling back to CMD vcpkg.exe"
-              cmd.exe /C "\"%VCPKG_DIR%\\vcpkg.exe\" install --manifest-root=\"%SOURCE_DIR%\" --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build"
+              cmd.exe /C "\"%VCPKG_DIR%\\vcpkg.exe\" install --manifest-root=\"%SOURCE_DIR%\" --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug"
             fi
           else
             echo "System MSYS2 not available. Running vcpkg via cmd.exe with --manifest-root=%SOURCE_DIR%"
-            cmd.exe /C "\"%VCPKG_DIR%\\vcpkg.exe\" install --manifest-root=\"%SOURCE_DIR%\" --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build"
+            cmd.exe /C "\"%VCPKG_DIR%\\vcpkg.exe\" install --manifest-root=\"%SOURCE_DIR%\" --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug"
           fi
 
           echo "vcpkg list (after install):"
           if [ -x "$MSYS_VCPKG_DIR/vcpkg.exe" ]; then
-            "$MSYS_VCPKG_DIR/vcpkg.exe" list || true
+            "$MSYS_VCPKG_DIR/vcpkg.exe" list
           else
-            cmd.exe /C "\"%VCPKG_DIR%\\vcpkg.exe\" list" || true
+            cmd.exe /C "\"%VCPKG_DIR%\\vcpkg.exe\" list"
           fi
+
+      - name: Verify vcpkg manifest installation and artifact directory
+        run: |
+          echo "=== Workspace vcpkg.json presence ==="
+          if exist "%SOURCE_DIR%\vcpkg.json" (
+            echo "vcpkg.json found at %SOURCE_DIR%\vcpkg.json"
+            type "%SOURCE_DIR%\vcpkg.json"
+          ) else (
+            echo "ERROR: vcpkg.json not found at %SOURCE_DIR% -- the manifest install will do nothing"
+            dir "%SOURCE_DIR%" || true
+            exit /b 1
+          )
+
+          echo "=== vcpkg executable and installed list ==="
+          if exist "%VCPKG_DIR%\vcpkg.exe" (
+            call "%VCPKG_DIR%\vcpkg.exe" version || echo "vcpkg version command failed"
+            call "%VCPKG_DIR%\vcpkg.exe" list || echo "vcpkg list failed"
+          ) else (
+            echo "WARNING: vcpkg.exe not found at %VCPKG_DIR%"
+          )
+
+          echo "=== Installed libraries folder check ==="
+          set LIB_DIR=%VCPKG_DIR%\installed\x64-mingw-static\lib
+          echo LIB_DIR=%LIB_DIR%
+          if exist "%LIB_DIR%" (
+            echo Found: %LIB_DIR%
+            dir "%LIB_DIR%"
+          ) else (
+            echo ERROR: Library folder not found: %LIB_DIR%
+            echo "Hint: vcpkg install may not have run, may have used wrong --manifest-root, or packages are not available for this triplet."
+            exit /b 1
+          )
+        shell: cmd
 
       - name: Ensure MSYS2 and packages for ffmpeg build (pkgconf, nasm, yasm)
         run: |
