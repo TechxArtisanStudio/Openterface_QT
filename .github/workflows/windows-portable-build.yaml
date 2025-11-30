@@ -173,77 +173,77 @@ jobs:
           del test.cpp test.exe
 
 
-      # - name: Install or Update vcpkg (bootstrap only)
-      #   run: |
-      #     echo Cloning or updating vcpkg...
-      #     if not exist "%VCPKG_DIR%\vcpkg.exe" (
-      #       echo "vcpkg.exe not found, cloning vcpkg repo..."
-      #       git clone https://github.com/microsoft/vcpkg.git %VCPKG_DIR%
-      #       cd %VCPKG_DIR%
-      #       git fetch --all --tags || echo "git fetch failed"
-      #       call bootstrap-vcpkg.bat
-      #     ) else (
-      #       echo "%VCPKG_DIR%\vcpkg.exe already exists, updating vcpkg repo"
-      #       cd %VCPKG_DIR%
-      #       git fetch --all --tags || echo "git fetch failed"
-      #       if defined VCPKG_BASELINE (
-      #         git checkout %VCPKG_BASELINE% || git checkout tags/%VCPKG_BASELINE% || echo "git checkout baseline failed"
-      #       ) else (
-      #         git reset --hard origin/HEAD || echo "git reset failed"
-      #       )
-      #       call bootstrap-vcpkg.bat
-      #     )
+      - name: Install or Update vcpkg (bootstrap only)
+        run: |
+          echo Cloning or updating vcpkg...
+          if not exist "%VCPKG_DIR%\vcpkg.exe" (
+            echo "vcpkg.exe not found, cloning vcpkg repo..."
+            git clone https://github.com/microsoft/vcpkg.git %VCPKG_DIR%
+            cd %VCPKG_DIR%
+            git fetch --all --tags || echo "git fetch failed"
+            call bootstrap-vcpkg.bat
+          ) else (
+            echo "%VCPKG_DIR%\vcpkg.exe already exists, updating vcpkg repo"
+            cd %VCPKG_DIR%
+            git fetch --all --tags || echo "git fetch failed"
+            if defined VCPKG_BASELINE (
+              git checkout %VCPKG_BASELINE% || git checkout tags/%VCPKG_BASELINE% || echo "git checkout baseline failed"
+            ) else (
+              git reset --hard origin/HEAD || echo "git reset failed"
+            )
+            call bootstrap-vcpkg.bat
+          )
 
-      #     cd "%SOURCE_DIR%"
-      #     set VCPKG_LOG_LEVEL=debug
-      #     set VCPKG_DOWNLOADS_RETRIES=5
-      #     set VCPKG_MAX_CONCURRENCY=%VCPKG_MAX_CONCURRENCY%
-      #     echo vcpkg version/loglevel: && "%VCPKG_DIR%\vcpkg.exe" version || echo "could not show vcpkg version"
-      #     call "%VCPKG_DIR%\vcpkg.exe" integrate install
-      #     echo vcpkg installed ports (end) && "%VCPKG_DIR%\vcpkg.exe" list || echo "couldn't list vcpkg packages"
+          cd "%SOURCE_DIR%"
+          set VCPKG_LOG_LEVEL=debug
+          set VCPKG_DOWNLOADS_RETRIES=5
+          set VCPKG_MAX_CONCURRENCY=%VCPKG_MAX_CONCURRENCY%
+          echo vcpkg version/loglevel: && "%VCPKG_DIR%\vcpkg.exe" version || echo "could not show vcpkg version"
+          call "%VCPKG_DIR%\vcpkg.exe" integrate install
+          echo vcpkg installed ports (end) && "%VCPKG_DIR%\vcpkg.exe" list || echo "couldn't list vcpkg packages"
 
-      # # vcpkg manifest will install pkgconf (manifest mode), which will create the msys2 root.
+      # vcpkg manifest will install pkgconf (manifest mode), which will create the msys2 root.
 
-      # - name: Install vcpkg manifest (zlib, openssl, pkgconf) using MSYS2
-      #   # Run using bash so we can safely use cygpath and a POSIX-style invocation.
-      #   shell: bash
-      #   run: |
-      #     echo "Installing static packages via manifest (vcpkg.json) using vcpkg"
-      #     echo "VCPKG_DIR: $VCPKG_DIR"
-      #     echo "SOURCE_DIR: $SOURCE_DIR"
+      - name: Install vcpkg manifest (zlib, openssl, pkgconf) using MSYS2
+        # Run using bash so we can safely use cygpath and a POSIX-style invocation.
+        shell: bash
+        run: |
+          echo "Installing static packages via manifest (vcpkg.json) using vcpkg"
+          echo "VCPKG_DIR: $VCPKG_DIR"
+          echo "SOURCE_DIR: $SOURCE_DIR"
 
-      #     # Convert windows paths to MSYS2-friendly unix paths
-      #     MSYS_VCPKG_DIR="$(cygpath -u "$VCPKG_DIR")"
-      #     MSYS_SOURCE_DIR="$(cygpath -u "$SOURCE_DIR")"
+          # Convert windows paths to MSYS2-friendly unix paths
+          MSYS_VCPKG_DIR="$(cygpath -u "$VCPKG_DIR")"
+          MSYS_SOURCE_DIR="$(cygpath -u "$SOURCE_DIR")"
 
-      #     echo "MSYS_VCPKG_DIR: $MSYS_VCPKG_DIR"
-      #     echo "MSYS_SOURCE_DIR: $MSYS_SOURCE_DIR"
+          echo "MSYS_VCPKG_DIR: $MSYS_VCPKG_DIR"
+          echo "MSYS_SOURCE_DIR: $MSYS_SOURCE_DIR"
 
-      #     # Prefer invoking vcpkg under MSYS2 if available, otherwise run via cmd
-      #     # NOTE: some vcpkg releases don't accept --manifest-root; run the vcpkg.exe from the vcpkg root
-      #     # but execute it with working directory set to the manifest (SOURCE_DIR). That ensures manifest mode
-      #     # installs into a repo-local vcpkg_installed directory if that's vcpkg's behavior.
-      #     if [ -x "/c/msys64/usr/bin/bash" ]; then
-      #       echo "System MSYS2 detected at /c/msys64/usr/bin/bash"
-      #       # When running under MSYS2, use the vcpkg.exe from its directory but instruct it to use the repository manifest
-      #       if [ -x "$MSYS_VCPKG_DIR/vcpkg.exe" ]; then
-      #         echo "Running vcpkg install FROM the manifest directory: $MSYS_SOURCE_DIR"
-      #         (cd "$MSYS_SOURCE_DIR" && "$MSYS_VCPKG_DIR/vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug)
-      #       else
-      #         echo "vcpkg.exe not found at $MSYS_VCPKG_DIR; falling back to CMD vcpkg.exe"
-      #         cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug && popd"
-      #       fi
-      #     else
-      #       echo "System MSYS2 not available. Running vcpkg via cmd.exe from the manifest directory: %SOURCE_DIR%"
-      #       cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug && popd"
-      #     fi
+          # Prefer invoking vcpkg under MSYS2 if available, otherwise run via cmd
+          # NOTE: some vcpkg releases don't accept --manifest-root; run the vcpkg.exe from the vcpkg root
+          # but execute it with working directory set to the manifest (SOURCE_DIR). That ensures manifest mode
+          # installs into a repo-local vcpkg_installed directory if that's vcpkg's behavior.
+          if [ -x "/c/msys64/usr/bin/bash" ]; then
+            echo "System MSYS2 detected at /c/msys64/usr/bin/bash"
+            # When running under MSYS2, use the vcpkg.exe from its directory but instruct it to use the repository manifest
+            if [ -x "$MSYS_VCPKG_DIR/vcpkg.exe" ]; then
+              echo "Running vcpkg install FROM the manifest directory: $MSYS_SOURCE_DIR"
+              (cd "$MSYS_SOURCE_DIR" && "$MSYS_VCPKG_DIR/vcpkg.exe" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug)
+            else
+              echo "vcpkg.exe not found at $MSYS_VCPKG_DIR; falling back to CMD vcpkg.exe"
+              cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug && popd"
+            fi
+          else
+            echo "System MSYS2 not available. Running vcpkg via cmd.exe from the manifest directory: %SOURCE_DIR%"
+            cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" install --triplet=x64-mingw-static --host-triplet=x64-mingw-static --clean-after-build --recurse --debug && popd"
+          fi
 
-      #     echo "vcpkg list (after install):"
-      #     if [ -x "$MSYS_VCPKG_DIR/vcpkg.exe" ]; then
-      #       (cd "$MSYS_SOURCE_DIR" && "$MSYS_VCPKG_DIR/vcpkg.exe" list) || ("$MSYS_VCPKG_DIR/vcpkg.exe" list)
-      #     else
-      #       cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" list && popd"
-      #     fi
+          echo "vcpkg list (after install):"
+          if [ -x "$MSYS_VCPKG_DIR/vcpkg.exe" ]; then
+            (cd "$MSYS_SOURCE_DIR" && "$MSYS_VCPKG_DIR/vcpkg.exe" list) || ("$MSYS_VCPKG_DIR/vcpkg.exe" list)
+          else
+            cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" list && popd"
+          fi
 
       # - name: Verify vcpkg manifest installation and artifact directory
       #   run: |
