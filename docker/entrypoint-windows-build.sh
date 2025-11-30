@@ -81,12 +81,14 @@ fi
 
 cmake -G "${GENERATOR}" \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_TOOLCHAIN_FILE=${VCPKG}/scripts/buildsystems/vcpkg.cmake \
-  -DVCPKG_TARGET_TRIPLET=x64-mingw-static \
+  -DCMAKE_TOOLCHAIN_FILE="${VCPKG}/scripts/buildsystems/vcpkg.cmake" \
+  -DVCPKG_TARGET_TRIPLET="x64-mingw-static" \
   -DOPENTERFACE_BUILD_STATIC=ON \
-  -DCMAKE_C_COMPILER=/usr/bin/x86_64-w64-mingw32-gcc \
-  -DCMAKE_CXX_COMPILER=/usr/bin/x86_64-w64-mingw32-g++ \
-  -DCMAKE_RC_COMPILER=/usr/bin/x86_64-w64-mingw32-windres \
+  -DCMAKE_C_COMPILER="/usr/bin/x86_64-w64-mingw32-gcc" \
+  -DCMAKE_CXX_COMPILER="/usr/bin/x86_64-w64-mingw32-g++" \
+  -DCMAKE_RC_COMPILER="/usr/bin/x86_64-w64-mingw32-windres" \
+  -DCMAKE_MAKE_PROGRAM="${MAKE_PROG}" \
+  ${VCPKG_CMAKE_FLAG} \
   "${SRC_DIR}"
 
 echo "[container] Building (parallel)"
