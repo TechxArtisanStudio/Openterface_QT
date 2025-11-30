@@ -1,0 +1,111 @@
+# Ubuntu image to cross-compile a fully static FFmpeg for Windows (x86_64)
+FROM ubuntu:22.04
+
+ARG FFMPEG_VERSION=6.1.1
+ARG BUILD_DIR=/workspace/ffmpeg-win-build
+ARG FFMPEG_PREFIX=/opt/ffmpeg-win-static
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    build-essential \
+    autoconf \
+    automake \
+    libtool \
+    git \
+    wget \
+    curl \
+    unzip \
+    p7zip-full \
+    python3 \
+    python3-pip \
+    cmake \
+    pkg-config \
+    yasm \
+    nasm \
+    mingw-w64 \
+    mingw-w64-tools \
+    clang \
+    ca-certificates \
+    zlib1g-dev \
+    libbz2-dev \
+    liblzma-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR ${BUILD_DIR}
+
+ENV CC=x86_64-w64-mingw32-gcc \
+    CXX=x86_64-w64-mingw32-g++ \
+    AR=x86_64-w64-mingw32-ar \
+    RANLIB=x86_64-w64-mingw32-ranlib \
+    STRIP=x86_64-w64-mingw32-strip \
+    WINDRES=x86_64-w64-mingw32-windres \
+    PATH=/usr/lib/mingw-w64/bin:$PATH
+
+RUN mkdir -p ${FFMPEG_PREFIX}
+
+# Build libjpeg-turbo (static) - required by many decoders
+RUN set -ex; \
+    curl -L -o libjpeg.tar.gz "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz" && \
+    tar xzf libjpeg.tar.gz && rm libjpeg.tar.gz && \
+    cd libjpeg-turbo-3.0.4 && mkdir build && cd build && \
+    cmake .. \
+      -DCMAKE_TOOLCHAIN_FILE=/usr/share/mingw/toolchain-x86_64-w64-mingw32.cmake 2>/dev/null || true;
+
+# The system above may not provide a packaged toolchain file on all setups. Fall back to setting compilers explicitly
+RUN set -ex; \
+    cd ${BUILD_DIR}/libjpeg-turbo-3.0.4/build || (mkdir -p ${BUILD_DIR}/libjpeg-turbo-3.0.4/build && cd ${BUILD_DIR}/libjpeg-turbo-3.0.4/build); \
+    cmake .. \
+      -DCMAKE_SYSTEM_NAME=Windows \
+      -DCMAKE_C_COMPILER=${CC} \
+      -DCMAKE_CXX_COMPILER=${CXX} \
+      -DCMAKE_INSTALL_PREFIX=${FFMPEG_PREFIX} \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DENABLE_STATIC=ON \
+      -DENABLE_SHARED=OFF \
+      -DWITH_JPEG8=ON \
+      -DWITH_TURBOJPEG=ON && \
+    make -j$(nproc) && make install && \
+    cd ${BUILD_DIR} && rm -rf libjpeg-turbo-3.0.4
+
+# Download FFmpeg and configure a Windows-target static build
+RUN set -ex; \
+    curl -L -o ffmpeg.tar.bz2 "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2" && \
+    tar xjf ffmpeg.tar.bz2 && rm ffmpeg.tar.bz2 && \
+    cd ffmpeg-${FFMPEG_VERSION} && \
+    PKG_CONFIG_PATH=${FFMPEG_PREFIX}/lib/pkgconfig ./configure \
+      --prefix=${FFMPEG_PREFIX} \
+      --arch=x86_64 \
+      --target-os=mingw32 \
+      --cross-prefix=x86_64-w64-mingw32- \
+      --enable-static \
+      --disable-shared \
+      --disable-programs \
+      --disable-doc \
+      --enable-gpl \
+      --enable-version3 \
+      --enable-nonfree \
+      --enable-avcodec \
+      --enable-avformat \
+      --enable-avutil \
+      --enable-swresample \
+      --enable-swscale \
+      --enable-avfilter \
+      --enable-postproc \
+      --enable-network \
+      --enable-runtime-cpudetect \
+      --disable-w32threads \
+      --enable-pthreads \
+      --pkg-config-flags="--static" \
+      --extra-cflags="-I${FFMPEG_PREFIX}/include" \
+      --extra-ldflags="-L${FFMPEG_PREFIX}/lib -static -static-libstdc++ -static-libgcc" && \
+    make -j$(nproc) && make install && \
+    cd ${BUILD_DIR} && rm -rf ffmpeg-${FFMPEG_VERSION}
+
+RUN set -ex; \
+    echo 'Built FFmpeg static libraries at ' ${FFMPEG_PREFIX} && ls -la ${FFMPEG_PREFIX}/lib || true
+
+WORKDIR /workspace
+
+CMD ["/bin/bash"]
