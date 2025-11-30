@@ -106,12 +106,11 @@ jobs:
           choco install nasm -y || echo "nasm install failed or already installed"
           choco install yasm -y || echo "yasm install failed or already installed"
 
-      - name: Install MSYS2
-        run: |
-          echo "Installing MSYS2..."
-          curl -L -o msys2.exe https://github.com/msys2/msys2-installer/releases/download/2023-10-26/msys2-x86_64-20231026.exe
-          .\msys2.exe /S
-          del msys2.exe
+      - name: Setup MSYS2 (use action)
+        uses: msys2/setup-msys2@v3
+        with:
+          update: true
+
 
       - name: Install Build Tools
         run: |
