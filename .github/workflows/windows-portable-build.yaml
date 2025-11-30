@@ -93,8 +93,14 @@ jobs:
         id: cache-ffmpeg
         uses: actions/cache@v3
         with:
-          path: D:\vcpkg\installed\x64-mingw-static\lib
-          key: ffmpeg-static-${{ runner.os }}-v1
+          # FFmpeg installation may end up inside the repo's vcpkg (D:\vcpkg\installed) or
+          # the standalone static build script installs to C:\ffmpeg-static (seen in logs).
+          # Cache both locations so restore can hit regardless of which target was used.
+          path: |
+            D:\vcpkg\installed\x64-mingw-static\lib
+            C:\ffmpeg-static\lib
+          # Use the build scripts as part of the cache key so changes in scripts invalidate the cache
+          key: ffmpeg-static-${{ runner.os }}-${{ hashFiles('build-script/build-static-ffmpeg-windows.bat', 'build-script/build-static-ffmpeg-windows.sh') }}-v1
           restore-keys: |
             ffmpeg-static-
 
