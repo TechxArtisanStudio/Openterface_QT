@@ -58,6 +58,30 @@ else
 fi
 
 echo "[container] Configuring project with CMake for cross compile to Windows (x64)"
+
+# Decide on CMake prefix path for Qt — either provided by user, found at /opt/Qt6, or fail with helpful advice
+if [[ -n "${QT_CMAKE_PATH:-}" ]]; then
+  CMAKE_PREFIX_PATH="${QT_CMAKE_PATH}"
+  echo "[container] Using Qt prefix from QT_CMAKE_PATH=${CMAKE_PREFIX_PATH}"
+elif [[ -n "${CMAKE_PREFIX_PATH:-}" ]]; then
+  echo "[container] Using existing CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}"
+else
+  # Common default location used in other dockerfiles in this repo
+  if [[ -d "/opt/Qt6" ]]; then
+    CMAKE_PREFIX_PATH="/opt/Qt6"
+    echo "[container] Found Qt at /opt/Qt6 — using as CMAKE_PREFIX_PATH"
+  else
+    echo "\n[ERROR] Qt not found in container. CMake requires Qt (Qt5/Qt6) to build this project.\n"
+    echo "Options to provide Qt for cross-compiling (pick one):"
+    echo "  1) Mount a prebuilt cross-compiled Qt installation into the container at /opt/Qt6 and re-run. Example:" \
+         "docker run --rm -v /path/to/your/qt-mingw-install:/opt/Qt6 -v \\$(pwd):/src openterface/windows-builder:latest"
+    echo "  2) Set environment variable QT_CMAKE_PATH to a CMake Qt prefix (inside container) and re-run. Example:" \
+         "docker run --rm -e QT_CMAKE_PATH=/some/qt/cmake/prefix -v \\$(pwd):/src openterface/windows-builder:latest"
+    echo "  3) Use the repo's Qt builder docker images (docker/Dockerfile.qt-base-qtml or Dockerfile.qt-complete) to prepare a /opt/Qt6 installation, then re-run this container mounting /opt/Qt6."
+    echo "  4) (Not recommended) Use vcpkg to build Qt inside the container (very long). See repository build-script/build-static-qt-from-source.sh for more info."
+    exit 8
+  fi
+fi
 # Detect a local build program (prefer ninja)
 GENERATOR="Ninja"
 MAKE_PROG=""
@@ -88,6 +112,7 @@ cmake -G "${GENERATOR}" \
   -DCMAKE_CXX_COMPILER="/usr/bin/x86_64-w64-mingw32-g++" \
   -DCMAKE_RC_COMPILER="/usr/bin/x86_64-w64-mingw32-windres" \
   -DCMAKE_MAKE_PROGRAM="${MAKE_PROG}" \
+  -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}" \
   ${VCPKG_CMAKE_FLAG} \
   "${SRC_DIR}"
 
