@@ -70,7 +70,6 @@ jobs:
           key: vcpkg-x64-mingw-static-openssl-ffmpeg-zlib-v1
           restore-keys: |
             vcpkg-x64-mingw-static-
-          uses: msys2/setup-msys2@v2
       - name: Cache FFmpeg Build
         id: cache-ffmpeg
         uses: actions/cache@v3
@@ -203,15 +202,41 @@ jobs:
 
       - name: Ensure MSYS2 and packages for ffmpeg build (pkgconf, nasm, yasm)
         run: |
-          echo Looking for vcpkg msys2 root
+          echo Looking for msys2 roots (vcpkg and system)
           set MSYS2_ROOT=%VCPKG_DIR%\downloads\tools\msys2
-          for /f "delims=" %%i in ('dir /b /ad "%MSYS2_ROOT%" 2^>nul') do set MSYS2_DIR=%%i
-          if not defined MSYS2_DIR (
-            echo msys2 root not present yet, skipping pacman step
+
+          echo "Checking: %MSYS2_ROOT%"
+          set FOUND_MSYS2=
+
+          if exist "%MSYS2_ROOT%\" (
+            echo Found msys2 parent directory under vcpkg downloads
+            for /f "delims=" %%i in ('dir /b /ad "%MSYS2_ROOT%" 2^>nul') do set MSYS2_DIR=%%i
+            if defined MSYS2_DIR (
+              set FOUND_MSYS2=%MSYS2_ROOT%\%MSYS2_DIR%
+            ) else (
+              echo No subdirectory inside %MSYS2_ROOT% yet
+            )
           ) else (
-            set MSYS2_PATH=%MSYS2_ROOT%\%MSYS2_DIR%
-            echo msys path: %MSYS2_PATH%
-            %MSYS2_PATH%\usr\bin\bash.exe -lc "pacman -Sy --noconfirm mingw-w64-x86_64-pkgconf mingw-w64-x86_64-nasm mingw-w64-x86_64-yasm mingw-w64-x86_64-toolchain base-devel perl --needed || true"
+            echo %MSYS2_ROOT% does not exist
+          )
+
+          if not defined FOUND_MSYS2 (
+            echo Trying system MSYS2 at C:\msys64
+            if exist "C:\msys64\usr\bin\bash.exe" (
+              set FOUND_MSYS2=C:\msys64
+            )
+          )
+
+          if not defined FOUND_MSYS2 (
+            echo No MSYS2 found under vcpkg\downloads\tools\msys2 nor C:\msys64 - skipping pacman step
+            echo To debug: list %VCPKG_DIR%\downloads\tools\ and %VCPKG_DIR%\downloads\ for msys2 artifacts
+            dir "%VCPKG_DIR%\downloads\tools" 2>nul || echo "%VCPKG_DIR%\downloads\tools not found"
+            dir "%VCPKG_DIR%\downloads" 2>nul || echo "%VCPKG_DIR%\downloads not found"
+          ) else (
+            echo Using MSYS2 at %FOUND_MSYS2%
+            echo Contents of %FOUND_MSYS2%:
+            dir "%FOUND_MSYS2%" || echo "dir failed"
+            %FOUND_MSYS2%\usr\bin\bash.exe -lc "pacman -Sy --noconfirm mingw-w64-x86_64-pkgconf mingw-w64-x86_64-nasm mingw-w64-x86_64-yasm mingw-w64-x86_64-toolchain base-devel perl --needed || true"
           )
         shell: cmd
 
@@ -253,95 +278,95 @@ jobs:
           dir D:\vcpkg\buildtrees\ffmpeg /s
           echo Done dumping
 
-      - name: Build Qt Statically (if not cached) - using external MinGW
-        if: steps.cache-qt.outputs.cache-hit != 'true'
-        run: |
-          call build-script/build-static-qt-from-source.bat
+      # - name: Build Qt Statically (if not cached) - using external MinGW
+      #   if: steps.cache-qt.outputs.cache-hit != 'true'
+      #   run: |
+      #     call build-script/build-static-qt-from-source.bat
 
-      - name: Create Build Directory
-        run: |
-          mkdir "%RUNNER_TEMP%\build"
+      # - name: Create Build Directory
+      #   run: |
+      #     mkdir "%RUNNER_TEMP%\build"
 
-      - name: Prepare Driver Files
-        run: |
-          mkdir "%SOURCE_DIR%\drivers\windows"
-          copy "driver\windows\*" "%SOURCE_DIR%\drivers\windows\" /Y
+      # - name: Prepare Driver Files
+      #   run: |
+      #     mkdir "%SOURCE_DIR%\drivers\windows"
+      #     copy "driver\windows\*" "%SOURCE_DIR%\drivers\windows\" /Y
 
-      - name: Update Translations (lupdate + lrelease)
-        working-directory: ${{ runner.temp }}\build
-        run: |
-          set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
-          if not exist "C:\Qt6\bin\lupdate.exe" ( echo lupdate not found & exit /b 1 )
-          C:\Qt6\bin\lupdate.exe "%SOURCE_DIR%\openterfaceQT.pro"
-          C:\Qt6\bin\lrelease.exe "%SOURCE_DIR%\openterfaceQT.pro"
+      # - name: Update Translations (lupdate + lrelease)
+      #   working-directory: ${{ runner.temp }}\build
+      #   run: |
+      #     set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
+      #     if not exist "C:\Qt6\bin\lupdate.exe" ( echo lupdate not found & exit /b 1 )
+      #     C:\Qt6\bin\lupdate.exe "%SOURCE_DIR%\openterfaceQT.pro"
+      #     C:\Qt6\bin\lrelease.exe "%SOURCE_DIR%\openterfaceQT.pro"
 
-      - name: Build Portable Executable with CMake (run from MSYS2; external MinGW compilers)
-        working-directory: ${{ runner.temp }}\build
-        run: >-
-          REM Run the final cmake build inside MSYS2 to use MSYS2 runtime for packaging while ensuring we use the external MinGW toolchain for compilers
-          for /f "delims=" %%i in ('dir /b /ad "C:\msys64\usr" 2^>nul') do set MSYS2_DIR=%%i && set MSYS2_PATH=C:\msys64\usr\bin
-          if not exist "%MSYS2_PATH%\bash.exe" (
-            set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;%PATH% &&
-            cmake -G "Ninja"
-              -DCMAKE_BUILD_TYPE=Release
-              -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
-              -DVCPKG_TARGET_TRIPLET="x64-mingw-static"
-              -DCMAKE_PREFIX_PATH="C:/Qt6"
-              -DOPENTERFACE_BUILD_STATIC=ON
-              -DCMAKE_C_COMPILER="%EXTERNAL_MINGW%/bin/gcc.exe"
-              -DCMAKE_CXX_COMPILER="%EXTERNAL_MINGW%/bin/g++.exe"
-              -DCMAKE_RC_COMPILER="%EXTERNAL_MINGW%/bin/windres.exe"
-              "%SOURCE_DIR%" &&
-            cmake --build . --config Release -- -j2 &&
-            for /f "delims=" %F in ('dir /s /b openterfaceQT.exe 2^>nul') do set "EXE=%F" &&
-            if not defined EXE (
-              echo Build failed: openterfaceQT.exe not found && dir /s /b . && exit /b 1
-            ) &&
-            echo Checking for DLL dependencies... &&
-            %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" >nul && (
-              echo ERROR: DLL dependencies detected! &&
-              %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" &&
-              exit /b 1
-            ) || (
-              echo OK: No DLL dependencies — fully static.
-            ) &&
-            %EXTERNAL_MINGW%\bin\strip.exe -s "%EXE%" &&
-            mkdir package &&
-            copy "%EXE%" package\openterfaceQT-portable.exe
-          ) else (
-            # Quote the cygpath converted SOURCE_DIR to avoid splitting on spaces
-            "%MSYS2_PATH%\bash.exe" -lc "export PATH=/c/Qt6/bin:/c/mingw64/bin:$PATH && cmake -G \"Ninja\" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=\"/c/vcpkg/scripts/buildsystems/vcpkg.cmake\" -DVCPKG_TARGET_TRIPLET=\"x64-mingw-static\" -DCMAKE_PREFIX_PATH=\"/c/Qt6\" -DOPENTERFACE_BUILD_STATIC=ON -DCMAKE_C_COMPILER=/c/mingw64/bin/gcc.exe -DCMAKE_CXX_COMPILER=/c/mingw64/bin/g++.exe -DCMAKE_RC_COMPILER=/c/mingw64/bin/windres.exe \"$(cygpath -u '%SOURCE_DIR%')\" && cmake --build . --config Release -- -j2 || exit 1"
-            "%MSYS2_PATH%\bash.exe" -lc "for f in \$(find . -name \"openterfaceQT.exe\" -print -quit); do EXE=\$f; break; done; if [ -z \"\$EXE\" ]; then echo Build failed: openterfaceQT.exe not found && exit 1; fi; /c/mingw64/bin/objdump -p \"\$EXE\" | grep -i \\\"\\.dll\\\" && (echo ERROR: DLL dependencies detected && /c/mingw64/bin/objdump -p \"\$EXE\" | grep -i \\\"\\.dll\\\" && exit 1) || echo OK: No DLL dependencies; /c/mingw64/bin/strip -s \"\$EXE\"; mkdir -p package; cp \"\$EXE\" package/openterfaceQT-portable.exe"
-          )
-            -DCMAKE_BUILD_TYPE=Release
-            -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
-            -DVCPKG_TARGET_TRIPLET="x64-mingw-static"
-            -DCMAKE_PREFIX_PATH="C:/Qt6"
-            -DOPENTERFACE_BUILD_STATIC=ON
-            -DCMAKE_C_COMPILER="%EXTERNAL_MINGW%/bin/gcc.exe"
-            -DCMAKE_CXX_COMPILER="%EXTERNAL_MINGW%/bin/g++.exe"
-            -DCMAKE_RC_COMPILER="%EXTERNAL_MINGW%/bin/windres.exe"
-            "%SOURCE_DIR%" &&
-          cmake --build . --config Release -- -j2 &&
-          for /f "delims=" %F in ('dir /s /b openterfaceQT.exe 2^>nul') do set "EXE=%F" &&
-          if not defined EXE (
-            echo Build failed: openterfaceQT.exe not found && dir /s /b . && exit /b 1
-          ) &&
-          echo Checking for DLL dependencies... &&
-          %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" >nul && (
-            echo ERROR: DLL dependencies detected! &&
-            %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" &&
-            exit /b 1
-          ) || (
-            echo OK: No DLL dependencies — fully static.
-          ) &&
-          %EXTERNAL_MINGW%\bin\strip.exe -s "%EXE%" &&
-          mkdir package &&
-          copy "%EXE%" package\openterfaceQT-portable.exe
+      # - name: Build Portable Executable with CMake (run from MSYS2; external MinGW compilers)
+      #   working-directory: ${{ runner.temp }}\build
+      #   run: >-
+      #     REM Run the final cmake build inside MSYS2 to use MSYS2 runtime for packaging while ensuring we use the external MinGW toolchain for compilers
+      #     for /f "delims=" %%i in ('dir /b /ad "C:\msys64\usr" 2^>nul') do set MSYS2_DIR=%%i && set MSYS2_PATH=C:\msys64\usr\bin
+      #     if not exist "%MSYS2_PATH%\bash.exe" (
+      #       set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;%PATH% &&
+      #       cmake -G "Ninja"
+      #         -DCMAKE_BUILD_TYPE=Release
+      #         -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      #         -DVCPKG_TARGET_TRIPLET="x64-mingw-static"
+      #         -DCMAKE_PREFIX_PATH="C:/Qt6"
+      #         -DOPENTERFACE_BUILD_STATIC=ON
+      #         -DCMAKE_C_COMPILER="%EXTERNAL_MINGW%/bin/gcc.exe"
+      #         -DCMAKE_CXX_COMPILER="%EXTERNAL_MINGW%/bin/g++.exe"
+      #         -DCMAKE_RC_COMPILER="%EXTERNAL_MINGW%/bin/windres.exe"
+      #         "%SOURCE_DIR%" &&
+      #       cmake --build . --config Release -- -j2 &&
+      #       for /f "delims=" %F in ('dir /s /b openterfaceQT.exe 2^>nul') do set "EXE=%F" &&
+      #       if not defined EXE (
+      #         echo Build failed: openterfaceQT.exe not found && dir /s /b . && exit /b 1
+      #       ) &&
+      #       echo Checking for DLL dependencies... &&
+      #       %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" >nul && (
+      #         echo ERROR: DLL dependencies detected! &&
+      #         %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" &&
+      #         exit /b 1
+      #       ) || (
+      #         echo OK: No DLL dependencies — fully static.
+      #       ) &&
+      #       %EXTERNAL_MINGW%\bin\strip.exe -s "%EXE%" &&
+      #       mkdir package &&
+      #       copy "%EXE%" package\openterfaceQT-portable.exe
+      #     ) else (
+      #       # Quote the cygpath converted SOURCE_DIR to avoid splitting on spaces
+      #       "%MSYS2_PATH%\bash.exe" -lc "export PATH=/c/Qt6/bin:/c/mingw64/bin:$PATH && cmake -G \"Ninja\" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=\"/c/vcpkg/scripts/buildsystems/vcpkg.cmake\" -DVCPKG_TARGET_TRIPLET=\"x64-mingw-static\" -DCMAKE_PREFIX_PATH=\"/c/Qt6\" -DOPENTERFACE_BUILD_STATIC=ON -DCMAKE_C_COMPILER=/c/mingw64/bin/gcc.exe -DCMAKE_CXX_COMPILER=/c/mingw64/bin/g++.exe -DCMAKE_RC_COMPILER=/c/mingw64/bin/windres.exe \"$(cygpath -u '%SOURCE_DIR%')\" && cmake --build . --config Release -- -j2 || exit 1"
+      #       "%MSYS2_PATH%\bash.exe" -lc "for f in \$(find . -name \"openterfaceQT.exe\" -print -quit); do EXE=\$f; break; done; if [ -z \"\$EXE\" ]; then echo Build failed: openterfaceQT.exe not found && exit 1; fi; /c/mingw64/bin/objdump -p \"\$EXE\" | grep -i \\\"\\.dll\\\" && (echo ERROR: DLL dependencies detected && /c/mingw64/bin/objdump -p \"\$EXE\" | grep -i \\\"\\.dll\\\" && exit 1) || echo OK: No DLL dependencies; /c/mingw64/bin/strip -s \"\$EXE\"; mkdir -p package; cp \"\$EXE\" package/openterfaceQT-portable.exe"
+      #     )
+      #       -DCMAKE_BUILD_TYPE=Release
+      #       -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      #       -DVCPKG_TARGET_TRIPLET="x64-mingw-static"
+      #       -DCMAKE_PREFIX_PATH="C:/Qt6"
+      #       -DOPENTERFACE_BUILD_STATIC=ON
+      #       -DCMAKE_C_COMPILER="%EXTERNAL_MINGW%/bin/gcc.exe"
+      #       -DCMAKE_CXX_COMPILER="%EXTERNAL_MINGW%/bin/g++.exe"
+      #       -DCMAKE_RC_COMPILER="%EXTERNAL_MINGW%/bin/windres.exe"
+      #       "%SOURCE_DIR%" &&
+      #     cmake --build . --config Release -- -j2 &&
+      #     for /f "delims=" %F in ('dir /s /b openterfaceQT.exe 2^>nul') do set "EXE=%F" &&
+      #     if not defined EXE (
+      #       echo Build failed: openterfaceQT.exe not found && dir /s /b . && exit /b 1
+      #     ) &&
+      #     echo Checking for DLL dependencies... &&
+      #     %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" >nul && (
+      #       echo ERROR: DLL dependencies detected! &&
+      #       %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" &&
+      #       exit /b 1
+      #     ) || (
+      #       echo OK: No DLL dependencies — fully static.
+      #     ) &&
+      #     %EXTERNAL_MINGW%\bin\strip.exe -s "%EXE%" &&
+      #     mkdir package &&
+      #     copy "%EXE%" package\openterfaceQT-portable.exe
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT }}
-          path: ${{ runner.temp }}\build\package\openterfaceQT-portable.exe
-          if-no-files-found: error
+      # - name: Upload Artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: ${{ env.ARTIFACT }}
+      #     path: ${{ runner.temp }}\build\package\openterfaceQT-portable.exe
+      #     if-no-files-found: error
