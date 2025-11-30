@@ -358,9 +358,10 @@ jobs:
 
           if exist "%MSYS2_ROOT%\" (
             echo Found msys2 parent directory under vcpkg downloads
-            for /f "delims=" %%i in ('dir /b /ad "%MSYS2_ROOT%" 2^>nul') do set MSYS2_DIR=%%i
+            for /f "delims=" %%i in ('dir /b /ad "%MSYS2_ROOT%" 2^>nul') do set "MSYS2_DIR=%%i"
             if defined MSYS2_DIR (
-              set FOUND_MSYS2=%MSYS2_ROOT%\%MSYS2_DIR%
+              rem Use CALL SET to safely expand variables that may contain parentheses or special characters
+              call set "FOUND_MSYS2=%%MSYS2_ROOT%%\\%%MSYS2_DIR%%"
             ) else (
               echo No subdirectory inside %MSYS2_ROOT% yet
             )
