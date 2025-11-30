@@ -362,6 +362,8 @@ jobs:
             if defined MSYS2_DIR (
               rem Use CALL SET to safely expand variables that may contain parentheses or special characters
               call set "FOUND_MSYS2=%%MSYS2_ROOT%%\\%%MSYS2_DIR%%"
+              rem Print the resolved MSYS2 path for diagnostics
+              call echo "Resolved FOUND_MSYS2=%%FOUND_MSYS2%%"
             ) else (
               echo No subdirectory inside %MSYS2_ROOT% yet
             )
