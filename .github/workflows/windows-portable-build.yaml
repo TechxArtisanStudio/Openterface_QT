@@ -312,6 +312,29 @@ jobs:
             cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" list && popd"
           fi
 
+      - name: Ensure OpenSSL is available in central vcpkg
+        shell: cmd
+        run: |
+          echo Checking central vcpkg for OpenSSL static libs...
+          if exist "%VCPKG_DIR%\installed\x64-mingw-static\lib\libcrypto.a" (
+            echo OpenSSL already present in central vcpkg
+          ) else (
+            echo OpenSSL not found in central vcpkg; checking repo-local manifest install...
+            if exist "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib\libcrypto.a" (
+              echo Found repo-local OpenSSL artifacts; copying into central vcpkg
+              mkdir "%VCPKG_DIR%\installed\x64-mingw-static\lib" 2>nul || echo "lib dir exists"
+              mkdir "%VCPKG_DIR%\installed\x64-mingw-static\include" 2>nul || echo "include dir exists"
+              xcopy "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib\*" "%VCPKG_DIR%\installed\x64-mingw-static\lib\" /Y /I
+              xcopy "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\include\*" "%VCPKG_DIR%\installed\x64-mingw-static\include\" /Y /I
+            ) else (
+              echo Repo-local copy not found; attempting to install OpenSSL into central vcpkg
+              pushd "%VCPKG_DIR%" && "%VCPKG_DIR%\vcpkg.exe" install openssl --triplet=x64-mingw-static --clean-after-build --recurse || (
+                echo Failed to install OpenSSL via vcpkg; printing central vcpkg folder contents for debugging && dir "%VCPKG_DIR%\installed\x64-mingw-static" /s
+                exit /b 1
+              ) && popd
+            )
+          )
+
       - name: Verify vcpkg manifest installation and artifact directory
         shell: cmd
         run: |
