@@ -49,8 +49,9 @@ if not exist "%OPENSSL_LIB_DIR%" (
     if exist "%REPO_OPENSSL_DIR%\lib" (
         echo INFO: Found repo-local OpenSSL at "%REPO_OPENSSL_DIR%" - using it.
         set "OPENSSL_DIR=%REPO_OPENSSL_DIR%"
-        set "OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib"
-        set "OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include"
+        rem Use delayed expansion so OPENSSL_LIB_DIR evaluates the updated OPENSSL_DIR
+        set "OPENSSL_LIB_DIR=!OPENSSL_DIR!\lib"
+        set "OPENSSL_INCLUDE_DIR=!OPENSSL_DIR!\include"
     ) else (
         echo INFO: Repo-local OpenSSL not found at "%REPO_OPENSSL_DIR%" either; will try to install later - may fail with diagnostics.
     )
@@ -75,17 +76,9 @@ if not exist "%OPENSSL_LIB_DIR%" (
 dir "%OPENSSL_LIB_DIR%"
 
 if not exist "%OPENSSL_LIB_DIR%\libcrypto.a" (
-    echo WARNING: libcrypto.a not found in %OPENSSL_LIB_DIR% - attempting repo-local fallback
-    if exist "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib\libcrypto.a" (
-        echo Found libcrypto.a in repo-local vcpkg_installed; switching OPENSSL_DIR to repo-local path.
-        set "OPENSSL_DIR=%SOURCE_DIR%\vcpkg_installed\x64-mingw-static"
-        set "OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib"
-        set "OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include"
-    ) else (
-        echo OpenSSL static library libcrypto.a not found in either central or repo-local locations.
-        echo Please install OpenSSL static libraries: vcpkg install openssl --triplet=x64-mingw-static or let the workflow install/copy them into D:\vcpkg\installed\x64-mingw-static
-        exit /b 1
-    )
+    echo ERROR: OpenSSL static library libcrypto.a not found in %OPENSSL_LIB_DIR%.
+    echo Please install OpenSSL static libraries: vcpkg install openssl --triplet=x64-mingw-static.
+    exit /b 1
 )
 
 if not exist "%OPENSSL_LIB_DIR%\libssl.a" (
