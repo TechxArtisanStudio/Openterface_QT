@@ -1,4 +1,4 @@
-name: Windows App Test
+name: Docker Test / Openterface Windows
 
 on:
   push:

@@ -431,14 +431,17 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     }
     
     ConfigResult config = sendAndProcessConfigCommand();
-    if (!config.success) {
-        config = attemptBaudrateDetection();
-    }
-    
+    const int maxRetries = 2; // Keep same retry behavior as before
+    const int retryDelayMs = 1000; // 1 second delay between retries (non-blocking)
+
     if (config.success) {
         handleChipSpecificLogic(config);
         storeBaudrateIfNeeded(config.workingBaudrate);
         emit serialPortConnectionSuccess(portName);
+    } else {
+        qCWarning(log_core_serial) << "Configuration command failed, scheduling async retry attempts (maxRetries=" << maxRetries << ")";
+        // Schedule the first asynchronous retry (attempt #1)
+        scheduleConfigRetry(portName, 1, maxRetries, retryDelayMs);
     }
 }
 
@@ -507,7 +510,8 @@ ConfigResult SerialPortManager::sendAndProcessConfigCommand() {
             checkArmBaudratePerformance(serialPort->baudRate());
         }
     } else {
-        qCWarning(log_core_serial) << "The mode is incorrect, mode:" << config.mode << "expected:" << hostConfigMode;
+        qCWarning(log_core_serial).nospace() << "The mode is incorrect, mode: 0x" << QString::number(config.mode, 16)
+                       << ", expected: 0x" << QString::number(hostConfigMode, 16);
         if (isChipTypeCH32V208()) {
             qCWarning(log_core_serial) << "CH32V208 chip does not support mode reconfiguration via commands";
             result.success = true;  // Still successful, just mode is different
@@ -561,7 +565,6 @@ ConfigResult SerialPortManager::attemptBaudrateDetection() {
         closePort();
         openPort(portName, altBaudrate);
         QByteArray retByte = sendSyncCommand(CMD_GET_PARA_CFG, true);
-        qCDebug(log_core_serial) << "Data read from serial port with alternative baudrate: " << retByte.toHex(' ');
         if (retByte.size() > 0) {
             CmdDataParamConfig config = CmdDataParamConfig::fromByteArray(retByte);
             qCDebug(log_core_serial) << "Connected with baudrate: " << altBaudrate;
@@ -971,13 +974,22 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     }
     
     if (openResult) {
-        qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate;
+        serialPort->setReadBufferSize(4096);  // Set a larger read buffer size
+        qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate << "with read buffer size" << serialPort->readBufferSize();
         serialPort->setRequestToSend(false);
+
+        // Show existing buffer sizes before clearing them (read and write sizes)
+        qCDebug(log_core_serial) << "Serial buffer sizes before clear - bytesAvailable:" << serialPort->bytesAvailable()
+                                 << "bytesToWrite:" << serialPort->bytesToWrite();
 
         // Clear any stale data in the serial port buffers to prevent data corruption
         // This is critical when device is unplugged and replugged
         qCDebug(log_core_serial) << "Clearing serial port buffers to remove stale data";
         serialPort->clear(QSerialPort::AllDirections);
+
+        // Log buffer sizes after clearing to confirm the clear worked
+        qCDebug(log_core_serial) << "Serial buffer sizes after clear - bytesAvailable:" << serialPort->bytesAvailable()
+                                 << "bytesToWrite:" << serialPort->bytesToWrite();
         
         // Also clear our internal incomplete data buffer
         {
@@ -1024,8 +1036,10 @@ void SerialPortManager::closePort() {
     
     QMutexLocker locker(&m_serialPortMutex);
     
-    if (serialPort != nullptr) {
+        if (serialPort != nullptr) {
         if (serialPort->isOpen()) {
+            qCDebug(log_core_serial) << "Close serial port - current buffer sizes before flush/clear - bytesAvailable:" << serialPort->bytesAvailable()
+                                     << "bytesToWrite:" << serialPort->bytesToWrite();
             // Disconnect all signals first
             disconnect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
             disconnect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
@@ -1036,6 +1050,8 @@ void SerialPortManager::closePort() {
             try {
                 serialPort->flush();
                 serialPort->clear();
+                qCDebug(log_core_serial) << "Close serial port - buffer sizes after flush/clear - bytesAvailable:" << serialPort->bytesAvailable()
+                                         << "bytesToWrite:" << serialPort->bytesToWrite();
                 serialPort->clearError();
                 serialPort->close();
                 qCDebug(log_core_serial) << "Serial port closed successfully";
@@ -1096,6 +1112,37 @@ bool SerialPortManager::restartPort() {
     return ready;
 }
 
+void SerialPortManager::scheduleConfigRetry(const QString &portName, int attempt, int maxAttempts, int delayMs)
+{
+    QTimer::singleShot(delayMs, this, [this, portName, attempt, maxAttempts, delayMs]() {
+        if (m_isShuttingDown) {
+            qCWarning(log_core_serial) << "scheduleConfigRetry: shutdown in progress, aborting retry";
+            return;
+        }
+        if (!serialPort || !serialPort->isOpen()) {
+            qCWarning(log_core_serial) << "scheduleConfigRetry: Serial port not open, aborting retry";
+            return;
+        }
+
+        qCWarning(log_core_serial) << "Configuration retry attempt:" << attempt << "of" << maxAttempts;
+        ConfigResult config = attemptBaudrateDetection();
+        if (config.success) {
+            qCInfo(log_core_serial) << "Configuration retry succeeded on attempt:" << attempt;
+            handleChipSpecificLogic(config);
+            storeBaudrateIfNeeded(config.workingBaudrate);
+            emit serialPortConnectionSuccess(portName);
+            return;
+        }
+
+        if (attempt < maxAttempts) {
+            qCWarning(log_core_serial) << "Configuration still failed, scheduling next attempt:" << (attempt + 1);
+            scheduleConfigRetry(portName, attempt + 1, maxAttempts, delayMs);
+        } else {
+            qCWarning(log_core_serial) << "Configuration attempts exhausted after" << attempt << "tries";
+        }
+    });
+}
+
 
 void SerialPortManager::updateSpecialKeyState(uint8_t data){
 
@@ -1121,12 +1168,9 @@ void SerialPortManager::readData() {
         return;
     }
     
-    qCDebug(log_core_serial) << "readData: Called, reading data from serial port";
-    
     QByteArray data;
     try {
         data = serialPort->readAll();
-        qCDebug(log_core_serial) << "readData: Read" << data.size() << "bytes:" << data.toHex(' ');
     } catch (...) {
         qCWarning(log_core_serial) << "Exception occurred while reading serial data";
         m_consecutiveErrors++;
@@ -1141,9 +1185,7 @@ void SerialPortManager::readData() {
         return;
     }
 
-    qCDebug(log_core_serial) << "readData: Received raw data from serial port:" << data.toHex(' ');
-
-        // Prepend any buffered incomplete data from previous reads
+    // Prepend any buffered incomplete data from previous reads
     QByteArray completeData;
     {
         QMutexLocker bufferLocker(&m_bufferMutex);
@@ -1227,8 +1269,6 @@ void SerialPortManager::readData() {
 
             unsigned char cmdCode = static_cast<unsigned char>(packet[3]);
             unsigned char responseKey = static_cast<unsigned char>(cmdCode | 0x80);
-
-            qCDebug(log_core_serial) << "readData: Extracted packet:" << packet.toHex(' ') << "cmdCode: 0x" << QString::number(cmdCode, 16);
 
             // If there's a pending synchronous request, check for match
             bool handledBySync = false;
@@ -1433,7 +1473,7 @@ bool SerialPortManager::writeData(const QByteArray &data) {
     }
 
     try {
-    qint64 bytesWritten = serialPort->write(data);
+        qint64 bytesWritten = serialPort->write(data);
         if (bytesWritten == -1) {
             qCWarning(log_core_serial) << "Failed to write data to serial port:" << serialPort->errorString();
             m_consecutiveErrors++;
@@ -1444,60 +1484,60 @@ bool SerialPortManager::writeData(const QByteArray &data) {
             return false;
         }
         
-    // Ensure data is flushed to OS driver and wait for kernel write completion
-    serialPort->flush();
-    bool waitOk = false;
+        // Ensure data is flushed to OS driver and wait for kernel write completion
+        serialPort->flush();
+        bool waitOk = false;
 
-    // If nothing left to write, succeed immediately
-    if (serialPort->bytesToWrite() == 0) {
-        waitOk = true;
-    } else {
-        // Use a QEventLoop and signal-based waiting instead of waitForBytesWritten
-        // This avoids platform-specific deadlocks and gives us a reliable timeout.
-        QEventLoop loop;
-        QTimer timeoutTimer;
-        timeoutTimer.setSingleShot(true);
-        const int writeTimeoutMs = 1000; // 1s timeout for kernel write completion
+        // If nothing left to write, succeed immediately
+        if (serialPort->bytesToWrite() == 0) {
+            waitOk = true;
+        } else {
+            // Use a QEventLoop and signal-based waiting instead of waitForBytesWritten
+            // This avoids platform-specific deadlocks and gives us a reliable timeout.
+            QEventLoop loop;
+            QTimer timeoutTimer;
+            timeoutTimer.setSingleShot(true);
+            const int writeTimeoutMs = 1000; // 1s timeout for kernel write completion
 
-        bool timedOut = false;
-        bool writeError = false;
+            bool timedOut = false;
+            bool writeError = false;
 
-        timeoutTimer.start(writeTimeoutMs);
+            timeoutTimer.start(writeTimeoutMs);
 
-        QMetaObject::Connection connWrite = connect(serialPort, &QSerialPort::bytesWritten, &loop, [&](qint64){
-            // Break out if all data has been written
-            if (serialPort->bytesToWrite() == 0) {
+            QMetaObject::Connection connWrite = connect(serialPort, &QSerialPort::bytesWritten, &loop, [&](qint64){
+                // Break out if all data has been written
+                if (serialPort->bytesToWrite() == 0) {
+                    loop.quit();
+                }
+            });
+            QMetaObject::Connection connErr = connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred), &loop, [&](QSerialPort::SerialPortError err){
+                Q_UNUSED(err);
+                writeError = true;
                 loop.quit();
-            }
-        });
-        QMetaObject::Connection connErr = connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred), &loop, [&](QSerialPort::SerialPortError err){
-            Q_UNUSED(err);
-            writeError = true;
-            loop.quit();
-        });
-        QMetaObject::Connection connTimeout = connect(&timeoutTimer, &QTimer::timeout, &loop, [&](){
-            timedOut = true;
-            loop.quit();
-        });
+            });
+            QMetaObject::Connection connTimeout = connect(&timeoutTimer, &QTimer::timeout, &loop, [&](){
+                timedOut = true;
+                loop.quit();
+            });
 
-        // Run nested event loop until bytesWritten or timeout or error triggers exit
-        loop.exec();
+            // Run nested event loop until bytesWritten or timeout or error triggers exit
+            loop.exec();
 
-        // Disconnect the temporary connections
-        disconnect(connWrite);
-        disconnect(connErr);
-        disconnect(connTimeout);
+            // Disconnect the temporary connections
+            disconnect(connWrite);
+            disconnect(connErr);
+            disconnect(connTimeout);
 
-        waitOk = (!timedOut && !writeError && serialPort->bytesToWrite() == 0);
-    }
+            waitOk = (!timedOut && !writeError && serialPort->bytesToWrite() == 0);
+        }
 
-    qCDebug(log_core_serial) << "writeData: bytesWritten=" << bytesWritten << "writeWaitOk=" << waitOk
-             << "bytesToWrite(after):" << serialPort->bytesToWrite()
-             << "bytesAvailable(after):" << serialPort->bytesAvailable();
+        qCDebug(log_core_serial) << "writeData: bytesWritten=" << bytesWritten << "writeWaitOk=" << waitOk
+                << "bytesToWrite(after):" << serialPort->bytesToWrite()
+                << "bytesAvailable(after):" << serialPort->bytesAvailable();
 
-    qCDebug(log_core_serial) << "Data written to serial port:" << serialPort->portName()
-                     << "baudrate:" << serialPort->baudRate() << ":" << data.toHex(' ');
-        
+        qCDebug(log_core_serial) << "Data written to serial port:" << serialPort->portName()
+                        << "baudrate:" << serialPort->baudRate() << ":" << data.toHex(' ');
+            
         if (!waitOk) {
             qCWarning(log_core_serial) << "writeData: write did not finish within timeout or error occurred; bytesToWrite:" 
                                        << (serialPort ? serialPort->bytesToWrite() : -1) 
@@ -1563,43 +1603,92 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
     emit dataSent(data);
     QByteArray command = data;
     
+    const int commandCode = static_cast<unsigned char>(data[3]);
+
+    serialPort->readAll(); // Clear any existing data in the buffer before sending command
     command.append(calculateChecksum(command));
-    qCDebug(log_core_serial) <<  "Check sum" << command.toHex(' ');
     writeData(command);
     
-    // Use signal-based approach instead of blocking wait
-    // The response will be handled by readData() signal handler
-    // For now, return empty array - calling code should use async signals
-    // This prevents UI blocking
-    
-    // DEPRECATED: This synchronous method should be refactored to use callbacks
-    // Temporarily keeping minimal blocking for backwards compatibility
-    QElapsedTimer timer;
-    timer.start();
-    QByteArray responseData;
-    
-    const int totalTimeoutMs = 1000;
-    const int waitStepMs = 100;
+    // Use new helper to wait for and collect the sync response
+    QByteArray responseData = collectSyncResponse(/* totalTimeoutMs = */ 1000, /* waitStepMs = */ 100);
 
-    while (timer.elapsed() < totalTimeoutMs && responseData.isEmpty()) {
-        if (serialPort->waitForReadyRead(waitStepMs)) {
-            responseData = serialPort->readAll();
-            QThread::msleep(40); // Add 40ms delay
-            // Try to get any remaining data without blocking
-            while (serialPort->bytesAvailable() > 0) {
-                responseData += serialPort->readAll();
-            }
-            if (!responseData.isEmpty()) {
-                emit dataReceived(responseData);
-                return responseData;
+    // verify response command code matches expected
+    if (responseData.size() >= 4) {
+        unsigned char respCmdCode = static_cast<unsigned char>(responseData[3]);
+        if (respCmdCode != (commandCode | 0x80)) {
+            qCWarning(log_core_serial).nospace().noquote() << "sendSyncCommand: Mismatched response command. Expected 0x" 
+                                       << QString::number(commandCode | 0x80, 16) << ", but got 0x" 
+                                       << QString::number(respCmdCode, 16) << ". Response data:" << responseData.toHex(' ');
+
+            // Special case: if we got a previous get info response, keep receive until get the expected one or timeout
+            if(respCmdCode == 0x81 && commandCode == 0x88){
+                qCWarning(log_core_serial) << "sendSyncCommand: Received previous get info response from device, get the expected one or timeout.";
+                QElapsedTimer timer;
+                timer.start();
+                while(respCmdCode == 0x81 && timer.elapsed() < 1000){
+                    responseData = collectSyncResponse(/* totalTimeoutMs = */ 1000, /* waitStepMs = */ 100);
+                    if(responseData.size() < 4) break;
+                    respCmdCode = static_cast<unsigned char>(responseData[3]);
+                }
+            }else {
+                // Resend command again
+                writeData(command);
+                responseData = collectSyncResponse(/* totalTimeoutMs = */ 1000, /* waitStepMs = */ 100);
             }
         }
-        QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 5);
+    } else {
+        qCWarning(log_core_serial) << "sendSyncCommand: Incomplete response data received. Size:" 
+                                   << responseData.size() << "Data:" << responseData.toHex(' ');
+        return QByteArray();
     }
-    
+
+    // Notify serial console of received data
+    if (!responseData.isEmpty()) {
+        emit dataReceived(responseData);
+        return responseData;
+    }
     return responseData;
 }
 
+QByteArray SerialPortManager::collectSyncResponse(int totalTimeoutMs, int waitStepMs)
+{
+    if (!serialPort || !serialPort->isOpen()) {
+        qCWarning(log_core_serial) << "collectSyncResponse: Serial port not open";
+        return QByteArray();
+    }
+
+    QElapsedTimer timer;
+    timer.start();
+    QByteArray responseData;
+
+    int expectedResponseLength = 6; // minimal header + checksum
+    const int MAX_ACCEPTABLE_PACKET = 4096;
+
+    while (timer.elapsed() < totalTimeoutMs && responseData.size() < expectedResponseLength) {
+        if (serialPort->waitForReadyRead(waitStepMs)) {
+            QByteArray chunk = serialPort->readAll();
+            if (!chunk.isEmpty()) {
+                responseData += chunk;
+                qCDebug(log_core_serial) << "collectSyncResponse: Read" << responseData.size() << "bytes:" << responseData.toHex(' ');
+
+                // If we already have at least the header, recompute expected length from response header
+                if (responseData.size() > 4) {
+                    int respLen = static_cast<unsigned char>(responseData[4]);
+                    int newExpected = respLen + 6; // payload + header.. + checksum
+                    // Sanity bounds to avoid pathological values
+                    if (newExpected >= 6 && newExpected <= MAX_ACCEPTABLE_PACKET && newExpected > expectedResponseLength) {
+                        expectedResponseLength = newExpected;
+                        qCDebug(log_core_serial) << "collectSyncResponse: Updated expected response length from header to" << expectedResponseLength;
+                    }
+                }
+            }
+        }
+        qCDebug(log_core_serial) << "collectSyncResponse: Elapsed time:" << timer.elapsed() << "ms, current response size:" << responseData.size();
+    }
+
+    qCDebug(log_core_serial) << "collectSyncResponse: Total response size after wait:" << responseData.size() << "Data:" << responseData.toHex(' ');
+    return responseData;
+}
 
 quint8 SerialPortManager::calculateChecksum(const QByteArray &data) {
     quint32 sum = 0;
@@ -1730,7 +1819,8 @@ int SerialPortManager::checkUsbStatusViaSerial() {
 */
 void SerialPortManager::setUSBconfiguration(int targetBaudrate){
     QSettings settings("Techxartisan", "Openterface");
-    
+    uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
+
     // Select the appropriate command prefix based on target baudrate
     QByteArray command;
     if (targetBaudrate == BAUDRATE_LOWSPEED) {
@@ -1740,6 +1830,7 @@ void SerialPortManager::setUSBconfiguration(int targetBaudrate){
         command = CMD_SET_PARA_CFG_PREFIX_115200;
         qCDebug(log_core_serial) << "Using 115200 baudrate configuration for USB setup";
     }
+    command[5] = mode;  // Set mode byte at index 5 (6th byte)
 
     QString VID = settings.value("serial/vid", "86 1A").toString();
     QString PID = settings.value("serial/pid", "29 E1").toString();
@@ -1869,27 +1960,14 @@ bool SerialPortManager::setBaudRate(int baudRate) {
 void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
     qCDebug(log_core_serial) << "User manually selected baudrate:" << baudRate;
     
-    // Check if this is an CH32V208 chip (only supports 115200)
-    if (serialPort && serialPort->isOpen()) {
-        QString portName = serialPort->portName();
-        QList<QSerialPortInfo> availablePorts = QSerialPortInfo::availablePorts();
-        for (const QSerialPortInfo &portInfo : availablePorts) {
-            if (portName.indexOf(portInfo.portName())>=0) {
-                QString vid = QString("%1").arg(portInfo.vendorIdentifier(), 4, 16, QChar('0')).toUpper();
-                QString pid = QString("%1").arg(portInfo.productIdentifier(), 4, 16, QChar('0')).toUpper();
-                
-                uint32_t detectedVidPid = (vid.toUInt(nullptr, 16) << 16) | pid.toUInt(nullptr, 16);
-                if (detectedVidPid == static_cast<uint32_t>(ChipType::CH32V208)) {
-                    if (baudRate != BAUDRATE_HIGHSPEED) {
-                        qCWarning(log_core_serial) << "CH32V208 chip only supports 115200 baudrate. Ignoring user request for" << baudRate;
-                        if (eventCallback) {
-                            eventCallback->onStatusUpdate("CH32V208 chip only supports 115200 baudrate");
-                        }
-                        return;
-                    }
-                }
-                break;
+    // If we already know the chip type, prefer that check rather than re-detecting using VID/PID
+    if (serialPort && serialPort->isOpen() && isChipTypeCH32V208()) {
+        if (baudRate != BAUDRATE_HIGHSPEED) {
+            qCWarning(log_core_serial) << "CH32V208 chip only supports 115200 baudrate. Ignoring user request for" << baudRate;
+            if (eventCallback) {
+                eventCallback->onStatusUpdate("CH32V208 chip only supports 115200 baudrate");
             }
+            return;
         }
     }
     
@@ -2364,6 +2442,7 @@ void SerialPortManager::applyCommandBasedBaudrateChange(int baudRate, const QStr
     QByteArray command;
     static QSettings settings("Techxartisan", "Openterface");
     uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
+    
     if (baudRate == BAUDRATE_LOWSPEED) {
         command = CMD_SET_PARA_CFG_PREFIX_9600;
     } else {
@@ -2371,8 +2450,12 @@ void SerialPortManager::applyCommandBasedBaudrateChange(int baudRate, const QStr
     }
     command[5] = mode; 
     command.append(CMD_SET_PARA_CFG_MID);
-    sendAsyncCommand(command, true);
-    bool success = sendResetCommand() && setBaudRate(baudRate) && restartPort();
+    sendSyncCommand(command, true);
+    bool success = sendResetCommand();
+    QThread::msleep(500);
+    success = success && setBaudRate(baudRate);
+    QThread::msleep(500);
+    success = success && restartPort();
     if (success) {
         qCInfo(log_core_serial) << logPrefix << "applied successfully:" << baudRate;
     } else {

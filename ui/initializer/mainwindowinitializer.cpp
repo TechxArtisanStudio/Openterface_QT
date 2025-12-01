@@ -288,6 +288,13 @@ void MainWindowInitializer::connectActionSignals()
     connect(m_ui->actionTCPServer, &QAction::triggered, m_mainWindow, &MainWindow::startServer);
     connect(m_ui->actionScriptTool, &QAction::triggered, m_mainWindow, &MainWindow::showScriptTool);
     connect(m_ui->actionRecordingSettings, &QAction::triggered, m_mainWindow, &MainWindow::showRecordingSettings);
+    // Connect baudrate actions to the MenuCoordinator which handles baudrate logic
+    // Use the QActionGroup triggered(QAction*) signal to call the MenuCoordinator slot.
+    // We use the string-based SIGNAL/SLOT so that the private slot onBaudrateMenuTriggered
+    // in MenuCoordinator (declared as private slots) can be invoked via the Qt meta-object.
+    if (m_menuCoordinator && m_ui->actionGroup) {
+        connect(m_ui->actionGroup, SIGNAL(triggered(QAction*)), m_menuCoordinator, SLOT(onBaudrateMenuTriggered(QAction*)));
+    }
 }
 
 void MainWindowInitializer::setupToolbar()
@@ -343,6 +350,10 @@ void MainWindowInitializer::connectCameraSignals()
             m_statusBarManager, &StatusBarManager::showCameraSwitching);
     connect(m_cameraManager, &CameraManager::cameraDeviceSwitchComplete, 
             m_statusBarManager, &StatusBarManager::showCameraSwitchComplete);
+    
+    // Connect fpsChanged signal from CameraManager to StatusBarManager
+    connect(m_cameraManager, &CameraManager::fpsChanged,
+            m_statusBarManager, &StatusBarManager::setFps);
     
     connect(m_cameraManager, &CameraManager::cameraDeviceSwitching,
             m_videoPane, &VideoPane::onCameraDeviceSwitching);

@@ -50,6 +50,7 @@ LinuxDeviceManager::~LinuxDeviceManager()
 
 QList<DeviceInfo> LinuxDeviceManager::discoverDevices()
 {
+    qCDebug(log_device_linux) << "Discovering Openterface devices on Linux with caching...";
     QDateTime now = QDateTime::currentDateTime();
     
     // Check if cache is fresh (within timeout)
@@ -175,6 +176,7 @@ void LinuxDeviceManager::onAsyncDiscoveryFinished()
 #ifdef HAVE_LIBUDEV
 QList<LinuxDeviceManager::UdevDeviceData> LinuxDeviceManager::findUdevDevicesByVidPid(const QString& subsystem, const QString& vid, const QString& pid)
 {
+    qCDebug(log_device_linux) << "Finding udev devices in subsystem" << subsystem << "with VID:" << vid << "PID:" << pid;
     QList<UdevDeviceData> devices;
     
     if (!m_udev) {
@@ -245,6 +247,7 @@ QList<LinuxDeviceManager::UdevDeviceData> LinuxDeviceManager::findUdevDevicesByV
 
 QList<LinuxDeviceManager::UdevDeviceData> LinuxDeviceManager::findUdevDevices(const QString& subsystem, const QVariantMap& filters)
 {
+    qCDebug(log_device_linux) << "Finding udev devices in subsystem:" << subsystem << "with filters:" << filters;
     QList<UdevDeviceData> devices;
     
     if (!m_udev) {
@@ -649,6 +652,8 @@ QList<DeviceInfo> LinuxDeviceManager::processDeviceMap(const QList<UdevDeviceDat
                                                       QMap<QString, DeviceInfo>& deviceMap, 
                                                       const QString& generation)
 {
+    qCDebug(log_device_linux) << "Processing device map for generation:" << generation;
+
     QList<DeviceInfo> devices;
     
     // Create a map to track which hub ports have Openterface devices

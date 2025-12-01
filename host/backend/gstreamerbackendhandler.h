@@ -26,14 +26,16 @@
 #include "../multimediabackend.h"
 #include <QProcess>
 #include <QWidget>
+#include <QEvent>
 #include <QTimer>
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
+#include <atomic>
 
 // Forward declarations for Qt types
-class QGraphicsVideoItem;
-class QGraphicsView;
-class VideoPane;
+#include "../../ui/videopane.h"
+#include <QGraphicsView>
+#include <QGraphicsVideoItem>
 
 // Forward declarations for GStreamer types - now properly defined via includes above
 // typedef struct _GstElement GstElement;
@@ -93,6 +95,9 @@ public:
     // Video scaling and render rectangle configuration
     void updateVideoRenderRectangle(const QSize& widgetSize);
     void updateVideoRenderRectangle(int x, int y, int width, int height);
+
+    // Called by pad probe to increment the internal frame counter (thread-safe)
+    void incrementFrameCount();
     
     // Pipeline string generation
     QString generatePipelineString(const QString& device, const QSize& resolution, int framerate, const QString& videoSink) const;
@@ -142,13 +147,12 @@ public:
 private slots:
     void onPipelineMessage();
     void checkPipelineHealth();
+    // External runner event handlers
+    void onExternalRunnerStarted();
+    void onExternalRunnerFailed(const QString& error);
+    void onExternalRunnerFinished(int exitCode, QProcess::ExitStatus status);
     
-    // Recording process signal handlers
-    void onRecordingProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
-    void onRecordingProcessError(QProcess::ProcessError error);
-    
-    // Frame capture for recording
-    void captureAndWriteFrame();
+    // Recording lifecycle events are handled by RecordingManager
 
 private:
     // GStreamer pipeline components
@@ -157,7 +161,7 @@ private:
     GstElement* m_sink;
     GstBus* m_bus;
     
-    // Recording pipeline components
+    // Recording pipeline components (kept for compatibility during refactor)
     GstElement* m_recordingPipeline;
     GstElement* m_recordingTee;
     GstElement* m_recordingValve;    // Controls recording flow
@@ -169,6 +173,8 @@ private:
     GstElement* m_recordingFileSink;
     GstElement* m_recordingAppSink;  // For frame capture
     GstPad* m_recordingTeeSrcPad;
+    // Recording manager (encapsulates recording branch logic)
+    class RecordingManager* m_recordingManager;
     
     // Qt integration
     QWidget* m_videoWidget;
@@ -179,6 +185,7 @@ private:
     
     // Pipeline state
     bool m_pipelineRunning;
+    QString m_selectedSink; // textual name of the selected video sink element
     QString m_currentDevice;
     QString m_currentDevicePortChain; // Track port chain for hotplug support
     QSize m_currentResolution;
@@ -186,8 +193,12 @@ private:
     
     // Overlay setup state
     bool m_overlaySetupPending;
+    // Cached overlay sink pointer (refcount held while pipeline running)
+#ifdef HAVE_GSTREAMER
+    GstElement* m_currentOverlaySink{nullptr};
+#endif
     
-    // Recording state
+    // Recording state (kept for compatibility during refactor)
     bool m_recordingActive;
     bool m_recordingPaused;
     QString m_recordingOutputPath;
@@ -200,9 +211,11 @@ private:
     // Error tracking
     QString m_lastError;
     
-    // Frame-based recording using external process
-    QProcess* m_recordingProcess;
-    QTimer* m_frameCaptureTimer;
+    // Frame-based recording handled by RecordingManager
+
+    // Runner objects (in-process and external)
+    class InProcessGstRunner* m_inProcessRunner;
+    class ExternalGstRunner* m_externalRunner;
     
     // Helper methods
     bool initializeGStreamer();
@@ -213,28 +226,50 @@ private:
     bool embedVideoInVideoPane(VideoPane* videoPane);
     void handleGStreamerMessage(GstMessage* message);
     void completePendingOverlaySetup();
+
+protected:
+    // Override to track video widget/view lifecycle events and respond to winId/show/resize
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
+private:
+    // helper to install/uninstall event filter on widgets
+    void installVideoWidgetEventFilter();
+    void uninstallVideoWidgetEventFilter();
+    void installGraphicsViewEventFilter(QGraphicsView* view);
+    void uninstallGraphicsViewEventFilter(QGraphicsView* view);
+    
+    // Ensure a QWidget has a native window (winId()) by creating the window and waiting up to timeoutMs.
+    // Returns true if a native window is available.
+    bool ensureNativeWindowForWidget(QWidget* widget, int timeoutMs = 200) const;
     
     // Enhanced overlay methods
     bool setupVideoOverlay(GstElement* videoSink, WId windowId);
     void setupVideoOverlayForCurrentPipeline();
     void refreshVideoOverlay();
+    GstElement* findOverlaySinkInPipeline() const;
     
     // Window validation for overlay setup
     bool isValidWindowId(WId windowId) const;
     
-    // Recording helper methods
-    bool initializeValveBasedRecording();
-    bool initializeFrameBasedRecording();
-    bool initializeDirectFilesinkRecording();
-    bool createRecordingBranch(const QString& outputPath, const QString& format, int videoBitrate);
-    bool createSeparateRecordingPipeline(const QString& outputPath, const QString& format, int videoBitrate);
+    // Recording helper moved to RecordingManager
+    // Delegating recording helper methods (thin wrappers -> RecordingManager)
     void removeRecordingBranch();
     QString generateRecordingElements(const QString& outputPath, const QString& format, int videoBitrate) const;
-    
+    bool createSeparateRecordingPipeline(const QString& outputPath, const QString& format, int videoBitrate);
+    bool initializeDirectFilesinkRecording();
+    // Recording samples are handled by RecordingManager when GStreamer is available
+    // FPS probe members
+    std::atomic<quint64> m_frameCount{0};
 #ifdef HAVE_GSTREAMER
-    // GStreamer appsink callback for frame capture
-    GstFlowReturn onNewRecordingSample(GstAppSink* sink);
+    GstPad* m_frameProbePad{nullptr};
+    guint m_frameProbeId{0};
+    // GstPad probe callback (static so it can be passed to C API without instance)
+    static GstPadProbeReturn gstreamer_frame_probe_cb(GstPad* pad, GstPadProbeInfo* info, gpointer user_data);
 #endif
+
+    // Add helpers to manage frame probe
+    void attachFrameProbe();
+    void detachFrameProbe();
 };
 
 #endif // GSTREAMERBACKENDHANDLER_H

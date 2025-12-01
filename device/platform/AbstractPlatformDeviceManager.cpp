@@ -25,24 +25,29 @@ AbstractPlatformDeviceManager::AbstractPlatformDeviceManager(QObject *parent)
 
 QList<DeviceInfo> AbstractPlatformDeviceManager::getDevicesByPortChain(const QString& targetPortChain)
 {
+    qDebug() << "Getting devices by port chain:" << targetPortChain;
     QList<DeviceInfo> allDevices = discoverDevices();
     return filterDevicesByPortChain(allDevices, targetPortChain);
 }
 
 QList<DeviceInfo> AbstractPlatformDeviceManager::getDevicesByAnyPortChain(const QString& targetPortChain)
 {
+    qDebug() << "Getting devices by any port chain:" << targetPortChain;
     QList<DeviceInfo> allDevices = discoverDevices();
+    qDebug() << "There are" << allDevices.size() << " devices discovered in total.";
     return filterDevicesByAnyPortChain(allDevices, targetPortChain);
 }
 
 QList<DeviceInfo> AbstractPlatformDeviceManager::getDevicesWithCompanionPortChain(const QString& companionPortChain)
 {
+    qDebug() << "Getting devices with companion port chain:" << companionPortChain;
     QList<DeviceInfo> allDevices = discoverDevices();
     return filterDevicesByCompanionPortChain(allDevices, companionPortChain);
 }
 
 QStringList AbstractPlatformDeviceManager::getAvailablePortChains()
 {
+    qDebug() << "Getting available port chains from discovered devices...";
     QList<DeviceInfo> allDevices = discoverDevices();
     QStringList portChains;
     

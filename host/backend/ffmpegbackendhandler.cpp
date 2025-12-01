@@ -239,6 +239,7 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
         if (m_frameCount > 0) {
             double fps = m_frameCount / 5.0;
             qCDebug(log_ffmpeg_backend) << QString("FFmpeg capture performance: %1 FPS").arg(fps, 0, 'f', 1);
+            emit fpsChanged(fps);
             m_frameCount = 0;
         }
     });

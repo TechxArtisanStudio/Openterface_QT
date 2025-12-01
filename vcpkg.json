@@ -38,7 +38,7 @@
     },
     {
       "name": "pkgconf",
-      "version>=": "2.2.0"
+      "version": "2.2.0"
     }
   ],
   "builtin-baseline": "2017886818a9a88d303548b53709f5ef922efb39"

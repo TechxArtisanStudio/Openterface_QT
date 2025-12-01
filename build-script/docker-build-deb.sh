@@ -414,13 +414,13 @@ for p in \
 done
 if [ -n "${ICON_SRC}" ]; then
 	ICON_EXT="${ICON_SRC##*.}"
-	# Icons must be named com.openterface.openterfaceQT to match Icon= in desktop file
+	# Icons must be named openterfaceQT to match Icon= in desktop file
 	if [ "${ICON_EXT}" = "svg" ]; then
 		mkdir -p "${PKG_ROOT}/usr/share/icons/hicolor/scalable/apps"
-		cp "${ICON_SRC}" "${PKG_ROOT}/usr/share/icons/hicolor/scalable/apps/com.openterface.openterfaceQT.svg"
+		cp "${ICON_SRC}" "${PKG_ROOT}/usr/share/icons/hicolor/scalable/apps/openterfaceQT.svg"
 	else
 		mkdir -p "${PKG_ROOT}/usr/share/icons/hicolor/256x256/apps"
-		cp "${ICON_SRC}" "${PKG_ROOT}/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png"
+		cp "${ICON_SRC}" "${PKG_ROOT}/usr/share/icons/hicolor/256x256/apps/openterfaceQT.png"
 	fi
 fi
 
@@ -437,30 +437,8 @@ fi
 # Generate DEBIAN/control from template
 CONTROL_TEMPLATE="${SRC}/packaging/debian/control"
 CONTROL_FILE="${PKG_ROOT}/DEBIAN/control"
-if [ -f "${CONTROL_TEMPLATE}" ]; then
-	if command -v envsubst >/dev/null 2>&1; then
-		VERSION="${VERSION}" ARCH="${UNAME_M}" envsubst < "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
-	else
-		perl -pe 's/\$\{VERSION\}/'"${VERSION}"'/g; s/\$\{ARCH\}/'"${UNAME_M}"'/g' "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
-	fi
-else
-	cat > "${CONTROL_FILE}" <<EOF
-Package: openterfaceQT
-Version: ${VERSION}
-Section: base
-Priority: optional
-Architecture: ${UNAME_M}
-Depends: libxkbcommon0, libwayland-client0, libegl1, libgles2, libpulse0, libxcb1, libxcb-shm0, libxcb-xfixes0, libxcb-shape0, libx11-6, zlib1g, libbz2-1.0, liblzma5, libva2, libva-drm2, libva-x11-2, libvdpau1, liborc-0.4-0, libgstreamer1.0-0, libv4l-0, libgl1, libglx0, libglvnd0
-Maintainer: TechxArtisan <info@techxartisan.com>
-Description: OpenterfaceQT Mini-KVM Linux Edition
- Includes bundled FFmpeg 6.1.1 libraries (libavformat, libavcodec,
- libavdevice, libswresample, libswscale, libavutil, libavfilter), libturbojpeg,
- VA-API libraries (libva, libva-drm, libva-x11), VDPAU library (libvdpau),
- ORC library (liborc-0.4), and GStreamer base libraries (libgstbase, libgstaudio,
- libgstvideo, libgstapp, libgstpbutils, libgsttag, libgstrtp, libgstrtsp, libgstsdp,
- libgstallocators, libgstgl)
-EOF
-fi
+perl -pe 's/\$\{VERSION\}/'"${VERSION}"'/g; s/\$\{ARCH\}/'"${ARCH}"'/g' "${CONTROL_TEMPLATE}" > "${CONTROL_FILE}"
+
 
 # Copy preinst, postinst and postrm scripts if they exist
 if [ -f "${SRC}/packaging/debian/preinst" ]; then

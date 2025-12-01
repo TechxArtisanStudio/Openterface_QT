@@ -112,6 +112,7 @@ void HotplugMonitor::checkForChanges()
         return;
     }
     
+    qCDebug(log_hotplug_monitor) << "Checking for device changes...";
     QList<DeviceInfo> currentDevices = m_deviceManager->discoverDevices();
     
     // Get previous snapshot with mutex protection

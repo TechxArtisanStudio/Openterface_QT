@@ -187,6 +187,12 @@ void StatusBarManager::setCaptureResolution(int width, int height, int fps)
     m_statusWidget->setCaptureResolution(width, height, fps);
 }
 
+void StatusBarManager::setFps(double fps)
+{
+    QString backend = GlobalSetting::instance().getMediaBackend();
+    m_statusWidget->setFps(fps, backend);
+}
+
 QPixmap StatusBarManager::recolorSvg(const QString &svgPath, const QColor &color, const QSize &size)
 {
     QSvgRenderer svgRenderer(svgPath);

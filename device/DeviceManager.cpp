@@ -11,6 +11,7 @@
 #include "../host/audiomanager.h"
 #include <QMutexLocker>
 #include <QtConcurrent>
+#include <QtSerialPort/QSerialPortInfo>
 
 Q_LOGGING_CATEGORY(log_device_manager, "opf.device.manager")
 
@@ -199,6 +200,7 @@ DeviceInfo DeviceManager::selectDeviceByPortChain(const QString& portChain)
 
 DeviceInfo DeviceManager::getFirstAvailableDevice()
 {
+    qCDebug(log_device_manager) << "Getting first available device...";
     QList<DeviceInfo> devices = discoverDevices();
     if (!devices.isEmpty()) {
         m_selectedDevice = devices.first();
@@ -232,6 +234,10 @@ DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChain(const
     
     DeviceInfo selectedDevice = devices.first();
     result.selectedDevice = selectedDevice;
+
+    // Log chipset for selected device (determined from DeviceInfo)
+    VideoChipType selectedChip = getChipTypeForDevice(selectedDevice);
+    qCDebug(log_device_manager) << "Selected device chipset:" << (selectedChip == VideoChipType::MS2109 ? "MS2109" : (selectedChip == VideoChipType::MS2130S ? "MS2130S" : "Unknown"));
     
     // Update global settings first
     GlobalSetting::instance().setOpenterfacePortChain(portChain);
@@ -337,6 +343,12 @@ void DeviceManager::startHotplugMonitoring(int intervalMs)
     
     // Take initial snapshot
     m_lastSnapshot = discoverDevices();
+    // Initialize serial port snapshot to detect real changes before running discovery
+    m_lastSerialPorts.clear();
+    const auto initialPorts = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo& port : initialPorts) {
+        m_lastSerialPorts.insert(port.systemLocation());
+    }
     
     // Start monitoring
     m_hotplugTimer->setInterval(intervalMs);
@@ -368,10 +380,36 @@ QList<DeviceInfo> DeviceManager::getCurrentDevices() const
 
 void DeviceManager::onHotplugTimerTimeout()
 {
+    qCDebug(log_device_manager) << "Hotplug timer timeout - checking for device changes";
     if (!m_monitoring) {
         return;
     }
-    
+    // Check serial ports first; skip expensive discovery if no serial change
+    QSet<QString> currentSerialPorts;
+    const auto ports = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo& p : ports) {
+        currentSerialPorts.insert(p.systemLocation());
+    }
+
+    QSet<QString> previousSerialPorts;
+    {
+        QMutexLocker locker(&m_mutex);
+        previousSerialPorts = m_lastSerialPorts;
+    }
+
+    if (currentSerialPorts == previousSerialPorts) {
+        qCDebug(log_device_manager) << "No serial port changes detected; skipping discoverDevices";
+        return;
+    }
+
+    QSet<QString> added = currentSerialPorts - previousSerialPorts;
+    QSet<QString> removed = previousSerialPorts - currentSerialPorts;
+    qCDebug(log_device_manager) << "Serial changes detected; running discoverDevices; now:" << currentSerialPorts.size() << "added:" << added.size() << "removed:" << removed.size();
+    {
+        QMutexLocker locker(&m_mutex);
+        m_lastSerialPorts = currentSerialPorts;
+    }
+
     QList<DeviceInfo> currentDevices = discoverDevices();
     compareDeviceSnapshots(currentDevices, m_lastSnapshot);
     m_lastSnapshot = currentDevices;
@@ -423,12 +461,8 @@ DeviceInfo DeviceManager::findDeviceByKey(const QList<DeviceInfo>& devices, cons
 
 void DeviceManager::checkForChanges()
 {
-    if (m_hotplugMonitor) {
-        m_hotplugMonitor->checkForChanges();
-    } else {
-        // Fallback to manual check
-        onHotplugTimerTimeout();
-    }
+    // Always use DeviceManager's own detection logic. Avoid delegating to HotplugMonitor
+    onHotplugTimerTimeout();
 }
 
 void DeviceManager::forceRefresh()
@@ -512,4 +546,82 @@ bool DeviceManager::switchSerialPortByPortChain(const QString& portChain)
         qCCritical(log_device_manager) << "Exception while switching serial port:" << e.what();
         return false;
     }
+}
+
+// Determine chip type based on DeviceInfo (vid/pid or device paths).
+// This function intentionally does not consult VideoHid runtime detection.
+VideoChipType DeviceManager::getChipTypeForDevice(const DeviceInfo& device)
+{
+    using A = AbstractPlatformDeviceManager;
+
+    // Check explicit VID/PID fields first
+    if (!device.vid.isEmpty() && !device.pid.isEmpty()) {
+        QString vid = device.vid.toUpper();
+        QString pid = device.pid.toUpper();
+        if (vid == A::getOpenterfaceVid().toUpper() && pid == A::getOpenterfacePid().toUpper()) {
+            return VideoChipType::MS2109;
+        }
+        if (vid == A::getOpenterfaceVidV2().toUpper() && pid == A::getOpenterfacePidV2().toUpper()) {
+            return VideoChipType::MS2130S;
+        }
+        if (vid == A::getOpenterfaceVidV3().toUpper() && pid == A::getOpenterfacePidV3().toUpper()) {
+            // Treat V3 as MS2130S family by register mapping
+            return VideoChipType::MS2130S;
+        }
+    }
+
+    // Inspect device paths and IDs for VID/PID hints
+    auto matchPaths = [&](const QString& p) -> VideoChipType {
+        if (p.isEmpty()) return VideoChipType::UNKNOWN;
+        QString s = p.toUpper();
+    if (s.contains(A::getOpenterfaceVidV2().toUpper()) && s.contains(A::getOpenterfacePidV2().toUpper())) return VideoChipType::MS2130S;
+    if (s.contains(A::getOpenterfaceVid().toUpper()) && s.contains(A::getOpenterfacePid().toUpper())) return VideoChipType::MS2109;
+    if (s.contains(A::getOpenterfaceVidV3().toUpper()) && s.contains(A::getOpenterfacePidV3().toUpper())) return VideoChipType::MS2130S;
+        // Windows style variants
+    if (s.contains("VID_" + A::getOpenterfaceVidV2(), Qt::CaseInsensitive) && s.contains("PID_" + A::getOpenterfacePidV2(), Qt::CaseInsensitive)) return VideoChipType::MS2130S;
+    if (s.contains("VID_" + A::getOpenterfaceVid(), Qt::CaseInsensitive) && s.contains("PID_" + A::getOpenterfacePid(), Qt::CaseInsensitive)) return VideoChipType::MS2109;
+        return VideoChipType::UNKNOWN;
+    };
+
+    VideoChipType t = matchPaths(device.hidDevicePath);
+    if (t != VideoChipType::UNKNOWN) return t;
+    t = matchPaths(device.deviceInstanceId);
+    if (t != VideoChipType::UNKNOWN) return t;
+    t = matchPaths(device.cameraDevicePath);
+    if (t != VideoChipType::UNKNOWN) return t;
+    t = matchPaths(device.serialPortPath);
+    if (t != VideoChipType::UNKNOWN) return t;
+
+    return VideoChipType::UNKNOWN;
+}
+
+VideoChipType DeviceManager::getChipTypeForPortChain(const QString& portChain)
+{
+    if (portChain.isEmpty()) return VideoChipType::UNKNOWN;
+    QList<DeviceInfo> devices = getDevicesByPortChain(portChain);
+    qCDebug(log_device_manager) << "Found" << devices.size() << "devices for port chain:" << portChain;
+    if (devices.isEmpty()) return VideoChipType::UNKNOWN;
+
+    // Prefer device entries that have HID or composite interfaces
+    for (const DeviceInfo& d : devices) {
+        qCDebug(log_device_manager) << "Checking HID device, vid:" << d.vid << "pid:" << d.pid;
+        if (d.hasHidDevice()) {
+            VideoChipType t = getChipTypeForDevice(d);
+            qCDebug(log_device_manager) << "Determined chip type from HID device:" << (t == VideoChipType::MS2109 ? "MS2109" : (t == VideoChipType::MS2130S ? "MS2130S" : "Unknown"));
+            if (t != VideoChipType::UNKNOWN) return t;
+        }
+    }
+    qCDebug(log_device_manager) << "No HID devices found for port chain, checking composite devices";
+    // Otherwise fall back to the first device
+    return getChipTypeForDevice(devices.first());
+}
+
+bool DeviceManager::isMS2109(const DeviceInfo& device)
+{
+    return getChipTypeForDevice(device) == VideoChipType::MS2109;
+}
+
+bool DeviceManager::isMS2130S(const DeviceInfo& device)
+{
+    return getChipTypeForDevice(device) == VideoChipType::MS2130S;
 }

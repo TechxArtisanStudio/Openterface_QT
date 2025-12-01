@@ -39,6 +39,7 @@ public:
 
     void setInputResolution(const int &width, const int &height, const float &fps, const float &pixelClk);
     void setCaptureResolution(const int &width, const int &height, const float &fps);
+    void setFps(const double &fps, const QString &backend = QString());
     void setKeyboardIndicators(const QString &indicators);
     void setConnectedPort(const QString &port, const int &baudrate);
     void setStatusUpdate(const QString &status);
@@ -60,6 +61,7 @@ public slots:
 private:
     QLabel *statusLabel;
     QLabel *cpuUsageLabel;
+    QLabel *fpsLabel;
     QLabel *keyboardIndicatorsLabel;
     QLabel *keyStatesLabel;
     QLabel *resolutionLabel;

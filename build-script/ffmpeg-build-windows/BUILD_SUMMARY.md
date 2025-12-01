@@ -206,6 +206,31 @@ After successful build, you should see:
 4. **Optional - Cleanup**:
    ```cmd
    rmdir /s /q ffmpeg-build-temp
+
+### 🐳 Docker cross-build (Linux host)
+
+If you prefer to cross-compile Windows static FFmpeg from a Linux machine or CI runner using Docker, there is a helper Dockerfile and script:
+
+1. Dockerfile: `docker/Dockerfile.ffmpeg-windows-static` — builds a cross-compiling image using mingw-w64 and installs a static FFmpeg tree at `/opt/ffmpeg-win-static`.
+2. Helper script: `build-script/build-static-ffmpeg-docker.sh` — builds the image and extracts the resulting `ffmpeg-win-static` tree into `build/ffmpeg-win-static` on the host.
+
+Example:
+
+```bash
+# Build image and extract artifacts (from repo root)
+./build-script/build-static-ffmpeg-docker.sh
+
+# Result is in build/ffmpeg-win-static
+ls -la build/ffmpeg-win-static
+```
+
+Note: cross-building complex features (NVENC, CUDA, QSV) usually cannot be fully enabled in a plain Linux-to-Windows cross compile and may require platform-specific SDKs/drivers.
+
+### 🏷️ GitHub Container Registry integration
+
+The CI Docker build workflow will now check GitHub Container Registry (GHCR) for an existing ffmpeg image using the tag `ghcr.io/<owner>/openterface-ffmpeg-win-static:<version>` before building. If the image already exists the workflows will pull and extract artifacts from the image instead of rebuilding. When a build is performed the workflow pushes the resulting image back to GHCR so future runs can reuse it.
+
+Local helper scripts do not automatically push to GHCR by default — CI build steps handle pushing. If you want the helper script to push locally, set up a login (docker login ghcr.io) and push the image after building by tagging to the GHCR name.
    ```
 
 ## 📝 License Note
