@@ -2691,7 +2691,6 @@ void FFmpegBackendHandler::handleDeviceDeactivation(const QString& devicePath)
     emit deviceDeactivated(deactivatedDevice);
 
     qCInfo(log_ffmpeg_backend) << "Starting to wait for device reconnection";
-    waitForDeviceActivation(deactivatedDevice, 30000);
 }
 
 void FFmpegBackendHandler::setCurrentDevicePortChain(const QString& portChain)

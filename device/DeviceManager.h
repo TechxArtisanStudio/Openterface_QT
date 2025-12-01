@@ -127,7 +127,7 @@ public:
     bool isMS2130S(const DeviceInfo& device);
     
     // Hotplug monitoring
-    void startHotplugMonitoring(int intervalMs = 5000);
+    void startHotplugMonitoring(int intervalMs = 3000);
     void stopHotplugMonitoring();
     bool isMonitoring() const { return m_monitoring; }
     

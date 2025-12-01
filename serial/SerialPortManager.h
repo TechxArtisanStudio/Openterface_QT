@@ -142,9 +142,6 @@ public:
     bool isChipTypeCH32V208() const { return m_currentChipType == ChipType::CH32V208; }
     bool isChipTypeCH9329() const { return m_currentChipType == ChipType::CH9329; }
     
-    // Data buffer management
-    void clearIncompleteDataBuffer();
-    
     // New USB switch methods for CH32V208 serial port (firmware with new protocol)
     void switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)
     void switchUsbToTargetViaSerial();    // Switch USB to target via serial command (57 AB 00 17...)
@@ -165,15 +162,12 @@ signals:
     void syncResponseReady();  // Emitted when m_syncCommandResponse is filled for sync commands
     
 private slots:
-    void checkSerialPort();
     void observeSerialPortNotification();
     void readData();
     void bytesWritten(qint64 bytes);
 
     static quint8 calculateChecksum(const QByteArray &data);
-    //void checkSerialPortConnection();
-
-    // Removed: void checkSerialPorts();
+    
     void initializeSerialPortFromPortChain();
 
     // /*
@@ -275,7 +269,7 @@ private:
     // Attempt to resynchronize the buffer to the next valid header sequence (0x57 0xAB).
     // If resynchronization succeeds and completeData contains at least the minimal packet length,
     // return true. Otherwise update m_incompleteDataBuffer accordingly and return false.
-    bool resyncAndAlignHeader(QByteArray &completeData);
+    // bool resyncAndAlignHeader(QByteArray &completeData);
     void attemptRecovery();
     void resetErrorCounters();
     bool isRecoveryNeeded() const;

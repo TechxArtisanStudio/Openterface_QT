@@ -27,10 +27,6 @@ DeviceManager::DeviceManager()
     // Create HotplugMonitor instance
     m_hotplugMonitor = new HotplugMonitor(this, this);
     
-    // Setup hotplug timer
-    m_hotplugTimer->setSingleShot(false);
-    connect(m_hotplugTimer, &QTimer::timeout, this, &DeviceManager::onHotplugTimerTimeout);
-    
     
     // Auto-start hotplug monitoring
     startHotplugMonitoring();
@@ -351,8 +347,7 @@ void DeviceManager::startHotplugMonitoring(int intervalMs)
     }
     
     // Start monitoring
-    m_hotplugTimer->setInterval(intervalMs);
-    m_hotplugTimer->start();
+    m_hotplugMonitor->start(intervalMs);
     m_monitoring = true;
     
     emit monitoringStarted();
@@ -383,31 +378,6 @@ void DeviceManager::onHotplugTimerTimeout()
     qCDebug(log_device_manager) << "Hotplug timer timeout - checking for device changes";
     if (!m_monitoring) {
         return;
-    }
-    // Check serial ports first; skip expensive discovery if no serial change
-    QSet<QString> currentSerialPorts;
-    const auto ports = QSerialPortInfo::availablePorts();
-    for (const QSerialPortInfo& p : ports) {
-        currentSerialPorts.insert(p.systemLocation());
-    }
-
-    QSet<QString> previousSerialPorts;
-    {
-        QMutexLocker locker(&m_mutex);
-        previousSerialPorts = m_lastSerialPorts;
-    }
-
-    if (currentSerialPorts == previousSerialPorts) {
-        qCDebug(log_device_manager) << "No serial port changes detected; skipping discoverDevices";
-        return;
-    }
-
-    QSet<QString> added = currentSerialPorts - previousSerialPorts;
-    QSet<QString> removed = previousSerialPorts - currentSerialPorts;
-    qCDebug(log_device_manager) << "Serial changes detected; running discoverDevices; now:" << currentSerialPorts.size() << "added:" << added.size() << "removed:" << removed.size();
-    {
-        QMutexLocker locker(&m_mutex);
-        m_lastSerialPorts = currentSerialPorts;
     }
 
     QList<DeviceInfo> currentDevices = discoverDevices();
