@@ -10,8 +10,8 @@ if "%~1" neq "" (
 )
 
 REM Configuration
-set QT_VERSION=6.5.3
-set QT_MAJOR_VERSION=6.5
+set QT_VERSION=6.6.3
+set QT_MAJOR_VERSION=6.6
 set INSTALL_PREFIX=C:\Qt6
 set BUILD_DIR=%cd%\qt-build
 set MODULES=qtbase qtshadertools qtmultimedia qtsvg qtserialport qttools
@@ -74,6 +74,7 @@ if not exist "%OPENSSL_LIB_DIR%" (
     exit /b 1
 )
 dir "%OPENSSL_LIB_DIR%"
+dir "%OPENSSL_INCLUDE_DIR%"
 
 if not exist "%OPENSSL_LIB_DIR%\libcrypto.a" (
     echo ERROR: OpenSSL static library libcrypto.a not found in %OPENSSL_LIB_DIR%.
@@ -101,7 +102,7 @@ for %%m in (%MODULES%) do (
     )
 )
 
-# Build qtbase first
+REM Build qtbase first
 cd "%BUILD_DIR%\qtbase"
 mkdir build
 cd build
