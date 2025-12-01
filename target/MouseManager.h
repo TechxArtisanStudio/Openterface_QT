@@ -82,7 +82,7 @@ public:
                 }
     
                 moveMouse(x, y);
-                // QThread::msleep(50); // Small delay to simulate movement
+                QThread::msleep(1); // Small delay to simulate movement
             }
         }
     }
