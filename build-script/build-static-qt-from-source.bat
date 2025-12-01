@@ -3,6 +3,12 @@ REM To install OpenTerface QT with static OpenSSL support, you can run this scri
 
 setlocal enabledelayedexpansion
 
+REM Accept optional first argument as SOURCE_DIR (so CI can pass an explicit path)
+REM Usage: build-static-qt-from-source.bat [<SOURCE_DIR>]
+if "%~1" neq "" (
+    set "SOURCE_DIR=%~1"
+)
+
 REM Configuration
 set QT_VERSION=6.5.3
 set QT_MAJOR_VERSION=6.5
@@ -27,8 +33,18 @@ if not exist "%OPENSSL_LIB_DIR%" (
     if defined SOURCE_DIR (
         set "REPO_OPENSSL_DIR=%SOURCE_DIR%\vcpkg_installed\x64-mingw-static"
     ) else (
-        REM fallback to current repository path if SOURCE_DIR isn't available
-        set "REPO_OPENSSL_DIR=%CD%\vcpkg_installed\x64-mingw-static"
+        REM fallback: derive the repository root from the script location so we don't
+        REM depend on %CD% (which can be "." in some environments).
+        REM %~dp0 points to this script's folder (ends with a backslash), so pushd to
+        REM "%~dp0.." (parent directory) to reliably get the repo root in %CD%.
+        pushd "%~dp0.." >nul 2>&1
+        if %errorlevel% neq 0 (
+            REM pushd failed, fall back to current dir
+            set "REPO_OPENSSL_DIR=%CD%\vcpkg_installed\x64-mingw-static"
+        ) else (
+            set "REPO_OPENSSL_DIR=%CD%\vcpkg_installed\x64-mingw-static"
+            popd >nul 2>&1
+        )
     )
     if exist "%REPO_OPENSSL_DIR%\lib" (
         echo INFO: Found repo-local OpenSSL at "%REPO_OPENSSL_DIR%" - using it.
@@ -36,7 +52,7 @@ if not exist "%OPENSSL_LIB_DIR%" (
         set "OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib"
         set "OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include"
     ) else (
-        echo INFO: Repo-local OpenSSL not found at "%REPO_OPENSSL_DIR%" either; will try to install later (or fail with diagnostics).
+        echo INFO: Repo-local OpenSSL not found at "%REPO_OPENSSL_DIR%" either; will try to install later - may fail with diagnostics.
     )
 )
 
@@ -67,14 +83,14 @@ if not exist "%OPENSSL_LIB_DIR%\libcrypto.a" (
         set "OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include"
     ) else (
         echo OpenSSL static library libcrypto.a not found in either central or repo-local locations.
-        echo Please install OpenSSL static libraries (vcpkg install openssl --triplet x64-mingw-static) or let the workflow install/copy them into D:\vcpkg\installed\x64-mingw-static
+        echo Please install OpenSSL static libraries: vcpkg install openssl --triplet=x64-mingw-static or let the workflow install/copy them into D:\vcpkg\installed\x64-mingw-static
         exit /b 1
     )
 )
 
 if not exist "%OPENSSL_LIB_DIR%\libssl.a" (
     echo ERROR: OpenSSL static library libssl.a not found in %OPENSSL_LIB_DIR%.
-    echo Please install OpenSSL static libraries (vcpkg install openssl --triplet x64-mingw-static).
+    echo Please install OpenSSL static libraries: vcpkg install openssl --triplet=x64-mingw-static.
     exit /b 1
 )
 

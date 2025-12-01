@@ -424,7 +424,8 @@ jobs:
       - name: Build Qt Statically (if not cached) - using external MinGW
         if: steps.cache-qt.outputs.cache-hit != 'true'
         run: |
-          call build-script/build-static-qt-from-source.bat
+          REM Pass SOURCE_DIR explicitly to the script to ensure the batch sees the repo root
+          call build-script/build-static-qt-from-source.bat "%SOURCE_DIR%"
 
       - name: Create Build Directory
         run: |
