@@ -318,6 +318,10 @@ jobs:
           echo Checking central vcpkg for OpenSSL static libs...
           if exist "%VCPKG_DIR%\installed\x64-mingw-static\lib\libcrypto.a" (
             echo OpenSSL already present in central vcpkg
+            echo "Listing OpenSSL files:"
+            dir "%VCPKG_DIR%\installed\x64-mingw-static\lib\libcrypto.a"
+            dir "%VCPKG_DIR%\installed\x64-mingw-static\lib\libssl.a"
+            dir "%VCPKG_DIR%\installed\x64-mingw-static\include"
           ) else (
             echo OpenSSL not found in central vcpkg; checking repo-local manifest install...
             if exist "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib\libcrypto.a" (
