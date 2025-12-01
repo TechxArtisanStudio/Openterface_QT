@@ -62,6 +62,8 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     
     setupConnectionWatchdog();
 
+    this->moveToThread(serialThread);
+
     connect(this, &SerialPortManager::serialPortConnected, this, &SerialPortManager::onSerialPortConnected);
     connect(this, &SerialPortManager::serialPortDisconnected, this, &SerialPortManager::onSerialPortDisconnected);
     connect(this, &SerialPortManager::serialPortConnectionSuccess, this, &SerialPortManager::onSerialPortConnectionSuccess);
