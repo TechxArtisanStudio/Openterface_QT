@@ -324,8 +324,8 @@ jobs:
               echo Found repo-local OpenSSL artifacts; copying into central vcpkg
               mkdir "%VCPKG_DIR%\installed\x64-mingw-static\lib" 2>nul || echo "lib dir exists"
               mkdir "%VCPKG_DIR%\installed\x64-mingw-static\include" 2>nul || echo "include dir exists"
-              xcopy "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib\*" "%VCPKG_DIR%\installed\x64-mingw-static\lib\" /Y /I
-              xcopy "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\include\*" "%VCPKG_DIR%\installed\x64-mingw-static\include\" /Y /I
+              xcopy "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib\*" "%VCPKG_DIR%\installed\x64-mingw-static\lib" /Y /I
+              xcopy "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\include\*" "%VCPKG_DIR%\installed\x64-mingw-static\include" /Y /I
             ) else (
               echo Repo-local copy not found; attempting to install OpenSSL into central vcpkg
               pushd "%VCPKG_DIR%" && "%VCPKG_DIR%\vcpkg.exe" install openssl --triplet=x64-mingw-static --clean-after-build --recurse || (

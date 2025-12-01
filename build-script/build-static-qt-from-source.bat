@@ -21,7 +21,7 @@ set OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib
 set OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include
 
 REM If the central vcpkg installed libraries are missing, try a repo-local manifest
-if not exist "%OPENSSL_LIB_DIR%\" (
+if not exist "%OPENSSL_LIB_DIR%" (
     echo INFO: Central vcpkg path "%OPENSSL_LIB_DIR%" not found.
     set "REPO_OPENSSL_DIR="
     if defined SOURCE_DIR (
@@ -30,7 +30,7 @@ if not exist "%OPENSSL_LIB_DIR%\" (
         REM fallback to current repository path if SOURCE_DIR isn't available
         set "REPO_OPENSSL_DIR=%CD%\vcpkg_installed\x64-mingw-static"
     )
-    if exist "%REPO_OPENSSL_DIR%\lib\" (
+    if exist "%REPO_OPENSSL_DIR%\lib" (
         echo INFO: Found repo-local OpenSSL at "%REPO_OPENSSL_DIR%" - using it.
         set "OPENSSL_DIR=%REPO_OPENSSL_DIR%"
         set "OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib"
@@ -51,7 +51,7 @@ if %errorlevel% neq 0 (
 
 REM Check for OpenSSL static libraries
 echo Listing candidate OpenSSL library folder: %OPENSSL_LIB_DIR%
-if not exist "%OPENSSL_LIB_DIR%\" (
+if not exist "%OPENSSL_LIB_DIR%" (
     echo ERROR: OpenSSL library folder not found at %OPENSSL_LIB_DIR%
     echo Please ensure vcpkg installed OpenSSL for triplet x64-mingw-static or run vcpkg install --triplet=x64-mingw-static from the repository manifest.
     exit /b 1
