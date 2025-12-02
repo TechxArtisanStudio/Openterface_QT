@@ -447,6 +447,7 @@ void VideoPane::updateVideoItemTransform()
 //     qCDebug(log_ui_video) << "Updating video item transform: scale factor=" << m_scaleFactor
 //                          << "maintain aspect ratio=" << m_maintainAspectRatio;
     // Handle both Qt video item and FFmpeg pixmap item
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     QGraphicsItem* targetItem = nullptr;
     QRectF itemRect;
     
@@ -523,6 +524,7 @@ void VideoPane::updateVideoItemTransform()
         // Account for the original offset when stretching
         targetItem->setPos(-itemOffset.x(), -itemOffset.y());
     }
+    qCDebug(log_ui_video) <<  QDateTime::currentMSecsSinceEpoch() - currentTime << "ms taken to update video item transform.";
 }
 
 void VideoPane::centerVideoItem()
@@ -637,7 +639,7 @@ QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
     if (m_directFFmpegMode && m_pixmapItem && m_pixmapItem->isVisible()) {
         targetItem = m_pixmapItem;
         itemRect = m_pixmapItem->boundingRect();
-        qCDebug(log_ui_video) << "      [getTransformed] Using FFmpeg pixmap item";
+        // qCDebug(log_ui_video) << "      [getTransformed] Using FFmpeg pixmap item";
     } else if (m_videoItem && m_videoItem->isVisible()) {
         targetItem = m_videoItem;
         itemRect = m_videoItem->boundingRect();
