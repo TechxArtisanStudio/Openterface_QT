@@ -38,6 +38,7 @@
 #include <QFrame>
 #include <QMediaDevices>
 #include <QWidget>
+#include <QThread>
 
 
 VideoPage::VideoPage(CameraManager *cameraManager, QWidget *parent) : QWidget(parent)
@@ -418,7 +419,14 @@ void VideoPage::applyVideoSettings() {
     }
 
     // Stop the camera if it is in an active status
-    m_cameraManager->stopCamera();
+    try {
+        m_cameraManager->stopCamera();
+        qDebug() << "Camera stopped successfully";
+    } catch (const std::exception& e) {
+        qCritical() << "Error stopping camera:" << e.what();
+        return;
+    }
+
 
     // Store settings for FFmpeg backend
     handleResolutionSettings();
@@ -430,7 +438,12 @@ void VideoPage::applyVideoSettings() {
 
     qDebug() << "Start the camera";
     // Start the camera with the new settings
-    m_cameraManager->startCamera();
+    try{
+        m_cameraManager->startCamera();
+    } catch (const std::exception& e){
+        qCritical() << "Error starting camera: " << e.what();
+    }
+    
 
     qDebug() << "Applied settings: resolution:" << m_currentResolution << ", FPS:" << fps;
 

@@ -5,9 +5,18 @@ setlocal enabledelayedexpansion
 
 REM Accept optional first argument as SOURCE_DIR (so CI can pass an explicit path)
 REM Usage: build-static-qt-from-source.bat [<SOURCE_DIR>]
-if "%~1" neq "" (
+if "%~1"=="" (
+    set "SOURCE_DIR=%cd%"
+) else (
     set "SOURCE_DIR=%~1"
 )
+
+REM Set paths
+set "QT_SOURCE=C:\Qt6-source"
+set "QT_INSTALL=C:\Qt6"
+set "MINGW_PATH=C:\mingw64"
+set "VCPKG_ROOT=D:\vcpkg"
+set "OPENSSL_ROOT=%VCPKG_ROOT%\installed\x64-mingw-static"
 
 REM Configuration
 set QT_VERSION=6.6.3
@@ -88,6 +97,16 @@ if not exist "%OPENSSL_LIB_DIR%\libssl.a" (
     exit /b 1
 )
 
+REM Verify OpenSSL headers are present
+if not exist "%OPENSSL_INCLUDE_DIR%\openssl\ssl.h" (
+    echo ERROR: OpenSSL headers not found at %OPENSSL_INCLUDE_DIR%\openssl
+    echo Directory listing of include folder:
+    dir "%OPENSSL_INCLUDE_DIR%" /s
+    echo Please ensure vcpkg installed OpenSSL headers properly.
+    exit /b 1
+)
+echo OpenSSL headers verified at %OPENSSL_INCLUDE_DIR%\openssl\ssl.h
+
 REM Create build directory
 mkdir "%BUILD_DIR%"
 cd "%BUILD_DIR%"
@@ -115,19 +134,32 @@ cmake -G "Ninja" ^
     -DFEATURE_icu=OFF ^
     -DFEATURE_opengl=ON ^
     -DFEATURE_openssl=ON ^
-    -DFEATURE_openssl_linked=ON ^
+    -DINPUT_openssl=linked ^
     -DOPENSSL_ROOT_DIR="%OPENSSL_DIR%" ^
     -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
     -DOPENSSL_CRYPTO_LIBRARY="%OPENSSL_LIB_DIR%\libcrypto.a" ^
     -DOPENSSL_SSL_LIBRARY="%OPENSSL_LIB_DIR%\libssl.a" ^
     -DCMAKE_C_FLAGS="-I%OPENSSL_INCLUDE_DIR%" ^
     -DCMAKE_CXX_FLAGS="-I%OPENSSL_INCLUDE_DIR%" ^
-    -DCMAKE_EXE_LINKER_FLAGS="-L%OPENSSL_LIB_DIR% -lws2_32 -lcrypt32 -ladvapi32" ^
+    -DCMAKE_EXE_LINKER_FLAGS="-L%OPENSSL_LIB_DIR% -lssl -lcrypto -lws2_32 -lcrypt32 -ladvapi32 -luser32 -lgdi32" ^
+    -DCMAKE_REQUIRED_LIBRARIES="ws2_32;crypt32;advapi32;user32;gdi32" ^
     -DCMAKE_TOOLCHAIN_FILE="%VCPKG_DIR%\scripts\buildsystems\vcpkg.cmake" ^
     -DVCPKG_TARGET_TRIPLET=x64-mingw-static ^
     ..
+if %errorlevel% neq 0 (
+    echo CMake configuration failed for qtbase
+    exit /b 1
+)
 ninja
+if %errorlevel% neq 0 (
+    echo Build failed for qtbase
+    exit /b 1
+)
 ninja install
+if %errorlevel% neq 0 (
+    echo Install failed for qtbase
+    exit /b 1
+)
 
 REM Build other modules (including qttools)
 for %%m in (%MODULES%) do (
@@ -143,11 +175,24 @@ for %%m in (%MODULES%) do (
             -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
             -DOPENSSL_CRYPTO_LIBRARY="%OPENSSL_LIB_DIR%\libcrypto.a" ^
             -DOPENSSL_SSL_LIBRARY="%OPENSSL_LIB_DIR%\libssl.a" ^
+            -DCMAKE_EXE_LINKER_FLAGS="-L%OPENSSL_LIB_DIR% -lssl -lcrypto -lws2_32 -lcrypt32 -ladvapi32 -luser32 -lgdi32" ^
             -DCMAKE_TOOLCHAIN_FILE="%VCPKG_DIR%\scripts\buildsystems\vcpkg.cmake" ^
             -DVCPKG_TARGET_TRIPLET=x64-mingw-static ^
             ..
+        if !errorlevel! neq 0 (
+            echo CMake configuration failed for %%m
+            exit /b 1
+        )
         ninja
+        if !errorlevel! neq 0 (
+            echo Build failed for %%m
+            exit /b 1
+        )
         ninja install
+        if !errorlevel! neq 0 (
+            echo Install failed for %%m
+            exit /b 1
+        )
     )
 )
 

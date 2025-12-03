@@ -133,6 +133,51 @@ if(OPENTERFACE_BUILD_STATIC AND WIN32)
     
     # Avoid UCRT/MSVCRT conflicts by using MinGW's ANSI stdio
     target_compile_definitions(${PROJECT_NAME} PRIVATE __USE_MINGW_ANSI_STDIO=1)
+
+    # Add missing runtime libraries for static linking
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        # Standard C runtime libraries (must come after other libraries)
+        -lmsvcrt
+        -lkernel32
+        -luser32
+        -lgdi32
+        -lwinspool
+        -lshell32
+        -lole32
+        -loleaut32
+        -luuid
+        -lcomdlg32
+        -ladvapi32
+        
+        # MinGW runtime libraries for setjmp and other functions
+        -lmingw32
+        -lmingwex
+        -lmsvcr120  # Or the appropriate MSVC runtime version
+    )
+    
+    # Ensure proper link order: application objects -> static libs -> system libs
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        LINK_FLAGS "-static -static-libgcc -static-libstdc++ -Wl,--allow-multiple-definition"
+    )
+    
+    # Force static linking and add required system libraries
+    target_link_options(${PROJECT_NAME} PRIVATE
+        -static
+        -static-libgcc
+        -static-libstdc++
+    )
+    
+    # Add system libraries that provide setjmp and secure CRT functions
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        -Wl,--start-group
+        # These provide setjmp, longjmp, and other standard C functions
+        mingw32
+        mingwex
+        msvcrt
+        # These provide secure CRT functions like swscanf_s
+        secur32
+        -Wl,--end-group
+    )
 endif()
 
 # For static Qt builds, we need to link platform plugins and their dependencies (Linux only)

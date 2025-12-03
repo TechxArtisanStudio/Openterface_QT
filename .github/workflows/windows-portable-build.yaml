@@ -2,7 +2,7 @@ name: Build / Openterface Windows portable
 
 on:
   push:
-    branches: ["main", "dev"]
+    branches: ["main", "dev_1203_portable_build"]
     paths:
       - '.github/workflows/windows-portable-build.yaml'
       - 'vcpkg.json'
@@ -50,7 +50,6 @@ jobs:
           key: qt-6.6.3-mingw-windows-static-vcpkg
           restore-keys: |
             qt-6.6.3-mingw-windows-static-
-
       - name: Cache MinGW, Ninja and assembly packages
         id: cache-mingw
         uses: actions/cache@v3
@@ -66,7 +65,6 @@ jobs:
           key: mingw-ninja-nasm-yasm-static-2025
           restore-keys: |
             mingw-ninja-nasm-yasm-static-
-
       - name: Cache MSYS2 / MinGW packages
         id: cache-msys2
         uses: actions/cache@v3
@@ -79,7 +77,6 @@ jobs:
           key: msys2-${{ runner.os }}-mingw64-${{ hashFiles('vcpkg.json') }}-v1
           restore-keys: |
             msys2-${{ runner.os }}-mingw64-
-
       - name: Cache vcpkg
         id: cache-vcpkg
         uses: actions/cache@v3
@@ -103,7 +100,6 @@ jobs:
           key: ffmpeg-static-${{ runner.os }}-${{ hashFiles('build-script/build-static-ffmpeg-windows.bat', 'build-script/build-static-ffmpeg-windows.sh') }}-v1
           restore-keys: |
             ffmpeg-static-
-
       - name: Cache vcpkg binary archives & downloads
         id: cache-vcpkg-archives
         uses: actions/cache@v3
@@ -114,7 +110,6 @@ jobs:
           key: vcpkg-archives-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}-v1
           restore-keys: |
             vcpkg-archives-${{ runner.os }}-
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -125,18 +120,15 @@ jobs:
         run: |
           echo Installing Ninja...
           choco install ninja -y
-
           echo Downloading MinGW-w64 static build...
           curl -L -o mingw-w64.zip https://github.com/niXman/mingw-builds-binaries/releases/download/13.2.0-rt_v11-rev1/x86_64-13.2.0-release-win32-seh-ucrt-rt_v11-rev1.7z
           mkdir C:\mingw64_tmp
           7z x mingw-w64.zip -oC:\mingw64_tmp
           move C:\mingw64_tmp\x86_64-13.2.0-release-win32-seh-ucrt-rt_v11-rev1\* C:\mingw64\
           rmdir /s /q C:\mingw64_tmp
-
           echo Verifying g++...
           set PATH=C:\mingw64\bin;%PATH%
           g++ --version
-
       - name: Ensure ninja and assembler tools available (cache may restore files but ensure shims exist)
         run: |
           echo "Checking for ninja executable..."
@@ -144,19 +136,16 @@ jobs:
             echo "ninja not found on PATH, installing via choco"
             choco install ninja -y
           )
-
           echo "Checking for nasm executable..."
           where nasm || (
             echo "nasm not found on PATH, installing via choco"
             choco install nasm -y || echo "nasm install failed"
           )
-
           echo "Checking for yasm executable..."
           where yasm || (
             echo "yasm not found on PATH, installing via choco"
             choco install yasm -y || echo "yasm install failed"
           )
-
       - name: Setup MSYS2 (use action)
         uses: msys2/setup-msys2@v2
         with:
@@ -170,11 +159,9 @@ jobs:
           C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
           C:\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm"
           C:\msys64\usr\bin\bash.exe -lc "pacman -S --needed --noconfirm --overwrite=* mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make mingw-w64-x86_64-libiconv mingw-w64-x86_64-bzip2 mingw-w64-x86_64-xz mingw-w64-x86_64-winpthreads"
-
           echo "Verifying compiler..."
           set PATH=C:\msys64\mingw64\bin;%PATH%
           g++ --version
-
       - name: Verify MinGW Static Linking Capability
         run: |
           set PATH=C:\msys64\mingw64\bin;%PATH%
@@ -200,8 +187,6 @@ jobs:
           )
           echo "✅ libbz2.a verified."
           del test.cpp test.exe
-
-
       - name: Install or Update vcpkg (bootstrap only)
         run: |
           echo Cloning or updating vcpkg...
@@ -222,7 +207,6 @@ jobs:
             )
             call bootstrap-vcpkg.bat
           )
-
           cd "%SOURCE_DIR%"
           set VCPKG_LOG_LEVEL=debug
           set VCPKG_DOWNLOADS_RETRIES=5
@@ -230,7 +214,6 @@ jobs:
           echo vcpkg version/loglevel: && "%VCPKG_DIR%\vcpkg.exe" version || echo "could not show vcpkg version"
           call "%VCPKG_DIR%\vcpkg.exe" integrate install
           echo vcpkg installed ports (end) && "%VCPKG_DIR%\vcpkg.exe" list || echo "couldn't list vcpkg packages"
-
       # vcpkg manifest will install pkgconf (manifest mode), which will create the msys2 root.
 
       - name: Install vcpkg manifest (zlib, openssl, pkgconf) using MSYS2
@@ -240,14 +223,11 @@ jobs:
           echo "Installing static packages via manifest (vcpkg.json) using vcpkg"
           echo "VCPKG_DIR: $VCPKG_DIR"
           echo "SOURCE_DIR: $SOURCE_DIR"
-
           # Convert windows paths to MSYS2-friendly unix paths
           MSYS_VCPKG_DIR="$(cygpath -u "$VCPKG_DIR")"
           MSYS_SOURCE_DIR="$(cygpath -u "$SOURCE_DIR")"
-
           echo "MSYS_VCPKG_DIR: $MSYS_VCPKG_DIR"
           echo "MSYS_SOURCE_DIR: $MSYS_SOURCE_DIR"
-
           # Prefer invoking vcpkg under MSYS2 if available, otherwise run via cmd
           # NOTE: some vcpkg releases don't accept --manifest-root; run the vcpkg.exe from the vcpkg root
           # but execute it with working directory set to the manifest (SOURCE_DIR). That ensures manifest mode
@@ -304,41 +284,51 @@ jobs:
               exit 1
             fi
           fi
-
           echo "vcpkg list (after install):"
           if [ -x "$MSYS_VCPKG_DIR/vcpkg.exe" ]; then
             (cd "$MSYS_SOURCE_DIR" && "$MSYS_VCPKG_DIR/vcpkg.exe" list) || ("$MSYS_VCPKG_DIR/vcpkg.exe" list)
           else
             cmd.exe /C "pushd \"%SOURCE_DIR%\" && \"%VCPKG_DIR%\\vcpkg.exe\" list && popd"
           fi
-
       - name: Ensure OpenSSL is available in central vcpkg
         shell: cmd
         run: |
-          echo Checking central vcpkg for OpenSSL static libs...
+          echo Checking central vcpkg for OpenSSL static libs and headers...
           if exist "%VCPKG_DIR%\installed\x64-mingw-static\lib\libcrypto.a" (
-            echo OpenSSL already present in central vcpkg
-            echo "Listing OpenSSL files:"
-            dir "%VCPKG_DIR%\installed\x64-mingw-static\lib\libcrypto.a"
-            dir "%VCPKG_DIR%\installed\x64-mingw-static\lib\libssl.a"
-            dir "%VCPKG_DIR%\installed\x64-mingw-static\include"
-          ) else (
-            echo OpenSSL not found in central vcpkg; checking repo-local manifest install...
-            if exist "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib\libcrypto.a" (
-              echo Found repo-local OpenSSL artifacts; copying into central vcpkg
-              mkdir "%VCPKG_DIR%\installed\x64-mingw-static\lib" 2>nul || echo "lib dir exists"
-              mkdir "%VCPKG_DIR%\installed\x64-mingw-static\include" 2>nul || echo "include dir exists"
-              xcopy "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib\*" "%VCPKG_DIR%\installed\x64-mingw-static\lib" /Y /I
-              xcopy "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\include\*" "%VCPKG_DIR%\installed\x64-mingw-static\include" /Y /I
+            if exist "%VCPKG_DIR%\installed\x64-mingw-static\include\openssl\ssl.h" (
+              echo OpenSSL libraries and headers already present in central vcpkg
+              dir "%VCPKG_DIR%\installed\x64-mingw-static\lib\libcrypto.a"
+              dir "%VCPKG_DIR%\installed\x64-mingw-static\lib\libssl.a"
+              dir "%VCPKG_DIR%\installed\x64-mingw-static\include\openssl"
             ) else (
-              echo Repo-local copy not found; attempting to install OpenSSL into central vcpkg
-              pushd "%VCPKG_DIR%" && "%VCPKG_DIR%\vcpkg.exe" install openssl --triplet=x64-mingw-static --clean-after-build --recurse || (
-                echo Failed to install OpenSSL via vcpkg; printing central vcpkg folder contents for debugging && dir "%VCPKG_DIR%\installed\x64-mingw-static" /s
+              echo OpenSSL libs found but headers missing, checking repo-local...
+              goto :check_repo_local
+            )
+          ) else (
+            :check_repo_local
+            echo Checking repo-local manifest install...
+            if exist "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib\libcrypto.a" (
+              if exist "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\include\openssl\ssl.h" (
+                echo Found repo-local OpenSSL artifacts; copying into central vcpkg
+                mkdir "%VCPKG_DIR%\installed\x64-mingw-static\lib" 2>nul || echo "lib dir exists"
+                mkdir "%VCPKG_DIR%\installed\x64-mingw-static\include" 2>nul || echo "include dir exists"
+                xcopy "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib\*" "%VCPKG_DIR%\installed\x64-mingw-static\lib\" /Y /I /S
+                xcopy "%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\include\*" "%VCPKG_DIR%\installed\x64-mingw-static\include\" /Y /I /S
+              ) else (
+                echo Repo-local libs found but headers missing, forcing reinstall
+                goto :force_install
+              )
+            ) else (
+              :force_install
+              echo Forcing OpenSSL reinstall into central vcpkg
+              pushd "%VCPKG_DIR%" && "%VCPKG_DIR%\vcpkg.exe" remove openssl --triplet=x64-mingw-static || echo "No existing install to remove"
+              "%VCPKG_DIR%\vcpkg.exe" install openssl --triplet=x64-mingw-static --clean-after-build --recurse || (
+                echo Failed to install OpenSSL via vcpkg; printing contents for debugging
+                dir "%VCPKG_DIR%\installed\x64-mingw-static" /s
                 exit /b 1
               ) && popd
             )
           )
-
       - name: Verify vcpkg manifest installation and artifact directory
         shell: cmd
         run: |
@@ -351,7 +341,6 @@ jobs:
             dir "%SOURCE_DIR%" || true
             exit /b 1
           )
-
           echo "=== vcpkg executable and installed list ==="
           if exist "%VCPKG_DIR%\vcpkg.exe" (
             call "%VCPKG_DIR%\vcpkg.exe" version || echo "vcpkg version command failed"
@@ -359,15 +348,12 @@ jobs:
           ) else (
             echo "WARNING: vcpkg.exe not found at %VCPKG_DIR%"
           )
-
           echo "=== Installed libraries folder check ==="
           echo "Checking possible installed locations ( repo-local vcpkg_installed or central vcpkg installed )"
           set REPO_LIB_DIR=%SOURCE_DIR%\vcpkg_installed\x64-mingw-static\lib
           set CENTRAL_LIB_DIR=%VCPKG_DIR%\installed\x64-mingw-static\lib
-
           echo REPO_LIB_DIR=%REPO_LIB_DIR%
           echo CENTRAL_LIB_DIR=%CENTRAL_LIB_DIR%
-
           if exist "%REPO_LIB_DIR%" (
             echo Found repo-local installed libraries at %REPO_LIB_DIR%
             dir "%REPO_LIB_DIR%"
@@ -379,14 +365,12 @@ jobs:
             echo "Hint: vcpkg install may have failed or installed to a different location. Inspect the vcpkg debug output above."
             exit /b 1
           )
-
       - name: Build Static FFmpeg
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         run: |
           echo "Building static FFmpeg..."
           cd build-script
           call build-static-ffmpeg-windows.bat
-
       - name: Verify vcpkg static libraries (with debug output)
         run: |
           set VCPKG_MAX_CONCURRENCY=%VCPKG_MAX_CONCURRENCY%
@@ -417,29 +401,24 @@ jobs:
             echo ERROR: Library folder not found in either %LIB_DIR% or %REPO_LIB_DIR% && exit /b 1
           )
           echo All static libraries present.
-
       - name: Dump ffmpeg buildtrees folder on failure
         if: failure()
         run: |
           echo Dumping full buildtrees directory for ffmpeg
           dir D:\vcpkg\buildtrees\ffmpeg /s
           echo Done dumping
-
       - name: Build Qt Statically (if not cached) - using external MinGW
         if: steps.cache-qt.outputs.cache-hit != 'true'
         run: |
           REM Pass SOURCE_DIR explicitly to the script to ensure the batch sees the repo root
           call build-script/build-static-qt-from-source.bat "%SOURCE_DIR%"
-
       - name: Create Build Directory
         run: |
           mkdir "%RUNNER_TEMP%\build"
-
       - name: Prepare Driver Files
         run: |
           mkdir "%SOURCE_DIR%\drivers\windows"
           copy "driver\windows\*" "%SOURCE_DIR%\drivers\windows\" /Y
-
       - name: Update Translations (lupdate + lrelease)
         working-directory: ${{ runner.temp }}\build
         run: |
@@ -447,71 +426,67 @@ jobs:
           if not exist "C:\Qt6\bin\lupdate.exe" ( echo lupdate not found & exit /b 1 )
           C:\Qt6\bin\lupdate.exe "%SOURCE_DIR%\openterfaceQT.pro"
           C:\Qt6\bin\lrelease.exe "%SOURCE_DIR%\openterfaceQT.pro"
-
-      - name: Build Portable Executable with CMake (run from MSYS2; external MinGW compilers)
+      - name: Build Portable Executable with CMake
         working-directory: ${{ runner.temp }}\build
-        run: >-
-          REM Run the final cmake build inside MSYS2 to use MSYS2 runtime for packaging while ensuring we use the external MinGW toolchain for compilers
-          for /f "delims=" %%i in ('dir /b /ad "C:\msys64\usr" 2^>nul') do set MSYS2_DIR=%%i && set MSYS2_PATH=C:\msys64\usr\bin
-          if not exist "%MSYS2_PATH%\bash.exe" (
-            set PATH=C:\Qt6\bin;%EXTERNAL_MINGW%\bin;%PATH% &&
-            cmake -G "Ninja"
-              -DCMAKE_BUILD_TYPE=Release
-              -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
-              -DVCPKG_TARGET_TRIPLET="x64-mingw-static"
-              -DCMAKE_PREFIX_PATH="C:/Qt6"
-              -DOPENTERFACE_BUILD_STATIC=ON
-              -DCMAKE_C_COMPILER="%EXTERNAL_MINGW%/bin/gcc.exe"
-              -DCMAKE_CXX_COMPILER="%EXTERNAL_MINGW%/bin/g++.exe"
-              -DCMAKE_RC_COMPILER="%EXTERNAL_MINGW%/bin/windres.exe"
-              "%SOURCE_DIR%" &&
-            cmake --build . --config Release -- -j2 &&
-            for /f "delims=" %F in ('dir /s /b openterfaceQT.exe 2^>nul') do set "EXE=%F" &&
-            if not defined EXE (
-              echo Build failed: openterfaceQT.exe not found && dir /s /b . && exit /b 1
-            ) &&
-            echo Checking for DLL dependencies... &&
-            %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" >nul && (
-              echo ERROR: DLL dependencies detected! &&
-              %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" &&
-              exit /b 1
-            ) || (
-              echo OK: No DLL dependencies — fully static.
-            ) &&
-            %EXTERNAL_MINGW%\bin\strip.exe -s "%EXE%" &&
-            mkdir package &&
-            copy "%EXE%" package\openterfaceQT-portable.exe
-          ) else (
-            # Quote the cygpath converted SOURCE_DIR to avoid splitting on spaces
-            "%MSYS2_PATH%\bash.exe" -lc "export PATH=/c/Qt6/bin:/c/mingw64/bin:$PATH && cmake -G \"Ninja\" -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=\"/c/vcpkg/scripts/buildsystems/vcpkg.cmake\" -DVCPKG_TARGET_TRIPLET=\"x64-mingw-static\" -DCMAKE_PREFIX_PATH=\"/c/Qt6\" -DOPENTERFACE_BUILD_STATIC=ON -DCMAKE_C_COMPILER=/c/mingw64/bin/gcc.exe -DCMAKE_CXX_COMPILER=/c/mingw64/bin/g++.exe -DCMAKE_RC_COMPILER=/c/mingw64/bin/windres.exe \"$(cygpath -u '%SOURCE_DIR%')\" && cmake --build . --config Release -- -j2 || exit 1"
-            "%MSYS2_PATH%\bash.exe" -lc "for f in \$(find . -name \"openterfaceQT.exe\" -print -quit); do EXE=\$f; break; done; if [ -z \"\$EXE\" ]; then echo Build failed: openterfaceQT.exe not found && exit 1; fi; /c/mingw64/bin/objdump -p \"\$EXE\" | grep -i \\\"\\.dll\\\" && (echo ERROR: DLL dependencies detected && /c/mingw64/bin/objdump -p \"\$EXE\" | grep -i \\\"\\.dll\\\" && exit 1) || echo OK: No DLL dependencies; /c/mingw64/bin/strip -s \"\$EXE\"; mkdir -p package; cp \"\$EXE\" package/openterfaceQT-portable.exe"
-          )
-            -DCMAKE_BUILD_TYPE=Release
-            -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
-            -DVCPKG_TARGET_TRIPLET="x64-mingw-static"
-            -DCMAKE_PREFIX_PATH="C:/Qt6"
-            -DOPENTERFACE_BUILD_STATIC=ON
-            -DCMAKE_C_COMPILER="%EXTERNAL_MINGW%/bin/gcc.exe"
-            -DCMAKE_CXX_COMPILER="%EXTERNAL_MINGW%/bin/g++.exe"
-            -DCMAKE_RC_COMPILER="%EXTERNAL_MINGW%/bin/windres.exe"
-            "%SOURCE_DIR%" &&
-          cmake --build . --config Release -- -j2 &&
-          for /f "delims=" %F in ('dir /s /b openterfaceQT.exe 2^>nul') do set "EXE=%F" &&
-          if not defined EXE (
-            echo Build failed: openterfaceQT.exe not found && dir /s /b . && exit /b 1
-          ) &&
-          echo Checking for DLL dependencies... &&
-          %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" >nul && (
-            echo ERROR: DLL dependencies detected! &&
-            %EXTERNAL_MINGW%\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" &&
+        shell: cmd
+        run: |
+          set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
+          
+          cmake -G "Ninja" ^
+            -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_TOOLCHAIN_FILE="D:/vcpkg/scripts/buildsystems/vcpkg.cmake" ^
+            -DVCPKG_TARGET_TRIPLET="x64-mingw-static" ^
+            -DCMAKE_PREFIX_PATH="C:/Qt6" ^
+            -DOPENTERFACE_BUILD_STATIC=ON ^
+            -DCMAKE_C_COMPILER="C:/mingw64/bin/gcc.exe" ^
+            -DCMAKE_CXX_COMPILER="C:/mingw64/bin/g++.exe" ^
+            -DCMAKE_RC_COMPILER="C:/mingw64/bin/windres.exe" ^
+            "%SOURCE_DIR%"
+          
+          if errorlevel 1 (
+            echo CMake configuration failed
             exit /b 1
-          ) || (
-            echo OK: No DLL dependencies — fully static.
-          ) &&
-          %EXTERNAL_MINGW%\bin\strip.exe -s "%EXE%" &&
-          mkdir package &&
+          )
+          
+          cmake --build . --config Release -- -j2
+          
+          if errorlevel 1 (
+            echo CMake build failed
+            exit /b 1
+          )
+          
+          for /f "delims=" %%F in ('dir /s /b openterfaceQT.exe 2^>nul') do set "EXE=%%F"
+          
+          if not defined EXE (
+            echo Build failed: openterfaceQT.exe not found
+            dir /s /b .
+            exit /b 1
+          )
+          
+          echo Found executable: %EXE%
+          
+          echo Checking for DLL dependencies...
+          C:\mingw64\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll" >nul
+          if not errorlevel 1 (
+            echo ERROR: DLL dependencies detected!
+            C:\mingw64\bin\objdump.exe -p "%EXE%" | findstr /i "\.dll"
+            exit /b 1
+          )
+          
+          echo OK: No DLL dependencies - fully static.
+          
+          C:\mingw64\bin\strip.exe -s "%EXE%"
+          
+          if not exist package mkdir package
           copy "%EXE%" package\openterfaceQT-portable.exe
-
+          
+          if errorlevel 1 (
+            echo Failed to copy executable to package directory
+            exit /b 1
+          )
+          
+          echo Build completed successfully
+          dir package
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
