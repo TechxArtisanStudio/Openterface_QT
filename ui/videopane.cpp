@@ -819,7 +819,7 @@ void VideoPane::validateMouseCoordinates(const QPoint& original, const QString& 
 // Event handlers
 void VideoPane::wheelEvent(QWheelEvent *event)
 {
-    qDebug() << "VideoPane::wheelEvent - angleDelta:" << event->angleDelta();
+    // qDebug() << "VideoPane::wheelEvent - angleDelta:" << event->angleDelta();
     
     // Call InputHandler's public method to process the event
     if (m_inputHandler) {

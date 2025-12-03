@@ -42,8 +42,7 @@
 #include <QMediaDevices>
 #include <QCameraDevice>
 
-// FFmpeg includes (conditional compilation)
-#ifdef HAVE_FFMPEG
+// FFmpeg includes
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -52,7 +51,6 @@ extern "C" {
 #include <libswscale/swscale.h>
 #include <libavdevice/avdevice.h>
 }
-#endif
 
 // libjpeg-turbo includes (conditional compilation)
 #ifdef HAVE_LIBJPEG_TURBO
@@ -61,7 +59,6 @@ extern "C" {
 
 Q_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
 
-#ifdef HAVE_FFMPEG
 /**
  * @brief Capture thread for handling FFmpeg video capture in background
  */
@@ -167,11 +164,9 @@ private:
     mutable QMutex m_mutex;
     bool m_running;
 };
-#endif // HAVE_FFMPEG
 
 FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
     : MultimediaBackendHandler(parent)
-#ifdef HAVE_FFMPEG
       , m_formatContext(nullptr),
       m_codecContext(nullptr),
       m_frame(nullptr),
@@ -192,7 +187,6 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
       m_recordingPacket(nullptr),
       m_interruptRequested(false),
       m_operationStartTime(0)
-#endif
 #ifdef HAVE_LIBJPEG_TURBO
       , m_turboJpegHandle(nullptr)
 #endif
@@ -226,7 +220,6 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
     // Connect to hotplug monitor
     connectToHotplugMonitor();
     
-#ifdef HAVE_FFMPEG
     // Initialize FFmpeg
     if (!initializeFFmpeg()) {
         qCCritical(log_ffmpeg_backend) << "Failed to initialize FFmpeg";
@@ -243,7 +236,6 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
             m_frameCount = 0;
         }
     });
-#endif
 }
 
 FFmpegBackendHandler::~FFmpegBackendHandler()
@@ -256,11 +248,9 @@ FFmpegBackendHandler::~FFmpegBackendHandler()
     // Disconnect from hotplug monitor
     disconnectFromHotplugMonitor();
     
-#ifdef HAVE_FFMPEG
     stopDirectCapture();
     cleanupRecording();
     cleanupFFmpeg();
-#endif
 }
 
 MultimediaBackendType FFmpegBackendHandler::getBackendType() const
@@ -279,7 +269,6 @@ QStringList FFmpegBackendHandler::getAvailableHardwareAccelerations() const
     availableHwAccel << "none";  // CPU option
     availableHwAccel << "auto";  // Always include auto
 
-#ifdef HAVE_FFMPEG
     // Check for CUDA/NVDEC
     const AVCodec* cudaCodec = avcodec_find_decoder_by_name("mjpeg_cuvid");
     if (cudaCodec) {
@@ -294,22 +283,14 @@ QStringList FFmpegBackendHandler::getAvailableHardwareAccelerations() const
 
     // Check for other hardware types if needed
     // For now, focus on CUDA and QSV as they are the main ones for MJPEG
-#endif
 
     return availableHwAccel;
 }
 
-#ifdef HAVE_FFMPEG
 bool FFmpegBackendHandler::isDirectCaptureRunning() const
 {
     return m_captureRunning;
 }
-#else
-bool FFmpegBackendHandler::isDirectCaptureRunning() const
-{
-    return false;
-}
-#endif
 
 MultimediaBackendConfig FFmpegBackendHandler::getDefaultConfig() const
 {
@@ -333,9 +314,7 @@ void FFmpegBackendHandler::configureCameraDevice()
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Configuring camera device";
 
-#ifdef HAVE_FFMPEG
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Camera device configuration";
-#endif
 }
 
 void FFmpegBackendHandler::setupCaptureSession(QMediaCaptureSession* session)
@@ -381,7 +360,6 @@ void FFmpegBackendHandler::startCamera()
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Starting camera with direct capture";
     
-#ifdef HAVE_FFMPEG
     qCDebug(log_ffmpeg_backend) << "Current device:" << m_currentDevice;
     qCDebug(log_ffmpeg_backend) << "Current resolution:" << m_currentResolution;
     qCDebug(log_ffmpeg_backend) << "Current framerate:" << m_currentFramerate;
@@ -404,20 +382,14 @@ void FFmpegBackendHandler::startCamera()
         qCDebug(log_ffmpeg_backend) << "FFmpeg direct capture started successfully";
         emit deviceActivated(m_currentDevice);
     }
-#else
-    qCWarning(log_ffmpeg_backend) << "FFmpeg backend not available, cannot start direct capture";
-    emit captureError("FFmpeg backend not available");
-#endif
 }
 
 void FFmpegBackendHandler::stopCamera()
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Stopping camera";
     
-#ifdef HAVE_FFMPEG
     // Stop direct capture
     stopDirectCapture();
-#endif
 }
 
 QCameraFormat FFmpegBackendHandler::selectOptimalFormat(const QList<QCameraFormat>& formats,
@@ -427,22 +399,15 @@ QCameraFormat FFmpegBackendHandler::selectOptimalFormat(const QList<QCameraForma
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Selecting optimal format with flexible frame rate matching";
     
-#ifdef HAVE_FFMPEG
     // Store resolution and framerate for direct capture
     const_cast<FFmpegBackendHandler*>(this)->m_currentResolution = resolution;
     const_cast<FFmpegBackendHandler*>(this)->m_currentFramerate = desiredFrameRate;
-#else
-    Q_UNUSED(resolution);
-    Q_UNUSED(desiredFrameRate);
-    Q_UNUSED(pixelFormat);
-#endif
     
     // Return the first available format since we'll handle capture directly
     return formats.isEmpty() ? QCameraFormat() : formats.first();
 }
 
 // Direct FFmpeg capture implementation
-#ifdef HAVE_FFMPEG
 
 bool FFmpegBackendHandler::initializeFFmpeg()
 {
@@ -491,9 +456,7 @@ void FFmpegBackendHandler::cleanupFFmpeg()
 
 void FFmpegBackendHandler::cleanupFFmpegResources()
 {
-#ifdef HAVE_FFMPEG
     closeInputDevice();
-#endif
 }
 
 bool FFmpegBackendHandler::initializeHardwareAcceleration()
@@ -673,7 +636,6 @@ bool FFmpegBackendHandler::getMaxCameraCapability(const QString& devicePath, Cam
                               << capability.resolution << "@" << capability.framerate << "FPS";
     return true;
 }
-#endif
 
 bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const QSize& resolution, int framerate)
 {
@@ -826,7 +788,6 @@ void FFmpegBackendHandler::stopDirectCapture()
     qCDebug(log_ffmpeg_backend) << "Direct FFmpeg capture stopped";
 }
 
-#ifdef HAVE_FFMPEG
 // Static interrupt callback for FFmpeg operations to prevent blocking
 int FFmpegBackendHandler::interruptCallback(void* ctx)
 {
@@ -852,7 +813,6 @@ int FFmpegBackendHandler::interruptCallback(void* ctx)
     
     return 0; // Continue the operation
 }
-#endif
 
 bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSize& resolution, int framerate)
 {
@@ -1494,7 +1454,6 @@ bool FFmpegBackendHandler::readFrame()
     return true;
 }
 
-#ifdef HAVE_FFMPEG
 void FFmpegBackendHandler::processFrame()
 {
     // Check if capture is stopping or resources are gone (no lock to avoid blocking)
@@ -1694,7 +1653,6 @@ void FFmpegBackendHandler::processFrame()
         }
         
         // Write frame to recording file if recording is active
-#ifdef HAVE_FFMPEG
         // Use mutex to safely check recording state and prevent race conditions during stop
         bool shouldRecord = false;
         {
@@ -1763,7 +1721,7 @@ void FFmpegBackendHandler::processFrame()
                 }
             }
         }
-#endif
+
         
         // Reduce success logging frequency for performance
         if (m_frameCount % 1000 == 1) {
@@ -1784,9 +1742,6 @@ void FFmpegBackendHandler::processFrame()
     }
 }
 }
-#endif
-
-#ifdef HAVE_FFMPEG
 
 #ifdef HAVE_LIBJPEG_TURBO
 QPixmap FFmpegBackendHandler::decodeJpegFrame(const uint8_t* data, int size)
@@ -1841,9 +1796,7 @@ QPixmap FFmpegBackendHandler::decodeJpegFrame(const uint8_t* data, int size)
     return QPixmap::fromImage(image);
 }
 #endif // HAVE_LIBJPEG_TURBO
-#endif // HAVE_FFMPEG
 
-#ifdef HAVE_FFMPEG
 QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
 {
     if (!m_codecContext || !m_frame) {
@@ -1976,9 +1929,7 @@ QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
     
     return result;
 }
-#endif
 
-#ifdef HAVE_FFMPEG
 QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
 {
     if (!frame) {
@@ -2125,35 +2076,10 @@ QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
     // PERFORMANCE: Skip pixmap creation logging for better performance
     return result;
 }
-#endif
-
-// Stub implementations when FFmpeg is not available
-#ifndef HAVE_FFMPEG
-bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const QSize& resolution, int framerate)
-{
-    Q_UNUSED(devicePath);
-    Q_UNUSED(resolution);
-    Q_UNUSED(framerate);
-    qCWarning(log_ffmpeg_backend) << "FFmpeg not available: cannot start direct capture";
-    return false;
-}
-
-void FFmpegBackendHandler::stopDirectCapture()
-{
-    qCDebug(log_ffmpeg_backend) << "FFmpeg not available: no capture to stop";
-}
-
-void FFmpegBackendHandler::processFrame()
-{
-    qCDebug(log_ffmpeg_backend) << "FFmpeg not available: processFrame() called but no implementation";
-}
-#endif
 
 void FFmpegBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
 {
-#ifdef HAVE_FFMPEG
     QMutexLocker locker(&m_mutex);
-#endif
     
     // Disconnect previous connections
     disconnect(this, &FFmpegBackendHandler::frameReady, this, nullptr);
@@ -2192,9 +2118,7 @@ void FFmpegBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
 
 void FFmpegBackendHandler::setVideoOutput(VideoPane* videoPane)
 {
-#ifdef HAVE_FFMPEG
     QMutexLocker locker(&m_mutex);
-#endif
     
     // Disconnect previous connections
     disconnect(this, &FFmpegBackendHandler::frameReady, this, nullptr);
@@ -2258,27 +2182,6 @@ bool FFmpegBackendHandler::checkCameraAvailable(const QString& devicePath)
         
         deviceFile.close();
     }
-#else
-    // Check if device file exists and is accessible
-    QFile deviceFile(device);
-    if (!deviceFile.exists()) {
-        qCDebug(log_ffmpeg_backend) << "Device file does not exist:" << device;
-        return false;
-    }
-    
-    // Try to open the device for reading to verify it's accessible
-    // Skip this check if we're currently capturing to avoid device conflicts
-    if (device == m_currentDevice && m_captureRunning) {
-        qCDebug(log_ffmpeg_backend) << "Device is currently in use for capture, skipping file open check";
-        return true;
-    }
-    
-    if (!deviceFile.open(QIODevice::ReadOnly)) {
-        qCDebug(log_ffmpeg_backend) << "Cannot open device for reading:" << device << "Error:" << deviceFile.errorString();
-        return false;
-    }
-    
-    deviceFile.close();
 #endif
     
     // Additional check: try to briefly open with FFmpeg to verify compatibility
@@ -2294,7 +2197,6 @@ bool FFmpegBackendHandler::checkCameraAvailable(const QString& devicePath)
         return true; // Rely on OS-specific checks above
     }
     
-#ifdef HAVE_FFMPEG
     AVFormatContext* testContext = avformat_alloc_context();
     if (!testContext) {
         qCDebug(log_ffmpeg_backend) << "Failed to allocate test format context";
@@ -2338,10 +2240,6 @@ bool FFmpegBackendHandler::checkCameraAvailable(const QString& devicePath)
     avformat_close_input(&testContext);
     qCDebug(log_ffmpeg_backend) << "Camera device is available:" << device;
     return true;
-#else
-    qCDebug(log_ffmpeg_backend) << "FFmpeg not available, basic check passed for:" << device;
-    return true;
-#endif
 }
 
 bool FFmpegBackendHandler::isCurrentDeviceAvailable() const
@@ -2359,7 +2257,6 @@ void FFmpegBackendHandler::handleDeviceDisconnection()
 {
     qCDebug(log_ffmpeg_backend) << "Handling device disconnection for FFmpeg backend";
     
-#ifdef HAVE_FFMPEG
     // Stop current capture if running
     if (m_captureRunning) {
         qCDebug(log_ffmpeg_backend) << "Stopping capture due to device disconnection";
@@ -2373,14 +2270,12 @@ void FFmpegBackendHandler::handleDeviceDisconnection()
     emit captureError("Camera device disconnected: " + m_currentDevice);
     
     qCDebug(log_ffmpeg_backend) << "Device disconnection handled";
-#endif
 }
 
 bool FFmpegBackendHandler::restartCaptureWithDevice(const QString& devicePath, const QSize& resolution, int framerate)
 {
     qCDebug(log_ffmpeg_backend) << "Attempting to restart capture with device:" << devicePath;
     
-#ifdef HAVE_FFMPEG
     // Stop current capture first
     if (m_captureRunning) {
         qCDebug(log_ffmpeg_backend) << "Stopping current capture before restart";
@@ -2414,10 +2309,6 @@ bool FFmpegBackendHandler::restartCaptureWithDevice(const QString& devicePath, c
     }
     
     return success;
-#else
-    qCWarning(log_ffmpeg_backend) << "FFmpeg not available, cannot restart capture";
-    return false;
-#endif
 }
 
 // Enhanced hotplug support methods
@@ -2711,7 +2602,6 @@ void FFmpegBackendHandler::setCurrentDevice(const QString& devicePath)
 
 bool FFmpegBackendHandler::startRecording(const QString& outputPath, const QString& format, int videoBitrate)
 {
-#ifdef HAVE_FFMPEG
     QMutexLocker locker(&m_recordingMutex);
     
     if (m_recordingActive) {
@@ -2749,16 +2639,10 @@ bool FFmpegBackendHandler::startRecording(const QString& outputPath, const QStri
     qCInfo(log_ffmpeg_backend) << "Recording started successfully";
     emit recordingStarted(outputPath);
     return true;
-#else
-    qCWarning(log_ffmpeg_backend) << "FFmpeg not available: startRecording() called but no implementation";
-    emit recordingError("FFmpeg not available");
-    return false;
-#endif
 }
 
 bool FFmpegBackendHandler::stopRecording()
 {
-#ifdef HAVE_FFMPEG
     qCDebug(log_ffmpeg_backend) << "Stopping recording";
     
     // First, mark recording as inactive to prevent new frames from being processed
@@ -2786,15 +2670,10 @@ bool FFmpegBackendHandler::stopRecording()
     qCInfo(log_ffmpeg_backend) << "Recording stopped successfully";
     emit recordingStopped();
     return true;
-#else
-    qCDebug(log_ffmpeg_backend) << "FFmpeg not available: stopRecording() called but no implementation";
-    return false;
-#endif
 }
 
 void FFmpegBackendHandler::pauseRecording()
 {
-#ifdef HAVE_FFMPEG
     QMutexLocker locker(&m_recordingMutex);
     
     if (!m_recordingActive || m_recordingPaused) {
@@ -2807,14 +2686,10 @@ void FFmpegBackendHandler::pauseRecording()
     
     qCDebug(log_ffmpeg_backend) << "Recording paused";
     emit recordingPaused();
-#else
-    qCDebug(log_ffmpeg_backend) << "FFmpeg not available: pauseRecording() called but no implementation";
-#endif
 }
 
 void FFmpegBackendHandler::resumeRecording()
 {
-#ifdef HAVE_FFMPEG
     QMutexLocker locker(&m_recordingMutex);
     
     if (!m_recordingActive || !m_recordingPaused) {
@@ -2831,9 +2706,6 @@ void FFmpegBackendHandler::resumeRecording()
     
     qCDebug(log_ffmpeg_backend) << "Recording resumed";
     emit recordingResumed();
-#else
-    qCDebug(log_ffmpeg_backend) << "FFmpeg not available: resumeRecording() called but no implementation";
-#endif
 }
 
 bool FFmpegBackendHandler::isRecording() const
@@ -2884,7 +2756,6 @@ FFmpegBackendHandler::RecordingConfig FFmpegBackendHandler::getRecordingConfig()
     return m_recordingConfig;
 }
 
-#ifdef HAVE_FFMPEG
 bool FFmpegBackendHandler::initializeRecording()
 {
     // Clean up any existing recording context
@@ -3272,11 +3143,7 @@ void FFmpegBackendHandler::cleanupRecording()
 // Advanced recording methods
 bool FFmpegBackendHandler::isCameraReady() const
 {
-#ifdef HAVE_FFMPEG
     return m_captureRunning && m_formatContext != nullptr && m_codecContext != nullptr;
-#else
-    return false;
-#endif
 }
 
 bool FFmpegBackendHandler::supportsAdvancedRecording() const
@@ -3292,16 +3159,12 @@ bool FFmpegBackendHandler::startRecordingAdvanced(const QString& outputPath, con
 
 bool FFmpegBackendHandler::forceStopRecording()
 {
-#ifdef HAVE_FFMPEG
     qCDebug(log_ffmpeg_backend) << "Force stopping recording";
     m_recordingActive = false;
     m_recordingPaused = false;
     cleanupRecording();
     emit recordingStopped();
     return true;
-#else
-    return false;
-#endif
 }
 
 QString FFmpegBackendHandler::getLastError() const
@@ -3316,20 +3179,13 @@ bool FFmpegBackendHandler::supportsRecordingStats() const
 
 qint64 FFmpegBackendHandler::getRecordingFileSize() const
 {
-#ifdef HAVE_FFMPEG
     if (m_recordingOutputPath.isEmpty() || !m_recordingActive) {
         return 0;
     }
     
     QFileInfo fileInfo(m_recordingOutputPath);
     return fileInfo.size();
-#else
-    return 0;
-#endif
 }
-
-#endif // HAVE_FFMPEG
-
 
 void FFmpegBackendHandler::takeImage(const QString& filePath)
 {

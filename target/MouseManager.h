@@ -41,7 +41,7 @@ class MouseMoverThread : public QThread {
 
 public:
     MouseMoverThread() : running(true) {}
-
+    // mouse dance movement loop
     void run() override {
         int x = 4096; // Starting at the top-right corner
         int y = 1;
@@ -82,7 +82,7 @@ public:
                 }
     
                 moveMouse(x, y);
-                QThread::msleep(1); // Small delay to simulate movement
+                QThread::msleep(50); // Small delay to simulate movement
             }
         }
     }
