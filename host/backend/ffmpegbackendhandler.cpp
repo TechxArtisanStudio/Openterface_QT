@@ -826,10 +826,6 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     // WINDOWS: Use DirectShow for video capture
     qCDebug(log_ffmpeg_backend) << "Windows platform detected - using DirectShow input";
     
-    // Add small delay to ensure device is not held by Qt's device enumeration (Windows issue)
-    // QThread::msleep(1000);
-    // qCDebug(log_ffmpeg_backend) << "Waited 200ms before opening device (Windows workaround)";
-    
     // Allocate format context
     m_formatContext = avformat_alloc_context();
     if (!m_formatContext) {
@@ -1374,9 +1370,6 @@ void FFmpegBackendHandler::closeInputDevice()
         avformat_close_input(&m_formatContext);
         m_formatContext = nullptr;
     }
-    
-    // Give Windows time to release the camera device
-    // QThread::msleep(1000);
     
     m_videoStreamIndex = -1;
 }
