@@ -444,9 +444,6 @@ void VideoPane::resizeEvent(QResizeEvent *event)
 // Helper methods
 void VideoPane::updateVideoItemTransform()
 {
-//     qCDebug(log_ui_video) << "Updating video item transform: scale factor=" << m_scaleFactor
-//                          << "maintain aspect ratio=" << m_maintainAspectRatio;
-    // Handle both Qt video item and FFmpeg pixmap item
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     QGraphicsItem* targetItem = nullptr;
     QRectF itemRect;
@@ -524,7 +521,7 @@ void VideoPane::updateVideoItemTransform()
         // Account for the original offset when stretching
         targetItem->setPos(-itemOffset.x(), -itemOffset.y());
     }
-    qCDebug(log_ui_video) <<  QDateTime::currentMSecsSinceEpoch() - currentTime << "ms taken to update video item transform.";
+    // qCDebug(log_ui_video) <<  QDateTime::currentMSecsSinceEpoch() - currentTime << "ms taken to update video item transform.";
 }
 
 void VideoPane::centerVideoItem()

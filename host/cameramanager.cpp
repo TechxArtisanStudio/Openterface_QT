@@ -520,26 +520,7 @@ void CameraManager::stopRecording()
     qCDebug(log_ui_camera) << "Stopping recording:" << recordingPath;
     qCDebug(log_ui_camera) << "Backend type: " << (m_backendHandler ? 
                                                 static_cast<int>(m_backendHandler->getBackendType()) : -1);
-    // REMOVED: qCDebug(log_ui_camera) << "Camera state: " << (m_camera ? (m_camera->isActive() ? "Active" : "Inactive") : "NULL");
-    
-#ifdef Q_OS_WIN
-    // Windows: Use QMediaRecorder via QtBackendHandler
-    if (isQtBackend() && m_backendHandler) {
-        try {
-            // Use qobject_cast for Qt objects which is more robust in Qt environment
-            QtBackendHandler* qtHandler = qobject_cast<QtBackendHandler*>(m_backendHandler.get());
-            
-            if (qtHandler) {
-                qtHandler->stopRecording();
-                qCDebug(log_ui_camera) << "Stopped recording via QtBackendHandler";
-            } else {
-                qCWarning(log_ui_camera) << "Failed to cast to QtBackendHandler despite isQtBackend() returning true";
-            }
-        } catch (const std::exception& e) {
-            qCCritical(log_ui_camera) << "Exception during backend handler stop:" << e.what();
-        }
-    }
-#else
+
     // Linux/macOS: Stop ONLY the active backend (FFmpeg or GStreamer)
     if (!m_backendHandler) {
         qCWarning(log_ui_camera) << "No multimedia backend handler available on non-Windows platform";
@@ -547,7 +528,7 @@ void CameraManager::stopRecording()
     } else {
         bool stopSuccess = false;
 
-#ifndef Q_OS_WIN
+
         // Linux-specific recording stop code
         switch (m_backendHandler->getBackendType()) {
             case MultimediaBackendType::FFmpeg: {
@@ -562,6 +543,7 @@ void CameraManager::stopRecording()
                 }
                 break;
             }
+#ifndef Q_OS_WIN
             case MultimediaBackendType::GStreamer: {
                 if (GStreamerBackendHandler* gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
                     // Stop the actual recording (void return type)
@@ -574,12 +556,13 @@ void CameraManager::stopRecording()
                 }
                 break;
             }
+#endif
             default:
                 qCWarning(log_ui_camera) << "Unsupported backend for Linux recording stop:" << static_cast<int>(m_backendHandler->getBackendType());
                 emit recordingError("Unsupported backend for stopping recording on Linux");
                 break;
         }
-#else
+
         // Windows-specific recording stop code using QtBackendHandler
         // This code block is never executed on Windows due to the outer #ifdef
         // It's here for completeness in case someone moves the #else/#endif structure
@@ -593,12 +576,11 @@ void CameraManager::stopRecording()
         } else {
             qCWarning(log_ui_camera) << "Failed to cast to QtBackendHandler for recording stop";
         }
-#endif
         
         // Log the final result of the stop operation
         qCInfo(log_ui_camera) << "Recording stop result: " << (stopSuccess ? "Successful" : "Failed");
     }
-#endif
+
 
     // Check if the file exists after recording is stopped
     if (!recordingPath.isEmpty()) {

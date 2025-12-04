@@ -328,7 +328,7 @@ void MainWindowInitializer::setupToolbar()
             m_mainWindow, &MainWindow::onToolbarVisibilityChanged);
             
     // Set up the recording controller
-    // setupRecordingController();
+    setupRecordingController();
 }
 
 void MainWindowInitializer::connectCameraSignals()
@@ -376,29 +376,10 @@ void MainWindowInitializer::setupRecordingController()
 {
     qCDebug(log_ui_mainwindowinitializer) << "Setting up recording controller...";
     
-    // Create the recording controller
-    m_mainWindow->m_recordingController = new RecordingController(m_mainWindow, m_cameraManager);
+    // Create the recording controller with status bar manager (no UI widget)
+    m_mainWindow->m_recordingController = new RecordingController(m_cameraManager, m_statusBarManager, m_mainWindow);
 
-    // Create and show the floating duration-only widget instead of adding full controls to toolbar
-    QWidget* floatingDuration = m_mainWindow->m_recordingController->createFloatingDurationWidget(m_mainWindow);
-    if (floatingDuration) {
-        floatingDuration->adjustSize();
-        // Place it near the top-right, below the menu bar
-        int x = m_mainWindow->width() - floatingDuration->width() - 12;
-        int y = m_ui->menubar->height() + 6;
-        floatingDuration->move(x, y);
-        floatingDuration->hide(); // Hide by default, will be shown when recording starts
-        // Reposition when layout changes
-        WindowLayoutCoordinator* coordinator = m_windowLayoutCoordinator;
-        QWidget* fd = floatingDuration;
-        QMenuBar* menuBar = m_ui->menubar;
-        connect(coordinator, &WindowLayoutCoordinator::layoutChanged, m_mainWindow, [coordinator, fd, menuBar](const QSize& size) {
-            fd->adjustSize();
-            int xNew = coordinator->isFullScreenMode() ? (size.width() - fd->width() - 8) : (size.width() - fd->width() - 12);
-            int yNew = menuBar->height() + 6;
-            fd->move(xNew, yNew);
-        });
-    }
+    qCDebug(log_ui_mainwindowinitializer) << "✓ Recording controller initialized with status bar integration (no UI blocking)";
 }
 
 void MainWindowInitializer::initializeCamera()
