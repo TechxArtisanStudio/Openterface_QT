@@ -880,17 +880,17 @@ Por favor, reinicia la aplicación e inténtalo de nuevo.</translation>
     <message>
         <location filename="../../ui/mainwindow.ui" line="360"/>
         <source>Always Show</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostrar siempre</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="363"/>
         <source>Always show mouse cursor</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostrar siempre el cursor del ratón</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="535"/>
         <source>Recorded %1 sec</source>
-        <translation type="unfinished"></translation>
+        <translation>Grabado %1 seg</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="609"/>
@@ -898,89 +898,91 @@ Por favor, reinicia la aplicación e inténtalo de nuevo.</translation>
         <location filename="../../ui/mainwindow.cpp" line="643"/>
         <location filename="../../ui/mainwindow.cpp" line="647"/>
         <source>Recording Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Error de grabación</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="610"/>
         <source>Recording system is not initialized. Please restart the application.</source>
-        <translation type="unfinished"></translation>
+        <translation>El sistema de grabación no está inicializado. Por favor, reinicia la aplicación.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="617"/>
         <source>Camera system is not initialized. Please restart the application.</source>
-        <translation type="unfinished"></translation>
+        <translation>El sistema de cámara no está inicializado. Por favor, reinicia la aplicación.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="626"/>
         <source>No Camera Available</source>
-        <translation type="unfinished"></translation>
+        <translation>No hay ninguna cámara disponible</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="627"/>
         <source>No camera devices detected. Please connect a camera and try again.</source>
-        <translation type="unfinished"></translation>
+        <translation>No se ha detectado ninguna cámara. Por favor, conecta una cámara e inténtalo de nuevo</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="629"/>
         <source>Camera Not Active</source>
-        <translation type="unfinished"></translation>
+        <translation>Cámara inactiva</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="630"/>
         <source>Camera is not active. Please start the camera preview before recording.</source>
-        <translation type="unfinished"></translation>
+        <translation>La cámara no está activa. Por favor, inicia la previsualización de cámara antes de grabar.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="644"/>
         <source>An unexpected error occurred: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Ha ocurrido un error inesperado: %1</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="648"/>
         <source>An unexpected error occurred. Please try again or restart the application.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo o reinicia la aplicación.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="682"/>
         <source>Active Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>Grabación activa</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="683"/>
         <source>There is an active recording session. Do you want to stop it before changing settings?</source>
-        <translation type="unfinished"></translation>
+        <translation>Hay una sesión de grabación en curso. ¿Quieres pararla antes de cambiar la configuración?</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="836"/>
         <source>Image Capture Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Error de captura de imagen</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="905"/>
         <source>Captured &quot;%1&quot;</source>
-        <translation type="unfinished"></translation>
+        <translation>Capturado &quot;%1&quot;</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1463"/>
         <source>Firmware Update</source>
-        <translation type="unfinished"></translation>
+        <translation>Actualización de firmware</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1464"/>
         <source>The firmware is up to date.
 Current version: </source>
-        <translation type="unfinished"></translation>
+        <translation>El firmware está actualizado.
+Versión actual: </translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1486"/>
         <source>Firmware fetch timeout</source>
-        <translation type="unfinished"></translation>
+        <translation>Tiempo de espera de firmware</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1487"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
-        <translation type="unfinished"></translation>
+        <translation>La recuperación del firmware ha excedido el tiempo de espera. Por favor, verifica tu conexión de red e inténtalo de nuevo.
+Versión actual: </translation>
     </message>
 </context>
 <context>
@@ -990,17 +992,17 @@ Current version: </source>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="114"/>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="391"/>
         <source>Recording Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Error de grabación</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="103"/>
         <source>No active camera device for recording. Please ensure a camera is connected.</source>
-        <translation type="unfinished"></translation>
+        <translation>No hay ninguna cámara activa para la grabación. Por favor, asegúrate que hay una cámara conectada</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="115"/>
         <source>Cannot start recording - camera system not initialized.</source>
-        <translation type="unfinished"></translation>
+        <translation>No se puede iniciar la grabación - sistema de cámara no inicializado</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="368"/>
@@ -1013,7 +1015,15 @@ Possible causes:
 - Codec not supported on this system
 
 Technical details: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Fallo al iniciar la grabación.
+    
+Posibles causas:
+- Espacio en disco insuficiente
+- Problemas de permisos con el directorio de salida
+- La cámara está ocupada o desconectada
+- Códec no adimitido en este sistema
+
+Detalles técnicos: %1</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="375"/>
@@ -1025,7 +1035,14 @@ Possible causes:
 - Drive disconnected during recording
 
 Technical details: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Fallo al guardar la grabación.
+    
+Posibles causas:
+- Espacio en disco insuficiente
+- Problemas de permisos con el directorio de salida
+- La unidad se desconectó durante la grabación
+
+Detalles técnicos: %1</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="381"/>
@@ -1037,63 +1054,70 @@ Possible causes:
 - Hardware acceleration problems
 
 Technical details: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>La grabación puede estar corrupta.
+    
+Posibles causas:
+- La grabación se detuvo de forma inesperada
+- Problemas de recursos del sistema
+- Problemas de aceleración de hardware
+
+Detalles técnicos: %1</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="387"/>
         <source>An error occurred with the recording:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Ocurrió un error durante la grabación</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="397"/>
         <source>Retry</source>
-        <translation type="unfinished"></translation>
+        <translation>Reintentar</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="413"/>
         <source>Reset Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>El reinicio falló</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="414"/>
         <source>Cannot reset recording system - camera manager is not available.</source>
-        <translation type="unfinished"></translation>
+        <translation>No se puede reiniciar el sistema de grabación - el gestor de cámara no está disponible</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="422"/>
         <source>Recording in Progress</source>
-        <translation type="unfinished"></translation>
+        <translation>Grabación en proceso</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="423"/>
         <source>A recording is currently in progress. Stop it and reset the recording system?</source>
-        <translation type="unfinished"></translation>
+        <translation>Hay una grabación en proceso. ¿Detenerla y reiniciar el sistema de grabación?</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="440"/>
         <source>System Reset</source>
-        <translation type="unfinished"></translation>
+        <translation>Reiniciar el sistema</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="441"/>
         <source>FFmpeg backend automatically handles recovery. Please try recording again.</source>
-        <translation type="unfinished"></translation>
+        <translation>FFmpeg se encarga automáticamente de la recuperación. Intenta grabar nuevamente.</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="465"/>
         <source>Recording System Diagnostics</source>
-        <translation type="unfinished"></translation>
+        <translation>Diagnóstico del sistema de grabación</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="476"/>
         <source>Copy to Clipboard</source>
-        <translation type="unfinished"></translation>
+        <translation">Copiar al portapapeles</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="477"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>Cerrar</translation>
     </message>
 </context>
 <context>
@@ -1101,22 +1125,22 @@ Technical details: %1</source>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="64"/>
         <source>Video Recording Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Configuración de grabación de video</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="218"/>
         <source>Apply Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Aplicar configuración</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="219"/>
         <source>Reset to Defaults</source>
-        <translation type="unfinished"></translation>
+        <translation>Restablecer a valores predeterminados</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="220"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>Cerrar</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="232"/>
@@ -1126,53 +1150,53 @@ Technical details: %1</source>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="236"/>
         <source>Backend: Detecting...</source>
-        <translation type="unfinished"></translation>
+        <translation>Backend: Detectando...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="240"/>
         <source>Start Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>Empezar grabación</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="241"/>
         <source>Stop Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>Detener grabación</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="242"/>
         <source>Pause</source>
-        <translation type="unfinished"></translation>
+        <translation>Pausar</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="243"/>
         <source>Resume</source>
-        <translation type="unfinished"></translation>
+        <translation>Continuar</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="246"/>
         <source>Status: Ready</source>
-        <translation type="unfinished"></translation>
+        <translation>Estado: Listo</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="247"/>
         <source>Duration: 00:00:00</source>
-        <translation type="unfinished"></translation>
+        <translation>Duración: 00:00:00<</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="271"/>
         <source>Video Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Configuraciónd de video</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="277"/>
         <source>Codec:</source>
-        <translation type="unfinished"></translation>
+        <translation>Códec</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="284"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="771"/>
         <source>GStreamer codecs: mjpeg (fast), x264enc (good compression), x265enc (best compression)</source>
-        <translation type="unfinished"></translation>
+        <translation>GStreamer codecs: mjpeg (rápido), x264enc (buena compresión), x265enc (mejor compresión)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="287"/>
