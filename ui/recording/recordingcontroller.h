@@ -23,10 +23,6 @@
 #define RECORDINGCONTROLLER_H
 
 #include <QObject>
-#include <QWidget>
-#include <QPushButton>
-#include <QLabel>
-#include <QHBoxLayout>
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QLoggingCategory>
@@ -34,6 +30,7 @@
 // Forward declarations
 class CameraManager;
 class FFmpegBackendHandler;
+class StatusBarManager;
 
 Q_DECLARE_LOGGING_CATEGORY(log_ui_recordingcontroller)
 
@@ -41,32 +38,25 @@ Q_DECLARE_LOGGING_CATEGORY(log_ui_recordingcontroller)
  * @brief Controller for recording video with start/stop/pause functionality
  * 
  * Provides a unified interface for recording with either QMediaRecorder or FFmpegBackendHandler
- * and displays recording controls in the UI.
+ * and updates the status bar to show recording state.
  */
-class RecordingController : public QWidget
+class RecordingController : public QObject
 {
     Q_OBJECT
 
 public:
     /**
      * @brief Constructor for the recording controller
-     * @param parent Parent widget
      * @param cameraManager Pointer to the application's CameraManager
+     * @param statusBarManager Pointer to the application's StatusBarManager
+     * @param parent Parent QObject
      */
-    explicit RecordingController(QWidget *parent = nullptr, CameraManager *cameraManager = nullptr);
+    explicit RecordingController(CameraManager *cameraManager, StatusBarManager *statusBarManager, QObject *parent = nullptr);
     
     /**
      * @brief Destructor
      */
     ~RecordingController();
-    
-    /**
-     * @brief Creates and returns the recording control widget
-     * @return QWidget* The recording control widget
-     */
-    QWidget* createControlsWidget();
-    // Create and return a floating, read-only duration widget to display recording time
-    QWidget* createFloatingDurationWidget(QWidget* parent = nullptr);
     
     /**
      * @brief Get the current recording status
@@ -158,11 +148,6 @@ private slots:
     
 private:
     /**
-     * @brief Set up the UI components
-     */
-    void setupUI();
-    
-    /**
      * @brief Connect signals and slots
      */
     void connectSignals();
@@ -183,6 +168,7 @@ private:
     // Backend reference (not owned)
     CameraManager *m_cameraManager;
     FFmpegBackendHandler *m_ffmpegBackend;
+    StatusBarManager *m_statusBarManager;
     
     // Recording state
     bool m_isRecording;
@@ -191,21 +177,6 @@ private:
     QTimer *m_updateTimer;
     qint64 m_pausedDuration;
     qint64 m_lastPauseTime;
-    
-    // UI components
-    QPushButton *m_startButton;
-    QPushButton *m_stopButton;
-    QPushButton *m_pauseButton;
-    QPushButton *m_resumeButton;
-    QPushButton *m_settingsButton;
-    QPushButton *m_resetButton;       // Button for resetting recording system
-    QPushButton *m_diagnosticsButton; // Button for showing diagnostics
-    QLabel *m_durationLabel;
-    QHBoxLayout *m_layout;
-    QWidget *m_controlsWidget;
-    // Floating duration-only widget (for display-only mode)
-    QWidget *m_floatingWidget;
-    QLabel *m_floatingDurationLabel;
 };
 
 #endif // RECORDINGCONTROLLER_H

@@ -62,6 +62,10 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     connectedPortLabel = new QLabel(this);
     connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", "N/A"));
     
+    recordingTimeLabel = new QLabel(this);
+    recordingTimeLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "00:00:00", QColor("red")));
+    recordingTimeLabel->setVisible(false);
+    
     // Store icons for reuse
     keyboardIcon = QPixmap(16, 16);
     keyboardIcon.fill(Qt::transparent);
@@ -101,6 +105,8 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     layout->addWidget(keyStatesLabel);
     layout->addWidget(new QLabel("|", this));
     layout->addWidget(connectedPortLabel);
+    layout->addWidget(new QLabel("|", this));
+    layout->addWidget(recordingTimeLabel);
     layout->addWidget(new QLabel("|", this));
     layout->addWidget(resolutionLabel);
     layout->addWidget(inputResolutionLabel);
@@ -293,6 +299,25 @@ void StatusWidget::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
                      .arg(scrollLock ? "ON" : "OFF");
     
     keyStatesLabel->setToolTip(tooltip);
+    update();
+}
+
+void StatusWidget::setRecordingTime(const QString &time)
+{
+    if (!recordingTimeLabel) {
+        return;
+    }
+    recordingTimeLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "REC " + time, QColor("red")));
+    recordingTimeLabel->setToolTip("Recording: " + time);
+    update();
+}
+
+void StatusWidget::showRecordingTime(bool show)
+{
+    if (!recordingTimeLabel) {
+        return;
+    }
+    recordingTimeLabel->setVisible(show);
     update();
 }
 

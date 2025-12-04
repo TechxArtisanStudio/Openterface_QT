@@ -1684,9 +1684,13 @@ void FFmpegBackendHandler::processFrame()
                                                    << "recording frame size:" << m_recordingFrame->width << "x" << m_recordingFrame->height
                                                    << "frame interval:" << (currentTime - m_lastRecordedFrameTime) << "ms";
                     }
+                    bool canWriteFrame = false;
+                    {
+                        QMutexLocker recordingLocker(&m_recordingMutex);
+                        canWriteFrame = m_recordingActive && !m_recordingPaused && m_recordingFrame && m_recordingSwsContext;
+                    }
                     
-                    // Quick check without mutex (writeFrameToFile will do proper mutex checking)
-                    if (m_recordingActive && m_recordingFrame && m_recordingSwsContext) {
+                    if (canWriteFrame) {
                         // Fill frame with image data
                         const uint8_t* srcData[1] = { image.constBits() };
                         int srcLinesize[1] = { static_cast<int>(image.bytesPerLine()) };
@@ -2367,7 +2371,7 @@ void FFmpegBackendHandler::connectToHotplugMonitor()
                     QString portChain = device.portChain;
                     
                     // Wait 1 second for camera enumeration to complete, then retry
-                    QTimer::singleShot(1000, this, [this, portChain]() {
+                    QTimer::singleShot(300, this, [this, portChain]() {
                         qCDebug(log_ffmpeg_backend) << "Retrying device activation for port chain:" << portChain;
                         
                         // Try to find camera device by port chain using Qt's device enumeration
@@ -2397,12 +2401,12 @@ void FFmpegBackendHandler::connectToHotplugMonitor()
                             if (m_waitingForDevice) {
                                 qCInfo(log_ffmpeg_backend) << "  → Found device after retry, attempting activation:" << foundDeviceName;
                                 // Add small delay to allow device to fully initialize after reconnection
-                                QTimer::singleShot(500, this, [this, foundDeviceName, portChain]() {
+                                QTimer::singleShot(300, this, [this, foundDeviceName, portChain]() {
                                     handleDeviceActivation(foundDeviceName, portChain);
                                 });
                             } else if (!m_captureRunning) {
                                 qCInfo(log_ffmpeg_backend) << "  → Found device after retry, auto-starting capture:" << foundDeviceName;
-                                QTimer::singleShot(500, this, [this, foundDeviceName, portChain]() {
+                                QTimer::singleShot(300, this, [this, foundDeviceName, portChain]() {
                                     if (!m_captureRunning) {
                                         handleDeviceActivation(foundDeviceName, portChain);
                                     }
@@ -2452,7 +2456,7 @@ void FFmpegBackendHandler::connectToHotplugMonitor()
                         QString portChain = device.portChain;
                         // Use a short delay to ensure device is fully initialized
                         // This also prevents blocking the hotplug event handler
-                        QTimer::singleShot(500, this, [this, devicePath, portChain]() {
+                        QTimer::singleShot(300, this, [this, devicePath, portChain]() {
                             if (!m_captureRunning) {
                                 qCInfo(log_ffmpeg_backend) << "Auto-starting capture for plugged-in device:" << devicePath;
                                 handleDeviceActivation(devicePath, portChain);
@@ -2537,7 +2541,7 @@ void FFmpegBackendHandler::handleDeviceActivation(const QString& devicePath, con
                                 << "resolution:" << resolution << "framerate:" << framerate;
     
     // Delay starting capture to allow device to stabilize after hotplug
-    QTimer::singleShot(500, this, [this, resolution, framerate]() {
+    QTimer::singleShot(300, this, [this, resolution, framerate]() {
         if (startDirectCapture(m_currentDevice, resolution, framerate)) {
             qCInfo(log_ffmpeg_backend) << "Successfully started capture on activated device";
             emit deviceActivated(m_currentDevice);
@@ -2648,12 +2652,8 @@ bool FFmpegBackendHandler::stopRecording()
         m_recordingActive = false;
         m_recordingPaused = false;
     }
+    QThread::msleep(10);
     
-    // Wait a small amount of time to ensure any ongoing frame processing completes
-    // This prevents race conditions with the capture thread
-    QThread::msleep(50);
-    
-    // Now safely finalize and cleanup recording resources
     {
         QMutexLocker locker(&m_recordingMutex);
         finalizeRecording();

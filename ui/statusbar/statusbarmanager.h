@@ -35,6 +35,8 @@ public:
     void setKeyStates(bool numLock, bool capsLock, bool scrollLock);
     void updateIconColor();
     void showSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate);
+    void setRecordingTime(const QString& time);
+    void showRecordingIndicator(bool show);
 
 
 private:

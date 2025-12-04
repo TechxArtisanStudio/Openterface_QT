@@ -265,3 +265,17 @@ void StatusBarManager::showSerialAutoRestart(int attemptNumber, int maxAttempts,
                       .arg(QString::number(lossRate * 100.0, 'f', 1));
     showThrottledMessage(message, "color: orange;", 3000);
 }
+
+void StatusBarManager::setRecordingTime(const QString& time)
+{
+    if (m_statusWidget) {
+        m_statusWidget->setRecordingTime(time);
+    }
+}
+
+void StatusBarManager::showRecordingIndicator(bool show)
+{
+    if (m_statusWidget) {
+        m_statusWidget->showRecordingTime(show);
+    }
+}

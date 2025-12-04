@@ -45,6 +45,8 @@ public:
     void setStatusUpdate(const QString &status);
     void setTargetUsbConnected(const bool isConnected);
     void setKeyStates(bool numLock, bool capsLock, bool scrollLock);
+    void setRecordingTime(const QString &time);
+    void showRecordingTime(bool show);
     int getCaptureWidth() const;
     int getCaptureHeight() const;
 
@@ -67,6 +69,7 @@ private:
     QLabel *resolutionLabel;
     QLabel *inputResolutionLabel;
     QLabel *connectedPortLabel;
+    QLabel *recordingTimeLabel;
     QTimer *cpuTimer;
     int m_captureWidth;
     int m_captureHeight;

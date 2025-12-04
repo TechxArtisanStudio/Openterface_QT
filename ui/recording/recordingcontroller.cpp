@@ -23,56 +23,47 @@
 #include "recordingcontroller.h"
 #include "../../host/cameramanager.h"
 #include "../mainwindow.h"
+#include "../statusbar/statusbarmanager.h"
 #include <QMessageBox>
 #include <QApplication>
-#include <QStyle>
 #include <QDateTime>
+#include <QDebug>
+#include <QTextBrowser>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QPushButton>
+#include <QDialog>
+#include <QClipboard>
 
 #ifndef Q_OS_WIN
 // Include FFmpeg backend for non-Windows platforms
 #include "../../host/backend/ffmpegbackendhandler.h"
 #endif
 
-#include <QIcon>
-#include <QStyle>
-#include <QApplication>
-#include <QDateTime>
-#include <QDebug>
-
 Q_LOGGING_CATEGORY(log_ui_recordingcontroller, "opf.ui.recordingcontroller")
 
-RecordingController::RecordingController(QWidget *parent, CameraManager *cameraManager)
-    : QWidget(parent)
+RecordingController::RecordingController(CameraManager *cameraManager, StatusBarManager *statusBarManager, QObject *parent)
+    : QObject(parent)
     , m_cameraManager(cameraManager)
 #ifndef Q_OS_WIN
     , m_ffmpegBackend(cameraManager ? cameraManager->getFFmpegBackend() : nullptr)
 #else
     , m_ffmpegBackend(nullptr) // Windows doesn't use FFmpeg backend
 #endif
+    , m_statusBarManager(statusBarManager)
     , m_isRecording(false)
     , m_isPaused(false)
     , m_pausedDuration(0)
     , m_lastPauseTime(0)
-    , m_startButton(nullptr)
-    , m_stopButton(nullptr)
-    , m_pauseButton(nullptr)
-    , m_resumeButton(nullptr)
-    , m_settingsButton(nullptr)
-    , m_durationLabel(nullptr)
-    , m_layout(nullptr)
-    , m_controlsWidget(nullptr)
-     , m_floatingWidget(nullptr)
-     , m_floatingDurationLabel(nullptr)
 {
     qCDebug(log_ui_recordingcontroller) << "Creating RecordingController";
-    
-    setupUI();
-    connectSignals();
     
     // Set up timer for recording duration updates
     m_updateTimer = new QTimer(this);
     m_updateTimer->setInterval(100); // Update every 100ms
     connect(m_updateTimer, &QTimer::timeout, this, &RecordingController::updateRecordingTime);
+    
+    connectSignals();
 }
 
 RecordingController::~RecordingController()
@@ -83,61 +74,7 @@ RecordingController::~RecordingController()
     if (m_isRecording) {
         stopRecording();
     }
-    
-    // Ensure floating widget is cleaned up if it was created
-    if (m_floatingWidget) {
-        // If it's parented elsewhere, delete it explicitly
-        m_floatingWidget->deleteLater();
-        m_floatingWidget = nullptr;
-    }
 }
-
-QWidget* RecordingController::createControlsWidget()
-{
-    if (!m_controlsWidget) {
-        // Create the controls widget if it doesn't exist
-        m_controlsWidget = new QWidget(this);
-        m_layout = new QHBoxLayout(m_controlsWidget);
-        m_layout->setContentsMargins(4, 0, 4, 0);
-        m_layout->setSpacing(4);
-        
-        // Add controls to layout
-        m_layout->addWidget(m_startButton);
-        m_layout->addWidget(m_stopButton);
-        m_layout->addWidget(m_pauseButton);
-        m_layout->addWidget(m_resumeButton);
-        m_layout->addWidget(m_durationLabel);
-        m_layout->addStretch();
-        m_layout->addWidget(m_resetButton);
-        m_layout->addWidget(m_diagnosticsButton);
-        m_layout->addWidget(m_settingsButton);
-        
-        // Update button states
-        updateUIStates();
-    }
-    
-    return m_controlsWidget;
-}
-
-    QWidget* RecordingController::createFloatingDurationWidget(QWidget* parent)
-    {
-        if (!m_floatingWidget) {
-            QWidget* wParent = parent ? parent : nullptr;
-            m_floatingWidget = new QWidget(wParent, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-            m_floatingWidget->setAttribute(Qt::WA_ShowWithoutActivating);
-            m_floatingWidget->setWindowTitle(tr("Recording"));
-            QHBoxLayout* layout = new QHBoxLayout(m_floatingWidget);
-            layout->setContentsMargins(6, 4, 6, 4);
-            layout->setSpacing(4);
-            // Create a label dedicated to the floating widget to avoid reparenting
-            m_floatingDurationLabel = new QLabel("00:00:00", m_floatingWidget);
-            m_floatingDurationLabel->setAlignment(Qt::AlignCenter);
-            layout->addWidget(m_floatingDurationLabel);
-            m_floatingWidget->setLayout(layout);
-            m_floatingWidget->hide();
-        }
-        return m_floatingWidget;
-    }
 
 bool RecordingController::isRecording() const
 {
@@ -162,29 +99,19 @@ void RecordingController::startRecording()
         // First check camera active status
         if (!m_cameraManager->hasActiveCameraDevice()) {
             qCWarning(log_ui_recordingcontroller) << "No active camera device for recording";
-            QMessageBox::warning(this, tr("Recording Error"),
+            QMessageBox::warning(nullptr, tr("Recording Error"),
                 tr("No active camera device for recording. Please ensure a camera is connected."));
             return;
         }
         
+        qCDebug(log_ui_recordingcontroller) << "Calling camera manager to start recording";
         m_cameraManager->startRecording();
         
-        // Start local timer
-        m_recordingTimer.start();
-        m_pausedDuration = 0;
-        m_updateTimer->start();
-        
-        // Update state
-        m_isRecording = true;
-        m_isPaused = false;
-        
-        // Update UI
-        updateUIStates();
-        
-        qCDebug(log_ui_recordingcontroller) << "Recording started";
+        // Note: Don't update state here - wait for onCameraRecordingStarted() signal
+        // to ensure the recording backend has properly initialized
     } else {
         qCWarning(log_ui_recordingcontroller) << "Cannot start recording - no camera manager";
-        QMessageBox::warning(this, tr("Recording Error"),
+        QMessageBox::warning(nullptr, tr("Recording Error"),
             tr("Cannot start recording - camera system not initialized."));
     }
 }
@@ -199,20 +126,8 @@ void RecordingController::stopRecording()
     }
     
     if (m_cameraManager) {
+        qCDebug(log_ui_recordingcontroller) << "Calling camera manager to stop recording";
         m_cameraManager->stopRecording();
-        
-        // Stop timer
-        m_updateTimer->stop();
-        
-        // Update state
-        m_isRecording = false;
-        m_isPaused = false;
-        
-        // Update UI
-        m_durationLabel->setText("00:00:00");
-        updateUIStates();
-        
-        qCDebug(log_ui_recordingcontroller) << "Recording stopped";
     } else {
         qCWarning(log_ui_recordingcontroller) << "Cannot stop recording - no camera manager";
     }
@@ -276,8 +191,9 @@ void RecordingController::showRecordingSettings()
 {
     qCDebug(log_ui_recordingcontroller) << "Show recording settings requested";
     
-    // Get parent MainWindow
-    if (MainWindow* mainWindow = qobject_cast<MainWindow*>(parent())) {
+    // Get MainWindow from parent
+    MainWindow* mainWindow = qobject_cast<MainWindow*>(parent());
+    if (mainWindow) {
         mainWindow->showRecordingSettings();
     } else {
         qCWarning(log_ui_recordingcontroller) << "Cannot show settings - parent is not MainWindow";
@@ -300,10 +216,9 @@ void RecordingController::updateRecordingTime()
         elapsedTime = m_recordingTimer.elapsed() - m_pausedDuration;
     }
     
-    // Update duration label
-    m_durationLabel->setText(formatDuration(elapsedTime));
-    if (m_floatingDurationLabel) {
-        m_floatingDurationLabel->setText(formatDuration(elapsedTime));
+    // Update status bar recording time
+    if (m_statusBarManager) {
+        m_statusBarManager->setRecordingTime(formatDuration(elapsedTime));
     }
 }
 
@@ -322,9 +237,10 @@ void RecordingController::onRecordingStarted(const QString& outputPath)
     
     // Update UI
     updateUIStates();
-    // Show floating widget if present
-    if (m_floatingWidget) {
-        m_floatingWidget->show();
+    
+    // Show recording indicator in status bar
+    if (m_statusBarManager) {
+        m_statusBarManager->showRecordingIndicator(true);
     }
 }
 
@@ -340,10 +256,11 @@ void RecordingController::onRecordingStopped()
     m_isPaused = false;
     
     // Update UI
-    m_durationLabel->setText("00:00:00");
     updateUIStates();
-    if (m_floatingWidget) {
-        m_floatingWidget->hide();
+    
+    // Hide recording indicator in status bar
+    if (m_statusBarManager) {
+        m_statusBarManager->showRecordingIndicator(false);
     }
 }
 
@@ -375,65 +292,8 @@ void RecordingController::onRecordingResumed()
     updateUIStates();
 }
 
-void RecordingController::setupUI()
-{
-    // Create buttons with icons from standard theme
-    m_startButton = new QPushButton(this);
-    m_startButton->setIcon(QIcon::fromTheme("media-record", QApplication::style()->standardIcon(QStyle::SP_MediaPlay)));
-    m_startButton->setToolTip(tr("Start Recording"));
-    m_startButton->setMaximumWidth(32);
-    
-    m_stopButton = new QPushButton(this);
-    m_stopButton->setIcon(QIcon::fromTheme("media-playback-stop", QApplication::style()->standardIcon(QStyle::SP_MediaStop)));
-    m_stopButton->setToolTip(tr("Stop Recording"));
-    m_stopButton->setMaximumWidth(32);
-    
-    m_pauseButton = new QPushButton(this);
-    m_pauseButton->setIcon(QIcon::fromTheme("media-playback-pause", QApplication::style()->standardIcon(QStyle::SP_MediaPause)));
-    m_pauseButton->setToolTip(tr("Pause Recording"));
-    m_pauseButton->setMaximumWidth(32);
-    
-    m_resumeButton = new QPushButton(this);
-    m_resumeButton->setIcon(QIcon::fromTheme("media-playback-start", QApplication::style()->standardIcon(QStyle::SP_MediaPlay)));
-    m_resumeButton->setToolTip(tr("Resume Recording"));
-    m_resumeButton->setMaximumWidth(32);
-    
-    m_settingsButton = new QPushButton(this);
-    m_settingsButton->setIcon(QIcon::fromTheme("preferences-system", QApplication::style()->standardIcon(QStyle::SP_FileDialogDetailedView)));
-    m_settingsButton->setToolTip(tr("Recording Settings"));
-    m_settingsButton->setMaximumWidth(32);
-    
-    // Add reset button for recording system recovery
-    m_resetButton = new QPushButton(this);
-    m_resetButton->setIcon(QIcon::fromTheme("view-refresh", QApplication::style()->standardIcon(QStyle::SP_BrowserReload)));
-    m_resetButton->setToolTip(tr("Reset Recording System"));
-    m_resetButton->setMaximumWidth(32);
-    
-    // Add diagnostics button
-    m_diagnosticsButton = new QPushButton(this);
-    m_diagnosticsButton->setIcon(QIcon::fromTheme("dialog-information", QApplication::style()->standardIcon(QStyle::SP_MessageBoxInformation)));
-    m_diagnosticsButton->setToolTip(tr("Recording Diagnostics"));
-    m_diagnosticsButton->setMaximumWidth(32);
-    
-    m_durationLabel = new QLabel("00:00:00", this);
-    m_durationLabel->setMinimumWidth(60);
-    m_durationLabel->setAlignment(Qt::AlignCenter);
-    
-    // Set initial states
-    updateUIStates();
-}
-
 void RecordingController::connectSignals()
 {
-    // Connect UI buttons
-    connect(m_startButton, &QPushButton::clicked, this, &RecordingController::startRecording);
-    connect(m_stopButton, &QPushButton::clicked, this, &RecordingController::stopRecording);
-    connect(m_pauseButton, &QPushButton::clicked, this, &RecordingController::pauseRecording);
-    connect(m_resumeButton, &QPushButton::clicked, this, &RecordingController::resumeRecording);
-    connect(m_settingsButton, &QPushButton::clicked, this, &RecordingController::showRecordingSettings);
-    connect(m_resetButton, &QPushButton::clicked, this, &RecordingController::resetRecordingSystem);
-    connect(m_diagnosticsButton, &QPushButton::clicked, this, &RecordingController::showRecordingDiagnostics);
-    
     // Connect to CameraManager signals for recording state and errors
     if (m_cameraManager) {
         connect(m_cameraManager, &CameraManager::recordingStarted, this, &RecordingController::onCameraRecordingStarted);
@@ -441,68 +301,11 @@ void RecordingController::connectSignals()
         connect(m_cameraManager, &CameraManager::recordingError, this, &RecordingController::onRecordingError);
         qCDebug(log_ui_recordingcontroller) << "Connected to CameraManager signals";
     }
-    
-#ifndef Q_OS_WIN
-    // Connect to FFmpeg backend signals (non-Windows platforms only)
-    if (m_ffmpegBackend) {
-        connect(m_ffmpegBackend, &FFmpegBackendHandler::recordingStarted, this, &RecordingController::onRecordingStarted);
-        connect(m_ffmpegBackend, &FFmpegBackendHandler::recordingStopped, this, &RecordingController::onRecordingStopped);
-        connect(m_ffmpegBackend, &FFmpegBackendHandler::recordingPaused, this, &RecordingController::onRecordingPaused);
-        connect(m_ffmpegBackend, &FFmpegBackendHandler::recordingResumed, this, &RecordingController::onRecordingResumed);
-    } else {
-        qCWarning(log_ui_recordingcontroller) << "No FFmpeg backend available, some signals won't be connected";
-    }
-#else
-    // Windows platform uses QMediaRecorder, not FFmpeg
-    qCDebug(log_ui_recordingcontroller) << "Using Qt backend for recording on Windows platform";
-#endif
 }
 
 void RecordingController::updateUIStates()
 {
-#ifdef Q_OS_WIN
-    // Windows: Simpler UI without pause/resume (not supported by QMediaRecorder)
-    if (m_isRecording) {
-        m_startButton->setVisible(false);
-        m_stopButton->setVisible(true);
-        // Hide pause/resume buttons on Windows
-        m_pauseButton->setVisible(false);
-        m_resumeButton->setVisible(false);
-    } else {
-        m_startButton->setVisible(true);
-        m_stopButton->setVisible(false);
-        m_pauseButton->setVisible(false);
-        m_resumeButton->setVisible(false);
-    }
-#else
-    // Linux/macOS: Full UI with pause/resume support
-    if (m_isRecording) {
-        if (m_isPaused) {
-            m_startButton->setVisible(false);
-            m_stopButton->setVisible(true);
-            m_pauseButton->setVisible(false);
-            m_resumeButton->setVisible(true);
-        } else {
-            m_startButton->setVisible(false);
-            m_stopButton->setVisible(true);
-            m_pauseButton->setVisible(true);
-            m_resumeButton->setVisible(false);
-        }
-    } else {
-        m_startButton->setVisible(true);
-        m_stopButton->setVisible(false);
-        m_pauseButton->setVisible(false);
-        m_resumeButton->setVisible(false);
-    }
-#endif
-    
-    // Settings button is always visible
-    m_settingsButton->setVisible(true);
-    
-    // Recovery buttons should be visible when not recording
-    bool showRecoveryButtons = !m_isRecording;
-    m_resetButton->setVisible(showRecoveryButtons);
-    m_diagnosticsButton->setVisible(showRecoveryButtons);
+    // UI state management removed - recording state shown in status bar only
 }
 
 QString RecordingController::formatDuration(qint64 milliseconds) const
@@ -533,8 +336,10 @@ void RecordingController::onCameraRecordingStarted()
     
     // Update UI
     updateUIStates();
-    if (m_floatingWidget) {
-        m_floatingWidget->show();
+    
+    // Show recording indicator in status bar
+    if (m_statusBarManager) {
+        m_statusBarManager->showRecordingIndicator(true);
     }
 }
 
@@ -548,7 +353,12 @@ void RecordingController::onRecordingError(const QString &errorString)
         m_isRecording = false;
         m_isPaused = false;
         updateUIStates();
-        m_durationLabel->setText("00:00:00");
+        
+        // Hide recording indicator in status bar
+        if (m_statusBarManager) {
+            m_statusBarManager->showRecordingIndicator(false);
+        }
+        
         qCDebug(log_ui_recordingcontroller) << "Stopping recording due to error";
     }
     
@@ -578,7 +388,7 @@ void RecordingController::onRecordingError(const QString &errorString)
     }
     
     // Show error to user
-    QMessageBox msgBox(QMessageBox::Warning, tr("Recording Error"), userMessage, QMessageBox::Ok, this);
+    QMessageBox msgBox(QMessageBox::Warning, tr("Recording Error"), userMessage, QMessageBox::Ok, nullptr);
     msgBox.setIcon(QMessageBox::Warning);
     
     // Add retry button if we have a camera manager
@@ -600,7 +410,7 @@ void RecordingController::resetRecordingSystem()
     qCInfo(log_ui_recordingcontroller) << "Manual recording system reset requested";
     
     if (!m_cameraManager) {
-        QMessageBox::warning(this, tr("Reset Failed"), 
+        QMessageBox::warning(nullptr, tr("Reset Failed"), 
             tr("Cannot reset recording system - camera manager is not available."));
         return;
     }
@@ -608,7 +418,7 @@ void RecordingController::resetRecordingSystem()
     // Check if recording is in progress
     if (m_isRecording) {
         QMessageBox::StandardButton response = QMessageBox::question(
-            this,
+            nullptr,
             tr("Recording in Progress"),
             tr("A recording is currently in progress. Stop it and reset the recording system?"),
             QMessageBox::Yes | QMessageBox::No,
@@ -627,7 +437,7 @@ void RecordingController::resetRecordingSystem()
     // Note: recoverRecordingSystem removed with QCamera migration to FFmpeg
     // FFmpeg backend handles recovery automatically
     
-    QMessageBox::information(this, tr("System Reset"),
+    QMessageBox::information(nullptr, tr("System Reset"),
         tr("FFmpeg backend automatically handles recovery. Please try recording again."));
 }
 
@@ -651,31 +461,32 @@ void RecordingController::showRecordingDiagnostics()
     }
     
     // Create a dialog with a text browser
-    QDialog dialog(this);
-    dialog.setWindowTitle(tr("Recording System Diagnostics"));
-    dialog.resize(800, 600);
+    QDialog *dialog = new QDialog(nullptr);
+    dialog->setWindowTitle(tr("Recording System Diagnostics"));
+    dialog->resize(800, 600);
     
-    QVBoxLayout *layout = new QVBoxLayout(&dialog);
-    QTextBrowser *textBrowser = new QTextBrowser(&dialog);
+    QVBoxLayout *layout = new QVBoxLayout(dialog);
+    QTextBrowser *textBrowser = new QTextBrowser(dialog);
     textBrowser->setPlainText(diagnostics);
     textBrowser->setReadOnly(true);
     layout->addWidget(textBrowser);
     
     // Add buttons
     QHBoxLayout *buttonLayout = new QHBoxLayout();
-    QPushButton *copyButton = new QPushButton(tr("Copy to Clipboard"), &dialog);
-    QPushButton *closeButton = new QPushButton(tr("Close"), &dialog);
+    QPushButton *copyButton = new QPushButton(tr("Copy to Clipboard"), dialog);
+    QPushButton *closeButton = new QPushButton(tr("Close"), dialog);
     buttonLayout->addStretch();
     buttonLayout->addWidget(copyButton);
     buttonLayout->addWidget(closeButton);
     layout->addLayout(buttonLayout);
     
     // Connect signals
-    connect(copyButton, &QPushButton::clicked, [&diagnostics]() {
+    connect(copyButton, &QPushButton::clicked, [diagnostics]() {
         QApplication::clipboard()->setText(diagnostics);
     });
-    connect(closeButton, &QPushButton::clicked, &dialog, &QDialog::accept);
+    connect(closeButton, &QPushButton::clicked, dialog, &QDialog::accept);
     
-    // Show dialog
-    dialog.exec();
+    // Show dialog and auto-delete when closed
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->exec();
 }

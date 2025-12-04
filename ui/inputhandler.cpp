@@ -135,7 +135,7 @@ MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
     int absX = qBound(0, qRound(absoluteX), 4096);
     int absY = qBound(0, qRound(absoluteY), 4096);
     
-    qCDebug(log_ui_input) << "    [calcAbsolute] absX:" << absX << "absY:" << absY;
+    // qCDebug(log_ui_input) << "    [calcAbsolute] absX:" << absX << "absY:" << absY;
     
     // qCDebug(log_ui_input) << "    [calcAbsolute] After rounding - absX/Y:" << absX << absY;
     
