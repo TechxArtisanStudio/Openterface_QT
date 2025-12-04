@@ -113,7 +113,7 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="178"/>
         <source>Adjust audio volume (0-100%)</source>
-        <translation>Ajusta el volúmen (0-100%)</translation>
+        <translation>Ajusta el volumen (0-100%)</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="293"/>
@@ -167,7 +167,7 @@
     <message>
         <location filename="../../ui/coordinator/devicecoordinator.cpp" line="107"/>
         <source>No devices available</source>
-        <translation type="unfinished"></translation>
+        <translation>No hay dispositivos disponibles</translation>
     </message>
 </context>
 <context>
@@ -175,27 +175,27 @@
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="6"/>
         <source>Environment Helper</source>
-        <translation type="unfinished"></translation>
+        <translation>Ayudante de entorno</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="19"/>
         <source>‣ Extract the driver to a folder:</source>
-        <translation type="unfinished"></translation>
+        <translation>Extrae el controlador a una carpeta:</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="26"/>
         <source>Select Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>Selecciona la carpeta</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="33"/>
         <source>‣ Open a terminal and run the following commands:</source>
-        <translation type="unfinished"></translation>
+        <translation>Abre un terminal y ejecuta los siguientes comandos:</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="48"/>
         <source>background-color:black; color:white;</source>
-        <translation type="unfinished"></translation>
+        <translation>color de fondo:negro; color:blanco;</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="58"/>
@@ -205,79 +205,79 @@
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="69"/>
         <source>OK</source>
-        <translation type="unfinished"></translation>
+        <translation>OK</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="76"/>
         <source>Quit</source>
-        <translation type="unfinished"></translation>
+        <translation>Salir</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="85"/>
         <source>Auto environment check on startup</source>
-        <translation type="unfinished"></translation>
+        <translation>Comprobación de entorno automática en el inicio</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="92"/>
         <source>&lt;a href=&quot;#&quot;&gt;Environment Help Documentation&lt;/a&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;a href=&quot;#&quot;&gt;Documentación del ayudante de entorno&lt;/a&gt;</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="146"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
-        <translation type="unfinished"></translation>
+        <translation>El dispositivo no está enchufado. Por favor, enchúfalo e intenta de nuevo</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="171"/>
         <source> (needs removal)</source>
-        <translation type="unfinished"></translation>
+        <translation>(necesita desconectar)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="171"/>
         <source> (not running)</source>
-        <translation type="unfinished"></translation>
+        <translation>(no está en ejecución)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="212"/>
         <source>Install Driver</source>
-        <translation type="unfinished"></translation>
+        <translation>Instala el controlador</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="133"/>
         <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation >Los siguientes pasos te ayudan a instalar el contralador y la actualización de firmware de Openterface. Estado actual :&lt;br&gt</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="167"/>
         <source>The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:&lt;br&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>Los siguientes pasos te ayudan a instalar el contralador y los permisos del dispositivo y la actualización de firmware de Openterface. Estado actual :&lt;br&gt</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="136"/>
         <location filename="../../ui/advance/envdialog.cpp" line="168"/>
         <source>◆ Driver Installed: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ Controlador instalado: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="137"/>
         <location filename="../../ui/advance/envdialog.cpp" line="172"/>
         <source>◆ Latest Firmware: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ Último Firmware: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="169"/>
         <source>◆ In Serial Port Permission: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ Permiso del puerto serie: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="170"/>
         <source>◆ HID Permission: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ Permiso HID: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="171"/>
         <source>◆ BRLTTY checking: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ Comprobando BRLTTY: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="213"/>
@@ -286,29 +286,32 @@
 After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.
 
 Please restart your computer after the driver installation.</source>
-        <translation type="unfinished"></translation>
+        <translation>Falta el controlador. Por favor, instalar el controlador en: https://www.wch.cn/downloads/CH341SER.EXE.html  
+Después de instalar el controlador, es necesario un reinicio del sistema y desconectar y volver a conectar el dispositivo para que los cambios surjan efecto.
+
+Por favor, reinicia el ordenador tras la instalación del controlador.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="219"/>
         <source>Copy Link</source>
-        <translation type="unfinished"></translation>
+        <translation>Copia el enlace</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="235"/>
         <source>Select Destination Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Selecciona el directorio de destino</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="291"/>
         <source>Driver Installed: </source>
-        <translation type="unfinished"></translation>
+        <translation>Controlador instalado: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="291"/>
         <location filename="../../ui/advance/envdialog.cpp" line="292"/>
         <location filename="../../ui/advance/envdialog.cpp" line="293"/>
         <source>Yes</source>
-        <translation type="unfinished"></translation>
+        <translation>Sí</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="291"/>
@@ -316,49 +319,51 @@ Please restart your computer after the driver installation.</source>
         <location filename="../../ui/advance/envdialog.cpp" line="293"/>
         <location filename="../../ui/advance/envdialog.cpp" line="294"/>
         <source>No</source>
-        <translation type="unfinished"></translation>
+        <translation>No</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="292"/>
         <source>Serial port Permission: </source>
-        <translation type="unfinished"></translation>
+        <translation>Permiso del puerto serie: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="293"/>
         <source>HID Permission: </source>
-        <translation type="unfinished"></translation>
+        <translation>Permiso HID: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="294"/>
         <source>BRLTTY is Running: </source>
-        <translation type="unfinished"></translation>
+        <translation>BRLTTY está ejecutándose: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="294"/>
         <source>Yes (needs removal)</source>
-        <translation type="unfinished"></translation>
+        <translation>Sí (necesita desconectar)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="300"/>
         <source>Restart Required</source>
-        <translation type="unfinished"></translation>
+        <translation>Es necesario reiniciar</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="301"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
-        <translation type="unfinished"></translation>
+        <translation>Se ha instalado el controlador. Es necesario un reinicio del sistema y reconectar el dispositivo para que los cambios surjan efecto. 
+    
+¿Te gustaría reiniciar el sistema ahora?</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="310"/>
         <source>Restart Later</source>
-        <translation type="unfinished"></translation>
+        <translation>Reiniciar después</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="311"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
-        <translation type="unfinished"></translation>
+        <translation>Por favor, recuerda reiniciar el sistema y reconectar el dispositivo para que el controlador funcione adecuadamente</translation>
     </message>
 </context>
 <context>
@@ -367,28 +372,28 @@ Would you like to restart your computer now?</source>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="162"/>
         <source>Warning</source>
-        <translation type="unfinished"></translation>
+        <translation>Advertencia</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
         <source>Please select a firmware file to write</source>
-        <translation type="unfinished"></translation>
+        <translation>Por favor, selecciona un archivo de firmware para instalar</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="110"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Error</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
         <source>Failed to read firmware file: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Fallo al leer el archivo de firmware: &1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="103"/>
         <source>Success</source>
-        <translation type="unfinished"></translation>
+        <translation>Éxito</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="103"/>
@@ -396,28 +401,33 @@ Would you like to restart your computer now?</source>
 Please:
 1. Restart the application
 2. Disconnect and reconnect all cables</source>
-        <translation type="unfinished"></translation>
+        <translation>El firmware se ha instalado correctamente en EEPROM. La aplicaicón se cerrará ahora.
+    
+Por favor:
+1. Reinicia la aplicación.
+2. Desconecta y vuelve a conectar todos los cables</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="110"/>
         <source>Failed to write firmware to EEPROM
 Please try again</source>
-        <translation type="unfinished"></translation>
+        <translation>Fallo al instalar el firmware en EEPROM
+Por favor, inténtalo de nuevo</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="125"/>
         <source>Cancelled</source>
-        <translation type="unfinished"></translation>
+        <translation>Cancelado</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="125"/>
         <source>Firmware write operation was cancelled</source>
-        <translation type="unfinished"></translation>
+        <translation>La instalación de firmware ha sido cancelada</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="162"/>
         <source>Please select a file path</source>
-        <translation type="unfinished"></translation>
+        <translation>Por favor, selecciona una ruta de archivo</translation>
     </message>
 </context>
 <context>
@@ -425,22 +435,22 @@ Please try again</source>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="113"/>
         <source>Firmware Update Confirmation</source>
-        <translation type="unfinished"></translation>
+        <translation>Confirmación de actualización de firmware</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="120"/>
         <source>Update</source>
-        <translation type="unfinished"></translation>
+        <translation>Actualización</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="121"/>
         <source>Cancel</source>
-        <translation type="unfinished"></translation>
+        <translation>Cancelar</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
         <source>Current firmware version: </source>
-        <translation type="unfinished"></translation>
+        <translation>Versión actual de firmware: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
@@ -451,7 +461,7 @@ Please try again</source>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
         <source>Latest firmware version: </source>
-        <translation type="unfinished"></translation>
+        <translation>Última versión de firmware</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
@@ -464,7 +474,7 @@ Please try again</source>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="151"/>
         <source>The update process will:
 </source>
-        <translation type="unfinished"></translation>
+        <translation>El proceso de actualización: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="152"/>
@@ -479,7 +489,17 @@ Important:
 • Restart application after completion
 
 Do you want to proceed with the update?</source>
-        <translation type="unfinished"></translation>
+        <translation>1. Detener todas las operaciones de video y USB
+2. Instalar el nuevo firmware
+3. Cerrar la aplicación automáticamente
+
+Importante:
+• Utiliza un cable USB de alta calidad para la conexión del anfitrión
+• Desconecta el cable HDMI
+• No interrumpas la alimentación durante la actualización
+• Reinicia la aplicación cuando se complete
+
+¿Quieres empezar el proceso de actualización?</translation>
     </message>
 </context>
 <context>
@@ -488,28 +508,29 @@ Do you want to proceed with the update?</source>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="8"/>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="86"/>
         <source>Firmware Update</source>
-        <translation type="unfinished"></translation>
+        <translation>Actualización de firmware</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="13"/>
         <source>Preparing firmware update...</source>
-        <translation type="unfinished"></translation>
+        <translation>Preparando la actualización de firmware...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="20"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>Cerrar</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="65"/>
         <source>Updating firmware... Please do not disconnect the device.</source>
-        <translation type="unfinished"></translation>
+        <translation>Actualizando el firmware... por favor, no desconectes el dispositivo</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="85"/>
         <source>Firmware update completed successfully.
 The application will close. Please restart it to apply the new firmware.</source>
-        <translation type="unfinished"></translation>
+        <translation>Actualización de firmware completada con éxito.
+La aplicación se cerrará. Por favor, reinicia para aplicar el nuevo firmware</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="87"/>
@@ -519,24 +540,31 @@ The application will now close.
 Please:
 1. Restart the application
 2. Disconnect and reconnect all cables</source>
-        <translation type="unfinished"></translation>
+        <translation>Actualización de firmware completada con éxito.
+    
+La aplicación se cerrará.
+Por favor:
+1. Reinicia la aplicación
+2. Desconecta y vuelve a conectar todos los cables</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="93"/>
         <source>Firmware update failed. Please try again.</source>
-        <translation type="unfinished"></translation>
+        <translation>La actualización de firmware ha fallado. Por favor, inténtalo de nuevo</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="94"/>
         <source>Firmware Update Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>La actualización de firmware ha fallado</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="95"/>
         <source>An error occurred during the firmware update.
 
 Please try again after restarting the application.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ha ocurrido un error durante la actualización de firmware.
+    
+Por favor, reinicia la aplicación e inténtalo de nuevo.</translation>
     </message>
 </context>
 <context>
@@ -544,22 +572,22 @@ Please try again after restarting the application.</source>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="50"/>
         <source>Core</source>
-        <translation type="unfinished"></translation>
+        <translation>Núcleo</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="51"/>
         <source>Serial</source>
-        <translation type="unfinished"></translation>
+        <translation>Serie</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="52"/>
         <source>User Interface</source>
-        <translation type="unfinished"></translation>
+        <translation>Interfaz de usuario</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="53"/>
         <source>Host</source>
-        <translation type="unfinished"></translation>
+        <translation>Anfitrión</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="54"/>
@@ -569,47 +597,47 @@ Please try again after restarting the application.</source>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="55"/>
         <source>Backend</source>
-        <translation type="unfinished"></translation>
+        <translation>Dispositivo</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="56"/>
         <source>Enable file logging</source>
-        <translation type="unfinished"></translation>
+        <translation>Habilita el registro de archivos</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="58"/>
         <source>Browse</source>
-        <translation type="unfinished"></translation>
+        <translation>Navegar</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="59"/>
         <source>Inhibit Screen Saver</source>
-        <translation type="unfinished"></translation>
+        <translation>Desactiva el salvapantallas</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="86"/>
         <source>General log setting</source>
-        <translation type="unfinished"></translation>
+        <translation>Configuración general de registro</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="90"/>
         <source>Check the check box to see the corresponding log in the QT console.</source>
-        <translation type="unfinished"></translation>
+        <translation>Marca la casilla para ver el registro correspondiente en la consola de QT.</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="95"/>
         <source>Screen Saver setting</source>
-        <translation type="unfinished"></translation>
+        <translation>Configuración de salvapantallas</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="99"/>
         <source>Inhibit the screen saver when the application is running.</source>
-        <translation type="unfinished"></translation>
+        <translation>Deshabilita el salvapantallas cuando la aplicación está ejecutándose</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="120"/>
         <source>Select Log Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Selecciona el directorio del registro</translation>
     </message>
 </context>
 <context>
@@ -617,237 +645,237 @@ Please try again after restarting the application.</source>
     <message>
         <location filename="../../ui/mainwindow.ui" line="12"/>
         <source>Openterface Mini-KVM</source>
-        <translation type="unfinished"></translation>
+        <translation>Openterface Mini-KVM</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="50"/>
         <source>File</source>
-        <translation type="unfinished"></translation>
+        <translation>Archivo</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="58"/>
         <source>Languages</source>
-        <translation type="unfinished"></translation>
+        <translation>Idiomas</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="63"/>
         <source>Control</source>
-        <translation type="unfinished"></translation>
+        <translation>Control</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="67"/>
         <source>Mouse Mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Modo de ratón</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="74"/>
         <source>Mouse Visibility</source>
-        <translation type="unfinished"></translation>
+        <translation>Visibilidad de ratón</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="81"/>
         <source>Device</source>
-        <translation type="unfinished"></translation>
+        <translation>Dispositivo</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="86"/>
         <source>Baudrate</source>
-        <translation type="unfinished"></translation>
+        <translation>Tasa de baudios</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="93"/>
         <source>Switchable USB</source>
-        <translation type="unfinished"></translation>
+        <translation>USB conmutable</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="107"/>
         <source>Help</source>
-        <translation type="unfinished"></translation>
+        <translation>Ayuda</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="118"/>
         <source>Edit</source>
-        <translation type="unfinished"></translation>
+        <translation>Editar</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="124"/>
         <source>Advance</source>
-        <translation type="unfinished"></translation>
+        <translation>Avanzado</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="149"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>Cerrar</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="154"/>
         <source>Change Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Cambia la configuración</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="159"/>
         <source>Reset Serial Port</source>
-        <translation type="unfinished"></translation>
+        <translation>Reinicia el puerto serie</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="164"/>
         <source>Serial Console</source>
-        <translation type="unfinished"></translation>
+        <translation>Consola serie</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="169"/>
         <source>AutoReszie</source>
-        <translation type="unfinished"></translation>
+        <translation>Redimensión automática</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="174"/>
         <source>Factory Reset HID Chip</source>
-        <translation type="unfinished"></translation>
+        <translation>Reinicio de fábrica del chip HID</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="179"/>
         <source>Preferences</source>
-        <translation type="unfinished"></translation>
+        <translation>Preferencias</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="184"/>
         <source>Office Website</source>
-        <translation type="unfinished"></translation>
+        <translation>Sitio web</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="189"/>
         <source>Purchase</source>
-        <translation type="unfinished"></translation>
+        <translation>Comprar</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="194"/>
         <source>Feedback</source>
-        <translation type="unfinished"></translation>
+        <translation>Comentarios</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="199"/>
         <source>Update</source>
-        <translation type="unfinished"></translation>
+        <translation>Actualizar</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="204"/>
         <source>Environment</source>
-        <translation type="unfinished"></translation>
+        <translation>Entorno</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="209"/>
         <source>About</source>
-        <translation type="unfinished"></translation>
+        <translation>Acerca de</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="220"/>
         <source>Follow Switch</source>
-        <translation type="unfinished"></translation>
+        <translation>Seguir</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="228"/>
         <source>Paste</source>
-        <translation type="unfinished"></translation>
+        <translation>Pegar</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="231"/>
         <source>Paste clipboard content to target</source>
-        <translation type="unfinished"></translation>
+        <translation>Pega el contenido del portapapeles al objetivo</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="236"/>
         <source>Script Tool</source>
-        <translation type="unfinished"></translation>
+        <translation>Herramienta de script</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="241"/>
         <source>Video Recording Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Configuración de grabación de video</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="244"/>
         <source>Configure video recording settings and start/stop recording</source>
-        <translation type="unfinished"></translation>
+        <translation>Configuración de grabación de video e iniciar/parar la grabación</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>TCP Server</source>
-        <translation type="unfinished"></translation>
+        <translation>Servidor TCP</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="254"/>
         <source>Environment Checking</source>
-        <translation type="unfinished"></translation>
+        <translation>Comprobando el entorno</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="259"/>
         <source>Firmware Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Gestor de firmware</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="264"/>
         <source>Firmware Update...</source>
-        <translation type="unfinished"></translation>
+        <translation>Actualizando firmware...</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="269"/>
         <source>Device Selector</source>
-        <translation type="unfinished"></translation>
+        <translation>Selector de dispositivo</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="272"/>
         <source>Open Device Selector Dialog</source>
-        <translation type="unfinished"></translation>
+        <translation>Abre el diálogo del selector de dispositivo</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="277"/>
         <source>Update Display Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Actualiza la configuración de pantalla</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="280"/>
         <source>Update display name and serial number in EDID</source>
-        <translation type="unfinished"></translation>
+        <translation>Actualiza el nombre de pantalla y el número de serie en EDID</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="289"/>
         <source>115200</source>
-        <translation type="unfinished"></translation>
+        <translation>115200</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="297"/>
         <source>9600</source>
-        <translation type="unfinished"></translation>
+        <translation>9600</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="307"/>
         <source>To Host</source>
-        <translation type="unfinished"></translation>
+        <translation>Al anfitrión</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="315"/>
         <source>To Target</source>
-        <translation type="unfinished"></translation>
+        <translation>Al objetivo</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="328"/>
         <source>Absolute</source>
-        <translation type="unfinished"></translation>
+        <translation>Absoluto</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="336"/>
         <source>Relative</source>
-        <translation type="unfinished"></translation>
+        <translation>Relativo</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="349"/>
         <source>Auto Hide</source>
-        <translation type="unfinished"></translation>
+        <translation>Ocultar automáticamente</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="352"/>
         <source>Auto hide mouse cursor</source>
-        <translation type="unfinished"></translation>
+        <translation>Oculta el cursor del ratón automáticamente</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="360"/>
