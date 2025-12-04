@@ -958,64 +958,24 @@ Current version: </source>
 <context>
     <name>RecordingController</name>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="128"/>
-        <source>Recording</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="165"/>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="187"/>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="581"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="102"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="114"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="391"/>
         <source>Recording Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="166"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="103"/>
         <source>No active camera device for recording. Please ensure a camera is connected.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="188"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="115"/>
         <source>Cannot start recording - camera system not initialized.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="383"/>
-        <source>Start Recording</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="388"/>
-        <source>Stop Recording</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="393"/>
-        <source>Pause Recording</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="398"/>
-        <source>Resume Recording</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="403"/>
-        <source>Recording Settings</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="409"/>
-        <source>Reset Recording System</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="415"/>
-        <source>Recording Diagnostics</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="558"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="368"/>
         <source>Failed to start recording.
 
 Possible causes:
@@ -1028,7 +988,7 @@ Technical details: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="565"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="375"/>
         <source>Failed to save recording.
 
 Possible causes:
@@ -1040,7 +1000,7 @@ Technical details: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="571"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="381"/>
         <source>The recording file may be corrupted.
 
 Possible causes:
@@ -1052,58 +1012,58 @@ Technical details: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="577"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="387"/>
         <source>An error occurred with the recording:
 %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="587"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="397"/>
         <source>Retry</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="603"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="413"/>
         <source>Reset Failed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="604"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="414"/>
         <source>Cannot reset recording system - camera manager is not available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="612"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="422"/>
         <source>Recording in Progress</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="613"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="423"/>
         <source>A recording is currently in progress. Stop it and reset the recording system?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="630"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="440"/>
         <source>System Reset</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="631"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="441"/>
         <source>FFmpeg backend automatically handles recovery. Please try recording again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="655"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="465"/>
         <source>Recording System Diagnostics</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="666"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="476"/>
         <source>Copy to Clipboard</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="667"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="477"/>
         <source>Close</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2161,67 +2121,67 @@ Please check your internet connection.
 <context>
     <name>VideoPage</name>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="99"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="100"/>
         <source>General video setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="103"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="104"/>
         <source>Capture resolutions: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="109"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="110"/>
         <source>Framerate: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="118"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="119"/>
         <source>Pixel format: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="123"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="124"/>
         <source>Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="131"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="132"/>
         <source>Media Backend: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="146"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="147"/>
         <source>Note: Changing media backend requires application restart to take effect.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="153"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="154"/>
         <source>Hardware Acceleration: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="159"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="160"/>
         <source>Note: Hardware acceleration improves performance but may not be available on all systems. Changing this setting requires application restart to take effect.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="171"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="172"/>
         <source>Auto (Recommended)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="173"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="174"/>
         <source>NVIDIA CUDA</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="175"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="176"/>
         <source>Intel Quick Sync Video</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="177"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="178"/>
         <source>CPU</source>
         <translation type="unfinished"></translation>
     </message>
