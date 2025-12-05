@@ -2815,41 +2815,30 @@ bool FFmpegBackendHandler::initializeRecording()
 
 bool FFmpegBackendHandler::configureEncoder(const QSize& resolution, int framerate)
 {
+    // Helper lambda to try finding an encoder
+    auto tryEncoder = [](AVCodecID codecId, const char* name) -> const AVCodec* {
+        const AVCodec* codec = avcodec_find_encoder(codecId);
+        if (codec) {
+            qCDebug(log_ffmpeg_backend) << "Using" << name << "encoder";
+        }
+        return codec;
+    };
+    
     // Find encoder - try requested codec first
     const AVCodec* codec = nullptr;
     if (!m_recordingConfig.videoCodec.isEmpty()) {
         codec = avcodec_find_encoder_by_name(m_recordingConfig.videoCodec.toUtf8().data());
         if (codec) {
             qCDebug(log_ffmpeg_backend) << "Found requested encoder:" << m_recordingConfig.videoCodec;
+        } else {
+            qCWarning(log_ffmpeg_backend) << "Requested encoder not found:" << m_recordingConfig.videoCodec << "- trying fallbacks";
         }
     }
     
     // Fallback chain for available encoders in current FFmpeg build
-    if (!codec) {
-        qCWarning(log_ffmpeg_backend) << "Requested encoder not found:" << m_recordingConfig.videoCodec << "- trying fallbacks";
-        
-        // Try MJPEG encoder first (works well with AVI container for playable video files)
-        codec = avcodec_find_encoder(AV_CODEC_ID_MJPEG);
-        if (codec) {
-            qCDebug(log_ffmpeg_backend) << "Using MJPEG encoder as fallback";
-        }
-    }
-    
-    // Try rawvideo encoder (creates uncompressed video streams)
-    if (!codec) {
-        codec = avcodec_find_encoder(AV_CODEC_ID_RAWVIDEO);
-        if (codec) {
-            qCDebug(log_ffmpeg_backend) << "Using rawvideo encoder as fallback";
-        }
-    }
-    
-    // Final fallback attempts
-    if (!codec) {
-        codec = avcodec_find_encoder(AV_CODEC_ID_H264);
-        if (codec) {
-            qCDebug(log_ffmpeg_backend) << "Found H264 encoder";
-        }
-    }
+    if (!codec) codec = tryEncoder(AV_CODEC_ID_MJPEG, "MJPEG");
+    if (!codec) codec = tryEncoder(AV_CODEC_ID_RAWVIDEO, "rawvideo");
+    if (!codec) codec = tryEncoder(AV_CODEC_ID_H264, "H264");
     
     if (!codec) {
         qCWarning(log_ffmpeg_backend) << "Failed to find any video encoder (tried mjpeg, rawvideo, h264)";
