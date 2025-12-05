@@ -59,111 +59,8 @@ extern "C" {
 
 Q_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
 
-/**
- * @brief Capture thread for handling FFmpeg video capture in background
- */
-class FFmpegBackendHandler::CaptureThread : public QThread
-{
-    Q_OBJECT
-
-public:
-    explicit CaptureThread(FFmpegBackendHandler* handler, QObject* parent = nullptr)
-        : QThread(parent), m_handler(handler), m_running(false) {}
-
-    void setRunning(bool running) {
-        QMutexLocker locker(&m_mutex);
-        m_running = running;
-    }
-
-    bool isRunning() const {
-        QMutexLocker locker(&m_mutex);
-        return m_running;
-    }
-
-protected:
-    void run() override {
-        qCDebug(log_ffmpeg_backend) << "FFmpeg capture thread started";
-        
-        QElapsedTimer performanceTimer;
-        performanceTimer.start();
-        
-        int consecutiveFailures = 0;
-        int framesProcessed = 0;
-        const int maxConsecutiveFailures = 20; // Reduced from 100 - stop faster on device disconnect
-        
-        while (isRunning()) {
-            // Check for interruption request
-            if (isInterruptionRequested()) {
-                qCDebug(log_ffmpeg_backend) << "Capture thread interrupted";
-                break;
-            }
-            
-            if (m_handler && m_handler->readFrame()) {
-                // Reset failure counter on successful read
-                consecutiveFailures = 0;
-                
-                // Process frame directly in capture thread to avoid packet invalidation
-                // This ensures packet data remains valid during processing
-                m_handler->processFrame();
-                framesProcessed++;
-                
-                // Log performance periodically (less frequently to reduce overhead)
-                if (performanceTimer.elapsed() > 15000) { // Every 15 seconds (increased from 10)
-                    double actualFps = (framesProcessed * 1000.0) / performanceTimer.elapsed();
-                    qCDebug(log_ffmpeg_backend) << "Capture thread performance:" << actualFps << "FPS, processed" << framesProcessed << "frames";
-                    performanceTimer.restart();
-                    framesProcessed = 0;
-                }
-            } else {
-                // Track consecutive failures
-                consecutiveFailures++;
-                
-                // Be more aggressive about detecting device disconnections
-                // Check device availability after fewer failures, especially for I/O errors
-                if (consecutiveFailures >= 10 && consecutiveFailures % 10 == 0) { // Reduced from 50/25 - check every 10 failures
-                    qCDebug(log_ffmpeg_backend) << "Checking device availability due to consecutive failures:" << consecutiveFailures;
-                    if (m_handler && !m_handler->isCurrentDeviceAvailable()) {
-                        qCWarning(log_ffmpeg_backend) << "Device no longer available, stopping capture thread";
-                        // Use QTimer::singleShot to avoid calling handleDeviceDeactivation from the capture thread
-                        QTimer::singleShot(0, m_handler, [handler = m_handler]() {
-                            handler->handleDeviceDeactivation(handler->m_currentDevice);
-                        });
-                        break; // Exit the capture loop
-                    }
-                }
-                
-                if (consecutiveFailures >= maxConsecutiveFailures) {
-                    qCWarning(log_ffmpeg_backend) << "Too many consecutive frame read failures (" << consecutiveFailures << "), may indicate device issue";
-                    // Also trigger device disconnection handling asynchronously
-                    if (m_handler) {
-                        qCWarning(log_ffmpeg_backend) << "Triggering device disconnection due to persistent failures";
-                        QTimer::singleShot(0, m_handler, [handler = m_handler]() {
-                            handler->handleDeviceDeactivation(handler->m_currentDevice);
-                        });
-                        break;
-                    }
-                    consecutiveFailures = 0; // Reset to avoid spam
-                }
-                
-                // Adaptive sleep - longer sleep for repeated failures
-                if (consecutiveFailures < 10) {
-                    msleep(1); // Short sleep for occasional failures
-                } else if (consecutiveFailures < 50) {
-                    msleep(5); // Medium sleep for frequent failures
-                } else {
-                    msleep(10); // Longer sleep for persistent failures
-                }
-            }
-        }
-        
-        qCDebug(log_ffmpeg_backend) << "FFmpeg capture thread finished, processed" << framesProcessed << "frames total";
-    }
-
-private:
-    FFmpegBackendHandler* m_handler;
-    mutable QMutex m_mutex;
-    bool m_running;
-};
+// Capture thread extracted to host/backend/ffmpeg/capturethread.h/.cpp
+#include "ffmpeg/capturethread.h"
 
 FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
     : MultimediaBackendHandler(parent)
@@ -710,6 +607,15 @@ bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const Q
     // Create and start capture thread
     m_captureThread = std::make_unique<CaptureThread>(this);
     m_captureThread->setRunning(true);
+    connect(m_captureThread.get(), &CaptureThread::frameAvailable,
+        this, &FFmpegBackendHandler::processFrame, Qt::DirectConnection);
+    connect(m_captureThread.get(), &CaptureThread::deviceDisconnected,
+        this, [this]() { handleDeviceDeactivation(m_currentDevice); });
+    connect(m_captureThread.get(), &CaptureThread::readError,
+        this, [this](const QString& msg) {
+        qCWarning(log_ffmpeg_backend) << "Capture thread read error:" << msg;
+        emit captureError(msg);
+        });
     m_captureRunning = true;
     m_captureThread->start();
     

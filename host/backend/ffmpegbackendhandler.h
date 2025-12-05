@@ -25,6 +25,8 @@
 
 #include "../multimediabackend.h"
 #include <QThread>
+#include <QLoggingCategory>
+Q_DECLARE_LOGGING_CATEGORY(log_ffmpeg_backend)
 #include <QTimer>
 #include <QMutex>
 #include <QWaitCondition>
@@ -37,6 +39,9 @@ class VideoPane;
 class HotplugMonitor;
 struct DeviceInfo;
 struct DeviceChangeEvent;
+
+// Forward declare CaptureThread class used by this backend
+class CaptureThread;
 
 // Forward declarations for FFmpeg types (conditional compilation)
 #ifdef HAVE_FFMPEG
@@ -92,8 +97,11 @@ public:
     // Direct FFmpeg capture methods
     bool startDirectCapture(const QString& devicePath, const QSize& resolution, int framerate);
     void stopDirectCapture();
+public slots:
     void processFrame();
     bool isDirectCaptureRunning() const;
+
+public:
 
     // Recording configuration
     struct RecordingConfig {
@@ -154,13 +162,12 @@ public:
     // Stub for MOC compatibility (might be leftover from autocomplete)
     void checkDeviceReconnection() { /* stub */ }
 
-#ifdef HAVE_FFMPEG
     bool readFrame();
     QPixmap convertFrameToPixmap(AVFrame* frame);
     QPixmap decodeFrame(AVPacket* packet);
+    
 #ifdef HAVE_LIBJPEG_TURBO
     QPixmap decodeJpegFrame(const uint8_t* data, int size);
-#endif
 #endif
 
     void setVideoOutput(QGraphicsVideoItem* videoItem);
@@ -183,7 +190,6 @@ signals:
     void recordingDurationChanged(qint64 duration);
 
 private:
-#ifdef HAVE_FFMPEG
     // FFmpeg interrupt callback (needs access to private members)
     static int interruptCallback(void* ctx);
     
@@ -228,15 +234,13 @@ private:
     bool writeFrameToFile(AVFrame* frame);
     void finalizeRecording();
     bool configureEncoder(const QSize& resolution, int framerate);
-#endif
 
 #ifdef HAVE_LIBJPEG_TURBO
     // Note: decodeJpegFrame is declared in public section above
 #endif
     
     // Threading
-    class CaptureThread;
-#ifdef HAVE_FFMPEG
+    friend class CaptureThread; // Allow capture thread to access private members (safe - it needs access for device/state)
     std::unique_ptr<CaptureThread> m_captureThread;
     
     // FFmpeg components
@@ -258,7 +262,7 @@ private:
     SwsContext* m_recordingSwsContext;
     AVFrame* m_recordingFrame;
     AVPacket* m_recordingPacket;
-#endif
+
     
 #ifdef HAVE_LIBJPEG_TURBO
     // TurboJPEG components
@@ -266,14 +270,12 @@ private:
 #endif
     
     // State management
-#ifdef HAVE_FFMPEG
     QString m_currentDevice;
     QString m_currentDevicePortChain;  // Track port chain for hotplug detection
     QSize m_currentResolution;
     int m_currentFramerate;
     bool m_captureRunning;
     int m_videoStreamIndex;
-#endif
     
     // Hardware acceleration preference
     QString m_preferredHwAccel;
@@ -306,7 +308,7 @@ private:
     // Error tracking
     QString m_lastError;
     
-#ifdef HAVE_FFMPEG
+
     // Thread safety
     mutable QMutex m_mutex;
     QWaitCondition m_frameCondition;
@@ -318,7 +320,6 @@ private:
     QTimer* m_performanceTimer;
     int m_frameCount;
     qint64 m_lastFrameTime;
-#endif
 };
 
 #endif // FFMPEGBACKENDHANDLER_H

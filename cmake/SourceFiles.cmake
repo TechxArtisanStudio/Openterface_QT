@@ -36,6 +36,7 @@ set(HOST_SOURCES
     host/backend/ffmpegbackendhandler.cpp host/backend/ffmpegbackendhandler.h
     host/backend/qtmultimediabackendhandler.cpp host/backend/qtmultimediabackendhandler.h
     host/backend/qtbackendhandler.cpp host/backend/qtbackendhandler.h
+    host/backend/ffmpeg/capturethread.cpp host/backend/ffmpeg/capturethread.h
 )
 
 # Add GStreamer backend only on Linux
