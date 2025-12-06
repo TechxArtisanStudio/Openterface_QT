@@ -150,21 +150,21 @@ jobs:
       - name: Upload shared .deb
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.linux.amd64.shared.deb
+          name: openterfaceQT_linux_amd64.deb
           path: ${{ runner.temp }}/build-shared/openterfaceQT_*.deb
           if-no-files-found: error
 
       - name: Upload shared .AppImage
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.linux.amd64.shared.AppImage
+          name: openterfaceQT_linux_amd64.AppImage
           path: ${{ runner.temp }}/build-shared/openterfaceQT_*.AppImage
           if-no-files-found: error
 
       - name: Upload shared .rpm
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.linux.amd64.shared.rpm
+          name: openterfaceQT_linux_amd64.rpm
           path: ${{ runner.temp }}/build-shared/openterfaceQT_*.rpm
           if-no-files-found: error
 
