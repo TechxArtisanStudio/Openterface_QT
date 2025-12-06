@@ -85,9 +85,9 @@ jobs:
           
           # Find and download the appropriate artifact based on install_type
           if [ "${{ env.INSTALL_TYPE }}" = "deb" ]; then
-            ARTIFACT_PATTERN="shared.deb"
+            ARTIFACT_PATTERN=".deb"
           elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
-            ARTIFACT_PATTERN="shared.AppImage"
+            ARTIFACT_PATTERN=".AppImage"
           else
             echo "❌ Invalid install_type: ${{ env.INSTALL_TYPE }}"
             exit 1

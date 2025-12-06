@@ -80,9 +80,9 @@ jobs:
           
           # Find and download the appropriate artifact based on install_type
           if [ "${{ matrix.install_type }}" = "appimage" ]; then
-            ARTIFACT_PATTERN="shared.AppImage"
+            ARTIFACT_PATTERN=".AppImage"
           elif [ "${{ matrix.install_type }}" = "rpm" ]; then
-            ARTIFACT_PATTERN="shared.rpm"
+            ARTIFACT_PATTERN=".rpm"
           else
             echo "❌ Invalid install_type: ${{ matrix.install_type }}"
             exit 1
@@ -396,7 +396,7 @@ jobs:
           # Set APPIMAGE path for AppImage installations
           # This signals to entrypoint.sh, launcher.sh, and main.cpp that we're using AppImage
           # Enables proper platform detection and Wayland→XCB fallback handling
-          APPIMAGE_PATH="/tmp/openterfaceQT.linux.amd64.shared.AppImage"
+          APPIMAGE_PATH="/tmp/openterfaceQT_linux_amd64.AppImage"
           
           # Force XCB platform for stable testing in container environment
           # Platform detection is automatic but can be overridden for testing
