@@ -1,16 +1,8 @@
-name: Build Qt Environments (Static or Shared)
+name: Build Qt Environments (Shared)
 
 on:
   workflow_dispatch:
     inputs:
-      environment_type:
-        description: 'Type of environment to build'
-        required: true
-        default: 'shared'
-        type: choice
-        options:
-          - 'static'
-          - 'shared'
       step:
         description: 'Which step to build'
         required: false
@@ -55,9 +47,10 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  SHARED_OR_STATIC: shared
 
 jobs:
-  # Static Qt Environment Build (existing multi-stage process)
+  # Qt Shared Environment Build
   build-setup:
     if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'setup' || github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
@@ -70,21 +63,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set Shared or Static build in env
-        run: |
-          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
-            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
-          else
-            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
-          fi
-
       - name: Set lowercase image name
         env:
           OWNER: ${{ github.repository_owner }}
-          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
 
       - name: Log in to Container Registry
         if: github.event_name != 'pull_request'
@@ -141,8 +125,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-setup
-          cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-setup
+          cache-from: type=gha,scope=shared-setup
+          cache-to: type=gha,mode=max,scope=shared-setup
           platforms: linux/amd64
 
       - name: Clean up Docker resources
@@ -166,21 +150,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set Shared or Static build in env
-        run: |
-          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
-            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
-          else
-            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
-          fi
-
       - name: Set lowercase image name
         env:
           OWNER: ${{ github.repository_owner }}
-          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -218,8 +193,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-ffmpeg
-          cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-ffmpeg
+          cache-from: type=gha,scope=shared-ffmpeg
+          cache-to: type=gha,mode=max,scope=shared-ffmpeg
           platforms: linux/amd64
 
       - name: Clean up Docker resources
@@ -243,21 +218,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set Shared or Static build in env
-        run: |
-          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
-            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
-          else
-            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
-          fi
-
       - name: Set lowercase image name
         env:
           OWNER: ${{ github.repository_owner }}
-          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -296,8 +262,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-qt-base-qtml
-          cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-qt-base-qtml
+          cache-from: type=gha,scope=shared-qt-base-qtml
+          cache-to: type=gha,mode=max,scope=shared-qt-base-qtml
           platforms: linux/amd64
 
       - name: Clean up Docker resources
@@ -321,21 +287,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set Shared or Static build in env
-        run: |
-          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
-            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
-          else
-            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
-          fi
-
       - name: Set lowercase image name
         env:
           OWNER: ${{ github.repository_owner }}
-          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -374,8 +331,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-qt-declarative
-          cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-qt-declarative
+          cache-from: type=gha,scope=shared-qt-declarative
+          cache-to: type=gha,mode=max,scope=shared-qt-declarative
           platforms: linux/amd64
 
       - name: Clean up Docker resources
@@ -400,21 +357,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set Shared or Static build in env
-        run: |
-          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
-            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
-          else
-            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
-          fi
-
       - name: Set lowercase image name
         env:
           OWNER: ${{ github.repository_owner }}
-          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -453,8 +401,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-gstreamer
-          cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-gstreamer
+          cache-from: type=gha,scope=shared-gstreamer
+          cache-to: type=gha,mode=max,scope=shared-gstreamer
           platforms: linux/amd64
 
       - name: Clean up Docker resources
@@ -478,21 +426,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set Shared or Static build in env
-        run: |
-          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
-            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
-          else
-            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
-          fi
-
       - name: Set lowercase image name
         env:
           OWNER: ${{ github.repository_owner }}
-          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -531,8 +470,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ env.SHARED_OR_STATIC }}-qt-complete
-          cache-to: type=gha,mode=max,scope=${{ env.SHARED_OR_STATIC }}-qt-complete
+          cache-from: type=gha,scope=shared-qt-complete
+          cache-to: type=gha,mode=max,scope=shared-qt-complete
           platforms: linux/amd64
 
       - name: Clean up Docker resources
@@ -548,49 +487,31 @@ jobs:
           docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \
             /opt/Qt6/bin/verify-qt-installation.sh
 
-  # Summary job that shows which images are available
+  # Summary job that shows build status
   build-summary:
     runs-on: ubuntu-latest
     needs: [build-complete]
     if: always()
     steps:
-      - name: Set Shared or Static build in env
-        run: |
-          if [ "${{ github.event.inputs.environment_type || 'static' }}" = "shared" ]; then
-            echo "SHARED_OR_STATIC=shared" >> $GITHUB_ENV
-          else
-            echo "SHARED_OR_STATIC=static" >> $GITHUB_ENV
-          fi
-          
       - name: Set lowercase image name
         env:
           OWNER: ${{ github.repository_owner }}
-          SHARED: ${{ env.SHARED_OR_STATIC }}
         run: |
           OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME_LOWER=${OWNER}/${SHARED}-qtbuild" >> $GITHUB_ENV
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
 
       - name: Build Summary
         run: |
-          echo "## Qt Build Environment Summary" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "| Environment | Type | Status | Image |" >> $GITHUB_STEP_SUMMARY
-            echo "|-------------|------|--------|-------|" >> $GITHUB_STEP_SUMMARY
-
-            # Qt Complete (static) — reflect job result
-            if [ "${{ env.SHARED_OR_STATIC }}" = "static" ] && [ "${{ needs.build-complete.result }}" = "success" ]; then
-            echo "| Qt Complete | static | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
-            else
-            echo "| Qt Complete | static | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
-            fi
-
-            # Qt Shared — check if shared image is present in registry
-            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64"
-            if [ "${{ env.SHARED_OR_STATIC }}" = "shared" ] && [ "${{ needs.build-complete.result }}" = "success" ]; then
-            echo "| Qt Shared | shared | ✅ Available | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-shared:$IMAGE_TAG\` |" >> $GITHUB_STEP_SUMMARY
-            else
-            echo "| Qt Shared | shared | ❌ Not available | - |" >> $GITHUB_STEP_SUMMARY
-            fi
+          echo "## Qt Shared Build Environment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | Status | Image |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.build-complete.result }}" = "success" ]; then
+            echo "| Qt Complete | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Qt Complete | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
+          fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Usage Instructions" >> $GITHUB_STEP_SUMMARY
@@ -598,13 +519,6 @@ jobs:
           echo "**Shared Build:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ghcr.io/techxartisanstudio/static-qtbuild-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
           echo "  bash -c 'mkdir build && cd build && cmake -DBUILD_SHARED_LIBS=ON .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Static Build:**" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
-          echo "  ghcr.io/techxartisanstudio/static-qtbuild-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
-          echo "  bash -c 'mkdir build && cd build && cmake -DCMAKE_PREFIX_PATH=/opt/Qt6 -DBUILD_SHARED_LIBS=OFF .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

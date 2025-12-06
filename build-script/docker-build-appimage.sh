@@ -525,7 +525,7 @@ else
 
 	mkdir -p "${TOOLS_DIR}"
 	pushd "${TOOLS_DIR}" >/dev/null
-	LDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${APPIMAGE_ARCH}.AppImage"
+	LDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${ARCH}.AppImage"
 	LDEPLOY_QT_URL="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${APPIMAGE_ARCH}.AppImage"
 	
 	echo "Downloading linuxdeploy from ${LDEPLOY_URL}"
