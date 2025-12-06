@@ -80,9 +80,9 @@ jobs:
           
           # Find and download the appropriate artifact based on install_type
           if [ "${{ matrix.install_type }}" = "appimage" ]; then
-            ARTIFACT_PATTERN="shared.AppImage"
+            ARTIFACT_PATTERN=".AppImage"
           elif [ "${{ matrix.install_type }}" = "rpm" ]; then
-            ARTIFACT_PATTERN="shared.rpm"
+            ARTIFACT_PATTERN=".rpm"
           else
             echo "❌ Invalid install_type: ${{ matrix.install_type }}"
             exit 1

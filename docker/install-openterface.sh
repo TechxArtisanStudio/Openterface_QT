@@ -149,7 +149,7 @@ find_latest_package() {
 }
 
 download_from_latest_build() {
-    local artifact_type="$1"  # "shared.deb" or "shared.AppImage"
+    local artifact_type="$1"  # ".deb" or ".AppImage"
     
     print_info "Attempting to download from latest linux-build workflow..."
     
@@ -444,7 +444,7 @@ download_deb_package() {
     
     print_info "No local DEB found, trying workflow download..."
     
-    if download_from_latest_build "shared.deb"; then
+    if download_from_latest_build ".deb"; then
         return 0
     fi
     
@@ -519,7 +519,7 @@ download_appimage_package() {
     
     print_info "No local AppImage found, trying workflow download..."
     
-    if download_from_latest_build "shared.AppImage"; then
+    if download_from_latest_build ".AppImage"; then
         return 0
     fi
     
@@ -668,7 +668,7 @@ download_rpm_package() {
     
     print_info "No local RPM found, trying workflow download..."
     
-    if download_from_latest_build "shared.rpm"; then
+    if download_from_latest_build ".rpm"; then
         return 0
     fi
     
