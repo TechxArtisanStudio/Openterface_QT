@@ -177,8 +177,8 @@ jobs:
             # Find libraries - FFmpeg
             echo ""
             echo "🔹 FFmpeg Libraries (.so files):"
-            find "$RPM_EXTRACT_DIR" -type f -name "libav*.so*" -o -name "libsw*.so*" | sort
-            
+            find "$RPM_EXTRACT_DIR" -path "*/ffmpeg/*" -type f -name "*.so*" | sort
+
             # Find libraries - GStreamer
             echo ""
             echo "🔹 GStreamer Libraries:"
