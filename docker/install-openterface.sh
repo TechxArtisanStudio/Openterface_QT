@@ -31,9 +31,9 @@ NC='\033[0m' # No Color
 
 # Configuration
 GITHUB_REPO="TechxArtisanStudio/Openterface_QT"
-DEB_PACKAGE_NAME="openterfaceQT.linux.amd64.shared.deb"
-APPIMAGE_PACKAGE_NAME="openterfaceQT.linux.amd64.shared.AppImage"
-RPM_PACKAGE_NAME="openterfaceQT.linux.amd64.shared.rpm"
+DEB_PACKAGE_NAME="openterfaceQT_linux_amd64.deb"
+APPIMAGE_PACKAGE_NAME="openterfaceQT_linux_amd64.AppImage"
+RPM_PACKAGE_NAME="openterfaceQT_linux_amd64.rpm"
 
 # Determine installation type from argument or environment variable
 INSTALL_TYPE="${1:-${INSTALL_TYPE:-}}"

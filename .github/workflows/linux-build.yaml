@@ -269,23 +269,3 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest \
             bash /workspace/src/build-script/docker-build-static.sh
           echo "BUILD_DIR=${{ runner.temp }}/build-static" >> $GITHUB_ENV
-
-
-      - name: Create Portable Application (No packaging)
-        working-directory: ${{ runner.temp }}
-        run: |
-          PORTABLE_DIR="openterfaceQT.linux.amd64.portable"
-          mkdir -p $PORTABLE_DIR
-          # Copy the static binary directly to root of portable dir (no bin/ subdirectory)
-          cp ${{ env.BUILD_DIR }}/openterfaceQT $PORTABLE_DIR/openterfaceQT-portable
-          chmod +x $PORTABLE_DIR/openterfaceQT-portable
-
-          cp ${{ github.workspace }}/LICENSE $PORTABLE_DIR/ || echo "No LICENSE found"
-
-
-      - name: Upload Portable artifact (No packaging)
-        uses: actions/upload-artifact@v4
-        with:
-          name: openterfaceQT.linux.amd64.portable
-          path: ${{ runner.temp }}/openterfaceQT.linux.amd64.portable/
-          if-no-files-found: error
