@@ -3,6 +3,7 @@
  */
 
 #include "capturethread.h"
+#include <QPointer>
 #include "../ffmpegbackendhandler.h"
 
 #include <QDebug>

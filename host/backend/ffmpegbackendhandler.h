@@ -48,6 +48,8 @@ class CaptureThread;
 extern "C" {
     #include <libavutil/hwcontext.h>
 }
+// AVFrame/AVPacket unique_ptr helpers
+#include "ffmpeg/ffmpegutils.h"
 struct AVFormatContext;
 struct AVCodecContext;
 struct AVCodecParameters;
@@ -58,6 +60,10 @@ struct SwsContext;
 struct AVStream;
 struct AVOutputFormat;
 struct AVBufferRef;
+#else
+// If FFmpeg headers are not available, still provide minimal forward decls
+struct AVFrame;
+struct AVPacket;
 #endif
 
 // Forward declarations for libjpeg-turbo (conditional compilation)
@@ -244,24 +250,43 @@ private:
     std::unique_ptr<CaptureThread> m_captureThread;
     
     // FFmpeg components
+#ifdef HAVE_FFMPEG
+    AVFormatContext* m_formatContext;
+    AVCodecContext* m_codecContext;
+    // Use RAII-managed smart pointers for AVFrame/AVPacket
+    AvFramePtr m_frame;
+    AvFramePtr m_frameRGB;
+    AvPacketPtr m_packet;
+    SwsContext* m_swsContext;
+#else
     AVFormatContext* m_formatContext;
     AVCodecContext* m_codecContext;
     AVFrame* m_frame;
     AVFrame* m_frameRGB;
     AVPacket* m_packet;
     SwsContext* m_swsContext;
+#endif
     
     // Hardware acceleration (QSV)
     AVBufferRef* m_hwDeviceContext;
     enum AVHWDeviceType m_hwDeviceType;
     
     // Recording components
+#ifdef HAVE_FFMPEG
+    AVFormatContext* m_recordingFormatContext;
+    AVCodecContext* m_recordingCodecContext;
+    AVStream* m_recordingVideoStream;
+    SwsContext* m_recordingSwsContext;
+    AvFramePtr m_recordingFrame;
+    AvPacketPtr m_recordingPacket;
+#else
     AVFormatContext* m_recordingFormatContext;
     AVCodecContext* m_recordingCodecContext;
     AVStream* m_recordingVideoStream;
     SwsContext* m_recordingSwsContext;
     AVFrame* m_recordingFrame;
     AVPacket* m_recordingPacket;
+#endif
 
     
 #ifdef HAVE_LIBJPEG_TURBO

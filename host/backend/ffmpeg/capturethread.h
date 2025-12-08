@@ -9,6 +9,7 @@
 #include <QThread>
 #include <QMutex>
 #include <QString>
+#include <QPointer>
 
 class FFmpegBackendHandler;
 
@@ -30,7 +31,7 @@ signals:
     void readError(const QString& msg);  // Report detailed read errors
 
 private:
-    FFmpegBackendHandler* m_handler;
+    QPointer<FFmpegBackendHandler> m_handler;
     mutable QMutex m_mutex;
     bool m_running;
 };
