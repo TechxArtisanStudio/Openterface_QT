@@ -61,17 +61,17 @@ Q_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
 
 // Capture thread extracted to host/backend/ffmpeg/capturethread.h/.cpp
 #include "ffmpeg/capturethread.h"
+#include "ffmpeg/ffmpeg_hardware_accelerator.h"
+#include "ffmpeg/ffmpeg_device_manager.h"
 
 FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
     : MultimediaBackendHandler(parent)
-    , m_formatContext(nullptr),
-    m_codecContext(nullptr),
-    m_frame(nullptr),
+    , m_frame(nullptr),
     m_frameRGB(nullptr),
     m_packet(nullptr),
       m_swsContext(nullptr),
-      m_hwDeviceContext(nullptr),
-      m_hwDeviceType(AV_HWDEVICE_TYPE_NONE),
+      m_deviceManager(std::make_unique<FFmpegDeviceManager>()),
+      m_hardwareAccelerator(std::make_unique<FFmpegHardwareAccelerator>()),
       m_captureRunning(false),
       m_videoStreamIndex(-1),
       m_frameCount(0),
@@ -358,160 +358,40 @@ void FFmpegBackendHandler::cleanupFFmpegResources()
 
 bool FFmpegBackendHandler::initializeHardwareAcceleration()
 {
-    qCDebug(log_ffmpeg_backend) << "Initializing hardware acceleration, preferred:" << m_preferredHwAccel;
-    
-    // Explicitly handle CPU-only mode
-    if (m_preferredHwAccel == "none") {
-        qCInfo(log_ffmpeg_backend) << "Hardware acceleration disabled - using CPU decoding";
-        m_hwDeviceContext = nullptr;
-        m_hwDeviceType = AV_HWDEVICE_TYPE_NONE;
-        return true;
-    }
-    
-    // For MJPEG decoding on Windows, CUVID decoders work differently than on Linux
-    // They can be used directly without creating a hardware device context first
-    // We just need to verify the decoder is available
-    
-    // Priority order for MJPEG hardware decoders:
-    // 1. NVIDIA CUVID (mjpeg_cuvid) - works on Windows without device context
-    // 2. Intel QSV (mjpeg_qsv) - may need device context on some platforms
-    
-    HwDecoderInfo hwDecoders[] = {
-        {"CUDA/NVDEC", "mjpeg_cuvid", AV_HWDEVICE_TYPE_CUDA, false, "cuda"},
-        {"Intel QSV", "mjpeg_qsv", AV_HWDEVICE_TYPE_QSV, false, "qsv"},
-        {nullptr, nullptr, AV_HWDEVICE_TYPE_NONE, false, ""}
-    };
-    
-    // If not auto, try the preferred one first
-    if (m_preferredHwAccel != "auto") {
-        for (int i = 0; hwDecoders[i].name != nullptr; i++) {
-            if (hwDecoders[i].settingName == m_preferredHwAccel) {
-                qCInfo(log_ffmpeg_backend) << "Trying preferred hardware decoder:" << hwDecoders[i].name;
-                if (tryInitializeHwDecoder(hwDecoders[i])) {
-                    return true;
-                }
-                break;
-            }
-        }
-        qCWarning(log_ffmpeg_backend) << "Preferred hardware acceleration" << m_preferredHwAccel << "not available, falling back to auto";
-    }
-    
-    // Auto mode or fallback: try all available
-    for (int i = 0; hwDecoders[i].name != nullptr; i++) {
-        if (tryInitializeHwDecoder(hwDecoders[i])) {
-            return true;
-        }
-    }
-    
-    qCWarning(log_ffmpeg_backend) << "No MJPEG-capable hardware acceleration found - using software decoding";
-    qCInfo(log_ffmpeg_backend) << "  - For NVIDIA GPU: Ensure latest drivers are installed and FFmpeg is built with --enable-cuda --enable-cuvid --enable-nvdec";
-    qCInfo(log_ffmpeg_backend) << "  - For Intel GPU: Ensure QSV drivers are installed and FFmpeg is built with --enable-libmfx";
-    m_hwDeviceContext = nullptr;
-    m_hwDeviceType = AV_HWDEVICE_TYPE_NONE;
-    return false;
-}
-
-bool FFmpegBackendHandler::tryInitializeHwDecoder(const HwDecoderInfo& decoder)
-{
-    qCInfo(log_ffmpeg_backend) << "Checking for" << decoder.name << "hardware decoder...";
-    
-    // First check if the decoder itself is available
-    const AVCodec* testCodec = avcodec_find_decoder_by_name(decoder.decoderName);
-    if (!testCodec) {
-        qCInfo(log_ffmpeg_backend) << "  ✗" << decoder.decoderName << "decoder not found in this FFmpeg build";
+    if (!m_hardwareAccelerator) {
+        qCWarning(log_ffmpeg_backend) << "Hardware accelerator not initialized";
         return false;
     }
     
-    qCInfo(log_ffmpeg_backend) << "  ✓ Found" << decoder.decoderName << "decoder";
-    
-    // For decoders that need a device context, try to create it
-    if (decoder.needsDeviceContext) {
-        m_hwDeviceType = decoder.deviceType;
-        
-        int ret = av_hwdevice_ctx_create(&m_hwDeviceContext, decoder.deviceType, nullptr, nullptr, 0);
-        if (ret < 0) {
-            char errbuf[AV_ERROR_MAX_STRING_SIZE];
-            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-            qCWarning(log_ffmpeg_backend) << "  ✗ Failed to create device context:" << QString::fromUtf8(errbuf);
-            return false;
-        }
-        qCInfo(log_ffmpeg_backend) << "  ✓ Hardware device context created";
-    } else {
-        // For CUVID on Windows, we don't need a device context
-        qCInfo(log_ffmpeg_backend) << "  ℹ This decoder doesn't require a device context";
-        m_hwDeviceType = decoder.deviceType;
-        m_hwDeviceContext = nullptr;  // Explicitly set to nullptr for CUVID
-    }
-    
-    qCInfo(log_ffmpeg_backend) << "✓✓✓ Successfully initialized" << decoder.name 
-                               << "hardware acceleration for MJPEG decoding ✓✓✓";
-    return true;
+    return m_hardwareAccelerator->Initialize(m_preferredHwAccel);
 }
 
 void FFmpegBackendHandler::updatePreferredHardwareAcceleration()
 {
     m_preferredHwAccel = GlobalSetting::instance().getHardwareAcceleration();
     qCDebug(log_ffmpeg_backend) << "Updated preferred hardware acceleration to:" << m_preferredHwAccel;
+    
+    if (m_hardwareAccelerator) {
+        m_hardwareAccelerator->UpdatePreferredAcceleration(m_preferredHwAccel);
+    }
 }
 
 bool FFmpegBackendHandler::tryHardwareDecoder(const AVCodecParameters* codecpar, 
                                                const AVCodec** outCodec, 
                                                bool* outUsingHwDecoder)
 {
-    // Allow trying hardware decoder even without device context (needed for CUVID on Windows)
-    if (m_hwDeviceType == AV_HWDEVICE_TYPE_NONE || !codecpar || !outCodec || !outUsingHwDecoder) {
+    if (!m_hardwareAccelerator) {
         return false;
     }
     
-    *outCodec = nullptr;
-    *outUsingHwDecoder = false;
-    
-    // Only try hardware acceleration for MJPEG
-    if (codecpar->codec_id != AV_CODEC_ID_MJPEG) {
-        return false;
-    }
-    
-    // Map hardware device types to MJPEG decoder names
-    const char* hwDecoderName = nullptr;
-    const char* hwDeviceTypeName = av_hwdevice_get_type_name(m_hwDeviceType);
-    
-    if (strcmp(hwDeviceTypeName, "cuda") == 0) {
-        hwDecoderName = "mjpeg_cuvid";
-        qCInfo(log_ffmpeg_backend) << "Attempting to use NVIDIA NVDEC/CUVID for MJPEG decoding";
-    } else if (strcmp(hwDeviceTypeName, "qsv") == 0) {
-        hwDecoderName = "mjpeg_qsv";
-        qCInfo(log_ffmpeg_backend) << "Attempting to use Intel QSV for MJPEG decoding";
-    } else {
-        // Unknown or unsupported hardware type for MJPEG
-        qCWarning(log_ffmpeg_backend) << "Hardware type" << hwDeviceTypeName 
-                                      << "does not support MJPEG hardware decoding";
-        return false;
-    }
-    
-    qCInfo(log_ffmpeg_backend) << "Looking for hardware decoder:" << hwDecoderName;
-    *outCodec = avcodec_find_decoder_by_name(hwDecoderName);
-    
-    if (*outCodec) {
-        qCInfo(log_ffmpeg_backend) << "✓ Found" << hwDecoderName << "hardware decoder";
-        qCInfo(log_ffmpeg_backend) << "  - Codec long name:" << (*outCodec)->long_name;
-        qCInfo(log_ffmpeg_backend) << "  - This will offload MJPEG decoding to GPU";
-        *outUsingHwDecoder = true;
-        return true;
-    } else {
-        qCWarning(log_ffmpeg_backend) << "✗ Hardware decoder" << hwDecoderName << "not found";
-        qCWarning(log_ffmpeg_backend) << "  - Your FFmpeg build may not include" << hwDecoderName << "support";
-        return false;
-    }
+    return m_hardwareAccelerator->TryHardwareDecoder(codecpar, outCodec, outUsingHwDecoder);
 }
 
 void FFmpegBackendHandler::cleanupHardwareAcceleration()
 {
-    if (m_hwDeviceContext) {
-        qCDebug(log_ffmpeg_backend) << "Cleaning up hardware device context";
-        av_buffer_unref(&m_hwDeviceContext);
-        m_hwDeviceContext = nullptr;
+    if (m_hardwareAccelerator) {
+        m_hardwareAccelerator->Cleanup();
     }
-    m_hwDeviceType = AV_HWDEVICE_TYPE_NONE;
 }
 
 bool FFmpegBackendHandler::getMaxCameraCapability(const QString& devicePath, CameraCapability& capability)
@@ -725,501 +605,30 @@ int FFmpegBackendHandler::interruptCallback(void* ctx)
 
 bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSize& resolution, int framerate)
 {
-    qCDebug(log_ffmpeg_backend) << "Opening input device:" << devicePath;
+    if (!m_deviceManager) {
+        qCCritical(log_ffmpeg_backend) << "Device manager not initialized";
+        return false;
+    }
     
     // Reset interrupt state for this new operation
     m_interruptRequested = false;
     m_operationStartTime = QDateTime::currentMSecsSinceEpoch();
     
-#ifdef Q_OS_WIN
-    // WINDOWS: Use DirectShow for video capture
-    qCDebug(log_ffmpeg_backend) << "Windows platform detected - using DirectShow input";
-    
-    // Allocate format context
-    m_formatContext = avformat_alloc_context();
-    if (!m_formatContext) {
-        qCCritical(log_ffmpeg_backend) << "Failed to allocate format context";
-        return false;
-    }
-    
-    // CRITICAL FIX: Set interrupt callback to prevent blocking operations
-    m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
-    m_formatContext->interrupt_callback.opaque = this;
-    
-    // Find DirectShow input format
-    const AVInputFormat* inputFormat = av_find_input_format("dshow");
-    if (!inputFormat) {
-        qCCritical(log_ffmpeg_backend) << "DirectShow input format not found - FFmpeg may not be built with dshow support";
-        return false;
-    }
-    
-    // RESPONSIVENESS: Set low-latency input options for DirectShow
-    AVDictionary* options = nullptr;
-    av_dict_set(&options, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
-    av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
-    
-    // CRITICAL LOW-LATENCY OPTIMIZATIONS for KVM responsiveness:
-    av_dict_set(&options, "rtbufsize", "10000000", 0);        // 10MB buffer to prevent overflow
-    av_dict_set(&options, "fflags", "discardcorrupt", 0); // Discard corrupt frames only
-    av_dict_set(&options, "flags", "low_delay", 0);       // Enable low delay mode
-    av_dict_set(&options, "max_delay", "2000", 0);           // Allow 3ms delay for stability
-    av_dict_set(&options, "probesize", "32", 0);          // Minimal probe size for fastest start (minimum allowed)
-    av_dict_set(&options, "analyzeduration", "0", 0);     // Skip analysis to reduce startup delay
-    
-    // CRITICAL FIX: Add timeout to prevent blocking on device reconnection
-    av_dict_set(&options, "timeout", "5000000", 0);       // 5 second timeout in microseconds
-    
-    // Try to set video format - DirectShow supports various formats
-    // Try MJPEG first for best performance
-    av_dict_set(&options, "vcodec", "mjpeg", 0);
-    
-    qCDebug(log_ffmpeg_backend) << "Trying DirectShow with MJPEG format, resolution" << resolution << "and framerate" << framerate;
-    qCDebug(log_ffmpeg_backend) << "DirectShow device string:" << devicePath;
-    
-    // Open input - devicePath should be in format "video=Device Name"
-    int ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &options);
-    av_dict_free(&options);
-    
-    // If MJPEG fails, try without specifying codec (auto-detect)
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "MJPEG format failed:" << QString::fromUtf8(errbuf) << "- trying auto-detection";
-        
-        // Reset format context
-        if (m_formatContext) {
-            avformat_close_input(&m_formatContext);
-        }
-        m_formatContext = avformat_alloc_context();
-        
-        // Re-set interrupt callback
-        m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
-        m_formatContext->interrupt_callback.opaque = this;
-        
-        // Try without codec specification
-        AVDictionary* fallbackOptions = nullptr;
-        av_dict_set(&fallbackOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
-        av_dict_set(&fallbackOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
-        av_dict_set(&fallbackOptions, "rtbufsize", "100M", 0);
-        
-        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &fallbackOptions);
-        av_dict_free(&fallbackOptions);
-    }
-    
-    // If that fails, try minimal options
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "Auto-detection failed:" << QString::fromUtf8(errbuf) << "- trying minimal options";
-        
-        // Reset format context
-        if (m_formatContext) {
-            avformat_close_input(&m_formatContext);
-        }
-        m_formatContext = avformat_alloc_context();
-        
-        // Re-set interrupt callback
-        m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
-        m_formatContext->interrupt_callback.opaque = this;
-        
-        // Try with just the device path
-        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, nullptr);
-    }
-    
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCCritical(log_ffmpeg_backend) << "Failed to open DirectShow device:" << QString::fromUtf8(errbuf);
-        qCCritical(log_ffmpeg_backend) << "Device path:" << devicePath;
-        qCCritical(log_ffmpeg_backend) << "Make sure the device name is correct and the camera is not in use by another application";
-        return false;
-    }
-    
-    qCDebug(log_ffmpeg_backend) << "Successfully opened DirectShow device" << devicePath;
-    
-#else
-    // LINUX/MACOS: Use V4L2 for video capture
-    // RESPONSIVENESS OPTIMIZATION: Configure device for minimal latency
-    // This is critical for KVM applications where mouse responsiveness is key
-    qCDebug(log_ffmpeg_backend) << "Pre-configuring device for low-latency MJPEG capture...";
-    
-    QString configCommand = QString("v4l2-ctl --device=%1 --set-fmt-video=width=%2,height=%3,pixelformat=MJPG")
-                           .arg(devicePath).arg(resolution.width()).arg(resolution.height());
-    int configResult = system(configCommand.toUtf8().constData());
-    
-    QString framerateCommand = QString("v4l2-ctl --device=%1 --set-parm=%2")
-                              .arg(devicePath).arg(framerate);
-    int framerateResult = system(framerateCommand.toUtf8().constData());
-    
-    // RESPONSIVENESS: Try to configure minimal buffering for lower latency
-    QString bufferCommand = QString("v4l2-ctl --device=%1")
-                           .arg(devicePath);
-    [[maybe_unused]] auto bufferResult = system(bufferCommand.toUtf8().constData()); // Don't check result - optional optimization
-    
-    if (configResult == 0 && framerateResult == 0) {
-        qCDebug(log_ffmpeg_backend) << "Device pre-configured successfully for low-latency MJPEG" << resolution << "at" << framerate << "fps";
-    } else {
-        qCWarning(log_ffmpeg_backend) << "Device pre-configuration failed, continuing with FFmpeg initialization";
-    }
-    
-    // Reduce delay to minimize latency
-    // QThread::msleep(100); // Reduced from 200ms to 100ms
-    
-    // Allocate format context
-    m_formatContext = avformat_alloc_context();
-    if (!m_formatContext) {
-        qCCritical(log_ffmpeg_backend) << "Failed to allocate format context";
-        return false;
-    }
-    
-    // CRITICAL FIX: Set interrupt callback to prevent blocking operations
-    m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
-    m_formatContext->interrupt_callback.opaque = this;
-    
-    // Find input format (V4L2) - try multiple format names
-    const AVInputFormat* inputFormat = av_find_input_format("v4l2");
-    if (!inputFormat) {
-        qCCritical(log_ffmpeg_backend) << "V4L2 input format not found";
-        return false;
-    }
-    
-    // RESPONSIVENESS: Set low-latency input options for MJPEG
-    AVDictionary* options = nullptr;
-    av_dict_set(&options, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
-    av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
-    av_dict_set(&options, "input_format", "mjpeg", 0); // Should work due to pre-configuration
-    
-    // CRITICAL LOW-LATENCY OPTIMIZATIONS for KVM responsiveness:
-    av_dict_set(&options, "fflags", "nobuffer", 0);        // Disable input buffering
-    av_dict_set(&options, "flags", "low_delay", 0);        // Enable low delay mode  
-    av_dict_set(&options, "framedrop", "1", 0);            // Allow frame dropping
-    av_dict_set(&options, "use_wallclock_as_timestamps", "1", 0); // Use wall clock for timestamps
-    av_dict_set(&options, "probesize", "32", 0);           // Minimal probe size for faster start
-    av_dict_set(&options, "analyzeduration", "0", 0);      // Skip analysis to reduce startup delay
-    
-    qCDebug(log_ffmpeg_backend) << "Trying low-latency MJPEG format with resolution" << resolution << "and framerate" << framerate;
-    
-    // Open input
-    int ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &options);
-    av_dict_free(&options);
-    
-    // If MJPEG fails, try YUYV422
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "MJPEG format failed:" << QString::fromUtf8(errbuf) << "- trying YUYV422";
-        
-        // Reset format context
-        if (m_formatContext) {
-            avformat_close_input(&m_formatContext);
-        }
-        m_formatContext = avformat_alloc_context();
-        
-        // Re-set interrupt callback
-        m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
-        m_formatContext->interrupt_callback.opaque = this;
-        
-        // Try YUYV422 format
-        AVDictionary* yuvOptions = nullptr;
-        av_dict_set(&yuvOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
-        av_dict_set(&yuvOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
-        av_dict_set(&yuvOptions, "input_format", "yuyv422", 0);
-        
-        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &yuvOptions);
-        av_dict_free(&yuvOptions);
-    }
-    
-    // If that fails, try without specifying input format (auto-detect)
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "YUYV422 format failed:" << QString::fromUtf8(errbuf) << "- trying auto-detection";
-        
-        // Reset format context
-        if (m_formatContext) {
-            avformat_close_input(&m_formatContext);
-        }
-        m_formatContext = avformat_alloc_context();
-        
-        // Re-set interrupt callback
-        m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
-        m_formatContext->interrupt_callback.opaque = this;
-        
-        // Try again without input_format specification (auto-detect)
-        AVDictionary* fallbackOptions = nullptr;
-        av_dict_set(&fallbackOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
-        av_dict_set(&fallbackOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
-        
-        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, &fallbackOptions);
-        av_dict_free(&fallbackOptions);
-    }
-    
-    // If everything fails, try minimal options
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "Auto-detection failed:" << QString::fromUtf8(errbuf) << "- trying minimal options";
-        
-        // Reset format context
-        if (m_formatContext) {
-            avformat_close_input(&m_formatContext);
-        }
-        m_formatContext = avformat_alloc_context();
-        
-        // Re-set interrupt callback
-        m_formatContext->interrupt_callback.callback = FFmpegBackendHandler::interruptCallback;
-        m_formatContext->interrupt_callback.opaque = this;
-        
-        // Try with minimal options (just the device path)
-        ret = avformat_open_input(&m_formatContext, devicePath.toUtf8().constData(), inputFormat, nullptr);
-    }
-    
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCCritical(log_ffmpeg_backend) << "Failed to open input device with all attempts:" << QString::fromUtf8(errbuf);
-        return false;
-    }
-    
-    qCDebug(log_ffmpeg_backend) << "Successfully opened device" << devicePath;
-#endif // Q_OS_WIN
-    
-    // CRITICAL FIX: Set strict timeout for stream info to prevent blocking on device reconnection
-    // This prevents the app from hanging when a device is unplugged and replugged
-    m_formatContext->max_analyze_duration = 1000000; // 1 second max (in microseconds)
-    m_formatContext->probesize = 5000000; // 5MB max probe size
-    
-    // Find stream info with timeout protection
-    qCDebug(log_ffmpeg_backend) << "Finding stream info (max 1 second)...";
-    ret = avformat_find_stream_info(m_formatContext, nullptr);
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCCritical(log_ffmpeg_backend) << "Failed to find stream info:" << QString::fromUtf8(errbuf);
-        return false;
-    }
-    qCDebug(log_ffmpeg_backend) << "Stream info found successfully";
-    
-    // Set real-time flags to prevent buffer overflow
-    // m_formatContext->flags |= AVFMT_FLAG_NONBLOCK; // May not be supported
-    m_formatContext->max_analyze_duration = 50000; // 0.05 seconds
-    m_formatContext->probesize = 1000000; // 1MB
-    
-    // Find video stream
-    m_videoStreamIndex = -1;
-    for (unsigned int i = 0; i < m_formatContext->nb_streams; i++) {
-        if (m_formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-            m_videoStreamIndex = i;
-            break;
-        }
-    }
-    
-    if (m_videoStreamIndex == -1) {
-        qCCritical(log_ffmpeg_backend) << "No video stream found";
-        return false;
-    }
-    
-    // Get codec parameters
-    AVCodecParameters* codecpar = m_formatContext->streams[m_videoStreamIndex]->codecpar;
-    
-    // Update preferred hardware acceleration from settings
+    // CRITICAL: Initialize hardware acceleration BEFORE opening device
+    // This ensures hardware decoders are available when setting up the device
     updatePreferredHardwareAcceleration();
     
-    // Try to initialize hardware acceleration if not already done
-    if (m_hwDeviceType == AV_HWDEVICE_TYPE_NONE) {
+    if (m_hardwareAccelerator && !m_hardwareAccelerator->IsHardwareAccelEnabled()) {
         initializeHardwareAcceleration();
     }
     
-    // Find decoder - try hardware decoder for MJPEG if available
-    const AVCodec* codec = nullptr;
-    bool usingHwDecoder = false;
-    
-    // Try hardware decoder first if hardware acceleration is available
-    // Note: Some decoders like CUVID don't need a device context, so check device type instead
-    if (m_hwDeviceType != AV_HWDEVICE_TYPE_NONE) {
-        bool hwDecoderFound = tryHardwareDecoder(codecpar, &codec, &usingHwDecoder);
-        if (hwDecoderFound && codec) {
-            qCInfo(log_ffmpeg_backend) << "✓✓✓ Successfully selected hardware decoder:" << codec->name << "✓✓✓";
-        }
-    }
-    
-    // Fallback to software decoder if hardware decoder not found
-    if (!codec) {
-        codec = avcodec_find_decoder(codecpar->codec_id);
-        if (!codec) {
-            qCCritical(log_ffmpeg_backend) << "Decoder not found for codec ID:" << codecpar->codec_id;
-            return false;
-        }
-        const char* codecName = codec->name ? codec->name : "unknown";
-        qCDebug(log_ffmpeg_backend) << "Using software decoder:" << codecName;
-    }
-    
-    // Allocate codec context
-    m_codecContext = avcodec_alloc_context3(codec);
-    if (!m_codecContext) {
-        qCCritical(log_ffmpeg_backend) << "Failed to allocate codec context";
+    if (!m_deviceManager->OpenDevice(devicePath, resolution, framerate, m_hardwareAccelerator.get())) {
+        qCWarning(log_ffmpeg_backend) << "Failed to open device via device manager";
         return false;
     }
     
-    // Copy codec parameters
-    ret = avcodec_parameters_to_context(m_codecContext, codecpar);
-    if (ret < 0) {
-        qCCritical(log_ffmpeg_backend) << "Failed to copy codec parameters";
-        return false;
-    }
-    
-    // CRITICAL: Set low-latency codec options before opening
-    m_codecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;      // Enable low-delay decoding
-    m_codecContext->flags2 |= AV_CODEC_FLAG2_FAST;         // Prioritize speed over quality
-    
-    // Use single-threading for lower latency, even with hardware acceleration
-    if (usingHwDecoder) {
-        m_codecContext->thread_count = 1;  // Single thread for lowest latency with GPU
-    } else {
-        m_codecContext->thread_count = 1;  // Single thread for software decoding latency
-    }
-    
-    // Set hardware device context if using hardware decoder AND context is available
-    // Note: CUVID on Windows doesn't require a device context, so we skip this step for CUDA
-    if (usingHwDecoder && m_hwDeviceContext) {
-        m_codecContext->hw_device_ctx = av_buffer_ref(m_hwDeviceContext);
-        if (!m_codecContext->hw_device_ctx) {
-            qCWarning(log_ffmpeg_backend) << "Failed to reference hardware device context";
-            // Continue with software fallback
-            avcodec_free_context(&m_codecContext);
-            
-            // Try again with software decoder
-            codec = avcodec_find_decoder(codecpar->codec_id);
-            if (!codec) {
-                qCCritical(log_ffmpeg_backend) << "Software decoder not found for codec ID:" << codecpar->codec_id;
-                return false;
-            }
-            
-            m_codecContext = avcodec_alloc_context3(codec);
-            if (!m_codecContext) {
-                qCCritical(log_ffmpeg_backend) << "Failed to allocate codec context for software decoder";
-                return false;
-            }
-            
-            ret = avcodec_parameters_to_context(m_codecContext, codecpar);
-            if (ret < 0) {
-                qCCritical(log_ffmpeg_backend) << "Failed to copy codec parameters to software decoder";
-                return false;
-            }
-            
-            // CRITICAL: Set low-latency codec options for software decoder
-            m_codecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
-            m_codecContext->flags2 |= AV_CODEC_FLAG2_FAST;
-            m_codecContext->thread_count = 1;
-            
-            usingHwDecoder = false;
-            qCInfo(log_ffmpeg_backend) << "Falling back to software decoder:" << codec->name;
-        } else {
-            const char* hwType = (m_hwDeviceType == AV_HWDEVICE_TYPE_CUDA) ? "CUDA/NVDEC" : "QSV";
-            qCInfo(log_ffmpeg_backend) << "✓" << hwType << "hardware device context set successfully";
-        }
-    } else if (usingHwDecoder && !m_hwDeviceContext) {
-        // CUVID on Windows case - no device context needed
-        const char* hwType = (m_hwDeviceType == AV_HWDEVICE_TYPE_CUDA) ? "CUDA/NVDEC" : "Hardware";
-        qCInfo(log_ffmpeg_backend) << "✓" << hwType << "decoder will be used without device context (normal for CUVID on Windows)";
-    }
-    
-    // Prepare decoder options for CUDA/NVDEC optimization
-    AVDictionary* codecOptions = nullptr;
-    if (usingHwDecoder && m_hwDeviceType == AV_HWDEVICE_TYPE_CUDA) {
-        // CUDA/NVDEC specific options for ultra-low latency
-        av_dict_set(&codecOptions, "gpu", "0", 0);  // Use first GPU (can be changed if multiple GPUs)
-        av_dict_set(&codecOptions, "surfaces", "1", 0);  // Minimal surfaces for lowest latency (deprecated but still used)
-        av_dict_set(&codecOptions, "low_latency", "1", 0);  // Enable low latency mode for CUVID decoders
-        av_dict_set(&codecOptions, "delay", "0", 0);  // No delay
-        av_dict_set(&codecOptions, "rgb_mode", "1", 0);  // Output RGB directly from GPU for faster rendering
-        
-        qCInfo(log_ffmpeg_backend) << "Setting CUDA/NVDEC decoder options: gpu=0, surfaces=1, low_latency=1, delay=0, rgb_mode=1";
-    }
-    
-    // Open codec
-    qCInfo(log_ffmpeg_backend) << "Attempting to open codec:" << codec->name;
-    ret = avcodec_open2(m_codecContext, codec, &codecOptions);
-    
-    // Log any unused options (helps debug configuration issues)
-    if (codecOptions) {
-        AVDictionaryEntry* entry = nullptr;
-        while ((entry = av_dict_get(codecOptions, "", entry, AV_DICT_IGNORE_SUFFIX))) {
-            qCWarning(log_ffmpeg_backend) << "Unused codec option:" << entry->key << "=" << entry->value;
-        }
-    }
-    av_dict_free(&codecOptions);
-    
-    // Set low delay flags to prevent buffer overflow
-    m_codecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
-    m_codecContext->delay = 0;
-    // Set video delay to 0 for the stream
-    if (m_formatContext->streams[m_videoStreamIndex]) {
-        m_formatContext->streams[m_videoStreamIndex]->codecpar->video_delay = 0;
-    }
-    
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        
-        // If hardware decoder fails, try software fallback
-        if (usingHwDecoder) {
-            const char* hwType = (m_hwDeviceType == AV_HWDEVICE_TYPE_CUDA) ? "CUDA/NVDEC" : "QSV";
-            qCWarning(log_ffmpeg_backend) << "✗ Failed to open" << hwType << "hardware codec:" 
-                                          << QString::fromUtf8(errbuf);
-            qCWarning(log_ffmpeg_backend) << "  - Falling back to software decoder...";
-            
-            avcodec_free_context(&m_codecContext);
-            
-            // Try software decoder
-            codec = avcodec_find_decoder(codecpar->codec_id);
-            if (!codec) {
-                qCCritical(log_ffmpeg_backend) << "Software decoder not found for codec ID:" << codecpar->codec_id;
-                return false;
-            }
-            
-            m_codecContext = avcodec_alloc_context3(codec);
-            if (!m_codecContext) {
-                qCCritical(log_ffmpeg_backend) << "Failed to allocate codec context for software decoder";
-                return false;
-            }
-            
-            ret = avcodec_parameters_to_context(m_codecContext, codecpar);
-            if (ret < 0) {
-                qCCritical(log_ffmpeg_backend) << "Failed to copy codec parameters to software decoder";
-                return false;
-            }
-            
-            // CRITICAL: Set low-latency codec options for software decoder fallback
-            m_codecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
-            m_codecContext->flags2 |= AV_CODEC_FLAG2_FAST;
-            m_codecContext->thread_count = 1;
-            
-            ret = avcodec_open2(m_codecContext, codec, nullptr);
-            if (ret < 0) {
-                av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-                qCCritical(log_ffmpeg_backend) << "Failed to open software codec:" << QString::fromUtf8(errbuf);
-                return false;
-            }
-            
-            usingHwDecoder = false;
-            qCInfo(log_ffmpeg_backend) << "✓ Successfully opened software decoder:" << codec->name;
-        } else {
-            qCCritical(log_ffmpeg_backend) << "Failed to open codec:" << QString::fromUtf8(errbuf);
-            return false;
-        }
-    } else if (usingHwDecoder) {
-        // Hardware codec opened successfully - log details
-        qCInfo(log_ffmpeg_backend) << "✓✓✓ Successfully opened hardware codec:" << codec->name << "✓✓✓";
-        qCInfo(log_ffmpeg_backend) << "  - Codec pixel format:" << m_codecContext->pix_fmt 
-                                   << "(" << av_get_pix_fmt_name(m_codecContext->pix_fmt) << ")";
-        qCInfo(log_ffmpeg_backend) << "  - Codec capabilities:" << codec->capabilities;
-        
-        // Check if this codec outputs hardware frames
-        if (codec->capabilities & AV_CODEC_CAP_HARDWARE) {
-            qCInfo(log_ffmpeg_backend) << "  - Codec has AV_CODEC_CAP_HARDWARE capability";
-        }
-    }
+    // Update local video stream index from device manager
+    m_videoStreamIndex = m_deviceManager->GetVideoStreamIndex();
     
     // Allocate frames
     m_frame = make_av_frame();
@@ -1231,13 +640,6 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
         return false;
     }
     
-    qCDebug(log_ffmpeg_backend) << "Input device opened successfully:"
-                                << "codec=" << codec->name
-                                << "hw_accel=" << (usingHwDecoder ? av_hwdevice_get_type_name(m_hwDeviceType) : "none")
-                                << "codec_id=" << codecpar->codec_id
-                                << "resolution=" << codecpar->width << "x" << codecpar->height
-                                << "pixel_format=" << codecpar->format;
-    
     // Reset operation timer - device opened successfully
     m_operationStartTime = 0;
     
@@ -1247,9 +649,9 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
 void FFmpegBackendHandler::closeInputDevice()
 {
     // Free frames and packet
-        if (m_frame) {
-            AV_FRAME_RESET(m_frame);
-        }
+    if (m_frame) {
+        AV_FRAME_RESET(m_frame);
+    }
     
     if (m_frameRGB) {
         AV_FRAME_RESET(m_frameRGB);
@@ -1265,16 +667,9 @@ void FFmpegBackendHandler::closeInputDevice()
         m_swsContext = nullptr;
     }
     
-    // Close codec context
-    if (m_codecContext) {
-        avcodec_free_context(&m_codecContext);
-        m_codecContext = nullptr;
-    }
-    
-    // Close format context
-    if (m_formatContext) {
-        avformat_close_input(&m_formatContext);
-        m_formatContext = nullptr;
+    // Close device via device manager
+    if (m_deviceManager) {
+        m_deviceManager->CloseDevice();
     }
     
     m_videoStreamIndex = -1;
@@ -1288,7 +683,8 @@ bool FFmpegBackendHandler::readFrame()
         return false;
     }
 
-    if (!m_formatContext || m_videoStreamIndex == -1) {
+    AVFormatContext* formatContext = m_deviceManager ? m_deviceManager->GetFormatContext() : nullptr;
+    if (!formatContext || m_videoStreamIndex == -1) {
         static int noContextWarnings = 0;
         if (noContextWarnings < 5) { // Limit warnings to avoid spam
             qCWarning(log_ffmpeg_backend) << "readFrame called with invalid context or stream index";
@@ -1298,7 +694,7 @@ bool FFmpegBackendHandler::readFrame()
     }
     
     // Read packet from input with timeout handling
-    int ret = av_read_frame(m_formatContext, AV_PACKET_RAW(m_packet));
+    int ret = av_read_frame(formatContext, AV_PACKET_RAW(m_packet));
     if (ret < 0) {
         if (ret == AVERROR(EAGAIN)) {
             return false; // Try again later
@@ -1356,11 +752,14 @@ bool FFmpegBackendHandler::readFrame()
 void FFmpegBackendHandler::processFrame()
 {
     // Check if capture is stopping or resources are gone (no lock to avoid blocking)
-    if (!m_captureRunning || !m_formatContext || !m_codecContext) {
+    AVFormatContext* formatContext = m_deviceManager ? m_deviceManager->GetFormatContext() : nullptr;
+    AVCodecContext* codecContext = m_deviceManager ? m_deviceManager->GetCodecContext() : nullptr;
+    
+    if (!m_captureRunning || !formatContext || !codecContext) {
         return; // Exit early if capture is stopping or resources are gone
     }
 
-    if (!m_packet || !m_codecContext) {
+    if (!m_packet || !codecContext) {
         return;
     }
     
@@ -1387,8 +786,8 @@ void FFmpegBackendHandler::processFrame()
     }
     
     // Drop frames if we're processing too slowly, but be less aggressive when recording
-    // ULTRA LOW LATENCY: Very aggressive frame dropping for minimal delay
-    int frameDropThreshold = isRecording ? 1 : 2; 
+    // IMPROVED: More reasonable thresholds - 20ms for recording (allows 30fps), 2ms for display-only
+    int frameDropThreshold = isRecording ? 20 : 2; 
     if (currentTime - lastProcessTime < frameDropThreshold) {
         droppedFrames++;
         av_packet_unref(AV_PACKET_RAW(m_packet));
@@ -1406,8 +805,8 @@ void FFmpegBackendHandler::processFrame()
     
     // Determine if we're using a hardware decoder
     bool usingHardwareDecoder = false;
-    if (m_codecContext->codec) {
-        const char* codecName = m_codecContext->codec->name;
+    if (codecContext->codec) {
+        const char* codecName = codecContext->codec->name;
         // Check if this is a hardware decoder (ends with _cuvid, _qsv, etc.)
         usingHardwareDecoder = (strstr(codecName, "_cuvid") != nullptr || 
                                strstr(codecName, "_qsv") != nullptr ||
@@ -1419,14 +818,14 @@ void FFmpegBackendHandler::processFrame()
     // 2. TurboJPEG - Fast CPU-based JPEG decoder
     // 3. FFmpeg software decoder - Fallback option
     
-    if (m_codecContext->codec_id == AV_CODEC_ID_MJPEG) {
+    if (codecContext->codec_id == AV_CODEC_ID_MJPEG) {
         if (usingHardwareDecoder) {
             // Use hardware decoder (CUVID/NVDEC or QSV)
             static int hwFrameCount = 0;
             hwFrameCount++;
             
             if (hwFrameCount % 1000 == 1) {
-                const char* hwType = (strstr(m_codecContext->codec->name, "cuvid") != nullptr) ? "NVDEC/CUVID" : "Hardware";
+                const char* hwType = (strstr(codecContext->codec->name, "cuvid") != nullptr) ? "NVDEC/CUVID" : "Hardware";
                 qCInfo(log_ffmpeg_backend) << "Using" << hwType << "GPU acceleration for MJPEG (frame" << hwFrameCount << ")";
             }
             
@@ -1486,7 +885,7 @@ void FFmpegBackendHandler::processFrame()
         
         // Only log every 1000th frame to minimize debug overhead
         if (ffmpegFrameCount % 1000 == 1) {
-            qCDebug(log_ffmpeg_backend) << "Using FFmpeg decoder (frame" << ffmpegFrameCount << "), codec:" << m_codecContext->codec_id;
+            qCDebug(log_ffmpeg_backend) << "Using FFmpeg decoder (frame" << ffmpegFrameCount << "), codec:" << codecContext->codec_id;
         }
         pixmap = decodeFrame(AV_PACKET_RAW(m_packet));
     }
@@ -1568,12 +967,23 @@ void FFmpegBackendHandler::processFrame()
             {
                 QMutexLocker recordingLocker(&m_recordingMutex);
                 if (m_recordingActive && !m_recordingPaused) {
-                    // Calculate target interval based on cached recording framerate
-                    qint64 targetInterval = 1000 / m_recordingTargetFramerate; // milliseconds between frames
+                    // IMPROVED: Use frame count based on elapsed time to prevent timing jitter
+                    // Calculate expected frame number based on actual elapsed recording time
+                    qint64 elapsedMs = currentTime - m_recordingStartTime - m_totalPausedDuration;
+                    int64_t expectedFrameNumber = (elapsedMs * m_recordingTargetFramerate) / 1000;
                     
-                    if (m_lastRecordedFrameTime == 0 || (currentTime - m_lastRecordedFrameTime) >= targetInterval) {
+                    // Write frame if we're behind or at the expected frame count
+                    if (m_recordingFrameNumber <= expectedFrameNumber) {
                         shouldWriteFrame = true;
                         m_lastRecordedFrameTime = currentTime;
+                    } else {
+                        // We're ahead of schedule - skip this frame to maintain timing
+                        static int skipLogCount = 0;
+                        if (++skipLogCount % 100 == 0) {
+                            qCDebug(log_ffmpeg_backend) << "Skipping frame - ahead of schedule:" 
+                                                       << "recorded:" << m_recordingFrameNumber 
+                                                       << "expected:" << expectedFrameNumber;
+                        }
                     }
                 }
             }
@@ -1639,7 +1049,7 @@ void FFmpegBackendHandler::processFrame()
             qCWarning(log_ffmpeg_backend) << "Failed to decode frame - pixmap is null";
             qCWarning(log_ffmpeg_backend) << "Frame decode failure details:";
             qCWarning(log_ffmpeg_backend) << "  - Packet size:" << AV_PACKET_RAW(m_packet)->size;
-            qCWarning(log_ffmpeg_backend) << "  - Codec ID:" << (m_codecContext ? m_codecContext->codec_id : -1);
+            qCWarning(log_ffmpeg_backend) << "  - Codec ID:" << (codecContext ? codecContext->codec_id : -1);
             qCWarning(log_ffmpeg_backend) << "  - Stream index:" << AV_PACKET_RAW(m_packet)->stream_index;
         }
     }
@@ -1702,13 +1112,14 @@ QPixmap FFmpegBackendHandler::decodeJpegFrame(const uint8_t* data, int size)
 
 QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
 {
-    if (!m_codecContext || !m_frame) {
+    AVCodecContext* codecContext = m_deviceManager ? m_deviceManager->GetCodecContext() : nullptr;
+    if (!codecContext || !m_frame) {
         qCWarning(log_ffmpeg_backend) << "decodeFrame: Missing codec context or frame";
         return QPixmap();
     }
     
     // Send packet to decoder
-    int ret = avcodec_send_packet(m_codecContext, packet);
+    int ret = avcodec_send_packet(codecContext, packet);
     if (ret < 0) {
         char errbuf[AV_ERROR_MAX_STRING_SIZE];
         av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
@@ -1717,7 +1128,7 @@ QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
     }
     
     // Receive frame from decoder
-    ret = avcodec_receive_frame(m_codecContext, AV_FRAME_RAW(m_frame));
+    ret = avcodec_receive_frame(codecContext, AV_FRAME_RAW(m_frame));
     if (ret < 0) {
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
             return QPixmap(); // Not an error, just no frame ready
@@ -1729,8 +1140,8 @@ QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
         static int errorCount = 0;
         if (++errorCount <= 5) {
             qCWarning(log_ffmpeg_backend) << "Error receiving frame from decoder:" << QString::fromUtf8(errbuf);
-            qCWarning(log_ffmpeg_backend) << "  Decoder:" << (m_codecContext->codec ? m_codecContext->codec->name : "unknown");
-            qCWarning(log_ffmpeg_backend) << "  Pixel format:" << m_codecContext->pix_fmt;
+            qCWarning(log_ffmpeg_backend) << "  Decoder:" << (codecContext->codec ? codecContext->codec->name : "unknown");
+            qCWarning(log_ffmpeg_backend) << "  Pixel format:" << codecContext->pix_fmt;
             qCWarning(log_ffmpeg_backend) << "  Error code:" << ret;
         }
         return QPixmap();
@@ -1751,7 +1162,7 @@ QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
     // Log frame format information for hardware decoder debugging
     static int frameFormatLogCount = 0;
     if (++frameFormatLogCount <= 5 || frameFormatLogCount % 1000 == 1) {
-        const char* codecName = m_codecContext->codec ? m_codecContext->codec->name : "unknown";
+        const char* codecName = codecContext->codec ? codecContext->codec->name : "unknown";
         const char* formatName = av_get_pix_fmt_name(static_cast<AVPixelFormat>(AV_FRAME_RAW(m_frame)->format));
         qCInfo(log_ffmpeg_backend) << "Received frame from" << codecName 
                                    << "- format:" << AV_FRAME_RAW(m_frame)->format 
@@ -2793,8 +2204,12 @@ bool FFmpegBackendHandler::configureEncoder(const QSize& resolution, int framera
     // Set codec-specific options
     if (codec->id == AV_CODEC_ID_H264) {
         av_opt_set_int(m_recordingCodecContext->priv_data, "crf", m_recordingConfig.videoQuality, 0);
-        av_opt_set(m_recordingCodecContext->priv_data, "preset", "medium", 0);
+        av_opt_set(m_recordingCodecContext->priv_data, "preset", "ultrafast", 0); // Use ultrafast for real-time recording
         av_opt_set(m_recordingCodecContext->priv_data, "tune", "zerolatency", 0);
+        
+        // Use constant bitrate mode for more predictable performance
+        m_recordingCodecContext->rc_max_rate = m_recordingConfig.videoBitrate;
+        m_recordingCodecContext->rc_buffer_size = m_recordingConfig.videoBitrate * 2;
     } else if (codec->id == AV_CODEC_ID_MJPEG) {
         // MJPEG-specific options for better quality
         av_opt_set_int(m_recordingCodecContext->priv_data, "q:v", m_recordingConfig.videoQuality, 0);
@@ -2881,15 +2296,21 @@ bool FFmpegBackendHandler::writeFrameToFile(AVFrame* frame)
         return false;
     }
     
-    // Calculate proper timestamp based on frame rate and frame number
-    // This ensures even frame spacing in the output video
-    frame->pts = m_recordingFrameNumber;
+    // FIXED: Calculate PTS based on actual elapsed time for proper A/V synchronization
+    // This handles variable frame rates and provides better timing accuracy
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    qint64 elapsedMs = currentTime - m_recordingStartTime - m_totalPausedDuration;
+    
+    // Convert elapsed milliseconds to PTS using the codec's time base
+    int64_t pts = av_rescale_q(elapsedMs, AVRational{1, 1000}, m_recordingCodecContext->time_base);
+    frame->pts = pts;
     
     // Debug logging for first few frames to verify timing
     static int debugFrameCount = 0;
     if (++debugFrameCount <= 5 || debugFrameCount % 100 == 0) { // Log first 5 and every 100th frame
         qCDebug(log_ffmpeg_backend) << "Writing frame" << m_recordingFrameNumber 
-                                   << "with PTS" << frame->pts 
+                                   << "with PTS" << pts 
+                                   << "(elapsed:" << elapsedMs << "ms)"
                                    << "time_base" << m_recordingCodecContext->time_base.num << "/" << m_recordingCodecContext->time_base.den;
     }
     
@@ -3031,7 +2452,9 @@ void FFmpegBackendHandler::cleanupRecording()
 // Advanced recording methods
 bool FFmpegBackendHandler::isCameraReady() const
 {
-    return m_captureRunning && m_formatContext != nullptr && m_codecContext != nullptr;
+    AVFormatContext* formatContext = m_deviceManager ? m_deviceManager->GetFormatContext() : nullptr;
+    AVCodecContext* codecContext = m_deviceManager ? m_deviceManager->GetCodecContext() : nullptr;
+    return m_captureRunning && formatContext != nullptr && codecContext != nullptr;
 }
 
 bool FFmpegBackendHandler::supportsAdvancedRecording() const

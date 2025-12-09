@@ -37,6 +37,8 @@ set(HOST_SOURCES
     host/backend/qtmultimediabackendhandler.cpp host/backend/qtmultimediabackendhandler.h
     host/backend/qtbackendhandler.cpp host/backend/qtbackendhandler.h
     host/backend/ffmpeg/capturethread.cpp host/backend/ffmpeg/capturethread.h
+    host/backend/ffmpeg/ffmpeg_hardware_accelerator.cpp host/backend/ffmpeg/ffmpeg_hardware_accelerator.h
+    host/backend/ffmpeg/ffmpeg_device_manager.cpp host/backend/ffmpeg/ffmpeg_device_manager.h
     host/backend/ffmpeg/ffmpegutils.h
 )
 

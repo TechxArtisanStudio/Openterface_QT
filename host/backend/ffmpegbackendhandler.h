@@ -43,6 +43,12 @@ struct DeviceChangeEvent;
 // Forward declare CaptureThread class used by this backend
 class CaptureThread;
 
+// Forward declare FFmpegHardwareAccelerator class
+class FFmpegHardwareAccelerator;
+
+// Forward declare FFmpegDeviceManager class
+class FFmpegDeviceManager;
+
 // Forward declarations for FFmpeg types (conditional compilation)
 #ifdef HAVE_FFMPEG
 extern "C" {
@@ -206,19 +212,10 @@ private:
     bool openInputDevice(const QString& devicePath, const QSize& resolution, int framerate);
     void closeInputDevice();
     
-    // Hardware acceleration
+    // Hardware acceleration - delegated to FFmpegHardwareAccelerator
     bool initializeHardwareAcceleration();
     void cleanupHardwareAcceleration();
     bool tryHardwareDecoder(const AVCodecParameters* codecpar, const AVCodec** outCodec, bool* outUsingHwDecoder);
-    
-    struct HwDecoderInfo {
-        const char* name;
-        const char* decoderName;
-        AVHWDeviceType deviceType;
-        bool needsDeviceContext;
-        QString settingName;
-    };
-    bool tryInitializeHwDecoder(const HwDecoderInfo& decoder);
     
     // Device capability detection
     struct CameraCapability {
@@ -249,27 +246,25 @@ private:
     friend class CaptureThread; // Allow capture thread to access private members (safe - it needs access for device/state)
     std::unique_ptr<CaptureThread> m_captureThread;
     
-    // FFmpeg components
+    // FFmpeg components - managed by FFmpegDeviceManager
+    std::unique_ptr<FFmpegDeviceManager> m_deviceManager;
+    
+    // Frame/packet handling (still managed by backend handler)
 #ifdef HAVE_FFMPEG
-    AVFormatContext* m_formatContext;
-    AVCodecContext* m_codecContext;
     // Use RAII-managed smart pointers for AVFrame/AVPacket
     AvFramePtr m_frame;
     AvFramePtr m_frameRGB;
     AvPacketPtr m_packet;
     SwsContext* m_swsContext;
 #else
-    AVFormatContext* m_formatContext;
-    AVCodecContext* m_codecContext;
     AVFrame* m_frame;
     AVFrame* m_frameRGB;
     AVPacket* m_packet;
     SwsContext* m_swsContext;
 #endif
     
-    // Hardware acceleration (QSV)
-    AVBufferRef* m_hwDeviceContext;
-    enum AVHWDeviceType m_hwDeviceType;
+    // Hardware acceleration - managed by dedicated class
+    std::unique_ptr<FFmpegHardwareAccelerator> m_hardwareAccelerator;
     
     // Recording components
 #ifdef HAVE_FFMPEG
