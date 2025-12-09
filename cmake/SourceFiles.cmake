@@ -39,6 +39,8 @@ set(HOST_SOURCES
     host/backend/ffmpeg/capturethread.cpp host/backend/ffmpeg/capturethread.h
     host/backend/ffmpeg/ffmpeg_hardware_accelerator.cpp host/backend/ffmpeg/ffmpeg_hardware_accelerator.h
     host/backend/ffmpeg/ffmpeg_device_manager.cpp host/backend/ffmpeg/ffmpeg_device_manager.h
+    host/backend/ffmpeg/ffmpeg_frame_processor.cpp host/backend/ffmpeg/ffmpeg_frame_processor.h
+    host/backend/ffmpeg/ffmpeg_recorder.cpp host/backend/ffmpeg/ffmpeg_recorder.h
     host/backend/ffmpeg/ffmpegutils.h
 )
 

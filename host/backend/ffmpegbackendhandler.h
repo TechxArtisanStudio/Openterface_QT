@@ -49,6 +49,13 @@ class FFmpegHardwareAccelerator;
 // Forward declare FFmpegDeviceManager class
 class FFmpegDeviceManager;
 
+// Forward declare FFmpegFrameProcessor class
+class FFmpegFrameProcessor;
+
+// Forward declare FFmpegRecorder class
+class FFmpegRecorder;
+struct RecordingConfig; // Defined in ffmpeg_recorder.h
+
 // Forward declarations for FFmpeg types (conditional compilation)
 #ifdef HAVE_FFMPEG
 extern "C" {
@@ -115,16 +122,6 @@ public slots:
 
 public:
 
-    // Recording configuration
-    struct RecordingConfig {
-        QString outputPath;
-        QString format = "mp4";          // mp4, avi, mov
-        QString videoCodec = "libx264";   // libx264, libx265, mpeg4
-        int videoBitrate = 2000000;       // 2 Mbps default
-        int videoQuality = 23;            // CRF value for x264 (lower = better quality)
-        bool useHardwareAcceleration = false;
-    };
-
     // Video recording methods
     bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000);
     bool stopRecording();
@@ -175,12 +172,6 @@ public:
     void checkDeviceReconnection() { /* stub */ }
 
     bool readFrame();
-    QPixmap convertFrameToPixmap(AVFrame* frame);
-    QPixmap decodeFrame(AVPacket* packet);
-    
-#ifdef HAVE_LIBJPEG_TURBO
-    QPixmap decodeJpegFrame(const uint8_t* data, int size);
-#endif
 
     void setVideoOutput(QGraphicsVideoItem* videoItem);
     void setVideoOutput(VideoPane* videoPane);
@@ -231,17 +222,6 @@ private:
     qint64 m_operationStartTime;
     static constexpr qint64 FFMPEG_OPERATION_TIMEOUT_MS = 5000; // 5 second timeout
     
-    // Recording-specific methods
-    bool initializeRecording();
-    void cleanupRecording();
-    bool writeFrameToFile(AVFrame* frame);
-    void finalizeRecording();
-    bool configureEncoder(const QSize& resolution, int framerate);
-
-#ifdef HAVE_LIBJPEG_TURBO
-    // Note: decodeJpegFrame is declared in public section above
-#endif
-    
     // Threading
     friend class CaptureThread; // Allow capture thread to access private members (safe - it needs access for device/state)
     std::unique_ptr<CaptureThread> m_captureThread;
@@ -249,44 +229,20 @@ private:
     // FFmpeg components - managed by FFmpegDeviceManager
     std::unique_ptr<FFmpegDeviceManager> m_deviceManager;
     
-    // Frame/packet handling (still managed by backend handler)
-#ifdef HAVE_FFMPEG
-    // Use RAII-managed smart pointers for AVFrame/AVPacket
-    AvFramePtr m_frame;
-    AvFramePtr m_frameRGB;
-    AvPacketPtr m_packet;
-    SwsContext* m_swsContext;
-#else
-    AVFrame* m_frame;
-    AVFrame* m_frameRGB;
-    AVPacket* m_packet;
-    SwsContext* m_swsContext;
-#endif
-    
     // Hardware acceleration - managed by dedicated class
     std::unique_ptr<FFmpegHardwareAccelerator> m_hardwareAccelerator;
     
-    // Recording components
-#ifdef HAVE_FFMPEG
-    AVFormatContext* m_recordingFormatContext;
-    AVCodecContext* m_recordingCodecContext;
-    AVStream* m_recordingVideoStream;
-    SwsContext* m_recordingSwsContext;
-    AvFramePtr m_recordingFrame;
-    AvPacketPtr m_recordingPacket;
-#else
-    AVFormatContext* m_recordingFormatContext;
-    AVCodecContext* m_recordingCodecContext;
-    AVStream* m_recordingVideoStream;
-    SwsContext* m_recordingSwsContext;
-    AVFrame* m_recordingFrame;
-    AVPacket* m_recordingPacket;
-#endif
-
+    // Frame processing - managed by dedicated class
+    std::unique_ptr<FFmpegFrameProcessor> m_frameProcessor;
     
-#ifdef HAVE_LIBJPEG_TURBO
-    // TurboJPEG components
-    tjhandle m_turboJpegHandle;
+    // Video recording - managed by dedicated class
+    std::unique_ptr<FFmpegRecorder> m_recorder;
+    
+    // Packet handling
+#ifdef HAVE_FFMPEG
+    AvPacketPtr m_packet;
+#else
+    AVPacket* m_packet;
 #endif
     
     // State management
@@ -300,17 +256,8 @@ private:
     // Hardware acceleration preference
     QString m_preferredHwAccel;
     
-    // Recording state
+    // Recording state (for compatibility - actual state managed by m_recorder)
     bool m_recordingActive;
-    bool m_recordingPaused;
-    QString m_recordingOutputPath;
-    RecordingConfig m_recordingConfig;
-    qint64 m_recordingStartTime;
-    qint64 m_recordingPausedTime;
-    qint64 m_totalPausedDuration;
-    qint64 m_lastRecordedFrameTime; // Time when last frame was written to recording
-    int m_recordingTargetFramerate; // Target framerate for recording (cached for thread safety)
-    int64_t m_recordingFrameNumber;
     
     // Hotplug monitoring
     HotplugMonitor* m_hotplugMonitor;
@@ -318,8 +265,6 @@ private:
     bool m_waitingForDevice;
     QTimer* m_deviceWaitTimer;
     bool m_suppressErrors;
-    
-    QImage m_latestFrame;
     
     // Output management
     QGraphicsVideoItem* m_graphicsVideoItem;
@@ -332,9 +277,6 @@ private:
     // Thread safety
     mutable QMutex m_mutex;
     QWaitCondition m_frameCondition;
-    
-    // Recording thread safety
-    mutable QMutex m_recordingMutex;
     
     // Performance monitoring
     QTimer* m_performanceTimer;

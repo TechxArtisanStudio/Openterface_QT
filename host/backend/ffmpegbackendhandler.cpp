@@ -63,44 +63,29 @@ Q_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
 #include "ffmpeg/capturethread.h"
 #include "ffmpeg/ffmpeg_hardware_accelerator.h"
 #include "ffmpeg/ffmpeg_device_manager.h"
+#include "ffmpeg/ffmpeg_frame_processor.h"
+#include "ffmpeg/ffmpeg_recorder.h"
 
 FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
-    : MultimediaBackendHandler(parent)
-    , m_frame(nullptr),
-    m_frameRGB(nullptr),
+    : MultimediaBackendHandler(parent), 
     m_packet(nullptr),
-      m_swsContext(nullptr),
-      m_deviceManager(std::make_unique<FFmpegDeviceManager>()),
-      m_hardwareAccelerator(std::make_unique<FFmpegHardwareAccelerator>()),
-      m_captureRunning(false),
-      m_videoStreamIndex(-1),
-      m_frameCount(0),
-      m_lastFrameTime(0),
-      m_recordingFormatContext(nullptr),
-      m_recordingCodecContext(nullptr),
-      m_recordingVideoStream(nullptr),
-      m_recordingSwsContext(nullptr),
-      m_recordingFrame(nullptr),
-      m_recordingPacket(nullptr),
-      m_interruptRequested(false),
-      m_operationStartTime(0)
-#ifdef HAVE_LIBJPEG_TURBO
-      , m_turboJpegHandle(nullptr)
-#endif
-      , m_hotplugMonitor(nullptr),
-      m_waitingForDevice(false),
-      m_deviceWaitTimer(nullptr),
-      m_suppressErrors(false),
-      m_graphicsVideoItem(nullptr),
-      m_videoPane(nullptr),
-      m_recordingActive(false),
-      m_recordingPaused(false),
-      m_recordingStartTime(0),
-      m_recordingPausedTime(0),
-      m_totalPausedDuration(0),
-      m_lastRecordedFrameTime(0),
-      m_recordingTargetFramerate(30),
-      m_recordingFrameNumber(0)
+    m_deviceManager(std::make_unique<FFmpegDeviceManager>()),
+    m_hardwareAccelerator(std::make_unique<FFmpegHardwareAccelerator>()),
+    m_frameProcessor(std::make_unique<FFmpegFrameProcessor>()),
+    m_recorder(std::make_unique<FFmpegRecorder>()),
+    m_captureRunning(false),
+    m_videoStreamIndex(-1),
+    m_frameCount(0),
+    m_lastFrameTime(0),
+    m_interruptRequested(false),
+    m_operationStartTime(0),
+    m_hotplugMonitor(nullptr),
+    m_waitingForDevice(false),
+    m_deviceWaitTimer(nullptr),
+    m_suppressErrors(false),
+    m_graphicsVideoItem(nullptr),
+    m_videoPane(nullptr),
+    m_recordingActive(false)
 {
     m_config = getDefaultConfig();
     m_preferredHwAccel = GlobalSetting::instance().getHardwareAcceleration();
@@ -138,15 +123,14 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
 FFmpegBackendHandler::~FFmpegBackendHandler()
 {
     // Stop recording first if active
-    if (m_recordingActive) {
-        stopRecording();
+    if (m_recorder && m_recorder->IsRecording()) {
+        m_recorder->StopRecording();
     }
     
     // Disconnect from hotplug monitor
     disconnectFromHotplugMonitor();
     
     stopDirectCapture();
-    cleanupRecording();
     cleanupFFmpeg();
 }
 
@@ -209,9 +193,7 @@ void FFmpegBackendHandler::prepareCameraCreation()
 
 void FFmpegBackendHandler::configureCameraDevice()
 {
-    qCDebug(log_ffmpeg_backend) << "FFmpeg: Configuring camera device";
-
-    qCDebug(log_ffmpeg_backend) << "FFmpeg: Camera device configuration";
+    return;
 }
 
 void FFmpegBackendHandler::setupCaptureSession(QMediaCaptureSession* session)
@@ -314,19 +296,6 @@ bool FFmpegBackendHandler::initializeFFmpeg()
     av_log_set_level(AV_LOG_WARNING); // Reduce FFmpeg log noise
     avdevice_register_all();
     
-#ifdef HAVE_LIBJPEG_TURBO
-    // Initialize TurboJPEG decompressor
-    m_turboJpegHandle = tjInitDecompress();
-    if (!m_turboJpegHandle) {
-        qCWarning(log_ffmpeg_backend) << "Failed to initialize TurboJPEG decompressor:" << tjGetErrorStr();
-        qCDebug(log_ffmpeg_backend) << "Will fall back to FFmpeg decoder for MJPEG frames";
-    } else {
-        qCDebug(log_ffmpeg_backend) << "TurboJPEG decompressor initialized successfully";
-    }
-#else
-    qCDebug(log_ffmpeg_backend) << "TurboJPEG support not compiled in";
-#endif
-    
     qCDebug(log_ffmpeg_backend) << "FFmpeg initialization completed";
     return true;
 }
@@ -336,14 +305,6 @@ void FFmpegBackendHandler::cleanupFFmpeg()
     qCDebug(log_ffmpeg_backend) << "Cleaning up FFmpeg";
     
     closeInputDevice();
-    
-    // Cleanup TurboJPEG
-#ifdef HAVE_LIBJPEG_TURBO
-    if (m_turboJpegHandle) {
-        tjDestroy(m_turboJpegHandle);
-        m_turboJpegHandle = nullptr;
-    }
-#endif
     
     // Cleanup hardware acceleration
     cleanupHardwareAcceleration();
@@ -556,12 +517,26 @@ void FFmpegBackendHandler::stopDirectCapture()
                 // We're being called from a different thread, terminate immediately
                 qCDebug(log_ffmpeg_backend) << "Terminating capture thread immediately";
                 m_captureThread->requestInterruption();
-                m_captureThread->wait(1000);
-                if (m_captureThread->isRunning()) {
-                    qCCritical(log_ffmpeg_backend) << "Capture thread did not exit gracefully!";
+                
+                // Wait for thread to finish with proper timeout handling
+                if (!m_captureThread->wait(3000)) {
+                    qCCritical(log_ffmpeg_backend) << "Capture thread did not exit after 3 seconds, forcing termination";
+                    m_captureThread->terminate();
+                    
+                    // Give it one more chance to clean up after terminate
+                    if (!m_captureThread->wait(1000)) {
+                        qCCritical(log_ffmpeg_backend) << "Capture thread still running after terminate! This should not happen.";
+                    }
                 }
-                m_captureThread.reset();
-                qCDebug(log_ffmpeg_backend) << "Capture thread terminated and cleaned up";
+                
+                // Only reset the thread after ensuring it's stopped
+                if (!m_captureThread->isRunning()) {
+                    m_captureThread.reset();
+                    qCDebug(log_ffmpeg_backend) << "Capture thread terminated and cleaned up";
+                } else {
+                    qCCritical(log_ffmpeg_backend) << "WARNING: Capture thread still running, cannot safely destroy!";
+                    // Don't reset to avoid the crash, but this is a serious error
+                }
                 
                 // Resources already cleaned up by closeInputDevice()
             }
@@ -630,13 +605,11 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
     // Update local video stream index from device manager
     m_videoStreamIndex = m_deviceManager->GetVideoStreamIndex();
     
-    // Allocate frames
-    m_frame = make_av_frame();
-    m_frameRGB = make_av_frame();
+    // Allocate packet
     m_packet = make_av_packet();
     
-    if (!m_frame || !m_frameRGB || !m_packet) {
-        qCCritical(log_ffmpeg_backend) << "Failed to allocate frames or packet";
+    if (!m_packet) {
+        qCCritical(log_ffmpeg_backend) << "Failed to allocate packet";
         return false;
     }
     
@@ -648,23 +621,9 @@ bool FFmpegBackendHandler::openInputDevice(const QString& devicePath, const QSiz
 
 void FFmpegBackendHandler::closeInputDevice()
 {
-    // Free frames and packet
-    if (m_frame) {
-        AV_FRAME_RESET(m_frame);
-    }
-    
-    if (m_frameRGB) {
-        AV_FRAME_RESET(m_frameRGB);
-    }
-    
+    // Free packet
     if (m_packet) {
         AV_PACKET_RESET(m_packet);
-    }
-    
-    // Free scaling context
-    if (m_swsContext) {
-        sws_freeContext(m_swsContext);
-        m_swsContext = nullptr;
     }
     
     // Close device via device manager
@@ -755,140 +714,19 @@ void FFmpegBackendHandler::processFrame()
     AVFormatContext* formatContext = m_deviceManager ? m_deviceManager->GetFormatContext() : nullptr;
     AVCodecContext* codecContext = m_deviceManager ? m_deviceManager->GetCodecContext() : nullptr;
     
-    if (!m_captureRunning || !formatContext || !codecContext) {
+    if (!m_captureRunning || !formatContext || !codecContext || !m_frameProcessor) {
         return; // Exit early if capture is stopping or resources are gone
     }
 
-    if (!m_packet || !codecContext) {
+    if (!m_packet) {
         return;
     }
-    
-    // Validate packet data before processing
-    if (AV_PACKET_RAW(m_packet)->size <= 0 || !AV_PACKET_RAW(m_packet)->data) {
-        if (AV_PACKET_RAW(m_packet)->size > 0 && !AV_PACKET_RAW(m_packet)->data) {
-            qCWarning(log_ffmpeg_backend) << "Invalid packet: null data but size" << AV_PACKET_RAW(m_packet)->size;
-        }
-        av_packet_unref(AV_PACKET_RAW(m_packet));
-        return;
-    }
-    
-    // RESPONSIVENESS OPTIMIZATION: Implement frame dropping for better mouse response
-    // But be less aggressive when recording is active
-    static qint64 lastProcessTime = 0;
-    static int droppedFrames = 0;
-    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     
     // Check if recording is active
-    bool isRecording = false;
-    {
-        QMutexLocker recordingLocker(&m_recordingMutex);
-        isRecording = m_recordingActive && !m_recordingPaused;
-    }
+    bool isRecording = m_recorder && m_recorder->IsRecording() && !m_recorder->IsPaused();
     
-    // Drop frames if we're processing too slowly, but be less aggressive when recording
-    // IMPROVED: More reasonable thresholds - 20ms for recording (allows 30fps), 2ms for display-only
-    int frameDropThreshold = isRecording ? 20 : 2; 
-    if (currentTime - lastProcessTime < frameDropThreshold) {
-        droppedFrames++;
-        av_packet_unref(AV_PACKET_RAW(m_packet));
-        return;
-    }
-    lastProcessTime = currentTime;
-    
-    // Log dropped frames occasionally for monitoring
-    if (droppedFrames > 0 && m_frameCount % 1000 == 0) {
-        qCDebug(log_ffmpeg_backend) << "Dropped" << droppedFrames << "frames for responsiveness (last 1000 frames)";
-        droppedFrames = 0;
-    }
-    
-    QPixmap pixmap;
-    
-    // Determine if we're using a hardware decoder
-    bool usingHardwareDecoder = false;
-    if (codecContext->codec) {
-        const char* codecName = codecContext->codec->name;
-        // Check if this is a hardware decoder (ends with _cuvid, _qsv, etc.)
-        usingHardwareDecoder = (strstr(codecName, "_cuvid") != nullptr || 
-                               strstr(codecName, "_qsv") != nullptr ||
-                               strstr(codecName, "_nvdec") != nullptr);
-    }
-    
-    // PRIORITY ORDER for MJPEG decoding:
-    // 1. Hardware decoder (CUVID/NVDEC, QSV) - Best performance, GPU acceleration
-    // 2. TurboJPEG - Fast CPU-based JPEG decoder
-    // 3. FFmpeg software decoder - Fallback option
-    
-    if (codecContext->codec_id == AV_CODEC_ID_MJPEG) {
-        if (usingHardwareDecoder) {
-            // Use hardware decoder (CUVID/NVDEC or QSV)
-            static int hwFrameCount = 0;
-            hwFrameCount++;
-            
-            if (hwFrameCount % 1000 == 1) {
-                const char* hwType = (strstr(codecContext->codec->name, "cuvid") != nullptr) ? "NVDEC/CUVID" : "Hardware";
-                qCInfo(log_ffmpeg_backend) << "Using" << hwType << "GPU acceleration for MJPEG (frame" << hwFrameCount << ")";
-            }
-            
-            pixmap = decodeFrame(AV_PACKET_RAW(m_packet));
-            
-            // If hardware decoder fails, try TurboJPEG fallback
-            if (pixmap.isNull()) {
-#ifdef HAVE_LIBJPEG_TURBO
-                if (hwFrameCount % 1000 == 1) {
-                    qCWarning(log_ffmpeg_backend) << "Hardware decoder failed, falling back to TurboJPEG";
-                }
-                pixmap = decodeJpegFrame(AV_PACKET_RAW(m_packet)->data, AV_PACKET_RAW(m_packet)->size);
-#endif
-            }
-        } else {
-            // No hardware decoder - use TurboJPEG or FFmpeg software decoder
-#ifdef HAVE_LIBJPEG_TURBO
-            // Use TurboJPEG for significant performance improvement on MJPEG
-            static int turbojpegFrameCount = 0;
-            turbojpegFrameCount++;
-            
-            // RESPONSIVENESS: Reduce logging overhead
-            if (turbojpegFrameCount % 5000 == 1) {
-                qCDebug(log_ffmpeg_backend) << "Using TurboJPEG CPU acceleration (frame" << turbojpegFrameCount << ")";
-            }
-            
-            // Additional validation for JPEG data
-            if (AV_PACKET_RAW(m_packet)->size < 10) { // Minimum JPEG header size
-                if (turbojpegFrameCount % 5000 == 1) {
-                    qCWarning(log_ffmpeg_backend) << "JPEG packet too small:" << AV_PACKET_RAW(m_packet)->size << "bytes, falling back to FFmpeg decoder";
-                }
-                pixmap = decodeFrame(AV_PACKET_RAW(m_packet));
-            } else {
-                pixmap = decodeJpegFrame(AV_PACKET_RAW(m_packet)->data, AV_PACKET_RAW(m_packet)->size);
-                
-                // If TurboJPEG failed, fall back to FFmpeg decoder
-                if (pixmap.isNull()) {
-                    if (turbojpegFrameCount % 5000 == 1) {
-                        qCDebug(log_ffmpeg_backend) << "TurboJPEG failed, falling back to FFmpeg software decoder";
-                    }
-                    pixmap = decodeFrame(AV_PACKET_RAW(m_packet));
-                }
-            }
-#else
-            // RESPONSIVENESS: Only log this occasionally to reduce overhead
-            static int noTurboLogCount = 0;
-            if (++noTurboLogCount % 5000 == 1) {
-                qCDebug(log_ffmpeg_backend) << "Using FFmpeg software decoder for MJPEG frame (TurboJPEG not available)";
-            }
-            pixmap = decodeFrame(AV_PACKET_RAW(m_packet));
-#endif
-        }
-    } else {
-        // Non-MJPEG codecs use FFmpeg decoder
-        static int ffmpegFrameCount = 0;
-        ffmpegFrameCount++;
-        
-        // Only log every 1000th frame to minimize debug overhead
-        if (ffmpegFrameCount % 1000 == 1) {
-            qCDebug(log_ffmpeg_backend) << "Using FFmpeg decoder (frame" << ffmpegFrameCount << "), codec:" << codecContext->codec_id;
-        }
-        pixmap = decodeFrame(AV_PACKET_RAW(m_packet));
-    }
+    // Process frame using FFmpegFrameProcessor
+    QPixmap pixmap = m_frameProcessor->ProcessPacket(AV_PACKET_RAW(m_packet), codecContext, isRecording);
     
     // Clean up packet
     av_packet_unref(AV_PACKET_RAW(m_packet));
@@ -896,145 +734,31 @@ void FFmpegBackendHandler::processFrame()
     if (!pixmap.isNull()) {
         m_frameCount++;
         
-        // Drastically reduce logging frequency for performance (only log every 1000th frame)
+        // Reduce logging frequency for performance
         if (m_frameCount % 1000 == 1) {
-            qCDebug(log_ffmpeg_backend) << "Successfully decoded frame" << m_frameCount << "of size:" << pixmap.size();
+            qCDebug(log_ffmpeg_backend) << "Processed frame" << m_frameCount << "size:" << pixmap.size();
         }
         
-        // CRITICAL FIX: Skip first few frames to allow device signal to stabilize
-        // Many USB video capture devices (including Openterface) output black frames initially
-        // This can be configured via environment variable if needed
-        // OPTIMIZATION: Skip this when using hardware acceleration as it's not needed
-        static int startupFramesToSkip = -1;
-        if (startupFramesToSkip == -1) {
-            // Check environment variable first, otherwise use default
-            const char* envSkipFrames = qgetenv("OPENTERFACE_SKIP_FRAMES").constData();
-            if (envSkipFrames && strlen(envSkipFrames) > 0) {
-                startupFramesToSkip = QString(envSkipFrames).toInt();
-                qCDebug(log_ffmpeg_backend) << "Using environment variable OPENTERFACE_SKIP_FRAMES:" << startupFramesToSkip;
-            } else {
-                // When using hardware acceleration, don't skip frames (HW decoders are stable from start)
-                if (usingHardwareDecoder) {
-                    startupFramesToSkip = 0; // No frame skipping needed with HW acceleration
-                    qCInfo(log_ffmpeg_backend) << "Hardware decoder detected - skipping frame stabilization wait";
-                } else {
-                    startupFramesToSkip = 5; // Default: skip first 5 frames for software decoders
-                    qCDebug(log_ffmpeg_backend) << "Software decoder - will skip first" << startupFramesToSkip << "frames for signal stabilization";
-                }
-            }
-        }
-        
-        if (m_frameCount <= startupFramesToSkip) {
-            qCDebug(log_ffmpeg_backend) << "Skipping startup frame" << m_frameCount << "of" << startupFramesToSkip << "- waiting for signal to stabilize";
-            return; // Don't emit this frame, just continue
-        }
-        
-        // PERFORMANCE: Skip frame analysis completely after initialization to reduce CPU usage
-        // Frame analysis was only needed for initial debugging and is now disabled for production use
-        
-        // Reduce emission logging frequency for performance
-        if (m_frameCount % 1000 == 1) {
-            qCDebug(log_ffmpeg_backend) << "Emitting frameReady signal with pixmap size:" << pixmap.size();
-        }
-        
-        // Store the latest frame for image capture
-        QImage img = pixmap.toImage();
-        {
-            QMutexLocker locker(&m_mutex);
-            m_latestFrame = img;
-        }
-        
-        // CRITICAL: Use QueuedConnection to ensure UI thread handles frame updates properly
-        // This prevents blocking the capture thread and ensures smooth frame delivery
+        // Emit frame to UI (QueuedConnection ensures thread safety)
         if (m_captureRunning) {
             emit frameReady(pixmap);
         }
         
         // Write frame to recording file if recording is active
-        // Use mutex to safely check recording state and prevent race conditions during stop
-        bool shouldRecord = false;
-        {
-            QMutexLocker recordingLocker(&m_recordingMutex);
-            shouldRecord = m_recordingActive && !m_recordingPaused && m_recordingFrame && m_recordingSwsContext;
-        }
-        
-        if (shouldRecord) {
+        if (m_recorder && m_recorder->IsRecording() && !m_recorder->IsPaused()) {
             // FRAME RATE CONTROL: Only write frames at the target recording framerate
-            // Check if enough time has passed since the last recorded frame
             qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
             
-            bool shouldWriteFrame = false;
-            {
-                QMutexLocker recordingLocker(&m_recordingMutex);
-                if (m_recordingActive && !m_recordingPaused) {
-                    // IMPROVED: Use frame count based on elapsed time to prevent timing jitter
-                    // Calculate expected frame number based on actual elapsed recording time
-                    qint64 elapsedMs = currentTime - m_recordingStartTime - m_totalPausedDuration;
-                    int64_t expectedFrameNumber = (elapsedMs * m_recordingTargetFramerate) / 1000;
-                    
-                    // Write frame if we're behind or at the expected frame count
-                    if (m_recordingFrameNumber <= expectedFrameNumber) {
-                        shouldWriteFrame = true;
-                        m_lastRecordedFrameTime = currentTime;
-                    } else {
-                        // We're ahead of schedule - skip this frame to maintain timing
-                        static int skipLogCount = 0;
-                        if (++skipLogCount % 100 == 0) {
-                            qCDebug(log_ffmpeg_backend) << "Skipping frame - ahead of schedule:" 
-                                                       << "recorded:" << m_recordingFrameNumber 
-                                                       << "expected:" << expectedFrameNumber;
-                        }
-                    }
-                }
-            }
-            
-            if (shouldWriteFrame) {
-                // Convert pixmap to AVFrame for recording
-                QImage image = pixmap.toImage().convertToFormat(QImage::Format_RGB888);
-                if (!image.isNull()) {
-                    // Debug logging for recording frame processing
-                    static int recordingDebugCount = 0;
-                    if (++recordingDebugCount <= 10 || recordingDebugCount % 30 == 0) {
-                        qCDebug(log_ffmpeg_backend) << "Writing recording frame" << recordingDebugCount 
-                                                   << "- image size:" << image.size()
-                                                   << "recording frame size:" << AV_FRAME_RAW(m_recordingFrame)->width << "x" << AV_FRAME_RAW(m_recordingFrame)->height
-                                                   << "frame interval:" << (currentTime - m_lastRecordedFrameTime) << "ms";
-                    }
-                    bool canWriteFrame = false;
-                    {
-                        QMutexLocker recordingLocker(&m_recordingMutex);
-                        canWriteFrame = m_recordingActive && !m_recordingPaused && m_recordingFrame && m_recordingSwsContext;
-                    }
-                    
-                    if (canWriteFrame) {
-                        // Fill frame with image data
-                        const uint8_t* srcData[1] = { image.constBits() };
-                        int srcLinesize[1] = { static_cast<int>(image.bytesPerLine()) };
-                        
-                        // Convert RGB to target pixel format for encoding (YUVJ420P for MJPEG)
-                        int scaleResult = sws_scale(m_recordingSwsContext, srcData, srcLinesize, 0, image.height(),
-                                                  AV_FRAME_RAW(m_recordingFrame)->data, AV_FRAME_RAW(m_recordingFrame)->linesize);
-                        
-                        if (scaleResult != image.height()) {
-                            qCWarning(log_ffmpeg_backend) << "sws_scale conversion warning: converted" << scaleResult << "lines, expected" << image.height();
-                        }
-                        
-                        // Write frame to file (this function will handle mutex locking internally)
-                    if (!writeFrameToFile(AV_FRAME_RAW(m_recordingFrame))) {
-                        // Frame was skipped (likely because recording is stopping) - this is normal
-                    } else if (recordingDebugCount <= 10) {
-                        qCDebug(log_ffmpeg_backend) << "Successfully wrote recording frame" << recordingDebugCount;
-                    }
-                    
+            if (m_recorder->ShouldWriteFrame(currentTime)) {
+                if (m_recorder->WriteFrame(pixmap)) {
                     // Update recording duration periodically
                     static int recordingFrameCount = 0;
                     if (++recordingFrameCount % 30 == 0) { // Every 30 frames (~1 second at 30fps)
-                        emit recordingDurationChanged(getRecordingDuration());
+                        emit recordingDurationChanged(m_recorder->GetRecordingDuration());
                     }
                 }
             }
         }
-
         
         // Reduce success logging frequency for performance
         if (m_frameCount % 1000 == 1) {
@@ -1053,342 +777,6 @@ void FFmpegBackendHandler::processFrame()
             qCWarning(log_ffmpeg_backend) << "  - Stream index:" << AV_PACKET_RAW(m_packet)->stream_index;
         }
     }
-}
-}
-
-#ifdef HAVE_LIBJPEG_TURBO
-QPixmap FFmpegBackendHandler::decodeJpegFrame(const uint8_t* data, int size)
-{
-    // PERFORMANCE OPTIMIZED: Minimal validation for TurboJPEG
-    if (!m_turboJpegHandle) {
-        return QPixmap(); // Will trigger fallback to FFmpeg decoder
-    }
-    
-    if (!data || size <= 10) { // Quick size check
-        return QPixmap();
-    }
-    
-    // Quick JPEG magic bytes check (essential for safety)
-    if (data[0] != 0xFF || data[1] != 0xD8) {
-        return QPixmap();
-    }
-    
-    int width, height, subsamp, colorspace;
-    
-    // Get JPEG header information
-    if (tjDecompressHeader3(m_turboJpegHandle, data, size, &width, &height, &subsamp, &colorspace) < 0) {
-        return QPixmap(); // Silent failure for performance - will trigger FFmpeg fallback
-    }
-    
-    // Quick dimension validation
-    if (width <= 0 || height <= 0 || width > 4096 || height > 4096) {
-        return QPixmap();
-    }
-    
-    // Allocate buffer for RGB data
-    QImage image(width, height, QImage::Format_RGB888);
-    if (image.isNull()) {
-        return QPixmap();
-    }
-    
-    // Decompress JPEG directly to RGB888 format for Qt
-    if (tjDecompress2(m_turboJpegHandle, data, size, image.bits(), width, 0, height, TJPF_RGB, TJFLAG_FASTDCT) < 0) {
-        return QPixmap(); // Silent failure for performance
-    }
-    
-    // Skip expensive pixel validation for performance - trust TurboJPEG output
-    static int turbojpegSuccessCount = 0;
-    turbojpegSuccessCount++;
-    
-    // Only log success every 2000th frame to confirm TurboJPEG is working
-    if (turbojpegSuccessCount % 2000 == 1) {
-        qCDebug(log_ffmpeg_backend) << "TurboJPEG: Successfully decoded" << width << "x" << height 
-                                   << "MJPEG frame (success count:" << turbojpegSuccessCount << ")";
-    }
-    
-    return QPixmap::fromImage(image);
-}
-#endif // HAVE_LIBJPEG_TURBO
-
-QPixmap FFmpegBackendHandler::decodeFrame(AVPacket* packet)
-{
-    AVCodecContext* codecContext = m_deviceManager ? m_deviceManager->GetCodecContext() : nullptr;
-    if (!codecContext || !m_frame) {
-        qCWarning(log_ffmpeg_backend) << "decodeFrame: Missing codec context or frame";
-        return QPixmap();
-    }
-    
-    // Send packet to decoder
-    int ret = avcodec_send_packet(codecContext, packet);
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "Error sending packet to decoder:" << QString::fromUtf8(errbuf);
-        return QPixmap();
-    }
-    
-    // Receive frame from decoder
-    ret = avcodec_receive_frame(codecContext, AV_FRAME_RAW(m_frame));
-    if (ret < 0) {
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-            return QPixmap(); // Not an error, just no frame ready
-        }
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        
-        // Log decoder information for debugging hardware decoder issues
-        static int errorCount = 0;
-        if (++errorCount <= 5) {
-            qCWarning(log_ffmpeg_backend) << "Error receiving frame from decoder:" << QString::fromUtf8(errbuf);
-            qCWarning(log_ffmpeg_backend) << "  Decoder:" << (codecContext->codec ? codecContext->codec->name : "unknown");
-            qCWarning(log_ffmpeg_backend) << "  Pixel format:" << codecContext->pix_fmt;
-            qCWarning(log_ffmpeg_backend) << "  Error code:" << ret;
-        }
-        return QPixmap();
-    }
-    
-    // Validate frame data
-    if (!AV_FRAME_RAW(m_frame)->data[0]) {
-        qCWarning(log_ffmpeg_backend) << "decodeFrame: Frame data is null";
-        return QPixmap();
-    }
-    
-    if (AV_FRAME_RAW(m_frame)->width <= 0 || AV_FRAME_RAW(m_frame)->height <= 0) {
-        qCWarning(log_ffmpeg_backend) << "decodeFrame: Invalid frame dimensions:" 
-                                     << AV_FRAME_RAW(m_frame)->width << "x" << AV_FRAME_RAW(m_frame)->height;
-        return QPixmap();
-    }
-    
-    // Log frame format information for hardware decoder debugging
-    static int frameFormatLogCount = 0;
-    if (++frameFormatLogCount <= 5 || frameFormatLogCount % 1000 == 1) {
-        const char* codecName = codecContext->codec ? codecContext->codec->name : "unknown";
-        const char* formatName = av_get_pix_fmt_name(static_cast<AVPixelFormat>(AV_FRAME_RAW(m_frame)->format));
-        qCInfo(log_ffmpeg_backend) << "Received frame from" << codecName 
-                                   << "- format:" << AV_FRAME_RAW(m_frame)->format 
-                                   << "(" << (formatName ? formatName : "unknown") << ")"
-                                   << "size:" << AV_FRAME_RAW(m_frame)->width << "x" << AV_FRAME_RAW(m_frame)->height;
-    }
-    
-    // IMPORTANT: mjpeg_cuvid on Windows decodes to system memory in NV12/YUV420P format
-    // It does NOT output AV_PIX_FMT_CUDA format like H264/HEVC CUVID decoders
-    // The GPU is still used for decoding, but output is directly in system memory
-    // This is actually GOOD - no need for slow GPU->CPU transfer!
-    
-    // Check if this is a hardware frame that needs to be transferred to system memory
-    AVFrame* frameToConvert = AV_FRAME_RAW(m_frame);
-    AvFramePtr swFrame;
-    
-    // Check for hardware pixel formats that need transfer
-    // NOTE: mjpeg_cuvid outputs to system memory (NV12/YUV420P), so no transfer needed
-    bool isHardwareFrame = (AV_FRAME_RAW(m_frame)->format == AV_PIX_FMT_QSV ||       // Intel QSV
-                           AV_FRAME_RAW(m_frame)->format == AV_PIX_FMT_CUDA);        // NVIDIA CUDA (H264/HEVC, not MJPEG)
-    
-    if (isHardwareFrame) {
-        // This is a hardware frame - need to transfer to system memory
-        static int hwTransferAttempts = 0;
-        hwTransferAttempts++;
-        
-        if (hwTransferAttempts <= 5) {
-            const char* hwType = (AV_FRAME_RAW(m_frame)->format == AV_PIX_FMT_QSV) ? "QSV" : "CUDA";
-            qCInfo(log_ffmpeg_backend) << "Attempting to transfer hardware frame (" << hwType 
-                                       << ") to system memory (attempt" << hwTransferAttempts << ")";
-        }
-        
-        swFrame = make_av_frame();
-        if (!swFrame) {
-            qCWarning(log_ffmpeg_backend) << "Failed to allocate frame for hardware transfer";
-            return QPixmap();
-        }
-        
-        // Transfer data from GPU to CPU
-        ret = av_hwframe_transfer_data(AV_FRAME_RAW(swFrame), AV_FRAME_RAW(m_frame), 0);
-        if (ret < 0) {
-            char errbuf[AV_ERROR_MAX_STRING_SIZE];
-            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-            
-            static int transferErrorCount = 0;
-            if (++transferErrorCount <= 5) {
-                qCWarning(log_ffmpeg_backend) << "Error transferring hardware frame to system memory:" 
-                                              << QString::fromUtf8(errbuf);
-                qCWarning(log_ffmpeg_backend) << "  Frame format:" << AV_FRAME_RAW(m_frame)->format;
-                qCWarning(log_ffmpeg_backend) << "  Frame size:" << AV_FRAME_RAW(m_frame)->width << "x" << AV_FRAME_RAW(m_frame)->height;
-                qCWarning(log_ffmpeg_backend) << "  This might indicate the decoder doesn't support hardware frames properly";
-            }
-            
-            AV_FRAME_RESET(swFrame);
-            return QPixmap();
-        }
-        
-        // Copy metadata from hardware frame
-            av_frame_copy_props(AV_FRAME_RAW(swFrame), AV_FRAME_RAW(m_frame));
-        
-        frameToConvert = AV_FRAME_RAW(swFrame);
-        
-        static int hwTransferCount = 0;
-        if (++hwTransferCount % 1000 == 1) {
-            const char* hwType = (AV_FRAME_RAW(m_frame)->format == AV_PIX_FMT_QSV) ? "QSV" : "CUDA";
-            qCDebug(log_ffmpeg_backend) << "Hardware frame (" << hwType 
-                                       << ") transferred to system memory (count:" << hwTransferCount << ")";
-        }
-    }
-    
-    // PERFORMANCE: Skip success logging for every frame
-    QPixmap result = convertFrameToPixmap(frameToConvert);
-    
-    // Free the software frame if we allocated it
-    if (swFrame) {
-        AV_FRAME_RESET(swFrame);
-    }
-    
-    return result;
-}
-
-QPixmap FFmpegBackendHandler::convertFrameToPixmap(AVFrame* frame)
-{
-    if (!frame) {
-        qCWarning(log_ffmpeg_backend) << "convertFrameToPixmap: frame is null";
-        return QPixmap();
-    }
-    
-    int width = frame->width;
-    int height = frame->height;
-    AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
-    
-    // Validate frame dimensions and data
-    if (width <= 0 || height <= 0) {
-        qCWarning(log_ffmpeg_backend) << "convertFrameToPixmap: Invalid dimensions:" << width << "x" << height;
-        return QPixmap();
-    }
-    
-    if (!frame->data[0]) {
-        qCWarning(log_ffmpeg_backend) << "convertFrameToPixmap: Frame data pointer is null";
-        return QPixmap();
-    }
-    
-    if (frame->linesize[0] <= 0) {
-        qCWarning(log_ffmpeg_backend) << "convertFrameToPixmap: Invalid linesize:" << frame->linesize[0];
-        return QPixmap();
-    }
-    
-    // PERFORMANCE: Minimize debug logging for better performance
-    // Only log critical conversion details for first few frames and every 1000th frame
-    static int conversionLogCounter = 0;
-    conversionLogCounter++;
-    
-    const char* formatName = av_get_pix_fmt_name(format);
-    // TEMP: Always log format for debugging
-    // qCDebug(log_ffmpeg_backend) << "convertFrameToPixmap: frame" << width << "x" << height 
-    //                            << "format:" << format << "(" << (formatName ? formatName : "unknown") << ")"
-    //                            << "linesize:" << frame->linesize[0];
-    
-    // FAST PATH: If frame is already RGB, create QImage directly without scaling
-    if (format == AV_PIX_FMT_RGB24 || format == AV_PIX_FMT_BGR24 || 
-        format == AV_PIX_FMT_RGBA || format == AV_PIX_FMT_BGRA ||
-        format == AV_PIX_FMT_BGR0 || format == AV_PIX_FMT_RGB0) {
-        
-        qCDebug(log_ffmpeg_backend) << "Using RGB fast path for format:" << formatName;
-        
-        QImage::Format qtFormat;
-        if (format == AV_PIX_FMT_RGB24) qtFormat = QImage::Format_RGB888;
-        else if (format == AV_PIX_FMT_BGR24) qtFormat = QImage::Format_RGB888; // Qt will handle BGR->RGB
-        else if (format == AV_PIX_FMT_RGBA) qtFormat = QImage::Format_RGBA8888;
-        else if (format == AV_PIX_FMT_BGRA) qtFormat = QImage::Format_RGBA8888;
-        else if (format == AV_PIX_FMT_BGR0) qtFormat = QImage::Format_RGB32;
-        else if (format == AV_PIX_FMT_RGB0) qtFormat = QImage::Format_RGB32;
-        else qtFormat = QImage::Format_RGB888; // fallback
-        
-        // Create QImage directly from frame data
-        QImage image(frame->data[0], width, height, frame->linesize[0], qtFormat);
-        if (qtFormat == QImage::Format_RGB888 && format == AV_PIX_FMT_BGR24) {
-            // Need to swap BGR to RGB
-            image = image.rgbSwapped();
-        }
-        
-        QPixmap pixmap = QPixmap::fromImage(image);
-        qCDebug(log_ffmpeg_backend) << "Created pixmap from RGB fast path, size:" << pixmap.size() << "isNull:" << pixmap.isNull();
-        return pixmap;
-    }
-    
-    // Check if we need to recreate the scaling context (format or size changed)
-    static int lastWidth = -1;
-    static int lastHeight = -1;
-    static AVPixelFormat lastFormat = AV_PIX_FMT_NONE;
-    
-    if (!m_swsContext || width != lastWidth || height != lastHeight || format != lastFormat) {
-        if (m_swsContext) {
-            sws_freeContext(m_swsContext);
-            m_swsContext = nullptr;
-        }
-        
-        const char* formatName = av_get_pix_fmt_name(format);
-        qCInfo(log_ffmpeg_backend) << "Creating scaling context:" 
-                                   << width << "x" << height 
-                                   << "from format" << format << "(" << (formatName ? formatName : "unknown") << ")"
-                                   << "to RGB24";
-        
-        m_swsContext = sws_getContext(
-            width, height, format,
-            width, height, AV_PIX_FMT_RGB24,
-            SWS_BILINEAR, nullptr, nullptr, nullptr
-        );
-        
-        if (!m_swsContext) {
-            qCCritical(log_ffmpeg_backend) << "✗ Failed to create scaling context for format:" << format 
-                                          << "(" << (formatName ? formatName : "unknown") << ")";
-            return QPixmap();
-        }
-        
-        lastWidth = width;
-        lastHeight = height;
-        lastFormat = format;
-        
-        qCInfo(log_ffmpeg_backend) << "✓ Successfully created scaling context";
-    }
-    
-    // Allocate buffer for RGB frame
-    QImage image(width, height, QImage::Format_RGB888);
-    if (image.isNull()) {
-        qCWarning(log_ffmpeg_backend) << "Failed to allocate QImage for" << width << "x" << height;
-        return QPixmap();
-    }
-    
-    // Set up frame data for RGB output
-    uint8_t* rgbData[1] = { image.bits() };
-    int rgbLinesize[1] = { static_cast<int>(image.bytesPerLine()) };
-    
-    // Log first few scale operations for debugging
-    static int scaleLogCounter = 0;
-    if (++scaleLogCounter <= 5) {
-        qCDebug(log_ffmpeg_backend) << "Calling sws_scale: input" << width << "x" << height 
-                                   << "linesize[0]:" << frame->linesize[0]
-                                   << "output linesize:" << rgbLinesize[0];
-    }
-    
-    // Convert frame to RGB
-    int scaleResult = sws_scale(m_swsContext, frame->data, frame->linesize, 0, height, rgbData, rgbLinesize);
-    if (scaleResult < 0) {
-        qCCritical(log_ffmpeg_backend) << "✗ sws_scale failed with result:" << scaleResult;
-        return QPixmap();
-    }
-    
-    if (scaleResult != height) {
-        qCWarning(log_ffmpeg_backend) << "sws_scale converted" << scaleResult << "lines, expected" << height;
-        return QPixmap(); // Return error instead of continuing with partial conversion
-    }
-    
-    if (scaleLogCounter <= 5) {
-        qCInfo(log_ffmpeg_backend) << "✓ sws_scale successful, converted" << scaleResult << "lines";
-    }
-    
-    // PERFORMANCE: Skip sws_scale result logging for better performance
-    // The scale operation success/failure is already validated above
-    
-    // PERFORMANCE: Skip pixel analysis completely - trust the conversion process
-    // This eliminates unnecessary CPU overhead from pixel sampling
-    QPixmap result = QPixmap::fromImage(image);
-    // PERFORMANCE: Skip pixmap creation logging for better performance
-    return result;
 }
 
 void FFmpegBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
@@ -1911,15 +1299,14 @@ void FFmpegBackendHandler::setCurrentDevice(const QString& devicePath)
 }
 
 // ============================================================================
-// Video Recording Implementation
+// Video Recording Implementation - Delegated to FFmpegRecorder
 // ============================================================================
 
 bool FFmpegBackendHandler::startRecording(const QString& outputPath, const QString& format, int videoBitrate)
 {
-    QMutexLocker locker(&m_recordingMutex);
-    
-    if (m_recordingActive) {
-        qCWarning(log_ffmpeg_backend) << "Recording is already active";
+    if (!m_recorder) {
+        qCWarning(log_ffmpeg_backend) << "Recorder not initialized";
+        emit recordingError("Recorder not initialized");
         return false;
     }
     
@@ -1929,524 +1316,84 @@ bool FFmpegBackendHandler::startRecording(const QString& outputPath, const QStri
         return false;
     }
     
-    // Update recording config
-    m_recordingConfig.outputPath = outputPath;
-    m_recordingConfig.format = format;
-    m_recordingConfig.videoBitrate = videoBitrate;
-    m_recordingOutputPath = outputPath;
+    // Get current capture resolution and framerate
+    QSize resolution = m_currentResolution.isValid() ? m_currentResolution : QSize(1920, 1080);
+    int framerate = m_currentFramerate > 0 ? m_currentFramerate : 30;
     
-    qCDebug(log_ffmpeg_backend) << "Starting recording to:" << outputPath << "format:" << format;
+    bool success = m_recorder->StartRecording(outputPath, format, videoBitrate, resolution, framerate);
     
-    if (!initializeRecording()) {
+    if (success) {
+        m_recordingActive = true;
+        emit recordingStarted(outputPath);
+    } else {
         emit recordingError("Failed to initialize recording");
-        return false;
     }
     
-    m_recordingActive = true;
-    m_recordingPaused = false;
-    m_recordingStartTime = QDateTime::currentMSecsSinceEpoch();
-    m_recordingPausedTime = 0;
-    m_totalPausedDuration = 0;
-    m_lastRecordedFrameTime = 0; // Reset frame timing for proper framerate control
-    m_recordingFrameNumber = 0;
-    
-    qCInfo(log_ffmpeg_backend) << "Recording started successfully";
-    emit recordingStarted(outputPath);
-    return true;
+    return success;
 }
 
 bool FFmpegBackendHandler::stopRecording()
 {
-    qCDebug(log_ffmpeg_backend) << "Stopping recording";
+    if (!m_recorder) {
+        return false;
+    }
     
-    // First, mark recording as inactive to prevent new frames from being processed
-    {
-        QMutexLocker locker(&m_recordingMutex);
-        if (!m_recordingActive) {
-            qCDebug(log_ffmpeg_backend) << "Recording is not active";
-            return false;
-        }
+    bool success = m_recorder->StopRecording();
+    
+    if (success) {
         m_recordingActive = false;
-        m_recordingPaused = false;
-    }
-    QThread::msleep(10);
-    
-    {
-        QMutexLocker locker(&m_recordingMutex);
-        finalizeRecording();
-        cleanupRecording();
+        emit recordingStopped();
     }
     
-    qCInfo(log_ffmpeg_backend) << "Recording stopped successfully";
-    emit recordingStopped();
-    return true;
+    return success;
 }
 
 void FFmpegBackendHandler::pauseRecording()
 {
-    QMutexLocker locker(&m_recordingMutex);
-    
-    if (!m_recordingActive || m_recordingPaused) {
-        qCDebug(log_ffmpeg_backend) << "Recording is not active or already paused";
-        return;
+    if (m_recorder) {
+        m_recorder->PauseRecording();
+        emit recordingPaused();
     }
-    
-    m_recordingPaused = true;
-    m_recordingPausedTime = QDateTime::currentMSecsSinceEpoch();
-    
-    qCDebug(log_ffmpeg_backend) << "Recording paused";
-    emit recordingPaused();
 }
 
 void FFmpegBackendHandler::resumeRecording()
 {
-    QMutexLocker locker(&m_recordingMutex);
-    
-    if (!m_recordingActive || !m_recordingPaused) {
-        qCDebug(log_ffmpeg_backend) << "Recording is not active or not paused";
-        return;
+    if (m_recorder) {
+        m_recorder->ResumeRecording();
+        emit recordingResumed();
     }
-    
-    if (m_recordingPausedTime > 0) {
-        m_totalPausedDuration += QDateTime::currentMSecsSinceEpoch() - m_recordingPausedTime;
-    }
-    
-    m_recordingPaused = false;
-    m_recordingPausedTime = 0;
-    
-    qCDebug(log_ffmpeg_backend) << "Recording resumed";
-    emit recordingResumed();
 }
 
 bool FFmpegBackendHandler::isRecording() const
 {
-    QMutexLocker locker(&m_recordingMutex);
-    return m_recordingActive;
+    return m_recorder ? m_recorder->IsRecording() : false;
 }
 
 bool FFmpegBackendHandler::isPaused() const
 {
-    QMutexLocker locker(&m_recordingMutex);
-    return m_recordingActive && m_recordingPaused;
+    return m_recorder ? m_recorder->IsPaused() : false;
 }
 
 QString FFmpegBackendHandler::getCurrentRecordingPath() const
 {
-    QMutexLocker locker(&m_recordingMutex);
-    return m_recordingOutputPath;
+    return m_recorder ? m_recorder->GetCurrentRecordingPath() : QString();
 }
 
 qint64 FFmpegBackendHandler::getRecordingDuration() const
 {
-    QMutexLocker locker(&m_recordingMutex);
-    
-    if (!m_recordingActive) {
-        return 0;
-    }
-    
-    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
-    qint64 totalDuration = currentTime - m_recordingStartTime - m_totalPausedDuration;
-    
-    if (m_recordingPaused && m_recordingPausedTime > 0) {
-        totalDuration -= (currentTime - m_recordingPausedTime);
-    }
-    
-    return qMax(0LL, totalDuration);
+    return m_recorder ? m_recorder->GetRecordingDuration() : 0;
 }
 
 void FFmpegBackendHandler::setRecordingConfig(const RecordingConfig& config)
 {
-    QMutexLocker locker(&m_recordingMutex);
-    m_recordingConfig = config;
+    if (m_recorder) {
+        m_recorder->SetRecordingConfig(config);
+    }
 }
 
-FFmpegBackendHandler::RecordingConfig FFmpegBackendHandler::getRecordingConfig() const
+RecordingConfig FFmpegBackendHandler::getRecordingConfig() const
 {
-    QMutexLocker locker(&m_recordingMutex);
-    return m_recordingConfig;
-}
-
-bool FFmpegBackendHandler::initializeRecording()
-{
-    // Clean up any existing recording context
-    cleanupRecording();
-    
-    // Allocate output format context
-    const char* formatName = nullptr;
-    if (m_recordingConfig.format == "avi") {
-        formatName = "avi";  // Use AVI muxer (available in current build for playable video files)
-    } else if (m_recordingConfig.format == "rawvideo") {
-        formatName = "rawvideo";  // Use rawvideo muxer (available in current build for video streams)
-    } else if (m_recordingConfig.format == "mjpeg") {
-        formatName = "mjpeg";  // Use MJPEG muxer (creates single images, not video streams)
-    } else {
-        formatName = nullptr; // Let FFmpeg auto-detect from filename
-    }
-    
-    // Try to allocate output context, first with format name, then with auto-detection
-    int ret = avformat_alloc_output_context2(&m_recordingFormatContext, nullptr, formatName, m_recordingConfig.outputPath.toUtf8().data());
-    if (ret < 0 || !m_recordingFormatContext) {
-        // Try auto-detection from filename if format name failed
-        qCWarning(log_ffmpeg_backend) << "Failed with format" << formatName << ", trying auto-detection from filename";
-        ret = avformat_alloc_output_context2(&m_recordingFormatContext, nullptr, nullptr, m_recordingConfig.outputPath.toUtf8().data());
-        if (ret < 0 || !m_recordingFormatContext) {
-            qCWarning(log_ffmpeg_backend) << "Failed to allocate output context for recording";
-            return false;
-        }
-    }
-    
-    // Configure encoder with current capture settings (ensure we have valid values)
-    // If current settings are not valid, they should have been auto-detected during startDirectCapture
-    QSize encoderResolution = m_currentResolution.isValid() ? m_currentResolution : QSize(1920, 1080);
-    int encoderFramerate = m_currentFramerate > 0 ? m_currentFramerate : 30;
-    
-    qCDebug(log_ffmpeg_backend) << "Configuring encoder with resolution:" << encoderResolution << "framerate:" << encoderFramerate;
-    
-    if (!configureEncoder(encoderResolution, encoderFramerate)) {
-        return false;
-    }
-    
-    // Open output file
-    if (!(m_recordingFormatContext->oformat->flags & AVFMT_NOFILE)) {
-        ret = avio_open(&m_recordingFormatContext->pb, m_recordingConfig.outputPath.toUtf8().data(), AVIO_FLAG_WRITE);
-        if (ret < 0) {
-            char errbuf[AV_ERROR_MAX_STRING_SIZE];
-            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-            qCWarning(log_ffmpeg_backend) << "Failed to open output file:" << QString::fromUtf8(errbuf);
-            return false;
-        }
-    }
-    
-    // Write file header
-    ret = avformat_write_header(m_recordingFormatContext, nullptr);
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "Failed to write header:" << QString::fromUtf8(errbuf);
-        return false;
-    }
-    
-    qCDebug(log_ffmpeg_backend) << "Recording initialized successfully";
-    return true;
-}
-
-bool FFmpegBackendHandler::configureEncoder(const QSize& resolution, int framerate)
-{
-    // Helper lambda to try finding an encoder
-    auto tryEncoder = [](AVCodecID codecId, const char* name) -> const AVCodec* {
-        const AVCodec* codec = avcodec_find_encoder(codecId);
-        if (codec) {
-            qCDebug(log_ffmpeg_backend) << "Using" << name << "encoder";
-        }
-        return codec;
-    };
-    
-    // Find encoder - try requested codec first
-    const AVCodec* codec = nullptr;
-    if (!m_recordingConfig.videoCodec.isEmpty()) {
-        codec = avcodec_find_encoder_by_name(m_recordingConfig.videoCodec.toUtf8().data());
-        if (codec) {
-            qCDebug(log_ffmpeg_backend) << "Found requested encoder:" << m_recordingConfig.videoCodec;
-        } else {
-            qCWarning(log_ffmpeg_backend) << "Requested encoder not found:" << m_recordingConfig.videoCodec << "- trying fallbacks";
-        }
-    }
-    
-    // Fallback chain for available encoders in current FFmpeg build
-    if (!codec) codec = tryEncoder(AV_CODEC_ID_MJPEG, "MJPEG");
-    if (!codec) codec = tryEncoder(AV_CODEC_ID_RAWVIDEO, "rawvideo");
-    if (!codec) codec = tryEncoder(AV_CODEC_ID_H264, "H264");
-    
-    if (!codec) {
-        qCWarning(log_ffmpeg_backend) << "Failed to find any video encoder (tried mjpeg, rawvideo, h264)";
-        return false;
-    }
-    
-    // Add video stream
-    m_recordingVideoStream = avformat_new_stream(m_recordingFormatContext, codec);
-    if (!m_recordingVideoStream) {
-        qCWarning(log_ffmpeg_backend) << "Failed to create video stream";
-        return false;
-    }
-    
-    // Allocate codec context
-    m_recordingCodecContext = avcodec_alloc_context3(codec);
-    if (!m_recordingCodecContext) {
-        qCWarning(log_ffmpeg_backend) << "Failed to allocate codec context";
-        return false;
-    }
-    
-    // Set codec parameters based on codec type
-    m_recordingCodecContext->width = resolution.width();
-    m_recordingCodecContext->height = resolution.height();
-    m_recordingCodecContext->time_base = {1, framerate};
-    m_recordingCodecContext->framerate = {framerate, 1};
-    
-    // Cache target framerate for thread-safe access during frame processing
-    m_recordingTargetFramerate = framerate;
-    
-    // Set pixel format based on codec
-    if (codec->id == AV_CODEC_ID_MJPEG) {
-        m_recordingCodecContext->pix_fmt = AV_PIX_FMT_YUVJ420P; // MJPEG typically uses YUVJ420P
-        m_recordingCodecContext->bit_rate = m_recordingConfig.videoBitrate;
-        // MJPEG quality (range 1-31, lower is better)
-        m_recordingCodecContext->qmin = 1;
-        m_recordingCodecContext->qmax = 10; // Good quality
-    } else if (codec->id == AV_CODEC_ID_RAWVIDEO) {
-        m_recordingCodecContext->pix_fmt = AV_PIX_FMT_RGB24; // Raw video uses RGB24
-        // No bitrate for raw video (uncompressed)
-    } else {
-        // H264 or other codecs
-        m_recordingCodecContext->pix_fmt = AV_PIX_FMT_YUV420P;
-        m_recordingCodecContext->bit_rate = m_recordingConfig.videoBitrate;
-    }
-    
-    // Set codec-specific options
-    if (codec->id == AV_CODEC_ID_H264) {
-        av_opt_set_int(m_recordingCodecContext->priv_data, "crf", m_recordingConfig.videoQuality, 0);
-        av_opt_set(m_recordingCodecContext->priv_data, "preset", "ultrafast", 0); // Use ultrafast for real-time recording
-        av_opt_set(m_recordingCodecContext->priv_data, "tune", "zerolatency", 0);
-        
-        // Use constant bitrate mode for more predictable performance
-        m_recordingCodecContext->rc_max_rate = m_recordingConfig.videoBitrate;
-        m_recordingCodecContext->rc_buffer_size = m_recordingConfig.videoBitrate * 2;
-    } else if (codec->id == AV_CODEC_ID_MJPEG) {
-        // MJPEG-specific options for better quality
-        av_opt_set_int(m_recordingCodecContext->priv_data, "q:v", m_recordingConfig.videoQuality, 0);
-    }
-    
-    // Global header flag for MP4
-    if (m_recordingFormatContext->oformat->flags & AVFMT_GLOBALHEADER) {
-        m_recordingCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-    }
-    
-    // Open codec
-    int ret = avcodec_open2(m_recordingCodecContext, codec, nullptr);
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "Failed to open codec:" << QString::fromUtf8(errbuf);
-        return false;
-    }
-    
-    // Copy codec parameters to stream
-    ret = avcodec_parameters_from_context(m_recordingVideoStream->codecpar, m_recordingCodecContext);
-    if (ret < 0) {
-        qCWarning(log_ffmpeg_backend) << "Failed to copy codec parameters";
-        return false;
-    }
-    
-    // CRITICAL: Set the video stream time base to match codec time base
-    // This ensures proper frame timing in the output file
-    m_recordingVideoStream->time_base = m_recordingCodecContext->time_base;
-    qCDebug(log_ffmpeg_backend) << "Set video stream time base to" << m_recordingVideoStream->time_base.num << "/" << m_recordingVideoStream->time_base.den;
-    
-    // Allocate frame for encoding
-    m_recordingFrame = make_av_frame();
-    if (!m_recordingFrame) {
-        qCWarning(log_ffmpeg_backend) << "Failed to allocate recording frame";
-        return false;
-    }
-    
-    AV_FRAME_RAW(m_recordingFrame)->format = m_recordingCodecContext->pix_fmt;
-    AV_FRAME_RAW(m_recordingFrame)->width = m_recordingCodecContext->width;
-    AV_FRAME_RAW(m_recordingFrame)->height = m_recordingCodecContext->height;
-    
-    ret = av_frame_get_buffer(AV_FRAME_RAW(m_recordingFrame), 0);
-    if (ret < 0) {
-        qCWarning(log_ffmpeg_backend) << "Failed to allocate frame buffer";
-        return false;
-    }
-    
-    // Allocate packet
-    m_recordingPacket = make_av_packet();
-    if (!m_recordingPacket) {
-        qCWarning(log_ffmpeg_backend) << "Failed to allocate recording packet";
-        return false;
-    }
-    
-    // Initialize scaling context for color space conversion
-    AVPixelFormat outputFormat = static_cast<AVPixelFormat>(m_recordingCodecContext->pix_fmt);
-    m_recordingSwsContext = sws_getContext(
-        resolution.width(), resolution.height(), AV_PIX_FMT_RGB24,
-        resolution.width(), resolution.height(), outputFormat,
-        SWS_BICUBIC, nullptr, nullptr, nullptr);
-    
-    if (!m_recordingSwsContext) {
-        qCWarning(log_ffmpeg_backend) << "Failed to initialize scaling context for recording (output format:" << outputFormat << ")";
-        return false;
-    }
-    
-    qCDebug(log_ffmpeg_backend) << "Encoder configured successfully" 
-                               << "Resolution:" << resolution
-                               << "Framerate:" << framerate
-                               << "Bitrate:" << m_recordingConfig.videoBitrate;
-    
-    return true;
-}
-
-bool FFmpegBackendHandler::writeFrameToFile(AVFrame* frame)
-{
-    // Use QMutexLocker for automatic unlocking
-    QMutexLocker locker(&m_recordingMutex);
-    
-    // Quick check recording state within the mutex-protected context
-    if (!m_recordingActive || m_recordingPaused || !m_recordingCodecContext || !frame 
-        || !m_recordingFormatContext || !m_recordingVideoStream || !m_recordingPacket) {
-        return false;
-    }
-    
-    // FIXED: Calculate PTS based on actual elapsed time for proper A/V synchronization
-    // This handles variable frame rates and provides better timing accuracy
-    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
-    qint64 elapsedMs = currentTime - m_recordingStartTime - m_totalPausedDuration;
-    
-    // Convert elapsed milliseconds to PTS using the codec's time base
-    int64_t pts = av_rescale_q(elapsedMs, AVRational{1, 1000}, m_recordingCodecContext->time_base);
-    frame->pts = pts;
-    
-    // Debug logging for first few frames to verify timing
-    static int debugFrameCount = 0;
-    if (++debugFrameCount <= 5 || debugFrameCount % 100 == 0) { // Log first 5 and every 100th frame
-        qCDebug(log_ffmpeg_backend) << "Writing frame" << m_recordingFrameNumber 
-                                   << "with PTS" << pts 
-                                   << "(elapsed:" << elapsedMs << "ms)"
-                                   << "time_base" << m_recordingCodecContext->time_base.num << "/" << m_recordingCodecContext->time_base.den;
-    }
-    
-    m_recordingFrameNumber++;
-    
-    // Send frame to encoder
-    int ret = avcodec_send_frame(m_recordingCodecContext, frame);
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "Error sending frame to encoder:" << QString::fromUtf8(errbuf);
-        return false;
-    }
-    
-    // Receive encoded packets
-    while (ret >= 0) {
-        ret = avcodec_receive_packet(m_recordingCodecContext, AV_PACKET_RAW(m_recordingPacket));
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-            break;
-        } else if (ret < 0) {
-            char errbuf[AV_ERROR_MAX_STRING_SIZE];
-            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-            qCWarning(log_ffmpeg_backend) << "Error receiving packet from encoder:" << QString::fromUtf8(errbuf);
-            return false;
-        }
-        
-        // Check if we're still recording before writing the packet
-        if (!m_recordingActive || !m_recordingFormatContext) {
-            qCDebug(log_ffmpeg_backend) << "Recording stopped during packet processing, discarding packet";
-            av_packet_unref(AV_PACKET_RAW(m_recordingPacket));
-            return false;
-        }
-        
-        // Scale packet timestamp
-        av_packet_rescale_ts(AV_PACKET_RAW(m_recordingPacket), m_recordingCodecContext->time_base, m_recordingVideoStream->time_base);
-        AV_PACKET_RAW(m_recordingPacket)->stream_index = m_recordingVideoStream->index;
-        
-        // Write packet to output file
-        ret = av_interleaved_write_frame(m_recordingFormatContext, AV_PACKET_RAW(m_recordingPacket));
-        if (ret < 0) {
-            char errbuf[AV_ERROR_MAX_STRING_SIZE];
-            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-            qCWarning(log_ffmpeg_backend) << "Error writing frame to file:" << QString::fromUtf8(errbuf);
-            av_packet_unref(AV_PACKET_RAW(m_recordingPacket));
-            return false;
-        }
-        
-        av_packet_unref(AV_PACKET_RAW(m_recordingPacket));
-    }
-    
-    return true;
-}
-
-void FFmpegBackendHandler::finalizeRecording()
-{
-    if (!m_recordingFormatContext || !m_recordingCodecContext) {
-        qCDebug(log_ffmpeg_backend) << "Recording context already cleaned up, skipping finalization";
-        return;
-    }
-    
-    qCDebug(log_ffmpeg_backend) << "Finalizing recording...";
-    
-    // Flush encoder - send NULL frame to signal end of input
-    if (m_recordingCodecContext) {
-        int ret = avcodec_send_frame(m_recordingCodecContext, nullptr);
-        if (ret < 0 && ret != AVERROR_EOF) {
-            char errbuf[AV_ERROR_MAX_STRING_SIZE];
-            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-            qCWarning(log_ffmpeg_backend) << "Error flushing encoder:" << QString::fromUtf8(errbuf);
-        } else {
-            // Receive remaining packets from encoder
-            while (ret >= 0) {
-                ret = avcodec_receive_packet(m_recordingCodecContext, AV_PACKET_RAW(m_recordingPacket));
-                if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-                    break;
-                } else if (ret < 0) {
-                    char errbuf[AV_ERROR_MAX_STRING_SIZE];
-                    av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-                    qCWarning(log_ffmpeg_backend) << "Error receiving final packets:" << QString::fromUtf8(errbuf);
-                    break;
-                }
-                
-                // Scale packet timestamp and write to file
-                if (m_recordingVideoStream && m_recordingFormatContext) {
-                    av_packet_rescale_ts(AV_PACKET_RAW(m_recordingPacket), m_recordingCodecContext->time_base, m_recordingVideoStream->time_base);
-                    AV_PACKET_RAW(m_recordingPacket)->stream_index = m_recordingVideoStream->index;
-                    av_interleaved_write_frame(m_recordingFormatContext, AV_PACKET_RAW(m_recordingPacket));
-                }
-                av_packet_unref(AV_PACKET_RAW(m_recordingPacket));
-            }
-        }
-    }
-    
-    // Write trailer
-    if (m_recordingFormatContext) {
-        int ret = av_write_trailer(m_recordingFormatContext);
-        if (ret < 0) {
-            char errbuf[AV_ERROR_MAX_STRING_SIZE];
-            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-            qCWarning(log_ffmpeg_backend) << "Error writing trailer:" << QString::fromUtf8(errbuf);
-        }
-    }
-    
-    qCDebug(log_ffmpeg_backend) << "Recording finalized, total frames:" << m_recordingFrameNumber;
-}
-
-void FFmpegBackendHandler::cleanupRecording()
-{
-    if (m_recordingSwsContext) {
-        sws_freeContext(m_recordingSwsContext);
-        m_recordingSwsContext = nullptr;
-    }
-    
-    if (m_recordingFrame) {
-        AV_FRAME_RESET(m_recordingFrame);
-    }
-    
-    if (m_recordingPacket) {
-        AV_PACKET_RESET(m_recordingPacket);
-    }
-    
-    if (m_recordingCodecContext) {
-        avcodec_free_context(&m_recordingCodecContext);
-    }
-    
-    if (m_recordingFormatContext) {
-        if (!(m_recordingFormatContext->oformat->flags & AVFMT_NOFILE)) {
-            avio_closep(&m_recordingFormatContext->pb);
-        }
-        avformat_free_context(m_recordingFormatContext);
-        m_recordingFormatContext = nullptr;
-    }
-    
-    m_recordingVideoStream = nullptr;
-    
-    qCDebug(log_ffmpeg_backend) << "Recording cleanup completed";
+    return m_recorder ? m_recorder->GetRecordingConfig() : RecordingConfig();
 }
 
 // Advanced recording methods
@@ -2459,23 +1406,33 @@ bool FFmpegBackendHandler::isCameraReady() const
 
 bool FFmpegBackendHandler::supportsAdvancedRecording() const
 {
-    return true; // FFmpeg backend always supports advanced recording
+    return m_recorder ? m_recorder->SupportsAdvancedRecording() : false;
 }
 
 bool FFmpegBackendHandler::startRecordingAdvanced(const QString& outputPath, const RecordingConfig& config)
 {
-    setRecordingConfig(config);
-    return startRecording(outputPath, config.format, config.videoBitrate);
+    if (!m_recorder) {
+        return false;
+    }
+    
+    m_recorder->SetRecordingConfig(config);
+    return startRecording(outputPath, config.format, config.video_bitrate);
 }
 
 bool FFmpegBackendHandler::forceStopRecording()
 {
-    qCDebug(log_ffmpeg_backend) << "Force stopping recording";
-    m_recordingActive = false;
-    m_recordingPaused = false;
-    cleanupRecording();
-    emit recordingStopped();
-    return true;
+    if (!m_recorder) {
+        return false;
+    }
+    
+    bool success = m_recorder->ForceStopRecording();
+    
+    if (success) {
+        m_recordingActive = false;
+        emit recordingStopped();
+    }
+    
+    return success;
 }
 
 QString FFmpegBackendHandler::getLastError() const
@@ -2485,46 +1442,34 @@ QString FFmpegBackendHandler::getLastError() const
 
 bool FFmpegBackendHandler::supportsRecordingStats() const
 {
-    return true; // FFmpeg backend supports recording statistics
+    return m_recorder ? m_recorder->SupportsRecordingStats() : false;
 }
 
 qint64 FFmpegBackendHandler::getRecordingFileSize() const
 {
-    if (m_recordingOutputPath.isEmpty() || !m_recordingActive) {
-        return 0;
-    }
-    
-    QFileInfo fileInfo(m_recordingOutputPath);
-    return fileInfo.size();
+    return m_recorder ? m_recorder->GetRecordingFileSize() : 0;
 }
 
 void FFmpegBackendHandler::takeImage(const QString& filePath)
 {
-    QMutexLocker locker(&m_mutex);
-    if (!m_latestFrame.isNull()) {
-        if (m_latestFrame.save(filePath)) {
-            qCDebug(log_ffmpeg_backend) << "Image saved to:" << filePath;
-        } else {
-            qCWarning(log_ffmpeg_backend) << "Failed to save image to:" << filePath;
-        }
-    } else {
-        qCWarning(log_ffmpeg_backend) << "No frame available for image capture";
+    if (!m_frameProcessor || !m_recorder) {
+        qCWarning(log_ffmpeg_backend) << "Frame processor or recorder not initialized";
+        return;
     }
+    
+    QPixmap latestFrame = QPixmap::fromImage(m_frameProcessor->GetLatestFrame());
+    m_recorder->TakeImage(filePath, latestFrame);
 }
 
 void FFmpegBackendHandler::takeAreaImage(const QString& filePath, const QRect& captureArea)
 {
-    QMutexLocker locker(&m_mutex);
-    if (!m_latestFrame.isNull()) {
-        QImage cropped = m_latestFrame.copy(captureArea);
-        if (cropped.save(filePath)) {
-            qCDebug(log_ffmpeg_backend) << "Cropped image saved to:" << filePath;
-        } else {
-            qCWarning(log_ffmpeg_backend) << "Failed to save cropped image to:" << filePath;
-        }
-    } else {
-        qCWarning(log_ffmpeg_backend) << "No frame available for area image capture";
+    if (!m_frameProcessor || !m_recorder) {
+        qCWarning(log_ffmpeg_backend) << "Frame processor or recorder not initialized";
+        return;
     }
+    
+    QPixmap latestFrame = QPixmap::fromImage(m_frameProcessor->GetLatestFrame());
+    m_recorder->TakeAreaImage(filePath, latestFrame, captureArea);
 }
 
 #include "ffmpegbackendhandler.moc"
