@@ -56,6 +56,12 @@ class FFmpegFrameProcessor;
 class FFmpegRecorder;
 struct RecordingConfig; // Defined in ffmpeg_recorder.h
 
+// Forward declare FFmpegDeviceValidator class
+class FFmpegDeviceValidator;
+
+// Forward declare FFmpegHotplugHandler class
+class FFmpegHotplugHandler;
+
 // Forward declarations for FFmpeg types (conditional compilation)
 #ifdef HAVE_FFMPEG
 extern "C" {
@@ -238,6 +244,12 @@ private:
     // Video recording - managed by dedicated class
     std::unique_ptr<FFmpegRecorder> m_recorder;
     
+    // Device validation - managed by dedicated class
+    std::unique_ptr<FFmpegDeviceValidator> m_deviceValidator;
+    
+    // Hotplug monitoring - managed by dedicated class
+    std::unique_ptr<FFmpegHotplugHandler> m_hotplugHandler;
+    
     // Packet handling
 #ifdef HAVE_FFMPEG
     AvPacketPtr m_packet;
@@ -259,11 +271,8 @@ private:
     // Recording state (for compatibility - actual state managed by m_recorder)
     bool m_recordingActive;
     
-    // Hotplug monitoring
-    HotplugMonitor* m_hotplugMonitor;
-    QString m_expectedDevicePath;
-    bool m_waitingForDevice;
-    QTimer* m_deviceWaitTimer;
+    // Note: Hotplug monitoring state now managed by m_hotplugHandler
+    // Keeping m_suppressErrors here as it's used by multiple components
     bool m_suppressErrors;
     
     // Output management
