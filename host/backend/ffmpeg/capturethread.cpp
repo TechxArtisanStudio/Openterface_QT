@@ -5,6 +5,7 @@
 #include "capturethread.h"
 #include <QPointer>
 #include "../ffmpegbackendhandler.h"
+#include "ffmpeg_capture_manager.h"
 
 #include <QDebug>
 #include <QTimer>
@@ -13,8 +14,16 @@
 
 Q_DECLARE_LOGGING_CATEGORY(log_ffmpeg_backend)
 
+// Make FFmpegBackendHandler and FFmpegCaptureManager implement the interface
+// by adding readFrame() method delegation
+
 CaptureThread::CaptureThread(FFmpegBackendHandler* handler, QObject* parent)
-    : QThread(parent), m_handler(handler), m_running(false)
+    : QThread(parent), m_handler(handler), m_frameReader(handler), m_running(false)
+{
+}
+
+CaptureThread::CaptureThread(FFmpegCaptureManager* manager, QObject* parent)
+    : QThread(parent), m_handler(manager), m_frameReader(manager), m_running(false)
 {
 }
 
@@ -46,7 +55,7 @@ void CaptureThread::run()
             break;
         }
         
-        if (m_handler && m_handler->readFrame()) {
+        if (m_frameReader && m_frameReader->readFrame()) {
             // Reset failure counter on successful read
             consecutiveFailures = 0;
             
@@ -82,18 +91,18 @@ void CaptureThread::run()
             if (consecutiveFailures >= maxConsecutiveFailures) {
                 qCWarning(log_ffmpeg_backend) << "Too many consecutive frame read failures (" << consecutiveFailures << "), may indicate device issue";
                 // Also trigger device disconnection handling asynchronously
-                    if (m_handler) {
-                        qCWarning(log_ffmpeg_backend) << "Triggering device disconnection due to persistent failures";
-                        // Notify the handler asynchronously: it will evaluate and deactivate device if necessary
-                        emit readError(QString("Persistent frame read failures: %1").arg(consecutiveFailures));
-                        emit deviceDisconnected();
+                if (m_frameReader) {
+                    qCWarning(log_ffmpeg_backend) << "Triggering device disconnection due to persistent failures";
+                    // Notify the handler asynchronously: it will evaluate and deactivate device if necessary
+                    emit readError(QString("Persistent frame read failures: %1").arg(consecutiveFailures));
+                    emit deviceDisconnected();
                     break;
                 }
                 consecutiveFailures = 0; // Reset to avoid spam
             }
             
             // Adaptive sleep - longer sleep for repeated failures
-                    if (consecutiveFailures < 10) {
+            if (consecutiveFailures < 10) {
                 msleep(1); // Short sleep for occasional failures
             } else if (consecutiveFailures < 50) {
                 msleep(5); // Medium sleep for frequent failures

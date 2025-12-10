@@ -22,11 +22,11 @@
 
 #include "ffmpegbackendhandler.h"
 #include "../../ui/videopane.h"
-#include "../../global.h"
-#include "../../ui/globalsetting.h"
-#include "../../device/DeviceManager.h"
-#include "../../device/HotplugMonitor.h"
-#include "../../device/DeviceInfo.h"
+#include "global.h"
+#include "ui/globalsetting.h"
+#include "device/DeviceManager.h"
+#include "device/HotplugMonitor.h"
+#include "device/DeviceInfo.h"
 
 #include <QThread>
 #include <QDebug>
@@ -67,6 +67,7 @@ Q_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
 #include "ffmpeg/ffmpeg_recorder.h"
 #include "ffmpeg/ffmpeg_device_validator.h"
 #include "ffmpeg/ffmpeg_hotplug_handler.h"
+#include "ffmpeg/ffmpeg_capture_manager.h"
 
 FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
     : MultimediaBackendHandler(parent), 
@@ -77,6 +78,7 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
     m_recorder(std::make_unique<FFmpegRecorder>()),
     m_deviceValidator(std::make_unique<FFmpegDeviceValidator>()),
     m_hotplugHandler(nullptr),  // Created after validator
+    m_captureManager(nullptr),  // Created after dependencies
     m_captureRunning(false),
     m_videoStreamIndex(-1),
     m_frameCount(0),
@@ -93,6 +95,32 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
     
     // Create hotplug handler with device validator
     m_hotplugHandler = std::make_unique<FFmpegHotplugHandler>(m_deviceValidator.get(), this);
+    
+    // Create capture manager with all its dependencies
+    m_captureManager = std::make_unique<FFmpegCaptureManager>(
+        m_deviceManager.get(),
+        m_hardwareAccelerator.get(),
+        m_deviceValidator.get(),
+        this
+    );
+    
+    // Connect capture manager signals to backend handler
+    connect(m_captureManager.get(), &FFmpegCaptureManager::FrameAvailable,
+            this, &FFmpegBackendHandler::processFrame, Qt::DirectConnection);
+    
+    qCDebug(log_ffmpeg_backend) << "Connected FFmpegCaptureManager::FrameAvailable to processFrame";
+    
+    connect(m_captureManager.get(), &FFmpegCaptureManager::DeviceDisconnected,
+            this, [this]() {
+                if (m_hotplugHandler) {
+                    QTimer::singleShot(0, this, [this]() {
+                        handleDeviceDeactivation(m_currentDevice);
+                    });
+                }
+            });
+    
+    connect(m_captureManager.get(), &FFmpegCaptureManager::CaptureError,
+            this, &FFmpegBackendHandler::captureError);
     
     // Connect hotplug handler signals to backend handler
     connect(m_hotplugHandler.get(), &FFmpegHotplugHandler::DeviceActivated,
@@ -406,104 +434,29 @@ bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const Q
         stopDirectCapture();
     }
     
-    // Cleanup any residual FFmpeg resources
-    cleanupFFmpegResources();
-    
     // Set current device
     m_currentDevice = devicePath;
     
-    // Reset error suppression flag when starting capture
-    m_suppressErrors = false;
-    
-    // Restore FFmpeg logging level
-    av_log_set_level(AV_LOG_WARNING);
-    
-    // Auto-detect maximum camera capability if not specified
-    QSize actualResolution = resolution;
-    int actualFramerate = framerate;
-    
-    if (!resolution.isValid() || resolution.width() <= 0 || resolution.height() <= 0 ||
-        framerate <= 0) {
-        qCInfo(log_ffmpeg_backend) << "Resolution or framerate not specified, detecting camera capabilities...";
+    // Delegate to capture manager
+    if (m_captureManager && m_captureManager->StartCapture(devicePath, resolution, framerate)) {
+        m_captureRunning = true;
         
-        // Try to get settings from GlobalSetting
-        // Use stored values from video page settings
-        if (framerate <= 0) {
-            // Use getMaxCameraCapability which loads from GlobalSetting
-            CameraCapability tempCapability;
-            if (getMaxCameraCapability(devicePath, tempCapability)) {
-                actualFramerate = tempCapability.framerate;
-                qCInfo(log_ffmpeg_backend) << "✓ Got FPS from GlobalSetting:" << actualFramerate << "FPS";
-                
-                // Also use stored resolution if not specified
-                if (!resolution.isValid() || resolution.width() <= 0 || resolution.height() <= 0) {
-                    actualResolution = tempCapability.resolution;
-                    qCInfo(log_ffmpeg_backend) << "✓ Got resolution from GlobalSetting:" << actualResolution;
-                }
-            } else {
-                qCInfo(log_ffmpeg_backend) << "Could not load settings, will use defaults";
-            }
+        // Notify hotplug handler that capture is running
+        if (m_hotplugHandler) {
+            m_hotplugHandler->SetCaptureRunning(true);
         }
         
-        // Fall back to defaults if still not set
-        if (!actualResolution.isValid() || actualResolution.width() <= 0 || actualResolution.height() <= 0) {
-            actualResolution = QSize(1920, 1080);
-            qCInfo(log_ffmpeg_backend) << "Using default resolution:" << actualResolution;
+        // Start performance monitoring
+        if (m_performanceTimer) {
+            m_performanceTimer->start();
         }
-        if (framerate <= 0 && actualFramerate <= 0) {
-            actualFramerate = 30;
-            qCInfo(log_ffmpeg_backend) << "Using default framerate:" << actualFramerate << "FPS";
-        }
+        
+        qCDebug(log_ffmpeg_backend) << "Direct FFmpeg capture started successfully";
+        return true;
     }
     
-    qCDebug(log_ffmpeg_backend) << "Starting direct FFmpeg capture:"
-                                << "device=" << devicePath
-                                << "resolution=" << actualResolution
-                                << "framerate=" << actualFramerate;
-    
-    // Open input device
-    if (!openInputDevice(devicePath, actualResolution, actualFramerate)) {
-        qCWarning(log_ffmpeg_backend) << "Failed to open input device";
-        return false;
-    }
-    
-    // Create and start capture thread
-    m_captureThread = std::make_unique<CaptureThread>(this);
-    m_captureThread->setRunning(true);
-    connect(m_captureThread.get(), &CaptureThread::frameAvailable,
-        this, &FFmpegBackendHandler::processFrame, Qt::DirectConnection);
-    connect(m_captureThread.get(), &CaptureThread::deviceDisconnected,
-        this, [this]() { 
-            if (m_hotplugHandler) {
-                QTimer::singleShot(0, this, [this]() {
-                    handleDeviceDeactivation(m_currentDevice);
-                });
-            }
-        });
-    connect(m_captureThread.get(), &CaptureThread::readError,
-        this, [this](const QString& msg) {
-        qCWarning(log_ffmpeg_backend) << "Capture thread read error:" << msg;
-        emit captureError(msg);
-        });
-    m_captureRunning = true;
-    
-    // Notify hotplug handler that capture is running
-    if (m_hotplugHandler) {
-        m_hotplugHandler->SetCaptureRunning(true);
-    }
-    
-    m_captureThread->start();
-    
-    // Set lower priority for capture thread to not starve UI thread
-    m_captureThread->setPriority(QThread::LowPriority);
-    
-    // Start performance monitoring
-    if (m_performanceTimer) {
-        m_performanceTimer->start();
-    }
-    
-    qCDebug(log_ffmpeg_backend) << "Direct FFmpeg capture started successfully";
-    return true;
+    qCWarning(log_ffmpeg_backend) << "Failed to start direct FFmpeg capture";
+    return false;
 }
 
 void FFmpegBackendHandler::stopDirectCapture()
@@ -524,66 +477,13 @@ void FFmpegBackendHandler::stopDirectCapture()
             m_hotplugHandler->SetCaptureRunning(false);
         }
         
-        // Set interrupt flag to break out of any blocking FFmpeg operations
-        m_interruptRequested = true;
-        
-        // Request thread interruption
-        m_captureThread->requestInterruption();
-        
-        // Close input device first to stop buffering and prevent buffer overflow
-        closeInputDevice();
-    } // Release mutex before waiting
-
-        // Stop capture thread
-        if (m_captureThread) {
-            m_captureThread->setRunning(false);
-            
-            // Check if we're being called from the capture thread itself
-            if (QThread::currentThread() == m_captureThread.get()) {
-                qCDebug(log_ffmpeg_backend) << "stopDirectCapture called from capture thread - will cleanup asynchronously";
-                // Don't wait for the thread to finish since we ARE the thread
-                // Just mark it for cleanup and let it finish naturally
-                QTimer::singleShot(100, this, [this]() {
-                    if (m_captureThread && m_captureThread->isFinished()) {
-                        m_captureThread.reset();
-                        qCDebug(log_ffmpeg_backend) << "Capture thread cleaned up asynchronously";
-                        // Cleanup resources after thread finishes (closeInputDevice already called)
-                        QMutexLocker locker(&m_mutex);
-                        cleanupFFmpegResources();
-                    }
-                });
-            } else {
-                // We're being called from a different thread, terminate immediately
-                qCDebug(log_ffmpeg_backend) << "Terminating capture thread immediately";
-                m_captureThread->requestInterruption();
-                
-                // Wait for thread to finish with proper timeout handling
-                if (!m_captureThread->wait(3000)) {
-                    qCCritical(log_ffmpeg_backend) << "Capture thread did not exit after 3 seconds, forcing termination";
-                    m_captureThread->terminate();
-                    
-                    // Give it one more chance to clean up after terminate
-                    if (!m_captureThread->wait(1000)) {
-                        qCCritical(log_ffmpeg_backend) << "Capture thread still running after terminate! This should not happen.";
-                    }
-                }
-                
-                // Only reset the thread after ensuring it's stopped
-                if (!m_captureThread->isRunning()) {
-                    m_captureThread.reset();
-                    qCDebug(log_ffmpeg_backend) << "Capture thread terminated and cleaned up";
-                } else {
-                    qCCritical(log_ffmpeg_backend) << "WARNING: Capture thread still running, cannot safely destroy!";
-                    // Don't reset to avoid the crash, but this is a serious error
-                }
-                
-                // Resources already cleaned up by closeInputDevice()
-            }
-        } else {
-            // No thread, but ensure resources are cleaned
-            QMutexLocker locker(&m_mutex);
-            cleanupFFmpegResources();
-        }    // Stop performance monitoring
+        // Delegate to capture manager
+        if (m_captureManager) {
+            m_captureManager->StopCapture();
+        }
+    } // Release mutex
+    
+    // Stop performance monitoring
     if (m_performanceTimer) {
         m_performanceTimer->stop();
     }
@@ -675,76 +575,11 @@ void FFmpegBackendHandler::closeInputDevice()
 
 bool FFmpegBackendHandler::readFrame()
 {
-    // Check for interrupt request first to avoid blocking operations
-    if (m_interruptRequested || QThread::currentThread()->isInterruptionRequested()) {
-        qCDebug(log_ffmpeg_backend) << "Read interrupted by request";
-        return false;
+    // Delegate to capture manager
+    if (m_captureManager) {
+        return m_captureManager->ReadFrame();
     }
-
-    AVFormatContext* formatContext = m_deviceManager ? m_deviceManager->GetFormatContext() : nullptr;
-    if (!formatContext || m_videoStreamIndex == -1) {
-        static int noContextWarnings = 0;
-        if (noContextWarnings < 5) { // Limit warnings to avoid spam
-            qCWarning(log_ffmpeg_backend) << "readFrame called with invalid context or stream index";
-            noContextWarnings++;
-        }
-        return false;
-    }
-    
-    // Read packet from input with timeout handling
-    int ret = av_read_frame(formatContext, AV_PACKET_RAW(m_packet));
-    if (ret < 0) {
-        if (ret == AVERROR(EAGAIN)) {
-            return false; // Try again later
-        } else if (ret == AVERROR_EOF) {
-            if (!m_suppressErrors) {
-                qCWarning(log_ffmpeg_backend) << "End of stream reached";
-            }
-            return false;
-        } else if (ret == AVERROR(EIO)) {
-            if (!m_suppressErrors) {
-                qCWarning(log_ffmpeg_backend) << "I/O error while reading frame - device may be disconnected";
-            }
-            return false;
-        } else if (ret == AVERROR(ENODEV)) {
-            if (!m_suppressErrors) {
-                qCWarning(log_ffmpeg_backend) << "No such device error - device disconnected";
-            }
-            return false;
-        } else if (ret == AVERROR(ENXIO)) {
-            if (!m_suppressErrors) {
-                qCWarning(log_ffmpeg_backend) << "Device not configured or disconnected";
-            }
-            return false;
-        } else {
-            char errbuf[AV_ERROR_MAX_STRING_SIZE];
-            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-            static int errorCount = 0;
-            if (errorCount < 10 && !m_suppressErrors) { // Limit error spam and respect suppression flag
-                qCWarning(log_ffmpeg_backend) << "Error reading frame:" << QString::fromUtf8(errbuf) << "error code:" << ret;
-                errorCount++;
-                
-                // Check for device-related errors in error message
-                QString errorMsg = QString::fromUtf8(errbuf).toLower();
-                if (errorMsg.contains("no such device") || 
-                    errorMsg.contains("device") ||
-                    errorMsg.contains("vidioc") ||
-                    ret == -19) { // ENODEV
-                    qCWarning(log_ffmpeg_backend) << "Device error detected in error message, likely disconnection";
-                    // Return false to trigger consecutive failure counting
-                }
-            }
-            return false;
-        }
-    }
-    
-    // Check if this is our video stream
-    if (AV_PACKET_RAW(m_packet)->stream_index != m_videoStreamIndex) {
-        av_packet_unref(AV_PACKET_RAW(m_packet));
-        return false;
-    }
-    
-    return true;
+    return false;
 }
 
 void FFmpegBackendHandler::processFrame()
@@ -754,32 +589,45 @@ void FFmpegBackendHandler::processFrame()
     AVCodecContext* codecContext = m_deviceManager ? m_deviceManager->GetCodecContext() : nullptr;
     
     if (!m_captureRunning || !formatContext || !codecContext || !m_frameProcessor) {
+        qCWarning(log_ffmpeg_backend) << "processFrame: Early exit - captureRunning:" << m_captureRunning 
+                                      << "formatContext:" << (formatContext != nullptr)
+                                      << "codecContext:" << (codecContext != nullptr)
+                                      << "frameProcessor:" << (m_frameProcessor != nullptr);
         return; // Exit early if capture is stopping or resources are gone
     }
 
-    if (!m_packet) {
+    // Get packet from capture manager
+    AVPacket* packet = m_captureManager ? m_captureManager->GetPacket() : nullptr;
+    if (!packet) {
+        qCWarning(log_ffmpeg_backend) << "processFrame: No packet available from capture manager";
         return;
     }
+    
+    qCDebug(log_ffmpeg_backend) << "processFrame: Processing packet, size:" << packet->size 
+                                << "stream_index:" << packet->stream_index;
     
     // Check if recording is active
     bool isRecording = m_recorder && m_recorder->IsRecording() && !m_recorder->IsPaused();
     
     // Process frame using FFmpegFrameProcessor
-    QPixmap pixmap = m_frameProcessor->ProcessPacket(AV_PACKET_RAW(m_packet), codecContext, isRecording);
+    QPixmap pixmap = m_frameProcessor->ProcessPacket(packet, codecContext, isRecording);
     
     // Clean up packet
-    av_packet_unref(AV_PACKET_RAW(m_packet));
+    av_packet_unref(packet);
     
     if (!pixmap.isNull()) {
         m_frameCount++;
         
-        // Reduce logging frequency for performance
-        if (m_frameCount % 1000 == 1) {
+        // Log first few frames for debugging
+        if (m_frameCount <= 5 || m_frameCount % 1000 == 1) {
             qCDebug(log_ffmpeg_backend) << "Processed frame" << m_frameCount << "size:" << pixmap.size();
         }
         
         // Emit frame to UI (QueuedConnection ensures thread safety)
         if (m_captureRunning) {
+            if (m_frameCount <= 5) {
+                qCDebug(log_ffmpeg_backend) << "Emitting frameReady signal for frame" << m_frameCount;
+            }
             emit frameReady(pixmap);
         }
         
@@ -808,12 +656,12 @@ void FFmpegBackendHandler::processFrame()
         // Let Qt's event loop handle frame processing naturally
     } else {
         // Only warn for decode failures on packets with actual data
-        if (AV_PACKET_RAW(m_packet)->size > 0) {
+        if (packet->size > 0) {
             qCWarning(log_ffmpeg_backend) << "Failed to decode frame - pixmap is null";
             qCWarning(log_ffmpeg_backend) << "Frame decode failure details:";
-            qCWarning(log_ffmpeg_backend) << "  - Packet size:" << AV_PACKET_RAW(m_packet)->size;
+            qCWarning(log_ffmpeg_backend) << "  - Packet size:" << packet->size;
             qCWarning(log_ffmpeg_backend) << "  - Codec ID:" << (codecContext ? codecContext->codec_id : -1);
-            qCWarning(log_ffmpeg_backend) << "  - Stream index:" << AV_PACKET_RAW(m_packet)->stream_index;
+            qCWarning(log_ffmpeg_backend) << "  - Stream index:" << packet->stream_index;
         }
     }
 }

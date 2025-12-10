@@ -24,6 +24,7 @@
 #define FFMPEGBACKENDHANDLER_H
 
 #include "../multimediabackend.h"
+#include "ffmpeg/icapture_frame_reader.h"
 #include <QThread>
 #include <QLoggingCategory>
 Q_DECLARE_LOGGING_CATEGORY(log_ffmpeg_backend)
@@ -40,7 +41,7 @@ class HotplugMonitor;
 struct DeviceInfo;
 struct DeviceChangeEvent;
 
-// Forward declare CaptureThread class used by this backend
+// Forward declare CaptureThread class and interface
 class CaptureThread;
 
 // Forward declare FFmpegHardwareAccelerator class
@@ -61,6 +62,9 @@ class FFmpegDeviceValidator;
 
 // Forward declare FFmpegHotplugHandler class
 class FFmpegHotplugHandler;
+
+// Forward declare FFmpegCaptureManager class
+class FFmpegCaptureManager;
 
 // Forward declarations for FFmpeg types (conditional compilation)
 #ifdef HAVE_FFMPEG
@@ -93,7 +97,7 @@ typedef void* tjhandle;
 /**
  * @brief FFmpeg backend handler implementation with direct video decoding
  */
-class FFmpegBackendHandler : public MultimediaBackendHandler
+class FFmpegBackendHandler : public MultimediaBackendHandler, public ICaptureFrameReader
 {
     Q_OBJECT
 
@@ -249,6 +253,9 @@ private:
     
     // Hotplug monitoring - managed by dedicated class
     std::unique_ptr<FFmpegHotplugHandler> m_hotplugHandler;
+    
+    // Capture management - managed by dedicated class
+    std::unique_ptr<FFmpegCaptureManager> m_captureManager;
     
     // Packet handling
 #ifdef HAVE_FFMPEG

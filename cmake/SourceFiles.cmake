@@ -43,6 +43,8 @@ set(HOST_SOURCES
     host/backend/ffmpeg/ffmpeg_recorder.cpp host/backend/ffmpeg/ffmpeg_recorder.h
     host/backend/ffmpeg/ffmpeg_device_validator.cpp host/backend/ffmpeg/ffmpeg_device_validator.h
     host/backend/ffmpeg/ffmpeg_hotplug_handler.cpp host/backend/ffmpeg/ffmpeg_hotplug_handler.h
+    host/backend/ffmpeg/ffmpeg_capture_manager.cpp host/backend/ffmpeg/ffmpeg_capture_manager.h
+    host/backend/ffmpeg/icapture_frame_reader.h
     host/backend/ffmpeg/ffmpegutils.h
 )
 
