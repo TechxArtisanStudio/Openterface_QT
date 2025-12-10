@@ -502,7 +502,7 @@ fi
 rpmbuild --define "_topdir ${RPMTOP}" -bb "${SPEC_OUT}"
 
 # Move resulting RPM to build output with normalized name
-RPM_OUT_NAME="openterfaceQT_${VERSION}_${RPM_ARCH}.rpm"
+RPM_OUT_NAME="openterfaceQT_${VERSION}_${ARCH}.rpm"
 FOUND_RPM=$(find "${RPMTOP}/RPMS" -name "*.rpm" -type f | head -n1 || true)
 if [ -n "${FOUND_RPM}" ]; then
 	mv "${FOUND_RPM}" "${BUILD}/${RPM_OUT_NAME}"
