@@ -566,12 +566,12 @@ void RecordingSettingsDialog::onApplySettings()
     // For FFmpeg backend, use the specific configuration
     if (m_ffmpegBackend && backend == m_ffmpegBackend) {
         RecordingConfig config;
-        config.outputPath = m_outputPathEdit->text();
+        config.output_path = m_outputPathEdit->text();
         config.format = m_formatCombo->currentText();
-        config.videoCodec = m_videoCodecCombo->currentText();
-        config.videoBitrate = m_videoBitrateSpin->value() * 1000; // Convert to bps
-        config.videoQuality = 23; // Use default CRF value
-        config.useHardwareAcceleration = false; // Default to false for compatibility
+        config.video_codec = m_videoCodecCombo->currentText();
+        config.video_bitrate = m_videoBitrateSpin->value() * 1000; // Convert to bps
+        config.video_quality = 23; // Use default CRF value
+        config.use_hardware_acceleration = false; // Default to false for compatibility
         
         m_ffmpegBackend->setRecordingConfig(config);
     }

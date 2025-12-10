@@ -5,7 +5,7 @@ name: Build / Linux Build
 
 on:
   push:
-    branches: ["main", "dev_251027_add_GPU_support"]
+    branches: ["main", "dev_1205_refactor_ffmpeg_backend_code"]
     tags: ["v*"]
     paths:
       - '.github/workflows/linux-build.yaml'
