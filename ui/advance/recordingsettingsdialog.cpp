@@ -25,6 +25,7 @@
 #include "../../ui/globalsetting.h"
 #ifndef Q_OS_WIN
 #include "../../host/backend/gstreamerbackendhandler.h"
+#include "../../host/backend/ffmpeg/ffmpeg_recorder.h"
 #else
 #include "../../host/backend/qtbackendhandler.h"
 #endif
@@ -564,13 +565,13 @@ void RecordingSettingsDialog::onApplySettings()
 #ifndef Q_OS_WIN
     // For FFmpeg backend, use the specific configuration
     if (m_ffmpegBackend && backend == m_ffmpegBackend) {
-        FFmpegBackendHandler::RecordingConfig config;
-        config.outputPath = m_outputPathEdit->text();
+        RecordingConfig config;
+        config.output_path = m_outputPathEdit->text();
         config.format = m_formatCombo->currentText();
-        config.videoCodec = m_videoCodecCombo->currentText();
-        config.videoBitrate = m_videoBitrateSpin->value() * 1000; // Convert to bps
-        config.videoQuality = 23; // Use default CRF value
-        config.useHardwareAcceleration = false; // Default to false for compatibility
+        config.video_codec = m_videoCodecCombo->currentText();
+        config.video_bitrate = m_videoBitrateSpin->value() * 1000; // Convert to bps
+        config.video_quality = 23; // Use default CRF value
+        config.use_hardware_acceleration = false; // Default to false for compatibility
         
         m_ffmpegBackend->setRecordingConfig(config);
     }
