@@ -25,6 +25,7 @@
 #include "../../ui/globalsetting.h"
 #ifndef Q_OS_WIN
 #include "../../host/backend/gstreamerbackendhandler.h"
+#include "../../host/backend/ffmpeg/ffmpeg_recorder.h"
 #else
 #include "../../host/backend/qtbackendhandler.h"
 #endif
@@ -564,7 +565,7 @@ void RecordingSettingsDialog::onApplySettings()
 #ifndef Q_OS_WIN
     // For FFmpeg backend, use the specific configuration
     if (m_ffmpegBackend && backend == m_ffmpegBackend) {
-        FFmpegBackendHandler::RecordingConfig config;
+        RecordingConfig config;
         config.outputPath = m_outputPathEdit->text();
         config.format = m_formatCombo->currentText();
         config.videoCodec = m_videoCodecCombo->currentText();
