@@ -166,12 +166,19 @@ void FFmpegCaptureManager::StopCapture()
         // Set interrupt flag to break out of any blocking FFmpeg operations
         interrupt_requested_ = true;
         
-        // Close input device first to stop buffering
-        CloseInputDevice();
+        // DO NOT close input device here - thread is still using it!
+        // It will be closed after thread stops in StopCaptureThread()
     } // Release mutex before waiting for thread
     
-    // Stop capture thread
+    // Stop capture thread FIRST - this is critical!
+    // The thread must exit before we close FFmpeg resources
     StopCaptureThread();
+    
+    // Now safe to close input device after thread has stopped
+    {
+        QMutexLocker locker(&mutex_);
+        CloseInputDevice();
+    }
     
     // Stop performance monitoring
     if (performance_timer_) {
@@ -374,34 +381,47 @@ void FFmpegCaptureManager::StopCaptureThread()
             if (capture_thread_ && capture_thread_->isFinished()) {
                 capture_thread_.reset();
                 qCDebug(log_ffmpeg_backend) << "Capture thread cleaned up asynchronously";
-                CleanupResources();
+                // Don't call CleanupResources here either - parent StopCapture handles it
             }
         });
     } else {
-        // We're being called from a different thread, terminate immediately
-        qCDebug(log_ffmpeg_backend) << "Terminating capture thread immediately";
+        // We're being called from a different thread, wait gracefully
+        qCDebug(log_ffmpeg_backend) << "Requesting capture thread to stop gracefully";
         capture_thread_->requestInterruption();
         
-        // Wait for thread to finish with proper timeout handling
-        if (!capture_thread_->wait(3000)) {
-            qCCritical(log_ffmpeg_backend) << "Capture thread did not exit after 3 seconds, forcing termination";
-            capture_thread_->terminate();
+        // Wait longer for thread to finish gracefully (increased from 3s to 5s)
+        // This is critical to prevent crashes when thread is processing frames
+        if (!capture_thread_->wait(5000)) {
+            qCWarning(log_ffmpeg_backend) << "Capture thread did not exit after 5 seconds";
             
-            // Give it one more chance to clean up after terminate
-            if (!capture_thread_->wait(1000)) {
-                qCCritical(log_ffmpeg_backend) << "Capture thread still running after terminate! This should not happen.";
+            // Give it more time instead of terminating immediately
+            qCDebug(log_ffmpeg_backend) << "Waiting additional 2 seconds for thread cleanup...";
+            if (!capture_thread_->wait(2000)) {
+                qCCritical(log_ffmpeg_backend) << "Capture thread still not finished after 7 seconds total";
+                
+                // As last resort, terminate - but this should rarely happen
+                qCCritical(log_ffmpeg_backend) << "Force terminating thread (this may cause instability)";
+                capture_thread_->terminate();
+                
+                // Give terminated thread time to cleanup
+                if (!capture_thread_->wait(1000)) {
+                    qCCritical(log_ffmpeg_backend) << "Capture thread still running after terminate!";
+                }
             }
+        } else {
+            qCDebug(log_ffmpeg_backend) << "Capture thread exited gracefully";
         }
         
         // Only reset the thread after ensuring it's stopped
         if (!capture_thread_->isRunning()) {
             capture_thread_.reset();
-            qCDebug(log_ffmpeg_backend) << "Capture thread terminated and cleaned up";
+            qCDebug(log_ffmpeg_backend) << "Capture thread cleaned up successfully";
         } else {
             qCCritical(log_ffmpeg_backend) << "WARNING: Capture thread still running, cannot safely destroy!";
             // Don't reset to avoid the crash, but this is a serious error
         }
         
-        CleanupResources();
+        // Don't call CleanupResources here - it will be called by StopCapture()
+        // after the thread has fully stopped to avoid use-after-free
     }
 }

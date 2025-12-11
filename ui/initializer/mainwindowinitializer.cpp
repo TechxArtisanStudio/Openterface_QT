@@ -207,6 +207,10 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     connect(m_cornerWidgetManager, &CornerWidgetManager::recordingToggled, m_mainWindow, &MainWindow::toggleRecording);
     connect(m_cornerWidgetManager, &CornerWidgetManager::muteToggled, m_mainWindow, &MainWindow::toggleMute);
 
+    // Connect SerialPortManager USB status changes to CornerWidgetManager
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
+            m_cornerWidgetManager, &CornerWidgetManager::updateUSBStatus);
+
     // Connect layout changes to update corner widget position
     // CRITICAL FIX: Capture specific pointers instead of 'this' to avoid dangling reference
     CornerWidgetManager* cornerWidgetManager = m_cornerWidgetManager;
@@ -370,6 +374,8 @@ void MainWindowInitializer::connectVideoHidSignals()
             m_statusBarManager, &StatusBarManager::onLastMouseLocation);
     connect(&VideoHid::getInstance(), &VideoHid::inputResolutionChanged, m_mainWindow, &MainWindow::onInputResolutionChanged);
     connect(&VideoHid::getInstance(), &VideoHid::resolutionChangeUpdate, m_mainWindow, &MainWindow::onResolutionChange);
+    connect(&VideoHid::getInstance(), &VideoHid::gpio0StatusChanged, m_mainWindow, &MainWindow::onGpio0StatusChanged);
+    connect(&VideoHid::getInstance(), &VideoHid::gpio0StatusChanged, m_cornerWidgetManager, &CornerWidgetManager::updateUSBStatus);
 }
 
 void MainWindowInitializer::setupRecordingController()

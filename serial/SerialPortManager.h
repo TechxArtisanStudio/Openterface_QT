@@ -145,7 +145,6 @@ public:
     // New USB switch methods for CH32V208 serial port (firmware with new protocol)
     void switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)
     void switchUsbToTargetViaSerial();    // Switch USB to target via serial command (57 AB 00 17...)
-    int checkUsbStatusViaSerial();        // Check USB switch status (returns: 0=host, 1=target, -1=error)
     
 signals:
     void dataReceived(const QByteArray &data);
@@ -160,6 +159,7 @@ signals:
     void armBaudratePerformanceRecommendation(int currentBaudrate); // Signal for ARM performance recommendation
     void parameterConfigurationSuccess(); // Signal emitted when parameter configuration is successful and reset is needed
     void syncResponseReady();  // Emitted when m_syncCommandResponse is filled for sync commands
+    void usbStatusChanged(bool isToTarget);  // New signal: true = target, false = host
     
 private slots:
     void observeSerialPortNotification();
@@ -180,6 +180,7 @@ private slots:
     void onSerialPortConnected(const QString &portName);
     void onSerialPortDisconnected(const QString &portName);
     void onSerialPortConnectionSuccess(const QString &portName);
+    void onUsbStatusCheckTimeout();  // New slot for USB status check timer
     
     
 private:
@@ -229,6 +230,7 @@ private:
     std::atomic<int> m_consecutiveErrors = 0;
     QTimer* m_connectionWatchdog;
     QTimer* m_errorRecoveryTimer;
+    QTimer* m_usbStatusCheckTimer;  // New timer for periodic USB status checks
     QMutex m_serialPortMutex;
     QQueue<QByteArray> m_commandQueue;
     QMutex m_commandQueueMutex;

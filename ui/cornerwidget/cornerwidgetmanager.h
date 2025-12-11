@@ -22,6 +22,8 @@ public:
     void updatePosition(int windowWidth, int menuBarHeight, bool isFullScreen);
     void initializeKeyboardLayouts(const QStringList &layouts, const QString &defaultLayout);
     void restoreMuteState(bool muted);
+    void updateUSBStatus(bool isToTarget);
+    bool isUpdatingFromStatus() const { return m_updatingFromStatus; }  // New getter
     QPushButton *screensaverButton;
     QPushButton *recordingButton;
     QPushButton *muteButton;
@@ -63,6 +65,7 @@ private:
     bool isMuted;
     QMenuBar *menuBar;
     int layoutThreshold;
+    bool m_updatingFromStatus;  // New flag to track programmatic updates
 };
 
 #endif // CORNERWIDGETMANAGER_H

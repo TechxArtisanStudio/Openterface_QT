@@ -171,6 +171,7 @@ signals:
     void hidDeviceSwitched(const QString& fromPortChain, const QString& toPortChain);
     void hidDeviceConnected(const QString& devicePath);
     void hidDeviceDisconnected(const QString& devicePath);
+    void gpio0StatusChanged(bool isToTarget);
 
 private:
     explicit VideoHid(QObject *parent = nullptr);

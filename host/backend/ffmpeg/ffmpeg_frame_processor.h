@@ -65,6 +65,9 @@ public:
     
     // Configuration
     void SetFrameDropThreshold(int display_threshold_ms, int recording_threshold_ms);
+    void SetScalingQuality(const QString &quality);
+    void StopCaptureGracefully();
+    void StartCapture();
     void ResetFrameCount();
     
     // Statistics
@@ -102,6 +105,8 @@ private:
     int last_width_;
     int last_height_;
     AVPixelFormat last_format_;
+    int last_scaling_algorithm_;
+    int scaling_algorithm_;
     
     // Frame dropping configuration
     int frame_drop_threshold_display_;
@@ -116,6 +121,9 @@ private:
     // Latest frame storage (thread-safe)
     mutable QMutex mutex_;
     QImage latest_frame_;
+    
+    // Thread control
+    bool stop_requested_;
     
 #ifdef HAVE_LIBJPEG_TURBO
     tjhandle turbojpeg_handle_;

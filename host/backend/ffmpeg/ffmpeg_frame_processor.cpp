@@ -37,12 +37,15 @@ FFmpegFrameProcessor::FFmpegFrameProcessor()
     , last_width_(-1)
     , last_height_(-1)
     , last_format_(AV_PIX_FMT_NONE)
+    , last_scaling_algorithm_(-1)
+    , scaling_algorithm_(SWS_BICUBIC)
     , frame_drop_threshold_display_(2)
     , frame_drop_threshold_recording_(20)
     , last_process_time_(0)
     , dropped_frames_(0)
     , frame_count_(0)
     , startup_frames_to_skip_(-1)
+    , stop_requested_(false)
 #ifdef HAVE_LIBJPEG_TURBO
     , turbojpeg_handle_(nullptr)
 #endif
@@ -84,6 +87,7 @@ FFmpegFrameProcessor::~FFmpegFrameProcessor()
 
 void FFmpegFrameProcessor::Cleanup()
 {
+    QMutexLocker locker(&mutex_);
     CleanupScalingContext();
     
 #ifdef HAVE_LIBJPEG_TURBO
@@ -102,10 +106,53 @@ void FFmpegFrameProcessor::Cleanup()
     }
 }
 
+void FFmpegFrameProcessor::StopCaptureGracefully()
+{
+    stop_requested_ = true;
+}
+
+void FFmpegFrameProcessor::StartCapture()
+{
+    stop_requested_ = false;
+}
+
 void FFmpegFrameProcessor::SetFrameDropThreshold(int display_threshold_ms, int recording_threshold_ms)
 {
     frame_drop_threshold_display_ = display_threshold_ms;
     frame_drop_threshold_recording_ = recording_threshold_ms;
+}
+
+void FFmpegFrameProcessor::SetScalingQuality(const QString &quality)
+{
+    int new_algorithm;
+    if (quality == "fast") {
+        new_algorithm = SWS_FAST_BILINEAR;
+    } else if (quality == "balanced") {
+        new_algorithm = SWS_BILINEAR;
+    } else if (quality == "quality") {
+        new_algorithm = SWS_BICUBIC;
+    } else if (quality == "best") {
+        new_algorithm = SWS_LANCZOS;
+    } else {
+        new_algorithm = SWS_BICUBIC; // Default
+    }
+    
+    // Thread-safe update of scaling algorithm
+    {
+        QMutexLocker locker(&mutex_);
+        if (scaling_algorithm_ != new_algorithm) {
+            scaling_algorithm_ = new_algorithm;
+            // Don't cleanup scaling context immediately - let it be recreated lazily
+            // when UpdateScalingContext is called next time. This prevents crashes
+            // when changing settings while capture is running.
+            last_width_ = -1;  // Force recreation on next use
+            last_height_ = -1;
+            last_format_ = AV_PIX_FMT_NONE;
+            last_scaling_algorithm_ = -1;
+            qCDebug(log_ffmpeg_backend) << "Scaling quality changed to:" << quality 
+                                       << "(algorithm:" << scaling_algorithm_ << ")";
+        }
+    }
 }
 
 void FFmpegFrameProcessor::ResetFrameCount()
@@ -160,6 +207,10 @@ bool FFmpegFrameProcessor::IsHardwareDecoder(const AVCodecContext* codec_context
 QPixmap FFmpegFrameProcessor::ProcessPacket(AVPacket* packet, AVCodecContext* codec_context, 
                                             bool is_recording)
 {
+    if (stop_requested_) {
+        return QPixmap();
+    }
+    
     if (!packet || !codec_context) {
         return QPixmap();
     }
@@ -519,12 +570,16 @@ QPixmap FFmpegFrameProcessor::ConvertWithScaling(AVFrame* frame)
     int height = frame->height;
     AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
     
-    // Update scaling context if needed
+    // Update scaling context if needed (this method handles its own mutex locking)
     UpdateScalingContext(width, height, format);
     
-    if (!sws_context_) {
-        qCWarning(log_ffmpeg_backend) << "Failed to create scaling context";
-        return QPixmap();
+    // Check if scaling context is available (use mutex to protect sws_context_ access)
+    {
+        QMutexLocker locker(&mutex_);
+        if (!sws_context_) {
+            qCWarning(log_ffmpeg_backend) << "Failed to create scaling context";
+            return QPixmap();
+        }
     }
     
     // Allocate RGB image
@@ -538,9 +593,13 @@ QPixmap FFmpegFrameProcessor::ConvertWithScaling(AVFrame* frame)
     uint8_t* rgb_data[1] = { image.bits() };
     int rgb_linesize[1] = { static_cast<int>(image.bytesPerLine()) };
     
-    // Convert frame to RGB
-    int scale_result = sws_scale(sws_context_, frame->data, frame->linesize, 
+    // Convert frame to RGB (protect sws_context_ usage with mutex)
+    int scale_result;
+    {
+        QMutexLocker locker(&mutex_);
+        scale_result = sws_scale(sws_context_, frame->data, frame->linesize, 
                                  0, height, rgb_data, rgb_linesize);
+    }
     
     if (scale_result < 0) {
         qCCritical(log_ffmpeg_backend) << "sws_scale failed with result:" << scale_result;
@@ -558,7 +617,9 @@ QPixmap FFmpegFrameProcessor::ConvertWithScaling(AVFrame* frame)
 
 void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFormat format)
 {
-    if (sws_context_ && width == last_width_ && height == last_height_ && format == last_format_) {
+    QMutexLocker locker(&mutex_);
+    
+    if (sws_context_ && width == last_width_ && height == last_height_ && format == last_format_ && scaling_algorithm_ == last_scaling_algorithm_) {
         return; // Context is still valid
     }
     
@@ -568,12 +629,12 @@ void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFo
     qCInfo(log_ffmpeg_backend) << "Creating scaling context:" 
                                << width << "x" << height 
                                << "from format" << format << "(" << (format_name ? format_name : "unknown") << ")"
-                               << "to RGB24";
+                               << "to RGB24 with algorithm" << scaling_algorithm_;
     
     sws_context_ = sws_getContext(
         width, height, format,
         width, height, AV_PIX_FMT_RGB24,
-        SWS_BILINEAR, nullptr, nullptr, nullptr
+        scaling_algorithm_, nullptr, nullptr, nullptr
     );
     
     if (!sws_context_) {
@@ -584,6 +645,7 @@ void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFo
     last_width_ = width;
     last_height_ = height;
     last_format_ = format;
+    last_scaling_algorithm_ = scaling_algorithm_;
     
     qCInfo(log_ffmpeg_backend) << "Successfully created scaling context";
 }
@@ -598,4 +660,5 @@ void FFmpegFrameProcessor::CleanupScalingContext()
     last_width_ = -1;
     last_height_ = -1;
     last_format_ = AV_PIX_FMT_NONE;
+    last_scaling_algorithm_ = -1;
 }
