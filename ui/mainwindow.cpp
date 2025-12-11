@@ -399,6 +399,11 @@ void MainWindow::onActionSwitchToTargetTriggered()
 
 void MainWindow::onToggleSwitchStateChanged(int state)
 {
+    // Ignore if this change is from a programmatic status update
+    if (m_cornerWidgetManager && m_cornerWidgetManager->isUpdatingFromStatus()) {
+        return;
+    }
+
     qCDebug(log_ui_mainwindow) << "Toggle switch state changed to:" << state;
     if (state == Qt::Checked) {
         onActionSwitchToTargetTriggered();
@@ -424,6 +429,12 @@ void MainWindow::onResolutionChange(const int& width, const int& height, const f
     m_statusBarManager->setCaptureResolution(width, height, fps);
     
     // No popup message for resolution changes
+}
+
+void MainWindow::onGpio0StatusChanged(bool isToTarget)
+{
+    qCDebug(log_ui_mainwindow) << "GPIO0 status changed to:" << (isToTarget ? "target" : "host");
+    toggleSwitch->setChecked(isToTarget);
 }
 
 void MainWindow::onTargetUsbConnected(const bool isConnected)

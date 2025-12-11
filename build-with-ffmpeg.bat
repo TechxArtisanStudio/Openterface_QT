@@ -20,10 +20,14 @@ set CMAKE_MAKE_PROGRAM=%MINGW_PATH%\bin\mingw32-make.exe
 set CMAKE_C_COMPILER=%MINGW_PATH%\bin\gcc.exe
 set CMAKE_CXX_COMPILER=%MINGW_PATH%\bin\g++.exe
 
+REM Set output directory (change this to your desired path)
+set OUTPUT_DIR=build/Release
+
 echo ============================================================================
 echo Building Openterface_QT with Static FFmpeg
 echo ============================================================================
 echo FFmpeg Path: %FFMPEG_PREFIX%
+echo Output Directory: %OUTPUT_DIR%
 echo ============================================================================
 echo.
 
@@ -41,12 +45,11 @@ echo [92m✓ FFmpeg libraries found[0m
 echo.
 
 REM Create build directory
-if not exist "build" mkdir build
-cd build
+if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
 
-REM Run CMake
+REM Run CMake from source directory
 echo Running CMake configuration...
-cmake .. -G "MinGW Makefiles" ^
+cmake -B "%OUTPUT_DIR%" -S . -G "MinGW Makefiles" ^
     -DCMAKE_BUILD_TYPE=Release ^
     -DCMAKE_MAKE_PROGRAM=%CMAKE_MAKE_PROGRAM% ^
     -DCMAKE_C_COMPILER=%CMAKE_C_COMPILER% ^
@@ -55,7 +58,6 @@ cmake .. -G "MinGW Makefiles" ^
 
 if %errorlevel% neq 0 (
     echo [91mCMake configuration failed![0m
-    cd ..
     exit /b 1
 )
 
@@ -65,11 +67,10 @@ echo.
 
 REM Build the project
 echo Building project...
-cmake --build . --config Release
+cmake --build "%OUTPUT_DIR%" --config Release
 
 if %errorlevel% neq 0 (
     echo [91mBuild failed![0m
-    cd ..
     exit /b 1
 )
 
@@ -78,8 +79,7 @@ echo [92m=======================================================================
 echo [92mBuild completed successfully![0m
 echo [92m============================================================================[0m
 echo.
-echo Executable location: build\openterfaceQT.exe
+echo Executable location: %OUTPUT_DIR%\openterfaceQT.exe
 echo.
 
-cd ..
 exit /b 0

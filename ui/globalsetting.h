@@ -57,6 +57,9 @@ public:
     void setHardwareAcceleration(const QString &hwAccel);
     QString getHardwareAcceleration() const;
     
+    void setScalingQuality(const QString &quality);
+    QString getScalingQuality() const;
+    
     void setGStreamerPipelineTemplate(const QString &pipelineTemplate);
     QString getGStreamerPipelineTemplate() const;
     

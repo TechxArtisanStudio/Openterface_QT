@@ -437,6 +437,14 @@ bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const Q
     // Set current device
     m_currentDevice = devicePath;
     
+    // Apply scaling quality setting to frame processor
+    if (m_frameProcessor) {
+        QString scalingQuality = GlobalSetting::instance().getScalingQuality();
+        m_frameProcessor->SetScalingQuality(scalingQuality);
+        m_frameProcessor->StartCapture();
+        qCDebug(log_ffmpeg_backend) << "Applied scaling quality:" << scalingQuality;
+    }
+    
     // Delegate to capture manager
     if (m_captureManager && m_captureManager->StartCapture(devicePath, resolution, framerate)) {
         m_captureRunning = true;
@@ -471,6 +479,11 @@ void FFmpegBackendHandler::stopDirectCapture()
         qCDebug(log_ffmpeg_backend) << "Stopping direct FFmpeg capture";
         
         m_captureRunning = false;
+        
+        // Signal frame processor to stop processing
+        if (m_frameProcessor) {
+            m_frameProcessor->StopCaptureGracefully();
+        }
         
         // Notify hotplug handler that capture is stopping
         if (m_hotplugHandler) {
@@ -602,9 +615,6 @@ void FFmpegBackendHandler::processFrame()
         qCWarning(log_ffmpeg_backend) << "processFrame: No packet available from capture manager";
         return;
     }
-    
-    qCDebug(log_ffmpeg_backend) << "processFrame: Processing packet, size:" << packet->size 
-                                << "stream_index:" << packet->stream_index;
     
     // Check if recording is active
     bool isRecording = m_recorder && m_recorder->IsRecording() && !m_recorder->IsPaused();

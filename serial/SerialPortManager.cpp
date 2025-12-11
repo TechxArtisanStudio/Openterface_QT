@@ -60,6 +60,11 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     // Initialize error frequency tracking
     m_errorTrackingTimer.start();
     
+    // Initialize USB status check timer
+    m_usbStatusCheckTimer = new QTimer(this);
+    m_usbStatusCheckTimer->setInterval(2000);  // Check every 2 seconds (adjust as needed)
+    connect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
+    
     setupConnectionWatchdog();
 
     // this->moveToThread(serialThread);
@@ -618,6 +623,12 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     // Start connection watchdog
     setupConnectionWatchdog();
 
+    // Start USB status check timer for CH32V208
+    if (isChipTypeCH32V208()) {
+        m_usbStatusCheckTimer->start();
+        qCDebug(log_core_serial) << "Started USB status check timer for CH32V208";
+    }
+
     sendAsyncCommand(CMD_GET_INFO, true);
 }
 
@@ -722,6 +733,15 @@ bool SerialPortManager::sendResetCommand(){
         qCDebug(log_core_serial) << "Send reset command fail.";
         return false;
     }
+}
+
+void SerialPortManager::onUsbStatusCheckTimeout() {
+    if (m_isShuttingDown || !serialPort || !serialPort->isOpen() || !isChipTypeCH32V208()) {
+        return;  // Skip if shutting down, port not open, or not CH32V208
+    }
+
+    sendAsyncCommand(CMD_CHECK_USB_STATUS, true);
+    qCDebug(log_core_serial) << "Sent USB status check command asynchronously";
 }
 
 /*
@@ -836,6 +856,13 @@ SerialPortManager::~SerialPortManager() {
         m_errorRecoveryTimer->stop();
         m_errorRecoveryTimer->deleteLater();
         m_errorRecoveryTimer = nullptr;
+    }
+    
+    // Clean up USB status check timer
+    if (m_usbStatusCheckTimer) {
+        m_usbStatusCheckTimer->stop();
+        m_usbStatusCheckTimer->deleteLater();
+        m_usbStatusCheckTimer = nullptr;
     }
     
     // Final cleanup
@@ -986,6 +1013,12 @@ void SerialPortManager::closePort() {
     
     // Stop watchdog while port is closed
     stopConnectionWatchdog();
+    
+    // Stop USB status check timer
+    if (m_usbStatusCheckTimer) {
+        m_usbStatusCheckTimer->stop();
+        qCDebug(log_core_serial) << "Stopped USB status check timer";
+    }
     
     // Use non-blocking timer instead of msleep - removed delay as it's not critical
     // Port closing should be immediate, any OS-level delays are handled internally
@@ -1147,6 +1180,23 @@ void SerialPortManager::readData() {
                 qCDebug(log_core_serial) << "Reset command, status" << statusCodeToString(packet[5]);
                 if (packet[5] == DEF_CMD_SUCCESS) {
                     qCDebug(log_core_serial) << "Factory reset successful, clearing stored baudrate";
+                }
+                break;
+            case 0x97:  // Response to CMD_CHECK_USB_STATUS (0x17 | 0x80)
+                if (packet.size() >= 7 && packet[0] == 0x57 && packet[1] == (char)0xAB && 
+                    packet[2] == 0x00 && packet[4] == 0x01) {
+                    int status = static_cast<unsigned char>(packet[5]);
+                    if (status == 0x00) {
+                        qCInfo(log_core_serial) << "USB is currently pointing to HOST";
+                        emit usbStatusChanged(false);
+                    } else if (status == 0x01) {
+                        qCInfo(log_core_serial) << "USB is currently pointing to TARGET";
+                        emit usbStatusChanged(true);
+                    } else {
+                        qCWarning(log_core_serial) << "Unknown USB status value:" << QString::number(status, 16);
+                    }
+                } else {
+                    qCWarning(log_core_serial) << "Invalid USB status response format:" << packet.toHex(' ');
                 }
                 break;
             default:
@@ -1466,58 +1516,6 @@ void SerialPortManager::switchUsbToTargetViaSerial() {
     
     sendAsyncCommand(CMD_SWITCH_USB_TO_TARGET, true);
     qCInfo(log_core_serial) << "USB switch to target command sent asynchronously";
-}
-
-/*
- * Check USB switch status via serial command (new CH32V208 protocol)
- * Command: 57 AB 00 17 05 00 00 00 00 03 + checksum
- * Returns: 0 if pointing to host, 1 if pointing to target, -1 on error
- */
-int SerialPortManager::checkUsbStatusViaSerial() {
-    qCDebug(log_core_serial) << "Checking USB switch status via serial command...";
-    
-    if (!serialPort || !serialPort->isOpen()) {
-        qCWarning(log_core_serial) << "Serial port not open, cannot check USB status";
-        return -1;
-    }
-    
-    // Only use this method for CH32V208 chips
-    if (!isChipTypeCH32V208()) {
-        qCDebug(log_core_serial) << "Not CH32V208 chip, skipping serial-based USB status check";
-        return -1;
-    }
-    
-    QByteArray response = sendSyncCommand(CMD_CHECK_USB_STATUS, true);
-    
-    if (response.size() > 0) {
-        qCDebug(log_core_serial) << "Check USB status response:" << response.toHex(' ');
-        
-        // Expected response: 57 AB 00 17 01 <status> + checksum
-        // status: 0x00 = host, 0x01 = target
-        if (response.size() >= 7 && 
-            response[0] == 0x57 && response[1] == (char)0xAB && 
-            response[2] == 0x00 && response[3] == 0x17 &&
-            response[4] == 0x01) {
-            
-            int status = static_cast<unsigned char>(response[5]);
-            if (status == 0x00) {
-                qCInfo(log_core_serial) << "USB is currently pointing to HOST";
-                return 0;
-            } else if (status == 0x01) {
-                qCInfo(log_core_serial) << "USB is currently pointing to TARGET";
-                return 1;
-            } else {
-                qCWarning(log_core_serial) << "Unknown USB status value:" << QString::number(status, 16);
-                return -1;
-            }
-        } else {
-            qCWarning(log_core_serial) << "Unexpected response for check USB status:" << response.toHex(' ');
-            return -1;
-        }
-    }
-    
-    qCWarning(log_core_serial) << "No response received for check USB status command";
-    return -1;
 }
 
 /*

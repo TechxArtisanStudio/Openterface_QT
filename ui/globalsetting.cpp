@@ -121,6 +121,15 @@ QString GlobalSetting::getHardwareAcceleration() const {
     return m_settings.value("video/hardwareAcceleration", "auto").toString();
 }
 
+void GlobalSetting::setScalingQuality(const QString &quality) {
+    m_settings.setValue("video/scalingQuality", quality);
+    m_settings.sync();
+}
+
+QString GlobalSetting::getScalingQuality() const {
+    return m_settings.value("video/scalingQuality", "balanced").toString();
+}
+
 void GlobalSetting::setGStreamerPipelineTemplate(const QString &pipelineTemplate) {
     m_settings.setValue("video/gstreamerPipelineTemplate", pipelineTemplate);
 }
