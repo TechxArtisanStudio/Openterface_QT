@@ -7,6 +7,7 @@
 #include <QThread>
 #include <QImage>
 #include <QLoggingCategory>
+#include <QFileInfo>
 
 // 注意：log_ui_camera 日志分类已在 cameramanager.h 中声明，在 cameramanager.cpp 中定义
 // 因此这里不需要重新定义
@@ -48,7 +49,7 @@ void ImageCapturer::startCapturing(CameraManager* cameraManager, TcpServer* tcpS
     QFileInfo fileInfo(m_savePath);
     QDir dir = fileInfo.dir();
     if (!dir.exists()) {
-        if (!dir.mkpath(".")) {
+        if (!dir.mkpath(dir.absolutePath())) {
             qCWarning(log_ui_camera) << "Failed to create directory:" << m_savePath;
             return;
         }
@@ -61,6 +62,7 @@ void ImageCapturer::startCapturing(CameraManager* cameraManager, TcpServer* tcpS
     
     m_isCapturing = true;
     qCDebug(log_ui_camera) << "Image capturing started with interval:" << intervalSeconds << "seconds";
+    qCDebug(log_ui_camera) << "Saving images to:" << m_savePath;
 }
 
 // 新增的自动启动方法
@@ -91,13 +93,24 @@ void ImageCapturer::stopCapturing()
 void ImageCapturer::captureImage()
 {
     if (!m_cameraManager || !m_isCapturing) {
+        qCDebug(log_ui_camera) << "Cannot capture image: camera manager is null or not capturing";
         return;
     }
     
+    // 构造完整文件路径
+    QString fullPath = m_savePath + "/" + m_fileName;
+    
+    // 确保保存路径存在
+    QFileInfo fileInfo(fullPath);
+    QDir dir = fileInfo.dir();
+    if (!dir.exists()) {
+        if (!dir.mkpath(dir.absolutePath())) {
+            qCWarning(log_ui_camera) << "Failed to create directory for image capture:" << dir.absolutePath();
+            return;
+        }
+    }
+    
     try {
-        // 构造完整文件路径
-        QString fullPath = m_savePath + "/" + m_fileName;
-        
         // 调用相机管理器的图像捕获方法
         m_cameraManager->takeImage(fullPath);
         
@@ -110,7 +123,7 @@ void ImageCapturer::captureImage()
         m_captureCount++;
         m_lastCaptureTime = QDateTime::currentDateTime();
         
-        qCDebug(log_ui_camera) << "Image captured successfully";
+        qCDebug(log_ui_camera) << "Image captured successfully to:" << fullPath;
     } catch (const std::exception& e) {
         qCWarning(log_ui_camera) << "Exception during image capture:" << e.what();
     } catch (...) {

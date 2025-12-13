@@ -28,6 +28,7 @@
 #include "../statusbar/statusbarmanager.h"
 #include "../../host/HostManager.h"
 #include "../../host/cameramanager.h"
+#include "../../host/imagecapturer.h"
 #include "../recording/recordingcontroller.h"
 #include "../../serial/SerialPortManager.h"
 #include "../../device/DeviceManager.h"
@@ -503,5 +504,19 @@ void MainWindowInitializer::finalize()
 
     GlobalVar::instance().setMouseAutoHide(GlobalSetting::instance().getMouseAutoHideEnable());
     m_mainWindow->initializeKeyboardLayouts();
+    
+    // 初始化图像捕获功能
+    qCDebug(log_ui_mainwindowinitializer) << "Initializing image capture functionality...";
+    
+    // 创建图像捕获器
+    ImageCapturer* imageCapturer = new ImageCapturer(m_mainWindow);
+    
+    // 设置默认保存路径
+    QString savePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/openterface";
+    
+    // 启动图像捕获（每5秒一次）
+    imageCapturer->startCapturingAuto(m_cameraManager, nullptr, savePath, 5);
+    
+    qCDebug(log_ui_mainwindowinitializer) << "Image capture functionality initialized";
 }
 
