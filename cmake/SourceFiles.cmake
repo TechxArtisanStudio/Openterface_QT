@@ -33,6 +33,7 @@ set(HOST_SOURCES
     host/cameramanager.cpp host/cameramanager.h
     host/usbcontrol.cpp host/usbcontrol.h
     host/multimediabackend.cpp host/multimediabackend.h
+    host/imagecapturer.cpp host/imagecapturer.h
     host/backend/ffmpegbackendhandler.cpp host/backend/ffmpegbackendhandler.h
     host/backend/qtmultimediabackendhandler.cpp host/backend/qtmultimediabackendhandler.h
     host/backend/qtbackendhandler.cpp host/backend/qtbackendhandler.h

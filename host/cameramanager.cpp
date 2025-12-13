@@ -31,6 +31,8 @@
 #include <algorithm>
 #include <QSet>
 
+// 注意：log_ui_camera 日志分类已在 cameramanager.h 中声明
+// 这里仅需定义日志分类本身，避免与 imagecapturer.cpp 中的重复定义冲突
 Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 Q_LOGGING_CATEGORY(log_backend, "opf.backend")
 
