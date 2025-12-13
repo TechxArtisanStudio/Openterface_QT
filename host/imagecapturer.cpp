@@ -8,7 +8,8 @@
 #include <QImage>
 #include <QLoggingCategory>
 
-Q_LOGGING_CATEGORY(log_ui_camera, "ui.camera")
+// 注意：log_ui_camera 日志分类已在 cameramanager.h 中声明，在 cameramanager.cpp 中定义
+// 因此这里不需要重新定义
 
 ImageCapturer::ImageCapturer(QObject *parent)
     : QObject(parent)
