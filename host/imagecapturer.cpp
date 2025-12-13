@@ -34,8 +34,8 @@ ImageCapturer::~ImageCapturer()
 
 void ImageCapturer::startCapturing(CameraManager* cameraManager, TcpServer* tcpServer, const QString& savePath, int intervalSeconds)
 {
-    if (!cameraManager || !tcpServer) {
-        qCWarning(log_ui_camera) << "Invalid parameters for image capturer";
+    if (!cameraManager) {
+        qCWarning(log_ui_camera) << "Invalid parameters for image capturer: cameraManager is null";
         return;
     }
     

@@ -514,8 +514,8 @@ void MainWindowInitializer::finalize()
     // 设置默认保存路径
     QString savePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/openterface";
     
-    // 启动图像捕获（每5秒一次）
-    imageCapturer->startCapturingAuto(m_cameraManager, nullptr, savePath, 5);
+    // 启动图像捕获（每秒一次）
+    imageCapturer->startCapturingAuto(m_cameraManager, nullptr, savePath, 1);
     
     qCDebug(log_ui_mainwindowinitializer) << "Image capture functionality initialized";
 }
