@@ -21,7 +21,7 @@ set CMAKE_C_COMPILER=%MINGW_PATH%\bin\gcc.exe
 set CMAKE_CXX_COMPILER=%MINGW_PATH%\bin\g++.exe
 
 REM Set output directory (change this to your desired path)
-set OUTPUT_DIR=build/Release
+set OUTPUT_DIR=build/Debug
 
 echo ============================================================================
 echo Building Openterface_QT with Static FFmpeg
@@ -33,7 +33,7 @@ echo.
 
 REM Check if FFmpeg is installed
 if not exist "%FFMPEG_PREFIX%\lib\libavformat.a" (
-    echo [91mError: FFmpeg static libraries not found at %FFMPEG_PREFIX%[0m
+    echo Error: FFmpeg static libraries not found at %FFMPEG_PREFIX%
     echo.
     echo Please build FFmpeg first by running:
     echo   .\build-script\build-static-ffmpeg-windows.bat
@@ -41,7 +41,7 @@ if not exist "%FFMPEG_PREFIX%\lib\libavformat.a" (
     exit /b 1
 )
 
-echo [92m✓ FFmpeg libraries found[0m
+echo ✓ FFmpeg libraries found
 echo.
 
 REM Create build directory
@@ -50,34 +50,34 @@ if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
 REM Run CMake from source directory
 echo Running CMake configuration...
 cmake -B "%OUTPUT_DIR%" -S . -G "MinGW Makefiles" ^
-    -DCMAKE_BUILD_TYPE=Release ^
+    -DCMAKE_BUILD_TYPE=Debug ^
     -DCMAKE_MAKE_PROGRAM=%CMAKE_MAKE_PROGRAM% ^
     -DCMAKE_C_COMPILER=%CMAKE_C_COMPILER% ^
     -DCMAKE_CXX_COMPILER=%CMAKE_CXX_COMPILER% ^
     -DFFMPEG_PREFIX=%FFMPEG_PREFIX%
 
 if %errorlevel% neq 0 (
-    echo [91mCMake configuration failed![0m
+    echo CMake configuration failed!
     exit /b 1
 )
 
 echo.
-echo [92mCMake configuration successful![0m
+echo CMake configuration successful!
 echo.
 
 REM Build the project
 echo Building project...
-cmake --build "%OUTPUT_DIR%" --config Release
+cmake --build "%OUTPUT_DIR%" --config Debug
 
 if %errorlevel% neq 0 (
-    echo [91mBuild failed![0m
+    echo Build failed
     exit /b 1
 )
 
 echo.
-echo [92m============================================================================[0m
-echo [92mBuild completed successfully![0m
-echo [92m============================================================================[0m
+echo ============================================================================
+echo Build completed successfully!
+echo ============================================================================
 echo.
 echo Executable location: %OUTPUT_DIR%\openterfaceQT.exe
 echo.
