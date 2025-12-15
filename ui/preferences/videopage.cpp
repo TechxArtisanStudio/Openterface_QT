@@ -507,6 +507,7 @@ void VideoPage::applyVideoSettings() {
             sink = sink.trimmed();
         }
         GlobalSetting::instance().setGStreamerSinkPriority(priorityList);
+        qDebug() << "GStreamer sink priority saved:" << priorityList;
     }
 
     if (!m_cameraManager) {
@@ -636,6 +637,13 @@ void VideoPage::initVideoSettings() {
             scalingQualityBox->setCurrentIndex(qualityIndex);
         }
     }
+
+    // Set the GStreamer sink priority in the line edit
+    QLineEdit *gstSinkEdit = this->findChild<QLineEdit*>("gstSinkEdit");
+    if (gstSinkEdit) {
+        QStringList sinkPriority = GlobalSetting::instance().getGStreamerSinkPriority();
+        gstSinkEdit->setText(sinkPriority.join(", "));
+    }
 }
 
 void VideoPage::handleResolutionSettings() {
@@ -724,10 +732,11 @@ void VideoPage::updateCurrentSinkDisplay() {
             if (!sinkPriority.isEmpty()) {
                 currentSink = sinkPriority.first();
             }
+            qDebug() << "GStreamer sink priority from GlobalSetting:" << sinkPriority;
         }
     }
 
     currentSinkValueLabel->setText(currentSink);
-    qDebug() << "Current video sink:" << currentSink;
+    qDebug() << "Current video sink display:" << currentSink;
 }
 
