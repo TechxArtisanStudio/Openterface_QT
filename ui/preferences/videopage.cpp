@@ -164,6 +164,16 @@ void VideoPage::setupUI()
     gstSinkHintLabel->setStyleSheet("color: #666666; font-style: italic;");
     gstSinkHintLabel->setObjectName("gstSinkHintLabel");
 
+    // Current Video Sink Display
+    QLabel *currentSinkLabel = new QLabel(tr("Current Video Sink: "));
+    currentSinkLabel->setStyleSheet(smallLabelFontSize);
+    currentSinkLabel->setObjectName("currentSinkLabel");
+
+    QLabel *currentSinkValueLabel = new QLabel();
+    currentSinkValueLabel->setObjectName("currentSinkValueLabel");
+    currentSinkValueLabel->setStyleSheet("font-weight: bold; color: #0066cc;");
+    currentSinkValueLabel->setText("Not available");
+
     // Connect the media backend change signal
     connect(mediaBackendBox, &QComboBox::currentIndexChanged, this, &VideoPage::onMediaBackendChanged);
 
@@ -190,6 +200,9 @@ void VideoPage::setupUI()
     gstSinkLabel->setVisible(isGStreamer);
     gstSinkEdit->setVisible(isGStreamer);
     gstSinkHintLabel->setVisible(isGStreamer);
+
+    currentSinkLabel->setVisible(isGStreamer);
+    currentSinkValueLabel->setVisible(isGStreamer);
 
     // Populate hardware acceleration options
     if (m_cameraManager) {
@@ -267,6 +280,8 @@ void VideoPage::setupUI()
     videoLayout->addWidget(gstSinkLabel);
     videoLayout->addWidget(gstSinkEdit);
     videoLayout->addWidget(gstSinkHintLabel);
+    videoLayout->addWidget(currentSinkLabel);
+    videoLayout->addWidget(currentSinkValueLabel);
     videoLayout->addWidget(hwAccelLabel);
     videoLayout->addWidget(hwAccelBox);
     videoLayout->addWidget(hwAccelHintLabel);
@@ -657,7 +672,8 @@ void VideoPage::onMediaBackendChanged() {
         
         bool isFFmpeg = (selectedBackend == "ffmpeg");
         bool isGStreamer = (selectedBackend == "gstreamer");
-        
+        qDebug() << "isFFmpeg:" << isFFmpeg << "isGStreamer:" << isGStreamer;
+
         // Find hardware acceleration widgets
         QLabel *hwAccelLabel = this->findChild<QLabel*>("hwAccelLabel");
         QComboBox *hwAccelBox = this->findChild<QComboBox*>("hwAccelBox");
@@ -671,15 +687,47 @@ void VideoPage::onMediaBackendChanged() {
         QLabel *gstSinkLabel = this->findChild<QLabel*>("gstSinkLabel");
         QLineEdit *gstSinkEdit = this->findChild<QLineEdit*>("gstSinkEdit");
         QLabel *gstSinkHintLabel = this->findChild<QLabel*>("gstSinkHintLabel");
+        QLabel *currentSinkLabel = this->findChild<QLabel*>("currentSinkLabel");
+        QLabel *currentSinkValueLabel = this->findChild<QLabel*>("currentSinkValueLabel");
 
         if (gstSinkLabel) gstSinkLabel->setVisible(isGStreamer);
         if (gstSinkEdit) gstSinkEdit->setVisible(isGStreamer);
         if (gstSinkHintLabel) gstSinkHintLabel->setVisible(isGStreamer);
+        if (currentSinkLabel) currentSinkLabel->setVisible(isGStreamer);
+        if (currentSinkValueLabel) currentSinkValueLabel->setVisible(isGStreamer);
         
         // Show/hide GStreamer options based on selected backend
         if (selectedBackend == "gstreamer") {
             qDebug() << "GStreamer backend selected - using conservative frame rate handling";
             qDebug() << "Note: GStreamer may require specific frame rate ranges to avoid assertion errors";
+            updateCurrentSinkDisplay();
         }
     }
 }
+
+void VideoPage::updateCurrentSinkDisplay() {
+    QLabel *currentSinkValueLabel = this->findChild<QLabel*>("currentSinkValueLabel");
+    if (!currentSinkValueLabel) {
+        return;
+    }
+
+    // Try to get the current sink from the camera manager
+    QString currentSink = "Unknown";
+    
+    if (m_cameraManager) {
+        MultimediaBackendHandler* backend = m_cameraManager->getBackendHandler();
+        if (backend) {
+            // Try to get the currently used sink name from backend
+            // This would require adding a method to the backend handler
+            // For now, we'll show the first sink in the priority list
+            QStringList sinkPriority = GlobalSetting::instance().getGStreamerSinkPriority();
+            if (!sinkPriority.isEmpty()) {
+                currentSink = sinkPriority.first();
+            }
+        }
+    }
+
+    currentSinkValueLabel->setText(currentSink);
+    qDebug() << "Current video sink:" << currentSink;
+}
+
