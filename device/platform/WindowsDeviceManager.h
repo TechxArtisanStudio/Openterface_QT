@@ -3,8 +3,10 @@
 #define WINDOWSDEVICEMANAGER_H
 
 #include "AbstractPlatformDeviceManager.h"
+#include "windows/IDeviceEnumerator.h"
 #include <QLoggingCategory>
 #include <QMap>
+#include <memory>
 #include <windows.h>
 #include <setupapi.h>
 #include <cfgmgr32.h>
@@ -17,6 +19,7 @@ class WindowsDeviceManager : public AbstractPlatformDeviceManager
     
 public:
     explicit WindowsDeviceManager(QObject *parent = nullptr);
+    explicit WindowsDeviceManager(std::unique_ptr<IDeviceEnumerator> enumerator, QObject *parent = nullptr);
     ~WindowsDeviceManager();
     
     QList<DeviceInfo> discoverDevices() override;
@@ -29,32 +32,30 @@ public:
 private:
     struct USBDeviceData {
         QString portChain;
-        QList<QVariantMap> siblings;
-        QList<QVariantMap> children;
+        QVector<QVariantMap> siblings;
+        QVector<QVariantMap> children;
         QString deviceInstanceId;
         QVariantMap deviceInfo;
     };
     
+    // Device enumerator (abstraction layer for Windows API)
+    std::unique_ptr<IDeviceEnumerator> m_enumerator;
+    
     // Enhanced USB device discovery - enumerate all devices first
-    QList<USBDeviceData> findUSBDevicesWithVidPid(const QString& vid, const QString& pid);
-    QList<QVariantMap> enumerateAllDevices();
-    QList<QVariantMap> findDevicesWithVidPid(const QList<QVariantMap>& allDevices, const QString& vid, const QString& pid);
-    QList<QVariantMap> buildDeviceTree(const QList<QVariantMap>& allDevices);
-    QList<QVariantMap> findChildDevicesInTree(const QList<QVariantMap>& deviceTree, const QString& parentDeviceId);
-    QList<DWORD> findParentUSBDevices(const QString& vid, const QString& pid);
-    QList<QVariantMap> getAllChildDevices(DWORD parentDevInst);
-    QVariantMap getDeviceInfo(DWORD devInst);
+    QVector<USBDeviceData> findUSBDevicesWithVidPid(const QString& vid, const QString& pid);
+    QVector<QVariantMap> enumerateAllDevices();
+    QVector<QVariantMap> findDevicesWithVidPid(const QVector<QVariantMap>& allDevices, const QString& vid, const QString& pid);
+    QVector<QVariantMap> buildDeviceTree(const QVector<QVariantMap>& allDevices);
+    QVector<QVariantMap> findChildDevicesInTree(const QVector<QVariantMap>& deviceTree, const QString& parentDeviceId);
+    QVector<DWORD> findParentUSBDevices(const QString& vid, const QString& pid);
     QString extractPortChainFromDeviceId(const QString& deviceId);
     
     // Python-compatible device discovery methods
     QString buildPythonCompatiblePortChain(DWORD devInst);
-    QList<QVariantMap> getSiblingDevicesByParent(DWORD parentDevInst);
-    QList<QVariantMap> getChildDevicesPython(DWORD devInst);
-    QString getHardwareIdFromDevInst(DWORD devInst);
     
     // Device path matching
     void matchDevicePaths(DeviceInfo& deviceInfo);
-    void matchDevicePathsFromChildren(DeviceInfo& deviceInfo, const QList<QVariantMap>& children);
+    void matchDevicePathsFromChildren(DeviceInfo& deviceInfo, const QVector<QVariantMap>& children);
     void matchDevicePathsToRealPaths(DeviceInfo& deviceInfo);
     void matchDevicePathsToRealPathsGeneration2(DeviceInfo& deviceInfo);
     QString findComPortByLocation(const QString& location);
@@ -69,41 +70,43 @@ private:
     QString findAudioDevicePathByDeviceId(const QString& deviceId);
     bool isDeviceRelatedToPortChain(const QString& deviceId, const QString& portChain);
     
-    // Windows API helpers
+    // Windows API helpers (deprecated - use m_enumerator instead)
+    QString getHardwareIdFromDevInst(DWORD devInst);
     QString getDeviceId(DWORD devInst);
-    QString getDeviceProperty(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData, DWORD property);
-    QString getDevicePropertyByName(DWORD devInst, const QString& propertyName); // New overload for specific properties
     QString getHardwareId(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData);
+    QString getDeviceProperty(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData, DWORD property);
+    QString getDevicePropertyByName(DWORD devInst, const QString& propertyName);
+    QVariantMap getDeviceInfo(DWORD devInst);
     QString getDeviceInterfacePath(HDEVINFO hDevInfo, SP_DEVINFO_DATA* devInfoData, const GUID& interfaceGuid);
-    QList<QVariantMap> getSiblingDevices(DWORD parentDevInst);
-    QList<QVariantMap> getChildDevices(DWORD devInst);
+    QVector<QVariantMap> getSiblingDevicesByParent(DWORD parentDevInst);
+    QVector<QVariantMap> getSiblingDevices(DWORD parentDevInst);
+    QVector<QVariantMap> getChildDevicesPython(DWORD devInst);
+    QVector<QVariantMap> getChildDevices(DWORD devInst);
+    QVector<QVariantMap> getAllChildDevices(DWORD parentDevInst);
+    QVector<QVariantMap> enumerateDevicesByClass(const GUID& classGuid);
+    QVector<QVariantMap> enumerateDevicesByClassWithParentInfo(const GUID& classGuid);
+    DWORD getDeviceInstanceFromId(const QString& deviceId);
+    DWORD getDeviceInstanceFromPortChain(const QString& portChain);
     QString getPortChain(DWORD devInst);
     
     // Registry helpers
     QString queryRegistryString(HKEY hKey, const QString& valueName);
     
-    // Device enumeration by class
-    QList<QVariantMap> enumerateDevicesByClass(const GUID& classGuid);
-    
-    // Enhanced device enumeration with parent information
-    QList<QVariantMap> enumerateDevicesByClassWithParentInfo(const GUID& classGuid);
-    
     // Device association verification methods
     bool isDeviceAssociatedWithPortChain(const QString& parentDeviceId, const QString& targetDeviceInstanceId, const QString& targetPortChain);
     bool verifyCameraDeviceAssociation(const QString& cameraDeviceId, const QString& targetDeviceInstanceId, const QString& targetPortChain);
     bool verifyAudioDeviceAssociation(const QString& audioDeviceId, const QString& targetDeviceInstanceId, const QString& targetPortChain);
-    DWORD getDeviceInstanceFromId(const QString& deviceId);
     
     // Enhanced device matching and collection
     bool matchesVidPidAdvanced(const QString& deviceInstanceId, const QString& vid, const QString& pid);
-    QList<QVariantMap> collectAllDevicesByPortChain(const QString& targetPortChain);
+    QVector<QVariantMap> collectAllDevicesByPortChain(const QString& targetPortChain);
     QString normalizePortChain(const QString& portChain);
     
     // Device type discovery helpers
-    QList<QVariantMap> findSerialPortsByPortChain(const QString& targetPortChain);
-    QList<QVariantMap> findHIDDevicesByPortChain(const QString& targetPortChain);
-    QList<QVariantMap> findVideoDevicesByPortChain(const QString& targetPortChain);
-    QList<QVariantMap> findAudioDevicesByPortChain(const QString& targetPortChain);
+    QVector<QVariantMap> findSerialPortsByPortChain(const QString& targetPortChain);
+    QVector<QVariantMap> findHIDDevicesByPortChain(const QString& targetPortChain);
+    QVector<QVariantMap> findVideoDevicesByPortChain(const QString& targetPortChain);
+    QVector<QVariantMap> findAudioDevicesByPortChain(const QString& targetPortChain);
     
     // Generation-specific device discovery methods
     QList<DeviceInfo> discoverGeneration1Devices();
@@ -122,7 +125,6 @@ private:
     // Generation 2 (Companion device) helper methods
     QString findSerialPortByCompanionDevice(const USBDeviceData& companionDevice);
     QString findCompanionPortChain(const USBDeviceData& companionDevice);
-    DWORD getDeviceInstanceFromPortChain(const QString& portChain);
     
     // Integrated device helper methods (for USB 3.0 with separate serial port)
     QString findSerialPortByIntegratedDevice(const USBDeviceData& integratedDevice);
