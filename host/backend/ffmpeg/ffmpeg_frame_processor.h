@@ -60,6 +60,10 @@ public:
     QPixmap ProcessPacket(AVPacket* packet, AVCodecContext* codec_context, 
                          bool is_recording);
     
+    // Frame processing pipeline (returns QImage for better thread safety)
+    QImage ProcessPacketToImage(AVPacket* packet, AVCodecContext* codec_context, 
+                                bool is_recording);
+    
     // Latest frame access (thread-safe)
     QImage GetLatestFrame() const;
     
@@ -87,6 +91,11 @@ private:
     QPixmap ConvertFrameToPixmap(AVFrame* frame);
     QPixmap ConvertRgbFrameDirectly(AVFrame* frame);
     QPixmap ConvertWithScaling(AVFrame* frame);
+    
+    // Thread-safe frame conversion (returns QImage directly)
+    QImage ConvertFrameToImage(AVFrame* frame);
+    QImage ConvertRgbFrameDirectlyToImage(AVFrame* frame);
+    QImage ConvertWithScalingToImage(AVFrame* frame);
     
     // Frame dropping logic
     bool ShouldDropFrame(bool is_recording);

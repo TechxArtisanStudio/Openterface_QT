@@ -315,6 +315,103 @@ QPixmap FFmpegFrameProcessor::ProcessPacket(AVPacket* packet, AVCodecContext* co
     return pixmap;
 }
 
+QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecContext* codec_context, 
+                                                   bool is_recording)
+{
+    // OPTIMIZATION: Decode directly to QImage to avoid QPixmap creation on worker thread
+    if (stop_requested_) {
+        return QImage();
+    }
+    
+    if (!packet || !codec_context) {
+        return QImage();
+    }
+    
+    // Validate packet data
+    if (packet->size <= 0 || !packet->data) {
+        return QImage();
+    }
+    
+    // Frame dropping for responsiveness
+    if (ShouldDropFrame(is_recording)) {
+        return QImage();
+    }
+    
+    // Decode packet to frame (reuse existing decode logic)
+    if (!temp_frame_) {
+        temp_frame_ = make_av_frame();
+        if (!temp_frame_) {
+            return QImage();
+        }
+    }
+    
+    // Send packet to decoder
+    int ret = avcodec_send_packet(codec_context, packet);
+    if (ret < 0) {
+        return QImage();
+    }
+    
+    // Receive frame from decoder
+    ret = avcodec_receive_frame(codec_context, AV_FRAME_RAW(temp_frame_));
+    if (ret < 0) {
+        return QImage();
+    }
+    
+    // Validate frame data
+    if (!AV_FRAME_RAW(temp_frame_)->data[0] || 
+        AV_FRAME_RAW(temp_frame_)->width <= 0 || 
+        AV_FRAME_RAW(temp_frame_)->height <= 0) {
+        return QImage();
+    }
+    
+    // Handle hardware frames
+    AVFrame* frame_to_convert = AV_FRAME_RAW(temp_frame_);
+    AvFramePtr sw_frame;
+    
+    bool is_hardware_frame = (AV_FRAME_RAW(temp_frame_)->format == AV_PIX_FMT_QSV ||
+                             AV_FRAME_RAW(temp_frame_)->format == AV_PIX_FMT_CUDA);
+    
+    if (is_hardware_frame) {
+        sw_frame = make_av_frame();
+        if (!sw_frame) {
+            return QImage();
+        }
+        
+        ret = av_hwframe_transfer_data(AV_FRAME_RAW(sw_frame), AV_FRAME_RAW(temp_frame_), 0);
+        if (ret < 0) {
+            return QImage();
+        }
+        
+        av_frame_copy_props(AV_FRAME_RAW(sw_frame), AV_FRAME_RAW(temp_frame_));
+        frame_to_convert = AV_FRAME_RAW(sw_frame);
+    }
+    
+    // Convert frame directly to QImage (bypassing QPixmap)
+    QImage result = ConvertFrameToImage(frame_to_convert);
+    
+    if (sw_frame) {
+        AV_FRAME_RESET(sw_frame);
+    }
+    
+    // Update statistics and store latest frame
+    if (!result.isNull()) {
+        frame_count_++;
+        
+        // Skip startup frames if configured
+        if (frame_count_ <= startup_frames_to_skip_) {
+            return QImage();
+        }
+        
+        // Store latest frame for image capture
+        {
+            QMutexLocker locker(&mutex_);
+            latest_frame_ = result;
+        }
+    }
+    
+    return result;
+}
+
 QPixmap FFmpegFrameProcessor::DecodeWithHardware(AVPacket* packet, AVCodecContext* codec_context)
 {
     return DecodeWithFFmpeg(packet, codec_context);
@@ -613,6 +710,98 @@ QPixmap FFmpegFrameProcessor::ConvertWithScaling(AVFrame* frame)
     }
     
     return QPixmap::fromImage(image);
+}
+
+// Thread-safe QImage conversion methods (avoid QPixmap on worker thread)
+QImage FFmpegFrameProcessor::ConvertFrameToImage(AVFrame* frame)
+{
+    if (!frame) {
+        return QImage();
+    }
+    
+    int width = frame->width;
+    int height = frame->height;
+    AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
+    
+    // Validate frame
+    if (width <= 0 || height <= 0 || !frame->data[0] || frame->linesize[0] <= 0) {
+        return QImage();
+    }
+    
+    // Try fast path for RGB formats
+    if (format == AV_PIX_FMT_RGB24 || format == AV_PIX_FMT_BGR24 || 
+        format == AV_PIX_FMT_RGBA || format == AV_PIX_FMT_BGRA ||
+        format == AV_PIX_FMT_BGR0 || format == AV_PIX_FMT_RGB0) {
+        return ConvertRgbFrameDirectlyToImage(frame);
+    }
+    
+    // Use scaling for other formats
+    return ConvertWithScalingToImage(frame);
+}
+
+QImage FFmpegFrameProcessor::ConvertRgbFrameDirectlyToImage(AVFrame* frame)
+{
+    AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
+    
+    QImage::Format qt_format;
+    if (format == AV_PIX_FMT_RGB24) {
+        qt_format = QImage::Format_RGB888;
+    } else if (format == AV_PIX_FMT_BGR24) {
+        qt_format = QImage::Format_RGB888; // Will need RGB swap
+    } else {
+        qt_format = QImage::Format_RGB32; // Fallback
+    }
+    
+    QImage image(frame->data[0], frame->width, frame->height, frame->linesize[0], qt_format);
+    
+    if (qt_format == QImage::Format_RGB888 && format == AV_PIX_FMT_BGR24) {
+        image = image.rgbSwapped();
+    }
+    
+    // Create a deep copy to ensure thread safety
+    return image.copy();
+}
+
+QImage FFmpegFrameProcessor::ConvertWithScalingToImage(AVFrame* frame)
+{
+    int width = frame->width;
+    int height = frame->height;
+    AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
+    
+    // Update scaling context if needed
+    UpdateScalingContext(width, height, format);
+    
+    // Check if scaling context is available
+    {
+        QMutexLocker locker(&mutex_);
+        if (!sws_context_) {
+            return QImage();
+        }
+    }
+    
+    // Allocate RGB image
+    QImage image(width, height, QImage::Format_RGB888);
+    if (image.isNull()) {
+        return QImage();
+    }
+    
+    // Prepare output buffers
+    uint8_t* rgb_data[1] = { image.bits() };
+    int rgb_linesize[1] = { static_cast<int>(image.bytesPerLine()) };
+    
+    // Convert frame to RGB
+    int scale_result;
+    {
+        QMutexLocker locker(&mutex_);
+        scale_result = sws_scale(sws_context_, frame->data, frame->linesize, 
+                                 0, height, rgb_data, rgb_linesize);
+    }
+    
+    if (scale_result < 0 || scale_result != height) {
+        return QImage();
+    }
+    
+    return image;
 }
 
 void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFormat format)

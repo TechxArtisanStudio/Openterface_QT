@@ -859,6 +859,34 @@ void VideoPane::mouseMoveEvent(QMouseEvent *event)
                              << "scroll=" << QPoint(horizontalScrollBar()->value(), verticalScrollBar()->value());
     }
     
+    // Track mouse move event intervals
+    static qint64 lastMoveTime = 0;
+    static qint64 totalMoveInterval = 0;
+    static int moveEventCount = 0;
+    static qint64 lastPrintTime = 0;
+    
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    
+    if (lastMoveTime > 0) {
+        qint64 interval = currentTime - lastMoveTime;
+        totalMoveInterval += interval;
+        moveEventCount++;
+        
+        // Print average interval every second
+        if (currentTime - lastPrintTime >= 1000) {
+            double avgInterval = static_cast<double>(totalMoveInterval) / moveEventCount;
+            qCDebug(log_ui_video) << "Mouse Move Event Statistics:"
+                                 << "Event count (1s):" << moveEventCount
+                                 << "Average interval:" << QString::number(avgInterval, 'f', 2) << "ms";
+            
+            // Reset counters
+            totalMoveInterval = 0;
+            moveEventCount = 0;
+            lastPrintTime = currentTime;
+        }
+    }
+    lastMoveTime = currentTime;
+    
     // Validate coordinate transformation consistency (debug helper) - but reduce frequency
     static int moveValidationCounter = 0;
     if (++moveValidationCounter % 10 == 1) { // Only validate every 10th move for performance
@@ -879,6 +907,7 @@ void VideoPane::mouseMoveEvent(QMouseEvent *event)
     
     // Let the base class handle the event
     QGraphicsView::mouseMoveEvent(event);
+    qCDebug(log_ui_video) << "VideoPane::mouseMoveEvent processed";
 }
 
 void VideoPane::mouseReleaseEvent(QMouseEvent *event)
@@ -1027,7 +1056,20 @@ void VideoPane::setupForGStreamerOverlay()
     }
 }
 
-// FFmpeg direct video frame support
+// FFmpeg direct video frame support - optimized version receiving QImage
+void VideoPane::updateVideoFrameFromImage(const QImage& image)
+{
+    if (image.isNull()) {
+        return;
+    }
+    
+    // Convert QImage to QPixmap on GUI thread (fast and thread-safe)
+    QPixmap frame = QPixmap::fromImage(image);
+    
+    // Delegate to existing updateVideoFrame method
+    updateVideoFrame(frame);
+}
+
 void VideoPane::updateVideoFrame(const QPixmap& frame)
 {
     // Start timing for entire frame update
