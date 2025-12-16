@@ -1448,6 +1448,7 @@ void VideoHid::loadEepromToFile(const QString &filePath) {
     quint32 firmwareSize = readFirmwareSize();
 
     QThread* thread = new QThread();
+    thread->setObjectName("FirmwareReaderThread");
     FirmwareReader *worker = new FirmwareReader(this, ADDR_EEPROM, firmwareSize, filePath);
     worker->moveToThread(thread);
 
@@ -2377,6 +2378,7 @@ void VideoHid::loadFirmwareToEeprom() {
     
     // Create a worker thread to handle firmware writing
     QThread* thread = new QThread();
+    thread->setObjectName("FirmwareWriterThread");
     FirmwareWriter* worker = new FirmwareWriter(this, ADDR_EEPROM, firmware);
     worker->moveToThread(thread);
     

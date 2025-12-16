@@ -43,8 +43,11 @@ const int SerialPortManager::BAUDRATE_LOWSPEED;
 const int SerialPortManager::DEFAULT_BAUDRATE;
 const int SerialPortManager::SERIAL_TIMER_INTERVAL;
 
-SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialPort(nullptr), serialThread(new QThread(nullptr)), serialTimer(new QTimer(nullptr)){
+SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialPort(nullptr), m_serialWorkerThread(new QThread(nullptr)), serialTimer(new QTimer(nullptr)){
     qCDebug(log_core_serial) << "Initialize serial port.";
+
+    // Set name for the serial worker thread for better logging
+    m_serialWorkerThread->setObjectName("SerialWorkerThread");
 
     // Initialize port chain tracking member variables
     m_currentSerialPortPath = QString();
@@ -67,7 +70,7 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     
     setupConnectionWatchdog();
 
-    // this->moveToThread(serialThread);
+    this->moveToThread(m_serialWorkerThread);
 
     connect(this, &SerialPortManager::serialPortConnected, this, &SerialPortManager::onSerialPortConnected);
     connect(this, &SerialPortManager::serialPortDisconnected, this, &SerialPortManager::onSerialPortDisconnected);
@@ -106,13 +109,13 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
 void SerialPortManager::observeSerialPortNotification(){
     qCDebug(log_core_serial) << "Created a timer to observer SerialPort...";
 
-    serialTimer->moveToThread(serialThread);
+    serialTimer->moveToThread(m_serialWorkerThread);
 
-    connect(serialThread, &QThread::finished, serialTimer, &QObject::deleteLater);
-    connect(serialThread, &QThread::finished, serialThread, &QObject::deleteLater);
+    connect(m_serialWorkerThread, &QThread::finished, serialTimer, &QObject::deleteLater);
+    connect(m_serialWorkerThread, &QThread::finished, m_serialWorkerThread, &QObject::deleteLater);
     connect(this, &SerialPortManager::sendCommandAsync, this, &SerialPortManager::sendCommand);
     
-    serialThread->start();
+    m_serialWorkerThread->start();
 }
 
 void SerialPortManager::stop() {
@@ -127,9 +130,9 @@ void SerialPortManager::stop() {
     // Prevent callback access during shutdown
     eventCallback = nullptr;
     
-    if (serialThread && serialThread->isRunning()) {
-        serialThread->quit();
-        serialThread->wait(3000); // Wait up to 3 seconds
+    if (m_serialWorkerThread && m_serialWorkerThread->isRunning()) {
+        m_serialWorkerThread->quit();
+        m_serialWorkerThread->wait(3000); // Wait up to 3 seconds
     }
     
     if (serialPort && serialPort->isOpen()) {
@@ -600,12 +603,12 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
     // Extra debug: confirm readyRead signals and thread id (and bytesAvailable at the moment)
     // This lambda helps validate whether readyRead is fired and on which thread context.
-    connect(serialPort, &QSerialPort::readyRead, this, [this]() {
-        qCDebug(log_core_serial) << "readyRead: emitted; threadId:" << (qulonglong)QThread::currentThreadId()
-                                 << "port:" << (serialPort ? serialPort->portName() : QString("null"))
-                                 << "bytesAvailable:" << (serialPort ? serialPort->bytesAvailable() : -1)
-                                 << "bytesToWrite:" << (serialPort ? serialPort->bytesToWrite() : -1);
-    });
+    // connect(serialPort, &QSerialPort::readyRead, this, [this]() {
+        // qCDebug(log_core_serial) << "readyRead: emitted; threadId:" << (qulonglong)QThread::currentThreadId()
+        //                          << "port:" << (serialPort ? serialPort->portName() : QString("null"))
+        //                          << "bytesAvailable:" << (serialPort ? serialPort->bytesAvailable() : -1)
+        //                          << "bytesToWrite:" << (serialPort ? serialPort->bytesToWrite() : -1);
+    // });
     
     // Connect error signal for enhanced error handling
     connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
@@ -1095,7 +1098,6 @@ void SerialPortManager::updateSpecialKeyState(uint8_t data){
  * Read the data from the serial port
  */
 void SerialPortManager::readData() {
-    qCDebug(log_core_serial) << "readData: Data available signal received";
     if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
         qCDebug(log_core_serial) << "readData: Ignored read - shutting down or port not open";
         return;
@@ -1130,7 +1132,7 @@ void SerialPortManager::readData() {
         dumpError(status, packet);
         // m_consecutiveErrors++;
     } else {
-        qCDebug(log_core_serial) << "Receive from serial port @" << (serialPort ? serialPort->baudRate() : 0) << ":" << packet.toHex(' ');
+        qCDebug(log_core_serial).nospace().noquote() << "Data Received(" << serialPort->portName() << "@" <<(serialPort ? serialPort->baudRate() : 0) << "bps): " << packet.toHex(' ');
         static QSettings settings("Techxartisan", "Openterface");
         latestUpdateTime = QDateTime::currentDateTime();
         ready = true;
@@ -1151,7 +1153,6 @@ void SerialPortManager::readData() {
                 qCDebug(log_core_serial) << "Keyboard event sent, status" << statusCodeToString(packet[5]);
                 break;
             case 0x84:
-                qCDebug(log_core_serial) << "Absolute mouse event sent, status" << statusCodeToString(packet[5]);
                 if(isChipTypeCH32V208()){
                     ready=true;
                     eventCallback->onTargetUsbConnected(true);
@@ -1285,7 +1286,7 @@ bool SerialPortManager::writeData(const QByteArray &data) {
         return false;
     }
     
-    QMutexLocker locker(&m_serialPortMutex);
+    // QMutexLocker locker(&m_serialPortMutex);
     
     if (!serialPort || !serialPort->isOpen()) {
         qCWarning(log_core_serial) << "Serial port not open, cannot write data";
@@ -1309,8 +1310,8 @@ bool SerialPortManager::writeData(const QByteArray &data) {
         // Ensure data is flushed to OS driver and wait for kernel write completion
         serialPort->flush();
 
-        qCDebug(log_core_serial) << "Data written to serial port:" << serialPort->portName()
-                        << "baudrate:" << serialPort->baudRate() << ":" << data.toHex(' ');
+        qCDebug(log_core_serial).nospace().noquote() << "Data written (" << serialPort->portName()
+                        << "@" << serialPort->baudRate() << "bps): " << data.toHex(' ');
             
         
         return true;

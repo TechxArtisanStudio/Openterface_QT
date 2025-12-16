@@ -200,7 +200,7 @@ private:
 
     QSet<QString> availablePorts;
     
-    QThread *serialThread;
+    QThread *m_serialWorkerThread;
     QTimer *serialTimer;
 
     QList<QSerialPortInfo> m_lastPortList;
