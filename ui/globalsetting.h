@@ -62,6 +62,9 @@ public:
     
     void setGStreamerPipelineTemplate(const QString &pipelineTemplate);
     QString getGStreamerPipelineTemplate() const;
+
+    void setGStreamerSinkPriority(const QStringList &priorityList);
+    QStringList getGStreamerSinkPriority() const;
     
     void setCameraDeviceSetting(QString deviceDescription);
 
