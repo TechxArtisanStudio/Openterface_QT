@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "sinkselector.h"
+#include "ui/globalsetting.h"
 
 #include <QByteArray>
 #include <QDebug>
@@ -37,20 +38,19 @@ QString SinkSelector::selectSink(const QString &platform)
     }
 
     // Probe for preferred sinks in order of preference
-    const char* preferred[] = {"qt6videosink", "qtvideosink", "qtsink", "xvimagesink", "ximagesink", "autovideosink", nullptr};
+    QStringList preferredList = GlobalSetting::instance().getGStreamerSinkPriority();
 
 #ifdef HAVE_GSTREAMER
-    for (const char** trySink = preferred; *trySink; ++trySink) {
-        GstElementFactory* factory = gst_element_factory_find(*trySink);
+    for (const QString &sinkName : preferredList) {
+        GstElementFactory* factory = gst_element_factory_find(sinkName.toUtf8().constData());
         if (factory) {
-            const QString found = QString::fromUtf8(*trySink);
-            qCDebug(log_gst_sink_selector) << "Selected available sink:" << found;
+            qCDebug(log_gst_sink_selector) << "Selected available sink:" << sinkName;
             gst_object_unref(factory);
-            return found;
+            return sinkName;
         }
     }
 #else
-    Q_UNUSED(preferred);
+    Q_UNUSED(preferredList);
 #endif
 
     // Last-resort fallback
@@ -73,25 +73,22 @@ QStringList SinkSelector::candidateSinks(const QString &platform)
     }
 
     // Preferred sinks in order
-    const char* preferred[] = {"qt6videosink", "qtvideosink", "qtsink", "xvimagesink", "ximagesink", "autovideosink", nullptr};
+    QStringList preferredList = GlobalSetting::instance().getGStreamerSinkPriority();
 
 #ifdef HAVE_GSTREAMER
-    for (const char** trySink = preferred; *trySink; ++trySink) {
-        const QString s = QString::fromUtf8(*trySink);
+    for (const QString &sinkName : preferredList) {
         // Avoid duplicates (e.g., override matches one of these)
-        if (candidates.contains(s)) continue;
+        if (candidates.contains(sinkName)) continue;
 
-        GstElementFactory* factory = gst_element_factory_find(*trySink);
+        GstElementFactory* factory = gst_element_factory_find(sinkName.toUtf8().constData());
         if (factory) {
-            candidates.append(s);
+            candidates.append(sinkName);
             gst_object_unref(factory);
         }
     }
 #else
-    Q_UNUSED(preferred);
-    for (const char** trySink = preferred; *trySink; ++trySink) {
-        const QString s = QString::fromUtf8(*trySink);
-        if (!candidates.contains(s)) candidates.append(s);
+    for (const QString &sinkName : preferredList) {
+        if (!candidates.contains(sinkName)) candidates.append(sinkName);
     }
 #endif
 

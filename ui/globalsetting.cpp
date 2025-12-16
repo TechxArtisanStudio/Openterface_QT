@@ -147,6 +147,14 @@ QString GlobalSetting::getGStreamerPipelineTemplate() const {
     return m_settings.value("video/gstreamerPipelineTemplate", defaultTemplate).toString();
 }
 
+void GlobalSetting::setGStreamerSinkPriority(const QStringList &priorityList) {
+    m_settings.setValue("video/gstreamerSinkPriority", priorityList);
+}
+
+QStringList GlobalSetting::getGStreamerSinkPriority() const {
+    return m_settings.value("video/gstreamerSinkPriority", QStringList() << "qt6videosink" << "qtvideosink" << "qtsink" << "xvimagesink" << "ximagesink" << "autovideosink").toStringList();
+}
+
 void GlobalSetting::setCameraDeviceSetting(QString deviceDescription){
     m_settings.setValue("camera/device", deviceDescription);
 }

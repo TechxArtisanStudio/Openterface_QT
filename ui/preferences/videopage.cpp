@@ -150,18 +150,46 @@ void VideoPage::setupUI()
     QLabel *backendHintLabel = new QLabel(tr("Note: Changing media backend requires application restart to take effect."));
     backendHintLabel->setStyleSheet("color: #666666; font-style: italic;");
 
+    // GStreamer Sink Priority Setting
+    QLabel *gstSinkLabel = new QLabel(tr("GStreamer Sink Priority: "));
+    gstSinkLabel->setStyleSheet(smallLabelFontSize);
+    gstSinkLabel->setObjectName("gstSinkLabel");
+
+    QLineEdit *gstSinkEdit = new QLineEdit();
+    gstSinkEdit->setObjectName("gstSinkEdit");
+    gstSinkEdit->setPlaceholderText("e.g. qt6videosink, xvimagesink, autovideosink");
+    gstSinkEdit->setText(GlobalSetting::instance().getGStreamerSinkPriority().join(", "));
+    
+    QLabel *gstSinkHintLabel = new QLabel(tr("Comma-separated list of sinks to try in order."));
+    gstSinkHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    gstSinkHintLabel->setObjectName("gstSinkHintLabel");
+
     // Connect the media backend change signal
     connect(mediaBackendBox, &QComboBox::currentIndexChanged, this, &VideoPage::onMediaBackendChanged);
 
     // Hardware Acceleration Setting Section
     QLabel *hwAccelLabel = new QLabel(tr("Hardware Acceleration: "));
     hwAccelLabel->setStyleSheet(smallLabelFontSize);
+    hwAccelLabel->setObjectName("hwAccelLabel");
 
     QComboBox *hwAccelBox = new QComboBox();
     hwAccelBox->setObjectName("hwAccelBox");
 
     QLabel *hwAccelHintLabel = new QLabel(tr("Note: Hardware acceleration improves performance but may not be available on all systems. Changing this setting requires application restart to take effect."));
     hwAccelHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    hwAccelHintLabel->setObjectName("hwAccelHintLabel");
+
+    // Set initial visibility based on backend
+    bool isFFmpeg = (mediaBackendBox->currentData().toString() == "ffmpeg");
+    bool isGStreamer = (mediaBackendBox->currentData().toString() == "gstreamer");
+    
+    hwAccelLabel->setVisible(isFFmpeg);
+    hwAccelBox->setVisible(isFFmpeg);
+    hwAccelHintLabel->setVisible(isFFmpeg);
+
+    gstSinkLabel->setVisible(isGStreamer);
+    gstSinkEdit->setVisible(isGStreamer);
+    gstSinkHintLabel->setVisible(isGStreamer);
 
     // Populate hardware acceleration options
     if (m_cameraManager) {
@@ -236,6 +264,9 @@ void VideoPage::setupUI()
     videoLayout->addWidget(backendLabel);
     videoLayout->addWidget(mediaBackendBox);
     videoLayout->addWidget(backendHintLabel);
+    videoLayout->addWidget(gstSinkLabel);
+    videoLayout->addWidget(gstSinkEdit);
+    videoLayout->addWidget(gstSinkHintLabel);
     videoLayout->addWidget(hwAccelLabel);
     videoLayout->addWidget(hwAccelBox);
     videoLayout->addWidget(hwAccelHintLabel);
@@ -613,6 +644,27 @@ void VideoPage::onMediaBackendChanged() {
         QString selectedBackend = mediaBackendBox->currentData().toString();
         GlobalSetting::instance().setMediaBackend(selectedBackend);
         qDebug() << "Media backend changed to:" << selectedBackend;
+        
+        bool isFFmpeg = (selectedBackend == "ffmpeg");
+        bool isGStreamer = (selectedBackend == "gstreamer");
+        
+        // Find hardware acceleration widgets
+        QLabel *hwAccelLabel = this->findChild<QLabel*>("hwAccelLabel");
+        QComboBox *hwAccelBox = this->findChild<QComboBox*>("hwAccelBox");
+        QLabel *hwAccelHintLabel = this->findChild<QLabel*>("hwAccelHintLabel");
+        
+        if (hwAccelLabel) hwAccelLabel->setVisible(isFFmpeg);
+        if (hwAccelBox) hwAccelBox->setVisible(isFFmpeg);
+        if (hwAccelHintLabel) hwAccelHintLabel->setVisible(isFFmpeg);
+
+        // Find GStreamer sink widgets
+        QLabel *gstSinkLabel = this->findChild<QLabel*>("gstSinkLabel");
+        QLineEdit *gstSinkEdit = this->findChild<QLineEdit*>("gstSinkEdit");
+        QLabel *gstSinkHintLabel = this->findChild<QLabel*>("gstSinkHintLabel");
+
+        if (gstSinkLabel) gstSinkLabel->setVisible(isGStreamer);
+        if (gstSinkEdit) gstSinkEdit->setVisible(isGStreamer);
+        if (gstSinkHintLabel) gstSinkHintLabel->setVisible(isGStreamer);
         
         // Show/hide GStreamer options based on selected backend
         if (selectedBackend == "gstreamer") {
