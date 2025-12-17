@@ -76,6 +76,7 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     setRenderHint(QPainter::SmoothPixmapTransform, true);
     setRenderHint(QPainter::TextAntialiasing, true);  // Critical for text clarity
     
+    
     // DO NOT use DontAdjustForAntialiasing - it degrades quality for performance
     // setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, true);  // REMOVED
     
@@ -442,10 +443,13 @@ void VideoPane::resizeEvent(QResizeEvent *event)
         emit viewportSizeChanged(newViewportSize);
     }
     
+    // If in FFmpeg direct mode and we have a pixmap, re-evaluate frame sizing so we can pre-scale to exact viewport
+    if (m_directFFmpegMode && m_pixmapItem && !m_pixmapItem->pixmap().isNull()) {
+        // Re-run the update path with the currently displayed pixmap to keep 1:1 mapping on resize
+        updateVideoFrame(m_pixmapItem->pixmap());
+    }
+
     // Update scene rect and scroll bars on resize
-    updateScrollBarsAndSceneRect();
-    
-    // Update scroll bars and scene rect based on current zoom level
     updateScrollBarsAndSceneRect();
     
     updateVideoItemTransform();
@@ -943,7 +947,6 @@ void VideoPane::mouseMoveEvent(QMouseEvent *event)
     
     // Let the base class handle the event
     QGraphicsView::mouseMoveEvent(event);
-    qCDebug(log_ui_video) << "VideoPane::mouseMoveEvent processed";
 }
 
 void VideoPane::mouseReleaseEvent(QMouseEvent *event)
@@ -1098,16 +1101,21 @@ void VideoPane::updateVideoFrameFromImage(const QImage& image)
     if (image.isNull()) {
         return;
     }
-    
-    // Convert QImage to QPixmap on GUI thread (fast and thread-safe)
+
+    // Use window/widget DPR to ensure consistent logical/physical pixel mapping
+    qreal widgetDpr = 1.0;
+    if (window()) widgetDpr = window()->devicePixelRatioF();
+    else widgetDpr = this->devicePixelRatioF();
+
+    // Convert QImage to QPixmap and force the pixmap DPR to the widget DPR
     QPixmap frame = QPixmap::fromImage(image);
-    if (image.format() == QImage::Format_RGB888 || image.format() == QImage::Format_ARGB32) {
-        // Fast path for common formats
-        frame = QPixmap::fromImage(image, Qt::NoFormatConversion);
-    } else {
-        frame = QPixmap::fromImage(image);
-    }
-    // Delegate to existing updateVideoFrame method
+    frame.setDevicePixelRatio(widgetDpr);
+
+    qCDebug(log_ui_video) << "updateVideoFrameFromImage: image.size()=" << image.size()
+                         << " image.dpr=" << image.devicePixelRatioF()
+                         << " widgetDpr=" << widgetDpr
+                         << " resulting pixmap.logicalSize=" << QSizeF(frame.width()/widgetDpr, frame.height()/widgetDpr);
+
     updateVideoFrame(frame);
 }
 
@@ -1116,66 +1124,78 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
     if (!m_directFFmpegMode || frame.isNull()) {
         return;
     }
-    
-    // Update native video size for FFmpeg mode
-    m_originalVideoSize = frame.size();
-    
-    // Check if frame is already sized to viewport (from FFmpeg scaling)
-    QSize currentViewportSize = viewport()->rect().size();
-    m_frameIsViewportSized = (frame.size() == currentViewportSize);
-    
-    // FAST PATH: For viewport-sized frames, use direct 1:1 display
+
+    // Ensure widget DPR is used consistently
+    qreal widgetDpr = 1.0;
+    if (window()) widgetDpr = window()->devicePixelRatioF();
+    else widgetDpr = this->devicePixelRatioF();
+
+    // Force pixmap DPR to widget DPR (incoming pixmap may carry different DPR)
+    QPixmap local = frame;
+    local.setDevicePixelRatio(widgetDpr);
+
+    // Logical frame size in device-independent pixels
+    QSizeF logicalFrameSizeF(local.width() / widgetDpr, local.height() / widgetDpr);
+    QSize logicalFrameSize(qRound(logicalFrameSizeF.width()), qRound(logicalFrameSizeF.height()));
+
+    qCDebug(log_ui_video) << "updateVideoFrame: pixmap.physical=" << local.size()
+                         << " widgetDpr=" << widgetDpr
+                         << " logicalFrameSize=" << logicalFrameSizeF
+                         << " viewport=" << viewport()->rect().size();
+
+    // Store original video logical size
+    m_originalVideoSize = logicalFrameSize;
+
+    // Compare using logical pixels (allow small tolerance to account for rounding/DPR differences)
+    QSize viewportLogical = viewport()->rect().size();
+    const int tolerance = 2; // allow small diffs (rounding, DPR, scrollbars, etc.)
+    m_frameIsViewportSized = (qAbs(qRound(logicalFrameSizeF.width()) - viewportLogical.width()) <= tolerance &&
+                              qAbs(qRound(logicalFrameSizeF.height()) - viewportLogical.height()) <= tolerance);
+
+    // FAST PATH: 1:1 mapping of logical pixels (no runtime resampling)
     if (m_frameIsViewportSized) {
-        // Create or update pixmap item for 1:1 display
+        // If the sizes are close but not exact, pre-scale the pixmap to exact viewport physical size
+        QSize targetPhysicalSize(qRound(viewportLogical.width() * widgetDpr), qRound(viewportLogical.height() * widgetDpr));
+        if (local.size() != targetPhysicalSize) {
+            qCDebug(log_ui_video) << "Treating near-match as viewport-sized; pre-scaling pixmap to exact viewport (physical):" << targetPhysicalSize;
+            QPixmap scaled = local.scaled(targetPhysicalSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            scaled.setDevicePixelRatio(widgetDpr);
+            local = scaled;
+        }
+
         if (!m_pixmapItem) {
-            m_pixmapItem = m_scene->addPixmap(frame);
+            m_pixmapItem = m_scene->addPixmap(local);
             m_pixmapItem->setZValue(2);
             m_pixmapItem->setTransformationMode(Qt::SmoothTransformation);
+            m_pixmapItem->setCacheMode(QGraphicsItem::NoCache);
         } else {
-            m_pixmapItem->setPixmap(frame);
+            m_pixmapItem->setPixmap(local);
         }
-        
-        // Set identity transform and position at origin for 1:1 display
+
         m_pixmapItem->setTransform(QTransform());
         m_pixmapItem->setPos(0, 0);
         m_pixmapItem->setVisible(true);
-        
-        // Hide Qt video item
-        if (m_videoItem) {
-            m_videoItem->setVisible(false);
-        }
-        
-        // Set scene rect to viewport size for 1:1 mapping
-        m_scene->setSceneRect(viewport()->rect());
-        
-        return; // Skip all transformation logic
+
+        if (m_videoItem) m_videoItem->setVisible(false);
+
+        // Ensure scene rect equals viewport logical rect (use integers)
+        m_scene->setSceneRect(QRectF(0, 0, viewportLogical.width(), viewportLogical.height()));
+        return;
     }
-    
-    // FALLBACK PATH: For non-viewport-sized frames, use complex transformation
-    // (This should rarely be used when FFmpeg scaling is working correctly)
-    
-    static bool loggedFallback = false;
-    if (!loggedFallback) {
-        qCWarning(log_ui_video) << "Using fallback transformation for non-viewport-sized frame:" << frame.size() << "vs viewport:" << currentViewportSize;
-        loggedFallback = true;
-    }
-    
-    // Create or update pixmap item (fallback path for non-viewport-sized frames)
+
+    // FALLBACK: Non-viewport-sized frame - let transform pipeline handle it,
+    // but keep pixmap DPR consistent and disable item caching to avoid stale scaled cache.
     if (!m_pixmapItem) {
-        m_pixmapItem = m_scene->addPixmap(frame);
+        m_pixmapItem = m_scene->addPixmap(local);
         m_pixmapItem->setZValue(2);
         m_pixmapItem->setVisible(true);
         m_pixmapItem->setTransformationMode(Qt::SmoothTransformation);
+        m_pixmapItem->setCacheMode(QGraphicsItem::NoCache);
     } else {
-        m_pixmapItem->setPixmap(frame);
+        m_pixmapItem->setPixmap(local);
     }
-    
-    // Hide Qt video item
-    if (m_videoItem) {
-        m_videoItem->setVisible(false);
-    }
-    
-    // Apply standard transformation for non-viewport-sized frames
+    if (m_videoItem) m_videoItem->setVisible(false);
+
     updateVideoItemTransform();
     centerVideoItem();
     updateScrollBarsAndSceneRect();

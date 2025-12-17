@@ -731,25 +731,35 @@ QImage FFmpegFrameProcessor::ConvertFrameToImage(AVFrame* frame, const QSize& ta
     }
     
     // OPTIMIZATION: Skip conversion entirely if frame already matches target
-    if (targetSize.isValid() && 
-        frame->width == targetSize.width() && 
-        frame->height == targetSize.height() &&
+    // If requested target is larger than source, clamp it to source size
+    QSize effectiveTarget = targetSize;
+    if (effectiveTarget.isValid()) {
+        if (effectiveTarget.width() > width || effectiveTarget.height() > height) {
+            qCDebug(log_ffmpeg_backend) << "Requested target" << targetSize << "is larger than source"
+                                       << width << "x" << height << "- clamping to source size";
+            effectiveTarget = QSize(width, height);
+        }
+    }
+
+    // OPTIMIZATION: Skip conversion entirely if frame already matches (effective) target
+    if (effectiveTarget.isValid() && 
+        frame->width == effectiveTarget.width() && 
+        frame->height == effectiveTarget.height() &&
         (format == AV_PIX_FMT_RGB24 || format == AV_PIX_FMT_BGR24)) {
-        
         // Direct copy without scaling - FASTEST PATH
         return ConvertRgbFrameDirectlyToImage(frame);
     }
-    
+
     // Try fast path for RGB formats only if no scaling needed
     if ((format == AV_PIX_FMT_RGB24 || format == AV_PIX_FMT_BGR24 || 
          format == AV_PIX_FMT_RGBA || format == AV_PIX_FMT_BGRA ||
          format == AV_PIX_FMT_BGR0 || format == AV_PIX_FMT_RGB0) &&
-        (!targetSize.isValid() || (targetSize.width() == width && targetSize.height() == height))) {
+        (!effectiveTarget.isValid() || (effectiveTarget.width() == width && effectiveTarget.height() == height))) {
         return ConvertRgbFrameDirectlyToImage(frame);
     }
-    
+
     // Use scaling for other formats or when target size is specified
-    return ConvertWithScalingToImage(frame, targetSize);
+    return ConvertWithScalingToImage(frame, effectiveTarget);
 }
 
 QImage FFmpegFrameProcessor::ConvertRgbFrameDirectlyToImage(AVFrame* frame)
@@ -784,9 +794,18 @@ QImage FFmpegFrameProcessor::ConvertWithScalingToImage(AVFrame* frame, const QSi
     // Determine target dimensions
     int targetWidth = targetSize.isValid() ? targetSize.width() : width;
     int targetHeight = targetSize.isValid() ? targetSize.height() : height;
+
+    // If requested target is larger than source, clamp to source (default) size
+    if (targetWidth > width || targetHeight > height) {
+        qCDebug(log_ffmpeg_backend) << "Requested scaling to" << targetWidth << "x" << targetHeight
+                                   << "is larger than source" << width << "x" << height
+                                   << "- clamping to source size";
+        targetWidth = width;
+        targetHeight = height;
+    }
     
     // Update scaling context if needed
-    UpdateScalingContext(width, height, format, targetSize);
+    UpdateScalingContext(width, height, format, QSize(targetWidth, targetHeight));
     
     // Check if scaling context is available
     {
@@ -828,6 +847,14 @@ void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFo
     // Determine target dimensions
     int targetWidth = targetSize.isValid() ? targetSize.width() : width;
     int targetHeight = targetSize.isValid() ? targetSize.height() : height;
+
+    // If requested target is larger than source, clamp to source size
+    if (targetWidth > width || targetHeight > height) {
+        qCDebug(log_ffmpeg_backend) << "Clamping requested scaling target" << targetSize
+                                   << "to source size" << width << "x" << height;
+        targetWidth = width;
+        targetHeight = height;
+    }
     
     // Check if context needs update (including target dimensions)
     static int last_target_width_ = -1;

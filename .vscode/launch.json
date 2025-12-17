@@ -8,7 +8,7 @@
             "name": "Debug openterfaceQT",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/openterfaceQT.exe",
+            "program": "${workspaceFolder}/build/Release/openterfaceQT.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
