@@ -619,9 +619,15 @@ void FFmpegBackendHandler::processFrame()
     // Check if recording is active
     bool isRecording = m_recorder && m_recorder->IsRecording() && !m_recorder->IsPaused();
     
+    // Get viewport size from VideoPane if available
+    QSize viewportSize;
+    if (m_videoPane) {
+        viewportSize = m_videoPane->viewport()->size();
+    }
+    
     // OPTIMIZATION: Process frame to QImage instead of QPixmap to offload GUI work
     // QImage is thread-safe and can be passed across thread boundaries efficiently
-    QImage image = m_frameProcessor->ProcessPacketToImage(packet, codecContext, isRecording);
+    QImage image = m_frameProcessor->ProcessPacketToImage(packet, codecContext, isRecording, viewportSize);
     
     // Clean up packet
     av_packet_unref(packet);
@@ -739,6 +745,13 @@ void FFmpegBackendHandler::setVideoOutput(VideoPane* videoPane)
         connect(this, &FFmpegBackendHandler::frameReadyImage,
                 videoPane, &VideoPane::updateVideoFrameFromImage,
                 Qt::QueuedConnection);
+        
+        // Connect viewport size changes to update frame scaling
+        connect(videoPane, &VideoPane::viewportSizeChanged,
+                this, [this](const QSize& size) {
+                    qCDebug(log_ffmpeg_backend) << "Viewport size changed to:" << size;
+                    // The next frame will automatically use the new viewport size in processFrame
+                });
         
         qCDebug(log_ffmpeg_backend) << "Connected frameReadyImage signal to VideoPane::updateVideoFrameFromImage with QueuedConnection";
         

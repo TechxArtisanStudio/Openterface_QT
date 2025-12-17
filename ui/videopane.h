@@ -96,6 +96,7 @@ public:
 signals:
     void mouseMoved(const QPoint& position, const QString& event);
     void videoPaneResized(const QSize& newSize);  // Signal for video pane resize events
+    void viewportSizeChanged(const QSize& size);   // Signal for viewport size changes
 
 public slots:
     void onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice);
@@ -145,6 +146,8 @@ private:
     
     // Direct FFmpeg mode support
     bool m_directFFmpegMode;
+    QSize m_lastViewportSize;
+    bool m_frameIsViewportSized;
     
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);

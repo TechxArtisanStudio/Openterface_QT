@@ -5,9 +5,11 @@
 #include "IDeviceEnumerator.h"
 #include <QObject>
 #include <QLoggingCategory>
+#if defined(_WIN32) && !defined(Q_MOC_RUN)
 #include <windows.h>
 #include <setupapi.h>
 #include <cfgmgr32.h>
+#endif
 
 Q_DECLARE_LOGGING_CATEGORY(log_win_enumerator)
 

@@ -27,6 +27,19 @@ set(DEVICE_SOURCES
     device/platform/windows/IDeviceEnumerator.h
 )
 
+if(WIN32)
+    list(APPEND DEVICE_SOURCES
+        device/platform/WindowsDeviceManager.cpp device/platform/WindowsDeviceManager.h
+        device/platform/windows/WinDeviceEnumerator.cpp device/platform/windows/WinDeviceEnumerator.h
+        device/platform/windows/IDeviceEnumerator.h
+        device/platform/windows/discoverers/IDeviceDiscoverer.h
+        device/platform/windows/discoverers/BaseDeviceDiscoverer.cpp device/platform/windows/discoverers/BaseDeviceDiscoverer.h
+        device/platform/windows/discoverers/BotherDeviceDiscoverer.cpp device/platform/windows/discoverers/BotherDeviceDiscoverer.h
+        device/platform/windows/discoverers/Generation3Discoverer.cpp device/platform/windows/discoverers/Generation3Discoverer.h
+        device/platform/windows/discoverers/DeviceDiscoveryManager.cpp device/platform/windows/discoverers/DeviceDiscoveryManager.h
+    )
+endif()
+
 # Host management
 set(HOST_SOURCES
     host/HostManager.cpp host/HostManager.h

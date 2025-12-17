@@ -1,6 +1,7 @@
 #include "DeviceManager.h"
 #include "platform/DeviceFactory.h"
 #include "platform/AbstractPlatformDeviceManager.h"
+#include "device/platform/DeviceConstants.h"
 #ifdef __linux__
 #include "platform/LinuxDeviceManager.h"
 #endif
@@ -528,13 +529,13 @@ VideoChipType DeviceManager::getChipTypeForDevice(const DeviceInfo& device)
     if (!device.vid.isEmpty() && !device.pid.isEmpty()) {
         QString vid = device.vid.toUpper();
         QString pid = device.pid.toUpper();
-        if (vid == A::getOpenterfaceVid().toUpper() && pid == A::getOpenterfacePid().toUpper()) {
+        if (vid == OPENTERFACE_VID.toUpper() && pid == OPENTERFACE_PID.toUpper()) {
             return VideoChipType::MS2109;
         }
-        if (vid == A::getOpenterfaceVidV2().toUpper() && pid == A::getOpenterfacePidV2().toUpper()) {
+        if (vid == OPENTERFACE_VID_V2.toUpper() && pid == OPENTERFACE_PID_V2.toUpper()) {
             return VideoChipType::MS2130S;
         }
-        if (vid == A::getOpenterfaceVidV3().toUpper() && pid == A::getOpenterfacePidV3().toUpper()) {
+        if (vid == OPENTERFACE_VID_V3.toUpper() && pid == OPENTERFACE_PID_V3.toUpper()) {
             // Treat V3 as MS2130S family by register mapping
             return VideoChipType::MS2130S;
         }
@@ -544,12 +545,12 @@ VideoChipType DeviceManager::getChipTypeForDevice(const DeviceInfo& device)
     auto matchPaths = [&](const QString& p) -> VideoChipType {
         if (p.isEmpty()) return VideoChipType::UNKNOWN;
         QString s = p.toUpper();
-    if (s.contains(A::getOpenterfaceVidV2().toUpper()) && s.contains(A::getOpenterfacePidV2().toUpper())) return VideoChipType::MS2130S;
-    if (s.contains(A::getOpenterfaceVid().toUpper()) && s.contains(A::getOpenterfacePid().toUpper())) return VideoChipType::MS2109;
-    if (s.contains(A::getOpenterfaceVidV3().toUpper()) && s.contains(A::getOpenterfacePidV3().toUpper())) return VideoChipType::MS2130S;
+    if (s.contains(OPENTERFACE_VID_V2.toUpper()) && s.contains(OPENTERFACE_PID_V2.toUpper())) return VideoChipType::MS2130S;
+    if (s.contains(OPENTERFACE_VID.toUpper()) && s.contains(OPENTERFACE_PID.toUpper())) return VideoChipType::MS2109;
+    if (s.contains(OPENTERFACE_VID_V3.toUpper()) && s.contains(OPENTERFACE_PID_V3.toUpper())) return VideoChipType::MS2130S;
         // Windows style variants
-    if (s.contains("VID_" + A::getOpenterfaceVidV2(), Qt::CaseInsensitive) && s.contains("PID_" + A::getOpenterfacePidV2(), Qt::CaseInsensitive)) return VideoChipType::MS2130S;
-    if (s.contains("VID_" + A::getOpenterfaceVid(), Qt::CaseInsensitive) && s.contains("PID_" + A::getOpenterfacePid(), Qt::CaseInsensitive)) return VideoChipType::MS2109;
+    if (s.contains("VID_" + OPENTERFACE_VID_V2, Qt::CaseInsensitive) && s.contains("PID_" + OPENTERFACE_PID_V2, Qt::CaseInsensitive)) return VideoChipType::MS2130S;
+    if (s.contains("VID_" + OPENTERFACE_VID, Qt::CaseInsensitive) && s.contains("PID_" + OPENTERFACE_PID, Qt::CaseInsensitive)) return VideoChipType::MS2109;
         return VideoChipType::UNKNOWN;
     };
 

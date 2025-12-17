@@ -6,11 +6,18 @@
 #include <QVariantMap>
 #include <QPair>
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(Q_MOC_RUN)
 #include <windows.h>
 #include <guiddef.h>
 #include <setupapi.h>
 #include <cfgmgr32.h>
+#elif defined(Q_MOC_RUN)
+// Provide minimal Windows type stubs so moc can parse header without including
+// heavy system headers which sometimes crash moc on Windows.
+typedef unsigned long DWORD;
+typedef void* HDEVINFO;
+struct SP_DEVINFO_DATA { int dummy; };
+struct GUID { int dummy; };
 #endif
 
 /**

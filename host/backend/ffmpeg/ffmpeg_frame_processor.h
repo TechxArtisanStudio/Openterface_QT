@@ -62,7 +62,7 @@ public:
     
     // Frame processing pipeline (returns QImage for better thread safety)
     QImage ProcessPacketToImage(AVPacket* packet, AVCodecContext* codec_context, 
-                                bool is_recording);
+                                bool is_recording, const QSize& targetSize = QSize());
     
     // Latest frame access (thread-safe)
     QImage GetLatestFrame() const;
@@ -93,17 +93,18 @@ private:
     QPixmap ConvertWithScaling(AVFrame* frame);
     
     // Thread-safe frame conversion (returns QImage directly)
-    QImage ConvertFrameToImage(AVFrame* frame);
+    QImage ConvertFrameToImage(AVFrame* frame, const QSize& targetSize = QSize());
     QImage ConvertRgbFrameDirectlyToImage(AVFrame* frame);
-    QImage ConvertWithScalingToImage(AVFrame* frame);
+    QImage ConvertWithScalingToImage(AVFrame* frame, const QSize& targetSize = QSize());
     
     // Frame dropping logic
     bool ShouldDropFrame(bool is_recording);
     
     // Helper methods
     bool IsHardwareDecoder(const AVCodecContext* codec_context) const;
-    void UpdateScalingContext(int width, int height, AVPixelFormat format);
+    void UpdateScalingContext(int width, int height, AVPixelFormat format, const QSize& targetSize = QSize());
     void CleanupScalingContext();
+    void ApplySharpeningFilter(uint8_t *buffer, int width, int height);
     
     // Frame conversion resources
     SwsContext* sws_context_;

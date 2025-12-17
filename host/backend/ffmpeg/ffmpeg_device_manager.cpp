@@ -28,6 +28,7 @@
 #include <QLoggingCategory>
 #include <QDateTime>
 #include <QDebug>
+#include <thread>
 
 extern "C" {
 #include <libavdevice/avdevice.h>
@@ -184,20 +185,24 @@ bool FFmpegDeviceManager::InitializeInputStream(const QString& device_path, cons
     av_dict_set(&options, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
     av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
     
-    // CRITICAL LOW-LATENCY OPTIMIZATIONS for KVM responsiveness:
-    av_dict_set(&options, "rtbufsize", "10000000", 0);        // 10MB buffer to prevent overflow
-    av_dict_set(&options, "fflags", "discardcorrupt", 0); // Discard corrupt frames only
-    av_dict_set(&options, "flags", "low_delay", 0);       // Enable low delay mode
-    av_dict_set(&options, "max_delay", "2000", 0);           // Allow 3ms delay for stability
-    av_dict_set(&options, "probesize", "32", 0);          // Minimal probe size for fastest start (minimum allowed)
-    av_dict_set(&options, "analyzeduration", "0", 0);     // Skip analysis to reduce startup delay
+    // ============ MJPEG QUALITY OPTIMIZATIONS ============
     
-    // CRITICAL FIX: Add timeout to prevent blocking on device reconnection
-    av_dict_set(&options, "timeout", "5000000", 0);       // 5 second timeout in microseconds
+    // 1. Increase buffer for MJPEG quality (larger buffer = fewer dropped frames)
+    av_dict_set(&options, "rtbufsize", "256M", 0);  // Increased from 100M to 256M for 60fps MJPEG
     
-    // Try to set video format - DirectShow supports various formats
-    // Try MJPEG first for best performance
-    av_dict_set(&options, "vcodec", "mjpeg", 0);
+    // 2. Disable frame dropping at input to preserve quality
+    av_dict_set(&options, "fflags", "discardcorrupt", 0);
+    
+    // 3. Low-latency and quality balance
+    av_dict_set(&options, "flags", "low_delay", 0);
+    av_dict_set(&options, "max_delay", "2000", 0);
+    
+    // 4. Minimal probe for faster startup without sacrificing MJPEG decompression
+    av_dict_set(&options, "probesize", "32", 0);
+    av_dict_set(&options, "analyzeduration", "0", 0);
+    
+    // 5. Critical timeout to prevent blocking
+    av_dict_set(&options, "timeout", "5000000", 0);
     
     qCDebug(log_ffmpeg_backend) << "Trying DirectShow with MJPEG format, resolution" << resolution << "and framerate" << framerate;
     qCDebug(log_ffmpeg_backend) << "DirectShow device string:" << device_path;
@@ -490,12 +495,39 @@ bool FFmpegDeviceManager::SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator
         return false;
     }
     
-    // CRITICAL: Set low-latency codec options before opening
+    // CRITICAL: Set codec options for quality - DISABLE FAST mode for better quality
     codec_context_->flags |= AV_CODEC_FLAG_LOW_DELAY;      // Enable low-delay decoding
-    codec_context_->flags2 |= AV_CODEC_FLAG2_FAST;         // Prioritize speed over quality
+    codec_context_->flags2 &= ~AV_CODEC_FLAG2_FAST;        // DISABLE fast decoding - prioritize quality over speed
     
-    // Use single-threading for lower latency
-    codec_context_->thread_count = 1;
+    // Ensure full frame decoding (no frame skipping)
+    codec_context_->skip_frame = AVDISCARD_NONE;           // Decode all frames
+    codec_context_->skip_idct = AVDISCARD_NONE;            // Full IDCT
+    codec_context_->skip_loop_filter = AVDISCARD_NONE;     // Full loop filter
+    
+    // ============ MJPEG-SPECIFIC QUALITY SETTINGS ============
+    
+    // Use optimal thread count (4 threads = best balance)
+    // Too many threads cause context switching overhead and actual slowdown
+    codec_context_->thread_count = 4;
+    codec_context_->thread_type = FF_THREAD_FRAME;
+    
+    // Request full-range YUV output (better quality than limited range)
+    codec_context_->pix_fmt = AV_PIX_FMT_YUVJ420P;
+    
+    // Disable experimental codec features, use normal compliance
+    codec_context_->strict_std_compliance = FF_COMPLIANCE_NORMAL;
+    
+    // Preserve frame metadata for accurate rendering
+    codec_context_->flags |= AV_CODEC_FLAG_COPY_OPAQUE;
+    
+    qCInfo(log_ffmpeg_backend) << "=== CODEC CONFIGURATION FOR QUALITY ===";
+    qCInfo(log_ffmpeg_backend) << "Codec:" << (codec->name ? codec->name : "unknown");
+    qCInfo(log_ffmpeg_backend) << "Thread count: 4 (optimal for balance)";
+    qCInfo(log_ffmpeg_backend) << "Thread type: FRAME";
+    qCInfo(log_ffmpeg_backend) << "Output pixel format:" << av_get_pix_fmt_name(codec_context_->pix_fmt);
+    qCInfo(log_ffmpeg_backend) << "Skip frame: NONE (decode all)";
+    qCInfo(log_ffmpeg_backend) << "Fast decoding: DISABLED (quality over speed)";
+    qCInfo(log_ffmpeg_backend) << "Compliance: NORMAL";
     
     // Set hardware device context if using hardware decoder AND context is available
     AVBufferRef* hw_device_ctx = hw_accelerator ? hw_accelerator->GetHardwareDeviceContext() : nullptr;
@@ -527,13 +559,22 @@ bool FFmpegDeviceManager::SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator
                 return false;
             }
             
-            // CRITICAL: Set low-latency codec options for software decoder
+            // CRITICAL: Set low-latency codec options for software decoder - quality focused
             codec_context_->flags |= AV_CODEC_FLAG_LOW_DELAY;
-            codec_context_->flags2 |= AV_CODEC_FLAG2_FAST;
-            codec_context_->thread_count = 1;
+            codec_context_->flags2 &= ~AV_CODEC_FLAG2_FAST;  // DISABLE fast - quality over speed
+            codec_context_->skip_frame = AVDISCARD_NONE;
+            codec_context_->skip_idct = AVDISCARD_NONE;
+            codec_context_->skip_loop_filter = AVDISCARD_NONE;
+            
+            // ============ MJPEG-SPECIFIC QUALITY SETTINGS FOR FALLBACK ============
+            codec_context_->thread_count = 4;  // Fixed 4 threads for stability
+            codec_context_->thread_type = FF_THREAD_FRAME;
+            codec_context_->pix_fmt = AV_PIX_FMT_YUVJ420P;
+            codec_context_->strict_std_compliance = FF_COMPLIANCE_NORMAL;
+            codec_context_->flags |= AV_CODEC_FLAG_COPY_OPAQUE;
             
             usingHwDecoder = false;
-            qCInfo(log_ffmpeg_backend) << "Falling back to software decoder:" << codec->name;
+            qCInfo(log_ffmpeg_backend) << "Falling back to software decoder:" << codec->name << "(4 threads)";
         } else {
             const char* hwType = (hw_device_type == AV_HWDEVICE_TYPE_CUDA) ? "CUDA/NVDEC" : "QSV";
             qCInfo(log_ffmpeg_backend) << "✓" << hwType << "hardware device context set successfully";

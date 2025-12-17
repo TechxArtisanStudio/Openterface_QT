@@ -1,6 +1,8 @@
 ﻿#ifdef _WIN32
 #include "WindowsDeviceManager.h"
 #include "windows/WinDeviceEnumerator.h"
+#include "windows/discoverers/BotherDeviceDiscoverer.h"
+#include "windows/discoverers/Generation3Discoverer.h"
 #include <QDebug>
 #include <QSettings>
 #include <QDir>
@@ -44,6 +46,7 @@ WindowsDeviceManager::WindowsDeviceManager(QObject *parent)
       m_enumerator(std::make_unique<WinDeviceEnumerator>(this))
 {
     qCDebug(log_device_windows) << "Windows Device Manager initialized";
+    initializeDiscoveryManager();
 }
 
 WindowsDeviceManager::WindowsDeviceManager(std::unique_ptr<IDeviceEnumerator> enumerator, QObject *parent)
@@ -54,6 +57,7 @@ WindowsDeviceManager::WindowsDeviceManager(std::unique_ptr<IDeviceEnumerator> en
         m_enumerator = std::make_unique<WinDeviceEnumerator>(this);
     }
     qCDebug(log_device_windows) << "Windows Device Manager initialized with custom enumerator";
+    initializeDiscoveryManager();
 }
 
 WindowsDeviceManager::~WindowsDeviceManager()
@@ -71,14 +75,13 @@ QVector<DeviceInfo> WindowsDeviceManager::discoverDevices()
         return m_cachedDevices;
     }
 
-    qCDebug(log_device_windows) << "Discovering Openterface devices with optimized USB 2.0/3.0 detection...";
+    qCDebug(log_device_windows) << "Discovering Openterface devices using modular discovery system...";
     
     QVector<DeviceInfo> devices;
     
     try {
-        // Use optimized discovery that supports both USB 2.0 and USB 3.0 devices
-        // This handles devices that can work with both generation methods
-        devices = discoverOptimizedDevices();
+        // Use the modular discovery manager to find all devices
+        devices = m_discoveryManager->discoverAllDevices();
         
     } catch (const std::exception& e) {
         qCWarning(log_device_windows) << "Error discovering devices:" << e.what();
@@ -93,8 +96,10 @@ QVector<DeviceInfo> WindowsDeviceManager::discoverDevices()
     for (int i = 0; i < devices.size(); ++i) {
         const DeviceInfo& device = devices[i];
         qCDebug(log_device_windows) << "Device[" << i << "] Summary:";
+        qCDebug(log_device_windows) << "  Generation:" << device.platformSpecific.value("generation").toString();
         qCDebug(log_device_windows) << "  Port Chain:" << device.portChain;
         qCDebug(log_device_windows) << "  Instance ID:" << device.deviceInstanceId;
+        qCDebug(log_device_windows) << "  VID:PID:" << device.vid << ":" << device.pid;
         qCDebug(log_device_windows) << "  Interfaces:" << device.getInterfaceSummary();
         qCDebug(log_device_windows) << "  Serial:" << (device.hasSerialPort() ? device.serialPortPath : "None");
         qCDebug(log_device_windows) << "  HID:" << (device.hasHidDevice() ? "Available" : "None");
@@ -2880,6 +2885,26 @@ bool WindowsDeviceManager::isDeviceRelatedToPortChain(const QString& deviceId, c
     
     qCDebug(log_device_windows) << "  �?No relationship found";
     return false;
+}
+
+void WindowsDeviceManager::initializeDiscoveryManager()
+{
+    qCDebug(log_device_windows) << "Initializing modular discovery system...";
+    
+    // Create shared pointer to enumerator for the discoverers
+    std::shared_ptr<IDeviceEnumerator> sharedEnumerator = std::shared_ptr<IDeviceEnumerator>(m_enumerator.get(), [](IDeviceEnumerator*){});
+    
+    // Initialize the discovery manager
+    m_discoveryManager = std::make_unique<DeviceDiscoveryManager>(sharedEnumerator, this);
+    
+    // Register all generation discoverers
+    auto botherDiscoverer = std::make_shared<BotherDeviceDiscoverer>(sharedEnumerator, this);
+    auto gen3Discoverer = std::make_shared<Generation3Discoverer>(sharedEnumerator, this);
+    
+    m_discoveryManager->registerDiscoverer(botherDiscoverer);
+    m_discoveryManager->registerDiscoverer(gen3Discoverer);
+    
+    qCDebug(log_device_windows) << "Discovery system initialized with" << m_discoveryManager->getDiscoverers().size() << "discoverers";
 }
 
 #endif // _WIN32
