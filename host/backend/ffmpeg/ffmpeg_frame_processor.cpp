@@ -900,7 +900,7 @@ void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFo
     
     sws_context_ = sws_getContext(
         width, height, format,
-        targetWidth, targetHeight, AV_PIX_FMT_RGB32,
+        targetWidth, targetHeight, AV_PIX_FMT_BGRA,
         scaling_flags,  // Optimized for performance
         nullptr, nullptr, nullptr
     );
