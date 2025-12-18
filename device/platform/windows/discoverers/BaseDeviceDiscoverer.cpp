@@ -149,9 +149,44 @@ void BaseDeviceDiscoverer::matchDevicePaths(DeviceInfo& deviceInfo)
 
 void BaseDeviceDiscoverer::matchDevicePathsToRealPaths(DeviceInfo& deviceInfo)
 {
-    // This method is implemented in derived classes as they may have
-    // generation-specific path resolution logic
-    matchDevicePaths(deviceInfo);
+    qCDebug(log_device_discoverer) << "=== Converting device IDs to real interface paths ===";
+    
+    // Get the composite device instance
+    DWORD compositeDevInst = getDeviceInstanceFromId(deviceInfo.deviceInstanceId);
+    if (compositeDevInst == 0) {
+        qCWarning(log_device_discoverer) << "Failed to get composite device instance";
+        return;
+    }
+    
+    // Get all interface paths for this composite device
+    QMap<QString, QString> interfacePaths = m_enumerator->getAllInterfacePathsForDevice(compositeDevInst);
+    
+    // Assign interface paths to device info
+    if (interfacePaths.contains("HID")) {
+        deviceInfo.hidDevicePath = interfacePaths["HID"];
+        qCDebug(log_device_discoverer) << "  ✓ HID path:" << deviceInfo.hidDevicePath;
+    }
+    
+    if (interfacePaths.contains("Camera")) {
+        deviceInfo.cameraDevicePath = interfacePaths["Camera"];
+        qCDebug(log_device_discoverer) << "  ✓ Camera path:" << deviceInfo.cameraDevicePath;
+    }
+    
+    if (interfacePaths.contains("Audio")) {
+        deviceInfo.audioDevicePath = interfacePaths["Audio"];
+        qCDebug(log_device_discoverer) << "  ✓ Audio path:" << deviceInfo.audioDevicePath;
+    }
+    
+    // Handle serial port separately
+    if (!deviceInfo.serialPortId.isEmpty()) {
+        QString comPortPath = findComPortByDeviceId(deviceInfo.serialPortId);
+        if (!comPortPath.isEmpty()) {
+            deviceInfo.serialPortPath = comPortPath;
+            qCDebug(log_device_discoverer) << "  ✓ Serial port:" << deviceInfo.serialPortPath;
+        }
+    }
+    
+    qCDebug(log_device_discoverer) << "=== End path conversion ===";
 }
 
 QString BaseDeviceDiscoverer::findComPortByPortChain(const QString& portChain)

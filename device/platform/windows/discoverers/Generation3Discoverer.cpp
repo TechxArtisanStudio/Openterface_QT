@@ -66,11 +66,18 @@ QVector<DeviceInfo> Generation3Discoverer::discoverDevices()
         // Create new device info
         DeviceInfo deviceInfo;
         deviceInfo.portChain = associatedPortChain;
+        
+        // CRITICAL: Use the COMPOSITE device's instance ID for interface enumeration
+        // The composite device (345F:2132) has HID/camera/audio as child interfaces
+        // The serial port is a separate sibling device for serial communication
         deviceInfo.deviceInstanceId = integratedDevice.deviceInstanceId;
+        
         deviceInfo.vid = OPENTERFACE_VID_V2;
         deviceInfo.pid = OPENTERFACE_PID_V2;
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = integratedDevice.deviceInfo;
+        
+        qCDebug(log_device_discoverer) << "Using COMPOSITE device ID for interface paths:" << deviceInfo.deviceInstanceId;
         
         // For USB 3.0 integrated devices, set up companion PortChain association
         if (associatedPortChain != integratedDevice.portChain) {
@@ -80,9 +87,10 @@ QVector<DeviceInfo> Generation3Discoverer::discoverDevices()
                                           << "Companion PortChain:" << integratedDevice.portChain;
         }
         
-        // Set the serial port information if found
+        // Set the serial port information if found (separate from composite device)
         if (!associatedSerialPortId.isEmpty()) {
             deviceInfo.serialPortId = associatedSerialPortId;
+            qCDebug(log_device_discoverer) << "Associated serial port ID:" << associatedSerialPortId;
         }
         
         // Store siblings and children in platformSpecific
@@ -156,11 +164,18 @@ QVector<DeviceInfo> Generation3Discoverer::discoverDevices()
         // Create new device info
         DeviceInfo deviceInfo;
         deviceInfo.portChain = associatedPortChain;
+        
+        // CRITICAL: Use the COMPOSITE device's instance ID for interface enumeration
+        // The composite device (345F:2109) has HID/camera/audio as child interfaces
+        // The serial port is a separate sibling device for serial communication
         deviceInfo.deviceInstanceId = integratedDevice.deviceInstanceId;
+        
         deviceInfo.vid = OPENTERFACE_VID_V3;
         deviceInfo.pid = OPENTERFACE_PID_V3;
         deviceInfo.lastSeen = QDateTime::currentDateTime();
         deviceInfo.platformSpecific = integratedDevice.deviceInfo;
+        
+        qCDebug(log_device_discoverer) << "Using V3 COMPOSITE device ID for interface paths:" << deviceInfo.deviceInstanceId;
         
         // For USB 3.0 integrated devices, set up companion PortChain association
         if (associatedPortChain != integratedDevice.portChain) {
@@ -170,9 +185,10 @@ QVector<DeviceInfo> Generation3Discoverer::discoverDevices()
                                           << "Companion PortChain:" << integratedDevice.portChain;
         }
         
-        // Set the serial port information if found
+        // Set the serial port information if found (separate from composite device)
         if (!associatedSerialPortId.isEmpty()) {
             deviceInfo.serialPortId = associatedSerialPortId;
+            qCDebug(log_device_discoverer) << "Associated V3 serial port ID:" << associatedSerialPortId;
         }
         
         // Store siblings and children in platformSpecific
@@ -282,42 +298,42 @@ QString Generation3Discoverer::findSerialPortByIntegratedDevice(const USBDeviceD
 
 void Generation3Discoverer::processIntegratedDeviceInterfaces(DeviceInfo& deviceInfo, const USBDeviceData& integratedDevice)
 {
-    qCDebug(log_device_discoverer) << "Processing interfaces for integrated device:" << integratedDevice.portChain;
-    qCDebug(log_device_discoverer) << "Integrated device has" << integratedDevice.children.size() << "children";
+    qCDebug(log_device_discoverer) << "Processing Gen3 media interfaces for composite device:" << integratedDevice.deviceInstanceId;
+    qCDebug(log_device_discoverer) << "  Found" << integratedDevice.children.size() << "children under integrated device";
     
+    // Store device IDs for later interface path resolution
     for (const QVariantMap& child : integratedDevice.children) {
-        QString hardwareId = child["hardwareId"].toString();
-        QString deviceId = child["deviceId"].toString();
-        QString deviceClass = child["class"].toString();
+        QString childHardwareId = child["hardwareId"].toString().toUpper();
+        QString childDeviceId = child["deviceId"].toString();
+        QString childClass = child["class"].toString();
         
-        qCDebug(log_device_discoverer) << "  Child - Device ID:" << deviceId;
-        qCDebug(log_device_discoverer) << "    Hardware ID:" << hardwareId;
-        qCDebug(log_device_discoverer) << "    Class:" << deviceClass;
+        qCDebug(log_device_discoverer) << "    Integrated child - Device ID:" << childDeviceId;
+        qCDebug(log_device_discoverer) << "      Hardware ID:" << childHardwareId;
+        qCDebug(log_device_discoverer) << "      Class:" << childClass;
         
-        // Skip interface endpoints we don't need
-        if (deviceId.contains("&0002") || deviceId.contains("&0004")) {
-            qCDebug(log_device_discoverer) << "    Skipping interface endpoint";
-            continue;
+        // Store device IDs (paths will be resolved in matchDevicePathsToRealPaths)
+        // MI_00 = Camera, MI_02 = Audio (Gen3), MI_04 = HID
+        if (!deviceInfo.hasHidDevice() && (childHardwareId.contains("HID") || childHardwareId.contains("MI_04"))) {
+            deviceInfo.hidDeviceId = childDeviceId;
+            qCDebug(log_device_discoverer) << "      ✓ Found HID device ID:" << childDeviceId;
+        }
+        else if (!deviceInfo.hasCameraDevice() && (childHardwareId.contains("MI_00"))) {
+            deviceInfo.cameraDeviceId = childDeviceId;
+            qCDebug(log_device_discoverer) << "      ✓ Found camera device ID:" << childDeviceId;
         }
         
-        // Check for HID device (MI_04 interface)
-        if (hardwareId.toUpper().contains("HID") && deviceId.toUpper().contains("MI_04")) {
-            deviceInfo.hidDeviceId = deviceId;
-            qCDebug(log_device_discoverer) << "    Found HID device:" << deviceId;
-        }
-        // Check for camera device (MI_00 interface)
-        else if (hardwareId.toUpper().contains("MI_00") || deviceId.toUpper().contains("MI_00")) {
-            deviceInfo.cameraDeviceId = deviceId;
-            qCDebug(log_device_discoverer) << "    Found camera device:" << deviceId;
-        }
-        // Check for audio device (MI_01 or Audio in hardware ID)
-        else if (hardwareId.toUpper().contains("AUDIO") || 
-                 hardwareId.toUpper().contains("MI_01") || 
-                 deviceId.toUpper().contains("MI_01")) {
-            deviceInfo.audioDeviceId = deviceId;
-            qCDebug(log_device_discoverer) << "    Found audio device:" << deviceId;
+        // Check for audio device (MI_02 for Gen3, MI_01 for older, or Audio in hardware ID, or MEDIA class)
+        if (!deviceInfo.hasAudioDevice() && (childHardwareId.contains("AUDIO") || childHardwareId.contains("MI_02") || 
+            childHardwareId.contains("MI_01") || childClass.toUpper().contains("MEDIA"))) {
+            deviceInfo.audioDeviceId = childDeviceId;
+            qCDebug(log_device_discoverer) << "      ✓ Found audio device ID:" << childDeviceId;
         }
     }
+    
+    qCDebug(log_device_discoverer) << "  Integrated device interfaces summary:";
+    qCDebug(log_device_discoverer) << "    HID ID:" << (deviceInfo.hasHidDevice() ? deviceInfo.hidDeviceId : "Not found");
+    qCDebug(log_device_discoverer) << "    Camera ID:" << (deviceInfo.hasCameraDevice() ? deviceInfo.cameraDeviceId : "Not found");
+    qCDebug(log_device_discoverer) << "    Audio ID:" << (deviceInfo.hasAudioDevice() ? deviceInfo.audioDeviceId : "Not found");
 }
 
 bool Generation3Discoverer::isSerialAssociatedWithIntegratedDevice(const USBDeviceData& serialDevice, const USBDeviceData& integratedDevice)

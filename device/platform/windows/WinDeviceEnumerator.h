@@ -53,6 +53,8 @@ public:
     QVector<QVariantMap> getChildDevicesPython(DWORD devInst) override;
     QString findHidDeviceForPortChain(const QString& portChain) override;
     QString getPortChainForSerialPort(const QString& portName) override;
+    QString findDeviceInterfacePathByDevInst(DWORD devInst, const GUID& interfaceGuid) override;
+    QMap<QString, QString> getAllInterfacePathsForDevice(DWORD devInst) override;
 
 private:
     /**

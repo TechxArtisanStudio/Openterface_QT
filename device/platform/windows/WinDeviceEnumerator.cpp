@@ -16,6 +16,16 @@ extern "C"
 DEFINE_GUID(GUID_DEVINTERFACE_USB_DEVICE, 
     0xA5DCBF10, 0x6530, 0x11D2, 0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED);
 
+// Audio Interface GUID
+DEFINE_GUID(GUID_DEVINTERFACE_AUDIO,
+    0x33D9A762, 0x90C8, 0x11D0, 0xBD, 0x43, 0x00, 0xA0, 0xC9, 0x11, 0xCE, 0x86);
+
+// Camera Interface GUID (KSCATEGORY_VIDEO_CAMERA)
+DEFINE_GUID(GUID_DEVINTERFACE_CAMERA_KSCATEGORY,
+    0x65E8773D, 0x8F56, 0x11D0, 0xA3, 0xB9, 0x00, 0xA0, 0xC9, 0x22, 0x31, 0x96);
+
+// HID Interface GUID is already defined in hidclass.h
+
 Q_LOGGING_CATEGORY(log_win_enumerator, "opf.host.windows.enumerator")
 
 WinDeviceEnumerator::WinDeviceEnumerator(QObject* parent)
@@ -746,6 +756,113 @@ QString WinDeviceEnumerator::wideToQString(const wchar_t* wstr)
         return QString();
     }
     return QString::fromWCharArray(wstr);
+}
+
+QString WinDeviceEnumerator::findDeviceInterfacePathByDevInst(DWORD devInst, const GUID& interfaceGuid)
+{
+    qCDebug(log_win_enumerator) << "Finding device interface path for devInst:" << devInst;
+    
+    // Get the device interface path by enumerating interfaces
+    HDEVINFO hDevInfo = SetupDiGetClassDevs(&interfaceGuid, nullptr, nullptr, 
+                                            DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+    if (hDevInfo == INVALID_HANDLE_VALUE) {
+        qCWarning(log_win_enumerator) << "Failed to get device interfaces";
+        return QString();
+    }
+    
+    SP_DEVICE_INTERFACE_DATA interfaceData;
+    interfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+    
+    // Enumerate all device interfaces
+    for (DWORD i = 0; SetupDiEnumDeviceInterfaces(hDevInfo, nullptr, &interfaceGuid, i, &interfaceData); i++) {
+        // Get the device instance for this interface
+        SP_DEVINFO_DATA devInfoData;
+        devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+        
+        DWORD requiredSize = 0;
+        SetupDiGetDeviceInterfaceDetail(hDevInfo, &interfaceData, nullptr, 0, &requiredSize, &devInfoData);
+        
+        if (requiredSize > 0) {
+            std::vector<BYTE> buffer(requiredSize);
+            PSP_DEVICE_INTERFACE_DETAIL_DATA detailData = 
+                reinterpret_cast<PSP_DEVICE_INTERFACE_DETAIL_DATA>(buffer.data());
+            detailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
+            
+            if (SetupDiGetDeviceInterfaceDetail(hDevInfo, &interfaceData, detailData, 
+                                               requiredSize, nullptr, &devInfoData)) {
+                // Check if this is our target device instance
+                if (devInfoData.DevInst == devInst) {
+                    QString devicePath = wideToQString(detailData->DevicePath);
+                    SetupDiDestroyDeviceInfoList(hDevInfo);
+                    qCDebug(log_win_enumerator) << "Found device interface path:" << devicePath;
+                    return devicePath;
+                }
+                
+                // Also check parent device instance (for composite devices)
+                DWORD parentDevInst = getParentDevice(devInfoData.DevInst);
+                if (parentDevInst == devInst) {
+                    QString devicePath = wideToQString(detailData->DevicePath);
+                    SetupDiDestroyDeviceInfoList(hDevInfo);
+                    qCDebug(log_win_enumerator) << "Found device interface path (via parent):" << devicePath;
+                    return devicePath;
+                }
+            }
+        }
+    }
+    
+    SetupDiDestroyDeviceInfoList(hDevInfo);
+    qCDebug(log_win_enumerator) << "No device interface path found for devInst:" << devInst;
+    return QString();
+}
+
+QMap<QString, QString> WinDeviceEnumerator::getAllInterfacePathsForDevice(DWORD devInst)
+{
+    QMap<QString, QString> interfacePaths;
+    
+    qCDebug(log_win_enumerator) << "Getting all interface paths for device:" << devInst;
+    
+    // Get all child devices
+    QVector<QVariantMap> children = getAllChildDevices(devInst);
+    
+    for (const QVariantMap& child : children) {
+        DWORD childDevInst = child.value("devInst").toUInt();
+        QString hardwareId = child.value("hardwareId").toString().toUpper();
+        QString deviceClass = child.value("className").toString();
+        
+        qCDebug(log_win_enumerator) << "  Checking child:" << child.value("deviceId").toString();
+        qCDebug(log_win_enumerator) << "    Class:" << deviceClass;
+        qCDebug(log_win_enumerator) << "    Hardware ID:" << hardwareId;
+        
+        // Check for HID interface (MI_04)
+        if (hardwareId.contains("HID") || hardwareId.contains("MI_04")) {
+            QString hidPath = findDeviceInterfacePathByDevInst(childDevInst, GUID_DEVINTERFACE_HID);
+            if (!hidPath.isEmpty()) {
+                interfacePaths["HID"] = hidPath;
+                qCDebug(log_win_enumerator) << "    ✓ Found HID path:" << hidPath;
+            }
+        }
+        
+        // Check for Camera interface (MI_00)
+        if (hardwareId.contains("MI_00") || deviceClass.contains("Camera", Qt::CaseInsensitive)) {
+            QString cameraPath = findDeviceInterfacePathByDevInst(childDevInst, GUID_DEVINTERFACE_CAMERA_KSCATEGORY);
+            if (!cameraPath.isEmpty()) {
+                interfacePaths["Camera"] = cameraPath;
+                qCDebug(log_win_enumerator) << "    ✓ Found Camera path:" << cameraPath;
+            }
+        }
+        
+        // Check for Audio interface (MI_01)
+        if (hardwareId.contains("AUDIO") || hardwareId.contains("MI_01")) {
+            QString audioPath = findDeviceInterfacePathByDevInst(childDevInst, GUID_DEVINTERFACE_AUDIO);
+            if (!audioPath.isEmpty()) {
+                interfacePaths["Audio"] = audioPath;
+                qCDebug(log_win_enumerator) << "    ✓ Found Audio path:" << audioPath;
+            }
+        }
+    }
+    
+    qCDebug(log_win_enumerator) << "Found" << interfacePaths.size() << "interface paths";
+    return interfacePaths;
 }
 
 #endif // _WIN32

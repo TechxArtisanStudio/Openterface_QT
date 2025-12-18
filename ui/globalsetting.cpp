@@ -118,7 +118,7 @@ void GlobalSetting::setHardwareAcceleration(const QString &hwAccel) {
 }
 
 QString GlobalSetting::getHardwareAcceleration() const {
-    return m_settings.value("video/hardwareAcceleration", "auto").toString();
+    return m_settings.value("video/hardwareAcceleration", "CPU").toString();
 }
 
 void GlobalSetting::setScalingQuality(const QString &quality) {

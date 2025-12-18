@@ -4,6 +4,7 @@
 #include <QString>
 #include <QVector>
 #include <QVariantMap>
+#include <QMap>
 #include <QPair>
 
 #if defined(_WIN32) && !defined(Q_MOC_RUN)
@@ -204,6 +205,21 @@ public:
      * @return Port chain string (empty if not found)
      */
     virtual QString getPortChainForSerialPort(const QString& portName) = 0;
+    
+    /**
+     * @brief Find device interface path by device instance and interface GUID
+     * @param devInst Device instance
+     * @param interfaceGuid Interface GUID
+     * @return Device interface path
+     */
+    virtual QString findDeviceInterfacePathByDevInst(DWORD devInst, const GUID& interfaceGuid) = 0;
+    
+    /**
+     * @brief Get all interface paths for a device instance
+     * @param devInst Device instance
+     * @return Map of interface type to device path
+     */
+    virtual QMap<QString, QString> getAllInterfacePathsForDevice(DWORD devInst) = 0;
 };
 
 #endif // IDEVICEENUMERATOR_H

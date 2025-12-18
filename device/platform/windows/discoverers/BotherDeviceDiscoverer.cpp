@@ -148,12 +148,12 @@ void BotherDeviceDiscoverer::processGeneration1Interfaces(DeviceInfo& deviceInfo
 
 void BotherDeviceDiscoverer::processGeneration1MediaInterfaces(DeviceInfo& deviceInfo, const USBDeviceData& deviceData)
 {
-    // Process children to find HID, camera, and audio devices
+    qCDebug(log_device_discoverer) << "Processing Gen1 media interfaces for composite device:" << deviceData.deviceInstanceId;
     qCDebug(log_device_discoverer) << "  Found" << deviceData.children.size() << "children under integrated device";
     
-    // Search through integrated device's children for camera, HID, and audio
+    // Store device IDs for later interface path resolution
     for (const QVariantMap& child : deviceData.children) {
-        QString childHardwareId = child["hardwareId"].toString();
+        QString childHardwareId = child["hardwareId"].toString().toUpper();
         QString childDeviceId = child["deviceId"].toString();
         QString childClass = child["class"].toString();
         
@@ -167,28 +167,27 @@ void BotherDeviceDiscoverer::processGeneration1MediaInterfaces(DeviceInfo& devic
             continue;
         }
         
-        // Check for HID device (MI_04 interface)
-        if (!deviceInfo.hasHidDevice() && (childHardwareId.toUpper().contains("HID") && childHardwareId.toUpper().contains("MI_04"))) {
+        // Store device IDs (paths will be resolved in matchDevicePathsToRealPaths)
+        if (!deviceInfo.hasHidDevice() && (childHardwareId.contains("HID") || childHardwareId.contains("MI_04"))) {
             deviceInfo.hidDeviceId = childDeviceId;
-            qCDebug(log_device_discoverer) << "      ✓ Found HID device:" << childDeviceId;
+            qCDebug(log_device_discoverer) << "      ✓ Found HID device ID:" << childDeviceId;
         }
-        // Check for camera device (MI_00 interface)
-        else if (!deviceInfo.hasCameraDevice() && (childHardwareId.toUpper().contains("MI_00") || childDeviceId.toUpper().contains("MI_00"))) {
+        else if (!deviceInfo.hasCameraDevice() && (childHardwareId.contains("MI_00"))) {
             deviceInfo.cameraDeviceId = childDeviceId;
-            deviceInfo.cameraDevicePath = childDeviceId;
-            qCDebug(log_device_discoverer) << "      ✓ Found camera device:" << childDeviceId;
+            qCDebug(log_device_discoverer) << "      ✓ Found camera device ID:" << childDeviceId;
         }
+        
         // Check for audio device (MI_01 or Audio in hardware ID)
-        if (!deviceInfo.hasAudioDevice() && (childHardwareId.toUpper().contains("AUDIO") || childHardwareId.toUpper().contains("MI_01"))) {
+        if (!deviceInfo.hasAudioDevice() && (childHardwareId.contains("AUDIO") || childHardwareId.contains("MI_01"))) {
             deviceInfo.audioDeviceId = childDeviceId;
-            qCDebug(log_device_discoverer) << "      ✓ Found audio device:" << childDeviceId;
+            qCDebug(log_device_discoverer) << "      ✓ Found audio device ID:" << childDeviceId;
         }
     }
     
     qCDebug(log_device_discoverer) << "  Integrated device interfaces summary:";
-    qCDebug(log_device_discoverer) << "    HID:" << (deviceInfo.hasHidDevice() ? deviceInfo.hidDeviceId : "Not found");
-    qCDebug(log_device_discoverer) << "    Camera:" << (deviceInfo.hasCameraDevice() ? deviceInfo.cameraDeviceId : "Not found");
-    qCDebug(log_device_discoverer) << "    Audio:" << (deviceInfo.hasAudioDevice() ? deviceInfo.audioDeviceId : "Not found");
+    qCDebug(log_device_discoverer) << "    HID ID:" << (deviceInfo.hasHidDevice() ? deviceInfo.hidDeviceId : "Not found");
+    qCDebug(log_device_discoverer) << "    Camera ID:" << (deviceInfo.hasCameraDevice() ? deviceInfo.cameraDeviceId : "Not found");
+    qCDebug(log_device_discoverer) << "    Audio ID:" << (deviceInfo.hasAudioDevice() ? deviceInfo.audioDeviceId : "Not found");
 }
 
 void BotherDeviceDiscoverer::findSerialPortFromSiblings(DeviceInfo& deviceInfo, const USBDeviceData& integratedDevice)

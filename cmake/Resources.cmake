@@ -43,7 +43,7 @@ qt_add_resources(openterfaceQT "mainwindow"
     FILES
         ${mainwindow_resource_files}
     OPTIONS
-        --compress-algo none
+        --compress 2
 )
 
 set(keyboard_layouts_resource_files
@@ -65,7 +65,7 @@ qt_add_resources(openterfaceQT "keyboard_layouts"
     FILES
         ${keyboard_layouts_resource_files}
     OPTIONS
-        --compress-algo none
+        --compress 2
 )
 
 set(languages_resources_files
@@ -86,7 +86,7 @@ qt_add_resources(openterfaceQT "languages"
     FILES
         ${languages_resources_files}
     OPTIONS
-        --compress-algo none
+        --compress 2
 )
 
 set(qmake_immediate_resource_files
@@ -99,7 +99,7 @@ qt_add_resources(openterfaceQT "qmake_immediate"
     FILES
         ${qmake_immediate_resource_files}
     OPTIONS
-        --compress-algo none
+        --compress 2
 )
 
 set(app_icons_resource_files
@@ -114,7 +114,7 @@ qt_add_resources(openterfaceQT "app_icons"
     FILES
         ${app_icons_resource_files}
     OPTIONS
-        --compress-algo none
+        --compress 2
 )
 
 if((QT_VERSION_MAJOR GREATER 4))
