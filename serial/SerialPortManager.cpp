@@ -1946,7 +1946,7 @@ void SerialPortManager::attemptRecovery()
             } else {
                 qCWarning(log_core_serial) << "Serial port recovery attempt failed";
                 if (eventCallback) {
-                    eventCallback->onStatusUpdate(QString("Recovery attempt %1 failed").arg(m_connectionRetryCount));
+                    eventCallback->onStatusUpdate(QString("Recovery attempt %1 failed").arg(m_connectionRetryCount.load()));
                 }
                 
                 // Try again if we haven't exceeded max attempts
