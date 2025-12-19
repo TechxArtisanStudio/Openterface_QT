@@ -1110,4 +1110,4 @@ void FFmpegBackendHandler::takeAreaImage(const QString& filePath, const QRect& c
     m_recorder->TakeAreaImage(filePath, latestFrame, captureArea);
 }
 
-#include "ffmpegbackendhandler.moc"
+
