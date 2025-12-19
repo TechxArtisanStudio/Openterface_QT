@@ -1,8 +1,11 @@
 # FFmpeg.cmake - FFmpeg configuration and detection
 
+if(DEFINED FFMPEG_FOUND AND FFMPEG_FOUND)
+  return()
+endif()
 
 # Initialize FFmpeg configuration variables
-set(FFMPEG_PKG_CONFIG FALSE)
+set(FFMPEG_PKG_CONFIG ${USE_SHARED_FFMPEG})
 
 # Set ZLIB_LIBRARY for static zlib
 if(NOT ZLIB_LIBRARY)
