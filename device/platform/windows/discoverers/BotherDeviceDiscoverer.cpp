@@ -223,13 +223,20 @@ void BotherDeviceDiscoverer::findSerialPortFromSiblings(DeviceInfo& deviceInfo, 
 
 void BotherDeviceDiscoverer::processGeneration2AsGeneration1(DeviceInfo& deviceInfo, const USBDeviceData& gen2Device)
 {
-    qCDebug(log_device_discoverer) << "Processing Gen2 device using serial-first approach (USB 2.0 compatibility)";
-    
-    // Set serial port information
-    deviceInfo.serialPortId = gen2Device.deviceInstanceId;
-    
-    // Find integrated device from siblings (similar to Gen1 but reversed)
+    qCDebug(log_device_discoverer) << "Processing Gen2 device using integrated-first approach (USB 2.0 compatibility)";
+
+    // First, attempt to locate and populate the integrated (complete) device
     findIntegratedDeviceFromSiblings(deviceInfo, gen2Device);
+
+    // Then attach the Gen2 serial port to the integrated device
+    deviceInfo.serialPortId = gen2Device.deviceInstanceId;
+    // Prefer the integrated device's portChain for location; fall back to the serial device's portChain
+    if (deviceInfo.portChain.isEmpty()) {
+        deviceInfo.portChain = gen2Device.portChain;
+    }
+    deviceInfo.serialPortPath = deviceInfo.portChain;
+
+    qCDebug(log_device_discoverer) << "  Serial assigned to integrated device location:" << deviceInfo.serialPortPath;
 }
 
 void BotherDeviceDiscoverer::findIntegratedDeviceFromSiblings(DeviceInfo& deviceInfo, const USBDeviceData& serialDevice)
@@ -249,55 +256,62 @@ void BotherDeviceDiscoverer::findIntegratedDeviceFromSiblings(DeviceInfo& device
         
         if (isIntegratedDevice) {
             qCDebug(log_device_discoverer) << "  ✓ Found integrated device sibling:" << siblingDeviceId;
-            
+            // If sibling contains a portChain or additional platform info, copy it to deviceInfo
+            if (sibling.contains("portChain")) {
+                deviceInfo.portChain = sibling["portChain"].toString();
+                qCDebug(log_device_discoverer) << "    Integrated device portChain:" << deviceInfo.portChain;
+            }
+            // Set the integrated device instance id on deviceInfo
+            deviceInfo.deviceInstanceId = siblingDeviceId;
+
+            if (sibling.contains("deviceInfo")) {
+                deviceInfo.platformSpecific = sibling["deviceInfo"].toMap();
+                deviceInfo.platformSpecific["generation"] = "Generation 2 (integrated)";
+            }
+
             // Get the device instance for this sibling to enumerate its children
             DWORD siblingDevInst = getDeviceInstanceFromId(siblingDeviceId);
             if (siblingDevInst != 0) {
-                // Get all children of this integrated device
+                // Build a USBDeviceData for the integrated (composite) device so we can
+                // process it the same way as Gen1 integrated devices.
                 QVector<QVariantMap> integratedChildren = getAllChildDevices(siblingDevInst);
                 qCDebug(log_device_discoverer) << "  Found" << integratedChildren.size() << "children under integrated device";
-                
-                // Search through integrated device's children for camera, HID, and audio
-                for (const QVariantMap& integratedChild : integratedChildren) {
-                    QString childHardwareId = integratedChild["hardwareId"].toString();
-                    QString childDeviceId = integratedChild["deviceId"].toString();
-                    
-                    qCDebug(log_device_discoverer) << "    Integrated child - Device ID:" << childDeviceId;
-                    qCDebug(log_device_discoverer) << "      Hardware ID:" << childHardwareId;
-                    
-                    // Skip interface endpoints we don't need
-                    if (childDeviceId.contains("&0002") || childDeviceId.contains("&0004")) {
-                        continue;
-                    }
-                    
-                    // Check for HID device (MI_04 interface)
-                    if (!deviceInfo.hasHidDevice() && 
-                        ((childHardwareId.toUpper().contains("HID") && childDeviceId.toUpper().contains("MI_04")) ||
-                         (childDeviceId.toUpper().contains("MI_04")))) {
-                        deviceInfo.hidDeviceId = childDeviceId;
-                        qCDebug(log_device_discoverer) << "      ✓ Found HID device:" << childDeviceId;
-                    }
-                    // Check for camera device (MI_00 interface)
-                    else if (!deviceInfo.hasCameraDevice() && 
-                             (childHardwareId.toUpper().contains("MI_00") || 
-                              childDeviceId.toUpper().contains("MI_00"))) {
-                        deviceInfo.cameraDeviceId = childDeviceId;
-                        qCDebug(log_device_discoverer) << "      ✓ Found camera device:" << childDeviceId;
-                    }
-                    // Check for audio device (MI_01 or Audio in hardware ID)
-                    else if (!deviceInfo.hasAudioDevice() && 
-                             (childHardwareId.toUpper().contains("AUDIO") ||
-                              childHardwareId.toUpper().contains("MI_01") ||
-                              childDeviceId.toUpper().contains("MI_01"))) {
-                        deviceInfo.audioDeviceId = childDeviceId;
-                        qCDebug(log_device_discoverer) << "      ✓ Found audio device:" << childDeviceId;
-                    }
+
+                USBDeviceData integratedUsb;
+                integratedUsb.deviceInstanceId = siblingDeviceId;
+                integratedUsb.portChain = buildPythonCompatiblePortChain(siblingDevInst);
+                integratedUsb.children = integratedChildren;
+
+                // Try to populate siblings for the integrated device
+                DWORD parentOfIntegrated = m_enumerator->getParentDevice(siblingDevInst);
+                if (parentOfIntegrated != 0) {
+                    integratedUsb.siblings = getSiblingDevicesByParent(parentOfIntegrated);
+                    qCDebug(log_device_discoverer) << "    Integrated device has" << integratedUsb.siblings.size() << "siblings";
                 }
-                
-                qCDebug(log_device_discoverer) << "  Integrated device interfaces summary:";
-                qCDebug(log_device_discoverer) << "    HID:" << (deviceInfo.hasHidDevice() ? deviceInfo.hidDeviceId : "Not found");
-                qCDebug(log_device_discoverer) << "    Camera:" << (deviceInfo.hasCameraDevice() ? deviceInfo.cameraDeviceId : "Not found");
-                qCDebug(log_device_discoverer) << "    Audio:" << (deviceInfo.hasAudioDevice() ? deviceInfo.audioDeviceId : "Not found");
+
+                // Adopt integrated device identity into deviceInfo (COMPOSITE-first)
+                deviceInfo.portChain = integratedUsb.portChain;
+                deviceInfo.deviceInstanceId = integratedUsb.deviceInstanceId;
+                deviceInfo.platformSpecific = serialDevice.deviceInfo; // start with serial device info as base
+                deviceInfo.platformSpecific["generation"] = "Generation 2 (integrated)";
+
+                // Store siblings and children for debugging
+                QVariantList siblingVariants2, childrenVariants2;
+                for (const QVariantMap& s : integratedUsb.siblings) siblingVariants2.append(s);
+                for (const QVariantMap& c : integratedUsb.children) childrenVariants2.append(c);
+                deviceInfo.platformSpecific["siblings"] = siblingVariants2;
+                deviceInfo.platformSpecific["children"] = childrenVariants2;
+
+                // Process interfaces the same way as Gen1 (camera/HID/audio)
+                processGeneration1Interfaces(deviceInfo, integratedUsb);
+
+                // Convert device IDs to real paths for the integrated (composite) device before attaching serial
+                matchDevicePathsToRealPaths(deviceInfo);
+
+                // After the composite device is processed, attach the serial port (bother device)
+                deviceInfo.serialPortId = serialDevice.deviceInstanceId;
+                deviceInfo.serialPortPath = deviceInfo.portChain;
+                qCDebug(log_device_discoverer) << "    Attached Gen2 serial port" << deviceInfo.serialPortId << "to composite portChain" << deviceInfo.portChain;
             } else {
                 qCWarning(log_device_discoverer) << "  ⚠ Could not get device instance for integrated device sibling";
             }
