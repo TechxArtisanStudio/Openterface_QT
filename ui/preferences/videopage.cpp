@@ -20,6 +20,7 @@
 * ========================================================================== *
 */
 
+#include "videopage.h"
 #include "fontstyle.h"
 #include "ui/globalsetting.h"
 #include "host/cameramanager.h"
