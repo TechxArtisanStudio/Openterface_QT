@@ -619,26 +619,34 @@ void FFmpegBackendHandler::processFrame()
     // Check if recording is active
     bool isRecording = m_recorder && m_recorder->IsRecording() && !m_recorder->IsPaused();
     
-    // Process frame using FFmpegFrameProcessor
-    QPixmap pixmap = m_frameProcessor->ProcessPacket(packet, codecContext, isRecording);
+    // Get viewport size from VideoPane if available
+    QSize viewportSize;
+    if (m_videoPane) {
+        viewportSize = m_videoPane->viewport()->size();
+    }
+    
+    // OPTIMIZATION: Process frame to QImage instead of QPixmap to offload GUI work
+    // QImage is thread-safe and can be passed across thread boundaries efficiently
+    QImage image = m_frameProcessor->ProcessPacketToImage(packet, codecContext, isRecording, viewportSize);
     
     // Clean up packet
     av_packet_unref(packet);
     
-    if (!pixmap.isNull()) {
+    if (!image.isNull()) {
         m_frameCount++;
         
         // Log first few frames for debugging
         if (m_frameCount <= 5 || m_frameCount % 1000 == 1) {
-            qCDebug(log_ffmpeg_backend) << "Processed frame" << m_frameCount << "size:" << pixmap.size();
+            qCDebug(log_ffmpeg_backend) << "Processed frame" << m_frameCount << "size:" << image.size();
         }
         
-        // Emit frame to UI (QueuedConnection ensures thread safety)
+        // Emit QImage to UI (QueuedConnection ensures thread safety)
+        // QPixmap creation will happen on GUI thread, reducing worker thread load
         if (m_captureRunning) {
             if (m_frameCount <= 5) {
-                qCDebug(log_ffmpeg_backend) << "Emitting frameReady signal for frame" << m_frameCount;
+                qCDebug(log_ffmpeg_backend) << "Emitting frameReadyImage signal for frame" << m_frameCount;
             }
-            emit frameReady(pixmap);
+            emit frameReadyImage(image);
         }
         
         // Write frame to recording file if recording is active
@@ -647,6 +655,8 @@ void FFmpegBackendHandler::processFrame()
             qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
             
             if (m_recorder->ShouldWriteFrame(currentTime)) {
+                // Convert QImage to QPixmap for recording (happens on worker thread)
+                QPixmap pixmap = QPixmap::fromImage(image);
                 if (m_recorder->WriteFrame(pixmap)) {
                     // Update recording duration periodically
                     static int recordingFrameCount = 0;
@@ -721,6 +731,7 @@ void FFmpegBackendHandler::setVideoOutput(VideoPane* videoPane)
     
     // Disconnect previous connections
     disconnect(this, &FFmpegBackendHandler::frameReady, this, nullptr);
+    disconnect(this, &FFmpegBackendHandler::frameReadyImage, this, nullptr);
     
     m_videoPane = videoPane;
     m_graphicsVideoItem = nullptr;
@@ -728,13 +739,21 @@ void FFmpegBackendHandler::setVideoOutput(VideoPane* videoPane)
     if (videoPane) {
         qCDebug(log_ffmpeg_backend) << "VideoPane set for FFmpeg direct rendering";
         
-        // Connect frame ready signal to VideoPane updateVideoFrame method
+        // OPTIMIZATION: Connect frameReadyImage signal to receive QImage
+        // QImage is thread-safe and avoids heavy QPixmap creation on worker thread
         // Use QueuedConnection to ensure thread safety and prevent blocking capture thread
-        connect(this, &FFmpegBackendHandler::frameReady,
-                videoPane, &VideoPane::updateVideoFrame,
+        connect(this, &FFmpegBackendHandler::frameReadyImage,
+                videoPane, &VideoPane::updateVideoFrameFromImage,
                 Qt::QueuedConnection);
         
-        qCDebug(log_ffmpeg_backend) << "Connected frameReady signal to VideoPane::updateVideoFrame with QueuedConnection";
+        // Connect viewport size changes to update frame scaling
+        connect(videoPane, &VideoPane::viewportSizeChanged,
+                this, [this](const QSize& size) {
+                    qCDebug(log_ffmpeg_backend) << "Viewport size changed to:" << size;
+                    // The next frame will automatically use the new viewport size in processFrame
+                });
+        
+        qCDebug(log_ffmpeg_backend) << "Connected frameReadyImage signal to VideoPane::updateVideoFrameFromImage with QueuedConnection";
         
         // Enable direct FFmpeg mode in the VideoPane
         videoPane->enableDirectFFmpegMode(true);

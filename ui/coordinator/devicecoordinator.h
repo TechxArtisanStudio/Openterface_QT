@@ -137,15 +137,7 @@ private:
      * @param device Device information to analyze
      * @return QString Device type name
      */
-    QString getDeviceTypeName(const DeviceInfo &device);
-    
-    /**
-     * @brief Check if a string contains specific VID/PID combination
-     * @param str String to search (device ID, hardware ID, etc.)
-     * @param vid Vendor ID to search for
-     * @param pid Product ID to search for
-     * @return bool True if both VID and PID are found
-     */
+    QString formatPortChain(const QString &portChain);
     bool checkVidPidInString(const QString &str, const QString &vid, const QString &pid);
     
     /**
@@ -170,13 +162,7 @@ private:
     QActionGroup *m_deviceMenuGroup;        ///< Action group for exclusive device selection
     bool m_deviceAutoSelected;              ///< Flag to prevent multiple auto-selections
     
-    // VID/PID constants
-    static const QString MINI_KVM_VID;      ///< Mini-KVM Vendor ID
-    static const QString MINI_KVM_PID;      ///< Mini-KVM Product ID
-    static const QString KVMGO_VID;         ///< KVMGO Vendor ID
-    static const QString KVMGO_PID;         ///< KVMGO Product ID
-    static const QString KVMVGA_VID;        ///< KVMVGA Vendor ID
-    static const QString KVMVGA_PID;        ///< KVMVGA Product ID
+    // No VID/PID or device-type detection here; display only formatted port chains
 };
 
 #endif // DEVICECOORDINATOR_H

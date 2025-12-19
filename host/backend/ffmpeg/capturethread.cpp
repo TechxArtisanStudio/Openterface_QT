@@ -39,7 +39,9 @@ bool CaptureThread::isRunning() const {
 
 void CaptureThread::run()
 {
-    qCDebug(log_ffmpeg_backend) << "FFmpeg capture thread started";
+    qCInfo(log_ffmpeg_backend) << "=== CAPTURE THREAD STARTED ===";
+    qCInfo(log_ffmpeg_backend) << "Expected framerate: 60 FPS";
+    qCInfo(log_ffmpeg_backend) << "Frame interval: 16.67 ms";
     
     QElapsedTimer performanceTimer;
     performanceTimer.start();
@@ -65,12 +67,14 @@ void CaptureThread::run()
             emit frameAvailable();
             framesProcessed++;
             
-            // Log performance periodically (less frequently to reduce overhead)
-            if (performanceTimer.elapsed() > 15000) { // Every 15 seconds (increased from 10)
-                double actualFps = (framesProcessed * 1000.0) / performanceTimer.elapsed();
-                qCDebug(log_ffmpeg_backend) << "Capture thread performance:" << actualFps << "FPS, processed" << framesProcessed << "frames";
-                performanceTimer.restart();
-                framesProcessed = 0;
+            // Log performance periodically (every 60 frames = 1 second at 60fps)
+            if (framesProcessed % 60 == 0) {
+                qint64 elapsed = performanceTimer.elapsed();
+                double actualFps = (framesProcessed * 1000.0) / elapsed;
+                qCInfo(log_ffmpeg_backend) << "Performance:"
+                                          << "Actual FPS:" << actualFps
+                                          << "Frames:" << framesProcessed
+                                          << "Elapsed:" << elapsed << "ms";
             }
         } else {
             // Track consecutive failures

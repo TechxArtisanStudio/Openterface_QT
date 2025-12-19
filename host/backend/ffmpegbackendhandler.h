@@ -188,6 +188,7 @@ public:
 
 signals:
     void frameReady(const QPixmap& frame);
+    void frameReadyImage(const QImage& frame);  // Thread-safe QImage signal for better performance
     void captureError(const QString& error);
     void deviceConnectionChanged(const QString& devicePath, bool connected);
     void deviceActivated(const QString& devicePath);

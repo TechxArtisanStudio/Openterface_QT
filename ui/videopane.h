@@ -76,6 +76,7 @@ public:
         
     // FFmpeg direct video frame support
     void updateVideoFrame(const QPixmap& frame);
+    void updateVideoFrameFromImage(const QImage& image);  // Optimized: receives QImage, converts to QPixmap on GUI thread
     void enableDirectFFmpegMode(bool enable = true);
     bool isDirectFFmpegModeEnabled() const { return m_directFFmpegMode; }
     void clearVideoFrame(); // Clear the current video frame display
@@ -95,6 +96,7 @@ public:
 signals:
     void mouseMoved(const QPoint& position, const QString& event);
     void videoPaneResized(const QSize& newSize);  // Signal for video pane resize events
+    void viewportSizeChanged(const QSize& size);   // Signal for viewport size changes
 
 public slots:
     void onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice);
@@ -144,6 +146,8 @@ private:
     
     // Direct FFmpeg mode support
     bool m_directFFmpegMode;
+    QSize m_lastViewportSize;
+    bool m_frameIsViewportSized;
     
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);

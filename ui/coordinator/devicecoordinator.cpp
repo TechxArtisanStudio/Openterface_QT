@@ -34,14 +34,6 @@
 
 Q_LOGGING_CATEGORY(log_ui_devicecoordinator, "opf.ui.devicecoordinator")
 
-// VID/PID constants definition
-const QString DeviceCoordinator::MINI_KVM_VID = "534D";
-const QString DeviceCoordinator::MINI_KVM_PID = "2109";
-const QString DeviceCoordinator::KVMGO_VID = "345F";
-const QString DeviceCoordinator::KVMGO_PID = "2132";
-const QString DeviceCoordinator::KVMVGA_VID = "345F";
-const QString DeviceCoordinator::KVMVGA_PID = "2109";
-
 DeviceCoordinator::DeviceCoordinator(QMenu *deviceMenu, CameraManager *cameraManager, QObject *parent)
     : QObject(parent)
     , m_deviceMenu(deviceMenu)
@@ -113,17 +105,12 @@ void DeviceCoordinator::updateDeviceMenu()
     // Deduplicate devices by port chain (similar to DeviceSelectorDialog)
     // First, collect all companion port chains to skip companion devices
     QSet<QString> companionPortChains;
-    bool hasKVMGO = false;
     for (const auto& device : devices) {
         if (!device.companionPortChain.isEmpty()) {
             companionPortChains.insert(device.companionPortChain);
             qCDebug(log_ui_devicecoordinator) << "Companion port chain found:" << device.companionPortChain << "for device:" << device.portChain;
         } else {
             qCDebug(log_ui_devicecoordinator) << "No companion port chain for device:" << device.portChain;
-        }
-        QString deviceType = getDeviceTypeName(device);
-        if (deviceType == "KVMGO") {
-            hasKVMGO = true;
         }
     }
     
@@ -138,58 +125,14 @@ void DeviceCoordinator::updateDeviceMenu()
             // Only keep first occurrence of each port chain
             if (!uniqueDevicesByPortChain.contains(device.portChain)) {
                 uniqueDevicesByPortChain.insert(device.portChain, device);
-                qCDebug(log_ui_devicecoordinator) << "Added device:" << device.portChain 
-                                                  << "Type:" << getDeviceTypeName(device);
+                qCDebug(log_ui_devicecoordinator) << "Added device:" << device.portChain;
             } else {
                 qCDebug(log_ui_devicecoordinator) << "Skipping duplicate port chain:" << device.portChain;
             }
         }
     }
     
-    // If there is a KVMGO device, merge any non-KVMGO device info into it and remove the non-KVMGO entries
-    if (hasKVMGO) {
-        QList<QString> nonKvmgoPortChains;
-        for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
-            if (getDeviceTypeName(it.value()) != "KVMGO") {
-                nonKvmgoPortChains.append(it.key());
-            }
-        }
-        for (const QString& portChain : nonKvmgoPortChains) {
-            DeviceInfo nonKvmgoDevice = uniqueDevicesByPortChain.value(portChain);
-            // Find the KVMGO device and merge
-            for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
-                if (getDeviceTypeName(it.value()) == "KVMGO") {
-                    DeviceInfo& kvmgoDevice = it.value();
-                    // Merge serial information
-                    if (!nonKvmgoDevice.serialPortId.isEmpty()) {
-                        kvmgoDevice.serialPortId = nonKvmgoDevice.serialPortId;
-                        qCDebug(log_ui_devicecoordinator) << "Merged serial port ID from" << getDeviceTypeName(nonKvmgoDevice) << "to KVMGO:" << nonKvmgoDevice.serialPortId;
-                    }
-                    if (!nonKvmgoDevice.serialPortPath.isEmpty()) {
-                        kvmgoDevice.serialPortPath = nonKvmgoDevice.serialPortPath;
-                        qCDebug(log_ui_devicecoordinator) << "Merged serial port path from" << getDeviceTypeName(nonKvmgoDevice) << "to KVMGO:" << nonKvmgoDevice.serialPortPath;
-                    }
-                    // Also merge other IDs if not set
-                    if (kvmgoDevice.hidDeviceId.isEmpty() && !nonKvmgoDevice.hidDeviceId.isEmpty()) {
-                        kvmgoDevice.hidDeviceId = nonKvmgoDevice.hidDeviceId;
-                        kvmgoDevice.hidDevicePath = nonKvmgoDevice.hidDevicePath;
-                    }
-                    if (kvmgoDevice.cameraDeviceId.isEmpty() && !nonKvmgoDevice.cameraDeviceId.isEmpty()) {
-                        kvmgoDevice.cameraDeviceId = nonKvmgoDevice.cameraDeviceId;
-                        kvmgoDevice.cameraDevicePath = nonKvmgoDevice.cameraDevicePath;
-                    }
-                    if (kvmgoDevice.audioDeviceId.isEmpty() && !nonKvmgoDevice.audioDeviceId.isEmpty()) {
-                        kvmgoDevice.audioDeviceId = nonKvmgoDevice.audioDeviceId;
-                        kvmgoDevice.audioDevicePath = nonKvmgoDevice.audioDevicePath;
-                    }
-                    break; // Assuming only one KVMGO
-                }
-            }
-            // Remove the non-KVMGO device
-            uniqueDevicesByPortChain.remove(portChain);
-            qCDebug(log_ui_devicecoordinator) << "Removed" << getDeviceTypeName(nonKvmgoDevice) << "device after merging:" << portChain;
-        }
-    }
+    // Device-type merging removed: we only deduplicate by companion port chain
     
     // Auto-select first device if there's exactly one device and not already auto-selected
     if (uniqueDevicesByPortChain.size() == 1 && !m_deviceAutoSelected) {
@@ -204,11 +147,20 @@ void DeviceCoordinator::updateDeviceMenu()
     // Add action for each unique device
     for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
         const DeviceInfo& device = it.value();
-        
-        // Determine device type based on VID/PID from platformSpecific data
-        QString deviceType = getDeviceTypeName(device);
-        QString displayText = QString("Port %1 - %2").arg(device.portChain, deviceType);
-        
+
+        // Determine serial info to show (prefer path, fall back to ID)
+        QString serialInfo;
+        if (!device.serialPortPath.isEmpty()) {
+            serialInfo = device.serialPortPath;
+        } else if (!device.serialPortId.isEmpty()) {
+            serialInfo = device.serialPortId;
+        }
+
+        QString displayText = QString("Port %1").arg(formatPortChain(device.portChain));
+        if (!serialInfo.isEmpty()) {
+            displayText += QString(" (%1)").arg(serialInfo);
+        }
+
         QAction *deviceAction = new QAction(displayText, this);
         deviceAction->setCheckable(true);
         deviceAction->setData(device.portChain);
@@ -302,102 +254,25 @@ void DeviceCoordinator::onDeviceUnplugged(const DeviceInfo &device)
     emit deviceMenuUpdateRequested();
 }
 
-QString DeviceCoordinator::getDeviceTypeName(const DeviceInfo &device)
+QString DeviceCoordinator::formatPortChain(const QString &portChain)
 {
-    // Helper lambda to check VID/PID and return device type
-    auto checkDeviceType = [this](const QString& str) -> QString {
-        if (str.isEmpty()) {
-            return "";
-        }
-        
-        // Check for KVMVGA (345F:2109)
-        if (checkVidPidInString(str, KVMVGA_VID, KVMVGA_PID)) {
-            return "KVMVGA";
-        }
-        
-        // Check for KVMGO (345F:2132)
-        if (checkVidPidInString(str, KVMGO_VID, KVMGO_PID)) {
-            return "KVMGO";
-        }
-        
-        // Check for Mini-KVM (534D:2109)
-        if (checkVidPidInString(str, MINI_KVM_VID, MINI_KVM_PID)) {
-            return "Mini-KVM";
-        }
-        
-        return "";
-    };
-    
-    // Check main device sources
-    QStringList sources = {
-        device.platformSpecific.value("hardwareId").toString(),
-        device.platformSpecific.value("hardware_id").toString(),
-        device.platformSpecific.value("vidPid").toString(),
-        device.deviceInstanceId,
-        device.hidDeviceId,
-        device.cameraDeviceId,
-        device.audioDeviceId,
-        device.serialPortId
-    };
-    
-    for (const QString& source : sources) {
-        QString result = checkDeviceType(source);
-        if (!result.isEmpty()) {
-            return result;
+    // Remove any '0' characters and then place '-' between remaining digits.
+    // For example: "010203" -> remove zeros -> "123" -> "1-2-3"
+    QString filtered;
+    for (QChar c : portChain) {
+        if (c.isDigit() && c != QChar('0')) {
+            filtered.append(c);
         }
     }
-    
-    // Check sibling and child devices
-    auto checkRelatedDevices = [&](const QVariantList& devices) -> QString {
-        for (const QVariant& deviceVar : devices) {
-            QVariantMap deviceMap = deviceVar.toMap();
-            QStringList relatedSources = {
-                deviceMap.value("hardwareId").toString(),
-                deviceMap.value("hardware_id").toString(),
-                deviceMap.value("deviceInstanceId").toString()
-            };
-            for (const QString& source : relatedSources) {
-                QString result = checkDeviceType(source);
-                if (!result.isEmpty()) {
-                    return result;
-                }
-            }
-        }
-        return "";
-    };
-    
-    if (device.platformSpecific.contains("siblings")) {
-        QString result = checkRelatedDevices(device.platformSpecific["siblings"].toList());
-        if (!result.isEmpty()) {
-            return result;
-        }
+    if (filtered.isEmpty()) {
+        // Fallback: if nothing remains after removing zeros, return the original
+        return portChain;
     }
-    
-    if (device.platformSpecific.contains("children")) {
-        QString result = checkRelatedDevices(device.platformSpecific["children"].toList());
-        if (!result.isEmpty()) {
-            return result;
-        }
+    QStringList parts;
+    for (QChar c : filtered) {
+        parts.append(QString(c));
     }
-    
-    return "Openterface";
-}
-
-bool DeviceCoordinator::checkVidPidInString(const QString &str, const QString &vid, const QString &pid)
-{
-    if (str.isEmpty()) {
-        return false;
-    }
-    
-    // Check for VID_XXXX and PID_XXXX format (Windows style)
-    bool hasVidFormat = str.contains(QString("VID_%1").arg(vid), Qt::CaseInsensitive);
-    bool hasPidFormat = str.contains(QString("PID_%1").arg(pid), Qt::CaseInsensitive);
-    
-    // Check for simple VID:PID or just presence of both strings
-    bool hasVid = str.contains(vid, Qt::CaseInsensitive);
-    bool hasPid = str.contains(pid, Qt::CaseInsensitive);
-    
-    return (hasVidFormat && hasPidFormat) || (hasVid && hasPid);
+    return parts.join('-');
 }
 
 bool DeviceCoordinator::autoSelectFirstDevice()
@@ -407,68 +282,20 @@ bool DeviceCoordinator::autoSelectFirstDevice()
     DeviceManager& deviceManager = DeviceManager::getInstance();
     QList<DeviceInfo> devices = deviceManager.discoverDevices();
     
-    // Deduplicate devices by port chain
-    // First, collect all companion port chains to skip companion devices
+    // Deduplicate devices by port chain (skip companion devices)
     QSet<QString> companionPortChains;
-    bool hasKVMGO = false;
     for (const auto& device : devices) {
         if (!device.companionPortChain.isEmpty()) {
             companionPortChains.insert(device.companionPortChain);
         }
-        QString deviceType = getDeviceTypeName(device);
-        if (deviceType == "KVMGO") {
-            hasKVMGO = true;
-        }
     }
-    
+
     QMap<QString, DeviceInfo> uniqueDevicesByPortChain;
     for (const auto& device : devices) {
         if (!device.portChain.isEmpty() && !companionPortChains.contains(device.portChain)) {
             if (!uniqueDevicesByPortChain.contains(device.portChain)) {
                 uniqueDevicesByPortChain.insert(device.portChain, device);
             }
-        }
-    }
-    
-    // If there is a KVMGO device, merge any non-KVMGO device info into it and remove the non-KVMGO entries
-    if (hasKVMGO) {
-        QList<QString> nonKvmgoPortChains;
-        for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
-            if (getDeviceTypeName(it.value()) != "KVMGO") {
-                nonKvmgoPortChains.append(it.key());
-            }
-        }
-        for (const QString& portChain : nonKvmgoPortChains) {
-            DeviceInfo nonKvmgoDevice = uniqueDevicesByPortChain.value(portChain);
-            // Find the KVMGO device and merge
-            for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
-                if (getDeviceTypeName(it.value()) == "KVMGO") {
-                    DeviceInfo& kvmgoDevice = it.value();
-                    // Merge serial information
-                    if (!nonKvmgoDevice.serialPortId.isEmpty()) {
-                        kvmgoDevice.serialPortId = nonKvmgoDevice.serialPortId;
-                    }
-                    if (!nonKvmgoDevice.serialPortPath.isEmpty()) {
-                        kvmgoDevice.serialPortPath = nonKvmgoDevice.serialPortPath;
-                    }
-                    // Also merge other IDs if not set
-                    if (kvmgoDevice.hidDeviceId.isEmpty() && !nonKvmgoDevice.hidDeviceId.isEmpty()) {
-                        kvmgoDevice.hidDeviceId = nonKvmgoDevice.hidDeviceId;
-                        kvmgoDevice.hidDevicePath = nonKvmgoDevice.hidDevicePath;
-                    }
-                    if (kvmgoDevice.cameraDeviceId.isEmpty() && !nonKvmgoDevice.cameraDeviceId.isEmpty()) {
-                        kvmgoDevice.cameraDeviceId = nonKvmgoDevice.cameraDeviceId;
-                        kvmgoDevice.cameraDevicePath = nonKvmgoDevice.cameraDevicePath;
-                    }
-                    if (kvmgoDevice.audioDeviceId.isEmpty() && !nonKvmgoDevice.audioDeviceId.isEmpty()) {
-                        kvmgoDevice.audioDeviceId = nonKvmgoDevice.audioDeviceId;
-                        kvmgoDevice.audioDevicePath = nonKvmgoDevice.audioDevicePath;
-                    }
-                    break; // Assuming only one KVMGO
-                }
-            }
-            // Remove the non-KVMGO device
-            uniqueDevicesByPortChain.remove(portChain);
         }
     }
     
@@ -521,7 +348,7 @@ void DeviceCoordinator::scheduleAutoSelectFirstDevice(const QString &portChain)
     CameraManager *cameraManager = m_cameraManager;
 
     // Run device switching scheduled on DeviceManager thread; do not block UI
-    QtConcurrent::run([portChain, cameraManager, safeThis]() {
+    (void)QtConcurrent::run([portChain, cameraManager, safeThis]() {
         if (!safeThis) {
             qCWarning(log_ui_devicecoordinator) << "DeviceCoordinator destroyed before scheduling auto-select";
             return;

@@ -487,7 +487,7 @@ void MainWindowInitializer::setupKeyboardShortcuts()
 void MainWindowInitializer::finalize()
 {
     qCDebug(log_ui_mainwindowinitializer) << "Finalizing initialization...";
-    QString windowTitle = QString("Openterface Mini-KVM - %1").arg(APP_VERSION);
+    QString windowTitle = QString("Openterface KVM - %1").arg(APP_VERSION);
     m_mainWindow->setWindowTitle(windowTitle);
 
     m_mainWindow->mouseEdgeTimer = new QTimer(m_mainWindow);

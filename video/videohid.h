@@ -43,8 +43,13 @@ struct VideoHidResolutionInfo {
     float pixclk{0.0f};
     bool hdmiConnected{false};
 };
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(Q_MOC_RUN)
 #include <windows.h>
+#elif defined(_WIN32) && defined(Q_MOC_RUN)
+// Minimal stubs for moc parsing on Windows to avoid including heavy system headers
+typedef void* HANDLE;
+typedef unsigned long DWORD;
+typedef unsigned char BYTE;
 #elif __linux__
 #include <linux/hid.h>
 #endif

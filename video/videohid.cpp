@@ -786,7 +786,7 @@ void VideoHid::pollDeviceStatus() {
     try {
         bool currentSwitchOnTarget = getGpio0();
         bool hdmiConnected = isHdmiConnected();
-
+        qCDebug(log_host_hid) << "chip type" << (m_chipType == VideoChipType::MS2109 ? "MS2109" : (m_chipType == VideoChipType::MS2130S ? "MS2130S" : "Unknown"));
         if (eventCallback) {
             VideoHidResolutionInfo info = getInputStatus();
             normalizeResolution(info);

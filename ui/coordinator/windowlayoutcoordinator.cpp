@@ -470,13 +470,13 @@ void WindowLayoutCoordinator::zoomOut()
         return;
     }
     
-    if (m_videoPane->width() != m_mainWindow->width()) {
-        // Use VideoPane's built-in zoom functionality
-        m_videoPane->zoomOut(0.9);
-        
-        qCDebug(log_ui_windowlayoutcoordinator) << "Zoom out applied";
-        emit zoomChanged(0.9);
-    }
+    
+    // Use VideoPane's built-in zoom functionality
+    m_videoPane->zoomOut(0.9);
+    
+    qCDebug(log_ui_windowlayoutcoordinator) << "Zoom out applied";
+    emit zoomChanged(0.9);
+
 }
 
 void WindowLayoutCoordinator::zoomReduction()
