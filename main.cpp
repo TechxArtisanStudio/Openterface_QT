@@ -240,28 +240,17 @@ void applyMediaBackendSetting(){
         // Additional GStreamer environment variables for better video handling
         qputenv("GST_V4L2_USE_LIBV4L2", "1");
         
-        // Set GStreamer plugin paths - support AppImage bundled plugins
-        QString appDirPath = QCoreApplication::applicationDirPath();
-        QString bundledPluginPath = appDirPath + "/../lib/gstreamer-1.0";
+        // IMPORTANT: Do NOT override GST_PLUGIN_PATH here!
+        // The launcher script has already set it correctly for the package type:
+        // - RPM packages: /usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
+        // - AppImage packages: appDir/../lib/gstreamer-1.0
+        // Overriding it here causes version conflicts on Fedora
         
-        if (QDir(bundledPluginPath).exists()) {
-            // Use bundled plugins (AppImage)
-            qputenv("GST_PLUGIN_PATH", bundledPluginPath.toUtf8());
-            qputenv("GST_PLUGIN_SYSTEM_PATH", bundledPluginPath.toUtf8());
-            qDebug() << "Using bundled GStreamer plugins from:" << bundledPluginPath;
-            // Also set GST_PLUGIN_SCANNER to point to the bundled helper binary if present
-            QString bundledScannerPath = appDirPath + "/../libexec/gstreamer-1.0/gst-plugin-scanner";
-            if (QFile::exists(bundledScannerPath)) {
-                qputenv("GST_PLUGIN_SCANNER", bundledScannerPath.toUtf8());
-                qDebug() << "Using bundled gst-plugin-scanner at:" << bundledScannerPath;
-            } else {
-                qDebug() << "No bundled gst-plugin-scanner at:" << bundledScannerPath;
-            }
+        if (!qgetenv("GST_PLUGIN_PATH").isEmpty()) {
+            qDebug() << "✓ Using GStreamer plugins from launcher environment:";
+            qDebug() << "  GST_PLUGIN_PATH=" << qgetenv("GST_PLUGIN_PATH");
         } else {
-            // Fallback to system plugins
-            qputenv("GST_PLUGIN_PATH", "/usr/lib/gstreamer-1.0:/usr/lib/aarch64-linux-gnu/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0");
-            qputenv("GST_PLUGIN_SYSTEM_PATH", "/usr/lib/gstreamer-1.0:/usr/lib/aarch64-linux-gnu/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0");
-            qDebug() << "Using system GStreamer plugins";
+            qDebug() << "⚠ WARNING: GST_PLUGIN_PATH not set, GStreamer may use incorrect system plugins";
         }
         
         // Ensure video output works correctly
