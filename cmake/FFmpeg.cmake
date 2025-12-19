@@ -28,8 +28,16 @@ endif()
 # Option to control hardware acceleration libraries
 option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ON)
 
-# Prefer static libraries for FFmpeg
-set(CMAKE_FIND_STATIC_PREFER ON)
+# Option to use shared FFmpeg libraries instead of static
+option(USE_SHARED_FFMPEG "Use shared FFmpeg libraries instead of static" OFF)
+
+# Prefer static libraries for FFmpeg unless shared is requested
+if(USE_SHARED_FFMPEG)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .so)
+    message(STATUS "Using shared FFmpeg libraries")
+else()
+    set(CMAKE_FIND_STATIC_PREFER ON)
+endif()
 
 # Check for libjpeg-turbo (preferred for performance)
 # Look in FFMPEG_PREFIX first for static builds
@@ -115,8 +123,12 @@ if(NOT FFMPEG_FOUND)
     # Find FFmpeg installation
     message(STATUS "FFmpeg search paths: ${FFMPEG_SEARCH_PATHS}")
     foreach(SEARCH_PATH ${FFMPEG_SEARCH_PATHS})
-        # For static builds, prefer .a files; check common lib directories
-        set(LIB_EXTENSIONS ".a")
+        # For static builds, prefer .a files; for shared, .so files
+        if(USE_SHARED_FFMPEG)
+            set(LIB_EXTENSIONS ".so")
+        else()
+            set(LIB_EXTENSIONS ".a")
+        endif()
         
         # Platform-specific library paths
         if(WIN32)
@@ -195,8 +207,12 @@ endif()
 
 # Set library extension and verify it was set during detection
 if(NOT DEFINED FFMPEG_LIB_EXT)
-    # Default to static libraries
-    set(FFMPEG_LIB_EXT ".a")
+    # Default based on USE_SHARED_FFMPEG
+    if(USE_SHARED_FFMPEG)
+        set(FFMPEG_LIB_EXT ".so")
+    else()
+        set(FFMPEG_LIB_EXT ".a")
+    endif()
 endif()
 
 message(STATUS "Final FFmpeg library extension: ${FFMPEG_LIB_EXT}")
