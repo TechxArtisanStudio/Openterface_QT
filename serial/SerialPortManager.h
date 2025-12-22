@@ -161,6 +161,15 @@ signals:
     void syncResponseReady();  // Emitted when m_syncCommandResponse is filled for sync commands
     void usbStatusChanged(bool isToTarget);  // New signal: true = target, false = host
     
+    // Thread-safe reset operation signals (internal use)
+    void requestResetHidChip(int targetBaudrate);
+    void requestFactoryReset();
+    void requestFactoryResetV191();
+    
+    // Signals to notify completion of reset operations
+    void resetHidChipCompleted(bool success);
+    void factoryResetCompleted(bool success);
+    
 private slots:
     void observeSerialPortNotification();
     void readData();
@@ -169,6 +178,11 @@ private slots:
     static quint8 calculateChecksum(const QByteArray &data);
     
     void initializeSerialPortFromPortChain();
+    
+    // Thread-safe reset operation handlers (called via queued connection)
+    void handleResetHidChip(int targetBaudrate);
+    void handleFactoryReset();
+    void handleFactoryResetV191();
 
     // /*
     //  * Check if the USB switch status
@@ -197,6 +211,11 @@ private:
     ConfigResult attemptBaudrateDetection();
     void handleChipSpecificLogic(const ConfigResult &config);
     void storeBaudrateIfNeeded(int workingBaudrate);
+    
+    // Thread-safe reset internal implementations (run in worker thread)
+    bool handleResetHidChipInternal(int targetBaudrate);
+    bool handleFactoryResetInternal();
+    bool handleFactoryResetV191Internal();
 
     QSet<QString> availablePorts;
     
