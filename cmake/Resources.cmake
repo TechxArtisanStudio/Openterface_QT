@@ -334,12 +334,20 @@ install(FILES ${CMAKE_SOURCE_DIR}/com.openterface.openterfaceQT.metainfo.xml
 
 # Guard deploy script generation for Qt < 6.3 on Ubuntu 22.04
 if(COMMAND qt_generate_deploy_app_script)
-    qt_generate_deploy_app_script(
-        TARGET openterfaceQT
-        FILENAME_VARIABLE deploy_script    
-        NO_UNSUPPORTED_PLATFORM_ERROR
-    )
-    install(SCRIPT ${deploy_script})
+    # Allow disabling automatic qt deploy via -DENABLE_QT_DEPLOY=OFF
+    if(NOT DEFINED ENABLE_QT_DEPLOY)
+        set(ENABLE_QT_DEPLOY ON)
+    endif()
+    if(ENABLE_QT_DEPLOY)
+        qt_generate_deploy_app_script(
+            TARGET openterfaceQT
+            FILENAME_VARIABLE deploy_script    
+            NO_UNSUPPORTED_PLATFORM_ERROR
+        )
+        install(SCRIPT ${deploy_script})
+    else()
+        message(STATUS "Qt deploy disabled (ENABLE_QT_DEPLOY=OFF); skipping deploy script generation")
+    endif()
 else()
     message(STATUS "qt_generate_deploy_app_script not available; skipping deploy script generation on this Qt version")
 endif()

@@ -2,13 +2,11 @@
 #include "queueconfigurator.h"
 
 #include <QDebug>
-#include <QLoggingCategory>
+#include "logging.h"
 
 #ifdef HAVE_GSTREAMER
 #include <gst/gst.h>
 #endif
-
-Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 
 using namespace Openterface::GStreamer;
 

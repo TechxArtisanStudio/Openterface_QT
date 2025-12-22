@@ -2,9 +2,7 @@
 #include "gstreamerhelpers.h"
 
 #include <QDebug>
-#include <QLoggingCategory>
-
-Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
+#include "logging.h"
 
 using namespace Openterface::GStreamer::GstHelpers;
 
