@@ -553,7 +553,6 @@ void MainWindow::processCapturedImage(int requestId, const QImage &img)
     QImage scaledImage =
             img.scaled(ui->centralwidget->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
-   // ui->lastImagePreviewLabel->setPixmap(QPixmap::fromImage(scaledImage));
 
     // Display captured image for 4 seconds.
     displayCapturedImage();

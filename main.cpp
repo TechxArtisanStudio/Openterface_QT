@@ -29,6 +29,7 @@
 #include "ui/languagemanager.h"
 #include <QCoreApplication>
 #include <QtPlugin>
+#include <crtdbg.h>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -268,6 +269,7 @@ void applyMediaBackendSetting(){
 
 int main(int argc, char *argv[])
 {
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF);
     qDebug() << "Start openterface...";
     
     // Parse command-line arguments early to check for --skip-env-check

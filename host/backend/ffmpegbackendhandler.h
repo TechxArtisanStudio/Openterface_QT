@@ -31,7 +31,6 @@ Q_DECLARE_LOGGING_CATEGORY(log_ffmpeg_backend)
 #include <QTimer>
 #include <QMutex>
 #include <QWaitCondition>
-#include <QPixmap>
 #include <memory>
 
 // Forward declarations for Qt types
@@ -187,7 +186,7 @@ public:
     void setVideoOutput(VideoPane* videoPane);
 
 signals:
-    void frameReady(const QPixmap& frame);
+    void frameReady(const QImage& frame);
     void frameReadyImage(const QImage& frame);  // Thread-safe QImage signal for better performance
     void captureError(const QString& error);
     void deviceConnectionChanged(const QString& devicePath, bool connected);

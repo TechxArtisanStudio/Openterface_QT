@@ -208,13 +208,10 @@ bool FFmpegFrameProcessor::IsHardwareDecoder(const AVCodecContext* codec_context
             strstr(codec_name, "_nvdec") != nullptr);
 }
 
-// DEPRECATED QPixmap-based methods removed - use ProcessPacketToImage instead
-// All QPixmap-based decoding and conversion has been replaced with QImage equivalents
 
 QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecContext* codec_context, 
                                                    bool is_recording, const QSize& targetSize)
 {
-    // OPTIMIZATION: Decode directly to QImage to avoid QPixmap creation on worker thread
     if (stop_requested_) {
         return QImage();
     }
@@ -282,7 +279,6 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
         frame_to_convert = AV_FRAME_RAW(sw_frame);
     }
     
-    // Convert frame directly to QImage (bypassing QPixmap)
     QImage result = ConvertFrameToImage(frame_to_convert, targetSize);
     
     if (sw_frame) {
@@ -308,7 +304,6 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
     return result.copy();  // Deep copy for thread safety
 }
 
-// Thread-safe QImage conversion methods (avoid QPixmap on worker thread)
 QImage FFmpegFrameProcessor::ConvertFrameToImage(AVFrame* frame, const QSize& targetSize)
 {
     if (!frame) {

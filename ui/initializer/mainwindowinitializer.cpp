@@ -211,6 +211,20 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
             m_cornerWidgetManager, &CornerWidgetManager::updateUSBStatus);
 
+    // Thread-safe connections to MainWindow (use queued connection to ensure slots run on GUI thread)
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
+            m_mainWindow, &MainWindow::onTargetUsbConnected, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::keyStatesChanged,
+            m_mainWindow, &MainWindow::onKeyStatesChanged, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::serialPortReset,
+            m_mainWindow, &MainWindow::serialPortReset, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::statusUpdate,
+            m_mainWindow, &MainWindow::onStatusUpdate, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged,
+            m_mainWindow, &MainWindow::onPortConnected, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::factoryReset,
+            m_mainWindow, &MainWindow::factoryReset, Qt::QueuedConnection);
+
     // Connect layout changes to update corner widget position
     // CRITICAL FIX: Capture specific pointers instead of 'this' to avoid dangling reference
     CornerWidgetManager* cornerWidgetManager = m_cornerWidgetManager;

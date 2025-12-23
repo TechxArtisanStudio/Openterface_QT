@@ -28,6 +28,8 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QThread>
+#include <QImage>
+#include <QRect> 
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -269,15 +271,6 @@ bool FFmpegRecorder::WriteFrame(const QImage& image)
     return WriteFrameToFile(AV_FRAME_RAW(recording_frame_));
 }
 
-bool FFmpegRecorder::WriteFrame(const QPixmap& pixmap)
-{
-    // Deprecated: Convert to QImage and use primary implementation
-    if (pixmap.isNull()) {
-        return false;
-    }
-    QImage image = pixmap.toImage();
-    return WriteFrame(image);
-}
 
 bool FFmpegRecorder::ShouldWriteFrame(qint64 current_time_ms)
 {
@@ -356,16 +349,6 @@ void FFmpegRecorder::TakeAreaImage(const QString& file_path, const QImage& image
     } else {
         qCWarning(log_ffmpeg_backend) << "Failed to save cropped image to:" << file_path;
     }
-}
-
-void FFmpegRecorder::TakeAreaImage(const QString& file_path, const QPixmap& pixmap, const QRect& capture_area)
-{
-    // Deprecated: Convert to QImage and use primary implementation
-    if (pixmap.isNull()) {
-        qCWarning(log_ffmpeg_backend) << "No frame available for area image capture";
-        return;
-    }
-    TakeAreaImage(file_path, pixmap.toImage(), capture_area);
 }
 
 bool FFmpegRecorder::InitializeRecording(const QSize& resolution, int framerate)
