@@ -717,6 +717,16 @@ void FFmpegBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
                             parentVideoPane->updateGraphicsVideoItemFromImage(videoItem, image);
                         }
                     }, Qt::QueuedConnection);
+            QPointer<VideoPane> parentPtr(parentVideoPane);
+            QPointer<QGraphicsVideoItem> itemPtr(videoItem);
+            connect(this, &FFmpegBackendHandler::frameReadyImage,
+                    parentVideoPane, [parentPtr, itemPtr](const QImage& image) {
+                        // Guard: skip if either object was destroyed while the frame was queued
+                        if (!parentPtr) return;
+                        QGraphicsVideoItem* item = itemPtr.data();
+                        if (!item) return;
+                        parentPtr->updateGraphicsVideoItemFromImage(item, image);
+                    }, Qt::QueuedConnection);
         } else {
             qCWarning(log_ffmpeg_backend) << "Could not find parent VideoPane for QGraphicsVideoItem";
             // Fallback: just emit frameReadyImage, UI must connect manually
