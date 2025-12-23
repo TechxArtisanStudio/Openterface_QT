@@ -62,6 +62,7 @@
 
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
+#include "host/imagecapturer.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -343,6 +344,7 @@ private:
     ratioType currentRatioType = ratioType::EQUAL;
     void startServer();
     TcpServer *tcpServer;
+    ImageCapturer *m_imageCapturer;
 
 };
 #endif // MAINWINDOW_H
