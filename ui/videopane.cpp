@@ -71,7 +71,7 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     
-    // ============ HIGH QUALITY RENDERING FOR BETTER VIDEO QUALITY ============
+    // ============ OPTIMIZED RENDERING FOR VIDEO STREAMING ============
     setRenderHint(QPainter::Antialiasing, true);
     setRenderHint(QPainter::SmoothPixmapTransform, true);
     setRenderHint(QPainter::TextAntialiasing, true);  // Critical for text clarity
@@ -80,11 +80,13 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     // DO NOT use DontAdjustForAntialiasing - it degrades quality for performance
     // setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, true);  // REMOVED
     
-    // Use full viewport updates for best quality (slight performance cost)
-    setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
+    // CRITICAL FIX: Use MinimalViewportUpdate for better video streaming performance
+    // FullViewportUpdate can cause update batching that leads to freezing
+    setViewportUpdateMode(QGraphicsView::MinimalViewportUpdate);
     
-    // Enable cache for better rendering quality
-    setCacheMode(QGraphicsView::CacheBackground);
+    // CRITICAL FIX: Disable cache for video streaming to prevent stale frames
+    // CacheBackground can hold old frames and prevent updates
+    setCacheMode(QGraphicsView::CacheNone);
 
     this->setMouseTracking(true);
     this->installEventFilter(m_inputHandler);
@@ -1106,9 +1108,9 @@ void VideoPane::updateVideoFrameFromImage(const QImage& image)
     qreal widgetDpr = 1.0;
     if (window()) widgetDpr = window()->devicePixelRatioF();
     else widgetDpr = this->devicePixelRatioF();
-
+    QImage safeimage = image.copy();
     // Convert QImage to QPixmap and force the pixmap DPR to the widget DPR
-    QPixmap frame = QPixmap::fromImage(image);
+    QPixmap frame = QPixmap::fromImage(safeimage);
     frame.setDevicePixelRatio(widgetDpr);
 
     qCDebug(log_ui_video) << "updateVideoFrameFromImage: image.size()=" << image.size()
@@ -1117,6 +1119,42 @@ void VideoPane::updateVideoFrameFromImage(const QImage& image)
                          << " resulting pixmap.logicalSize=" << QSizeF(frame.width()/widgetDpr, frame.height()/widgetDpr);
 
     updateVideoFrame(frame);
+    
+    // CRITICAL FIX: Force immediate viewport update to prevent freezing
+    viewport()->update();
+}
+
+// Update QGraphicsVideoItem from QImage (GUI thread conversion)
+void VideoPane::updateGraphicsVideoItemFromImage(QGraphicsVideoItem* videoItem, const QImage& image)
+{
+    if (!videoItem || image.isNull()) {
+        return;
+    }
+
+    if (!videoItem->scene()) {
+        qCWarning(log_ui_video) << "QGraphicsVideoItem has no scene";
+        return;
+    }
+
+    // Convert QImage to QPixmap on GUI thread
+    QPixmap frame = QPixmap::fromImage(image);
+    
+    // Find or create pixmap item for display
+    QGraphicsPixmapItem* pixmapItem = nullptr;
+    QList<QGraphicsItem*> items = videoItem->scene()->items();
+    for (auto item : items) {
+        if (auto pItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item)) {
+            pixmapItem = pItem;
+            break;
+        }
+    }
+
+    if (!pixmapItem) {
+        pixmapItem = videoItem->scene()->addPixmap(frame);
+        pixmapItem->setZValue(1); // Above video item
+    } else {
+        pixmapItem->setPixmap(frame);
+    }
 }
 
 void VideoPane::updateVideoFrame(const QPixmap& frame)
@@ -1180,6 +1218,14 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
 
         // Ensure scene rect equals viewport logical rect (use integers)
         m_scene->setSceneRect(QRectF(0, 0, viewportLogical.width(), viewportLogical.height()));
+        
+        // CRITICAL FIX: Force immediate updates to prevent freezing
+        QRectF updateRect = m_pixmapItem->boundingRect();
+        m_pixmapItem->update(updateRect);
+        m_scene->invalidate(updateRect, QGraphicsScene::ForegroundLayer);
+        m_scene->update(updateRect);
+        viewport()->update();
+        
         return;
     }
 
@@ -1199,6 +1245,13 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
     updateVideoItemTransform();
     centerVideoItem();
     updateScrollBarsAndSceneRect();
+    
+    // CRITICAL FIX: Force updates in fallback path to prevent freezing
+    QRectF updateRect = m_pixmapItem->boundingRect();
+    m_pixmapItem->update(updateRect);
+    m_scene->invalidate(updateRect, QGraphicsScene::ForegroundLayer);
+    m_scene->update(updateRect);
+    viewport()->update();
 }
 
 

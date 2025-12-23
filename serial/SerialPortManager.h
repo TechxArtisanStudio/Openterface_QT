@@ -74,8 +74,6 @@ public:
         return instance;
     }
     
-    
-
     SerialPortManager(SerialPortManager const&) = delete; // Don't Implement
     void operator=(SerialPortManager const&) = delete; // Don't implement
 
