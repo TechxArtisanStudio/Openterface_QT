@@ -625,7 +625,6 @@ void FFmpegBackendHandler::processFrame()
         viewportSize = m_videoPane->viewport()->size();
     }
     
-    // OPTIMIZATION: Process frame to QImage instead of QPixmap to offload GUI work
     // QImage is thread-safe and can be passed across thread boundaries efficiently
     QImage image = m_frameProcessor->ProcessPacketToImage(packet, codecContext, isRecording, viewportSize);
     
@@ -641,7 +640,6 @@ void FFmpegBackendHandler::processFrame()
         }
         
         // Emit QImage to UI (QueuedConnection ensures thread safety)
-        // QPixmap creation will happen on GUI thread, reducing worker thread load
         if (m_captureRunning) {
             if (m_frameCount <= 5) {
                 qCDebug(log_ffmpeg_backend) << "Emitting frameReadyImage signal for frame" << m_frameCount;
@@ -655,9 +653,8 @@ void FFmpegBackendHandler::processFrame()
             qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
             
             if (m_recorder->ShouldWriteFrame(currentTime)) {
-                // Convert QImage to QPixmap for recording (happens on worker thread)
-                QPixmap pixmap = QPixmap::fromImage(image);
-                if (m_recorder->WriteFrame(pixmap)) {
+                // Pass QImage directly to recorder (worker thread safe)
+                if (m_recorder->WriteFrame(image)) {
                     // Update recording duration periodically
                     static int recordingFrameCount = 0;
                     if (++recordingFrameCount % 30 == 0) { // Every 30 frames (~1 second at 30fps)
@@ -692,6 +689,7 @@ void FFmpegBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
     
     // Disconnect previous connections
     disconnect(this, &FFmpegBackendHandler::frameReady, this, nullptr);
+    disconnect(this, &FFmpegBackendHandler::frameReadyImage, this, nullptr);
     
     m_graphicsVideoItem = videoItem;
     m_videoPane = nullptr;
@@ -699,29 +697,30 @@ void FFmpegBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
     if (videoItem) {
         qCDebug(log_ffmpeg_backend) << "Graphics video item set for FFmpeg direct rendering";
         
-        // Connect frame ready signal to update graphics item
-        connect(this, &FFmpegBackendHandler::frameReady, this, [this](const QPixmap& frame) {
-            if (m_graphicsVideoItem && m_graphicsVideoItem->scene()) {
-                // Create or update pixmap item for display
-                QGraphicsPixmapItem* pixmapItem = nullptr;
-                
-                // Find existing pixmap item or create new one
-                QList<QGraphicsItem*> items = m_graphicsVideoItem->scene()->items();
-                for (auto item : items) {
-                    if (auto pItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item)) {
-                        pixmapItem = pItem;
-                        break;
-                    }
-                }
-                
-                if (!pixmapItem) {
-                    pixmapItem = m_graphicsVideoItem->scene()->addPixmap(frame);
-                    pixmapItem->setZValue(1); // Above video item
-                } else {
-                    pixmapItem->setPixmap(frame);
-                }
+        // Try to find parent VideoPane to make proper connection
+        VideoPane* parentVideoPane = nullptr;
+        QObject* parent = videoItem->parentObject();
+        while (parent) {
+            parentVideoPane = qobject_cast<VideoPane*>(parent);
+            if (parentVideoPane) {
+                break;
             }
-        }, Qt::QueuedConnection);
+            parent = parent->parent();
+        }
+        
+        if (parentVideoPane) {
+            qCDebug(log_ffmpeg_backend) << "Found parent VideoPane, connecting frameReadyImage";
+            // Connect frameReadyImage to VideoPane's method that handles QGraphicsVideoItem
+            connect(this, &FFmpegBackendHandler::frameReadyImage,
+                    parentVideoPane, [parentVideoPane, videoItem](const QImage& image) {
+                        if (parentVideoPane && videoItem) {
+                            parentVideoPane->updateGraphicsVideoItemFromImage(videoItem, image);
+                        }
+                    }, Qt::QueuedConnection);
+        } else {
+            qCWarning(log_ffmpeg_backend) << "Could not find parent VideoPane for QGraphicsVideoItem";
+            // Fallback: just emit frameReadyImage, UI must connect manually
+        }
     }
 }
 
@@ -740,7 +739,6 @@ void FFmpegBackendHandler::setVideoOutput(VideoPane* videoPane)
         qCDebug(log_ffmpeg_backend) << "VideoPane set for FFmpeg direct rendering";
         
         // OPTIMIZATION: Connect frameReadyImage signal to receive QImage
-        // QImage is thread-safe and avoids heavy QPixmap creation on worker thread
         // Use QueuedConnection to ensure thread safety and prevent blocking capture thread
         connect(this, &FFmpegBackendHandler::frameReadyImage,
                 videoPane, &VideoPane::updateVideoFrameFromImage,
@@ -1095,8 +1093,8 @@ void FFmpegBackendHandler::takeImage(const QString& filePath)
         return;
     }
     
-    QPixmap latestFrame = QPixmap::fromImage(m_frameProcessor->GetLatestFrame());
-    m_recorder->TakeImage(filePath, latestFrame);
+    QImage latestImage = m_frameProcessor->GetLatestFrame();
+    m_recorder->TakeImage(filePath, latestImage);
 }
 
 void FFmpegBackendHandler::takeAreaImage(const QString& filePath, const QRect& captureArea)
@@ -1106,8 +1104,8 @@ void FFmpegBackendHandler::takeAreaImage(const QString& filePath, const QRect& c
         return;
     }
     
-    QPixmap latestFrame = QPixmap::fromImage(m_frameProcessor->GetLatestFrame());
-    m_recorder->TakeAreaImage(filePath, latestFrame, captureArea);
+    QImage latestImage = m_frameProcessor->GetLatestFrame();
+    m_recorder->TakeAreaImage(filePath, latestImage, captureArea);
 }
 
-#include "ffmpegbackendhandler.moc"
+

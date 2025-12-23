@@ -82,6 +82,7 @@ public:
     
     // Frame writing
     bool WriteFrame(const QPixmap& pixmap);
+    bool WriteFrame(const QImage& image);  // Thread-safe overload
     bool ShouldWriteFrame(qint64 current_time_ms);
     
     // Configuration
@@ -94,7 +95,9 @@ public:
     
     // Image capture
     void TakeImage(const QString& file_path, const QPixmap& pixmap);
+    void TakeImage(const QString& file_path, const QImage& image);  // Thread-safe overload
     void TakeAreaImage(const QString& file_path, const QPixmap& pixmap, const QRect& capture_area);
+    void TakeAreaImage(const QString& file_path, const QImage& image, const QRect& capture_area);  // Thread-safe overload
 
 private:
     // Initialization and cleanup

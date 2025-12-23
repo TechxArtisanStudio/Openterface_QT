@@ -40,6 +40,8 @@ FFmpegFrameProcessor::FFmpegFrameProcessor()
     , last_height_(-1)
     , last_format_(AV_PIX_FMT_NONE)
     , last_scaling_algorithm_(-1)
+    , last_target_width_(-1)
+    , last_target_height_(-1)
     , scaling_algorithm_(SWS_BILINEAR)
     , frame_drop_threshold_display_(16)    // Restore: ~60fps capable (drop if >16ms processing)
     , frame_drop_threshold_recording_(33)  // Restore: ~30fps capable (drop if >33ms processing)
@@ -167,7 +169,7 @@ void FFmpegFrameProcessor::ResetFrameCount()
 QImage FFmpegFrameProcessor::GetLatestFrame() const
 {
     QMutexLocker locker(&mutex_);
-    return latest_frame_;
+    return latest_frame_.copy();
 }
 
 bool FFmpegFrameProcessor::ShouldDropFrame(bool is_recording)
@@ -206,116 +208,8 @@ bool FFmpegFrameProcessor::IsHardwareDecoder(const AVCodecContext* codec_context
             strstr(codec_name, "_nvdec") != nullptr);
 }
 
-QPixmap FFmpegFrameProcessor::ProcessPacket(AVPacket* packet, AVCodecContext* codec_context, 
-                                            bool is_recording)
-{
-    if (stop_requested_) {
-        return QPixmap();
-    }
-    
-    if (!packet || !codec_context) {
-        return QPixmap();
-    }
-    
-    // Validate packet data
-    if (packet->size <= 0 || !packet->data) {
-        if (packet->size > 0 && !packet->data) {
-            qCWarning(log_ffmpeg_backend) << "Packet has size but no data pointer";
-        }
-        return QPixmap();
-    }
-    
-    // Frame dropping for responsiveness
-    if (ShouldDropFrame(is_recording)) {
-        return QPixmap();
-    }
-    
-    QPixmap pixmap;
-    
-    // Determine decoder type
-    bool using_hardware_decoder = IsHardwareDecoder(codec_context);
-    
-    // PRIORITY ORDER for MJPEG decoding:
-    // 1. Hardware decoder (CUVID/NVDEC, QSV)
-    // 2. TurboJPEG
-    // 3. FFmpeg software decoder
-    
-    if (codec_context->codec_id == AV_CODEC_ID_MJPEG) {
-        if (using_hardware_decoder) {
-            static int hw_decode_count = 0;
-            hw_decode_count++;
-            
-            if (hw_decode_count % 1000 == 1) {
-                qCDebug(log_ffmpeg_backend) << "Using hardware MJPEG decoder:" 
-                                           << codec_context->codec->name 
-                                           << "(frame" << hw_decode_count << ")";
-            }
-            
-            pixmap = DecodeWithHardware(packet, codec_context);
-            
-            if (pixmap.isNull()) {
-                qCWarning(log_ffmpeg_backend) << "Hardware decoder failed, falling back to software";
-                pixmap = DecodeWithFFmpeg(packet, codec_context);
-            }
-        } else {
-#ifdef HAVE_LIBJPEG_TURBO
-            static int turbojpeg_count = 0;
-            turbojpeg_count++;
-            
-            if (turbojpeg_count % 2000 == 1) {
-                qCDebug(log_ffmpeg_backend) << "Using TurboJPEG for MJPEG decoding (frame" 
-                                           << turbojpeg_count << ")";
-            }
-            
-            pixmap = DecodeWithTurboJpeg(packet->data, packet->size);
-            
-            if (pixmap.isNull()) {
-                static int turbojpeg_fallback_count = 0;
-                if (++turbojpeg_fallback_count <= 5) {
-                    qCDebug(log_ffmpeg_backend) << "TurboJPEG failed, falling back to FFmpeg decoder";
-                }
-                pixmap = DecodeWithFFmpeg(packet, codec_context);
-            }
-#else
-            pixmap = DecodeWithFFmpeg(packet, codec_context);
-#endif
-        }
-    } else {
-        // Non-MJPEG codecs use FFmpeg decoder
-        static int ffmpeg_frame_count = 0;
-        ffmpeg_frame_count++;
-        
-        if (ffmpeg_frame_count % 1000 == 1) {
-            qCDebug(log_ffmpeg_backend) << "Using FFmpeg decoder for codec" 
-                                       << codec_context->codec_id;
-        }
-        pixmap = DecodeWithFFmpeg(packet, codec_context);
-    }
-    
-    if (!pixmap.isNull()) {
-        frame_count_++;
-        
-        if (frame_count_ % 1000 == 1) {
-            qCDebug(log_ffmpeg_backend) << "Processed frame" << frame_count_;
-        }
-        
-        // Skip startup frames if configured
-        if (frame_count_ <= startup_frames_to_skip_) {
-            qCDebug(log_ffmpeg_backend) << "Skipping startup frame" << frame_count_ 
-                                       << "/" << startup_frames_to_skip_;
-            return QPixmap();
-        }
-        
-        // Store latest frame for image capture
-        QImage img = pixmap.toImage();
-        {
-            QMutexLocker locker(&mutex_);
-            latest_frame_ = img;
-        }
-    }
-    
-    return pixmap;
-}
+// DEPRECATED QPixmap-based methods removed - use ProcessPacketToImage instead
+// All QPixmap-based decoding and conversion has been replaced with QImage equivalents
 
 QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecContext* codec_context, 
                                                    bool is_recording, const QSize& targetSize)
@@ -407,311 +301,11 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
         // Store latest frame for image capture
         {
             QMutexLocker locker(&mutex_);
-            latest_frame_ = result;
+            latest_frame_ = result.copy();  // Deep copy for thread safety
         }
     }
     
-    return result;
-}
-
-QPixmap FFmpegFrameProcessor::DecodeWithHardware(AVPacket* packet, AVCodecContext* codec_context)
-{
-    return DecodeWithFFmpeg(packet, codec_context);
-}
-
-#ifdef HAVE_LIBJPEG_TURBO
-QPixmap FFmpegFrameProcessor::DecodeWithTurboJpeg(const uint8_t* data, int size)
-{
-    if (!turbojpeg_handle_) {
-        return QPixmap();
-    }
-    
-    if (!data || size <= 10) {
-        return QPixmap();
-    }
-    
-    // Quick JPEG magic bytes check
-    if (data[0] != 0xFF || data[1] != 0xD8) {
-        return QPixmap();
-    }
-    
-    int width, height, subsamp, colorspace;
-    
-    // Get JPEG header information
-    if (tjDecompressHeader3(turbojpeg_handle_, data, size, &width, &height, &subsamp, &colorspace) < 0) {
-        return QPixmap();
-    }
-    
-    // Dimension validation
-    if (width <= 0 || height <= 0 || width > 4096 || height > 4096) {
-        return QPixmap();
-    }
-    
-    // Allocate buffer for RGB data
-    QImage image(width, height, QImage::Format_RGB888);
-    if (image.isNull()) {
-        return QPixmap();
-    }
-    
-    // Decompress JPEG to RGB888
-    if (tjDecompress2(turbojpeg_handle_, data, size, image.bits(), width, 0, height, 
-                     TJPF_RGB, TJFLAG_FASTDCT) < 0) {
-        return QPixmap();
-    }
-    
-    static int turbojpeg_success_count = 0;
-    turbojpeg_success_count++;
-    
-    if (turbojpeg_success_count % 2000 == 1) {
-        qCDebug(log_ffmpeg_backend) << "TurboJPEG decode successful, frame" 
-                                   << turbojpeg_success_count 
-                                   << "size:" << width << "x" << height;
-    }
-    
-    return QPixmap::fromImage(image);
-}
-#else
-QPixmap FFmpegFrameProcessor::DecodeWithTurboJpeg(const uint8_t* data, int size)
-{
-    Q_UNUSED(data);
-    Q_UNUSED(size);
-    return QPixmap();
-}
-#endif
-
-QPixmap FFmpegFrameProcessor::DecodeWithFFmpeg(AVPacket* packet, AVCodecContext* codec_context)
-{
-    if (!codec_context || !packet) {
-        qCWarning(log_ffmpeg_backend) << "DecodeWithFFmpeg: Missing codec context or packet";
-        return QPixmap();
-    }
-    
-    // Allocate frame if needed
-    if (!temp_frame_) {
-        temp_frame_ = make_av_frame();
-        if (!temp_frame_) {
-            qCCritical(log_ffmpeg_backend) << "Failed to allocate temp frame";
-            return QPixmap();
-        }
-    }
-    
-    // Send packet to decoder
-    int ret = avcodec_send_packet(codec_context, packet);
-    if (ret < 0) {
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        qCWarning(log_ffmpeg_backend) << "Error sending packet to decoder:" 
-                                     << QString::fromUtf8(errbuf);
-        return QPixmap();
-    }
-    
-    // Receive frame from decoder
-    ret = avcodec_receive_frame(codec_context, AV_FRAME_RAW(temp_frame_));
-    if (ret < 0) {
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
-            return QPixmap();
-        }
-        
-        char errbuf[AV_ERROR_MAX_STRING_SIZE];
-        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-        
-        static int error_count = 0;
-        if (++error_count <= 5) {
-            const char* codec_name = codec_context->codec ? codec_context->codec->name : "unknown";
-            qCWarning(log_ffmpeg_backend) << "Error receiving frame from decoder:" 
-                                         << QString::fromUtf8(errbuf)
-                                         << "Codec:" << codec_name
-                                         << "Error count:" << error_count;
-        }
-        return QPixmap();
-    }
-    
-    // Validate frame data
-    if (!AV_FRAME_RAW(temp_frame_)->data[0]) {
-        qCWarning(log_ffmpeg_backend) << "DecodeWithFFmpeg: Frame data is null";
-        return QPixmap();
-    }
-    
-    if (AV_FRAME_RAW(temp_frame_)->width <= 0 || AV_FRAME_RAW(temp_frame_)->height <= 0) {
-        qCWarning(log_ffmpeg_backend) << "DecodeWithFFmpeg: Invalid frame dimensions:" 
-                                     << AV_FRAME_RAW(temp_frame_)->width << "x" 
-                                     << AV_FRAME_RAW(temp_frame_)->height;
-        return QPixmap();
-    }
-    
-    // Log frame format for debugging (first few frames and periodically)
-    static int frame_format_log_count = 0;
-    if (++frame_format_log_count <= 5 || frame_format_log_count % 1000 == 1) {
-        const char* codec_name = codec_context->codec ? codec_context->codec->name : "unknown";
-        const char* format_name = av_get_pix_fmt_name(
-            static_cast<AVPixelFormat>(AV_FRAME_RAW(temp_frame_)->format));
-        qCInfo(log_ffmpeg_backend) << "Received frame from" << codec_name 
-                                   << "- format:" << AV_FRAME_RAW(temp_frame_)->format 
-                                   << "(" << (format_name ? format_name : "unknown") << ")"
-                                   << "size:" << AV_FRAME_RAW(temp_frame_)->width << "x" 
-                                   << AV_FRAME_RAW(temp_frame_)->height;
-    }
-    
-    // Handle hardware frames that need transfer to system memory
-    AVFrame* frame_to_convert = AV_FRAME_RAW(temp_frame_);
-    AvFramePtr sw_frame;
-    
-    bool is_hardware_frame = (AV_FRAME_RAW(temp_frame_)->format == AV_PIX_FMT_QSV ||
-                             AV_FRAME_RAW(temp_frame_)->format == AV_PIX_FMT_CUDA);
-    
-    if (is_hardware_frame) {
-        static int hw_transfer_attempts = 0;
-        hw_transfer_attempts++;
-        
-        if (hw_transfer_attempts <= 5) {
-            qCDebug(log_ffmpeg_backend) << "Hardware frame detected, transferring to system memory"
-                                       << "(attempt" << hw_transfer_attempts << ")";
-        }
-        
-        sw_frame = make_av_frame();
-        if (!sw_frame) {
-            qCWarning(log_ffmpeg_backend) << "Failed to allocate software frame for hardware transfer";
-            return QPixmap();
-        }
-        
-        ret = av_hwframe_transfer_data(AV_FRAME_RAW(sw_frame), AV_FRAME_RAW(temp_frame_), 0);
-        if (ret < 0) {
-            char errbuf[AV_ERROR_MAX_STRING_SIZE];
-            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-            qCWarning(log_ffmpeg_backend) << "Failed to transfer hardware frame to system memory:" 
-                                         << QString::fromUtf8(errbuf);
-            
-            static int hw_transfer_fallback = 0;
-            if (++hw_transfer_fallback <= 5) {
-                qCWarning(log_ffmpeg_backend) << "Hardware frame transfer failed, this may cause issues";
-            }
-            return QPixmap();
-        }
-        
-        av_frame_copy_props(AV_FRAME_RAW(sw_frame), AV_FRAME_RAW(temp_frame_));
-        frame_to_convert = AV_FRAME_RAW(sw_frame);
-        
-        static int hw_transfer_count = 0;
-        if (++hw_transfer_count % 1000 == 1) {
-            qCDebug(log_ffmpeg_backend) << "Successfully transferred hardware frame to system memory"
-                                       << "(count:" << hw_transfer_count << ")";
-        }
-    }
-    
-    QPixmap result = ConvertFrameToPixmap(frame_to_convert);
-    
-    if (sw_frame) {
-        AV_FRAME_RESET(sw_frame);
-    }
-    
-    return result;
-}
-
-QPixmap FFmpegFrameProcessor::ConvertFrameToPixmap(AVFrame* frame)
-{
-    if (!frame) {
-        qCWarning(log_ffmpeg_backend) << "ConvertFrameToPixmap: frame is null";
-        return QPixmap();
-    }
-    
-    int width = frame->width;
-    int height = frame->height;
-    AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
-    
-    // Validate frame
-    if (width <= 0 || height <= 0 || !frame->data[0] || frame->linesize[0] <= 0) {
-        qCWarning(log_ffmpeg_backend) << "ConvertFrameToPixmap: Invalid frame data";
-        return QPixmap();
-    }
-    
-    // Try fast path for RGB formats
-    if (format == AV_PIX_FMT_RGB24 || format == AV_PIX_FMT_BGR24 || 
-        format == AV_PIX_FMT_RGBA || format == AV_PIX_FMT_BGRA ||
-        format == AV_PIX_FMT_BGR0 || format == AV_PIX_FMT_RGB0) {
-        return ConvertRgbFrameDirectly(frame);
-    }
-    
-    // Use scaling for other formats
-    return ConvertWithScaling(frame);
-}
-
-QPixmap FFmpegFrameProcessor::ConvertRgbFrameDirectly(AVFrame* frame)
-{
-    AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
-    const char* format_name = av_get_pix_fmt_name(format);
-    
-    qCDebug(log_ffmpeg_backend) << "Using RGB fast path for format:" << format_name;
-    
-    QImage::Format qt_format;
-    if (format == AV_PIX_FMT_RGB24) {
-        qt_format = QImage::Format_RGB888;
-    } else if (format == AV_PIX_FMT_BGR24) {
-        qt_format = QImage::Format_RGB888; // Will need RGB swap
-    } else {
-        qt_format = QImage::Format_RGB32; // Fallback
-    }
-    
-    QImage image(frame->data[0], frame->width, frame->height, frame->linesize[0], qt_format);
-    
-    if (qt_format == QImage::Format_RGB888 && format == AV_PIX_FMT_BGR24) {
-        image = image.rgbSwapped();
-    }
-    
-    QPixmap pixmap = QPixmap::fromImage(image);
-    qCDebug(log_ffmpeg_backend) << "Created pixmap from RGB fast path, size:" 
-                               << pixmap.size() << "isNull:" << pixmap.isNull();
-    return pixmap;
-}
-
-QPixmap FFmpegFrameProcessor::ConvertWithScaling(AVFrame* frame)
-{
-    int width = frame->width;
-    int height = frame->height;
-    AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
-    
-    // Update scaling context if needed (this method handles its own mutex locking)
-    UpdateScalingContext(width, height, format, QSize());
-    
-    // Check if scaling context is available (use mutex to protect sws_context_ access)
-    {
-        QMutexLocker locker(&mutex_);
-        if (!sws_context_) {
-            qCWarning(log_ffmpeg_backend) << "Failed to create scaling context";
-            return QPixmap();
-        }
-    }
-    
-    // Allocate RGB image (using ARGB32 for better compatibility and quality)
-    QImage image(width, height, QImage::Format_ARGB32);
-    if (image.isNull()) {
-        qCWarning(log_ffmpeg_backend) << "Failed to allocate QImage for" << width << "x" << height;
-        return QPixmap();
-    }
-    
-    // Prepare output buffers
-    uint8_t* rgb_data[1] = { image.bits() };
-    int rgb_linesize[1] = { static_cast<int>(image.bytesPerLine()) };
-    
-    // Convert frame to RGB (protect sws_context_ usage with mutex)
-    int scale_result;
-    {
-        QMutexLocker locker(&mutex_);
-        scale_result = sws_scale(sws_context_, frame->data, frame->linesize, 
-                                 0, height, rgb_data, rgb_linesize);
-    }
-    
-    if (scale_result < 0) {
-        qCCritical(log_ffmpeg_backend) << "sws_scale failed with result:" << scale_result;
-        return QPixmap();
-    }
-    
-    if (scale_result != height) {
-        qCWarning(log_ffmpeg_backend) << "sws_scale converted" << scale_result 
-                                     << "lines, expected" << height;
-        return QPixmap();
-    }
-    
-    return QPixmap::fromImage(image);
+    return result.copy();  // Deep copy for thread safety
 }
 
 // Thread-safe QImage conversion methods (avoid QPixmap on worker thread)
@@ -755,34 +349,42 @@ QImage FFmpegFrameProcessor::ConvertFrameToImage(AVFrame* frame, const QSize& ta
          format == AV_PIX_FMT_RGBA || format == AV_PIX_FMT_BGRA ||
          format == AV_PIX_FMT_BGR0 || format == AV_PIX_FMT_RGB0) &&
         (!effectiveTarget.isValid() || (effectiveTarget.width() == width && effectiveTarget.height() == height))) {
-        return ConvertRgbFrameDirectlyToImage(frame);
+        return ConvertRgbFrameDirectlyToImage(frame);  // Already returns deep copy
     }
 
     // Use scaling for other formats or when target size is specified
-    return ConvertWithScalingToImage(frame, effectiveTarget);
+    return ConvertWithScalingToImage(frame, effectiveTarget);  // Already returns deep copy
 }
 
-QImage FFmpegFrameProcessor::ConvertRgbFrameDirectlyToImage(AVFrame* frame)
-{
+QImage FFmpegFrameProcessor::ConvertRgbFrameDirectlyToImage(AVFrame* frame) {
     AVPixelFormat format = static_cast<AVPixelFormat>(frame->format);
-    
-    QImage::Format qt_format;
+    int width = frame->width;
+    int height = frame->height;
+
+    // Allocate a new QImage with its own memory
+    QImage image(width, height, QImage::Format_RGB888);
+    if (image.isNull()) {
+        return QImage();
+    }
+
     if (format == AV_PIX_FMT_RGB24) {
-        qt_format = QImage::Format_RGB888;
+        // Direct copy
+        for (int y = 0; y < height; ++y) {
+            memcpy(image.scanLine(y), frame->data[0] + y * frame->linesize[0], width * 3);
+        }
     } else if (format == AV_PIX_FMT_BGR24) {
-        qt_format = QImage::Format_RGB888; // Will need RGB swap
-    } else {
-        qt_format = QImage::Format_RGB32; // Fallback
+        // BGR to RGB conversion during copy
+        for (int y = 0; y < height; ++y) {
+            const uint8_t* src = frame->data[0] + y * frame->linesize[0];
+            uint8_t* dst = image.scanLine(y);
+            for (int x = 0; x < width; ++x) {
+                dst[x*3+0] = src[x*3+2]; // R = B
+                dst[x*3+1] = src[x*3+1]; // G = G
+                dst[x*3+2] = src[x*3+0]; // B = R
+            }
+        }
     }
-    
-    QImage image(frame->data[0], frame->width, frame->height, frame->linesize[0], qt_format);
-    
-    if (qt_format == QImage::Format_RGB888 && format == AV_PIX_FMT_BGR24) {
-        image = image.rgbSwapped();
-    }
-    
-    // Create a deep copy to ensure thread safety
-    return image.copy();
+    return image; // Fully independent
 }
 
 QImage FFmpegFrameProcessor::ConvertWithScalingToImage(AVFrame* frame, const QSize& targetSize)
@@ -807,15 +409,7 @@ QImage FFmpegFrameProcessor::ConvertWithScalingToImage(AVFrame* frame, const QSi
     // Update scaling context if needed
     UpdateScalingContext(width, height, format, QSize(targetWidth, targetHeight));
     
-    // Check if scaling context is available
-    {
-        QMutexLocker locker(&mutex_);
-        if (!sws_context_) {
-            return QImage();
-        }
-    }
-    
-    // Allocate RGB image with target dimensions
+    // CRITICAL FIX: Allocate image BEFORE locking mutex to reduce lock time
     QImage image(targetWidth, targetHeight, QImage::Format_ARGB32);
     if (image.isNull()) {
         return QImage();
@@ -825,15 +419,24 @@ QImage FFmpegFrameProcessor::ConvertWithScalingToImage(AVFrame* frame, const QSi
     uint8_t* rgb_data[1] = { image.bits() };
     int rgb_linesize[1] = { static_cast<int>(image.bytesPerLine()) };
     
-    // Convert frame to RGB
+    // CRITICAL FIX: Hold mutex for entire sws_scale operation to prevent context from being freed
     int scale_result;
     {
         QMutexLocker locker(&mutex_);
+        
+        // CRITICAL FIX: Check again after acquiring lock (context might have been freed)
+        if (!sws_context_) {
+            qCWarning(log_ffmpeg_backend) << "Scaling context was freed during operation";
+            return QImage();
+        }
+        
         scale_result = sws_scale(sws_context_, frame->data, frame->linesize, 
                                  0, height, rgb_data, rgb_linesize);
     }
     
     if (scale_result < 0 || scale_result != targetHeight) {
+        qCWarning(log_ffmpeg_backend) << "sws_scale failed: result=" << scale_result 
+                                     << "expected=" << targetHeight;
         return QImage();
     }
     
@@ -856,10 +459,7 @@ void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFo
         targetHeight = height;
     }
     
-    // Check if context needs update (including target dimensions)
-    static int last_target_width_ = -1;
-    static int last_target_height_ = -1;
-    
+    // CRITICAL FIX: Use member variables instead of static to prevent race conditions
     if (sws_context_ && width == last_width_ && height == last_height_ && format == last_format_ && 
         scaling_algorithm_ == last_scaling_algorithm_ && targetWidth == last_target_width_ && targetHeight == last_target_height_) {
         return; // Context is still valid
@@ -867,7 +467,7 @@ void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFo
     
     CleanupScalingContext();
     
-    // Update cached target dimensions
+    // CRITICAL FIX: Update member variables (protected by mutex)
     last_target_width_ = targetWidth;
     last_target_height_ = targetHeight;
     

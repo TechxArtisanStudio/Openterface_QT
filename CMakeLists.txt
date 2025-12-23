@@ -123,6 +123,11 @@ endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus Threads::Threads)
 
+# Link X11 libraries for Linux builds to resolve X11 symbols used in overlay code
+if(UNIX AND NOT APPLE)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${X11_LIBRARIES})
+endif()
+
 # For static Qt builds on Windows with MinGW, link MinGW runtime libraries
 if(OPENTERFACE_BUILD_STATIC AND WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE mingw32 mingwex)

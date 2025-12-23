@@ -216,17 +216,20 @@ qint64 FFmpegRecorder::GetRecordingFileSize() const
     return file_info.size();
 }
 
-bool FFmpegRecorder::WriteFrame(const QPixmap& pixmap)
+bool FFmpegRecorder::WriteFrame(const QImage& image)
 {
     // Quick check without lock
-    if (!recording_active_ || recording_paused_) {
+    if (!recording_active_ || recording_paused_ || image.isNull()) {
         return false;
     }
     
-    // Convert pixmap to AVFrame for recording
-    QImage image = pixmap.toImage().convertToFormat(QImage::Format_RGB888);
-    if (image.isNull()) {
-        return false;
+    // Convert image to RGB888 format if needed
+    QImage sourceImage = image;
+    if (image.format() != QImage::Format_RGB888) {
+        sourceImage = image.convertToFormat(QImage::Format_RGB888);
+        if (sourceImage.isNull()) {
+            return false;
+        }
     }
     
     // Debug logging for recording frame processing
@@ -235,7 +238,7 @@ bool FFmpegRecorder::WriteFrame(const QPixmap& pixmap)
     if (++recording_debug_count <= 10 || recording_debug_count % 30 == 0) {
         QMutexLocker locker(&mutex_);
         qCDebug(log_ffmpeg_backend) << "Writing recording frame" << recording_debug_count 
-                                   << "- image size:" << image.size()
+                                   << "- image size:" << sourceImage.size()
                                    << "recording frame size:" << AV_FRAME_RAW(recording_frame_)->width << "x" << AV_FRAME_RAW(recording_frame_)->height
                                    << "frame interval:" << (current_time - last_recorded_frame_time_) << "ms";
     }
@@ -251,19 +254,29 @@ bool FFmpegRecorder::WriteFrame(const QPixmap& pixmap)
     }
     
     // Fill frame with image data
-    const uint8_t* src_data[1] = { image.constBits() };
-    int src_linesize[1] = { static_cast<int>(image.bytesPerLine()) };
+    const uint8_t* src_data[1] = { sourceImage.constBits() };
+    int src_linesize[1] = { static_cast<int>(sourceImage.bytesPerLine()) };
     
     // Convert RGB to target pixel format for encoding
-    int scale_result = sws_scale(sws_context_, src_data, src_linesize, 0, image.height(),
+    int scale_result = sws_scale(sws_context_, src_data, src_linesize, 0, sourceImage.height(),
                               AV_FRAME_RAW(recording_frame_)->data, AV_FRAME_RAW(recording_frame_)->linesize);
     
-    if (scale_result != image.height()) {
-        qCWarning(log_ffmpeg_backend) << "sws_scale conversion warning: converted" << scale_result << "lines, expected" << image.height();
+    if (scale_result != sourceImage.height()) {
+        qCWarning(log_ffmpeg_backend) << "sws_scale conversion warning: converted" << scale_result << "lines, expected" << sourceImage.height();
     }
     
     // Write frame to file
     return WriteFrameToFile(AV_FRAME_RAW(recording_frame_));
+}
+
+bool FFmpegRecorder::WriteFrame(const QPixmap& pixmap)
+{
+    // Deprecated: Convert to QImage and use primary implementation
+    if (pixmap.isNull()) {
+        return false;
+    }
+    QImage image = pixmap.toImage();
+    return WriteFrame(image);
 }
 
 bool FFmpegRecorder::ShouldWriteFrame(qint64 current_time_ms)
@@ -316,14 +329,13 @@ bool FFmpegRecorder::SupportsRecordingStats() const
     return true;
 }
 
-void FFmpegRecorder::TakeImage(const QString& file_path, const QPixmap& pixmap)
+void FFmpegRecorder::TakeImage(const QString& file_path, const QImage& image)
 {
-    if (pixmap.isNull()) {
+    if (image.isNull()) {
         qCWarning(log_ffmpeg_backend) << "No frame available for image capture";
         return;
     }
     
-    QImage image = pixmap.toImage();
     if (image.save(file_path)) {
         qCDebug(log_ffmpeg_backend) << "Image saved to:" << file_path;
     } else {
@@ -331,20 +343,29 @@ void FFmpegRecorder::TakeImage(const QString& file_path, const QPixmap& pixmap)
     }
 }
 
-void FFmpegRecorder::TakeAreaImage(const QString& file_path, const QPixmap& pixmap, const QRect& capture_area)
+void FFmpegRecorder::TakeAreaImage(const QString& file_path, const QImage& image, const QRect& capture_area)
 {
-    if (pixmap.isNull()) {
+    if (image.isNull()) {
         qCWarning(log_ffmpeg_backend) << "No frame available for area image capture";
         return;
     }
     
-    QImage image = pixmap.toImage();
     QImage cropped = image.copy(capture_area);
     if (cropped.save(file_path)) {
         qCDebug(log_ffmpeg_backend) << "Cropped image saved to:" << file_path;
     } else {
         qCWarning(log_ffmpeg_backend) << "Failed to save cropped image to:" << file_path;
     }
+}
+
+void FFmpegRecorder::TakeAreaImage(const QString& file_path, const QPixmap& pixmap, const QRect& capture_area)
+{
+    // Deprecated: Convert to QImage and use primary implementation
+    if (pixmap.isNull()) {
+        qCWarning(log_ffmpeg_backend) << "No frame available for area image capture";
+        return;
+    }
+    TakeAreaImage(file_path, pixmap.toImage(), capture_area);
 }
 
 bool FFmpegRecorder::InitializeRecording(const QSize& resolution, int framerate)

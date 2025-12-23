@@ -2,7 +2,7 @@
 #include "videooverlaymanager.h"
 
 #include <QDebug>
-#include <QLoggingCategory>
+#include "logging.h"
 #include <QGuiApplication>
 
 #ifdef HAVE_GSTREAMER
@@ -21,8 +21,6 @@ static int x11_overlay_error_handler_local(Display* display, XErrorEvent* error)
     return 0;
 }
 #endif
-
-Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 
 using namespace Openterface::GStreamer;
 

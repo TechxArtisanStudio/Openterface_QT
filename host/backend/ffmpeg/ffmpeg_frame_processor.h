@@ -23,7 +23,6 @@
 #ifndef FFMPEG_FRAME_PROCESSOR_H
 #define FFMPEG_FRAME_PROCESSOR_H
 
-#include <QPixmap>
 #include <QImage>
 #include <QMutex>
 #include <QDateTime>
@@ -56,11 +55,7 @@ public:
     FFmpegFrameProcessor();
     ~FFmpegFrameProcessor();
 
-    // Frame processing pipeline
-    QPixmap ProcessPacket(AVPacket* packet, AVCodecContext* codec_context, 
-                         bool is_recording);
-    
-    // Frame processing pipeline (returns QImage for better thread safety)
+    // Frame processing pipeline (returns QImage for thread safety)
     QImage ProcessPacketToImage(AVPacket* packet, AVCodecContext* codec_context, 
                                 bool is_recording, const QSize& targetSize = QSize());
     
@@ -82,17 +77,7 @@ public:
     void Cleanup();
 
 private:
-    // Decoding methods
-    QPixmap DecodeWithHardware(AVPacket* packet, AVCodecContext* codec_context);
-    QPixmap DecodeWithTurboJpeg(const uint8_t* data, int size);
-    QPixmap DecodeWithFFmpeg(AVPacket* packet, AVCodecContext* codec_context);
-    
-    // Frame conversion
-    QPixmap ConvertFrameToPixmap(AVFrame* frame);
-    QPixmap ConvertRgbFrameDirectly(AVFrame* frame);
-    QPixmap ConvertWithScaling(AVFrame* frame);
-    
-    // Thread-safe frame conversion (returns QImage directly)
+    // Internal frame conversion methods (QImage-based)
     QImage ConvertFrameToImage(AVFrame* frame, const QSize& targetSize = QSize());
     QImage ConvertRgbFrameDirectlyToImage(AVFrame* frame);
     QImage ConvertWithScalingToImage(AVFrame* frame, const QSize& targetSize = QSize());
@@ -116,6 +101,8 @@ private:
     int last_height_;
     AVPixelFormat last_format_;
     int last_scaling_algorithm_;
+    int last_target_width_;     // Thread-safe target width tracking
+    int last_target_height_;    // Thread-safe target height tracking
     int scaling_algorithm_;
     
     // Frame dropping configuration
