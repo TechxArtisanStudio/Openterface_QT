@@ -135,6 +135,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     , m_menuCoordinator(nullptr)
     , m_deviceAutoSelected(false)
     , mouseEdgeTimer(nullptr)
+    , taskmanager(TaskManager::instance())
 {
     qCDebug(log_ui_mainwindow) << "Initializing MainWindow...";
     
