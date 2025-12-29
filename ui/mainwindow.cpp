@@ -28,6 +28,7 @@
 #include "host/HostManager.h"
 #include "host/cameramanager.h"
 #include "serial/SerialPortManager.h"
+#include <QStandardPaths>
 #include "device/DeviceManager.h"
 #include "device/HotplugMonitor.h"
 #include "ui/preferences/settingdialog.h"
@@ -134,6 +135,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     , m_menuCoordinator(nullptr)
     , m_deviceAutoSelected(false)
     , mouseEdgeTimer(nullptr)
+    , taskmanager(TaskManager::instance())
 {
     qCDebug(log_ui_mainwindow) << "Initializing MainWindow...";
     
@@ -153,12 +155,25 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
 }
 
 void MainWindow::startServer(){
+    // 1. 创建并启动 TCP 服务器
     tcpServer = new TcpServer(this);
     tcpServer->startServer(SERVER_PORT);
-    qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345";
+    
+    // 2. 创建并初始化 ImageCapturer
+    m_imageCapturer = new ImageCapturer(this);
+    
+    // 3. 设置默认保存路径
+    QString savePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/openterface";
+    
+    // 4. 启动定时自动捕获（每秒一次）
+    m_imageCapturer->startCapturingAuto(m_cameraManager, tcpServer, savePath, 1);
+    
+    // 5. 建立信号槽连接
     connect(m_cameraManager, &CameraManager::lastImagePath, tcpServer, &TcpServer::handleImgPath);
     connect(tcpServer, &TcpServer::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     connect(this, &MainWindow::emitTCPCommandStatus, tcpServer, &TcpServer::recvTCPCommandStatus);
+    
+    qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345 with auto image capture";
 }
 
 
@@ -1349,6 +1364,14 @@ MainWindow::~MainWindow()
         toggleSwitch->deleteLater();
         toggleSwitch = nullptr;
         qCDebug(log_ui_mainwindow) << "toggleSwitch destroyed successfully";
+    }
+    
+    // Clean up image capturer
+    if (m_imageCapturer) {
+        m_imageCapturer->stopCapturing();
+        m_imageCapturer->deleteLater();
+        m_imageCapturer = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_imageCapturer destroyed successfully";
     }
     
     if (m_audioManager) {
