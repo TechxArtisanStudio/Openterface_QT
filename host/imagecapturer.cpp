@@ -9,8 +9,6 @@
 #include <QLoggingCategory>
 #include <QFileInfo>
 
-// 注意：log_ui_camera 日志分类已在 cameramanager.h 中声明，在 cameramanager.cpp 中定义
-// 因此这里不需要重新定义
 
 ImageCapturer::ImageCapturer(QObject *parent)
     : QObject(parent)
@@ -18,7 +16,7 @@ ImageCapturer::ImageCapturer(QObject *parent)
     , m_tcpServer(nullptr)
     , m_cameraManager(nullptr)
     , m_isCapturing(false)
-    , m_interval(1000) // 默认1秒
+    , m_interval(1000) // default 1 second
     , m_fileName("real_time.jpg")
     , m_captureCount(0)
 {
@@ -39,13 +37,13 @@ void ImageCapturer::startCapturing(CameraManager* cameraManager, TcpServer* tcpS
         return;
     }
     
-    // 保存状态信息
+    // Save state information
     m_cameraManager = cameraManager;
     m_tcpServer = tcpServer;
     m_savePath = savePath;
     m_interval = intervalSeconds * 1000;
     
-    // 创建保存目录（如果不存在）
+    // create save directory if it doesn't exist
     QFileInfo fileInfo(m_savePath);
     QDir dir = fileInfo.dir();
     if (!dir.exists()) {
@@ -55,7 +53,7 @@ void ImageCapturer::startCapturing(CameraManager* cameraManager, TcpServer* tcpS
         }
     }
     
-    // 设置定时器
+    // set timer for periodic capture
     m_captureTimer = new QTimer(this);
     connect(m_captureTimer, &QTimer::timeout, this, &ImageCapturer::captureImage);
     m_captureTimer->start(m_interval);
@@ -65,10 +63,10 @@ void ImageCapturer::startCapturing(CameraManager* cameraManager, TcpServer* tcpS
     qCDebug(log_ui_camera) << "Saving images to:" << m_savePath;
 }
 
-// 新增的自动启动方法
+// Additional method to start capturing with default parameters
 void ImageCapturer::startCapturingAuto(CameraManager* cameraManager, TcpServer* tcpServer, const QString& savePath, int intervalSeconds)
 {
-    // 使用默认路径如果未提供保存路径
+    // use default save path if none provided
     QString path = savePath;
     if (path.isEmpty()) {
         path = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/openterface";
@@ -76,7 +74,6 @@ void ImageCapturer::startCapturingAuto(CameraManager* cameraManager, TcpServer* 
     
     startCapturing(cameraManager, tcpServer, path, intervalSeconds);
     
-    // 添加日志记录
     qCDebug(log_ui_camera) << "Image capturing automatically started with interval:" << intervalSeconds << "seconds";
     qCDebug(log_ui_camera) << "Saving images to:" << path;
 }
@@ -97,10 +94,10 @@ void ImageCapturer::captureImage()
         return;
     }
     
-    // 构造完整文件路径
+    // Construct full file path
     QString fullPath = m_savePath + "/" + m_fileName;
     
-    // 确保保存路径存在
+    // make sure directory exists
     QFileInfo fileInfo(fullPath);
     QDir dir = fileInfo.dir();
     if (!dir.exists()) {
@@ -111,15 +108,15 @@ void ImageCapturer::captureImage()
     }
     
     try {
-        // 调用相机管理器的图像捕获方法
+        // Use the CameraManager to take the image
         m_cameraManager->takeImage(fullPath);
         
-        // 通知TCP服务器图像路径已更新
+        // update TCP server if available
         if (m_tcpServer) {
             m_tcpServer->handleImgPath(fullPath);
         }
         
-        // 更新统计信息
+        // update capture count and timestamp
         m_captureCount++;
         m_lastCaptureTime = QDateTime::currentDateTime();
         

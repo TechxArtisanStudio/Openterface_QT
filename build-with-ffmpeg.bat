@@ -67,7 +67,7 @@ echo.
 
 REM Build the project
 echo Building project...
-cmake --build "%OUTPUT_DIR%" --config Release -j4
+cmake --build "%OUTPUT_DIR%" --config Release
 
 if %errorlevel% neq 0 (
     echo Build failed

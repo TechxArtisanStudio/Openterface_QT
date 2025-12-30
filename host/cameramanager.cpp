@@ -31,8 +31,7 @@
 #include <algorithm>
 #include <QSet>
 
-// 注意：log_ui_camera 日志分类已在 cameramanager.h 中声明
-// 这里仅需定义日志分类本身，避免与 imagecapturer.cpp 中的重复定义冲突
+
 Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 Q_LOGGING_CATEGORY(log_backend, "opf.backend")
 
@@ -234,26 +233,6 @@ void CameraManager::updateBackendHandler()
         qCDebug(log_ui_camera) << "Backend type unchanged, keeping current handler";
     }
 }
-
-// void CameraManager::setCamera(const QCameraDevice &cameraDevice, QGraphicsVideoItem* videoOutput)
-// {
-//     qCDebug(log_ui_camera) << "Set Camera to graphics videoOutput: " << videoOutput << ", device name: " << cameraDevice.description();
-//     setCameraDevice(cameraDevice);
-
-//     setVideoOutput(videoOutput);
-
-//     queryResolutions();
-
-//     // Set camera format
-//     startCamera();
-// }
-
-// Windows-specific direct QCamera approach
-// REMOVED: setCamera() - QCamera-dependent method
-
-
-// REMOVED: setCameraDevice() - QCamera-dependent method
-
 
 // Deprecated method for initializing camera with video output
 // This method is kept for compatibility but should be replaced with the new methods
@@ -705,36 +684,6 @@ bool CameraManager::isPaused() const
 // REMOVED: generateRecordingFilePath(), configureMediaRecorderForRecording(), 
 // REMOVED: setupConnections(), configureResolutionAndFormat(),
 // REMOVED: setCameraFormat(), getCameraFormat(), getCameraFormats()
-
-
-// REMOVED: queryResolutions() - QCamera-dependent method
-
-
-
-// REMOVED: getSupportedPixelFormats() - QCamera-dependent method
-
-
-
-// REMOVED: getVideoFormat() - QCamera-dependent method
-
-
-// REMOVED: getSupportedFrameRates() - QCamera-dependent method
-
-
-// REMOVED: isFrameRateSupported() - QCamera-dependent method
-
-
-// REMOVED: getOptimalFrameRate() - QCamera-dependent method
-
-
-// REMOVED: getAllSupportedFrameRates() - QCamera-dependent method
-
-
-// REMOVED: validateCameraFormat() - QCamera-dependent method
-
-
-// REMOVED: getVideoFormatMap() - QCamera-dependent method
-
 
 // Camera device management and switching functionality
 
@@ -2158,29 +2107,3 @@ void CameraManager::handleFFmpegDeviceDisconnection(const QString& devicePath)
         qCDebug(log_ui_camera) << "Disconnected device is not our current device, ignoring";
     }
 }
-
-// REMOVED: resetRecordingSystem() - QCamera-dependent method
-
-
-// REMOVED: getMediaRecorderErrorInfo() - QCamera-dependent method
-
-
-// REMOVED: getRecordingSystemDiagnostics() - QCamera-dependent method
-
-
-// REMOVED: dumpRecordingSystemState() - QCamera-dependent method
-
-
-// REMOVED: recoverRecordingSystem() - QCamera-dependent method
-
-
-// REMOVED: getRecordingDiagnosticsReport() - QCamera-dependent method
-
-
-// REMOVED: startRecordingMonitoring() - QCamera-dependent method
-
-
-// REMOVED: stopRecordingMonitoring() - QCamera-dependent method
-
-
-// REMOVED: updateRecordingStatus() - QCamera-dependent method
