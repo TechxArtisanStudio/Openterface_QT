@@ -28,6 +28,7 @@
 #include "../statusbar/statusbarmanager.h"
 #include "../../host/HostManager.h"
 #include "../../host/cameramanager.h"
+#include "../../host/imagecapturer.h"
 #include "../recording/recordingcontroller.h"
 #include "../../serial/SerialPortManager.h"
 #include "../../device/DeviceManager.h"
@@ -517,5 +518,6 @@ void MainWindowInitializer::finalize()
 
     GlobalVar::instance().setMouseAutoHide(GlobalSetting::instance().getMouseAutoHideEnable());
     m_mainWindow->initializeKeyboardLayouts();
+    
 }
 
