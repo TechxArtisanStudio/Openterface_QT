@@ -1,0 +1,105 @@
+# Dockerfile for Testing Openterface QT Application on Arch Linux
+# This Dockerfile creates a clean testing environment for the Openterface QT application
+# Downloads and installs the prebuilt package with runtime dependencies only
+
+FROM archlinux:latest
+
+# Build arguments
+ARG GITHUB_TOKEN=""
+ARG INSTALL_TYPE="deb"
+
+# Set environment variables to avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+ENV GITHUB_TOKEN=${GITHUB_TOKEN}
+ENV INSTALL_TYPE=${INSTALL_TYPE}
+
+# Set up display environment for GUI applications
+ENV DISPLAY=:0
+ENV QT_X11_NO_MITSHM=1
+ENV QT_QPA_PLATFORM=xcb
+
+# Update package database and install minimal system dependencies and runtime libraries only
+RUN pacman -Syu --noconfirm \
+        # Essential utilities
+        curl \
+        wget \
+        ca-certificates \
+        sudo \
+        systemd \
+        usbutils
+
+# Runtime Qt6 libraries
+RUN pacman -S --noconfirm qt6-base \
+        qt6-multimedia \
+        qt6-serialport \
+        qt6-svg
+
+# Hardware interface libraries (runtime only)
+RUN pacman -S --noconfirm libusb
+
+# X11 and graphics libraries (runtime only)
+RUN pacman -S --noconfirm libx11 \
+        libxrandr \
+        libxrender \
+        expat \
+        freetype2 \
+        fontconfig \
+        bzip2
+
+# FFmpeg runtime libraries
+RUN pacman -S --noconfirm ffmpeg \
+        libjpeg-turbo
+
+# GStreamer runtime dependencies
+RUN pacman -S --noconfirm gstreamer \
+        gst-plugins-base \
+        gst-plugins-good \
+        gst-plugins-bad \
+        gst-plugins-ugly \
+        gst-libav \
+        alsa-utils \
+        pulseaudio
+
+# FUSE support for AppImage installations
+RUN pacman -S --noconfirm fuse2
+
+# Clean up to reduce image size
+RUN pacman -Scc --noconfirm
+
+# Create a non-root user for running the application
+RUN useradd -m -s /bin/bash openterface && \
+    usermod -a -G uucp,audio,video openterface && \
+    echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Copy installation scripts for runtime execution
+COPY ./install-openterface.sh /docker/install-openterface.sh
+RUN chmod +x /docker/install-openterface.sh
+
+# Copy and setup entrypoint script
+COPY ./entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Set up udev rules for Openterface hardware (backup rules, main setup in install script)
+RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' > /etc/udev/rules.d/50-openterface-backup.rules && \
+    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules && \
+    echo 'SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules && \
+    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules
+
+# Switch to non-root user
+USER openterface
+
+# Set the working directory
+WORKDIR /home/openterface
+
+# Add labels for metadata
+LABEL maintainer="TechxArtisan Studio"
+LABEL description="Openterface QT Mini-KVM testing environment"
+LABEL version="latest"
+LABEL purpose="testing"
+
+# Set entrypoint to handle installation on first run
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command (will be passed to entrypoint)
+CMD ["/bin/bash"]

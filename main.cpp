@@ -23,23 +23,47 @@
 #include "ui/mainwindow.h"
 #include "ui/loghandler.h"
 #include "ui/advance/envdialog.h"
+#include "ui/globalsetting.h"
 #include "global.h"
 #include "target/KeyboardLayouts.h"
 #include "ui/languagemanager.h"
 #include <QCoreApplication>
+#include <QtPlugin>
 
 
-#include <iostream>
-#include <QApplication>
-#include <QIcon>
-#include <QDateTime>
-#include <QDebug>
-#include <QThread>
-#include <QLoggingCategory>
-#include <QStyleFactory>
-#include <QDir>
-#include <QFile>
-#include <QTextStream>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <crtdbg.h>
+#endif
+
+// Import static Qt plugins only when building with static plugins
+#if defined(QT_STATIC) || defined(QT_STATICPLUGIN)
+// Image format plugins
+Q_IMPORT_PLUGIN(QJpegPlugin)
+Q_IMPORT_PLUGIN(QGifPlugin)
+Q_IMPORT_PLUGIN(QICOPlugin)
+Q_IMPORT_PLUGIN(QSvgPlugin)
+
+// Platform plugins (Linux)
+#ifdef Q_OS_LINUX
+Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
+// Q_IMPORT_PLUGIN(QOffscreenIntegrationPlugin)  // Commented out - not available in shared Qt build
+// Note: Wayland plugin may not be properly built in static builds
+// Q_IMPORT_PLUGIN(QWaylandEglPlatformIntegrationPlugin)
+#endif
+#endif
+
+// Define global shutdown flag
+QAtomicInteger<int> g_applicationShuttingDown(0);
+
+// GStreamer includes
+#ifdef HAVE_GSTREAMER
+#include <gst/gst.h>
+#include <glib.h>  // For GLib log handling
+#endif
+
+#include <unistd.h>
+#include <unistd.h>
 
 
 void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -70,12 +94,17 @@ void customMessageHandler(QtMsgType type, const QMessageLogContext &context, con
             break;
     }
 
-    // QFile outFile("log.txt");
-    // outFile.open(QIODevice::WriteOnly | QIODevice::Append);
-    // QTextStream textStream(&outFile);
-    // textStream << txt << endl;
-    
-    std::cout << txt.toStdString() << std::endl;
+    // For Windows GUI applications, std::cout may not be available and can cause crashes
+    // Use OutputDebugString instead for debug output
+    // In static builds or Windows subsystem builds, stdout/stderr may not work
+#ifdef Q_OS_WIN
+    OutputDebugStringW(reinterpret_cast<const wchar_t*>(txt.utf16()));
+    OutputDebugStringW(L"\n");
+#else
+    // Use fprintf to stderr instead of std::cout to avoid C++ stream issues
+    fprintf(stderr, "%s\n", txt.toUtf8().constData());
+    fflush(stderr);
+#endif
 }
 
 void writeLog(const QString &message){
@@ -90,28 +119,190 @@ void writeLog(const QString &message){
     }
 }
 
+#ifdef HAVE_GSTREAMER
+// Custom GLib log handler to suppress non-critical GStreamer messages
+void suppressGLibMessages(const gchar *log_domain, GLogLevelFlags log_level, const gchar *message, gpointer user_data)
+{
+    Q_UNUSED(user_data)
+    
+    // Suppress specific known non-critical messages
+    if (log_domain && (strcmp(log_domain, "GStreamer") == 0)) {
+        if (strstr(message, "gst_value_set_int_range_step: assertion") ||
+            strstr(message, "gst_alsa_device_new: assertion")) {
+            return; // Suppress these specific messages
+        }
+    }
+    
+    // For other critical messages, still show them but with reduced verbosity
+    if (log_level & G_LOG_LEVEL_CRITICAL || log_level & G_LOG_LEVEL_ERROR) {
+        // Only show if it's not one of the known harmless messages
+        if (!strstr(message, "gst_value_set_int_range_step") && 
+            !strstr(message, "gst_alsa_device_new")) {
+            fprintf(stderr, "%s\n", message);
+        }
+    }
+}
+#endif
+
 void setupEnv(){
+#ifdef Q_OS_LINUX
+    // Only set QT_QPA_PLATFORM when not provided by the user or launcher script
+    const QByteArray currentPlatform = qgetenv("QT_QPA_PLATFORM");
+    const QByteArray launcherDetected = qgetenv("OPENTERFACE_LAUNCHER_PLATFORM");
+    
+    if (currentPlatform.isEmpty()) {
+        // Check for available display systems
+        const QByteArray waylandDisplay = qgetenv("WAYLAND_DISPLAY");
+        const QByteArray x11Display = qgetenv("DISPLAY");
+        
+        // For static builds, be more conservative about platform selection
+        #if defined(QT_STATIC) || defined(QT_STATICPLUGIN)
+        qDebug() << "Static build detected - using conservative platform selection";
+        if (!x11Display.isEmpty()) {
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Static build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
+        } else {
+            // Try to set DISPLAY and use XCB for static builds
+            qputenv("DISPLAY", ":0");
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Static build: No display detected, trying DISPLAY=:0 with xcb platform";
+        }
+        #else
+        // For dynamic builds, prefer XCB for better compatibility
+        // Only use Wayland if explicitly set by launcher script
+        if (!launcherDetected.isEmpty()) {
+            qDebug() << "Dynamic build: Using launcher script's platform detection:" << launcherDetected;
+        } else if (!x11Display.isEmpty()) {
+            // DISPLAY is set - use XCB
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
+        } else if (!waylandDisplay.isEmpty()) {
+            // Fallback to Wayland only if X11 is not available
+            qputenv("QT_QPA_PLATFORM", "wayland");
+            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to wayland (WAYLAND_DISPLAY available, X11 not found)";
+        } else {
+            // No display found, try default settings
+            qputenv("DISPLAY", ":0");
+            qputenv("QT_QPA_PLATFORM", "xcb");
+            qDebug() << "Dynamic build: No display detected, trying DISPLAY=:0 with xcb platform";
+        }
+        #endif
+    } else {
+        qDebug() << "QT_QPA_PLATFORM already set by launcher or user:" << currentPlatform;
+    }
+#endif
+}
+
+void applyMediaBackendSetting(){
 #ifdef Q_OS_LINUX
     QString originalMediaBackend = qgetenv("QT_MEDIA_BACKEND");
     qDebug() << "Original QT Media Backend:" << originalMediaBackend;
-    qputenv("QT_MEDIA_BACKEND", "ffmpeg");
-    QString newMediaBackend = qgetenv("QT_MEDIA_BACKEND");
-    qDebug() << "Current QT Media Backend:" << newMediaBackend;
-
-    // Check if QT_QPA_PLATFORM is not set, and set it to "xcb" if it's empty
-    if (qgetenv("QT_QPA_PLATFORM").isEmpty()) {
-        qputenv("QT_QPA_PLATFORM", "xcb");
-        qDebug() << "Set QT_QPA_PLATFORM to xcb";
-    } else {
-        qDebug() << "Current QT_QPA_PLATFORM:" << qgetenv("QT_QPA_PLATFORM");
+    
+    // Get the media backend setting from GlobalSetting
+    QString mediaBackend = GlobalSetting::instance().getMediaBackend();
+    
+    // Handle GStreamer-specific environment settings
+    if (mediaBackend == "gstreamer") {
+        // Set GStreamer debug level to lowest (0 = GST_LEVEL_NONE) to suppress all messages
+        qputenv("GST_DEBUG", "0");
+        
+        // Disable color output for cleaner logs
+        qputenv("GST_DEBUG_NO_COLOR", "1");
+        
+        // Ensure proper GStreamer registry handling
+        qputenv("GST_REGISTRY_REUSE_PLUGIN_SCANNER", "no");
+        
+        // Set GStreamer to handle object lifecycle more carefully
+        qputenv("GST_DEBUG_DUMP_DOT_DIR", "");
+        
+        // Suppress non-critical GStreamer log messages from the start
+        qputenv("GST_DEBUG", "0");  // Complete silence - no GStreamer debug messages
+        
+        // Suppress GLib critical messages that occur during device enumeration
+        qputenv("G_MESSAGES_DEBUG", "");  // Disable all GLib debug messages
+        
+        // Prevent GStreamer from using problematic plugins that might cause object ref issues
+        qputenv("GST_PLUGIN_FEATURE_RANK", "autovideosink:MAX,autoaudiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
+        
+        // Force proper cleanup timing
+        qputenv("G_DEBUG", "gc-friendly");
+        
+        // Disable problematic ALSA device scanning that causes errors
+        qputenv("GST_ALSA_DISABLE_PERIOD_ADJUSTMENT", "1");
+        
+        // Set audio policy to be more conservative
+        qputenv("GST_AUDIO_DISABLE_FORMATS", "");
+        
+        // Force PulseAudio over ALSA to avoid device access issues
+        qputenv("GST_AUDIO_SYSTEM_PULSE", "1");
+        
+        // Reduce audio device scanning verbosity
+        qputenv("PULSE_DEBUG", "0");
+        
+        // Additional GStreamer environment variables for better video handling
+        qputenv("GST_V4L2_USE_LIBV4L2", "1");
+        
+        // IMPORTANT: Do NOT override GST_PLUGIN_PATH here!
+        // The launcher script has already set it correctly for the package type:
+        // - RPM packages: /usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
+        // - AppImage packages: appDir/../lib/gstreamer-1.0
+        // Overriding it here causes version conflicts on Fedora
+        
+        if (!qgetenv("GST_PLUGIN_PATH").isEmpty()) {
+            qDebug() << "✓ Using GStreamer plugins from launcher environment:";
+            qDebug() << "  GST_PLUGIN_PATH=" << qgetenv("GST_PLUGIN_PATH");
+        } else {
+            qDebug() << "⚠ WARNING: GST_PLUGIN_PATH not set, GStreamer may use incorrect system plugins";
+        }
+        
+        // Ensure video output works correctly
+        qputenv("GST_VIDEO_OVERLAY", "1");
+        
+        qDebug() << "Applied enhanced GStreamer-specific environment settings for video compatibility";
+        // gstreamer not compatible with QT_MEDIA_BACKEND, so we set it to empty
+    } else{
+        // For other media backends, we can set a default or leave it empty
+        qputenv("QT_MEDIA_BACKEND", mediaBackend.toUtf8());
+        qDebug() << "Set QT_MEDIA_BACKEND to:" << mediaBackend;
     }
 #endif
 }
 
 int main(int argc, char *argv[])
 {
+    #ifdef Q_OS_WIN
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF);
+    #endif
     qDebug() << "Start openterface...";
+    
+    // Parse command-line arguments early to check for --skip-env-check
+    bool skipEnvironmentCheck = false;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--skip-env-check") == 0) {
+            skipEnvironmentCheck = true;
+            qDebug() << "Skip environment check flag detected";
+        }
+    }
+    
+    // Initialize GStreamer before Qt application
+    #ifdef HAVE_GSTREAMER
+    GError* gst_error = nullptr;
+    if (!gst_init_check(&argc, &argv, &gst_error)) {
+        if (gst_error) {
+            qCritical() << "Failed to initialize GStreamer:" << gst_error->message;
+            g_error_free(gst_error);
+        } else {
+            qCritical() << "Failed to initialize GStreamer: Unknown error";
+        }
+        return -1;
+    }
+    
+    // Install custom GLib log handler to suppress non-critical messages
+    g_log_set_default_handler(suppressGLibMessages, nullptr);
+    #endif
+    
     setupEnv();
+    qDebug() << "Creating QApplication...";
     QApplication app(argc, argv);
 
     // set style accroding to system palette
@@ -128,20 +319,22 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon("://images/icon_32.png"));
     
     // Check if the environment is properly set up
-    if (EnvironmentSetupDialog::autoEnvironmentCheck() && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
+    // If --skip-env-check is passed, skip the check
+    bool shouldCheckEnvironment = !skipEnvironmentCheck && EnvironmentSetupDialog::autoEnvironmentCheck();
+    if (shouldCheckEnvironment && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
         EnvironmentSetupDialog envDialog;
         qDebug() << "Environment setup dialog opened";
         if (envDialog.exec() == QDialog::Rejected) {
-            qDebug() << "Driver dialog rejected";
-            QApplication::quit(); // Quit the application if the dialog is rejected
-            return 0;
+            qDebug() << "Driver dialog rejected - continuing anyway";
+            // Continue running the application even if dialog is rejected
         }
     } 
     
     // load the settings
-    qDebug() << "Loading settings";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
+    // Apply media backend setting after settings are loaded
+    applyMediaBackendSetting();
     // onVideoSettingsChanged(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
     LogHandler::instance().enableLogStore();
 
@@ -150,13 +343,19 @@ int main(int argc, char *argv[])
     KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
     
     
-    // writeLog("Environment setup completed");
     LanguageManager languageManager(&app);
     languageManager.initialize("en");
-    // writeLog("languageManager initialized");
     MainWindow window(&languageManager);
-    // writeLog("Application started");
     window.show();
 
-    return app.exec();
+    int result = app.exec();
+    
+    // Clean up GStreamer
+    #ifdef HAVE_GSTREAMER
+    gst_deinit();
+    qDebug() << "GStreamer deinitialized";
+    #endif
+    
+    
+    return result;
 };

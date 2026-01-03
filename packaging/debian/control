@@ -3,6 +3,11 @@ Version: ${VERSION}
 Section: base
 Priority: optional
 Architecture: ${ARCH}
-Depends: libqt6core6 (>= 6.4.2), libqt6multimedia6 (>= 6.4.2), libqt6multimediawidgets6 (>= 6.4.2), libqt6serialport6 (>= 6.4.2), libqt6svg6 (>= 6.4.2)
 Maintainer: TechxArtisan <info@techxartisan.com>
-Description: OpenterfaceQT Mini-KVM Linux Edition
+Description: OpenterfaceQT KVM Linux Edition
+ Includes bundled FFmpeg 6.1.1 libraries (libavformat, libavcodec,
+ libswresample, libswscale, libavutil, libavfilter), libturbojpeg,
+ VA-API libraries (libva, libva-drm, libva-x11), VDPAU library
+ (libvdpau), GStreamer libraries including ORC for hardware acceleration,
+ GStreamer plugins (v4l2, video conversion, audio processing), and Qt6
+ libraries for GUI rendering with SVG icon support

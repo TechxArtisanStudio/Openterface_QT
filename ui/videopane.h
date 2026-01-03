@@ -26,16 +26,20 @@
 #include "target/mouseeventdto.h"
 #include "inputhandler.h"
 
-#include <QVideoWidget>
-#include <QMouseEvent>
+#include <QtWidgets>
+#include <QtMultimedia>
+#include <QtMultimediaWidgets>
+#include <QLoggingCategory>
 
+Q_DECLARE_LOGGING_CATEGORY(log_ui_video)
 
-class VideoPane : public QVideoWidget
+class VideoPane : public QGraphicsView
 {
     Q_OBJECT
 
 public:
     explicit VideoPane(QWidget *parent = nullptr);
+    ~VideoPane();
 
     void showHostMouse();
     void hideHostMouse();
@@ -48,6 +52,66 @@ public:
     bool isRelativeModeEnabled() const { return relativeModeEnable; }
     void setRelativeModeEnabled(bool enable) { relativeModeEnable = enable; }
 
+    // QVideoWidget compatibility methods
+    void setAspectRatioMode(Qt::AspectRatioMode mode);
+    Qt::AspectRatioMode aspectRatioMode() const;
+    
+    // QGraphicsView enhancement methods
+    void setVideoItem(QGraphicsVideoItem* videoItem);
+    QGraphicsVideoItem* videoItem() const;
+    QGraphicsVideoItem* getVideoItem() const { return m_videoItem; } // Convenience method for external access
+    void resetZoom();
+    void zoomIn(double factor = 1.25);
+    void zoomOut(double factor = 0.8);
+    void centerOn(const QPointF &pos); // Center the view on a specific point
+    void fitToWindow();
+    void actualSize();
+    
+    // Direct GStreamer support methods (based on widgets_main.cpp approach)
+    void enableDirectGStreamerMode(bool enable = true);
+    bool isDirectGStreamerModeEnabled() const { return m_directGStreamerMode; }
+    WId getVideoOverlayWindowId() const;
+    void setupForGStreamerOverlay();
+    QWidget* getOverlayWidget() const { return m_overlayWidget; }
+        
+    // FFmpeg direct video frame support
+    void updateVideoFrame(const QPixmap& frame);
+    void updateVideoFrameFromImage(const QImage& image);  // Optimized: receives QImage, converts to QPixmap on GUI thread
+    void updateGraphicsVideoItemFromImage(QGraphicsVideoItem* videoItem, const QImage& image);  // Updates QGraphicsVideoItem from QImage
+    void enableDirectFFmpegMode(bool enable = true);
+    bool isDirectFFmpegModeEnabled() const { return m_directFFmpegMode; }
+    void clearVideoFrame(); // Clear the current video frame display
+
+    // Mouse position transformation for InputHandler
+    QPointF getTransformedMousePosition(const QPoint& viewportPos);
+    
+    // Debug helper to validate coordinate transformation consistency
+    void validateMouseCoordinates(const QPoint& original, const QString& eventType);
+    
+    // Get current zoom factor
+    double getZoomFactor() const { return m_scaleFactor; }
+    
+    // Set coordinate correction for zoom mode
+    void setZoomOffsetCorrection(int x, int y) { m_zoomOffsetCorrectionX = x; m_zoomOffsetCorrectionY = y; }
+
+signals:
+    void mouseMoved(const QPoint& position, const QString& event);
+    void videoPaneResized(const QSize& newSize);  // Signal for video pane resize events
+    void viewportSizeChanged(const QSize& size);   // Signal for viewport size changes
+
+public slots:
+    void onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice);
+    void onCameraDeviceSwitchComplete(const QString& device);
+    void onCameraActiveChanged(bool active);
+
+protected:
+    void paintEvent(QPaintEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
     int lastX=0;
     int lastY=0;
@@ -58,9 +122,43 @@ private:
     QTimer *escTimer;
     bool holdingEsc=false;
     
+    // Frame preservation during camera switching
+    QPixmap m_lastFrame;
+    bool m_isCameraSwitching;
+    
+    // Graphics framework components
+    QGraphicsScene *m_scene;
+    QGraphicsVideoItem *m_videoItem;
+    QGraphicsPixmapItem *m_pixmapItem;  // For displaying static frames
+    
+    // Aspect ratio and zoom control
+    Qt::AspectRatioMode m_aspectRatioMode;
+    double m_scaleFactor;
+    QSize m_originalVideoSize;
+    bool m_maintainAspectRatio;
+    
+    // Coordinate correction for zoom mode
+    int m_zoomOffsetCorrectionX;
+    int m_zoomOffsetCorrectionY;
+    
+    // Direct GStreamer mode support
+    bool m_directGStreamerMode;
+    QWidget* m_overlayWidget; // Widget for direct video overlay
+    
+    // Direct FFmpeg mode support
+    bool m_directFFmpegMode;
+    QSize m_lastViewportSize;
+    bool m_frameIsViewportSized;
+    
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);
     MouseEventDTO* calculateMouseEventDto(QMouseEvent *event);
+    
+    void captureCurrentFrame();
+    void updateVideoItemTransform();
+    void centerVideoItem();
+    void setupScene();
+    void updateScrollBarsAndSceneRect();
 };
 
 #endif

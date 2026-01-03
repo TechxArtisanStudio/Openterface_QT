@@ -31,18 +31,42 @@
 #include <QLoggingCategory>
 #include <QDateTime>
 #include <QElapsedTimer>
+#include <QMutex>
+#include <QQueue>
+#include <QWaitCondition>
+#include <QEventLoop>
+#include <atomic>
 
 #include "ch9329.h"
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
+
+// Forward declaration
+class DeviceInfo;
+
+// Chip type enumeration
+enum class ChipType : uint32_t {
+    UNKNOWN = 0,
+    CH9329 = 0x1A867523,     // 1A86:7523 - Supports both 9600 and 115200, requires commands for baudrate switching and reset
+    CH32V208 = 0x1A86FE0C        // 1A86:FE0C - Only supports 115200, uses simple close/reopen for baudrate changes
+};
+
+// Struct to hold configuration command results
+struct ConfigResult {
+    bool success = false;
+    int workingBaudrate = 9600;  // Use literal value instead of SerialPortManager::DEFAULT_BAUDRATE
+    uint8_t mode = 0;
+};
 
 class SerialPortManager : public QObject
 {
     Q_OBJECT
 
 public:
-    static const int ORIGINAL_BAUDRATE = 9600;
-    static const int DEFAULT_BAUDRATE = 115200;
+    static const int BAUDRATE_HIGHSPEED = 115200;
+    static const int BAUDRATE_LOWSPEED = 9600;
+    // Set the default baudrate to 9600 for better compatibility
+    static const int DEFAULT_BAUDRATE = BAUDRATE_LOWSPEED;
     static const int SERIAL_TIMER_INTERVAL = 5000;
     
     static SerialPortManager& getInstance() {
@@ -50,8 +74,6 @@ public:
         return instance;
     }
     
-    
-
     SerialPortManager(SerialPortManager const&) = delete; // Don't Implement
     void operator=(SerialPortManager const&) = delete; // Don't implement
 
@@ -71,17 +93,56 @@ public:
     bool sendResetCommand();
     QByteArray sendSyncCommand(const QByteArray &data, bool force);
 
-    bool resetHipChip();
-    bool reconfigureHidChip();
+    bool resetHipChip(int targetBaudrate = DEFAULT_BAUDRATE);
+    bool reconfigureHidChip(int targetBaudrate = DEFAULT_BAUDRATE);
     bool factoryResetHipChipV191();
     bool factoryResetHipChip();
     void restartSwitchableUSB();
-    void setUSBconfiguration();
+    void setUSBconfiguration(int targetBaudrate = DEFAULT_BAUDRATE);
     void changeUSBDescriptor();
     bool setBaudRate(int baudrate);
+    void setUserSelectedBaudrate(int baudrate); // Set baudrate from user menu selection
+    void clearStoredBaudrate(); // Clear stored baudrate setting
+    
+    // ARM architecture detection and performance prompt
+    static bool isArmArchitecture();
+    void checkArmBaudratePerformance(int baudrate); // Check and emit signal if needed
     void setCommandDelay(int delayMs);  // set the delay
     void stop(); //stop the serial port manager
 
+    // DeviceManager integration methods
+    // void checkDeviceConnections(const QList<DeviceInfo>& devices);
+    
+    // Serial port switching by port chain (similar to CameraManager and VideoHid)
+    bool switchSerialPortByPortChain(const QString& portChain);
+    QString getCurrentSerialPortPath() const;
+    QString getCurrentSerialPortChain() const;
+    
+    // Hotplug monitoring integration
+    void connectToHotplugMonitor();
+    void disconnectFromHotplugMonitor();
+    
+    // Enhanced stability features
+    void enableAutoRecovery(bool enable = true);
+    void setMaxRetryAttempts(int maxRetries);
+    void setMaxConsecutiveErrors(int maxErrors);
+    bool isConnectionStable() const;
+    int getConsecutiveErrorCount() const;
+    int getConnectionRetryCount() const;
+    void forceRecovery();
+    
+    // Get current baudrate
+    int getCurrentBaudrate() const;
+    
+    // Chip type detection and management
+    ChipType detectChipType(const QString &portName) const;
+    ChipType getCurrentChipType() const { return m_currentChipType; }
+    bool isChipTypeCH32V208() const { return m_currentChipType == ChipType::CH32V208; }
+    bool isChipTypeCH9329() const { return m_currentChipType == ChipType::CH9329; }
+    
+    // New USB switch methods for CH32V208 serial port (firmware with new protocol)
+    void switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)
+    void switchUsbToTargetViaSerial();    // Switch USB to target via serial command (57 AB 00 17...)
     
 signals:
     void dataReceived(const QByteArray &data);
@@ -91,17 +152,40 @@ signals:
     void serialPortConnectionSuccess(const QString &portName);
     void sendCommandAsync(const QByteArray &command, bool waitForAck);
     void connectedPortChanged(const QString &portName, const int &baudrate);
-
+    void serialPortSwitched(const QString& fromPortChain, const QString& toPortChain);
+    void serialPortDeviceChanged(const QString& oldPortPath, const QString& newPortPath);
+    void armBaudratePerformanceRecommendation(int currentBaudrate); // Signal for ARM performance recommendation
+    void parameterConfigurationSuccess(); // Signal emitted when parameter configuration is successful and reset is needed
+    void syncResponseReady();  // Emitted when m_syncCommandResponse is filled for sync commands
+    void usbStatusChanged(bool isToTarget);  // New signal: true = target, false = host
+    void targetUSBStatus(bool isTargetUSBConnected);
+    void keyStatesChanged(bool numLock, bool capsLock, bool scrollLock); // Key state updates (thread-safe)
+    void serialPortReset(bool isStarted); // Serial port reset started/ended
+    void statusUpdate(const QString &status); // General status update for UI
+    void factoryReset(bool isStarted); // Factory reset started/ended
+    
+    // Thread-safe reset operation signals (internal use)
+    void requestResetHidChip(int targetBaudrate);
+    void requestFactoryReset();
+    void requestFactoryResetV191();
+    
+    // Signals to notify completion of reset operations
+    void resetHidChipCompleted(bool success);
+    void factoryResetCompleted(bool success);
+    
 private slots:
-    void checkSerialPort();
     void observeSerialPortNotification();
     void readData();
     void bytesWritten(qint64 bytes);
 
     static quint8 calculateChecksum(const QByteArray &data);
-    //void checkSerialPortConnection();
-
-    void checkSerialPorts();
+    
+    void initializeSerialPortFromPortChain();
+    
+    // Thread-safe reset operation handlers (called via queued connection)
+    void handleResetHidChip(int targetBaudrate);
+    void handleFactoryReset();
+    void handleFactoryResetV191();
 
     // /*
     //  * Check if the USB switch status
@@ -113,6 +197,7 @@ private slots:
     void onSerialPortConnected(const QString &portName);
     void onSerialPortDisconnected(const QString &portName);
     void onSerialPortConnectionSuccess(const QString &portName);
+    void onUsbStatusCheckTimeout();  // New slot for USB status check timer
     
     
 private:
@@ -120,12 +205,24 @@ private:
     QSerialPort *serialPort;
 
     void sendCommand(const QByteArray &command, bool waitForAck);
+    QByteArray collectSyncResponse(int totalTimeoutMs = 1000, int waitStepMs = 100);
+    
+    // Refactored helper methods for onSerialPortConnected
+    int determineBaudrate() const;
+    bool openPortWithRetries(const QString &portName, int tryBaudrate);
+    ConfigResult sendAndProcessConfigCommand();
+    ConfigResult attemptBaudrateDetection();
+    void handleChipSpecificLogic(const ConfigResult &config);
+    void storeBaudrateIfNeeded(int workingBaudrate);
+    
+    // Thread-safe reset internal implementations (run in worker thread)
+    bool handleResetHidChipInternal(int targetBaudrate);
+    bool handleFactoryResetInternal();
+    bool handleFactoryResetV191Internal();
 
     QSet<QString> availablePorts;
-
-    // int baudrate = ORIGINAL_BAUDRATE;
-
-    QThread *serialThread;
+    
+    QThread *m_serialWorkerThread;
     QTimer *serialTimer;
 
     QList<QSerialPortInfo> m_lastPortList;
@@ -143,8 +240,95 @@ private:
     QDateTime latestUpdateTime;
     QElapsedTimer m_lastCommandTime;  // New member for timing
     int m_commandDelayMs;  // New member for configurable delay
-
-    QString statusCodeToString(uint8_t status);
+    
+    // Current serial port tracking
+    QString m_currentSerialPortPath;
+    QString m_currentSerialPortChain;
+    ChipType m_currentChipType = ChipType::UNKNOWN;
+    
+    // Enhanced stability members
+    std::atomic<bool> m_isShuttingDown = false;
+    std::atomic<int> m_connectionRetryCount = 0;
+    std::atomic<int> m_consecutiveErrors = 0;
+    QTimer* m_connectionWatchdog;
+    QTimer* m_errorRecoveryTimer;
+    QTimer* m_usbStatusCheckTimer;  // New timer for periodic USB status checks
+    QMutex m_serialPortMutex;
+    QQueue<QByteArray> m_commandQueue;
+    QMutex m_commandQueueMutex;
+    bool m_autoRecoveryEnabled = true;
+    int m_maxRetryAttempts = 5;
+    int m_maxConsecutiveErrors = 10;
+    QElapsedTimer m_lastSuccessfulCommand;
+    
+    // Error frequency tracking for auto-disconnect mechanism
+    std::atomic<int> m_errorCount = 0;
+    QElapsedTimer m_errorTrackingTimer;
+    bool m_errorHandlerDisconnected = false;
+    static const int MAX_ERRORS_PER_SECOND = 10;
+    
+    // Data buffering for incomplete packets
+    QByteArray m_incompleteDataBuffer;
+    QMutex m_bufferMutex;
+    static const int MAX_BUFFER_SIZE = 256; // Maximum buffer size to prevent memory issues
+    
+    // Sync command handling to prevent race conditions
+    std::atomic<bool> m_pendingSyncCommand = false;
+    QByteArray m_syncCommandResponse;
+    QMutex m_syncResponseMutex;
+    QWaitCondition m_syncResponseCondition;
+    unsigned char m_pendingSyncExpectedKey = 0;
+    
+    // Command tracking for auto-restart logic
+    std::atomic<int> m_commandsSent = 0;
+    std::atomic<int> m_commandsReceived = 0;
+    std::atomic<int> m_serialResetCount = 0;
+    QTimer* m_commandTrackingTimer;
+    static const int COMMAND_TRACKING_INTERVAL = 5000; // 5 seconds
+    static const int MAX_SERIAL_RESETS = 3;
+    static constexpr double COMMAND_LOSS_THRESHOLD = 0.30; // 30% loss rate
+    
+    // Enhanced error handling
+    void handleSerialError(QSerialPort::SerialPortError error);
+    // Attempt to resynchronize the buffer to the next valid header sequence (0x57 0xAB).
+    // If resynchronization succeeds and completeData contains at least the minimal packet length,
+    // return true. Otherwise update m_incompleteDataBuffer accordingly and return false.
+    // bool resyncAndAlignHeader(QByteArray &completeData);
+    void attemptRecovery();
+    void resetErrorCounters();
+    bool isRecoveryNeeded() const;
+    void setupConnectionWatchdog();
+    void stopConnectionWatchdog();
+    int anotherBaudrate();
+    QString statusCodeToString(uint8_t status) {
+        switch (status) {
+            case 0x00:
+                return "Success"; 
+            case 0xE1:
+                return "Serial port recived one byte timeout";
+            case 0xE2:
+                return "Serial port recived package frist byte error";
+            case 0xE3:
+                return "Serial port recived command code error";
+            case 0xE4:
+                return "Serial port recived package checksum error";
+            case 0xE5:
+                return "Command parameter error";
+            case 0xE6:
+                return "The data frame failed to execute properly";
+            default:
+                return "Unknown status code";
+        } 
+    }
+    
+    // Command-based baudrate change for CH9329 and unknown chips
+    void applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix);
+    // Schedule configuration retry attempts asynchronously without blocking the UI
+    void scheduleConfigRetry(const QString &portName, int attempt, int maxAttempts, int delayMs);
+    
+    // Command tracking methods
+    void checkCommandLossRate();
+    void resetCommandCounters();
 };
 
 #endif // SERIALPORTMANAGER_H

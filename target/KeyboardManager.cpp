@@ -22,6 +22,7 @@
 
 #include "KeyboardManager.h"
 #include "KeyboardLayouts.h"
+#include "../serial/ch9329.h"
 
 #include <QList>
 #include <QtConcurrent/QtConcurrent>
@@ -131,11 +132,22 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         }else if(unicodeValue == 0x1000005){
             mappedKeyCode = 0x58;
             qDebug() << "enter key detected:" << QString::number(unicodeValue, 16);
+        }else if(unicodeValue == 0x1000026){
+            mappedKeyCode = 0x47;
+            qDebug() << "scroll lock key detected:" << QString::number(unicodeValue, 16);
         }
         else{
             mappedKeyCode = currentLayout.unicodeMap.value(unicodeValue, 0);
             qDebug() << "Trying Unicode mapping for U+" << QString::number(unicodeValue, 16) 
                                 << "-> scancode: 0x" << QString::number(mappedKeyCode, 16);
+
+	    if (mappedKeyCode != 0) {
+		    QChar unicodeChar(unicodeValue);
+		    if (currentLayout.needAltGrKeys.contains(unicodeValue)) {
+			    qDebug() << "Character requires AltGr, forcing modifier";
+			    modifiers |= Qt::GroupSwitchModifier;
+		    }
+	    }
         }
     }
     qCDebug(log_keyboard) << "Mapped to scancode: 0x" + QString::number(mappedKeyCode, 16);
@@ -156,7 +168,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             currentModifiers |= 0x04;
         }else if(modifiers & Qt::GroupSwitchModifier){ // altgr
             mappedKeyCode = 0xE6;
-            currentModifiers |= 0x05;
+            currentModifiers |= 0x40;
         }
     }else if(isKeypadKeys(keyCode, modifiers)){
         if (keyCode == Qt::Key_NumLock) {
@@ -199,7 +211,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             mappedKeyCode = 0x58;
         }
     }else {
-        if(currentModifiers!=0){
+        if(currentModifiers!=0 && mappedKeyCode == 0){
             qCDebug(log_keyboard) << "Send release command :" << keyData.toHex(' ');
             emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
             currentModifiers = 0;
@@ -238,6 +250,15 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         
         emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
         currentMappedKeyCodes.clear(); //clear the mapped keycodes after send command
+
+        // If this is a lock key (NumLock, CapsLock, or ScrollLock), request key state update
+        if (isLockKey(keyCode)) {
+            qCDebug(log_keyboard) << "Lock key detected, requesting key state update";
+            // Add a small delay to allow the target device to process the key
+            QTimer::singleShot(50, []() {
+                emit SerialPortManager::getInstance().sendCommandAsync(CMD_GET_INFO, false);
+            });
+        }
 
     }
 }
@@ -322,6 +343,10 @@ bool KeyboardManager::isModiferKeys(int keycode){
 
 bool KeyboardManager::isKeypadKeys(int keycode, int modifiers){
     return KEYPAD_KEYS.contains(keycode) && modifiers == Qt::KeypadModifier;
+}
+
+bool KeyboardManager::isLockKey(int keycode) {
+    return keycode == Qt::Key_NumLock || keycode == Qt::Key_CapsLock || keycode == Qt::Key_ScrollLock;
 }
 
 void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping) {
@@ -435,7 +460,7 @@ void KeyboardManager::sendKey(int keyCode, int modifiers, bool isKeyDown) {
 void KeyboardManager::getKeyboardLayout() {
     QInputMethod *inputMethod = QGuiApplication::inputMethod();
     m_locale = inputMethod->locale();
-    qCDebug(log_keyboard) << "Current keyboard layout:" << m_locale.language() << m_locale.country();
+    qCDebug(log_keyboard) << "Current keyboard layout:" << m_locale.language() << m_locale.territory();
 }
 
 void KeyboardManager::setKeyboardLayout(const QString& layoutName) {

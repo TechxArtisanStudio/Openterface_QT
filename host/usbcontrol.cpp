@@ -122,6 +122,7 @@ int USBControl::testUSBControl()
     for(int i = 0; i < result; i++) {
         qDebug(log_usb) << "Data[" << i << "]:" << QString("0x%1").arg(data[i], 2, 16, QChar('0'));
     }
+    return 0;
 }
 
 int USBControl::testUVCControl()

@@ -58,6 +58,11 @@ public:
      */
     bool isKeypadKeys(int keycode, int modifiers);
 
+    /*
+     * Check if the key is a lock key (NumLock, CapsLock, ScrollLock)
+     */
+    bool isLockKey(int keycode);
+
     void pasteTextToTarget(const QString &text);
 
     /*

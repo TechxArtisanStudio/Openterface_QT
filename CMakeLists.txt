@@ -1,323 +1,315 @@
 cmake_minimum_required(VERSION 3.16)
 project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
 
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(CMAKE_AUTOUIC ON)
+# Option to control static vs dynamic linking
+option(OPENTERFACE_BUILD_STATIC "Link libraries statically where possible" ON)
+message(STATUS "OPENTERFACE_BUILD_STATIC: ${OPENTERFACE_BUILD_STATIC}")
 
-# Option to control static linking of FFmpeg
-option(USE_FFMPEG_STATIC "Use static FFmpeg libraries" ON)
-
-# Prefer static libraries
-if(USE_FFMPEG_STATIC)
-    set(CMAKE_FIND_STATIC_PREFER ON)
+# Detect architecture at top-level so users can override via -DOPENTERFACE_ARCH if desired
+if(NOT DEFINED OPENTERFACE_ARCH)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+    set(OPENTERFACE_ARCH "arm64" CACHE STRING "Openterface target architecture (arm64/amd64/other)")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
+        set(OPENTERFACE_ARCH "amd64" CACHE STRING "Openterface target architecture (arm64/amd64/other)")
+    else()
+        set(OPENTERFACE_ARCH "${CMAKE_SYSTEM_PROCESSOR}" CACHE STRING "Openterface target architecture (arm64/amd64/other)")
+    endif()
 endif()
 
-find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
-find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
+message(STATUS "OPENTERFACE_ARCH: ${OPENTERFACE_ARCH}")
 
-# Find X11 libraries
-find_package(X11 REQUIRED COMPONENTS Xrandr)
-
-find_package(EXPAT REQUIRED)
-find_package(Freetype REQUIRED)
-find_package(Fontconfig REQUIRED)
-find_package(BZip2 REQUIRED)
-
-# Use pkg-config to find Xrender
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(XRENDER REQUIRED xrender)
-
-# Set FFmpeg include and library directories
-if(NOT FFMPEG_INCLUDE_DIRS)
-set(FFMPEG_INCLUDE_DIRS "/usr/local/include")
-endif()
-if(NOT FFMPEG_LIBRARIES)
-set(FFMPEG_LIBRARIES "/usr/local/lib/libavformat.a;/usr/local/lib/libavcodec.a;/usr/local/lib/libavutil.a;/usr/local/lib/libswresample.a;/usr/local/lib/libswscale.a")
+# Convenience booleans derived from OPENTERFACE_ARCH for top-level logic and targets
+if(NOT DEFINED OPENTERFACE_IS_ARM64)
+    if(OPENTERFACE_ARCH STREQUAL "arm64")
+        set(OPENTERFACE_IS_ARM64 TRUE CACHE BOOL "TRUE if target architecture is arm64")
+    else()
+        set(OPENTERFACE_IS_ARM64 FALSE CACHE BOOL "TRUE if target architecture is arm64")
+    endif()
 endif()
 
-# Include FFmpeg directories
-include_directories(${FFMPEG_INCLUDE_DIRS})
+if(NOT DEFINED OPENTERFACE_IS_AMD64)
+    if(OPENTERFACE_ARCH STREQUAL "amd64")
+        set(OPENTERFACE_IS_AMD64 TRUE CACHE BOOL "TRUE if target architecture is amd64")
+    else()
+        set(OPENTERFACE_IS_AMD64 FALSE CACHE BOOL "TRUE if target architecture is amd64")
+    endif()
+endif()
 
-# Add the executable target
-qt_standard_project_setup()
+message(STATUS "OPENTERFACE_IS_ARM64: ${OPENTERFACE_IS_ARM64}")
+message(STATUS "OPENTERFACE_IS_AMD64: ${OPENTERFACE_IS_AMD64}")
 
-qt_add_executable(openterfaceQT WIN32 MACOSX_BUNDLE
-    global.h
-    host/HostManager.cpp host/HostManager.h
-    host/audiomanager.cpp host/audiomanager.h
-    host/audiothread.cpp host/audiothread.h
-    host/cameramanager.cpp host/cameramanager.h
-    host/usbcontrol.cpp host/usbcontrol.h
-    main.cpp
-    regex/RegularExpression.cpp regex/RegularExpression.h
-    resources/version.h
-    scripts/KeyboardMouse.cpp scripts/KeyboardMouse.h
-    scripts/Lexer.cpp scripts/Lexer.h
-    scripts/Parser.cpp scripts/Parser.h
-    scripts/semanticAnalyzer.cpp scripts/semanticAnalyzer.h
-    scripts/scriptEditor.cpp scripts/scriptEditor.h
-    serial/SerialPortManager.cpp serial/SerialPortManager.h
-    serial/ch9329.h
-    server/tcpServer.cpp server/tcpServer.h
-    target/KeyboardLayouts.cpp target/KeyboardLayouts.h
-    target/KeyboardManager.cpp target/KeyboardManager.h
-    target/Keymapping.h
-    target/MouseManager.cpp target/MouseManager.h
-    target/mouseeventdto.cpp target/mouseeventdto.h
-    video/videohid.cpp video/videohid.h
-    ui/TaskManager.cpp ui/TaskManager.h
-    ui/globalsetting.cpp ui/globalsetting.h
-    ui/help/helppane.cpp ui/help/helppane.h
-    ui/inputhandler.cpp ui/inputhandler.h
-    ui/loghandler.cpp ui/loghandler.h
-    ui/mainwindow.cpp ui/mainwindow.h ui/mainwindow.ui
-    ui/advance/scripttool.cpp ui/advance/scripttool.h
-    ui/advance/serialportdebugdialog.cpp ui/advance/serialportdebugdialog.h
-    ui/advance/envdialog.cpp ui/advance/envdialog.h ui/advance/envdialog.ui
-    ui/statusbar/statusbarmanager.cpp ui/statusbar/statusbarmanager.h
-    ui/help/versioninfomanager.cpp ui/help/versioninfomanager.h
-    ui/statusevents.h
-    ui/screenscale.h ui/screenscale.cpp
-    ui/cornerwidget/cornerwidgetmanager.h ui/cornerwidget/cornerwidgetmanager.cpp
-    ui/statusbar/statuswidget.cpp ui/statusbar/statuswidget.h
-    ui/toolbar/toggleswitch.cpp ui/toolbar/toggleswitch.h
-    ui/toolbar/toolbarmanager.cpp ui/toolbar/toolbarmanager.h
-    ui/preferences/cameraadjust.cpp ui/preferences/cameraadjust.h
-    ui/preferences/fpsspinbox.cpp ui/preferences/fpsspinbox.h
-    ui/preferences/settingdialog.cpp ui/preferences/settingdialog.h ui/preferences/settingdialog.ui
-    ui/preferences/logpage.cpp ui/preferences/logpage.h
-    ui/preferences/videopage.cpp ui/preferences/videopage.h
-    ui/preferences/audiopage.cpp ui/preferences/audiopage.h
-    ui/preferences/targetcontrolpage.cpp ui/preferences/targetcontrolpage.h
-    ui/videopane.cpp ui/videopane.h
-    ui/languagemanager.cpp ui/languagemanager.h
-    ui/screensavermanager.cpp ui/screensavermanager.h
-    ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
-    ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h
-    video/firmwarewriter.cpp video/firmwarewriter.h
-    video/firmwarereader.cpp video/firmwarereader.h
-    video/ms2109.h
+include(cmake/Configuration.cmake)
+
+# Provide FFmpeg helper functions (defines add_ffmpeg_static_libraries)
+include(cmake/FFmpeg.cmake OPTIONAL)
+
+# Include internationalization support (defines setup_translations function)
+include(cmake/Internationalization.cmake)
+
+# Add cmake module path for our custom Qt6 finder
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# Use our custom Qt6 finder to ensure version 6.6.3+
+find_package(Qt6Required REQUIRED)
+
+# Find additional Qt components (Qt6Required already found Core, Widgets, Gui, Multimedia, SerialPort, Svg)
+find_package(Qt6 REQUIRED COMPONENTS Network OpenGL OpenGLWidgets Xml Concurrent DBus)
+
+find_package(Threads REQUIRED)
+
+# Use standardized Qt setup if available (Qt >= 6.3); otherwise emulate basics for Qt 6.2
+if(COMMAND qt_standard_project_setup)
+    qt_standard_project_setup()
+else()
+    message(STATUS "qt_standard_project_setup() not available; enabling Qt AUTOMOC/AUTOUIC/AUTORCC and C++17 manually")
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_AUTOMOC ON)
+    set(CMAKE_AUTOUIC ON)
+    set(CMAKE_AUTORCC ON)
+endif()
+
+# Include source files from modular file
+include(cmake/SourceFiles.cmake)
+qt_add_executable(openterfaceQT WIN32 ${SOURCE_FILES})
+
+# Setup translations after target creation
+setup_translations(openterfaceQT)
+
+# Ensure target can find project headers (needed for includes like "serial/SerialPortManager.h" and "ui/statusevents.h")
+target_include_directories(openterfaceQT PRIVATE
+    ${PROJECT_SOURCE_DIR}
 )
 
-target_link_libraries(openterfaceQT PRIVATE
-    Qt::Concurrent
-    Qt::Core
-    Qt::Gui
-    Qt::Multimedia
-    Qt::MultimediaWidgets
-    Qt::Network
-    Qt::SerialPort
-    Qt::Svg
-    Qt::DBus
-    ${FFMPEG_LIBRARIES}  # Link against FFmpeg libraries
-    ${EXPAT_LIBRARIES}
-    ${FREETYPE_LIBRARIES}
-    ${FONTCONFIG_LIBRARIES}
-    ${XRENDER_LIBRARIES}
-    ${BZIP2_LIBRARIES}
-    ${EXTRA_LIBS}
-)
+# Ensure Linux time feature macros are set per-target to avoid <ctime> visibility issues
+if(UNIX AND NOT APPLE)
+    # Define feature-test macros for the openterfaceQT target specifically
+    target_compile_definitions(openterfaceQT PRIVATE
+        _DEFAULT_SOURCE=1
+        _GNU_SOURCE=1
+        _XOPEN_SOURCE=700
+    )
+    # Also ensure POSIX source is not enforced
+    target_compile_options(openterfaceQT PRIVATE -U_POSIX_C_SOURCE)
+    
+    # Force system time.h to be included before FFmpeg's time.h
+    # FFmpeg libavutil/time.h conflicts with system time.h and breaks <ctime>
+    # Use -include to force early inclusion of system time.h
+    target_compile_options(openterfaceQT PRIVATE 
+        -include /usr/include/time.h
+    )
+endif()
+
+
+# Debug output for linking
+message(STATUS "Hardware acceleration libraries to link: ${HWACCEL_LIBRARIES}")
+
+# Link Qt6 image format plugins statically for static builds (only if targets exist)
+if(OPENTERFACE_BUILD_STATIC)
+    set(_qt_image_plugins Qt6::QJpegPlugin Qt6::QGifPlugin Qt6::QICOPlugin Qt6::QSvgPlugin)
+    foreach(_plug IN LISTS _qt_image_plugins)
+        if(TARGET ${_plug})
+            target_link_libraries(${PROJECT_NAME} PRIVATE ${_plug})
+            if(_plug STREQUAL "Qt6::QJpegPlugin" AND STATIC_JPEG_LIBRARIES)
+                set_target_properties(Qt6::QJpegPlugin PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "${STATIC_JPEG_LIBRARIES}"
+                )
+            endif()
+        else()
+            message(STATUS "Qt plugin target not available: ${_plug} (likely shared Qt or plugin not built) - skipping")
+        endif()
+    endforeach()
+endif()
+
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus Threads::Threads)
+
+# Link X11 libraries for Linux builds to resolve X11 symbols used in overlay code
+if(UNIX AND NOT APPLE)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${X11_LIBRARIES})
+endif()
+
+# For static Qt builds on Windows with MinGW, link MinGW runtime libraries
+if(OPENTERFACE_BUILD_STATIC AND WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE mingw32 mingwex)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++ -static")
+endif()
+
+# For static Qt builds, we need to link platform plugins and their dependencies (Linux only)
+if(OPENTERFACE_BUILD_STATIC AND NOT WIN32)
+    # Link XCB platform plugin directly using file path
+    set(QT_XCB_PLUGIN_PATH "/opt/Qt6/plugins/platforms/libqxcb.a")
+    if(EXISTS ${QT_XCB_PLUGIN_PATH})
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${QT_XCB_PLUGIN_PATH})
+        message(STATUS "Linking XCB platform plugin: ${QT_XCB_PLUGIN_PATH}")
+    else()
+        message(WARNING "XCB platform plugin not found at: ${QT_XCB_PLUGIN_PATH}")
+    endif()
+
+    # Link Offscreen platform plugin for headless environments
+    set(QT_OFFSCREEN_PLUGIN_PATH "/opt/Qt6/plugins/platforms/libqoffscreen.a")
+    if(EXISTS ${QT_OFFSCREEN_PLUGIN_PATH})
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${QT_OFFSCREEN_PLUGIN_PATH})
+        message(STATUS "Linking Offscreen platform plugin: ${QT_OFFSCREEN_PLUGIN_PATH}")
+    else()
+        message(WARNING "Offscreen platform plugin not found at: ${QT_OFFSCREEN_PLUGIN_PATH}")
+    endif()
+
+    # Link Wayland platform plugin for Wayland sessions
+    set(QT_WAYLAND_PLUGIN_EGL "/opt/Qt6/plugins/platforms/libqwayland-egl.a")
+    set(QT_WAYLAND_PLUGIN "/opt/Qt6/plugins/platforms/libqwayland.a")
+    if(EXISTS ${QT_WAYLAND_PLUGIN_EGL})
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${QT_WAYLAND_PLUGIN_EGL})
+        message(STATUS "Linking Wayland platform plugin: ${QT_WAYLAND_PLUGIN_EGL}")
+    elseif(EXISTS ${QT_WAYLAND_PLUGIN})
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${QT_WAYLAND_PLUGIN})
+        message(STATUS "Linking Wayland platform plugin: ${QT_WAYLAND_PLUGIN}")
+    else()
+        message(WARNING "Wayland platform plugin not found under /opt/Qt6/plugins/platforms")
+    endif()
+
+    # Link Wayland client support libraries if available
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(WAYLAND_CLIENT wayland-client)
+    if(WAYLAND_CLIENT_FOUND)
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${WAYLAND_CLIENT_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PRIVATE ${WAYLAND_CLIENT_INCLUDE_DIRS})
+        message(STATUS "Wayland client libs: ${WAYLAND_CLIENT_LIBRARIES}")
+    endif()
+    pkg_check_modules(WAYLAND_EGL wayland-egl)
+    if(WAYLAND_EGL_FOUND)
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${WAYLAND_EGL_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PRIVATE ${WAYLAND_EGL_INCLUDE_DIRS})
+        message(STATUS "Wayland EGL libs: ${WAYLAND_EGL_LIBRARIES}")
+    endif()
+    pkg_check_modules(XKBCOMMON xkbcommon)
+    if(XKBCOMMON_FOUND)
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${XKBCOMMON_LIBRARIES})
+        target_include_directories(${PROJECT_NAME} PRIVATE ${XKBCOMMON_INCLUDE_DIRS})
+    endif()
+
+    # If Qt WaylandClient module exists in the static toolchain, link it
+    find_package(Qt6 QUIET COMPONENTS WaylandClient)
+    if(TARGET Qt6::WaylandClient)
+        target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::WaylandClient)
+        message(STATUS "Linking Qt6::WaylandClient module")
+    endif()
+
+    # Link Qt XCB QPA library (required by XCB plugin)
+    set(QT_XCB_QPA_PATH "/opt/Qt6/lib/libQt6XcbQpa.a")
+    if(EXISTS ${QT_XCB_QPA_PATH})
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${QT_XCB_QPA_PATH})
+        message(STATUS "Linking Qt6 XCB QPA library: ${QT_XCB_QPA_PATH}")
+    endif()
+    
+    # Force static linking of xcb-cursor with whole-archive to avoid dynamic dependency at runtime
+    if(DEFINED XCB_CURSOR_LIBRARIES AND XCB_CURSOR_LIBRARIES)
+        message(STATUS "Linking xcb-cursor statically: ${XCB_CURSOR_LIBRARIES}")
+        target_link_libraries(${PROJECT_NAME} PRIVATE 
+            -Wl,--whole-archive
+            ${XCB_CURSOR_LIBRARIES}
+            -Wl,--no-whole-archive
+        )
+    else()
+        message(WARNING "Static xcb-cursor library not detected by Configuration.cmake; falling back may cause runtime dependency on libxcb-cursor.so.0")
+        # Optionally enforce static-only:
+        # message(FATAL_ERROR "Static build requested but libxcb-cursor.a not found. Ensure static libxcb-cursor is installed and detected.")
+    endif()
+    
+    # Link other XCB static libraries normally
+    set(XCB_STATIC_LIBS
+        /usr/lib/aarch64-linux-gnu/libxcb-icccm.a
+        /usr/lib/aarch64-linux-gnu/libxcb-image.a
+        /usr/lib/aarch64-linux-gnu/libxcb-keysyms.a
+        /usr/lib/aarch64-linux-gnu/libxcb-randr.a
+        /usr/lib/aarch64-linux-gnu/libxcb-render-util.a
+        /usr/lib/aarch64-linux-gnu/libxcb-shm.a
+        /usr/lib/aarch64-linux-gnu/libxcb-sync.a
+        /usr/lib/aarch64-linux-gnu/libxcb-xfixes.a
+        /usr/lib/aarch64-linux-gnu/libxcb-render.a
+        /usr/lib/aarch64-linux-gnu/libxcb-shape.a
+        /usr/lib/aarch64-linux-gnu/libxcb-xkb.a
+        /usr/lib/aarch64-linux-gnu/libxcb.a
+        /usr/lib/aarch64-linux-gnu/libxcb-util.a
+    )
+    
+    # Check if static libraries exist and link them
+    foreach(XCB_LIB ${XCB_STATIC_LIBS})
+        if(EXISTS ${XCB_LIB})
+            target_link_libraries(${PROJECT_NAME} PRIVATE ${XCB_LIB})
+            message(STATUS "Linking static XCB library: ${XCB_LIB}")
+        else()
+            message(WARNING "Static XCB library not found: ${XCB_LIB}")
+        endif()
+    endforeach()
+    
+    # Link additional dependencies needed by XCB plugins
+    target_link_libraries(${PROJECT_NAME} PRIVATE xkbcommon xkbcommon-x11 Xau Xdmcp)
+endif()
+
+# Add XCB cursor library for static linking (Linux only) - Legacy support
+if(UNIX AND NOT APPLE AND XCB_CURSOR_FOUND)
+    # This is redundant now but keeping for compatibility
+    message(STATUS "XCB cursor already linked via static approach above")
+endif()
+
+# Add TurboJPEG if available
+if(TURBOJPEG_LIBRARY)
+    target_link_libraries(openterfaceQT PRIVATE ${TURBOJPEG_LIBRARIES})
+endif()
+
+# Add FFmpeg libraries if available
+link_ffmpeg_libraries()
+
+# Add libjpeg libraries if available
+if(LIBJPEG_FOUND)
+    target_link_libraries(openterfaceQT PRIVATE ${LIBJPEG_LIBRARIES})
+    target_include_directories(openterfaceQT PRIVATE ${LIBJPEG_INCLUDE_DIRS})
+endif()
+
+# Add GStreamer libraries if available (Linux only)
+if(NOT WIN32)
+    link_gstreamer_libraries()
+endif()
+
+# Add DBus on Unix systems (excluding macOS)
+if(UNIX AND NOT APPLE)
+    target_link_libraries(openterfaceQT PRIVATE Qt6::DBus)
+endif()
 
 # Resources:
-set(mainwindow_resource_files
-    "ui/../images/capture.svg"
-    "ui/../images/content_dark_eng.png"
-    "ui/../images/contrast.svg"
-    "ui/../images/full_screen.svg"
-    "ui/../images/fullscreen.svg"
-    "ui/../images/icon_128.ico"
-    "ui/../images/icon_128.png"
-    "ui/../images/icon_32.ico"
-    "ui/../images/icon_32.png"
-    "ui/../images/icon_64.ico"
-    "ui/../images/icon_64.png"
-    "ui/../images/keyboard-down.svg"
-    "ui/../images/keyboard-pressed.svg"
-    "ui/../images/keyboard-up.svg"
-    "ui/../images/keyboard.svg"
-    "ui/../images/mouse-default.svg"
-    "ui/../images/mouse-left-button.svg"
-    "ui/../images/mouse-middle-button.svg"
-    "ui/../images/mouse-right-button.svg"
-    "ui/../images/paste.svg"
-    "ui/../images/screensaver.svg"
-    "ui/../images/shutter.svg"
-    "ui/../images/zoom_fit.svg"
-    "ui/../images/zoom_in.svg"
-    "ui/../images/zoom_out.svg"
-    "ui/../images/screen_scale.svg"
-)
-
-qt_add_resources(openterfaceQT "mainwindow"
-    PREFIX
-        "/"
-    BASE
-        "ui"
-    FILES
-        ${mainwindow_resource_files}
-)
-
-set(keyboard_layouts_resource_files
-    "config/keyboards/azerty_fr.json"
-    "config/keyboards/japanese.json"
-    "config/keyboards/qwerty_dk.json"
-    "config/keyboards/qwerty_uk.json"
-    "config/keyboards/qwerty_us.json"
-    "config/keyboards/qwertz_de.json"
-)
- 
-qt_add_resources(openterfaceQT "keyboard_layouts"
-    PREFIX
-        "/config/keyboards"
-    BASE
-        "config/keyboards"
-    FILES
-        ${keyboard_layouts_resource_files}
-)
-
-set(languages_resources_files
-    "config/languages/openterface_da.qm"
-    "config/languages/openterface_de.qm"
-    "config/languages/openterface_en.qm"
-    "config/languages/openterface_fr.qm"
-    "config/languages/openterface_ja.qm"
-    "config/languages/openterface_se.qm"
-)
-
-qt_add_resources(openterfaceQT "languages"
-    PREFIX
-        "/config/languages"
-    BASE
-        "config/languages"
-    FILES
-        ${languages_resources_files}
-)
-
-set(qmake_immediate_resource_files
-    "openterfaceQT.rc"
-)
-
-qt_add_resources(openterfaceQT "qmake_immediate"
-    PREFIX
-        "/"
-    FILES
-        ${qmake_immediate_resource_files}
-)
-
-set(app_icons_resource_files
-    "images/icon_128.png"
-    "images/icon_64.png"
-    "images/icon_32.png"
-)
-
-qt_add_resources(openterfaceQT "app_icons"
-    PREFIX
-        "/icons"
-    FILES
-        ${app_icons_resource_files}
-)
-
-if((QT_VERSION_MAJOR GREATER 4))
-    target_link_libraries(openterfaceQT PRIVATE
-        Qt::Widgets
-    )
-endif()
-
-if(WIN32)
-    target_include_directories(openterfaceQT PRIVATE
-        lib
-    )
-
-    target_link_libraries(openterfaceQT PRIVATE
-        hid
-        libusb-1.0
-        oleaut32
-        setupapi
-        winpthread
-    )
-
-    # Resources:
-    set_source_files_properties("driver/windows/CH341SER.INF"
-        PROPERTIES QT_RESOURCE_ALIAS "CH341SER.INF"
-    )
-    set(drivers_resource_files
-        "driver/windows/CH341SER.INF"
-    )
-
-    qt_add_resources(openterfaceQT "drivers"
-        PREFIX
-            "/drivers/windows"
-        BASE
-            "driver/windows"
-        FILES
-            ${drivers_resource_files}
-    )
-endif()
-
-if(UNIX)
-    target_include_directories(openterfaceQT PRIVATE
-        /usr/include
-        /usr/local/include
-    )
-
-    target_link_libraries(openterfaceQT PRIVATE
-        usb-1.0
-    )
-
-    set(drivers_resource_files
-        "driver/linux/ch341.c"
-        "driver/linux/ch341.h"
-        "driver/linux/Makefile"
-    )
-
-    qt_add_resources(openterfaceQT "drivers"
-        PREFIX
-            "/drivers/linux"
-        BASE
-            "driver/linux"
-        FILES
-            ${drivers_resource_files}
-    )
-endif()
-
-
-install(TARGETS openterfaceQT
-    BUNDLE DESTINATION .
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
-
-qt_generate_deploy_app_script(
-    TARGET openterfaceQT
-    FILENAME_VARIABLE deploy_script
-    NO_UNSUPPORTED_PLATFORM_ERROR
-)
-install(SCRIPT ${deploy_script})
+include(cmake/Resources.cmake)
 
 # Add these lines to enable size optimization
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    # Enable Link Time Optimization
-    include(CheckIPOSupported)
-    check_ipo_supported(RESULT LTO_SUPPORTED OUTPUT LTO_ERROR)
-    if(LTO_SUPPORTED)
-        message(STATUS "IPO / LTO enabled")
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    # Enable Link Time Optimization (but not for ARM64 to avoid segfaults)
+    if(OPENTERFACE_IS_AMD64)
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT LTO_SUPPORTED OUTPUT LTO_ERROR)
+        if(LTO_SUPPORTED)
+            message(STATUS "IPO / LTO enabled")
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+        else()
+            message(STATUS "IPO / LTO not supported: ${LTO_ERROR}")
+        endif()
+        
+        # Optimize for size (only for non-ARM64 builds)
+        add_compile_options(-Os)
+        message(STATUS "Using -Os optimization for non-ARM64 build")
+
+        add_compile_options(-ffunction-sections -fdata-sections)
+        message(STATUS "Using function/data sections for non-ARM64 build")
     else()
-        message(STATUS "IPO / LTO not supported: ${LTO_ERROR}")
+        message(STATUS "Skipping LTO and -Os optimization for ARM64 to prevent segfaults")
     endif()
-    
-    # Optimize for size
-    add_compile_options(-Os)
-    
-    # Remove unused functions and data
-    add_compile_options(-ffunction-sections -fdata-sections)
     
     # Strip unused symbols
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        add_link_options(-Wl,--gc-sections)
+        if(OPENTERFACE_IS_AMD64)
+            add_link_options(-Wl,--gc-sections)
+        else()
+            message(STATUS "Skipping --gc-sections for ARM64 to prevent linker issues")
+        endif()
     endif()
 endif()
 
-# Make sure to only include the necessary Qt components
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Multimedia MultimediaWidgets)
-# Replace with only the modules you actually need
+# Qt components already found above

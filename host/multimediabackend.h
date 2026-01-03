@@ -1,0 +1,162 @@
+/*
+* ========================================================================== *
+*                                                                            *
+*    This file is part of the Openterface Mini KVM App QT version            *
+*                                                                            *
+*    Copyright (C) 2024   <info@openterface.com>                             *
+*                                                                            *
+*    This program is free software: you can redistribute it and/or modify    *
+*    it under the terms of the GNU General Public License as published by    *
+*    the Free Software Foundation version 3.                                 *
+*                                                                            *
+*    This program is distributed in the hope that it will be useful, but     *
+*    WITHOUT ANY WARRANTY; without even the implied warranty of              *
+*    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU        *
+*    General Public License for more details.                                *
+*                                                                            *
+*    You should have received a copy of the GNU General Public License       *
+*    along with this program. If not, see <http://www.gnu.org/licenses/>.    *
+*                                                                            *
+* ========================================================================== *
+*/
+
+#ifndef MULTIMEDIABACKEND_H
+#define MULTIMEDIABACKEND_H
+
+#include <QObject>
+#include <QMediaCaptureSession>
+#include <QGraphicsVideoItem>
+#include <QCameraFormat>
+#include <QLoggingCategory>
+#include <memory>
+
+Q_DECLARE_LOGGING_CATEGORY(log_multimedia_backend)
+
+/**
+ * @brief Enumeration of supported multimedia backends
+ */
+enum class MultimediaBackendType {
+    Unknown,
+    QtMultimedia,    // Qt's native multimedia backend (legacy)
+    Qt,              // Qt's native multimedia backend (Windows)
+    FFmpeg,
+    GStreamer
+};
+
+/**
+ * @brief Configuration parameters for multimedia backend operations
+ */
+struct MultimediaBackendConfig {
+    // Camera setup delays (in milliseconds)
+    int cameraInitDelay = 0;
+    int deviceSwitchDelay = 0;
+    int videoOutputSetupDelay = 0;
+    int captureSessionDelay = 0;
+    
+    // Frame rate handling
+    bool useConservativeFrameRates = false;
+    bool requireExactFrameRateMatch = false;
+    
+    // Video output handling
+    bool requireVideoOutputReset = false;
+    bool useGradualVideoOutputSetup = false;
+    
+    // Error recovery settings
+    int maxRetryAttempts = 1;
+    int retryDelay = 100;
+    
+    // Backend-specific flags
+    bool enableVerboseLogging = false;
+    bool useStandardFrameRatesOnly = false;
+};
+
+/**
+ * @brief Abstract base class for multimedia backend handling
+ */
+class MultimediaBackendHandler : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit MultimediaBackendHandler(QObject *parent = nullptr);
+    virtual ~MultimediaBackendHandler() = default;
+
+    virtual MultimediaBackendType getBackendType() const = 0;
+    virtual QString getBackendName() const = 0;
+    virtual bool isBackendAvailable() const { return true; }
+    virtual MultimediaBackendConfig getDefaultConfig() const;
+
+    // Hardware acceleration support
+    virtual QStringList getAvailableHardwareAccelerations() const { return QStringList(); }
+
+    // Camera lifecycle management
+    virtual void prepareCameraCreation();
+    virtual void configureCameraDevice();
+    virtual void setupCaptureSession(QMediaCaptureSession* session);
+    virtual void prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput);
+    virtual void finalizeVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput);
+    virtual void startCamera();
+    virtual void stopCamera();
+    virtual void cleanupCamera();
+
+    // Format and frame rate handling
+    virtual QList<int> getSupportedFrameRates(const QCameraFormat& format) const;
+    virtual bool isFrameRateSupported(const QCameraFormat& format, int frameRate) const;
+    virtual int getOptimalFrameRate(const QCameraFormat& format, int desiredFrameRate) const;
+    virtual void validateCameraFormat(const QCameraFormat& format) const;
+    virtual QCameraFormat selectOptimalFormat(const QList<QCameraFormat>& formats, 
+                                            const QSize& resolution, 
+                                            int desiredFrameRate,
+                                            QVideoFrameFormat::PixelFormat pixelFormat) const;
+
+    // Error handling and recovery
+    virtual void handleCameraError(int errorCode, const QString& errorString);
+    virtual bool shouldRetryOperation(int attemptCount) const;
+
+    // Video recording interface (virtual methods for backend implementations)
+    virtual bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000) { return false; }
+    virtual bool stopRecording() { return false; }
+    virtual void pauseRecording() {}
+    virtual void resumeRecording() {}
+    virtual bool isRecording() const { return false; }
+    virtual QString getCurrentRecordingPath() const { return QString(); }
+    virtual qint64 getRecordingDuration() const { return 0; }
+
+signals:
+    void backendMessage(const QString& message);
+    void backendWarning(const QString& warning);
+    void backendError(const QString& error);
+    void fpsChanged(double fps);
+    
+    // Recording signals
+    void recordingStarted(const QString& outputPath);
+    void recordingStopped();
+    void recordingPaused();
+    void recordingResumed();
+    void recordingError(const QString& error);
+    void recordingDurationChanged(qint64 duration);
+
+protected:
+    MultimediaBackendConfig m_config;
+    
+    void logBackendMessage(const QString& message) const;
+    void logBackendWarning(const QString& warning) const;
+    void logBackendError(const QString& error) const;
+};
+
+/**
+ * @brief Factory class for creating multimedia backend handlers
+ */
+class MultimediaBackendFactory
+{
+public:
+    static MultimediaBackendType detectBackendType();
+    static MultimediaBackendType parseBackendType(const QString& backendName);
+    static QString backendTypeToString(MultimediaBackendType type);
+    
+    static std::unique_ptr<MultimediaBackendHandler> createHandler(MultimediaBackendType type, QObject* parent = nullptr);
+    static std::unique_ptr<MultimediaBackendHandler> createHandler(const QString& backendName, QObject* parent = nullptr);
+    static std::unique_ptr<MultimediaBackendHandler> createAutoDetectedHandler(QObject* parent = nullptr);
+};
+
+#endif // MULTIMEDIABACKEND_H

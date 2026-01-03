@@ -1,0 +1,94 @@
+# Build environment image for cross-compiling Qt statically for Windows
+# This image is intended to be built after the ffmpeg-win-static image is created and will use it
+ARG BASE_IMAGE=openterface/ffmpeg-win-static:6.1.1
+FROM ${BASE_IMAGE}
+
+ARG QT_VERSION=6.6.3
+ARG QT_INSTALL_PREFIX=/opt/qt-windows-static
+ARG BUILD_DIR=/workspace/qt-win-build
+ARG SOURCE_DIR=/workspace/qt-source
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /workspace
+
+# Install Qt build dependencies and useful tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    python3 \
+    python3-pip \
+    perl \
+    git \
+    curl \
+    wget \
+    xz-utils \
+    p7zip-full \
+    cmake \
+    ninja-build \
+    gperf \
+    bison \
+    flex \
+    libfontconfig1-dev \
+    libfreetype6-dev \
+    libicu-dev \
+    libssl-dev \
+    libx11-dev \
+    libxcb1-dev \
+    libxcb-keysyms1-dev \
+    libxcb-image0-dev \
+    libxcb-shm0-dev \
+    libxcb-icccm4-dev \
+    libxcb-sync-dev \
+    libxcb-xfixes0-dev \
+    libxcb-shape0-dev \
+    libxcb-randr0-dev \
+    libxcb-render-util0-dev \
+    libxkbcommon-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV CC=x86_64-w64-mingw32-gcc \
+    CXX=x86_64-w64-mingw32-g++ \
+    AR=x86_64-w64-mingw32-ar \
+    RANLIB=x86_64-w64-mingw32-ranlib \
+    PATH=/usr/lib/mingw-w64/bin:$PATH
+
+# Create directories
+RUN mkdir -p ${BUILD_DIR} ${SOURCE_DIR} ${QT_INSTALL_PREFIX}
+
+# Download Qt source and prepare for cross-build
+RUN set -ex; \
+    cd ${SOURCE_DIR}; \
+    if [ ! -f qt-everywhere-src-${QT_VERSION}.tar.xz ]; then \
+      wget -q https://download.qt.io/archive/qt/6.6/${QT_VERSION}/single/qt-everywhere-src-${QT_VERSION}.tar.xz; \
+    fi; \
+    rm -rf qt-everywhere-src-${QT_VERSION}; \
+    tar -xf qt-everywhere-src-${QT_VERSION}.tar.xz
+
+# Configure & build (attempt cross-compile for Windows - this is heavyweight and may need adjustments)
+RUN set -ex; \
+    cd ${BUILD_DIR}; \
+    ${SOURCE_DIR}/qt-everywhere-src-${QT_VERSION}/configure \
+        -prefix ${QT_INSTALL_PREFIX} \
+        -opensource -confirm-license \
+        -release \
+        -static \
+        -optimized-qmake \
+        -strip \
+        -force-pkg-config \
+        -nomake examples -nomake tests \
+        -skip qtwebengine \
+        -skip qt3d \
+        -platform linux-g++ \
+        -xplatform win32-g++ \
+        -sysroot / \
+        -I${FFMPEG_PREFIX}/include \
+        -L${FFMPEG_PREFIX}/lib || true; \
+    # Note: the configure step may require additional -I/-L flags for cross-compiled dependencies
+
+# We don't run the full Qt build inside this image by default (can take many hours).
+# Instead this image prepares the cross-build environment and includes FFmpeg static libs
+RUN echo 'Qt cross-build environment prepared at /workspace; to perform a full build run make in the container or mount a build server with enough resources.'
+
+WORKDIR /workspace
+
+CMD ["/bin/bash"]

@@ -3,7 +3,7 @@ build/*
 release/*
 aqtinstall.log
 debug/*
-.vscode
+# .vscode
 openterfaceQT.pro.user*
 build-script/drivers/*
 build-script/ffmpeg-build/*
@@ -11,3 +11,10 @@ build-script/temp/*
 .DS_Store
 .flatpak-builder/*
 .build-dir/*
+host/backend/gstreamerbackendhandler.cpp
+build_static/*
+ffmpeg-build-temp/*
+CmakeLists.txt.user
+.cache/*
+debug.log
+build-script/libusb-build-temp/*

@@ -28,6 +28,9 @@
 #include "host/HostManager.h"
 #include "host/cameramanager.h"
 #include "serial/SerialPortManager.h"
+#include <QStandardPaths>
+#include "device/DeviceManager.h"
+#include "device/HotplugMonitor.h"
 #include "ui/preferences/settingdialog.h"
 #include "ui/help/helppane.h"
 #include "ui/videopane.h"
@@ -37,15 +40,16 @@
 #include "ui/advance/serialportdebugdialog.h"
 #include "ui/advance/firmwareupdatedialog.h"
 #include "ui/advance/envdialog.h"
+#include "ui/advance/updatedisplaysettingsdialog.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
 #include <QMediaFormat>
 #include <QMediaMetaData>
 #include <QMediaRecorder>
-#include <QVideoWidget>
 #include <QStackedLayout>
 #include <QMessageBox>
+#include <QCheckBox>
 #include <QImageCapture>
 #include <QToolBar>
 #include <QClipboard>
@@ -70,6 +74,10 @@
 #include <QGuiApplication>
 #include <QToolTip>
 #include <QScreen>
+
+#ifdef Q_OS_WIN
+#include "host/backend/qtbackendhandler.h"
+#endif
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -109,312 +117,74 @@ QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &siz
     return pixmap;
 }
 
-MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent) :  ui(new Ui::MainWindow),
-                            m_audioManager(new AudioManager(this)),
-                            videoPane(new VideoPane(this)),
-                            scrollArea(new QScrollArea(this)),
-                            stackedLayout(new QStackedLayout(this)),
-                            toolbarManager(new ToolbarManager(this)),
-                            toggleSwitch(new ToggleSwitch(this)),
-                            m_cameraManager(new CameraManager(this)),
-                            m_versionInfoManager(new VersionInfoManager(this)),
-                            m_languageManager(languageManager),
-                            m_screenSaverManager(new ScreenSaverManager(this)),
-                            m_cornerWidgetManager(new CornerWidgetManager(this))
-                            // cameraAdjust(new CameraAdjust(this))
+MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
+    : QMainWindow(parent)
+    , ui(new Ui::MainWindow)
+    , m_audioManager(&AudioManager::getInstance())
+    , videoPane(new VideoPane(this))
+    , stackedLayout(new QStackedLayout(this))
+    , toolbarManager(new ToolbarManager(this))
+    , toggleSwitch(new ToggleSwitch(this))
+    , m_cameraManager(new CameraManager(this))
+    , m_versionInfoManager(new VersionInfoManager(this))
+    , m_languageManager(languageManager)
+    , m_screenSaverManager(new ScreenSaverManager(this))
+    , m_cornerWidgetManager(new CornerWidgetManager(this))
+    , m_windowControlManager(nullptr)
+    , m_deviceCoordinator(nullptr)
+    , m_menuCoordinator(nullptr)
+    , m_deviceAutoSelected(false)
+    , mouseEdgeTimer(nullptr)
+    , taskmanager(TaskManager::instance())
 {
-    Q_UNUSED(parent);
-
-    qCDebug(log_ui_mainwindow) << "Init camera...";
+    qCDebug(log_ui_mainwindow) << "Initializing MainWindow...";
     
     ui->setupUi(this);
-    m_cornerWidgetManager->setMenuBar(ui->menubar);
-    // ui->menubar->setCornerWidget(m_cornerWidgetManager->getCornerWidget(), Qt::TopRightCorner);
-
-    initializeKeyboardLayouts();
-    connect(m_cornerWidgetManager, &CornerWidgetManager::zoomInClicked, this, &MainWindow::onZoomIn);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::zoomOutClicked, this, &MainWindow::onZoomOut);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::zoomReductionClicked, this, &MainWindow::onZoomReduction);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::screenScaleClicked, this, &MainWindow::configScreenScale);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::virtualKeyboardClicked, this, &MainWindow::onToggleVirtualKeyboard);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::captureClicked, this, &MainWindow::takeImageDefault);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::fullScreenClicked, this, &MainWindow::fullScreen);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::pasteClicked, this, &MainWindow::onActionPasteToTarget);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::screensaverClicked, this, &MainWindow::onActionScreensaver);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::toggleSwitchChanged, this, &MainWindow::onToggleSwitchStateChanged);
-    connect(m_cornerWidgetManager, &CornerWidgetManager::keyboardLayoutChanged, this, &MainWindow::onKeyboardLayoutCombobox_Changed);
     
-
-    GlobalVar::instance().setMouseAutoHide(GlobalSetting::instance().getMouseAutoHideEnable());
-
-    m_statusBarManager = new StatusBarManager(ui->statusbar, this);
-    taskmanager = TaskManager::instance();
+    // Initialize WindowLayoutCoordinator early - needed before checkInitSize()
+    m_windowLayoutCoordinator = new WindowLayoutCoordinator(this, videoPane, menuBar(), statusBar(), this);
     
-    QWidget *centralWidget = new QWidget(this);
-    centralWidget->setLayout(stackedLayout);
-    centralWidget->setMouseTracking(true);
-
-    HelpPane *helpPane = new HelpPane;
-    stackedLayout->addWidget(helpPane);
+    // Delegate all initialization to initializer
+    m_initializer = new MainWindowInitializer(this);
+    m_initializer->initialize();
     
-    // Set size policy and minimum size for videoPane
-    // videoPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    videoPane->setMinimumSize(this->width(),
-    this->height() - ui->statusbar->height() - ui->menubar->height()); // must minus the statusbar and menubar height
-
-    scrollArea->setWidget(videoPane);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setBackgroundRole(QPalette::Dark);
-    stackedLayout->addWidget(scrollArea);
-
-    stackedLayout->setCurrentIndex(0);
-
-    setCentralWidget(centralWidget);
-    qCDebug(log_ui_mainwindow) << "Set host manager event callback...";
-    HostManager::getInstance().setEventCallback(this);
-
-    qCDebug(log_ui_mainwindow) << "Observe Video HID connected...";
-    VideoHid::getInstance().setEventCallback(this);
-
-    qCDebug(log_ui_mainwindow) << "Observe video input changed...";
-    connect(&m_source, &QMediaDevices::videoInputsChanged, this, &MainWindow::updateCameras);
-
-    qCDebug(log_ui_mainwindow) << "Observe Relative/Absolute toggle...";
-    connect(ui->actionRelative, &QAction::triggered, this, &MainWindow::onActionRelativeTriggered);
-    connect(ui->actionAbsolute, &QAction::triggered, this, &MainWindow::onActionAbsoluteTriggered);
-
-    connect(ui->actionMouseAutoHide, &QAction::triggered, this, &MainWindow::onActionMouseAutoHideTriggered);
-    connect(ui->actionMouseAlwaysShow, &QAction::triggered, this, &MainWindow::onActionMouseAlwaysShowTriggered);
-
-    qCDebug(log_ui_mainwindow) << "Observe reset HID triggered...";
-    connect(ui->actionResetHID, &QAction::triggered, this, &MainWindow::onActionResetHIDTriggered);
-
-    qCDebug(log_ui_mainwindow) << "Observe factory reset HID triggered...";
-    connect(ui->actionFactory_reset_HID, &QAction::triggered, this, &MainWindow::onActionFactoryResetHIDTriggered);
-
-    qCDebug(log_ui_mainwindow) << "Observe reset Serial Port triggered...";
-    connect(ui->actionResetSerialPort, &QAction::triggered, this, &MainWindow::onActionResetSerialPortTriggered);
-
-    qDebug() << "Observe Hardware change MainWindow triggered...";
-
-    qCDebug(log_ui_mainwindow) << "Creating and setting up ToggleSwitch...";
-    toggleSwitch->setFixedSize(78, 28);  // Adjust size as needed
-    connect(toggleSwitch, &ToggleSwitch::stateChanged, this, &MainWindow::onToggleSwitchStateChanged);
-
-    // Add the ToggleSwitch as the last button in the cornerWidget's layout
-
-
-
-    qCDebug(log_ui_mainwindow) << "Observe switch usb connection trigger...";
-    connect(ui->actionTo_Host, &QAction::triggered, this, &MainWindow::onActionSwitchToHostTriggered);
-    connect(ui->actionTo_Target, &QAction::triggered, this, &MainWindow::onActionSwitchToTargetTriggered);
-
-    qCDebug(log_ui_mainwindow) << "Observe action paste from host...";
-    connect(ui->actionPaste, &QAction::triggered, this, &MainWindow::onActionPasteToTarget);
-
-    addToolBar(Qt::TopToolBarArea, toolbarManager->getToolbar());
-    toolbarManager->getToolbar()->setVisible(false);
+    // Start VideoHid
+    VideoHid::getInstance().start();
     
-    connect(m_cameraManager, &CameraManager::cameraActiveChanged, this, &MainWindow::updateCameraActive);
-    connect(m_cameraManager, &CameraManager::cameraError, this, &MainWindow::displayCameraError);
-    connect(m_cameraManager, &CameraManager::imageCaptured, this, &MainWindow::processCapturedImage);                                         
-    connect(m_cameraManager, &CameraManager::resolutionsUpdated, this, &MainWindow::onResolutionsUpdated);
-    connect(&VideoHid::getInstance(), &VideoHid::inputResolutionChanged, this, &MainWindow::onInputResolutionChanged);
-    connect(&VideoHid::getInstance(), &VideoHid::resolutionChangeUpdate, this, &MainWindow::onResolutionChange);
-
-    
-    qCDebug(log_ui_mainwindow) << "Test actionTCPServer true...";
-    ui->actionTCPServer->setVisible(true);
-    connect(ui->actionTCPServer, &QAction::triggered, this, &MainWindow::startServer);
-
-    qDebug() << "Init camera...";
-    checkInitSize();
-    initCamera();
-
-    // Connect palette change signal to the slot
-    onLastKeyPressed("");
-    onLastMouseLocation(QPoint(0, 0), "");
-
-    // Connect zoom buttons
-    
-    scrollArea->ensureWidgetVisible(videoPane);
-
-    // Set the window title with the version number
-    qDebug() << "Set window title" << APP_VERSION;
-    QString windowTitle = QString("Openterface Mini-KVM - %1").arg(APP_VERSION);
-    setWindowTitle(windowTitle);
-
-    mouseEdgeTimer = new QTimer(this);
-    connect(mouseEdgeTimer, &QTimer::timeout, this, &MainWindow::checkMousePosition);
-    // mouseEdgeTimer->start(edgeDuration); // Start the timer with the new duration
-
-
-
-    // Add this after other menu connections
-    connect(ui->menuBaudrate, &QMenu::triggered, this, &MainWindow::onBaudrateMenuTriggered);
-    connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, this, &MainWindow::onPortConnected);
-    
-    qApp->installEventFilter(this);
-
-    // Initial position setup
-    // QPoint buttonPos = ui->contrastButton->mapToGlobal(QPoint(0, 0));
-    // int menuBarHeight = buttonPos.y() - this->mapToGlobal(QPoint(0, 0)).y();
-    // cameraAdjust->updatePosition(menuBarHeight, width());
-
-    // Add this line after ui->setupUi(this)
-    connect(ui->actionScriptTool, &QAction::triggered, this, &MainWindow::showScriptTool);
-    mouseManager = std::make_unique<MouseManager>();
-    keyboardMouse = std::make_unique<KeyboardMouse>();
-    semanticAnalyzer = std::make_unique<SemanticAnalyzer>(mouseManager.get(), keyboardMouse.get());
-    connect(semanticAnalyzer.get(), &SemanticAnalyzer::captureImg, this, &MainWindow::takeImage);
-    connect(semanticAnalyzer.get(), &SemanticAnalyzer::captureAreaImg, this, &MainWindow::takeAreaImage);
-    scriptTool = new ScriptTool(this);
-    // connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
-    connect(this, &MainWindow::emitScriptStatus, scriptTool, &ScriptTool::resetCommmandLine);
-    connect(semanticAnalyzer.get(), &SemanticAnalyzer::commandIncrease, scriptTool, &ScriptTool::handleCommandIncrement);
-    // setTooltip();
-
-    // Add this connection after toolbarManager is created
-    connect(toolbarManager, &ToolbarManager::toolbarVisibilityChanged,
-            this, &MainWindow::onToolbarVisibilityChanged);
-    // qCDebug(log_ui_mainwindow) << "full screen...";
-    
-    connect(m_languageManager, &LanguageManager::languageChanged, this, &MainWindow::updateUI);
-    setupLanguageMenu();
-    // fullScreen();
-    qDebug() << "finished initialization";
-    
+    qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
 }
 
 void MainWindow::startServer(){
+    // 1. 创建并启动 TCP 服务器
     tcpServer = new TcpServer(this);
     tcpServer->startServer(SERVER_PORT);
-    qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345";
+    
+    // 2. 创建并初始化 ImageCapturer
+    m_imageCapturer = new ImageCapturer(this);
+    
+    // 3. 设置默认保存路径
+    QString savePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/openterface";
+    
+    // 4. 启动定时自动捕获（每秒一次）
+    m_imageCapturer->startCapturingAuto(m_cameraManager, tcpServer, savePath, 1);
+    
+    // 5. 建立信号槽连接
     connect(m_cameraManager, &CameraManager::lastImagePath, tcpServer, &TcpServer::handleImgPath);
     connect(tcpServer, &TcpServer::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     connect(this, &MainWindow::emitTCPCommandStatus, tcpServer, &TcpServer::recvTCPCommandStatus);
+    
+    qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345 with auto image capture";
 }
 
 
 void MainWindow::updateUI() {
     ui->retranslateUi(this); // Update the UI elements
     // this->menuBar()->clear();
-    setupLanguageMenu();
-}
-
-void MainWindow::setupLanguageMenu() {
-    // Clear existing language actions
-    ui->menuLanguages->clear();
-    QStringList languages = m_languageManager->availableLanguages();
-    for (const QString &lang : languages) {
-       qCDebug(log_ui_mainwindow) << "Available language: " << lang; 
+    if (m_menuCoordinator) {
+        m_menuCoordinator->setupLanguageMenu();
     }
-    if (languages.isEmpty()) {
-        languages << "en" << "fr" << "de" << "da" << "ja" << "se";
-    }
-
-    QActionGroup *languageGroup = new QActionGroup(this);
-    languageGroup->setExclusive(true);
-
-    QMap<QString, QString> languageNames = {
-        {"en", "English"},
-        {"fr", "Français"},
-        {"de", "German"},
-        {"da", "Danish"},
-        {"ja", "Japanese"},
-        {"se", "Swedish"}
-    };
-    for (const QString &lang : languages) {
-        QString displayName = languageNames.value(lang, lang);
-        QAction *action = new QAction(displayName, this);
-        action->setCheckable(true);
-        action->setData(lang);
-        if (lang == m_languageManager->currentLanguage()) {
-            action->setChecked(true);
-        }
-        ui->menuLanguages->addAction(action);
-        languageGroup->addAction(action);
-    }
-    connect(languageGroup, &QActionGroup::triggered, this, &MainWindow::onLanguageSelected);
-}
-
-void MainWindow::onLanguageSelected(QAction *action) {
-    QString language = action->data().toString();
-    m_languageManager->switchLanguage(language);
-}
-
-bool MainWindow::isFullScreenMode() {
-    // return fullScreenState;
-    return this->isFullScreen();
-}
-
-void MainWindow::fullScreen(){
-    qreal aspect_ratio = static_cast<qreal>(video_width) / video_height;
-    QScreen *currentScreen = this->screen();
-    QRect screenGeometry = currentScreen->geometry();
-    int videoAvailibleHeight = screenGeometry.height() - ui->menubar->height();
-    int videoAvailibleWidth = videoAvailibleHeight * aspect_ratio;
-    int horizontalOffset = (screenGeometry.width() - videoAvailibleWidth) / 2;
-    if(!isFullScreenMode()){
-         
-        ui->statusbar->hide();
-        // Calculate the horizontal offset after resizing
-        
-        // Resize the videoPane and scrollArea first
-        videoPane->setMinimumSize(videoAvailibleWidth, videoAvailibleHeight);
-        videoPane->resize(videoAvailibleWidth, videoAvailibleHeight);
-        scrollArea->resize(videoAvailibleWidth, videoAvailibleHeight);
-        qCDebug(log_ui_mainwindow) << "Resize to Width " << videoAvailibleWidth << "\tHeight: " << videoAvailibleHeight;
-        // Move the videoPane and scrollArea to the center
-        fullScreenState = true;
-        this->showFullScreen();
-        qCDebug(log_ui_mainwindow) << "offset: " << horizontalOffset;
-        videoPane->move(horizontalOffset, videoPane->y());
-        scrollArea->move(horizontalOffset, videoPane->y());
-    } else {
-        this->showNormal();
-        ui->statusbar->show();
-        fullScreenState = false;
-    }
-}
-
-
-void MainWindow::onZoomIn()
-{
-    factorScale = 1.1 * factorScale;
-    QSize currentSize = videoPane->size() * 1.1;
-    videoPane->resize(currentSize.width(), currentSize.height());
-    qDebug() << "video pane size:" << videoPane->geometry();
-    if (videoPane->width() > scrollArea->width() || videoPane->height() > scrollArea->height()) {
-        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    }
-
-    mouseEdgeTimer->start(edgeDuration); // Check every edge Duration
-}
-
-void MainWindow::onZoomOut()
-{
-    if (videoPane->width() != this->width()){
-        factorScale = 0.9 * factorScale;
-        QSize currentSize = videoPane->size() * 0.9;
-        videoPane->resize(currentSize.width(), currentSize.height());
-        if (videoPane->width() <= scrollArea->width() && videoPane->height() <= scrollArea->height()) {
-            scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-            scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-        }
-    }
-
-}
-
-void MainWindow::onZoomReduction()
-{
-    videoPane->resize(this->width() * 0.9, (this->height() - ui->statusbar->height() - ui->menubar->height()) * 0.9);
-    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    if (mouseEdgeTimer->isActive()) {
-        mouseEdgeTimer->stop();
+    if (m_deviceCoordinator) {
+        m_deviceCoordinator->updateDeviceMenu(); // Update device menu when UI language changes
     }
 }
 
@@ -451,137 +221,60 @@ void MainWindow::initCamera()
 #endif
     // Camera devices:
     updateCameras();
-    calculate_video_position();
+    // calculate_video_position();
     GlobalVar::instance().setWinWidth(this->width());
     GlobalVar::instance().setWinHeight(this->height());
 }
 
-void MainWindow::checkInitSize(){
-    QScreen *currentScreen = this->screen();
-    systemScaleFactor = currentScreen->devicePixelRatio();
-    if(systemScaleFactor != 1.0){
-        resize(int(this->width() / systemScaleFactor), int(this->height() / systemScaleFactor));
-
-        qCDebug(log_ui_mainwindow) << "checkInitSize Resize now: " << this->width() << this->height();
-        qCDebug(log_ui_mainwindow) << "checkInitSize Resize now: " << this->width() / systemScaleFactor 
-        << this->height() / systemScaleFactor;
-    }
-    qCDebug(log_ui_mainwindow) << "System scale factor: " << systemScaleFactor;
-}
-
 void MainWindow::resizeEvent(QResizeEvent *event) {
+    qCDebug(log_ui_mainwindow) << "Resize event triggered. New size:" << event->size();
+
     static qint64 lastResizeTime = 0;
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    const qint64 RESIZE_THROTTLE_MS = 50;
     
-    if (isFullScreenMode() || (currentTime - lastResizeTime) < 10) { // 100ms
+    // Skip resize if in fullscreen mode or throttled
+    bool inFullscreen = m_windowLayoutCoordinator ? m_windowLayoutCoordinator->isFullScreenMode() : false;
+    if (inFullscreen || (currentTime - lastResizeTime) < RESIZE_THROTTLE_MS) {
         return;
+    }
+
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - current window state:" << this->windowState();
+    
+    // Check if window is maximized - if so, allow resize to proceed
+    bool isMaximized = (this->windowState() & Qt::WindowMaximized);
+    bool isMinimized = (this->windowState() & Qt::WindowMinimized);
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - isMaximized:" << isMaximized;
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - isMinimized:" << isMinimized;
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - isFullScreenMode:" 
+                            << (m_windowLayoutCoordinator ? m_windowLayoutCoordinator->isFullScreenMode() : false);
+    
+    // Track window state changes for WindowControlManager
+    static Qt::WindowStates lastWindowState = this->windowState();
+    if (lastWindowState != this->windowState() && m_windowControlManager) {
+        m_windowControlManager->onWindowStateChanged(lastWindowState, this->windowState());
+        lastWindowState = this->windowState();
+    }
+    
+    if (!isMaximized) {
+        // Check if new size exceeds screen bounds only for non-maximized windows
+        QScreen *currentScreen = this->screen();
+        QRect availableGeometry = currentScreen->availableGeometry();
+        int availableWidth = availableGeometry.width();
+        int availableHeight = availableGeometry.height();
+        
+        if (event->size().width() >= availableWidth || event->size().height() >= availableHeight) {
+            qCDebug(log_ui_mainwindow) << "Resize event ignored due to exceeding screen bounds.";
+            return;
+        }
     }
     
     lastResizeTime = currentTime;
     QMainWindow::resizeEvent(event);
-    doResize();
-    
-    // m_cornerWidgetManager->updateButtonVisibility(this->width());
-    m_cornerWidgetManager->updatePosition(this->width(), ui->menubar->height(), isFullScreenMode());
-
-} // end resize event function
-
-void MainWindow::doResize(){
-    // Check if the window is maximized
-    if (this->windowState() & Qt::WindowMaximized) {
-        // Handle maximized state
-        qCDebug(log_ui_mainwindow) << "Window is maximized.";
-        // You can update the window icon here if needed
-    } else {
-        // Handle normal state
-        qCDebug(log_ui_mainwindow) << "Window is normal.";
-        // You can update the window icon here if needed
+    if (m_windowLayoutCoordinator) {
+        m_windowLayoutCoordinator->doResize();
     }
-    // Define the desired aspect ratio
-    QScreen *currentScreen = this->screen();
-    QRect availableGeometry = currentScreen->availableGeometry();
-    systemScaleFactor = currentScreen->devicePixelRatio();
-    double captureAspectRatio;
-    if(GlobalVar::instance().getCaptureWidth() && GlobalVar::instance().getCaptureHeight()){
-        video_width = GlobalVar::instance().getCaptureWidth();
-        video_height = GlobalVar::instance().getCaptureHeight();
-        captureAspectRatio = static_cast<double>(video_width) / video_height;
-    }
-    double aspect_ratio = GlobalSetting::instance().getScreenRatio();
-    
-    // Get the available screen width and height
-    int availableWidth = availableGeometry.width();
-    int availableHeight = availableGeometry.height();
-    // Get the current window size
-    int currentHeight = this->height();
-    int currentWidth = this->width();
-    
-    // Calculate the height of the title bar, menu bar, and status bar
-    int titleBarHeight = this->frameGeometry().height() - this->geometry().height();
-    int menuBarHeight = this->menuBar()->height();
-    int statusBarHeight = ui->statusbar->height();
-    int maxContentHeight = availableHeight - titleBarHeight - menuBarHeight - statusBarHeight;
-    bool needResize = (currentWidth >= availableWidth || currentHeight >= availableHeight);
-    if (needResize) {
-        // Adjust size while maintaining aspect ratio
-        if (currentWidth >= availableWidth) {
-            currentWidth = availableWidth;
-        }
-        if (currentHeight >= maxContentHeight) {
-            currentHeight = maxContentHeight + menuBarHeight + statusBarHeight;
-        }
-
-        int newVideoHeight = std::min(currentHeight - menuBarHeight - statusBarHeight, maxContentHeight);
-        int newVideoWidth = static_cast<int>(newVideoHeight * aspect_ratio);
-
-        if (currentWidth < newVideoWidth) {
-            // If video width is larger than the window's width, adjust based on width
-            newVideoWidth = currentWidth;
-            newVideoHeight = static_cast<int>(newVideoWidth / aspect_ratio);
-        }
-
-        // Calculate horizontal offset for centering
-        int horizontalOffset = (currentWidth - newVideoWidth) / 2;
-
-        // Apply changes to UI components
-        videoPane->setMinimumSize(newVideoWidth, newVideoHeight);
-        videoPane->resize(newVideoWidth, newVideoHeight);
-        scrollArea->resize(newVideoWidth, newVideoHeight);
-        videoPane->move(horizontalOffset, videoPane->y());
-        scrollArea->move(horizontalOffset, videoPane->y());
-        
-        // Resize main window if necessary
-        if (currentWidth != availableWidth && currentHeight != availableHeight) {
-            resize(currentWidth, currentHeight);
-        }
- 
-    } else {
-        // When within screen bounds, adjust height according to width and aspect ratio
-        int contentHeight = static_cast<int>(currentWidth / aspect_ratio) + menuBarHeight + statusBarHeight;
-        int adjustedContentHeight = contentHeight - menuBarHeight - statusBarHeight;
-        if (aspect_ratio < 1.0){
-            currentWidth = static_cast<int>(currentHeight * aspect_ratio);
-            adjustedContentHeight = currentHeight - menuBarHeight - statusBarHeight;
-            int offsetX = static_cast<int>((videoPane->width()-currentWidth) /2);
-            int offsetY = static_cast<int>((videoPane->height()-adjustedContentHeight) /2);
-            int contentwidth = static_cast<int>(adjustedContentHeight * captureAspectRatio);
-            videoPane->setMinimumSize(contentwidth, adjustedContentHeight);
-            videoPane->resize(contentwidth, adjustedContentHeight);
-            qDebug() << "setDisplayRegion Resize videoPane to width: " << currentWidth << " height: " << currentHeight << " offset: " << offsetX << offsetY << "videoPane width: " << videoPane->width();
-            setMinimumSize(100, 500);
-            resize(currentWidth, currentHeight);
-        }
-        else{
-            videoPane->setMinimumSize(currentWidth, adjustedContentHeight);
-            videoPane->resize(currentWidth, adjustedContentHeight);
-            scrollArea->resize(currentWidth, adjustedContentHeight);
-            resize(currentWidth, contentHeight);
-        }
-        
-    }
-    // Update global state
-    GlobalVar::instance().setWinWidth(this->width());
-    GlobalVar::instance().setWinHeight(this->height());
+    qCDebug(log_ui_mainwindow) << "mainwindow size: " << this->size() << "VideoPane size:" << videoPane->size();
 }
 
 void MainWindow::moveEvent(QMoveEvent *event) {
@@ -596,8 +289,6 @@ void MainWindow::moveEvent(QMoveEvent *event) {
     // Call the base class implementation
     QWidget::moveEvent(event);
 }
-
-
 
 void MainWindow::updateScrollbars() {
     // Get the screen geometry using QScreen
@@ -624,10 +315,10 @@ void MainWindow::updateScrollbars() {
         deltaY = 10; // Adjust step size as needed
     }
 
-    // Update scrollbars
-    scrollArea->horizontalScrollBar()->setValue(scrollArea->horizontalScrollBar()->value() + deltaX);
-    scrollArea->verticalScrollBar()->setValue(scrollArea->verticalScrollBar()->value() + deltaY);
+    // Note: scrollbars removed - VideoPane handles zooming internally via QGraphicsView
+    // No need to update scrollbars since VideoPane manages its own scroll behavior
 }
+
 
 void MainWindow::onActionRelativeTriggered()
 {
@@ -660,21 +351,6 @@ void MainWindow::onActionMouseAlwaysShowTriggered()
 {
     GlobalVar::instance().setMouseAutoHide(false);
     GlobalSetting::instance().setMouseAutoHideEnable(false);
-}
-
-void MainWindow::onActionResetHIDTriggered()
-{
-    QMessageBox::StandardButton reply;
-    reply = QMessageBox::warning(this, "Confirm Reset Keyboard and Mouse?",
-                                        "Resetting the Keyboard & Mouse chip will apply new settings. Do you want to proceed?",
-                                  QMessageBox::Yes | QMessageBox::No);
-
-    if (reply == QMessageBox::Yes) {
-        qCDebug(log_ui_mainwindow) << "onActionResetHIDTriggered";
-        HostManager::getInstance().resetHid();
-    } else {
-        qCDebug(log_ui_mainwindow) << "Reset HID canceled by user.";
-    }
 }
 
 void MainWindow::onActionFactoryResetHIDTriggered()
@@ -710,22 +386,39 @@ void MainWindow::onActionResetSerialPortTriggered()
 
 void MainWindow::onActionSwitchToHostTriggered()
 {
-    qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
-    VideoHid::getInstance().switchToHost();
-    ui->actionTo_Host->setChecked(true);
-    ui->actionTo_Target->setChecked(false);
+    bool isCH32V208 = SerialPortManager::getInstance().isChipTypeCH32V208();
+    if(isCH32V208){
+        SerialPortManager::getInstance().switchUsbToHostViaSerial();
+    }else{
+        qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
+        VideoHid::getInstance().switchToHost();
+        ui->actionTo_Host->setChecked(true);
+        ui->actionTo_Target->setChecked(false);
+    }
+
 }
 
 void MainWindow::onActionSwitchToTargetTriggered()
 {
-    qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
-    VideoHid::getInstance().switchToTarget();
-    ui->actionTo_Host->setChecked(false);
-    ui->actionTo_Target->setChecked(true);
+    bool isCH32V208 = SerialPortManager::getInstance().isChipTypeCH32V208();
+    if(isCH32V208){
+        SerialPortManager::getInstance().switchUsbToTargetViaSerial();
+    }else{
+        qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
+        VideoHid::getInstance().switchToTarget();
+        ui->actionTo_Host->setChecked(false);
+        ui->actionTo_Target->setChecked(true);
+    }
+
 }
 
 void MainWindow::onToggleSwitchStateChanged(int state)
 {
+    // Ignore if this change is from a programmatic status update
+    if (m_cornerWidgetManager && m_cornerWidgetManager->isUpdatingFromStatus()) {
+        return;
+    }
+
     qCDebug(log_ui_mainwindow) << "Toggle switch state changed to:" << state;
     if (state == Qt::Checked) {
         onActionSwitchToTargetTriggered();
@@ -736,14 +429,38 @@ void MainWindow::onToggleSwitchStateChanged(int state)
 
 void MainWindow::onResolutionChange(const int& width, const int& height, const float& fps, const float& pixelClk)
 {
+    // Log the resolution information received from the HID device
+    // qCDebug(log_ui_mainwindow) << "Resolution received from HID device - Width:" << width 
+    //                           << "Height:" << height << "FPS:" << fps 
+    //                           << "PixelClock:" << pixelClk << "MHz";
+    
     GlobalVar::instance().setInputWidth(width);
     GlobalVar::instance().setInputHeight(height);
+    GlobalVar::instance().setInputFps(fps);
+    GlobalVar::instance().setCaptureWidth(width);
+    GlobalVar::instance().setCaptureHeight(height);
+    GlobalVar::instance().setCaptureFps(fps);
     m_statusBarManager->setInputResolution(width, height, fps, pixelClk);
+    m_statusBarManager->setCaptureResolution(width, height, fps);
+    
+    // No popup message for resolution changes
+}
+
+void MainWindow::onGpio0StatusChanged(bool isToTarget)
+{
+    qCDebug(log_ui_mainwindow) << "GPIO0 status changed to:" << (isToTarget ? "target" : "host");
+    toggleSwitch->setChecked(isToTarget);
 }
 
 void MainWindow::onTargetUsbConnected(const bool isConnected)
 {
     m_statusBarManager->setTargetUsbConnected(isConnected);
+}
+
+void MainWindow::onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock)
+{
+    qCDebug(log_ui_mainwindow) << "Key states changed - NumLock:" << numLock << "CapsLock:" << capsLock << "ScrollLock:" << scrollLock;
+    m_statusBarManager->setKeyStates(numLock, capsLock, scrollLock);
 }
 
 void MainWindow::onActionPasteToTarget()
@@ -818,7 +535,25 @@ void MainWindow::updateCameraActive(bool active) {
         qCDebug(log_ui_mainwindow) << "Set index to : " << 0;
         stackedLayout->setCurrentIndex(0);
     }
-    m_cameraManager->queryResolutions();
+    // REMOVED: m_cameraManager->queryResolutions() - no longer needed with FFmpeg backend
+}
+
+void MainWindow::onDeviceSwitchCompleted() {
+    updateCameraActive(m_cameraManager->hasActiveCameraDevice());
+}
+
+void MainWindow::onDeviceSelected(const QString &portChain, bool success, const QString &message) {
+    if (!m_cameraManager->hasActiveCameraDevice()) {
+        // Try to auto-select the "Openterface" camera if available
+        const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
+        for (const QCameraDevice &camera : availableCameras) {
+            if (camera.description() == "Openterface") {
+                qCInfo(log_ui_mainwindow) << "Auto-selecting Openterface camera for device:" << portChain;
+                m_cameraManager->switchToCameraDevice(camera, portChain);
+                break;
+            }
+        }
+    }
 }
 
 void MainWindow::updateRecordTime()
@@ -833,7 +568,6 @@ void MainWindow::processCapturedImage(int requestId, const QImage &img)
     QImage scaledImage =
             img.scaled(ui->centralwidget->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
-   // ui->lastImagePreviewLabel->setPixmap(QPixmap::fromImage(scaledImage));
 
     // Display captured image for 4 seconds.
     displayCapturedImage();
@@ -861,28 +595,13 @@ void MainWindow::onScreenRatioChanged(double ratio) {
     if (ratio != currentRatio) {
         qCDebug(log_ui_mainwindow) << "Screen ratio changed to" << ratio;
         GlobalSetting::instance().setScreenRatio(ratio);
-        calculate_video_position(); 
+        if (m_windowLayoutCoordinator) {
+            m_windowLayoutCoordinator->calculateVideoPosition();
+        }
     }
 }
 
-void MainWindow::calculate_video_position(){
-    double currentRatio = GlobalSetting::instance().getScreenRatio();
-    double input_aspect_ratio = double(GlobalVar::instance().getCaptureWidth()) / double(GlobalVar::instance().getCaptureHeight());
-    
-    if(currentRatio > input_aspect_ratio){
-        currentRatioType = ratioType::LARGER;
-    }else if (currentRatio < input_aspect_ratio){
-        currentRatioType = ratioType::SMALLER;
-    }else if (currentRatio == input_aspect_ratio){
-        currentRatioType = ratioType::EQUAL;
-    }
-    doResize();
-    QScreen *screen = this->screen();
-    QRect availableGeometry = screen->availableGeometry();
-    int x = (availableGeometry.width() - this->width()) / 2;
-    int y = (availableGeometry.height() - this->height()) / 2;
-    move(x, y);
-}
+
 
 void MainWindow::configureSettings() {
     qCDebug(log_ui_mainwindow) << "configureSettings";
@@ -893,8 +612,6 @@ void MainWindow::configureSettings() {
         VideoPage* videoPage = settingDialog->getVideoPage();
         LogPage* logPage = settingDialog->getLogPage();
         connect(logPage, &LogPage::ScreenSaverInhibitedChanged, m_screenSaverManager, &ScreenSaverManager::setScreenSaverInhibited);
-        connect(videoPage, &VideoPage::cameraSettingsApplied, m_cameraManager, &CameraManager::loadCameraSettingAndSetCamera);
-        // connect(settingDialog, &SettingDialog::cameraSettingsApplied, m_cameraManager, &CameraManager::loadCameraSettingAndSetCamera);
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingDialog, &QDialog::finished, this, [this](){
@@ -907,6 +624,124 @@ void MainWindow::configureSettings() {
         settingDialog->activateWindow();
     }
 }
+
+void MainWindow::toggleRecording() {
+    qDebug() << "toggleRecording called";
+    
+    // Make sure the camera system is ready and recording controller is initialized
+    if (!m_recordingController) {
+        qWarning() << "Recording controller is not initialized";
+        QMessageBox::critical(this, tr("Recording Error"), 
+            tr("Recording system is not initialized. Please restart the application."));
+        return;
+    }
+    
+    if (!m_cameraManager) {
+        qWarning() << "Camera manager is not initialized";
+        QMessageBox::critical(this, tr("Recording Error"), 
+            tr("Camera system is not initialized. Please restart the application."));
+        return;
+    }
+    
+    if (!m_cameraManager->hasActiveCameraDevice()) {
+        qWarning() << "No active camera device available for recording";
+        
+        // Check if any cameras are available but not active
+        if (m_cameraManager->getAvailableCameraDevices().isEmpty()) {
+            QMessageBox::information(this, tr("No Camera Available"), 
+                tr("No camera devices detected. Please connect a camera and try again."));
+        } else {
+            QMessageBox::information(this, tr("Camera Not Active"), 
+                tr("Camera is not active. Please start the camera preview before recording."));
+        }
+        return;
+    }
+    
+    try {
+        if (m_recordingController->isRecording()) {
+            m_recordingController->stopRecording();
+        } else {
+            m_recordingController->startRecording();
+        }
+    } catch (const std::exception& e) {
+        qCritical() << "Exception during recording operation:" << e.what();
+        QMessageBox::critical(this, tr("Recording Error"), 
+            tr("An unexpected error occurred: %1").arg(e.what()));
+    } catch (...) {
+        qCritical() << "Unknown exception during recording operation";
+        QMessageBox::critical(this, tr("Recording Error"), 
+            tr("An unexpected error occurred. Please try again or restart the application."));
+    }
+}
+
+void MainWindow::toggleMute() {
+    qDebug() << "toggleMute called";
+    
+    // Get the AudioManager singleton
+    AudioManager& audioManager = AudioManager::getInstance();
+    
+    // Get current volume
+    qreal currentVolume = audioManager.getVolume();
+    
+    // Check if currently muted (volume is 0)
+    if (currentVolume == 0.0) {
+        // Unmute - restore to default volume (1.0)
+        audioManager.setVolume(1.0);
+        GlobalSetting::instance().setAudioMuted(false);
+        qDebug() << "Audio unmuted - volume set to 1.0";
+    } else {
+        // Mute - set volume to 0
+        audioManager.setVolume(0.0);
+        GlobalSetting::instance().setAudioMuted(true);
+        qDebug() << "Audio muted - volume set to 0.0";
+    }
+}
+
+void MainWindow::showRecordingSettings() {
+    qDebug() << "showRecordingSettings called";
+    
+    // Stop any active recording before showing settings
+    if (m_recordingController && m_recordingController->isRecording()) {
+        QMessageBox::StandardButton response = QMessageBox::question(
+            this, 
+            tr("Active Recording"),
+            tr("There is an active recording session. Do you want to stop it before changing settings?"),
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::Yes
+        );
+        
+        if (response == QMessageBox::Yes) {
+            m_recordingController->stopRecording();
+        }
+    }
+    
+    if (!recordingSettingsDialog) {
+        qDebug() << "Creating recording settings dialog";
+        recordingSettingsDialog = new RecordingSettingsDialog(this);
+        
+        // Get the current backend from camera manager and set it
+        MultimediaBackendHandler* backendHandler = m_cameraManager->getBackendHandler();
+        if (backendHandler) {
+            // Set the backend handler for recording settings
+            recordingSettingsDialog->setBackendHandler(backendHandler);
+        } else {
+            qWarning() << "No video backend available for recording";
+        }
+        
+        // Connect the finished signal to clean up the dialog pointer
+        connect(recordingSettingsDialog, &QDialog::finished, this, [this]() {
+            if (recordingSettingsDialog) {
+                recordingSettingsDialog->deleteLater();
+                recordingSettingsDialog = nullptr;
+            }
+        });
+        
+        recordingSettingsDialog->showDialog();
+    } else {
+        recordingSettingsDialog->showDialog();
+    }
+}
+
 
 void MainWindow::debugSerialPort() {
     qDebug() << "debug dialog" ;
@@ -973,12 +808,30 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 
 void MainWindow::record()
 {
-    m_cameraManager->startRecording();
+    // Use the recording controller if available, otherwise fall back to CameraManager
+    if (m_recordingController) {
+        m_recordingController->startRecording();
+    } else {
+        m_cameraManager->startRecording();
+    }
 }
 
 void MainWindow::pause()
 {
-    m_cameraManager->stopRecording();
+    // Use the recording controller if available, otherwise fall back to CameraManager
+    if (m_recordingController) {
+        if (m_recordingController->isRecording()) {
+            if (m_recordingController->isPaused()) {
+                m_recordingController->resumeRecording();
+            } else {
+                m_recordingController->pauseRecording();
+            }
+        } else {
+            m_recordingController->stopRecording();
+        }
+    } else {
+        m_cameraManager->stopRecording();
+    }
 }
 
 void MainWindow::setMuted(bool /*muted*/)
@@ -1061,12 +914,13 @@ void MainWindow::displayCapturedImage()
     //ui->stackedWidget->setCurrentIndex(1);
 }
 
-void MainWindow::onBaudrateMenuTriggered(QAction* action)
+
+
+void MainWindow::onArmBaudratePerformanceRecommendation(int currentBaudrate)
 {
-    bool ok;
-    int baudrate = action->text().toInt(&ok);
-    if (ok) {
-        SerialPortManager::getInstance().setBaudRate(baudrate);
+    // Delegate to MenuCoordinator
+    if (m_menuCoordinator) {
+        m_menuCoordinator->showArmBaudratePerformanceRecommendation(currentBaudrate);
     }
 }
 
@@ -1097,77 +951,121 @@ void MainWindow::updateCameras()
     const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
     qCDebug(log_ui_mainwindow) << "Available cameras size: " << availableCameras.size();
 
-    // If the last camera list is not empty, check if available cameras still include the last camera
+    // Note: Automatic camera switching has been disabled
+    // This method now only refreshes the available camera list for manual selection
+    
+    // Check for disconnected cameras and update the list
     if (!m_lastCameraList.isEmpty()) {
         qCDebug(log_ui_mainwindow) << "Checking previously connected cameras...";
         for (const QCameraDevice &camera : m_lastCameraList) {
             qCDebug(log_ui_mainwindow) << "Checking camera: " << camera.description();
             if (!availableCameras.contains(camera)) {
-                qCDebug(log_ui_mainwindow) << "Camera disconnected, stopping camera operations...";
-                stop();
-                m_lastCameraList.clear();
-                return;
+                qCDebug(log_ui_mainwindow) << "Camera disconnected: " << camera.description();
+                // Note: We no longer automatically stop camera operations
+                // The user will need to manually select a different camera if needed
             }
         }
     }
-    qDebug() << "Checking for new cameras...";
-    // Check for new cameras
+    
+    // Update the camera list for reference but don't automatically switch
+    qCDebug(log_ui_mainwindow) << "Updating camera device list...";
     for (const QCameraDevice &camera : availableCameras) {
         if (!m_lastCameraList.contains(camera)) {
-            qCDebug(log_ui_mainwindow) << "A new camera has been connected:" << camera.description();
-            if (!camera.description().contains("Openterface"))
-                continue;
-
-            qCDebug(log_ui_mainwindow) << "Update openterface layer to top layer.";
-
-            stackedLayout->setCurrentIndex(1);
-
-            //If the default camera is not an Openterface camera, set the camera to the first Openterface camera
-            if (!QMediaDevices::defaultVideoInput().description().contains("Openterface")) {
-                qCDebug(log_ui_mainwindow) << "Set default camera to the Openterface camera...";
-            } else {
-                qCDebug(log_ui_mainwindow) << "The default camera is" << QMediaDevices::defaultVideoInput().description();
-            }
-            m_audioManager->initializeAudio();
-            m_cameraManager->setCamera(camera, videoPane);
-            // Add the new camera to the last camera list
-            m_lastCameraList.append(camera);
-            break;
+            qCDebug(log_ui_mainwindow) << "New camera detected:" << camera.description();
+            // Note: Camera will not automatically switch - manual selection required
         }
     }
-    qDebug() << "Update cameras done.";
+    
+    // Update the stored camera list
+    m_lastCameraList = availableCameras;
+    
+    // Refresh CameraManager's available devices list
+    m_cameraManager->refreshAvailableCameraDevices();
+    
+    qCDebug(log_ui_mainwindow) << "Camera list updated. Manual camera selection required for switching.";
 }
 
 void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
     if(baudrate > 0){
         m_statusBarManager->setConnectedPort(port, baudrate);
-        updateBaudrateMenu(baudrate);
+        if (m_menuCoordinator) {
+            m_menuCoordinator->updateBaudrateMenu(baudrate);
+        }
+        
+        // Auto-select device if there's only one connected and not already auto-selected
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        QList<DeviceInfo> devices = deviceManager.getCurrentDevices();
+        if (GlobalSetting::instance().getOpenterfacePortChain().isEmpty() && devices.size() == 1 && !m_deviceAutoSelected) {
+            const DeviceInfo& device = devices.first();
+            qCDebug(log_ui_mainwindow) << "Only one device connected, auto-selecting and starting all components:" << device.getUniqueKey();
+            m_deviceAutoSelected = true; // Prevent multiple auto-selections
+            
+            // Defer the device switching to allow device info to be populated
+            // Camera device info may take a moment to be detected and populated
+            QTimer::singleShot(500, this, [this, device]() {
+                DeviceManager& deviceManager = DeviceManager::getInstance();
+                
+                // Retry camera switch if it fails (device info may not be ready yet)
+                auto attemptCameraSwitch = [this, &device]() -> bool {
+                    bool cameraSuccess = m_cameraManager->switchToCameraDeviceByPortChain(device.portChain);
+                    if (!cameraSuccess) {
+                        qCDebug(log_ui_mainwindow) << "Camera switch failed, will retry...";
+                    }
+                    return cameraSuccess;
+                };
+                
+                // Switch to the device's HID and audio components first (serial already connected)
+                bool hidSuccess = deviceManager.switchHIDDeviceByPortChain(device.portChain);
+                bool audioSuccess = deviceManager.switchAudioDeviceByPortChain(device.portChain);
+                
+                // Try camera switch with retry mechanism
+                bool cameraSuccess = attemptCameraSwitch();
+                if (!cameraSuccess) {
+                    // Retry after another 500ms if camera info wasn't ready
+                    // Force device re-discovery to populate camera/audio info
+                    QTimer::singleShot(500, this, [this, device, hidSuccess, audioSuccess]() {
+                        qCDebug(log_ui_mainwindow) << "Triggering device re-discovery to populate camera info...";
+                        DeviceManager::getInstance().forceRefresh();
+                        
+                        // Give device info time to populate after discovery
+                        QTimer::singleShot(300, this, [this, device, hidSuccess, audioSuccess]() {
+                            bool cameraSuccess = m_cameraManager->switchToCameraDeviceByPortChain(device.portChain);
+                            
+                            // If port chain matching still fails, reinitialize and start camera with any Openterface device
+                            if (!cameraSuccess) {
+                                qCWarning(log_ui_mainwindow) << "Port chain camera switch failed, attempting to reinitialize and start camera...";
+                                // Reinitialize with startCapture=true to find device and start capture
+                                cameraSuccess = m_cameraManager->initializeCameraWithVideoOutput(videoPane, true);
+                                if (cameraSuccess) {
+                                    qCDebug(log_ui_mainwindow) << "Camera reinitialized and started successfully (bypassing port chain)";
+                                } else {
+                                    qCWarning(log_ui_mainwindow) << "Failed to reinitialize camera";
+                                }
+                            }
+                            
+                            if (hidSuccess && audioSuccess && cameraSuccess) {
+                                qCDebug(log_ui_mainwindow) << "Successfully auto-selected all device components (after retry)";
+                            } else {
+                                qCWarning(log_ui_mainwindow) << "Failed to auto-select some device components (after retry) - HID:" 
+                                                            << hidSuccess << " Audio:" << audioSuccess << " Camera:" << cameraSuccess;
+                            }
+                        });
+                    });
+                } else {
+                    if (hidSuccess && audioSuccess && cameraSuccess) {
+                        qCDebug(log_ui_mainwindow) << "Successfully auto-selected and started device components (HID, audio, camera)";
+                    } else {
+                        qCWarning(log_ui_mainwindow) << "Failed to auto-select some device components - HID:" 
+                                                    << hidSuccess << " Audio:" << audioSuccess << " Camera:" << cameraSuccess;
+                    }
+                }
+            });
+        }
+        
+        qCDebug(log_ui_mainwindow) << "Serial port connected:" << port << "at baudrate:" << baudrate;
     }else{
         m_statusBarManager->setConnectedPort(port, baudrate);
         m_statusBarManager->setTargetUsbConnected(false);
-    }
-}
-
-void MainWindow::updateBaudrateMenu(int baudrate){
-    QMenu* baudrateMenu = ui->menuBaudrate;
-    if (baudrateMenu) {
-        QList<QAction*> actions = baudrateMenu->actions();
-        for (QAction* action : actions) {
-            if (baudrate == 0) {
-                action->setChecked(false);
-            } else {
-                bool ok;
-                int actionBaudrate = action->text().toInt(&ok);
-                if (ok && actionBaudrate == baudrate) {
-                    action->setChecked(true);
-                } else {
-                    action->setChecked(false);
-                }
-            }
-        }
-    }
-    else {
-        qWarning() << "Baudrate menu not found!";
     }
 }
 
@@ -1179,6 +1077,11 @@ void MainWindow::factoryReset(bool isStarted)
 void MainWindow::serialPortReset(bool isStarted)
 {
     m_statusBarManager->serialPortReset(isStarted);
+}
+
+void MainWindow::onSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate)
+{
+    m_statusBarManager->showSerialAutoRestart(attemptNumber, maxAttempts, lossRate);
 }
 
 void MainWindow::onStatusUpdate(const QString& status) {
@@ -1210,42 +1113,31 @@ void MainWindow::onSwitchableUsbToggle(const bool isToTarget) {
 
 void MainWindow::checkMousePosition()
 {
-    if (!scrollArea || !videoPane) return;
+    if (!videoPane) return;
 
-    QPoint mousePos = mapFromGlobal(QCursor::pos());
-    QRect viewRect = scrollArea->viewport()->rect();
-
-    int deltaX = 0;
-    int deltaY = 0;
-
-    // Calculate the distance from the edge
-    int leftDistance = mousePos.x() - viewRect.left();
-    int rightDistance = viewRect.right() - mousePos.x();
-    int topDistance = mousePos.y() - viewRect.top();
-    int bottomDistance = viewRect.bottom() - mousePos.y();
-
-    // Adjust the scroll speed based on the distance from the edge
-    if (leftDistance <= edgeThreshold) {
-        deltaX = -maxScrollSpeed * (edgeThreshold - leftDistance) / edgeThreshold;
-    } else if (rightDistance <= edgeThreshold) {
-        deltaX = maxScrollSpeed * (edgeThreshold - rightDistance) / edgeThreshold;
-    }
-
-    if (topDistance <= edgeThreshold) {
-        deltaY = -maxScrollSpeed * (edgeThreshold - topDistance) / edgeThreshold;
-    } else if (bottomDistance <= edgeThreshold) {
-        deltaY = maxScrollSpeed * (edgeThreshold - bottomDistance) / edgeThreshold;
-    }
-
-    if (deltaX != 0 || deltaY != 0) {
-        scrollArea->horizontalScrollBar()->setValue(scrollArea->horizontalScrollBar()->value() + deltaX);
-        scrollArea->verticalScrollBar()->setValue(scrollArea->verticalScrollBar()->value() + deltaY);
-    }
+    // Since VideoPane now handles its own scrolling via QGraphicsView,
+    // we don't need to manually handle scroll area edge scrolling.
+    // The VideoPane's built-in zoom and pan functionality will handle this.
+    
+    // This method can be simplified or removed entirely if no longer needed
+    // for other mouse position tracking purposes.
 }
 
 void MainWindow::onVideoSettingsChanged() {
     if (m_cameraManager) {
-        m_cameraManager->setVideoOutput(videoPane);
+        // Reinitialize camera with graphics video output to ensure proper connection
+        // Do not start capture again since it's already running with new settings
+        bool success = m_cameraManager->initializeCameraWithVideoOutput(videoPane, false);
+        if (!success) {
+            // Fallback to just setting video output
+            m_cameraManager->setVideoOutput(videoPane->getVideoItem());
+        }
+    }
+    
+    // Also reinitialize audio when video settings change
+    if (m_audioManager) {
+        qCDebug(log_ui_mainwindow) << "Reinitializing audio due to video settings change...";
+        m_audioManager->initializeAudio();
     }
     int inputWidth = GlobalVar::instance().getInputWidth();
     int inputHeight = GlobalVar::instance().getInputHeight();
@@ -1304,7 +1196,10 @@ void MainWindow::onResolutionsUpdated(int input_width, int input_height, float i
 
 void MainWindow::onInputResolutionChanged()
 {
-    doResize();
+    qCDebug(log_ui_mainwindow) << "Input resolution changed.";
+    if (m_windowLayoutCoordinator) {
+        m_windowLayoutCoordinator->doResize();
+    }
 
     // Calculate the maximum available content height with safety checks
     int contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
@@ -1312,11 +1207,9 @@ void MainWindow::onInputResolutionChanged()
     qDebug() << "contentHeight: " << contentHeight;
     
     // Set the videoPane to use the full available width and height
-    videoPane->setMinimumSize(videoPane->width(), contentHeight);
+    // videoPane->setMinimumSize(videoPane->width(), contentHeight);
     videoPane->resize(videoPane->width(), contentHeight);
     
-    // Ensure scrollArea is also resized appropriately
-    scrollArea->resize(videoPane->width(), contentHeight);
 }
 
 void MainWindow::showScriptTool()
@@ -1333,15 +1226,16 @@ void MainWindow::showScriptTool()
 // run the sematic analyzer
 void MainWindow::handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree) {
     QPointer<QObject> senderObj = sender();
-    taskmanager->addTask([this, syntaxTree, senderObj]() {
-        if (!senderObj) return;
-        bool runStatus = semanticAnalyzer->analyze(syntaxTree.get());
+    QPointer<MainWindow> thisPtr(this); // Add protection for this pointer
+    taskmanager->addTask([thisPtr, syntaxTree, senderObj]() {
+        if (!senderObj || !thisPtr) return; // Check both pointers
+        bool runStatus = thisPtr->semanticAnalyzer->analyze(syntaxTree.get());
         qCDebug(log_ui_mainwindow) << "Script run status: " << runStatus;
-        emit emitScriptStatus(runStatus);
+        emit thisPtr->emitScriptStatus(runStatus);
         
-        if (senderObj == tcpServer) {
+        if (senderObj == thisPtr->tcpServer) {
             qCDebug(log_ui_mainwindow) << "run finish: " << runStatus;
-            emit emitTCPCommandStatus(runStatus);
+            emit thisPtr->emitTCPCommandStatus(runStatus);
         }
     });
 } 
@@ -1350,38 +1244,166 @@ MainWindow::~MainWindow()
 {
     qCDebug(log_ui_mainwindow) << "MainWindow destructor called";
     
-    // Stop all camera operations
+    // Set global shutdown flag to prevent Qt Multimedia operations
+    g_applicationShuttingDown.storeRelease(1);
+    
+    // 0. CRITICAL: Stop any running animations before cleanup
+    QList<QPropertyAnimation*> animations = this->findChildren<QPropertyAnimation*>();
+    for (QPropertyAnimation* animation : animations) {
+        animation->stop();
+        animation->deleteLater();
+    }
+    
+    QList<QParallelAnimationGroup*> animationGroups = this->findChildren<QParallelAnimationGroup*>();
+    for (QParallelAnimationGroup* group : animationGroups) {
+        group->stop();
+        group->deleteLater();
+    }
+    
+    // No need to process events - deleteLater will handle cleanup asynchronously
+    
+    // 1. Stop all operations first
     stop();
     
-    // Delete UI
+    // 1.5. CRITICAL: Stop audio first before anything else to prevent segfault
+    if (m_audioManager) {
+        m_audioManager->disconnect();
+        m_audioManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_audioManager disconnected and cleared successfully";
+    }
+    
+    // Also ensure singleton audio manager is stopped (but only if not already stopped)
+    static bool audioManagerStopped = false;
+    if (!audioManagerStopped) {
+        AudioManager::getInstance().stop();
+        audioManagerStopped = true;
+        qCDebug(log_ui_mainwindow) << "AudioManager singleton stopped";
+    }
+    
+    // No need to process events or sleep - let cleanup happen naturally
+    // Audio manager uses proper threading internally
+    
+    // 2. Stop camera operations and disconnect signals
+    if (m_cameraManager) {
+        disconnect(m_cameraManager);
+        m_cameraManager->stopCamera();
+        m_cameraManager->deleteLater();
+        m_cameraManager = nullptr;
+    }
+    
+    // 3. Clean up managers in dependency order
+    if (m_versionInfoManager) {
+        m_versionInfoManager->deleteLater();
+        m_versionInfoManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_versionInfoManager destroyed successfully";
+    }
+    
+    if (m_screenSaverManager) {
+        m_screenSaverManager->deleteLater();
+        m_screenSaverManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_screenSaverManager destroyed successfully";
+    }
+    
+    if (m_cornerWidgetManager) {
+        m_cornerWidgetManager->deleteLater();
+        m_cornerWidgetManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_cornerWidgetManager destroyed successfully";
+    }
+
+    if (m_windowControlManager) {
+        m_windowControlManager->setAutoHideEnabled(false); // Disable before cleanup
+        m_windowControlManager->deleteLater();
+        m_windowControlManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_windowControlManager destroyed successfully";
+    }
+
+    if (m_screenScaleDialog) {
+        m_screenScaleDialog->deleteLater();
+        m_screenScaleDialog = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_screenScaleDialog destroyed successfully";
+    }
+
+    if (firmwareManagerDialog) {
+        firmwareManagerDialog->deleteLater();
+        firmwareManagerDialog = nullptr;
+        qCDebug(log_ui_mainwindow) << "firmwareManagerDialog destroyed successfully";
+    }
+    
+    // 4. Clean up video pane and related objects - Use direct delete to ensure immediate cleanup
+    if (videoPane) {
+        // Remove videoPane from any layouts first
+        if (stackedLayout) {
+            stackedLayout->removeWidget(videoPane);
+        }
+        delete videoPane; // Direct delete instead of deleteLater
+        videoPane = nullptr;
+        qCDebug(log_ui_mainwindow) << "videoPane destroyed successfully";
+    }
+    
+    if (stackedLayout) {
+        stackedLayout->deleteLater();
+        stackedLayout = nullptr;
+    }
+    
+    // 5. Clean up other components
+    if (mouseEdgeTimer) {
+        mouseEdgeTimer->stop();
+        mouseEdgeTimer->deleteLater();
+        mouseEdgeTimer = nullptr;
+        qCDebug(log_ui_mainwindow) << "mouseEdgeTimer destroyed successfully";
+    }
+    
+    if (toolbarManager) {
+        toolbarManager->deleteLater();
+        toolbarManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "toolbarManager destroyed successfully";
+    }
+    
+    if (toggleSwitch) {
+        toggleSwitch->deleteLater();
+        toggleSwitch = nullptr;
+        qCDebug(log_ui_mainwindow) << "toggleSwitch destroyed successfully";
+    }
+    
+    // Clean up image capturer
+    if (m_imageCapturer) {
+        m_imageCapturer->stopCapturing();
+        m_imageCapturer->deleteLater();
+        m_imageCapturer = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_imageCapturer destroyed successfully";
+    }
+    
+    if (m_audioManager) {
+        // AudioManager is now a singleton, and we already disconnected it above
+        // Just clear the reference here
+        m_audioManager = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_audioManager reference cleared successfully (already disconnected)";
+    }
+    
+    // 6. Clean up static instances (but skip AudioManager since it's already stopped)
+    if (m_initializer && m_initializer->getHidThread()) {
+        m_initializer->getHidThread()->quit();
+        m_initializer->getHidThread()->wait(3000); // Wait up to 3 seconds for thread to finish
+    }
+    VideoHid::getInstance().stop();
+    // AudioManager::getInstance().stop(); // Already stopped above to prevent double cleanup
+    SerialPortManager::getInstance().stop();
+    
+    // Delete initializer
+    delete m_initializer;
+    m_initializer = nullptr;
+    
+    // 7. Delete UI last
     if (ui) {
         delete ui;
         ui = nullptr;
     }
 
-    m_cameraManager->stopCamera();
-    delete m_cameraManager;
-    m_cameraManager = nullptr;
-    
-    delete m_versionInfoManager;
-    m_versionInfoManager = nullptr;
-    
-    delete m_screenSaverManager;
-    m_screenSaverManager = nullptr;
-    
-    delete m_cornerWidgetManager;
-    m_cornerWidgetManager = nullptr;
-
-    delete m_screenScaleDialog;
-    m_screenScaleDialog = nullptr;
-
-    delete firmwareManagerDialog;
-    firmwareManagerDialog = nullptr;
-
     qCDebug(log_ui_mainwindow) << "MainWindow destroyed successfully";
 }
 
 void MainWindow::onToolbarVisibilityChanged(bool visible) {
+    qCDebug(log_ui_mainwindow) << "Toolbar visibility changed:" << visible;
     Q_UNUSED(visible);
     // Prevent repaints during animation
     setUpdatesEnabled(false);
@@ -1397,78 +1419,19 @@ void MainWindow::onToolbarVisibilityChanged(bool visible) {
     
 
     // Use QTimer to delay the video pane repositioning
-    QTimer::singleShot(0, this, &MainWindow::animateVideoPane);
-    
-}
-
-void MainWindow::animateVideoPane() {
-    if (!videoPane || !scrollArea) {
-        setUpdatesEnabled(true);
-        blockSignals(false);
-        return;
-    }
-
-    // Get toolbar visibility and window state
-    bool isToolbarVisible = toolbarManager->getToolbar()->isVisible();
-    // bool isMaximized = windowState() & Qt::WindowMaximized;
-
-    // Calculate content height based on toolbar visibility
-    int contentHeight;
-    if (!isFullScreenMode()) contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
-    else contentHeight = this->height() - ui->menubar->height();
-
-    int contentWidth;
-    double aspect_ratio = static_cast<double>(video_width) / video_height;
-    if (isToolbarVisible) {
-        contentHeight -= toolbarManager->getToolbar()->height();
-        contentWidth = static_cast<int>(contentHeight * aspect_ratio);
-        qCDebug(log_ui_mainwindow) << "toolbarHeigth" << toolbarManager->getToolbar()->height() << "content height" <<contentHeight << "content width" << contentWidth;
-    }else{
-        if (!isFullScreenMode()) contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
-        else contentHeight = this->height() - ui->menubar->height();
-        contentWidth = static_cast<int>(contentHeight * aspect_ratio);
-    }
-
-    // If window is not maximized and toolbar is invisible, resize the panes
-    
-    videoPane->setMinimumSize(contentWidth, contentHeight);
-    videoPane->resize(contentWidth, contentHeight);
-    scrollArea->resize(contentWidth, contentHeight);
-    
-
-    if (this->width() > videoPane->width()) {
-        // Calculate new position
-        int horizontalOffset = (this->width() - videoPane->width()) / 2;
-        
-        // Also animate the scrollArea
-        QPropertyAnimation *scrollAnimation = new QPropertyAnimation(scrollArea, "pos");
-        scrollAnimation->setDuration(150);
-        scrollAnimation->setStartValue(scrollArea->pos());
-        scrollAnimation->setEndValue(QPoint(horizontalOffset, scrollArea->y()));
-        scrollAnimation->setEasingCurve(QEasingCurve::OutCubic);
-
-        // Create animation group
-        QParallelAnimationGroup *group = new QParallelAnimationGroup(this);
-        group->addAnimation(scrollAnimation);
-        
-        // Cleanup after animation
-        connect(group, &QParallelAnimationGroup::finished, this, [this]() {
-            setUpdatesEnabled(true);
-            blockSignals(false);
-            update();
+    // Safety check: Don't schedule animation if window is being destroyed
+    if (m_windowLayoutCoordinator && videoPane && this->isVisible() && !this->testAttribute(Qt::WA_DeleteOnClose)) {
+        QTimer::singleShot(0, [this]() {
+            if (m_windowLayoutCoordinator) {
+                m_windowLayoutCoordinator->animateVideoPane();
+            }
         });
-        
-        group->start(QAbstractAnimation::DeleteWhenStopped);
-    } else {
-        setUpdatesEnabled(true);
-        blockSignals(false);
-        update();
     }
+    
 }
 
 void MainWindow::changeKeyboardLayout(const QString& layout) {
     // Pass the layout name directly to HostManager
-    qCDebug(log_ui_mainwindow) << "Changing layout";
     GlobalSetting::instance().setKeyboardLayout(layout);
     qCDebug(log_ui_mainwindow) << "Set layout" << layout;
     HostManager::getInstance().setKeyboardLayout(layout);
@@ -1487,6 +1450,7 @@ void MainWindow::initializeKeyboardLayouts() {
     qCDebug(log_ui_mainwindow) << "Read layout" << defaultLayout;
 
     m_cornerWidgetManager->initializeKeyboardLayouts(layouts, defaultLayout);
+    m_cornerWidgetManager->updatePosition(width(), menuBar()->height(), m_windowLayoutCoordinator->isFullScreenMode());
     if (layouts.contains(defaultLayout)) {
         changeKeyboardLayout(defaultLayout);
     } else if (!layouts.isEmpty()) {
@@ -1556,5 +1520,43 @@ void MainWindow::updateFirmware() {
             tr("Firmware retrieval timed out. Please check your network connection and try again.\nCurrent version: ") + 
             QString::fromStdString(currentFirmwareVersion));
             break;
+    }
+}
+
+void MainWindow::openDeviceSelector() {
+    qDebug() << "Opening device selector dialog";
+    if (!deviceSelectorDialog) {
+        qDebug() << "Creating device selector dialog";
+        deviceSelectorDialog = new DeviceSelectorDialog(m_cameraManager, &VideoHid::getInstance(), this);
+        
+        // Connect the finished signal to clean up
+        connect(deviceSelectorDialog, &QDialog::finished, this, [this]() {
+            deviceSelectorDialog->deleteLater();
+            deviceSelectorDialog = nullptr;
+        });
+        
+        deviceSelectorDialog->show();
+    } else {
+        deviceSelectorDialog->raise();
+        deviceSelectorDialog->activateWindow();
+    }
+}
+
+void MainWindow::showUpdateDisplaySettingsDialog() {
+    qCDebug(log_ui_mainwindow) << "Opening update display settings dialog";
+    if (!updateDisplaySettingsDialog) {
+        qCDebug(log_ui_mainwindow) << "Creating update display settings dialog";
+        updateDisplaySettingsDialog = new UpdateDisplaySettingsDialog(this);
+        
+        // Connect the finished signal to clean up
+        connect(updateDisplaySettingsDialog, &QDialog::finished, this, [this]() {
+            updateDisplaySettingsDialog->deleteLater();
+            updateDisplaySettingsDialog = nullptr;
+        });
+        
+        updateDisplaySettingsDialog->show();
+    } else {
+        updateDisplaySettingsDialog->raise();
+        updateDisplaySettingsDialog->activateWindow();
     }
 }

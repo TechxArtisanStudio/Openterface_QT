@@ -51,9 +51,6 @@ Section "Install"
     CreateShortcut "$SMPROGRAMS\${MyAppName}.lnk" "$INSTDIR\${MyAppExeName}"
     CreateShortcut "$DESKTOP\${MyAppName}.lnk" "$INSTDIR\${MyAppExeName}"
     
-    ; Run the application after installation
-    Exec "$INSTDIR\${MyAppExeName} /silent"
-
     ; Write uninstaller
     WriteUninstaller "$INSTDIR\Uninstall.exe"
 SectionEnd

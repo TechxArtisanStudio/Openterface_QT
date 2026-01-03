@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OpenterfaceQT
+Comment=A software for control openterface-Mini-KVM
+Exec=openterfaceQT
+Icon=com.openterface.openterfaceQT
+Categories=Utility;RemoteAccess;
+Terminal=false
+Keywords=openterface;open-source;kvm;mini-kvm;remote-control;
+StartupNotify=true

@@ -1,0 +1,524 @@
+name: Build Qt Environments (Shared)
+
+on:
+  workflow_dispatch:
+    inputs:
+      step:
+        description: 'Which step to build'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - 'setup'
+          - 'ffmpeg'
+          - 'gstreamer'
+          - 'qt-base-qtml'
+          - 'qt-declarative'
+          - 'qt-complete'
+          - 'all'
+      ubuntu_version:
+        description: 'Ubuntu base image version'
+        required: false
+        default: '22.04'
+        type: choice
+        options:
+          - '22.04'
+          - '22.04'
+      force_rebuild:
+        description: 'Force rebuild even if image exists'
+        required: false
+        default: false
+        type: boolean
+      push_to_registry:
+        description: 'Push to container registry'
+        required: false
+        default: true
+        type: boolean
+  push:
+    branches: [main]
+    paths:
+      - 'docker/**'
+      - '.github/workflows/build-qt-environments.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docker/**'
+      - '.github/workflows/build-qt-environments.yml'
+
+env:
+  REGISTRY: ghcr.io
+  SHARED_OR_STATIC: shared
+
+jobs:
+  # Qt Shared Environment Build
+  build-setup:
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'setup' || github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      base-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-setup
+          tags: |
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+
+      - name: Check if setup image exists
+        id: check-setup
+        if: github.event_name != 'pull_request'
+        run: |
+          if [[ "${{ github.event.inputs.force_rebuild }}" == "true" ]]; then
+            echo "Force rebuild requested, will build base image"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64"
+            echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-setup:$IMAGE_TAG"
+            if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-setup:$IMAGE_TAG > /dev/null 2>&1; then
+              echo "Base image already exists for architecture amd64, skipping build"
+              echo "should_build=false" >> $GITHUB_OUTPUT
+            else
+              echo "Base image does not exist for architecture amd64, will build"
+              echo "should_build=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Build and push Setup image
+        id: build
+        if: steps.check-setup.outputs.should_build == 'true' || github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-setup
+          build-args: |
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '22.04' }}
+            TARGETARCH=amd64
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=shared-setup
+          cache-to: type=gha,mode=max,scope=shared-setup
+          platforms: linux/amd64
+
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources to free disk space..."
+          docker system prune -f --volumes
+          docker image prune -f
+          df -h
+
+  build-ffmpeg:
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'ffmpeg' || github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    needs: [build-setup]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      ffmpeg-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg
+          tags: |
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+
+      - name: Build and push FFmpeg image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-ffmpeg
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-setup:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '22.04' }}
+            TARGETARCH=amd64
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=shared-ffmpeg
+          cache-to: type=gha,mode=max,scope=shared-ffmpeg
+          platforms: linux/amd64
+
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources to free disk space..."
+          docker system prune -f --volumes
+          docker image prune -f
+          df -h
+
+  build-qt-base-qtml:
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    needs: [build-ffmpeg]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      qt-base-qtml-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-base-qtml
+          tags: |
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+
+      - name: Build and push Qt Base QTML image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-base-qtml
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-ffmpeg:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '22.04' }}
+            TARGETARCH=amd64
+            BUILD_SHARED_LIBS=ON
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=shared-qt-base-qtml
+          cache-to: type=gha,mode=max,scope=shared-qt-base-qtml
+          platforms: linux/amd64
+
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources to free disk space..."
+          docker system prune -f --volumes
+          docker image prune -f
+          df -h
+
+  build-qt-declarative:
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    needs: [build-qt-base-qtml]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      qt-declarative-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-declarative
+          tags: |
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+
+      - name: Build and push Qt Declarative image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-declarative
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-base-qtml:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '22.04' }}
+            TARGETARCH=amd64
+            BUILD_SHARED_LIBS=ON
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=shared-qt-declarative
+          cache-to: type=gha,mode=max,scope=shared-qt-declarative
+          platforms: linux/amd64
+
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources to free disk space..."
+          docker system prune -f --volumes
+          docker image prune -f
+          df -h
+
+
+  build-gstreamer:
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'gstreamer' || github.event.inputs.step == 'qt-base-qtml' || github.event.inputs.step == 'qt-declarative' || github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    needs: [build-qt-declarative]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      gstreamer-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer
+          tags: |
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+
+      - name: Build and push GStreamer image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-gstreamer
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-qt-declarative:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '22.04' }}
+            TARGETARCH=amd64
+            BUILD_SHARED_LIBS=ON
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=shared-gstreamer
+          cache-to: type=gha,mode=max,scope=shared-gstreamer
+          platforms: linux/amd64
+
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources to free disk space..."
+          docker system prune -f --volumes
+          docker image prune -f
+          df -h
+
+  build-complete:
+    if: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.step == 'qt-complete' || github.event.inputs.step == 'all') || github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    needs: [build-gstreamer]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      qt-digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete
+          tags: |
+            type=ref,event=branch,suffix=-amd64
+            type=ref,event=pr,suffix=-amd64
+            type=sha,suffix=-amd64
+            type=raw,value=latest-amd64
+            type=raw,value=ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+
+      - name: Build and push Qt Complete image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.qt-complete
+          build-args: |
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-gstreamer:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64
+            UBUNTU_VERSION=${{ github.event.inputs.ubuntu_version || '22.04' }}
+            TARGETARCH=amd64
+            BUILD_SHARED_LIBS=ON
+          push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=shared-qt-complete
+          cache-to: type=gha,mode=max,scope=shared-qt-complete
+          platforms: linux/amd64
+
+      - name: Clean up Docker resources
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Docker resources to free disk space..."
+          docker system prune -f --volumes
+          docker image prune -f
+          df -h
+
+      - name: Test Qt Environment
+        run: |
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \
+            /opt/Qt6/bin/verify-qt-installation.sh
+
+  # Summary job that shows build status
+  build-summary:
+    runs-on: ubuntu-latest
+    needs: [build-complete]
+    if: always()
+    steps:
+      - name: Set lowercase image name
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME_LOWER=${OWNER}/shared-qtbuild" >> $GITHUB_ENV
+
+      - name: Build Summary
+        run: |
+          echo "## Qt Shared Build Environment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | Status | Image |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.build-complete.result }}" = "success" ]; then
+            echo "| Qt Complete | ✅ Success | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64\` |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Qt Complete | ❌ Failed/Skipped | - |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Usage Instructions" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Shared Build:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker run --rm -v \$(pwd):/workspace/src -w /workspace/src \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  bash -c 'mkdir build && cd build && cmake -DBUILD_SHARED_LIBS=ON .. && make -j\$(nproc)'" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

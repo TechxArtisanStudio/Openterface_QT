@@ -1,0 +1,147 @@
+# Build Qt base components (qtbase + qtshadertools)
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-ffmpeg:ubuntu-22.04-amd64
+ARG UBUNTU_VERSION=22.04
+ARG TARGETARCH=amd64
+FROM ${BASE_IMAGE}
+
+ARG BUILD_DIR=/workspace/qt-build
+ARG INSTALL_PREFIX=/opt/Qt6
+ARG BUILD_SHARED_LIBS=OFF
+
+# Create the environment variables and assign the values from the build arguments.
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+
+WORKDIR ${BUILD_DIR}
+
+# Define base modules to build (include qtwayland for Wayland platform plugin)
+ENV MODULES="qtbase qtshadertools qtwayland"
+ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
+ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
+
+# Download and extract Qt base modules
+RUN echo "Preparing build directory: ${BUILD_DIR}" && \
+    mkdir -p "${BUILD_DIR}" && \
+    for module in ${MODULES}; do \
+        echo "Downloading $module, url: ${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip"; \
+        curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip"; \
+        if [ ! -s "$module.zip" ]; then echo "Failed to download $module"; exit 1; fi; \
+        unzip -q "$module.zip"; \
+        if [ ! -d "$module-everywhere-src-${QT_VERSION}" ]; then echo "Archive layout unexpected for $module"; exit 1; fi; \
+        mv "$module-everywhere-src-${QT_VERSION}" "$module"; \
+        rm -f "$module.zip"; \
+    done && \
+    ls -la && \
+    test -d qtbase && echo "qtbase extracted" || (echo "qtbase missing after download" && exit 1)
+
+# Build qtbase first (foundation)
+RUN echo "Building qtbase with system XCB libraries and SSL support..." && \
+    ls -la ${BUILD_DIR} && \
+    cd ${BUILD_DIR}/qtbase && \
+    mkdir -p build && \
+    cd build && \
+    # Set OpenSSL environment variables for static linking
+    export OPENSSL_ROOT_DIR=/usr && \
+    export OPENSSL_LIBRARIES="/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/libssl.so;/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/libcrypto.so" && \
+    export OPENSSL_INCLUDE_DIR="/usr/include/openssl" && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        -DFEATURE_dbus=ON \
+        -DFEATURE_sql=OFF \
+        -DFEATURE_testlib=OFF \
+        -DFEATURE_icu=OFF \
+        -DFEATURE_opengl=ON \
+        -DTEST_xcb_syslibs=ON \
+        -DFEATURE_xlib=ON \
+        -DFEATURE_xcb_xlib=ON \
+        -DFEATURE_xkbcommon=ON \
+        -DFEATURE_xkbcommon_x11=ON \
+        -DFEATURE_xcb=ON \
+        -DFEATURE_openssl=ON \
+        -DFEATURE_openssl_linked=ON \
+        -DOPENSSL_ROOT_DIR="$OPENSSL_ROOT_DIR" \
+        -DOPENSSL_LIBRARIES="$OPENSSL_LIBRARIES" \
+        -DOPENSSL_INCLUDE_DIR="$OPENSSL_INCLUDE_DIR" \
+        .. && \
+    ninja -j1 && \
+    ninja install
+
+# Build qtshadertools
+RUN echo "Building qtshadertools..." && \
+    cd ${BUILD_DIR}/qtshadertools && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
+        .. && \
+    ninja -j1 && \
+    ninja install
+
+# Build qtwayland (client-only)
+RUN echo "Building qtwayland (client)..." && \
+    cd ${BUILD_DIR}/qtwayland && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        -DQT_FEATURE_wayland_server=OFF \
+        -DQT_FEATURE_wayland_client=ON \
+        -DQt6WaylandClient_DIR="${INSTALL_PREFIX}/lib/cmake/Qt6WaylandClient" \
+        -DQt6_DIR="${INSTALL_PREFIX}/lib/cmake/Qt6" \
+        .. && \
+    ninja -j1 && \
+    ninja install
+
+# Create verification script for base components
+RUN mkdir -p ${INSTALL_PREFIX}/bin && \
+    echo '#!/bin/bash' > ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'echo "Qt Base Components Verification"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'echo "================================"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'QT_DIR="/opt/Qt6"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'echo "Qt version: $(${QT_DIR}/bin/qmake -query QT_VERSION)"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'echo "Qt installation prefix: $(${QT_DIR}/bin/qmake -query QT_INSTALL_PREFIX)"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'echo -e "\nChecking Qt base modules:"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'MODULES="Core Widgets Gui OpenGL"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'for module in $MODULES; do' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo '    if [ -f "${QT_DIR}/lib/libQt6${module}.a" ]; then' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo '        echo "✓ Qt${module} static library found"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo '    else' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo '        echo "✗ Qt${module} static library NOT found"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo '    fi' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'done' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    echo 'echo -e "\nQt base components build ready!"' >> ${INSTALL_PREFIX}/bin/verify-qt-base.sh && \
+    chmod +x ${INSTALL_PREFIX}/bin/verify-qt-base.sh
+
+# Set Qt environment variables
+ENV PATH="${INSTALL_PREFIX}/bin:${PATH}"
+ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
+ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
+ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
+# Initialize PKG_CONFIG_PATH to avoid undefined-var warning, and include common fallbacks
+ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/pkgconfig:/usr/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
+# Verify Qt base installation
+RUN ${INSTALL_PREFIX}/bin/verify-qt-base.sh
+
+# Clean up source files
+RUN cd ${BUILD_DIR} && \
+    for module in ${MODULES}; do \
+        rm -rf "$module"; \
+    done
+
+WORKDIR /workspace

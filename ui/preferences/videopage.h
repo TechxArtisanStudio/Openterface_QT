@@ -67,14 +67,15 @@ signals:
 
 private slots:
     void toggleCustomResolutionInputs(bool checked);
+    void onMediaBackendChanged();
+
+
 
 private:
     CameraManager *m_cameraManager;
     QSize m_currentResolution;
     bool m_updatingFormats = false;
 
-    QLabel *uvcCamLabel;
-    QComboBox *uvcCamBox;
     QLabel *videoLabel;
     QLabel *resolutionsLabel;
     QComboBox *videoFormatBox;
@@ -87,7 +88,6 @@ private:
     void handleResolutionSettings();
     QVariant boxValue(const QComboBox *) const;
     void updatePixelFormats();
-    void findUvcCameraDevices();
     
 };
 

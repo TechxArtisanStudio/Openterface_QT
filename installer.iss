@@ -60,7 +60,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 [Run]
 Filename: "{app}\{#MyAppExeName}"; \
     Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; \
-    Flags: nowait postinstall skipifsilent; \
+    Flags: nowait postinstall skipifsilent unchecked; \
     Parameters: "/silent"
 Filename: {sys}\pnputil.exe; \
     Parameters: "/add-driver CH341SER.INF /install"; \

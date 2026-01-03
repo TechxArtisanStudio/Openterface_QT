@@ -14,7 +14,7 @@ env:
   FLATPAK_MANIFEST: "com.openterface.openterfaceQT.yaml"
   SOFTWERE_ID: "com.openterface.openterfaceQT"
   FLATPAK_BUILD_DIR: "build-dir"
-  QT_VERSION: 6.4.2
+  QT_VERSION: 6.6.3
 
 jobs:
   build:

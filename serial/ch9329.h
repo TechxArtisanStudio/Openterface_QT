@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <QByteArray>
 #include <QDebug>
+#include <QLoggingCategory>
+
+Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
+
 
 const QByteArray MOUSE_ABS_ACTION_PREFIX = QByteArray::fromHex("57 AB 00 04 07 02");
 const QByteArray MOUSE_REL_ACTION_PREFIX = QByteArray::fromHex("57 AB 00 05 05 01");
@@ -13,9 +17,15 @@ const QByteArray CMD_RESET = QByteArray::fromHex("57 AB 00 0F 00");
 const QByteArray CMD_SET_DEFAULT_CFG = QByteArray::fromHex("57 AB 00 0C 00");
 const QByteArray CMD_SET_USB_STRING_PREFIX = QByteArray::fromHex("57 AB 00 0B");
 const QByteArray CMD_SEND_KB_GENERAL_DATA = QByteArray::fromHex("57 AB 00 02 08 00 00 00 00 00 00 00 00");
-const QByteArray CMD_SET_PARA_CFG_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
-// const QByteArray CMD_SET_INFO_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
+const QByteArray CMD_SET_PARA_CFG_PREFIX_115200 = QByteArray::fromHex("57 AB 00 09 32 00 80 00 00 01 C2 00");
+const QByteArray CMD_SET_PARA_CFG_PREFIX_9600 = QByteArray::fromHex("57 AB 00 09 32 00 80 00 00 00 25 80");
 const QByteArray CMD_SET_PARA_CFG_MID = QByteArray::fromHex("08 00 00 03 86 1a 29 e1 00 00 00 01 00 0d 00 00 00 00 00 00 00") + QByteArray(22, 0x00) ;
+
+// New USB switch commands for CH32V208 serial port (firmware with new USB switching protocol)
+// Command format: 57 AB 00 17 05 00 00 00 00 <param> <checksum>
+const QByteArray CMD_SWITCH_USB_TO_HOST = QByteArray::fromHex("57 AB 00 17 05 00 00 00 00 00");      // Switch USB to host
+const QByteArray CMD_SWITCH_USB_TO_TARGET = QByteArray::fromHex("57 AB 00 17 05 00 00 00 00 01");    // Switch USB to target
+const QByteArray CMD_CHECK_USB_STATUS = QByteArray::fromHex("57 AB 00 17 05 00 00 00 00 03");       // Check USB switch status
 
 /* some default value while using default mode */
 const QByteArray RESERVED_2BYTES = QByteArray::fromHex("08 00");    // reserved 2 bytes
@@ -66,8 +76,8 @@ T fromByteArray(const QByteArray &data) {
         // Debugging: Print the parsed fields
         // result.dump();
     } else {
-        qWarning() << "Data size is too small to parse" << typeid(T).name();
-        qDebug() << "Data content:" << data.toHex(' ');
+        qWarning(log_core_serial) << "Data size is too small to parse struct of size" << sizeof(T);
+        qDebug(log_core_serial) << "Data content:" << data.toHex(' ');
     }
     return result;
 }
@@ -97,13 +107,13 @@ struct CmdGetInfoResult {
             // Debugging: Print the parsed fields
             // result.dump();
         } else {
-            qWarning() << "Data size is too small to parse CmdGetInfoResult";
+            qWarning(log_core_serial) << "Data size is too small to parse CmdGetInfoResult";
         }
         return result;
     }
 
     void dump() {
-        qDebug() << "prefix:" << QString::number(prefix, 16)
+        qDebug(log_core_serial) << "prefix:" << QString::number(prefix, 16)
         << "| addr1:" << addr1
         << "| cmd:" << QString::number(cmd, 16)
         << "| len:" << len
@@ -120,7 +130,7 @@ struct CmdDataParamConfig
     uint8_t addr1;      //2, 0x00
     uint8_t cmd;        //3, 0x08
     uint8_t len;        //4, 0x32
-    uint8_t mode;       //5, 0x82
+    uint8_t mode;       //5, 0x82 or 0x02
     uint8_t cfg;        //6
     uint8_t addr2;      //7, 0x80
     uint32_t baudrate;  //8-11
@@ -165,14 +175,13 @@ struct CmdDataParamConfig
             // Debugging: Print the parsed fields
             config.dump();
         } else {
-            qWarning() << "Data size is too small to parse CmdDataParamConfig";
-            qWarning() << data.size() <<  sizeof(CmdDataParamConfig);
+            qWarning(log_core_serial) << "Data size is too small to parse CmdDataParamConfig, expected size:" << sizeof(CmdDataParamConfig) << ", actual size:" << data.size();
         }
         return config;
     }
 
     void dump() {
-        qDebug() << "prefix:" << QString::number(prefix1, 16) +  QString::number(prefix2, 16)
+        qDebug(log_core_serial) << "prefix:" << QString::number(prefix1, 16) +  QString::number(prefix2, 16)
         << "| addr1:" << addr1
         << "| cmd:" << QString::number(cmd, 16)
         << "| len:" << len
@@ -213,18 +222,18 @@ struct CmdDataResult {
         if (data.size() >= static_cast<qsizetype>(sizeof(CmdDataResult))) {
             std::memcpy(&result, data.constData(), sizeof(CmdDataResult));
             // Debugging: Print the raw data
-            qDebug() << "Raw data:" << data.toHex(' ');
+            // qDebug(log_core_serial) << "Raw data:" << data.toHex(' ');
 
             // Debugging: Print the parsed fields
             result.dump();
         } else {
-            qWarning() << "Data size is too small to parse CmdDataResult";
+            qWarning(log_core_serial) << "Data size is too small to parse CmdDataResult";
         }
         return result;
     }
 
     void dump() {
-        qDebug() << "prefix:" << QString::number(prefix, 16)
+        qDebug(log_core_serial) << "prefix:" << QString::number(prefix, 16)
         << "| addr1:" << addr1
         << "| cmd:" << QString::number(cmd, 16)
         << "| len:" << len
@@ -246,7 +255,7 @@ struct CmdReset {
 
 
     void dump() {
-        qDebug() << "prefix:" << prefix_high << prefix_low
+        qDebug(log_core_serial) << "prefix:" << prefix_high << prefix_low
         << "| addr1:" << addr1
         << "| cmd:" << cmd
         << "| len:" << len;
@@ -266,18 +275,18 @@ struct CmdResetResult {
         if (data.size() >= static_cast<qsizetype>(sizeof(CmdDataResult))) {
             std::memcpy(&result, data.constData(), sizeof(CmdDataResult));
             // Debugging: Print the raw data
-            qDebug() << "Raw data:" << data.toHex(' ');
+            // qDebug(log_core_serial) << "Raw data:" << data.toHex(' ');
 
             // Debugging: Print the parsed fields
             result.dump();
         } else {
-            qWarning() << "Data size is too small to parse CmdDataResult";
+            qWarning(log_core_serial) << "Data size is too small to parse CmdDataResult";
         }
         return result;
     }
 
     void dump() {
-        qDebug() << "prefix:" << QString::number(prefix, 16)
+        qDebug(log_core_serial) << "prefix:" << QString::number(prefix, 16)
         << "| addr1:" << addr1
         << "| cmd:" << QString::number(cmd, 16)
         << "| len:" << len
@@ -292,25 +301,25 @@ struct CmdResetResult {
         switch (status)
         {
         case DEF_CMD_ERR_TIMEOUT:
-            qDebug() << "Error(" + QString::number(status, 16) + "), Serial response timeout, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "), Serial response timeout, data: " + data.toHex(' ');
             break;
         case DEF_CMD_ERR_HEAD:
-            qDebug() << "Error(" + QString::number(status, 16) + "),  Packet header error, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "),  Packet header error, data: " + data.toHex(' ');
             break;
         case DEF_CMD_ERR_CMD:
-            qDebug() << "Error(" + QString::number(status, 16) + "),  Command error, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "),  Command error, data: " + data.toHex(' ');
             break;
         case DEF_CMD_ERR_SUM:
-            qDebug() << "Error(" + QString::number(status, 16) + "),  Checksum error, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "),  Checksum error, data: " + data.toHex(' ');
             break;
         case DEF_CMD_ERR_PARA:
-            qDebug() << "Error(" + QString::number(status, 16) + "),  Argument error, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "),  Argument error, data: " + data.toHex(' ');
             break;
         case DEF_CMD_ERR_OPERATE:
-            qDebug() << "Error(" + QString::number(status, 16) + "),  Execution error, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "),  Execution error, data: " + data.toHex(' ');
             break;
         default:
-            qDebug() << "Error(" + QString::number(status, 16) + "),  Unknown error, data: " + data.toHex(' ');
+            qDebug(log_core_serial) << "Error(" + QString::number(status, 16) + "),  Unknown error, data: " + data.toHex(' ');
             break;
         }
     }else{

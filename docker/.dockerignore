@@ -1,0 +1,58 @@
+# Git
+.git
+.gitignore
+.gitmodules
+
+# Documentation
+*.md
+doc/
+README*
+
+# Build artifacts - be specific about what to exclude
+build-*/
+*.o
+*.so
+*.a
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# IDE files
+.vscode/
+.idea/
+*.user
+*.pro.user*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Package files
+# NOTE: .deb files in docker/build/ are needed for docker-test workflow!
+# Don't ignore them - they're part of the CI/CD process.
+# Only ignore .rpm, .pkg, .dmg, .msi, .exe which aren't used in docker tests
+*.rpm
+*.pkg
+*.dmg
+*.msi
+*.exe
+
+# Other docker files (keep test Dockerfiles and scripts)
+# Exclude main Dockerfiles but keep testos directory
+Dockerfile.qt-*
+Dockerfile.openterface-test-static
+!testos/
+
+# CI/CD
+.github/
+*.yml
+
+# Packaging
+packaging/
+appimage/

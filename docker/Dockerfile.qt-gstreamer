@@ -1,0 +1,117 @@
+# Build GStreamer components (simplified version for better reliability)
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-qt-declarative:ubuntu-22.04-amd64
+ARG UBUNTU_VERSION=22.04
+ARG TARGETARCH=amd64
+FROM ${BASE_IMAGE}
+ENV GSTREAMER_VERSION=1.26.6
+
+# Create the environment variables and assign the values from the build arguments.
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+    
+# Set architecture-aware library path
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        echo "export MULTIARCH_PATH=/usr/lib/aarch64-linux-gnu" >> /etc/environment; \
+    else \
+        echo "export MULTIARCH_PATH=/usr/lib/x86_64-linux-gnu" >> /etc/environment; \
+    fi
+
+WORKDIR ${WORK_DIR}
+
+# Upgrade Meson to meet GStreamer requirements (>= 0.62)
+RUN echo "Upgrading Meson to support GStreamer ${GSTREAMER_VERSION}..." && \
+    pip3 install --upgrade meson>=0.62 && \
+    meson --version
+
+# Set up environment for GStreamer build
+# Use TARGETARCH to determine the correct library path
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+        MULTIARCH_PATH="/usr/lib/aarch64-linux-gnu"; \
+    else \
+        MULTIARCH_PATH="/usr/lib/x86_64-linux-gnu"; \
+    fi && \
+    echo "export MULTIARCH_PATH=$MULTIARCH_PATH" >> /etc/environment
+
+ENV PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig"
+ENV LD_LIBRARY_PATH="${GSTREAMER_PREFIX}/lib:${FFMPEG_PREFIX}/lib"
+
+# Create GStreamer build directories
+RUN mkdir -p "${WORK_DIR}/gstreamer_sources" "${GSTREAMER_PREFIX}"
+
+# Download GStreamer components (only essential ones)
+WORKDIR ${WORK_DIR}/gstreamer_sources
+
+RUN echo "Downloading GStreamer core..." && \
+    wget -O gstreamer-${GSTREAMER_VERSION}.tar.xz \
+    https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-${GSTREAMER_VERSION}.tar.xz && \
+    tar -xf gstreamer-${GSTREAMER_VERSION}.tar.xz && \
+    rm gstreamer-${GSTREAMER_VERSION}.tar.xz
+
+RUN echo "Downloading gst-plugins-base..." && \
+    wget -O gst-plugins-base-${GSTREAMER_VERSION}.tar.xz \
+    https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-${GSTREAMER_VERSION}.tar.xz && \
+    tar -xf gst-plugins-base-${GSTREAMER_VERSION}.tar.xz && \
+    rm gst-plugins-base-${GSTREAMER_VERSION}.tar.xz
+
+# Build GStreamer core
+RUN echo "Building GStreamer core..." && \
+    cd "${WORK_DIR}/gstreamer_sources/gstreamer-${GSTREAMER_VERSION}" && \
+    meson setup build \
+        --prefix="${GSTREAMER_PREFIX}" \
+        --default-library="both" \
+        --buildtype=release \
+        -Ddoc=disabled \
+        -Dintrospection=disabled \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Dbenchmarks=disabled \
+        -Dtools=disabled \
+        -Dnls=disabled && \
+    ninja -C build && \
+    ninja -C build install && \
+    echo "GStreamer core installation completed" && \
+    echo "Searching for pkg-config files..." && \
+    find "${GSTREAMER_PREFIX}" -name "*.pc" -type f 2>/dev/null || echo "No .pc files found" && \
+    echo "Directory structure:" && \
+    find "${GSTREAMER_PREFIX}" -type d -name "*pkgconfig*" 2>/dev/null || echo "No pkgconfig directories found"
+
+# Update final environment
+ENV PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
+# Build gst-plugins-base (essential plugins)
+RUN echo "Building gst-plugins-base..." && \
+    . /etc/environment && \
+    echo "Locating GStreamer pkg-config files..." && \
+    GSTREAMER_PC_DIR=$(find "${GSTREAMER_PREFIX}" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
+    if [ -n "$GSTREAMER_PC_DIR" ]; then \
+        echo "Found GStreamer pkg-config files in: $GSTREAMER_PC_DIR"; \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
+    else \
+        echo "GStreamer pkg-config files not found, using default path"; \
+        export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:$MULTIARCH_PATH/pkgconfig:/usr/share/pkgconfig"; \
+    fi && \
+    echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" && \
+    pkg-config --exists gstreamer-1.0 && echo "GStreamer-1.0 found via pkg-config" || echo "ERROR: GStreamer-1.0 NOT found" && \
+    cd "${WORK_DIR}/gstreamer_sources/gst-plugins-base-${GSTREAMER_VERSION}" && \
+    meson setup build \
+        --prefix="${GSTREAMER_PREFIX}" \
+        --default-library="both" \
+        --buildtype=release \
+        -Ddoc=disabled \
+        -Dintrospection=disabled \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Dtools=disabled \
+        -Dnls=disabled \
+        -Dorc=enabled \
+        -Dx11=enabled \
+        -Dgl=enabled && \
+    ninja -C build && \
+    ninja -C build install
+
+# Clean up to reduce image size
+RUN cd ${WORK_DIR} && rm -rf gstreamer_sources
+
+WORKDIR /workspace
