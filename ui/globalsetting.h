@@ -37,7 +37,7 @@ public:
 
     static GlobalSetting& instance();
 
-    void setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device, bool backend);
+    void setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device, bool backend, bool script);
 
     void setFilterSettings(bool Chipinfo, bool keyboardPress, bool mideaKeyboard, bool mouseMoveABS, bool mouseMoveREL, bool HID);
 

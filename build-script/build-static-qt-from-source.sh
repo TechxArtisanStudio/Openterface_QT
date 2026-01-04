@@ -1,957 +1,409 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-# To install OpenTerface QT, you can run this script as a user with appropriate permissions.
+# Cross-platform Bash script to build static Qt (MSYS/MinGW on Windows and Unix-like systems)
+# Usage: ./build-static-qt-from-source.sh [<SOURCE_DIR>] [<VCPKG_ROOT>]
 
-# Install minimal build requirements
-sudo apt-get update
-sudo apt-get install -y build-essential meson ninja-build bison flex pkg-config python3-pip linux-headers-$(uname -r) \
-    autoconf automake libtool autoconf-archive cmake libxml2-dev libxrandr-dev libegl-dev libegl-mesa0 libegl1 libgl-dev \
-    libgl1-mesa-dev libgles-dev libgles1 libgles2 libglu1-mesa libglu1-mesa-dev libglvnd-core-dev \
-    libglvnd-dev libglx-dev libopengl-dev libopengl0 libxcb-cursor-dev \
-    libxcb-cursor0 libxcb-icccm4 libxcb-icccm4-dev libxcb-image0 \
-    libxcb-image0-dev libxcb-keysyms1 libxcb-keysyms1-dev libxcb-render-util0 \
-    libxcb-render-util0-dev libxcb-render0-dev libxcb-shm0-dev libxcb-util1 \
-    libxfixes-dev libxi-dev libx11-dev libx11-xcb-dev libxext-dev libxfixes-dev \
-    libdbus-1-dev libfontconfig1-dev libfreetype-dev libxkbcommon-dev libxkbcommon-x11-dev libxrandr2 libxrandr-dev \
-    libxcb-randr0-dev libxcb-shape0-dev libxcb-sync-dev \
-    libxrender-dev libxcb1-dev libxcb-glx0-dev libxcb-xfixes0-dev \
-    libxcb-xinerama0-dev libxcb-xkb-dev libxcb-util-dev \
-    libdrm-dev libgbm-dev libatspi2.0-dev \
-    libvulkan-dev libssl-dev \
-    libpulse-dev \
-    clang-16 llvm-16-dev libclang-16-dev\
-    yasm nasm # Dependencies for FFmpeg compilation
+# Defaults (override via env or args)
+SOURCE_DIR="${1:-$(pwd)}"
+VCPKG_ROOT="${2:-${VCPKG_ROOT:-}}"
 
-QT_VERSION=6.6.3
-QT_MAJOR_VERSION=6.6
-LIBUSB_VERSION=1.0.26
-INSTALL_PREFIX=/opt/Qt6
-BUILD_DIR=$(pwd)/qt-build
-FFMPEG_PREFIX=/opt/Qt6
-FFMPEG_VERSION="6.1.1"
-GSTREAMER_VERSION="1.22.11"
-WORK_DIR="${HOME}/qt-amd64-build"
-mkdir -p "${WORK_DIR}"
-# Update module list to include qtdeclarative (which provides Qt Quick)
-MODULES=("qtbase" "qtshadertools" "qtdeclarative" "qtmultimedia" "qtsvg" "qtserialport" "qttools")
-DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/$QT_MAJOR_VERSION/$QT_VERSION/submodules"
+QT_VERSION="6.6.3"
+QT_MAJOR_VERSION="6.6"
+INSTALL_PREFIX="/c/Qt6"
+BUILD_DIR="${SOURCE_DIR}/qt-build"
+# Keep downloaded zip archives? Set KEEP_ZIPS=0 to remove them after extraction.
+KEEP_ZIPS="${KEEP_ZIPS:-1}"
+# Number of parallel ninja jobs. Override with JOBS env (e.g., JOBS=1 ./script)
+JOBS="${JOBS:-$(nproc 2>/dev/null || echo 1)}"
+MODULES=(qtbase qtshadertools qtmultimedia qtsvg qtserialport qttools)
+DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
 
-# Create the build directory first
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-# Build or Install libusb from source
-if $BUILD_ENABLED; then
-    echo "Building libusb $LIBUSB_VERSION from source..."
-    if [ ! -d "libusb" ]; then
-        curl -L -o libusb.tar.bz2 "https://github.com/libusb/libusb/releases/download/v${LIBUSB_VERSION}/libusb-${LIBUSB_VERSION}.tar.bz2"
-        tar xf libusb.tar.bz2
-        mv "libusb-${LIBUSB_VERSION}" libusb
-        rm libusb.tar.bz2
-    fi
+# Detect platform
+uname_s=$(uname -s || echo unknown)
+case "$uname_s" in
+  MINGW*|MSYS*|MSYS_NT*)
+    PLATFORM="windows"
+    # sensible defaults for MSYS/MinGW environment
+    VCPKG_ROOT="${VCPKG_ROOT:-/c/vcpkg}"
+    VCPKG_TRIPLET="x64-mingw-static"
+    # prefer /mingw64 if present
+    MINGW_PATH="${MINGW_PATH:-/mingw64}"
+    ;;
+  Darwin*)
+    PLATFORM="darwin"
+    VCPKG_ROOT="${VCPKG_ROOT:-/usr/local/vcpkg}"
+    VCPKG_TRIPLET="x64-osx"
+    ;;
+  Linux*)
+    PLATFORM="linux"
+    VCPKG_ROOT="${VCPKG_ROOT:-/usr/local/vcpkg}"
+    VCPKG_TRIPLET="x64-linux"
+    ;;
+  *)
+    PLATFORM="unknown"
+    VCPKG_ROOT="${VCPKG_ROOT:-/usr/local/vcpkg}"
+    VCPKG_TRIPLET="x64"
+    ;;
+esac
 
-    cd libusb
-    ./configure --prefix="$FFMPEG_PREFIX" --enable-static --disable-shared --disable-udev
-    make -j$(nproc)
-fi
-
-if $INSTALL_ENABLED; then
-    echo "Installing libusb $LIBUSB_VERSION..."
-    cd "$BUILD_DIR"/libusb
-    sudo make install
-fi
-cd "$BUILD_DIR"
-
-# Build FFmpeg statically
-echo "Building FFmpeg statically..."
-cd "$BUILD_DIR"
-if [ ! -d "ffmpeg-$FFMPEG_VERSION" ]; then
-    curl -L -o ffmpeg.tar.bz2 "https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.bz2"
-    tar xjf ffmpeg.tar.bz2
-    rm ffmpeg.tar.bz2
-fi
-
-cd "ffmpeg-$FFMPEG_VERSION"
-./configure \
-    --prefix="$FFMPEG_PREFIX" \
-    --enable-static \
-    --disable-shared \
-    --disable-doc \
-    --disable-programs \
-    --disable-outdevs \
-    --enable-pic \
-    --enable-libpulse \
-    --disable-debug
-
-make -j$(nproc)
-make install
-
-
-# Build GStreamer
-echo "Building static GStreamer for ARM64..."
-# Use WORK_DIR for gstreamer sources and build so later references like
-# "${WORK_DIR}/gstreamer_sources" match where we put things (CI was failing
-# because the script created these under the current BUILD_DIR instead).
-mkdir -p "${WORK_DIR}/gstreamer_sources" "${WORK_DIR}/gstreamer_build"
-cd "${WORK_DIR}/gstreamer_sources"
-
-# Download GStreamer core components
-echo "Downloading GStreamer core..."
-if [ ! -d "gstreamer-${GSTREAMER_VERSION}" ]; then
-  wget https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-${GSTREAMER_VERSION}.tar.xz
-  tar xf gstreamer-${GSTREAMER_VERSION}.tar.xz
-  rm gstreamer-${GSTREAMER_VERSION}.tar.xz
-else
-  echo "GStreamer core directory already exists, skipping download."
-fi
-
-echo "Downloading gst-plugins-base..."
-if [ ! -d "gst-plugins-base-${GSTREAMER_VERSION}" ]; then
-  wget https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-${GSTREAMER_VERSION}.tar.xz
-  tar xf gst-plugins-base-${GSTREAMER_VERSION}.tar.xz
-  rm gst-plugins-base-${GSTREAMER_VERSION}.tar.xz
-else
-  echo "gst-plugins-base directory already exists, skipping download."
-fi
-
-echo "Downloading gst-plugins-good..."
-if [ ! -d "gst-plugins-good-${GSTREAMER_VERSION}" ]; then
-  wget https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-${GSTREAMER_VERSION}.tar.xz
-  tar xf gst-plugins-good-${GSTREAMER_VERSION}.tar.xz
-  rm gst-plugins-good-${GSTREAMER_VERSION}.tar.xz
-else
-  echo "gst-plugins-good directory already exists, skipping download."
-fi
-
-echo "Downloading gst-plugins-bad..."
-if [ ! -d "gst-plugins-bad-${GSTREAMER_VERSION}" ]; then
-  wget https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz
-  tar xf gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz
-  rm gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz
-else
-  echo "gst-plugins-bad directory already exists, skipping download."
-fi
-
-# Set up build environment for GStreamer
-# Ensure pkg-config can find GStreamer and FFmpeg pkgconfig files. FFmpeg
-# is installed into ${FFMPEG_PREFIX} by this script, so include that path.
-export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
-
-# Install development libraries for GStreamer and Qt (including GLib)
-echo "Installing development libraries for GStreamer and Qt..."
-sudo apt-get install -y \
-  libglib2.0-dev \
-  libgobject-2.0-dev \
-  libgio-2.0-dev \
-  libc6-dev \
-  linux-libc-dev \
-  libudev-dev \
-  libxcb-xinput-dev \
-  libxv-dev \
-  libgles2-mesa-dev \
-  libegl1-mesa-dev \
-  liborc-0.4-dev \
-  libpcre2-dev \
-  libffi-dev \
-  libmount-dev \
-  libblkid-dev \
-  libselinux1-dev \
-  libvorbis-dev \
-  libvorbisenc2 \
-  libtheora-dev \
-  zlib1g-dev || echo "Some libraries installation failed, continuing with available libraries"
-
-# Build static ORC library (required for GStreamer static linking)
-echo "Building static ORC library..."
-cd "${WORK_DIR}"
-mkdir -p orc_sources orc_build
-cd orc_sources
-
-# Download ORC if not already present
-if [ ! -d "orc-0.4.33" ]; then
-  echo "Downloading ORC 0.4.33..."
-  wget https://gstreamer.freedesktop.org/src/orc/orc-0.4.33.tar.xz
-  tar -xf orc-0.4.33.tar.xz
-  rm orc-0.4.33.tar.xz
-else
-  echo "ORC source directory already exists, skipping download."
-fi
-
-# Build static ORC library
-cd orc-0.4.33
-if [ ! -f "/opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a" ]; then
-  echo "Configuring and building static ORC library..."
-  meson setup build --prefix=/opt/orc-static --default-library=static
-  ninja -C build
-  sudo ninja -C build install
-
-  # Verify the static library was created. Meson/ninja may install libraries
-  # directly under /opt/orc-static/lib or under a triplet subdirectory
-  # (for example lib/aarch64-linux-gnu). Search for the file instead of
-  # relying on a single hard-coded path.
-  ORC_LIB_PATH=$(find /opt/orc-static -type f -name "liborc-0.4.a" 2>/dev/null | head -n1 || true)
-  if [ -n "$ORC_LIB_PATH" ]; then
-    echo "✓ Static ORC library successfully built and installed at: $ORC_LIB_PATH"
-    ls -la "$ORC_LIB_PATH"
-    # If ORC installed .pc files, add their pkgconfig dirs to PKG_CONFIG_PATH
-    ORC_PKG_DIRS=$(find /opt/orc-static -type d -path "*/pkgconfig" 2>/dev/null || true)
-    for d in $ORC_PKG_DIRS; do
-      export PKG_CONFIG_PATH="$d:${PKG_CONFIG_PATH}"
-    done
-    echo "Updated PKG_CONFIG_PATH with ORC pkgconfig dirs: $ORC_PKG_DIRS"
+# Prefer lld on Windows if available (helps avoid GNU ld running out of memory)
+LLD_FLAGS=""
+if [ "$PLATFORM" = "windows" ]; then
+  if command -v ld.lld >/dev/null 2>&1 || command -v lld >/dev/null 2>&1; then
+    LLD_FLAGS="-fuse-ld=lld"
+    echo "INFO: lld detected; will add '${LLD_FLAGS}' to linker flags"
   else
-    echo "✗ Warning: Static ORC library not found after installation"
-    echo "  Expected something like: /opt/orc-static/lib/liborc-0.4.a or /opt/orc-static/lib/*/liborc-0.4.a"
+    echo "INFO: lld not found; install with: pacman -S mingw-w64-x86_64-lld (optional but recommended to avoid ld OOM)"
   fi
-else
-  echo "Static ORC library already built, skipping build."
 fi
 
-cd "${WORK_DIR}"/gstreamer_sources
-
-# Build GStreamer core
-echo "Building GStreamer core..."
-cd gstreamer-${GSTREAMER_VERSION}
-if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstreamer-1.0.a" ]; then
-  meson setup build \
-    --prefix="${WORK_DIR}/gstreamer_build" \
-    --libdir=lib \
-    --default-library=static \
-    -Dexamples=disabled \
-    -Dtests=disabled \
-    -Dbenchmarks=disabled \
-    -Dtools=disabled \
-    -Ddoc=disabled \
-    -Dgst_debug=false \
-    -Dnls=disabled
-
-  ninja -C build
-  ninja -C build install
-  # After installing GStreamer core, ensure any pkgconfig dirs under the
-  # build prefix are visible to pkg-config. Meson may install pc files into
-  # lib/pkgconfig or lib/<triplet>/pkgconfig.
-  GST_PKG_DIRS=$(find "${WORK_DIR}/gstreamer_build" -type d -path "*/pkgconfig" 2>/dev/null || true)
-  for d in $GST_PKG_DIRS; do
-    export PKG_CONFIG_PATH="$d:${PKG_CONFIG_PATH}"
-  done
-  echo "Updated PKG_CONFIG_PATH with GStreamer core pkgconfig dirs: $GST_PKG_DIRS"
-else
-  echo "GStreamer core already built, skipping build."
-fi
-cd ..
-
-# Build gst-plugins-base
-echo "Building gst-plugins-base..."
-cd gst-plugins-base-${GSTREAMER_VERSION}
-if [ ! -f "${WORK_DIR}/gstreamer_build/lib/libgstbase-1.0.a" ]; then
-  meson setup build \
-    --prefix="${WORK_DIR}/gstreamer_build" \
-    --libdir=lib \
-    --default-library=static \
-    -Dexamples=disabled \
-    -Dtests=disabled \
-    -Ddoc=disabled \
-    -Dtools=disabled \
-    -Dalsa=enabled \
-    -Dcdparanoia=disabled \
-    -Dlibvisual=disabled \
-    -Dorc=enabled \
-    -Dtremor=disabled \
-    -Dvorbis=enabled \
-    -Dx11=enabled \
-    -Dxshm=enabled \
-    -Dxvideo=enabled \
-    -Dgl=enabled \
-    -Dgl_platform=glx \
-    -Dgl_winsys=x11 \
-    -Dvideotestsrc=enabled \
-    -Dapp=enabled \
-    -Daudioconvert=enabled \
-    -Daudioresample=enabled \
-    -Dtypefind=enabled \
-    -Dplayback=enabled \
-    -Dsubparse=enabled \
-    -Dencoding=enabled \
-    -Dcompositor=enabled \
-    -Doverlaycomposition=enabled \
-    -Dpbtypes=enabled \
-    -Dnls=disabled
-
-  ninja -C build
-  ninja -C build install
-  echo "Contents of ${WORK_DIR}/gstreamer_build/lib/pkgconfig after install:"
-  ls -l "${WORK_DIR}/gstreamer_build/lib/pkgconfig" 2>/dev/null || echo "  (Directory missing)"
-  # After installing gst-plugins-base, print all .pc files and ensure PKG_CONFIG_PATH includes their parent dirs
-  echo "Listing all .pc files under ${WORK_DIR}/gstreamer_build after gst-plugins-base install:"
-  GST_PC_FILES=$(find "${WORK_DIR}/gstreamer_build" -name "*.pc" -print 2>/dev/null)
-  if [ -z "$GST_PC_FILES" ]; then
-    echo "  ✗ No .pc files found under ${WORK_DIR}/gstreamer_build. Check gst-plugins-base build/install log."
+# Convert to Windows paths if needed (cygpath available)
+winpath() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
   else
-    echo "$GST_PC_FILES" | while read pcfile; do
-      echo "  Found: $pcfile"
-      pcdir=$(dirname "$pcfile")
-      case ":$PKG_CONFIG_PATH:" in
-        *:"$pcdir":*) ;; # already present
-        *) export PKG_CONFIG_PATH="$pcdir:$PKG_CONFIG_PATH"; echo "  Added $pcdir to PKG_CONFIG_PATH";;
-      esac
-    done
+    echo "$1"
   fi
-  echo "Final PKG_CONFIG_PATH before gst-plugins-good: $PKG_CONFIG_PATH"
+}
 
-  # Copy additional headers and libraries that might be needed
-  echo "Copying additional GStreamer headers to Qt installation..."
-  sudo mkdir -p ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video
-  sudo mkdir -p ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/audio
-  sudo mkdir -p ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/rtp
-  sudo mkdir -p ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/pbutils
-  sudo mkdir -p ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/tag
-  
-  # Copy source headers
-  sudo cp gst-libs/gst/video/*.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/ 2>/dev/null || true
-  sudo cp gst-libs/gst/audio/*.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/audio/ 2>/dev/null || true
-  sudo cp gst-libs/gst/rtp/*.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/rtp/ 2>/dev/null || true
-  sudo cp gst-libs/gst/pbutils/*.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/pbutils/ 2>/dev/null || true
-  sudo cp gst-libs/gst/tag/*.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/tag/ 2>/dev/null || true
-  
-  # Copy generated headers
-  sudo cp build/gst-libs/gst/video/video-enumtypes.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/ 2>/dev/null || true
-  sudo cp build/gst-libs/gst/video/video-orc.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/ 2>/dev/null || true
-  sudo cp build/gst-libs/gst/audio/audio-enumtypes.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/audio/ 2>/dev/null || true
-  sudo cp build/gst-libs/gst/rtp/gstrtp-enumtypes.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/rtp/ 2>/dev/null || true
-  sudo cp build/gst-libs/gst/pbutils/pbutils-enumtypes.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/pbutils/ 2>/dev/null || true
-  sudo cp build/gst-libs/gst/tag/tag-enumtypes.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/tag/ 2>/dev/null || true
-  
-  # Copy all static libraries
-  echo "Copying all GStreamer static libraries..."
-  find build -name "libgst*.a" -exec sudo cp {} ${QT_TARGET_DIR}/lib/ \; 2>/dev/null || true
+# OpenSSL location: prefer MSYS/Mingw-provided OpenSSL on Windows, otherwise use repo-local or central vcpkg as fallback
+if [ -n "${OPENSSL_ROOT:-}" ] && [ -d "${OPENSSL_ROOT}" ]; then
+  # USER_OVERRIDE: OPENSSL_ROOT pre-set in environment
+  :
 else
-  echo "gst-plugins-base already built, skipping build."
-fi
-cd ..
-
-# Build gst-plugins-good
-echo "Building gst-plugins-good..."
-cd gst-plugins-good-${GSTREAMER_VERSION}
-if [ ! -f "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0/libgstvideotestsrc.a" ]; then
-  meson setup build \
-    --prefix="${WORK_DIR}/gstreamer_build" \
-    --libdir=lib \
-    --default-library=static \
-    -Dexamples=disabled \
-    -Dtests=disabled \
-    -Ddoc=disabled \
-    -Dqt5=disabled \
-    -Dqt6=disabled \
-    -Dalpha=disabled \
-    -Dapetag=disabled \
-    -Daudiofx=disabled \
-    -Dcutter=disabled \
-    -Ddebugutils=disabled \
-    -Ddeinterlace=disabled \
-    -Ddtmf=disabled \
-    -Deffectv=disabled \
-    -Dequalizer=disabled \
-    -Dgoom=disabled \
-    -Dgoom2k1=disabled \
-    -Dgtk3=disabled \
-    -Dicydemux=disabled \
-    -Dimagefreeze=disabled \
-    -Dinterleave=disabled \
-    -Disomp4=disabled \
-    -Dlaw=disabled \
-    -Dlevel=disabled \
-    -Dmatroska=disabled \
-    -Dmonoscope=disabled \
-    -Dmultifile=disabled \
-    -Dmultipart=disabled \
-    -Dreplaygain=disabled \
-    -Drtp=enabled \
-    -Drtpmanager=enabled \
-    -Drtsp=enabled \
-    -Dshapewipe=disabled \
-    -Dsmpte=disabled \
-    -Dspectrum=disabled \
-    -Dudp=enabled \
-    -Dvideobox=disabled \
-    -Dvideocrop=enabled \
-    -Dvideofilter=enabled \
-    -Dvideomixer=disabled \
-    -Dwavenc=disabled \
-    -Dwavparse=disabled \
-    -Dy4m=disabled \
-    -Doss=disabled \
-    -Doss4=disabled \
-    -Dv4l2=enabled \
-    -Dximagesrc=disabled \
-    -Dnls=disabled
-
-  ninja -C build
-  ninja -C build install
-  
-  # Copy plugin static libraries to Qt target directory
-  echo "Copying gst-plugins-good static libraries to Qt installation..."
-  sudo mkdir -p ${QT_TARGET_DIR}/lib/gstreamer-1.0
-  find build -name "libgst*.a" -exec sudo cp {} ${QT_TARGET_DIR}/lib/gstreamer-1.0/ \; 2>/dev/null || true
-else
-  echo "gst-plugins-good already built, skipping build."
-fi
-cd ..
-
-# Build gst-plugins-bad
-echo "Building gst-plugins-bad..."
-cd gst-plugins-bad-${GSTREAMER_VERSION}
-if [ ! -f "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0/libgstvideoparsersbad.a" ]; then
-  meson setup build \
-    --prefix="${WORK_DIR}/gstreamer_build" \
-    --libdir=lib \
-    --default-library=static \
-    -Dexamples=disabled \
-    -Dtests=disabled \
-    -Ddoc=disabled \
-    -Dnls=disabled
-
-  ninja -C build
-  ninja -C build install
-  
-  # Copy plugin static libraries to Qt target directory
-  echo "Copying gst-plugins-bad static libraries to Qt installation..."
-  find build -name "libgst*.a" -exec sudo cp {} ${QT_TARGET_DIR}/lib/gstreamer-1.0/ \; 2>/dev/null || true
-else
-  echo "gst-plugins-bad already built, skipping build."
-fi
-cd ..
-
-# Update PKG_CONFIG_PATH to include GStreamer
-export PKG_CONFIG_PATH="${WORK_DIR}/gstreamer_build/lib/pkgconfig:${PKG_CONFIG_PATH}"
-cd "${WORK_DIR}"
-
-
-# Download and extract modules
-cd "$BUILD_DIR"
-for module in "${MODULES[@]}"; do
-    if [ ! -d "$module" ]; then
-        curl -L -o "$module.zip" "$DOWNLOAD_BASE_URL/$module-everywhere-src-$QT_VERSION.zip"
-        unzip -q "$module.zip"
-        mv "$module-everywhere-src-$QT_VERSION" "$module"
-        rm "$module.zip"
+  if [ "$PLATFORM" = "windows" ]; then
+    MSYS_OPENSSL_DIR="${MINGW_PATH}"
+    if [ -d "${MSYS_OPENSSL_DIR}/lib" ] && [ -f "${MSYS_OPENSSL_DIR}/lib/libssl.a" ]; then
+      OPENSSL_ROOT="${MSYS_OPENSSL_DIR}"
+      echo "INFO: Using MSYS OpenSSL at ${OPENSSL_ROOT}"
+    else
+      # Try repo-local vcpkg_installed as a fallback but warn (vcpkg is not preferred)
+      REPO_VCPKG_INSTALLED="${SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}"
+      if [ -d "$REPO_VCPKG_INSTALLED" ]; then
+        echo "WARNING: MSYS OpenSSL not found; falling back to repo-local vcpkg installed at $REPO_VCPKG_INSTALLED"
+        OPENSSL_ROOT="$REPO_VCPKG_INSTALLED"
+      else
+        echo "ERROR: No suitable OpenSSL found. Install MSYS OpenSSL (pacman -S mingw-w64-x86_64-openssl) or set OPENSSL_ROOT to a valid path." >&2
+        exit 1
+      fi
     fi
+  else
+    # Non-Windows: prefer repo-local vcpkg install, otherwise central vcpkg
+    REPO_VCPKG_INSTALLED="${SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}"
+    CENTRAL_VCPKG_INSTALLED="${VCPKG_ROOT}/installed/${VCPKG_TRIPLET}"
+    if [ -d "$REPO_VCPKG_INSTALLED" ]; then
+      echo "INFO: Using repo-local vcpkg installed OpenSSL at $REPO_VCPKG_INSTALLED"
+      OPENSSL_ROOT="$REPO_VCPKG_INSTALLED"
+    elif [ -d "$CENTRAL_VCPKG_INSTALLED" ]; then
+      echo "INFO: Using central vcpkg installed OpenSSL at $CENTRAL_VCPKG_INSTALLED"
+      OPENSSL_ROOT="$CENTRAL_VCPKG_INSTALLED"
+    else
+      echo "ERROR: No OpenSSL found. Set OPENSSL_ROOT to a valid path or install via vcpkg or system package manager." >&2
+      exit 1
+    fi
+  fi
+fi
+OPENSSL_LIB_DIR="$OPENSSL_ROOT/lib"
+OPENSSL_INCLUDE_DIR="$OPENSSL_ROOT/include"
+
+# Sanity checks for required tools
+for cmd in curl cmake ninja; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "ERROR: Required command '$cmd' not found. Please install it and retry." >&2
+    exit 1
+  fi
 done
 
-# Define common CMake flags to suppress warnings
-CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
+# Determine a zip extraction method (unzip preferred, then bsdtar/tar/7z/python/pwsh)
+extract_zip() {
+  local zipfile="$1"
+  local outdir="$2"
+  mkdir -p "$outdir"
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q "$zipfile" -d "$outdir"
+  elif command -v bsdtar >/dev/null 2>&1; then
+    bsdtar -xf "$zipfile" -C "$outdir"
+  elif command -v tar >/dev/null 2>&1; then
+    tar -xf "$zipfile" -C "$outdir"
+  elif command -v 7z >/dev/null 2>&1; then
+    7z x "$zipfile" -o"$outdir" >/dev/null
+  elif command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1; then
+    local py
+    if command -v python3 >/dev/null 2>&1; then
+      py=python3
+    else
+      py=python
+    fi
+    "$py" -c "import sys,zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$zipfile" "$outdir"
+  elif command -v pwsh >/dev/null 2>&1; then
+    pwsh -NoProfile -Command "Expand-Archive -Path '$zipfile' -DestinationPath '$outdir' -Force"
+  elif command -v powershell >/dev/null 2>&1; then
+    powershell -NoProfile -Command "Expand-Archive -Path '$zipfile' -DestinationPath '$outdir' -Force"
+  else
+    echo "ERROR: No zip extraction tool found. Install 'unzip', 'bsdtar', '7z', or python/powershell and retry." >&2
+    exit 1
+  fi
+}
+
+if [ ! -d "$OPENSSL_LIB_DIR" ]; then
+  echo "INFO: OpenSSL lib folder not found at $OPENSSL_LIB_DIR"
+  if [ "$PLATFORM" = "windows" ]; then
+    echo "Install MSYS OpenSSL with: pacman -S mingw-w64-x86_64-openssl, or set OPENSSL_ROOT to point to a valid installation."
+  else
+    echo "You may need to run 'vcpkg install openssl --triplet=${VCPKG_TRIPLET}' or set OPENSSL_ROOT to a folder that contains libssl.a and libcrypto.a"
+  fi
+fi
+
+if [ ! -f "$OPENSSL_LIB_DIR/libcrypto.a" ] || [ ! -f "$OPENSSL_LIB_DIR/libssl.a" ]; then
+  echo "ERROR: OpenSSL static libraries libcrypto.a and/or libssl.a not found in $OPENSSL_LIB_DIR" >&2
+  echo "Please install OpenSSL static libraries for the selected triplet or set OPENSSL_ROOT to point to a valid install." >&2
+  exit 1
+fi
+
+if [ ! -f "$OPENSSL_INCLUDE_DIR/openssl/ssl.h" ]; then
+  echo "ERROR: OpenSSL headers not found at $OPENSSL_INCLUDE_DIR/openssl" >&2
+  exit 1
+fi
+
+echo "Using platform: $PLATFORM"
+echo "Qt version: $QT_VERSION"
+echo "Source dir: $SOURCE_DIR"
+echo "Vcpkg root: $VCPKG_ROOT"
+echo "OpenSSL root: $OPENSSL_ROOT"
+echo "KEEP_ZIPS: ${KEEP_ZIPS} (set KEEP_ZIPS=0 to remove archives after extraction)"
+echo "Parallel jobs (JOBS): ${JOBS} (override with JOBS=1 ./build-static-qt-from-source.sh)"
+
+mkdir -p "$BUILD_DIR"
+cd "$BUILD_DIR"
+
+# Ensure an existing module directory contains CMakeLists.txt
+# Select the best CMakeLists.txt file inside a tree.
+# Prefers files containing 'cmake_minimum_required' or 'project(' and avoids test directories.
+select_best_cmakelists() {
+  local base="$1"
+  local candidates
+  # Find candidates up to depth 6
+  mapfile -t candidates < <(find "$base" -maxdepth 6 -type f -name 'CMakeLists.txt' 2>/dev/null || true)
+  local best=""
+  for c in "${candidates[@]}"; do
+    # Skip obvious test files
+    case "$c" in
+      */tests/*|*/test/*|*/cmake/tests/*) continue ;;
+    esac
+    if grep -q -E 'cmake_minimum_required|project\s*\(' "$c" 2>/dev/null; then
+      best="$c"
+      break
+    fi
+    if [ -z "$best" ]; then
+      best="$c"
+    else
+      # prefer shallower candidate
+      if [ $(awk -F/ '{print NF}' <<< "$c") -lt $(awk -F/ '{print NF}' <<< "$best") ]; then
+        best="$c"
+      fi
+    fi
+  done
+  echo "$best"
+}
+
+ensure_module_has_cmakelists() {
+  local mdir="$1"
+  if [ -f "$mdir/CMakeLists.txt" ]; then
+    return 0
+  fi
+  # Try to pick the best CMakeLists.txt from the tree
+  candidate=$(select_best_cmakelists "$mdir" || true)
+  if [ -n "$candidate" ]; then
+    rootdir=$(dirname "$candidate")
+    if [ "$rootdir" != "$mdir" ]; then
+      echo "Normalizing existing module $mdir: moving contents from $rootdir to $mdir"
+      tmpdir="${mdir}._tmp"
+      mkdir -p "$tmpdir"
+      shopt -s dotglob nullglob >/dev/null 2>&1 || true
+      mv "$rootdir"/* "$tmpdir"/ 2>/dev/null || cp -a "$rootdir/." "$tmpdir/"
+      # Clean target and move
+      rm -rf "$mdir"/* || true
+      mv "$tmpdir"/* "$mdir"/ 2>/dev/null || cp -a "$tmpdir/." "$mdir/"
+      rm -rf "$tmpdir"
+      shopt -u dotglob nullglob >/dev/null 2>&1 || true
+    fi
+    return 0
+  fi
+  return 1
+}
+
+# Function to download & extract module
+# Normalizes the extracted layout so the module dir ($m) contains CMakeLists.txt
+download_and_extract() {
+  local m=$1
+  if [ -d "$m" ]; then
+    echo "Module $m already present, checking layout..."
+    if ensure_module_has_cmakelists "$m"; then
+      echo "Module $m layout OK."
+    else
+      echo "Warning: module $m does not contain CMakeLists.txt and automatic normalization failed."
+      echo "Please inspect $m or remove it to force a fresh download."
+    fi
+    return
+  fi
+  local zipname="${m}.zip"
+  local url="${DOWNLOAD_BASE_URL}/${m}-everywhere-src-${QT_VERSION}.zip"
+  echo "Downloading $url ..."
+  curl -L -o "$zipname" "$url"
+  echo "Extracting $zipname ..."
+  extract_zip "$zipname" "${m}-tmp"
+
+  # If the extracted tree already has CMakeLists.txt at the top, just move it
+  if [ -f "${m}-tmp/CMakeLists.txt" ]; then
+    mv "${m}-tmp" "$m"
+  else
+    # Try to find a CMakeLists.txt within the extracted tree (depth 1-2)
+    candidate=$(find "${m}-tmp" -maxdepth 3 -type f -name "CMakeLists.txt" -print -quit || true)
+    if [ -n "$candidate" ]; then
+      rootdir=$(dirname "$candidate")
+      echo "Detected CMakeLists.txt at $rootdir; normalizing to $m"
+      mkdir -p "$m"
+      # Move contents of the detected rootdir into the desired module dir
+      shopt -s dotglob nullglob || true
+      mv "$rootdir"/* "$m"/ 2>/dev/null || cp -a "$rootdir/." "$m/"
+      shopt -u dotglob nullglob || true
+    else
+      # Fallback: try to find a directory matching the module name and move it
+      topdir=$(find "${m}-tmp" -maxdepth 2 -type d -name "*${m}*" -print -quit || true)
+      if [ -n "$topdir" ]; then
+        mv "$topdir" "$m"
+      else
+        # Fallback: move everything (last resort)
+        mv "${m}-tmp" "$m"
+      fi
+    fi
+  fi
+
+  if [ "${KEEP_ZIPS}" = "1" ]; then
+    echo "Preserving downloaded archive: $BUILD_DIR/$zipname"
+  else
+    rm -f "$zipname"
+  fi
+  rm -rf "${m}-tmp"
+}
+
+# Download modules
+for m in "${MODULES[@]}"; do
+  download_and_extract "$m"
+done
 
 # Build qtbase first
 echo "Building qtbase..."
-cd "$BUILD_DIR/qtbase"
-mkdir -p build
-cd build
+# Ensure qtbase has a CMakeLists.txt; try to auto-fix before failing
+if ! [ -f "${BUILD_DIR}/qtbase/CMakeLists.txt" ]; then
+  echo "qtbase does not contain CMakeLists.txt; attempting to normalize layout..."
+  if ensure_module_has_cmakelists "${BUILD_DIR}/qtbase"; then
+    echo "Normalization successful."
+  else
+    echo "ERROR: qtbase is missing CMakeLists.txt after normalization. Here is the directory listing for diagnostics:"
+    ls -R "${BUILD_DIR}/qtbase" || true
+    echo "Suggestion: remove ${BUILD_DIR}/qtbase and re-run the script to force a clean download/extract."
+    exit 1
+  fi
+fi
+mkdir -p qtbase/build
+cd qtbase/build
 
-# Set OpenSSL environment variables for static linking
-export OPENSSL_ROOT_DIR=/usr
-export OPENSSL_LIBRARIES="/usr/lib/aarch64-linux-gnu/libssl.so;/usr/lib/aarch64-linux-gnu/libcrypto.so"
-export OPENSSL_INCLUDE_DIR="/usr/include/openssl"
+cmake_args=(
+  -G "Ninja"
+  -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
+  -DBUILD_SHARED_LIBS=OFF
+  -DFEATURE_dbus=ON
+  -DFEATURE_sql=OFF
+  -DFEATURE_testlib=OFF
+  -DFEATURE_icu=OFF
+  -DFEATURE_opengl=ON
+  -DFEATURE_openssl=ON
+  -DINPUT_openssl=linked
+  -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT}"
+  -DOPENSSL_INCLUDE_DIR="${OPENSSL_INCLUDE_DIR}"
+  -DOPENSSL_CRYPTO_LIBRARY="${OPENSSL_LIB_DIR}/libcrypto.a"
+  -DOPENSSL_SSL_LIBRARY="${OPENSSL_LIB_DIR}/libssl.a"
+  -DCMAKE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR}"
+  -DCMAKE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR}"
+  -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+  -DVCPKG_TARGET_TRIPLET="${VCPKG_TRIPLET}"
+  ..
+)
 
-# Verify OpenSSL is available
-echo "Checking OpenSSL availability..."
-if [ -f "/usr/include/openssl/ssl.h" ] && [ -f "/usr/lib/aarch64-linux-gnu/libssl.so" ]; then
-    echo "✓ OpenSSL development libraries found"
-else
-    echo "✗ OpenSSL development libraries not found"
-    echo "Installing OpenSSL development libraries..."
-    sudo apt-get install -y libssl-dev
+# Add windows-specific linker flags
+if [ "$PLATFORM" = "windows" ]; then
+  # Force static linking of zstd from MSYS2 instead of vcpkg
+  ZSTD_STATIC_LIB="${MINGW_PATH}/lib/libzstd.a"
+  if [ -f "$ZSTD_STATIC_LIB" ]; then
+    echo "Using static zstd from: $ZSTD_STATIC_LIB"
+    cmake_args+=( -DZSTD_LIBRARY="$ZSTD_STATIC_LIB" -DZSTD_INCLUDE_DIR="${MINGW_PATH}/include" )
+  fi
+  cmake_args+=( -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L${OPENSSL_LIB_DIR} -L${MINGW_PATH}/lib -Wl,-Bstatic -lzstd -Wl,-Bdynamic -lssl -lcrypto -lws2_32 -lcrypt32 -ladvapi32 -luser32 -lgdi32" -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}" -DCMAKE_REQUIRED_LIBRARIES="ws2_32;crypt32;advapi32;user32;gdi32" )
 fi
 
-cmake -GNinja \
-    $CMAKE_COMMON_FLAGS \
-    -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DBUILD_SHARED_LIBS=OFF \
-    -DFEATURE_dbus=ON \
-    -DFEATURE_sql=OFF \
-    -DFEATURE_testlib=OFF \
-    -DFEATURE_icu=OFF \
-    -DFEATURE_opengl=ON \
-    -DFEATURE_xlib=ON \
-    -DFEATURE_xcb_xlib=ON \
-    -DFEATURE_xkbcommon=ON \
-    -DFEATURE_xkbcommon_x11=ON \
-    -DTEST_xcb_syslibs=ON \
-    -DQT_FEATURE_clang=OFF \
-    -DFEATURE_clang=ON \
-    -DFEATURE_openssl=ON \
-    -DFEATURE_openssl_linked=ON \
-    -DOPENSSL_ROOT_DIR="$OPENSSL_ROOT_DIR" \
-    -DOPENSSL_LIBRARIES="$OPENSSL_LIBRARIES" \
-    -DOPENSSL_INCLUDE_DIR="$OPENSSL_INCLUDE_DIR" \
-    ..
+cmake "${cmake_args[@]}"
 
-ninja
-sudo ninja install
-
-# Build qtshadertools
-echo "Building qtshadertools..."
-cd "$BUILD_DIR/qtshadertools"
-mkdir -p build
-cd build
-cmake -GNinja \
-    $CMAKE_COMMON_FLAGS \
-    -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DBUILD_SHARED_LIBS=OFF \
-    -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
-    ..
-
-ninja
-sudo ninja install
-
-# Build qtdeclarative (Qt Quick) before qtmultimedia
-echo "Building qtdeclarative..."
-cd "$BUILD_DIR/qtdeclarative"
-mkdir -p build
-cd build
-cmake -GNinja \
-    $CMAKE_COMMON_FLAGS \
-    -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-    -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
-    -DBUILD_SHARED_LIBS=OFF \
-    ..
-
-ninja
-sudo ninja install
-
-
+ninja -v -j"${JOBS}" || { echo "Initial build failed—retrying single-threaded (JOBS=1) to work around memory limits"; ninja -v -j1 || { echo "Build failed even with single-threaded retry—see ninja output above."; exit 1; } }
+ninja install
 
 # Build other modules
-for module in "${MODULES[@]}"; do
-    if [[ "$module" != "qtbase" && "$module" != "qtshadertools" && "$module" != "qtdeclarative" ]]; then
-        cd "$BUILD_DIR/$module"
-        mkdir -p build
-        cd build
-        echo "Building $module..."
-
-        # Add specific flags for qtmultimedia to enable FFmpeg and PulseAudio but disable GStreamer
-        if [[ "$module" == "qtmultimedia" ]]; then
-            PKG_CONFIG_PATH="$FFMPEG_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH" \
-            cmake -GNinja \
-                $CMAKE_COMMON_FLAGS \
-                -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-                -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX;$FFMPEG_PREFIX" \
-                -DBUILD_SHARED_LIBS=OFF \
-                -DFEATURE_gstreamer=OFF \
-                -DINPUT_gstreamer=OFF \
-                -DFEATURE_pulseaudio=ON \
-                -DFEATURE_ffmpeg=ON \
-                -DINPUT_ffmpeg=ON \
-                -DFEATURE_avfoundation=OFF \
-                -DCMAKE_FIND_ROOT_PATH="$FFMPEG_PREFIX" \
-                -DCMAKE_EXE_LINKER_FLAGS="-L$FFMPEG_PREFIX/lib" \
-                -DFFMPEG_PATH="$FFMPEG_PREFIX" \
-                ..
-        elif [[ "$module" == "qttools" ]]; then
-            echo "Building $module..."
-            CLANG_PREFIX="/usr/lib/llvm-16"
-            cmake -GNinja \
-                $CMAKE_COMMON_FLAGS \
-                -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-                -DBUILD_SHARED_LIBS=OFF \
-                -DFEATURE_linguist=ON \
-                -DFEATURE_lupdate=ON \
-                -DFEATURE_lrelease=ON \
-                -DFEATURE_designer=OFF \
-                -DFEATURE_assistant=OFF \
-                -DFEATURE_qtattributionsscanner=OFF \
-                -DFEATURE_qtdiag=OFF \
-                -DFEATURE_qtplugininfo=OFF \
-                -DFEATURE_clang=ON \
-                -DFEATURE_clangcpp=ON \
-                -DLLVM_INSTALL_DIR="$CLANG_PREFIX" \
-                -DLLVM_CMAKE_DIR="$CLANG_PREFIX/cmake" \
-                ..
-
-        else
-            cmake -GNinja \
-                $CMAKE_COMMON_FLAGS \
-                -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
-                -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" \
-                -DBUILD_SHARED_LIBS=OFF \
-                ..
-        fi
-        
-        ninja
-        sudo ninja install
-    fi
-done
-
-
-# Verify architecture of built libraries
-echo "Verifying architecture of built libraries..."
-
-echo "FFmpeg library architecture:"
-if [ -f "${WORK_DIR}/ffmpeg_build/lib/libavcodec.a" ]; then
-    file "${WORK_DIR}/ffmpeg_build/lib/libavcodec.a" | head -1
-else
-    echo "Warning: FFmpeg libavcodec.a not found"
-fi
-
-echo "GStreamer library architecture:"
-if [ -f "${WORK_DIR}/gstreamer_build/lib/libgstreamer-1.0.a" ]; then
-    file "${WORK_DIR}/gstreamer_build/lib/libgstreamer-1.0.a" | head -1
-else
-    echo "Warning: GStreamer libgstreamer-1.0.a not found"
-fi
-
-echo "Qt Core library architecture:"
-if [ -f "${QT_TARGET_DIR}/lib/libQt6Core.a" ]; then
-    file "${QT_TARGET_DIR}/lib/libQt6Core.a" | head -1
-else
-    echo "Warning: Qt libQt6Core.a not found"
-fi
-
-echo "Verifying specific Qt modules..."
-echo "Qt Multimedia:"
-if [ -f "${QT_TARGET_DIR}/lib/libQt6Multimedia.a" ]; then
-    echo "  ✓ libQt6Multimedia.a found"
-    file "${QT_TARGET_DIR}/lib/libQt6Multimedia.a" | head -1
-else
-    echo "  ✗ libQt6Multimedia.a not found"
-fi
-
-echo "Qt MultimediaWidgets:"
-if [ -f "${QT_TARGET_DIR}/lib/libQt6MultimediaWidgets.a" ]; then
-    echo "  ✓ libQt6MultimediaWidgets.a found"
-    file "${QT_TARGET_DIR}/lib/libQt6MultimediaWidgets.a" | head -1
-else
-    echo "  ✗ libQt6MultimediaWidgets.a not found"
-fi
-
-echo "Qt SerialPort:"
-if [ -f "${QT_TARGET_DIR}/lib/libQt6SerialPort.a" ]; then
-    echo "  ✓ libQt6SerialPort.a found"
-    file "${QT_TARGET_DIR}/lib/libQt6SerialPort.a" | head -1
-else
-    echo "  ✗ libQt6SerialPort.a not found"
-fi
-
-echo "Qt Svg:"
-if [ -f "${QT_TARGET_DIR}/lib/libQt6Svg.a" ]; then
-    echo "  ✓ libQt6Svg.a found"
-    file "${QT_TARGET_DIR}/lib/libQt6Svg.a" | head -1
-else
-    echo "  ✗ libQt6Svg.a not found"
-fi
-
-echo "Qt SvgWidgets:"
-if [ -f "${QT_TARGET_DIR}/lib/libQt6SvgWidgets.a" ]; then
-    echo "  ✓ libQt6SvgWidgets.a found"
-    file "${QT_TARGET_DIR}/lib/libQt6SvgWidgets.a" | head -1
-else
-    echo "  ✗ libQt6SvgWidgets.a not found"
-fi
-
-# Copy FFmpeg and GStreamer libraries to the Qt target directory
-echo "Copying FFmpeg libraries to ${QT_TARGET_DIR}..."
-sudo mkdir -p ${QT_TARGET_DIR}/lib
-sudo mkdir -p ${QT_TARGET_DIR}/include
-sudo mkdir -p ${QT_TARGET_DIR}/bin
-sudo cp -a ${WORK_DIR}/ffmpeg_build/lib/. ${QT_TARGET_DIR}/lib/
-sudo cp -a ${WORK_DIR}/ffmpeg_build/include/. ${QT_TARGET_DIR}/include/
-
-echo "Copying GStreamer libraries to ${QT_TARGET_DIR}..."
-sudo cp -a ${WORK_DIR}/gstreamer_build/lib/. ${QT_TARGET_DIR}/lib/
-sudo cp -a ${WORK_DIR}/gstreamer_build/include/. ${QT_TARGET_DIR}/include/
-
-# Verify GStreamer installation completeness
-echo "Verifying GStreamer installation..."
-echo "Checking critical GStreamer components:"
-
-# Check for required headers
-REQUIRED_HEADERS="gst/video/videooverlay.h gst/video/video-enumtypes.h gst/audio/audio-enumtypes.h gst/rtp/gstrtp-enumtypes.h gst/pbutils/pbutils-enumtypes.h gst/tag/tag-enumtypes.h"
-
-for header in $REQUIRED_HEADERS; do
-  if [ -f "${QT_TARGET_DIR}/include/gstreamer-1.0/${header}" ]; then
-    echo "  ✓ ${header} found"
-  else
-    echo "  ✗ ${header} missing"
+cd "${BUILD_DIR}"
+for m in "${MODULES[@]}"; do
+  if [ "$m" = "qtbase" ]; then
+    continue
   fi
+  echo "Building module $m..."
+  mkdir -p "$m/build"
+  pushd "$m/build" >/dev/null
+  cmake \
+    -G "Ninja" \
+    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS}" \
+    -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}" \
+    -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+    -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT}" \
+    -DOPENSSL_INCLUDE_DIR="${OPENSSL_INCLUDE_DIR}" \
+    -DOPENSSL_CRYPTO_LIBRARY="${OPENSSL_LIB_DIR}/libcrypto.a" \
+    -DOPENSSL_SSL_LIBRARY="${OPENSSL_LIB_DIR}/libssl.a" \
+    -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
+    -DVCPKG_TARGET_TRIPLET="${VCPKG_TRIPLET}" \
+    ..
+  ninja -v -j"${JOBS}" || { echo "Module build failed—retrying single-threaded (JOBS=1) to work around memory limits"; ninja -v -j1 || { echo "Module build failed again; see output above."; exit 1; } }
+  ninja install
+  popd >/dev/null
 done
 
-# Check for required libraries
-REQUIRED_LIBS="libgstvideo-1.0.a libgstaudio-1.0.a libgsttag-1.0.a libgstrtp-1.0.a libgstpbutils-1.0.a libgstcodecs-1.0.a libgstcodecparsers-1.0.a libgstbase-1.0.a libgstreamer-1.0.a"
+# Quick fix: Add -loleaut32 to qnetworklistmanager.prl (Windows only)
+PRL_FILE="${INSTALL_PREFIX}/plugins/networkinformation/qnetworklistmanager.prl"
+if [ -f "$PRL_FILE" ]; then
+  echo "Updating $PRL_FILE to include -loleaut32..."
+  echo "QMAKE_PRL_LIBS += -loleaut32" >> "$PRL_FILE"
+else
+  echo "Warning: $PRL_FILE not found. Please check build packaging." >&2
+fi
 
-for lib in $REQUIRED_LIBS; do
-  if [ -f "${QT_TARGET_DIR}/lib/${lib}" ]; then
-    echo "  ✓ ${lib} found"
+# Verify lupdate
+if [ -x "${INSTALL_PREFIX}/bin/lupdate" ] || [ -x "${INSTALL_PREFIX}/bin/lupdate.exe" ]; then
+  echo "lupdate successfully built!"
+else
+  echo "Error: lupdate not found in ${INSTALL_PREFIX}/bin" >&2
+  exit 1
+fi
+
+# Verify Qt configuration includes OpenSSL support
+if [ -x "${INSTALL_PREFIX}/bin/qmake" ] || [ -x "${INSTALL_PREFIX}/bin/qmake.exe" ]; then
+  echo "Checking for OpenSSL feature in Qt configuration..."
+  if grep -q "openssl" "${INSTALL_PREFIX}/mkspecs/qconfig.pri" 2>/dev/null; then
+    echo "Qt built with OpenSSL support"
   else
-    echo "  ✗ ${lib} missing"
+    echo "Warning: OpenSSL support not detected in Qt configuration" >&2
   fi
-done
-
-# Create GStreamer verification script
-# Ensure the bin directory exists
-sudo mkdir -p "${QT_TARGET_DIR}/bin"
-
-# Create the comprehensive verification script using sudo tee
-sudo tee "${QT_TARGET_DIR}/bin/verify-gstreamer.sh" > /dev/null << 'EOF'
-#!/bin/bash
-echo "GStreamer Installation Verification"
-echo "===================================="
-
-QT_TARGET_DIR="/opt/Qt6-arm64"
-
-# Test for required header file
-VIDEO_OVERLAY_HEADER="${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/videooverlay.h"
-if [ -f "$VIDEO_OVERLAY_HEADER" ]; then
-    echo "✓ gst/video/videooverlay.h found"
 else
-    echo "✗ gst/video/videooverlay.h NOT found"
-    echo "  Expected at: $VIDEO_OVERLAY_HEADER"
+  echo "Error: qmake not found in ${INSTALL_PREFIX}/bin" >&2
+  exit 1
 fi
 
-# Test for required libraries
-echo -e "\nChecking GStreamer core static libraries:"
-CORE_LIBS="libgstvideo-1.0.a libgstaudio-1.0.a libgstpbutils-1.0.a libgstrtp-1.0.a libgsttag-1.0.a libgstcodecs-1.0.a libgstcodecparsers-1.0.a libgstbase-1.0.a libgstreamer-1.0.a"
-for lib in $CORE_LIBS; do
-    if [ -f "${QT_TARGET_DIR}/lib/$lib" ]; then
-        echo "✓ $lib found"
-    else
-        echo "✗ $lib NOT found"
-    fi
-done
-
-# Test for GStreamer core headers
-GSTREAMER_H="${QT_TARGET_DIR}/include/gstreamer-1.0/gst/gst.h"
-if [ -f "$GSTREAMER_H" ]; then
-    echo "✓ GStreamer core headers found"
-else
-    echo "✗ GStreamer core headers NOT found"
-fi
-
-# Check for GStreamer plugin libraries
-echo -e "\nChecking GStreamer plugin libraries:"
-echo "Looking for plugins in: ${QT_TARGET_DIR}/lib/gstreamer-1.0/"
-
-if [ -d "${QT_TARGET_DIR}/lib/gstreamer-1.0" ]; then
-    echo "Plugin directory exists"
-    
-    # Check for specific plugins we enabled
-    PLUGIN_LIBS="
-    libgstv4l2.a
-    libgstrtp.a
-    libgstrtpmanager.a
-    libgstrtsp.a
-    libgstudp.a
-    libgstvideocrop.a
-    libgstvideofilter.a
-    libgstvideotestsrc.a
-    "
-    
-    for plugin in $PLUGIN_LIBS; do
-        if [ -f "${QT_TARGET_DIR}/lib/gstreamer-1.0/$plugin" ]; then
-            echo "✓ Plugin: $plugin found"
-        else
-            echo "✗ Plugin: $plugin NOT found"
-        fi
-    done
-    
-    echo -e "\nAll available plugins:"
-    ls -la "${QT_TARGET_DIR}/lib/gstreamer-1.0/" 2>/dev/null | grep "\.a$" || echo "No .a files found in plugin directory"
-    
-else
-    echo "✗ Plugin directory ${QT_TARGET_DIR}/lib/gstreamer-1.0/ does not exist"
-    echo "  Checking alternative locations..."
-    
-    # Check if plugins are in main lib directory
-    echo -e "\nChecking for plugins in main lib directory:"
-    find "${QT_TARGET_DIR}/lib" -name "libgstv4l2*" -type f 2>/dev/null || echo "No v4l2 plugins found"
-    find "${QT_TARGET_DIR}/lib" -name "libgst*rtp*" -type f 2>/dev/null || echo "No RTP plugins found"
-    
-    echo -e "\nAll GStreamer-related files in lib directory:"
-    find "${QT_TARGET_DIR}/lib" -name "libgst*" -type f 2>/dev/null | head -20
-fi
-
-# Check build directory for verification
-WORK_DIR="${HOME}/qt-arm64-build"
-if [ -d "${WORK_DIR}/gstreamer_build" ]; then
-    echo -e "\n=== Checking original build directory ==="
-    echo "Build directory: ${WORK_DIR}/gstreamer_build"
-    
-    if [ -d "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0" ]; then
-        echo -e "\nPlugins in build directory:"
-        ls -la "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0/" 2>/dev/null | grep "\.a$" || echo "No .a files in build plugin directory"
-        
-        # Specifically check for v4l2
-        if [ -f "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0/libgstv4l2.a" ]; then
-            echo "✓ v4l2 plugin found in build directory"
-            file "${WORK_DIR}/gstreamer_build/lib/gstreamer-1.0/libgstv4l2.a"
-        else
-            echo "✗ v4l2 plugin NOT found in build directory"
-        fi
-    else
-        echo "No plugin directory in build area"
-    fi
-fi
-
-# Test if we can find v4l2 symbols in any static library
-echo -e "\n=== Searching for v4l2 symbols ==="
-echo "Searching for v4l2src symbol in static libraries..."
-
-# Search in Qt target directory
-V4L2_FOUND=false
-for lib in $(find "${QT_TARGET_DIR}/lib" -name "*.a" -type f 2>/dev/null); do
-    if nm "$lib" 2>/dev/null | grep -q "v4l2src\|gst_v4l2"; then
-        echo "✓ v4l2 symbols found in: $(basename $lib)"
-        V4L2_FOUND=true
-    fi
-done
-
-if [ "$V4L2_FOUND" = "false" ]; then
-    echo "✗ No v4l2 symbols found in any static library"
-    
-    # Check if v4l2 was actually built
-    if [ -d "${WORK_DIR}/gstreamer_sources/gst-plugins-good-1.22.11" ]; then
-        echo -e "\nChecking gst-plugins-good build configuration..."
-        BUILD_DIR="${WORK_DIR}/gstreamer_sources/gst-plugins-good-1.22.11/build"
-        if [ -f "${BUILD_DIR}/meson-info/intro-buildoptions.json" ]; then
-            echo "Build options for v4l2:"
-            cat "${BUILD_DIR}/meson-info/intro-buildoptions.json" | grep -A5 -B5 "v4l2" || echo "v4l2 option not found in build config"
-        fi
-        
-        if [ -f "${BUILD_DIR}/meson-logs/meson-log.txt" ]; then
-            echo -e "\nChecking build log for v4l2:"
-            tail -50 "${BUILD_DIR}/meson-logs/meson-log.txt" | grep -i "v4l2" || echo "No v4l2 mentions in recent build log"
-        fi
-    fi
-fi
-
-echo -e "\n=== System V4L2 Check ==="
-echo "Checking if V4L2 development headers are available:"
-if [ -f "/usr/include/linux/videodev2.h" ]; then
-    echo "✓ V4L2 system headers found at /usr/include/linux/videodev2.h"
-elif [ -f "/usr/include/videodev2.h" ]; then
-    echo "✓ V4L2 system headers found at /usr/include/videodev2.h"
-else
-    echo "✗ V4L2 system headers NOT found"
-    echo "  Install with: sudo apt-get install linux-libc-dev"
-fi
-
-echo -e "\nChecking for V4L2 devices:"
-if [ -d "/dev" ]; then
-    ls -la /dev/video* 2>/dev/null || echo "No video devices found"
-fi
-
-echo -e "\nDone."
-EOF
-
-sudo chmod +x "${QT_TARGET_DIR}/bin/verify-gstreamer.sh"
-echo "GStreamer verification script created at: ${QT_TARGET_DIR}/bin/verify-gstreamer.sh"
-
-# Clean up
-cd /
-# sudo rm -rf "$WORK_DIR"
-
-echo "Qt ${QT_VERSION}, FFmpeg ${FFMPEG_VERSION}, and GStreamer ${GSTREAMER_VERSION} for ARM64 build completed successfully!"
-echo "Qt installed to: ${QT_TARGET_DIR}"
-echo "FFmpeg libraries installed to: ${QT_TARGET_DIR}/lib"
-echo "FFmpeg headers installed to: ${QT_TARGET_DIR}/include"
-echo "GStreamer libraries installed to: ${QT_TARGET_DIR}/lib"
-echo "GStreamer headers installed to: ${QT_TARGET_DIR}/include"
-echo "Static ORC library installed to: /opt/orc-static/lib/aarch64-linux-gnu/"
-echo "Verification script available at: ${QT_TARGET_DIR}/bin/verify-gstreamer.sh"
-
-echo ""
-echo "========================================================================================="
-echo "BUILD INSTRUCTIONS FOR OPENTERFACE QT APPLICATION"
-echo "========================================================================================="
-echo ""
-echo "This build environment includes:"
-echo "  - Qt ${QT_VERSION} with multimedia support"
-echo "  - FFmpeg ${FFMPEG_VERSION} static libraries"
-echo "  - GStreamer ${GSTREAMER_VERSION} with video overlay support"
-echo "  - Static ORC library 0.4.33 for GStreamer optimization"
-echo "  - All necessary headers and enumtypes for GStreamer video components"
-echo ""
-echo "To build the static OpenTerface QT application using this environment, run:"
-echo ""
-echo "1. Navigate to the OpenTerface QT project directory:"
-echo "   cd /path/to/Openterface_QT"
-echo ""
-echo "2. Create a build directory:"
-echo "   mkdir -p build && cd build"
-echo ""
-echo "3. Set environment variables before configuring:"
-echo "   export PKG_CONFIG_PATH=\"${QT_TARGET_DIR}/lib/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig:\$PKG_CONFIG_PATH\""
-echo ""
-echo "4. Configure with CMake using the static Qt installation:"
-echo "   cmake -DCMAKE_PREFIX_PATH=\"${QT_TARGET_DIR}\" \\"
-echo "         -DCMAKE_BUILD_TYPE=Release \\"
-echo "         -DBUILD_SHARED_LIBS=OFF \\"
-echo "         -DQt6_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6\" \\"
-echo "         -DQt6Multimedia_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6Multimedia\" \\"
-echo "         -DQt6MultimediaWidgets_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6MultimediaWidgets\" \\"
-echo "         -DQt6SerialPort_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6SerialPort\" \\"
-echo "         -DQt6Svg_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6Svg\" \\"
-echo "         .."
-echo ""
-echo "5. Build the application:"
-echo "   make -j\$(nproc)"
-echo ""
-echo "5. The static binary will be available in the build directory."
-echo ""
-echo "Alternative using Ninja (if preferred):"
-echo "   cmake -GNinja -DCMAKE_PREFIX_PATH=\"${QT_TARGET_DIR}\" \\"
-echo "         -DCMAKE_BUILD_TYPE=Release \\"
-echo "         -DBUILD_SHARED_LIBS=OFF \\"
-echo "         -DQT_STATIC_BUILD=ON \\"
-echo "         -DQT_TARGET_DIR=\"${QT_TARGET_DIR}\" \\"
-echo "         -DQt6_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6\" \\"
-echo "         -DQt6Multimedia_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6Multimedia\" \\"
-echo "         -DQt6MultimediaWidgets_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6MultimediaWidgets\" \\"
-echo "         -DQt6SerialPort_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6SerialPort\" \\"
-echo "         -DQt6Svg_DIR=\"${QT_TARGET_DIR}/lib/cmake/Qt6Svg\" \\"
-echo "         -DPKG_CONFIG_PATH=\"${QT_TARGET_DIR}/lib/pkgconfig\" \\"
-echo "         .."
-echo "   ninja"
-echo ""
-echo "Note: The resulting binary will be statically linked and can run on other ARM64"
-echo "      systems without requiring Qt or multimedia libraries to be installed."
-echo ""
-echo "TROUBLESHOOTING:"
-echo "If you encounter 'Could NOT find Qt6Multimedia' or similar errors:"
-echo "1. Verify the Qt modules were built successfully by checking:"
-echo "   ls -la ${QT_TARGET_DIR}/lib/cmake/"
-echo "2. Ensure all required Qt module directories exist:"
-echo "   ls -la ${QT_TARGET_DIR}/lib/cmake/Qt6*"
-echo "3. Set environment variables before running cmake:"
-echo "   export PKG_CONFIG_PATH=\"${QT_TARGET_DIR}/lib/pkgconfig:\$PKG_CONFIG_PATH\""
-echo "   export CMAKE_PREFIX_PATH=\"${QT_TARGET_DIR}:\$CMAKE_PREFIX_PATH\""
-echo ""
-echo "If you encounter GStreamer-related build errors:"
-echo "1. Run the GStreamer verification script:"
-echo "   ${QT_TARGET_DIR}/bin/verify-gstreamer.sh"
-echo "2. Check if videooverlay.h header is available:"
-echo "   ls -la ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/videooverlay.h"
-echo "3. Verify all required GStreamer libraries are present:"
-echo "   ls -la ${QT_TARGET_DIR}/lib/libgst*.a | grep -E '(video|audio|tag|rtp|pbutils)'"
-echo "4. If you encounter ORC library linking errors (undefined reference to orc_program_take_code):"
-echo "   Verify the static ORC library is installed:"
-echo "   ls -la /opt/orc-static/lib/aarch64-linux-gnu/liborc-0.4.a"
-echo "   If missing, rebuild with the static ORC library section of this script"
-echo ""
-echo "If you encounter 'gst/video/video-enumtypes.h: No such file' errors:"
-echo "1. The build script should have copied all generated headers automatically"
-echo "2. If missing, they are available in the build directory:"
-echo "   find ${WORK_DIR}/gstreamer_sources -name '*enumtypes.h'"
-echo "3. Copy them manually if needed:"
-echo "   sudo cp \${WORK_DIR}/gstreamer_sources/gst-plugins-base-${GSTREAMER_VERSION}/build/gst-libs/gst/video/video-enumtypes.h ${QT_TARGET_DIR}/include/gstreamer-1.0/gst/video/"
-echo ""
-echo "If you encounter 'PkgConfig::Libudev' target not found errors:"
-echo "1. Install pkg-config and libudev development packages:"
-echo "   sudo apt-get install -y pkg-config libudev-dev"
-echo "2. Ensure PKG_CONFIG_PATH is set correctly before cmake:"
-echo "   export PKG_CONFIG_PATH=\"${QT_TARGET_DIR}/lib/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig:\$PKG_CONFIG_PATH\""
-echo "3. Check if libudev.pc exists:"
-echo "   pkg-config --exists libudev && echo 'libudev found' || echo 'libudev not found'"
-echo ""
-echo "4. If issues persist, try cleaning the build directory and reconfiguring."
-echo "========================================================================================="
-
-
-echo "OpenTerface QT $QT_VERSION has been successfully built and installed to $INSTALL_PREFIX"
+echo "Qt static build with OpenSSL completed successfully!"

@@ -47,7 +47,8 @@
 #include "../../ui/advance/scripttool.h"
 #include "../../target/MouseManager.h"
 #include "../../scripts/KeyboardMouse.h"
-#include "../../scripts/semanticAnalyzer.h"
+#include "../../scripts/scriptRunner.h"
+#include "../../scripts/scriptExecutor.h"
 #include "../../host/audiomanager.h"
 #include "../../server/tcpServer.h"
 
@@ -449,13 +450,27 @@ void MainWindowInitializer::setupScriptComponents()
     qCDebug(log_ui_mainwindowinitializer) << "Setting up script components...";
     m_mainWindow->mouseManager = std::make_unique<MouseManager>();
     m_mainWindow->keyboardMouse = std::make_unique<KeyboardMouse>();
-    m_mainWindow->semanticAnalyzer = std::make_unique<SemanticAnalyzer>(m_mainWindow->mouseManager.get(), m_mainWindow->keyboardMouse.get());
-    connect(m_mainWindow->semanticAnalyzer.get(), &SemanticAnalyzer::captureImg, m_mainWindow, &MainWindow::takeImage);
-    connect(m_mainWindow->semanticAnalyzer.get(), &SemanticAnalyzer::captureAreaImg, m_mainWindow, &MainWindow::takeAreaImage);
-    
+
+    // Script tool UI
     m_mainWindow->scriptTool = new ScriptTool(m_mainWindow);
     connect(m_mainWindow, &MainWindow::emitScriptStatus, m_mainWindow->scriptTool, &ScriptTool::resetCommmandLine);
-    connect(m_mainWindow->semanticAnalyzer.get(), &SemanticAnalyzer::commandIncrease, m_mainWindow->scriptTool, &ScriptTool::handleCommandIncrement);
+
+    // Script executor lives in main thread and executes UI/mouse/keyboard commands
+    m_mainWindow->scriptExecutor = std::make_unique<ScriptExecutor>(m_mainWindow);
+    m_mainWindow->scriptExecutor->setMouseManager(m_mainWindow->mouseManager.get());
+    m_mainWindow->scriptExecutor->setKeyboardMouse(m_mainWindow->keyboardMouse.get());
+    connect(m_mainWindow->scriptExecutor.get(), &ScriptExecutor::captureImg, m_mainWindow, &MainWindow::takeImage, Qt::QueuedConnection);
+    connect(m_mainWindow->scriptExecutor.get(), &ScriptExecutor::captureAreaImg, m_mainWindow, &MainWindow::takeAreaImage, Qt::QueuedConnection);
+
+    // Script runner handles worker threads and analysis
+    m_mainWindow->scriptRunner = std::make_unique<ScriptRunner>(m_mainWindow->scriptTool, m_mainWindow->scriptExecutor.get());
+    {
+        MainWindow* mainWindow = m_mainWindow;
+        connect(m_mainWindow->scriptRunner.get(), &ScriptRunner::analysisFinished, m_mainWindow, [mainWindow](QObject* originSender, bool success){
+            mainWindow->emitScriptStatus(success);
+            if (originSender == mainWindow->tcpServer) mainWindow->emitTCPCommandStatus(success);
+        });
+    }
 }
 
 void MainWindowInitializer::setupEventCallbacks()

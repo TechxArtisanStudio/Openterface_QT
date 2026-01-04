@@ -37,6 +37,7 @@
 #include "video/videohid.h"
 #include "ui/help/versioninfomanager.h"
 #include "ui/TaskManager.h"
+#include "regex/RegularExpression.h"
 #include "ui/advance/serialportdebugdialog.h"
 #include "ui/advance/firmwareupdatedialog.h"
 #include "ui/advance/envdialog.h"
@@ -1225,20 +1226,24 @@ void MainWindow::showScriptTool()
 
 // run the sematic analyzer
 void MainWindow::handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree) {
-    QPointer<QObject> senderObj = sender();
-    QPointer<MainWindow> thisPtr(this); // Add protection for this pointer
-    taskmanager->addTask([thisPtr, syntaxTree, senderObj]() {
-        if (!senderObj || !thisPtr) return; // Check both pointers
-        bool runStatus = thisPtr->semanticAnalyzer->analyze(syntaxTree.get());
-        qCDebug(log_ui_mainwindow) << "Script run status: " << runStatus;
-        emit thisPtr->emitScriptStatus(runStatus);
-        
-        if (senderObj == thisPtr->tcpServer) {
-            qCDebug(log_ui_mainwindow) << "run finish: " << runStatus;
-            emit thisPtr->emitTCPCommandStatus(runStatus);
-        }
-    });
-} 
+    if (!syntaxTree) {
+        qCDebug(log_ui_mainwindow) << "handleSyntaxTree: empty tree";
+        emit emitScriptStatus(false);
+        return;
+    }
+
+    if (!scriptRunner) {
+        qCDebug(log_ui_mainwindow) << "No ScriptRunner available";
+        emit emitScriptStatus(false);
+        return;
+    }
+
+    QObject* origin = sender();
+    scriptRunner->runTree(std::move(syntaxTree), origin);
+}
+
+
+
 
 MainWindow::~MainWindow()
 {

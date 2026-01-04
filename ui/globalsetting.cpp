@@ -60,14 +60,15 @@ void GlobalSetting::getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool 
     HID = m_settings.value("filter/HID", true).toBool();
 }
 
-void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host, bool device, bool backend)
+void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host, bool device, bool backend, bool script)
 {
     m_settings.setValue("log/core", core);
     m_settings.setValue("log/serial", serial);
     m_settings.setValue("log/ui", ui);
     m_settings.setValue("log/host", host);
     m_settings.setValue("log/device", device);
-    m_settings.setValue("log/backend", backend); 
+    m_settings.setValue("log/backend", backend);
+    m_settings.setValue("log/script", script);
 }
 
 void GlobalSetting::loadLogSettings()
@@ -79,6 +80,7 @@ void GlobalSetting::loadLogSettings()
     logFilter += m_settings.value("log/serial", false).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
     logFilter += m_settings.value("log/device", false).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
     logFilter += m_settings.value("log/backend", false).toBool() ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
+    logFilter += m_settings.value("log/script", false).toBool() ? "opf.scripts.*=true\n" : "opf.scripts.*=false\n";
     QLoggingCategory::setFilterRules(logFilter);
     qDebug() << "Log filter rules set to:\n" << logFilter;
 }

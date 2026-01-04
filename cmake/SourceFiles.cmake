@@ -106,6 +106,8 @@ set(SCRIPT_SOURCES
     scripts/Lexer.cpp scripts/Lexer.h
     scripts/Parser.cpp scripts/Parser.h
     scripts/semanticAnalyzer.cpp scripts/semanticAnalyzer.h
+    scripts/scriptExecutor.cpp scripts/scriptExecutor.h
+    scripts/scriptRunner.cpp scripts/scriptRunner.h
     scripts/scriptEditor.cpp scripts/scriptEditor.h
 )
 

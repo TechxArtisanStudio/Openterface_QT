@@ -135,13 +135,18 @@ if(WIN32)
 
     # Find libusb-1.0 library for Windows
     if(USE_USB)
+        # Search project lib folder and a common install location C:/libusb
         find_library(LIBUSB_LIBRARY 
             NAMES libusb-1.0 usb-1.0
-            PATHS ${CMAKE_CURRENT_SOURCE_DIR}/lib
+            PATHS ${CMAKE_CURRENT_SOURCE_DIR}/lib "C:/libusb/lib" "C:/libusb/bin"
         )
         
         if(LIBUSB_LIBRARY)
             message(STATUS "Found libusb-1.0 for Windows: ${LIBUSB_LIBRARY}")
+            # If headers exist under C:/libusb/include, add it so includes (<libusb-1.0/libusb.h>) work
+            if(EXISTS "C:/libusb/include/libusb-1.0/libusb.h")
+                target_include_directories(openterfaceQT PRIVATE "C:/libusb/include")
+            endif()
             target_link_libraries(openterfaceQT PRIVATE
                 hid
                 ${LIBUSB_LIBRARY}
