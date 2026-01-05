@@ -334,6 +334,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DFFMPEG_PREFIX=C:/ffmpeg-shared \
             -DUSE_SHARED_FFMPEG=ON \
+            -DHAVE_LIBJPEG_TURBO=ON \
             "$SOURCE_DIR_MSYS"
           echo "Building with mingw32-make..."
           mingw32-make -j2

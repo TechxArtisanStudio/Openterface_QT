@@ -172,6 +172,12 @@ QImage FFmpegFrameProcessor::GetLatestFrame() const
     return latest_frame_.copy();
 }
 
+QImage FFmpegFrameProcessor::GetLatestOriginalFrame() const
+{
+    QMutexLocker locker(&mutex_);
+    return latest_original_frame_.copy();
+}
+
 bool FFmpegFrameProcessor::ShouldDropFrame(bool is_recording)
 {
     qint64 current_time = QDateTime::currentMSecsSinceEpoch();
@@ -279,14 +285,21 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
         frame_to_convert = AV_FRAME_RAW(sw_frame);
     }
     
-    QImage result = ConvertFrameToImage(frame_to_convert, targetSize);
+    // First convert to original resolution (without targetSize scaling)
+    QImage originalResult = ConvertFrameToImage(frame_to_convert, QSize());
+    
+    // Then convert with scaling if targetSize is specified
+    QImage result = originalResult;
+    if (targetSize.isValid() && !targetSize.isEmpty()) {
+        result = ConvertFrameToImage(frame_to_convert, targetSize);
+    }
     
     if (sw_frame) {
         AV_FRAME_RESET(sw_frame);
     }
     
-    // Update statistics and store latest frame
-    if (!result.isNull()) {
+    // Update statistics and store latest frames
+    if (!result.isNull() && !originalResult.isNull()) {
         frame_count_++;
         
         // Skip startup frames if configured
@@ -294,10 +307,11 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
             return QImage();
         }
         
-        // Store latest frame for image capture
+        // Store both original and scaled frames for image capture
         {
             QMutexLocker locker(&mutex_);
-            latest_frame_ = result.copy();  // Deep copy for thread safety
+            latest_frame_ = result.copy();  // Scaled frame for display
+            latest_original_frame_ = originalResult.copy();  // Original frame for screenshots
         }
     }
     

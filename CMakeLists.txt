@@ -46,6 +46,9 @@ message(STATUS "OPENTERFACE_IS_AMD64: ${OPENTERFACE_IS_AMD64}")
 
 include(cmake/Configuration.cmake)
 
+# Include static linking configuration for compression libraries
+include(cmake/StaticLinking.cmake)
+
 # Provide FFmpeg helper functions (defines add_ffmpeg_static_libraries)
 include(cmake/FFmpeg.cmake OPTIONAL)
 
@@ -78,6 +81,9 @@ endif()
 # Include source files from modular file
 include(cmake/SourceFiles.cmake)
 qt_add_executable(openterfaceQT WIN32 ${SOURCE_FILES})
+
+# Force static linking of compression libraries (must be done early)
+force_static_compression_libraries(openterfaceQT)
 
 # Setup translations after target creation
 setup_translations(openterfaceQT)

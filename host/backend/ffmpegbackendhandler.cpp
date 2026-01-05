@@ -1103,8 +1103,13 @@ void FFmpegBackendHandler::takeImage(const QString& filePath)
         return;
     }
     
-    QImage latestImage = m_frameProcessor->GetLatestFrame();
-    m_recorder->TakeImage(filePath, latestImage);
+    QImage originalImage = m_frameProcessor->GetLatestOriginalFrame();
+    if (originalImage.isNull()) {
+        qCWarning(log_ffmpeg_backend) << "No original frame available for image capture";
+        return;
+    }
+    
+    m_recorder->TakeImage(filePath, originalImage);
 }
 
 void FFmpegBackendHandler::takeAreaImage(const QString& filePath, const QRect& captureArea)
@@ -1114,8 +1119,13 @@ void FFmpegBackendHandler::takeAreaImage(const QString& filePath, const QRect& c
         return;
     }
     
-    QImage latestImage = m_frameProcessor->GetLatestFrame();
-    m_recorder->TakeAreaImage(filePath, latestImage, captureArea);
+    QImage originalImage = m_frameProcessor->GetLatestOriginalFrame();
+    if (originalImage.isNull()) {
+        qCWarning(log_ffmpeg_backend) << "No original frame available for area image capture";
+        return;
+    }
+    
+    m_recorder->TakeAreaImage(filePath, originalImage, captureArea);
 }
 
 

@@ -48,13 +48,15 @@ case "$uname_s" in
 esac
 
 # Prefer lld on Windows if available (helps avoid GNU ld running out of memory)
+# However, disable lld for Qt builds as it's incompatible with -Wl syntax used by Qt
 LLD_FLAGS=""
 if [ "$PLATFORM" = "windows" ]; then
   if command -v ld.lld >/dev/null 2>&1 || command -v lld >/dev/null 2>&1; then
-    LLD_FLAGS="-fuse-ld=lld"
-    echo "INFO: lld detected; will add '${LLD_FLAGS}' to linker flags"
+    # LLD_FLAGS="-fuse-ld=lld"
+    echo "INFO: lld detected but disabled for Qt builds due to -Wl parameter incompatibility"
+    echo "      Qt build system uses -Wl syntax which lld doesn't support"
   else
-    echo "INFO: lld not found; install with: pacman -S mingw-w64-x86_64-lld (optional but recommended to avoid ld OOM)"
+    echo "INFO: lld not found; install with: pacman -S mingw-w64-x86_64-lld (optional but not used for Qt builds)"
   fi
 fi
 
@@ -313,6 +315,9 @@ cd qtbase/build
 cmake_args=(
   -G "Ninja"
   -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
+  # Explicitly set compilers to avoid path duplication issues in CI
+  -DCMAKE_C_COMPILER="/mingw64/bin/gcc.exe"
+  -DCMAKE_CXX_COMPILER="/mingw64/bin/g++.exe"
   -DBUILD_SHARED_LIBS=OFF
   -DFEATURE_dbus=ON
   -DFEATURE_sql=OFF
@@ -339,8 +344,30 @@ if [ "$PLATFORM" = "windows" ]; then
   if [ -f "$ZSTD_STATIC_LIB" ]; then
     echo "Using static zstd from: $ZSTD_STATIC_LIB"
     cmake_args+=( -DZSTD_LIBRARY="$ZSTD_STATIC_LIB" -DZSTD_INCLUDE_DIR="${MINGW_PATH}/include" )
+  else
+    echo "WARNING: Static zstd library not found at $ZSTD_STATIC_LIB"
+    echo "Installing zstd static library via pacman..."
+    pacman -S --noconfirm mingw-w64-x86_64-zstd
   fi
-  cmake_args+=( -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L${OPENSSL_LIB_DIR} -L${MINGW_PATH}/lib -Wl,-Bstatic -lzstd -Wl,-Bdynamic -lssl -lcrypto -lws2_32 -lcrypt32 -ladvapi32 -luser32 -lgdi32" -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}" -DCMAKE_REQUIRED_LIBRARIES="ws2_32;crypt32;advapi32;user32;gdi32" )
+  
+  # Force static linking of all compression libraries (without -Wl for compatibility)
+  # Use direct library paths instead of -l flags for better control
+  STATIC_COMPRESSION_LIBS=""
+  for lib in zstd brotlidec brotlienc brotlicommon z bz2 lzma; do
+    lib_path="${MINGW_PATH}/lib/lib${lib}.a"
+    if [ -f "$lib_path" ]; then
+      STATIC_COMPRESSION_LIBS="${STATIC_COMPRESSION_LIBS} ${lib_path}"
+      echo "Found static library: $lib_path"
+    else
+      echo "WARNING: Static library not found: $lib_path"
+    fi
+  done
+  
+  cmake_args+=( 
+    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L${OPENSSL_LIB_DIR} -L${MINGW_PATH}/lib -static-libgcc -static-libstdc++" 
+    -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}" 
+    -DCMAKE_REQUIRED_LIBRARIES="ws2_32;crypt32;advapi32;user32;gdi32" 
+  )
 fi
 
 cmake "${cmake_args[@]}"

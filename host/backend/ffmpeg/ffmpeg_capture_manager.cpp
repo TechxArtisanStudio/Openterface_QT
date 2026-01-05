@@ -359,7 +359,7 @@ bool FFmpegCaptureManager::InitializeCaptureThread()
     capture_thread_->start();
     
     // Set lower priority to not starve UI thread
-    capture_thread_->setPriority(QThread::LowPriority);
+    capture_thread_->setPriority(QThread::HighPriority);
     
     return true;
 }

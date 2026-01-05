@@ -639,6 +639,10 @@ function(link_ffmpeg_libraries)
                     ${ZLIB_LIBRARY}      # zlib for compression
                     "${MINGW_ROOT}/lib/libbz2.a"    # bzip2 for compression
                     "${MINGW_ROOT}/lib/liblzma.a"   # lzma/xz for compression
+                    "${MINGW_ROOT}/lib/libzstd.a"   # zstd for compression
+                    "${MINGW_ROOT}/lib/libbrotlidec.a"  # Brotli decompression
+                    "${MINGW_ROOT}/lib/libbrotlienc.a"  # Brotli compression
+                    "${MINGW_ROOT}/lib/libbrotlicommon.a"  # Brotli common
                     "${MINGW_ROOT}/lib/libmfx.a"    # Intel Media SDK for QSV (optional)
                     -lmingwex       # MinGW extensions for setjmp etc.
                     "${MINGW_ROOT}/lib/libwinpthread.a"  # Windows pthreads for 64-bit time functions

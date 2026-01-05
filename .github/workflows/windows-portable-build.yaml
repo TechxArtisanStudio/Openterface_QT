@@ -117,7 +117,11 @@ jobs:
       - name: Build Qt statically from source
         if: needs.setup-env.outputs.qt-cache-hit != 'true'
         shell: msys2 {0}
-        
+        env:
+          # Ensure correct compiler paths without duplication
+          CC: /mingw64/bin/gcc
+          CXX: /mingw64/bin/g++
+          PATH: /mingw64/bin:/usr/bin:/bin
         run: |
           ./build-script/build-static-qt-from-source.sh
         
@@ -535,9 +539,12 @@ jobs:
           export PKG_CONFIG_PATH="${MSYS_MINGW_PATH}/lib/pkgconfig:${MSYS_MINGW_PATH}/share/pkgconfig"
           echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
           
+          # Force reinstall zstd to ensure static library is available
+          pacman -S --noconfirm --needed mingw-w64-x86_64-zstd
+          
           # Verify critical static libraries exist
           echo "Verifying static libraries in ${MSYS_MINGW_PATH}/lib:"
-          for lib in libz.a libbz2.a libb2.a liblzma.a libmfx.a libwinpthread.a libiconv.a libbrotlidec.a libbrotlicommon.a libusb-1.0.a libzstd.a libcrypto.a libssl.a; do
+          for lib in libz.a libbz2.a libb2.a liblzma.a libmfx.a libwinpthread.a libiconv.a libbrotlidec.a libbrotlicommon.a libbrotlienc.a libusb-1.0.a libzstd.a libcrypto.a libssl.a; do
             if [ -f "${MSYS_MINGW_PATH}/lib/$lib" ]; then
               echo "  ✓ $lib"
             else
@@ -575,18 +582,24 @@ jobs:
           # Force static linking for all third-party libraries
           cmake .. \
             -G "MinGW Makefiles" \
+            -DHAVE_LIBJPEG_TURBO=ON \
             -DCMAKE_C_COMPILER="/mingw64/bin/gcc.exe" \
             -DCMAKE_CXX_COMPILER="/mingw64/bin/g++.exe" \
             -DCMAKE_MAKE_PROGRAM="/mingw64/bin/mingw32-make.exe" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="C:/Qt6;C:/ffmpeg-static" \
-            -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++ -L/mingw64/lib -L/c/ffmpeg-static/lib" \
+            -DMINGW_ROOT="/mingw64" \
+            -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++ -L/mingw64/lib -L/c/ffmpeg-static/lib -Wl,-Bstatic,-lzstd,-Bdynamic" \
             -DCMAKE_MODULE_LINKER_FLAGS="-Wl,-Bstatic" \
             -DTURBOJPEG_LIBRARY="/c/ffmpeg-static/lib/libturbojpeg.a" \
             -DZSTD_LIBRARY="/mingw64/lib/libzstd.a" \
             -DZSTD_INCLUDE_DIR="/mingw64/include" \
+            -DBROTLI_DEC_LIBRARY="/mingw64/lib/libbrotlidec.a" \
+            -DBROTLI_ENC_LIBRARY="/mingw64/lib/libbrotlienc.a" \
+            -DBROTLI_COMMON_LIBRARY="/mingw64/lib/libbrotlicommon.a" \
             -DBUILD_SHARED_LIBS=OFF \
-            -DSTATIC_LINKAGE=ON
+            -DSTATIC_LINKAGE=ON \
+            -DOPENTERFACE_BUILD_STATIC=ON
           
           # Verify no invalid paths in CMake cache
           echo "=== Checking for invalid library paths in CMakeCache.txt ==="
