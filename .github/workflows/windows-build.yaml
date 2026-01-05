@@ -104,6 +104,25 @@ jobs:
           fi
         shell: bash
 
+      - name: Dispatch Linux build (on patch increment)
+        if: ${{ github.event.inputs.increase_version == 'true' }}
+        uses: peter-evans/workflow-dispatch@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: linux-build.yml
+          ref: ${{ github.ref_name }}
+          inputs: |
+            build_type: both
+            ubuntu_version: 22.04
+
+      - name: Dispatch Windows Portable build (on patch increment)
+        if: ${{ github.event.inputs.increase_version == 'true' }}
+        uses: peter-evans/workflow-dispatch@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: windows-portable-build.yaml
+          ref: ${{ github.ref_name }}
+
       - name: Get all tags for correct version determination
         working-directory: ${{ github.workspace }}
         run: |
