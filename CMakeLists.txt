@@ -5,6 +5,12 @@ project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
 option(OPENTERFACE_BUILD_STATIC "Link libraries statically where possible" ON)
 message(STATUS "OPENTERFACE_BUILD_STATIC: ${OPENTERFACE_BUILD_STATIC}")
 
+# If we want a static build on Windows prefer .a libraries when CMake searches (set early so find_package uses it)
+if(OPENTERFACE_BUILD_STATIC AND WIN32)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    message(STATUS "Early CMAKE_FIND_LIBRARY_SUFFIXES set to: ${CMAKE_FIND_LIBRARY_SUFFIXES}")
+endif()
+
 # Detect architecture at top-level so users can override via -DOPENTERFACE_ARCH if desired
 if(NOT DEFINED OPENTERFACE_ARCH)
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
@@ -40,6 +46,9 @@ message(STATUS "OPENTERFACE_IS_AMD64: ${OPENTERFACE_IS_AMD64}")
 
 include(cmake/Configuration.cmake)
 
+# Include static linking configuration for compression libraries
+include(cmake/StaticLinking.cmake)
+
 # Provide FFmpeg helper functions (defines add_ffmpeg_static_libraries)
 include(cmake/FFmpeg.cmake OPTIONAL)
 
@@ -72,6 +81,9 @@ endif()
 # Include source files from modular file
 include(cmake/SourceFiles.cmake)
 qt_add_executable(openterfaceQT WIN32 ${SOURCE_FILES})
+
+# Force static linking of compression libraries (must be done early)
+force_static_compression_libraries(openterfaceQT)
 
 # Setup translations after target creation
 setup_translations(openterfaceQT)
@@ -129,9 +141,12 @@ if(UNIX AND NOT APPLE)
 endif()
 
 # For static Qt builds on Windows with MinGW, link MinGW runtime libraries
+# When building static on Windows, prefer real static libraries (.a) over import libs (.dll.a)
 if(OPENTERFACE_BUILD_STATIC AND WIN32)
-    target_link_libraries(${PROJECT_NAME} PRIVATE mingw32 mingwex)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++ -static")
+    set(MSYS_MINGW_PATH "/c/msys64/mingw64")
+    list(INSERT CMAKE_LIBRARY_PATH 0 "${MSYS_MINGW_PATH}/lib")
+    list(INSERT CMAKE_INCLUDE_PATH 0 "${MSYS_MINGW_PATH}/include")
+    message(STATUS "Using MSYS2 MinGW path: ${MSYS_MINGW_PATH}")
 endif()
 
 # For static Qt builds, we need to link platform plugins and their dependencies (Linux only)
@@ -259,6 +274,16 @@ endif()
 
 # Add FFmpeg libraries if available
 link_ffmpeg_libraries()
+
+# Diagnostic: detect if generated link response files contain references to .dll or import libs
+# (helps detect cases where import libs / shared libs are still used instead of static .a)
+file(GLOB LINK_RSP_FILES "${CMAKE_BINARY_DIR}/CMakeFiles/*/linkLibs.rsp")
+foreach(_f IN LISTS LINK_RSP_FILES)
+    file(READ "${_f}" _content)
+    if(_content MATCHES "\\.dll" OR _content MATCHES "dll\.a")
+        message(WARNING "Link response file ${_f} contains .dll references; build may still depend on DLLs. Inspect the file to find which libraries are used.")
+    endif()
+endforeach()
 
 # Add libjpeg libraries if available
 if(LIBJPEG_FOUND)

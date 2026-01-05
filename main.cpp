@@ -30,8 +30,10 @@
 #include <QCoreApplication>
 #include <QtPlugin>
 
+
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <crtdbg.h>
 #endif
 
 // Import static Qt plugins only when building with static plugins
@@ -268,6 +270,9 @@ void applyMediaBackendSetting(){
 
 int main(int argc, char *argv[])
 {
+    #ifdef Q_OS_WIN
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF);
+    #endif
     qDebug() << "Start openterface...";
     
     // Parse command-line arguments early to check for --skip-env-check

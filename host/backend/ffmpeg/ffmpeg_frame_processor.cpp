@@ -172,6 +172,12 @@ QImage FFmpegFrameProcessor::GetLatestFrame() const
     return latest_frame_.copy();
 }
 
+QImage FFmpegFrameProcessor::GetLatestOriginalFrame() const
+{
+    QMutexLocker locker(&mutex_);
+    return latest_original_frame_.copy();
+}
+
 bool FFmpegFrameProcessor::ShouldDropFrame(bool is_recording)
 {
     qint64 current_time = QDateTime::currentMSecsSinceEpoch();
@@ -208,13 +214,10 @@ bool FFmpegFrameProcessor::IsHardwareDecoder(const AVCodecContext* codec_context
             strstr(codec_name, "_nvdec") != nullptr);
 }
 
-// DEPRECATED QPixmap-based methods removed - use ProcessPacketToImage instead
-// All QPixmap-based decoding and conversion has been replaced with QImage equivalents
 
 QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecContext* codec_context, 
                                                    bool is_recording, const QSize& targetSize)
 {
-    // OPTIMIZATION: Decode directly to QImage to avoid QPixmap creation on worker thread
     if (stop_requested_) {
         return QImage();
     }
@@ -282,15 +285,21 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
         frame_to_convert = AV_FRAME_RAW(sw_frame);
     }
     
-    // Convert frame directly to QImage (bypassing QPixmap)
-    QImage result = ConvertFrameToImage(frame_to_convert, targetSize);
+    // First convert to original resolution (without targetSize scaling)
+    QImage originalResult = ConvertFrameToImage(frame_to_convert, QSize());
+    
+    // Then convert with scaling if targetSize is specified
+    QImage result = originalResult;
+    if (targetSize.isValid() && !targetSize.isEmpty()) {
+        result = ConvertFrameToImage(frame_to_convert, targetSize);
+    }
     
     if (sw_frame) {
         AV_FRAME_RESET(sw_frame);
     }
     
-    // Update statistics and store latest frame
-    if (!result.isNull()) {
+    // Update statistics and store latest frames
+    if (!result.isNull() && !originalResult.isNull()) {
         frame_count_++;
         
         // Skip startup frames if configured
@@ -298,17 +307,17 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
             return QImage();
         }
         
-        // Store latest frame for image capture
+        // Store both original and scaled frames for image capture
         {
             QMutexLocker locker(&mutex_);
-            latest_frame_ = result.copy();  // Deep copy for thread safety
+            latest_frame_ = result.copy();  // Scaled frame for display
+            latest_original_frame_ = originalResult.copy();  // Original frame for screenshots
         }
     }
     
     return result.copy();  // Deep copy for thread safety
 }
 
-// Thread-safe QImage conversion methods (avoid QPixmap on worker thread)
 QImage FFmpegFrameProcessor::ConvertFrameToImage(AVFrame* frame, const QSize& targetSize)
 {
     if (!frame) {

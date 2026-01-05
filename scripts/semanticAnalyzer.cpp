@@ -38,6 +38,17 @@ SemanticAnalyzer::SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* ke
     }
 }
 
+void SemanticAnalyzer::analyzeTree(std::shared_ptr<ASTNode> tree) {
+    if (!tree) {
+        qCDebug(log_script) << "analyzeTree: null tree";
+        emit analysisFinished(false);
+        return;
+    }
+    currentTree = std::move(tree);
+    bool ok = analyze(currentTree.get());
+    emit analysisFinished(ok);
+}
+
 bool SemanticAnalyzer::analyze(const ASTNode* node) {
     if (!node) {
         qDebug(log_script) << "Received null node in analyze method.";
@@ -60,7 +71,16 @@ bool SemanticAnalyzer::analyze(const ASTNode* node) {
         case ASTNodeType::CommandStatement:
             qDebug(log_script) << "Analyzing command statement.";
             emit commandIncrease();
-            analyzeCommandStetement(static_cast<const CommandStatementNode*>(node));
+            // Handle Sleep locally in worker thread, others via main thread
+            {
+                const CommandStatementNode* cmd = static_cast<const CommandStatementNode*>(node);
+                QString commandName = cmd->getCommandName();
+                if (commandName == "Sleep") {
+                    analyzeSleepStatement(cmd);
+                } else {
+                    emit commandData(node);
+                }
+            }
             break;
             
         default:

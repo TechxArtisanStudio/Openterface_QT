@@ -17,3 +17,4 @@ ffmpeg-build-temp/*
 CmakeLists.txt.user
 .cache/*
 debug.log
+build-script/libusb-build-temp/*

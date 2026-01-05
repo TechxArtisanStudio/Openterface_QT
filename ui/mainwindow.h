@@ -48,7 +48,8 @@
 #include "ui/languagemanager.h"
 #include "ui/statusbar/statusbarmanager.h"
 #include "host/cameramanager.h"
-#include "scripts/semanticAnalyzer.h"
+#include "scripts/scriptRunner.h"
+#include "scripts/scriptExecutor.h"
 #include "scripts/AST.h"
 #include "ui/screensavermanager.h"
 #include "ui/screenscale.h"
@@ -328,7 +329,8 @@ private:
     // CameraAdjust *cameraAdjust;
     std::unique_ptr<MouseManager> mouseManager;
     std::unique_ptr<KeyboardMouse> keyboardMouse;
-    std::unique_ptr<SemanticAnalyzer> semanticAnalyzer;
+    std::unique_ptr<ScriptExecutor> scriptExecutor;
+    std::unique_ptr<ScriptRunner> scriptRunner;
     TaskManager* taskmanager;
     void showScriptTool();
 

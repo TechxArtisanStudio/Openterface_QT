@@ -717,6 +717,16 @@ void FFmpegBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
                             parentVideoPane->updateGraphicsVideoItemFromImage(videoItem, image);
                         }
                     }, Qt::QueuedConnection);
+            QPointer<VideoPane> parentPtr(parentVideoPane);
+            QPointer<QGraphicsVideoItem> itemPtr(videoItem);
+            connect(this, &FFmpegBackendHandler::frameReadyImage,
+                    parentVideoPane, [parentPtr, itemPtr](const QImage& image) {
+                        // Guard: skip if either object was destroyed while the frame was queued
+                        if (!parentPtr) return;
+                        QGraphicsVideoItem* item = itemPtr.data();
+                        if (!item) return;
+                        parentPtr->updateGraphicsVideoItemFromImage(item, image);
+                    }, Qt::QueuedConnection);
         } else {
             qCWarning(log_ffmpeg_backend) << "Could not find parent VideoPane for QGraphicsVideoItem";
             // Fallback: just emit frameReadyImage, UI must connect manually
@@ -1093,8 +1103,13 @@ void FFmpegBackendHandler::takeImage(const QString& filePath)
         return;
     }
     
-    QImage latestImage = m_frameProcessor->GetLatestFrame();
-    m_recorder->TakeImage(filePath, latestImage);
+    QImage originalImage = m_frameProcessor->GetLatestOriginalFrame();
+    if (originalImage.isNull()) {
+        qCWarning(log_ffmpeg_backend) << "No original frame available for image capture";
+        return;
+    }
+    
+    m_recorder->TakeImage(filePath, originalImage);
 }
 
 void FFmpegBackendHandler::takeAreaImage(const QString& filePath, const QRect& captureArea)
@@ -1104,8 +1119,13 @@ void FFmpegBackendHandler::takeAreaImage(const QString& filePath, const QRect& c
         return;
     }
     
-    QImage latestImage = m_frameProcessor->GetLatestFrame();
-    m_recorder->TakeAreaImage(filePath, latestImage, captureArea);
+    QImage originalImage = m_frameProcessor->GetLatestOriginalFrame();
+    if (originalImage.isNull()) {
+        qCWarning(log_ffmpeg_backend) << "No original frame available for area image capture";
+        return;
+    }
+    
+    m_recorder->TakeAreaImage(filePath, originalImage, captureArea);
 }
 
 

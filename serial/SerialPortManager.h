@@ -158,6 +158,11 @@ signals:
     void parameterConfigurationSuccess(); // Signal emitted when parameter configuration is successful and reset is needed
     void syncResponseReady();  // Emitted when m_syncCommandResponse is filled for sync commands
     void usbStatusChanged(bool isToTarget);  // New signal: true = target, false = host
+    void targetUSBStatus(bool isTargetUSBConnected);
+    void keyStatesChanged(bool numLock, bool capsLock, bool scrollLock); // Key state updates (thread-safe)
+    void serialPortReset(bool isStarted); // Serial port reset started/ended
+    void statusUpdate(const QString &status); // General status update for UI
+    void factoryReset(bool isStarted); // Factory reset started/ended
     
     // Thread-safe reset operation signals (internal use)
     void requestResetHidChip(int targetBaudrate);

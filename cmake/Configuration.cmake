@@ -3,8 +3,6 @@
 # Option to control USB functionality
 option(USE_USB "Enable USB functionality via libusb" ON)
 
-find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
-
 # Detect ARM64 architecture for both cross-compilation and native builds
 if(OPENTERFACE_IS_ARM64)    
     # Apply ARM64-specific optimizations for native builds
@@ -59,6 +57,37 @@ else()
     list(GET CMAKE_PREFIX_PATH 0 QT_BUILD_PATH)
     message(STATUS "QT_BUILD_PATH set from CMAKE_PREFIX_PATH: ${QT_BUILD_PATH}")
 endif()
+
+# Detect Qt toolchain (Qt5 or Qt6) after CMAKE_PREFIX_PATH has been set so user-provided
+# paths (e.g. -DCMAKE_PREFIX_PATH="/c/Qt6") are honored during configuration.
+# Try to locate Qt config files under common candidate paths and set Qt6_DIR/Qt5_DIR
+# so find_package() has an explicit hint if CMake can't discover them automatically.
+set(_qt_config_found FALSE)
+set(_qt_cands
+    "${QT_BUILD_PATH}/lib/cmake/Qt6"
+    "${QT_BUILD_PATH}/lib/cmake"
+    "${QT_BUILD_PATH}/cmake"
+    "${QT_BUILD_PATH}"
+)
+foreach(_cand IN LISTS _qt_cands)
+    if(EXISTS "${_cand}/Qt6Config.cmake")
+        set(Qt6_DIR "${_cand}" CACHE PATH "Detected Qt6_DIR" FORCE)
+        set(_qt_config_found TRUE)
+        message(STATUS "Detected Qt6 config at: ${_cand}/Qt6Config.cmake")
+        break()
+    elseif(EXISTS "${_cand}/Qt5Config.cmake")
+        set(Qt5_DIR "${_cand}" CACHE PATH "Detected Qt5_DIR" FORCE)
+        set(_qt_config_found TRUE)
+        message(STATUS "Detected Qt5 config at: ${_cand}/Qt5Config.cmake")
+        break()
+    endif()
+endforeach()
+if(NOT _qt_config_found)
+    message(STATUS "No QtConfig.cmake found in candidate locations; find_package will use CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+endif()
+
+find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
+
 
 # Find pkg-config dependencies required by Qt components (Linux only)
 if(NOT WIN32)

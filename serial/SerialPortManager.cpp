@@ -632,7 +632,7 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     resetErrorCounters();
     m_lastSuccessfulCommand.restart();
 
-    if(eventCallback!=nullptr) eventCallback->onPortConnected(portName, serialPort->baudRate());
+    emit connectedPortChanged(portName, serialPort->baudRate());
 
     qCDebug(log_core_serial) << "Enable the switchable USB now...";
     // serialPort->setDataTerminalReady(false);
@@ -825,17 +825,13 @@ bool SerialPortManager::handleFactoryResetInternal() {
     }
 
     if(serialPort->setRequestToSend(true)){
-        if (eventCallback != nullptr) {
-            eventCallback->factoryReset(true);
-        }
+        emit factoryReset(true);
         qCDebug(log_core_serial) << "Set RTS to low";
         QTimer::singleShot(4000, this, [this]() {
             bool success = false;
             if (serialPort && serialPort->setRequestToSend(false)) {
                 qCDebug(log_core_serial) << "Set RTS to high";
-                if (eventCallback != nullptr) {
-                    eventCallback->factoryReset(false);
-                }
+                emit factoryReset(false);
                 restartPort();
                 success = true;
             }
@@ -876,7 +872,7 @@ bool SerialPortManager::factoryResetHipChipV191(){
 // Internal implementation that runs in the worker thread
 bool SerialPortManager::handleFactoryResetV191Internal() {
     qCDebug(log_core_serial) << "Factory reset Hid chip for 1.9.1 now (internal)...";
-    if(eventCallback) eventCallback->onStatusUpdate("Factory reset Hid chip now.");
+    emit statusUpdate("Factory reset Hid chip now.");
 
     // Clear stored baudrate on factory reset
     clearStoredBaudrate();
@@ -895,11 +891,11 @@ bool SerialPortManager::handleFactoryResetV191Internal() {
         QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
         if (retByte.size() > 0) {
             qCDebug(log_core_serial) << "Factory reset the hid chip success.";
-            if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip success.");
+            emit statusUpdate("Factory reset the hid chip success.");
             success = true;
         } else {
             qCWarning(log_core_serial) << "CH32V208 chip factory reset failed - chip may not support this command";
-            if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip failure.");
+            emit statusUpdate("Factory reset the hid chip failure.");
         }
         emit factoryResetCompleted(success);
         return success;
@@ -909,7 +905,7 @@ bool SerialPortManager::handleFactoryResetV191Internal() {
     QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
     if (retByte.size() > 0) {
         qCDebug(log_core_serial) << "Factory reset the hid chip success.";
-        if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip success.");
+        emit statusUpdate("Factory reset the hid chip success.");
         emit factoryResetCompleted(true);
         return true;
     } else{
@@ -917,18 +913,18 @@ bool SerialPortManager::handleFactoryResetV191Internal() {
         // toggle to another baudrate
         serialPort->close();
         setBaudRate(anotherBaudrate());
-        if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip@9600.");
+        emit statusUpdate("Factory reset the hid chip@9600.");
         if(serialPort->open(QIODevice::ReadWrite)){
             QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
             if (retByte.size() > 0) {
                 qCDebug(log_core_serial) << "Factory reset the hid chip success.";
-                if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip success@9600.");
+                emit statusUpdate("Factory reset the hid chip success@9600.");
                 emit factoryResetCompleted(true);
                 return true;
             }
         }
     }
-    if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip failure.");
+    emit statusUpdate("Factory reset the hid chip failure.");
     emit factoryResetCompleted(false);
     return false;
 }
@@ -1022,7 +1018,7 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         return true;
     }
     
-    if(eventCallback!=nullptr) eventCallback->onStatusUpdate("Going to open the port");
+    emit statusUpdate("Going to open the port");
     
     if(serialPort == nullptr){
         serialPort = new QSerialPort();
@@ -1080,8 +1076,8 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         // Reset error counters on successful connection
         resetErrorCounters();
 
-        if(eventCallback!=nullptr) eventCallback->onStatusUpdate("");
-        if(eventCallback!=nullptr) eventCallback->onPortConnected(portName, baudRate);
+        emit statusUpdate("");
+        emit connectedPortChanged(portName, baudRate);
         qCDebug(log_core_serial) << "Serial port: " << portName << ", baudrate: " << baudRate << "opened";
         return true;
     } else {
@@ -1090,7 +1086,7 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
                           .arg(static_cast<int>(lastError));
         qCWarning(log_core_serial) << errorMsg;
 
-        if(eventCallback!=nullptr) eventCallback->onStatusUpdate(errorMsg);
+        emit statusUpdate(errorMsg);
         return false;
     }
 }
@@ -1138,9 +1134,8 @@ void SerialPortManager::closePort() {
     }
     
     ready = false;
-    if (eventCallback != nullptr) {
-        eventCallback->onPortConnected("NA", 0);
-    }
+    // Notify listeners that port is not available
+    emit connectedPortChanged("NA", 0);
     
     // Stop watchdog while port is closed (thread-safe)
     stopConnectionWatchdog();
@@ -1163,22 +1158,18 @@ bool SerialPortManager::restartPort() {
     QString portName = serialPort->portName();
     qint32 baudRate = serialPort->baudRate();
     qCDebug(log_core_serial) << "Restart port" << portName << "baudrate:" << baudRate;
-    if (eventCallback != nullptr) {
-        eventCallback->serialPortReset(true);
-    }
+    emit serialPortReset(true);
     closePort();
     
     // Use non-blocking timer instead of msleep
     QTimer::singleShot(100, this, [this, portName, baudRate]() {
         openPort(portName, baudRate);
         onSerialPortConnected(portName);
-        if (eventCallback != nullptr) {
-            eventCallback->serialPortReset(false);
-        }
+        emit serialPortReset(false);
     });
     
     return ready;
-}
+} 
 
 void SerialPortManager::scheduleConfigRetry(const QString &portName, int attempt, int maxAttempts, int delayMs)
 {
@@ -1218,13 +1209,11 @@ void SerialPortManager::updateSpecialKeyState(uint8_t data){
     CapsLockState = (data & 0b00000010) != 0; // CapsLockState bit
     ScrollLockState = (data & 0b00000100) != 0; // ScrollLockState bit
     
-    // Notify callback about key state changes
-    if (eventCallback != nullptr) {
-        qDebug(log_core_serial) << "NumLockState:" << NumLockState 
-                               << "CapsLockState:" << CapsLockState 
-                               << "ScrollLockState:" << ScrollLockState;
-        eventCallback->onKeyStatesChanged(NumLockState, CapsLockState, ScrollLockState);
-    }
+    // Emit a thread-safe signal for key state changes
+    qCDebug(log_core_serial) << "NumLockState:" << NumLockState 
+                            << "CapsLockState:" << CapsLockState 
+                            << "ScrollLockState:" << ScrollLockState;
+    emit keyStatesChanged(NumLockState, CapsLockState, ScrollLockState);
 }
 /*
  * Read the data from the serial port
@@ -1276,9 +1265,7 @@ void SerialPortManager::readData() {
         switch (code) {
             case 0x81:
                 isTargetUsbConnected = CmdGetInfoResult::fromByteArray(packet).targetConnected == 0x01;
-                if (eventCallback != nullptr) {
-                    eventCallback->onTargetUsbConnected(isTargetUsbConnected);
-                }
+                emit targetUSBStatus(isTargetUsbConnected);
                 updateSpecialKeyState(CmdGetInfoResult::fromByteArray(packet).indicators);
                 break;
             case 0x82:
@@ -1287,7 +1274,7 @@ void SerialPortManager::readData() {
             case 0x84:
                 if(isChipTypeCH32V208()){
                     ready=true;
-                    eventCallback->onTargetUsbConnected(true);
+                    emit targetUSBStatus(true);
                 }
                 break;
             case 0x85:
@@ -1802,7 +1789,7 @@ void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
         if (baudRate != BAUDRATE_HIGHSPEED) {
             qCWarning(log_core_serial) << "CH32V208 chip only supports 115200 baudrate. Ignoring user request for" << baudRate;
             if (eventCallback) {
-                eventCallback->onStatusUpdate("CH32V208 chip only supports 115200 baudrate");
+                emit statusUpdate("CH32V208 chip only supports 115200 baudrate");
             }
             return;
         }
@@ -2044,7 +2031,7 @@ void SerialPortManager::attemptRecovery()
         qCCritical(log_core_serial) << "Maximum retry attempts reached. Giving up recovery.";
         ready = false;
         if (eventCallback) {
-            eventCallback->onStatusUpdate("Serial port recovery failed - max retries exceeded");
+            emit statusUpdate("Serial port recovery failed - max retries exceeded");
         }
         return;
     }
@@ -2073,12 +2060,12 @@ void SerialPortManager::attemptRecovery()
                 qCInfo(log_core_serial) << "✓ Serial port recovery successful";
                 resetErrorCounters();
                 if (eventCallback) {
-                    eventCallback->onStatusUpdate("Serial port recovered successfully");
+                    emit statusUpdate("Serial port recovered successfully");
                 }
             } else {
                 qCWarning(log_core_serial) << "Serial port recovery attempt failed";
                 if (eventCallback) {
-                    eventCallback->onStatusUpdate(QString("Recovery attempt %1 failed").arg(m_connectionRetryCount.load()));
+                    emit statusUpdate(QString("Recovery attempt %1 failed").arg(m_connectionRetryCount.load()));
                 }
                 
                 // Try again if we haven't exceeded max attempts

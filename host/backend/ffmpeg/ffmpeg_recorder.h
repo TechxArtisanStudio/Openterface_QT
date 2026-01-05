@@ -26,8 +26,9 @@
 #include <QString>
 #include <QSize>
 #include <QMutex>
-#include <QPixmap>
 #include <memory>
+#include <QImage>
+#include <QRect>
 
 // Forward declarations for FFmpeg types
 extern "C" {
@@ -81,7 +82,6 @@ public:
     qint64 GetRecordingFileSize() const;
     
     // Frame writing
-    bool WriteFrame(const QPixmap& pixmap);
     bool WriteFrame(const QImage& image);  // Thread-safe overload
     bool ShouldWriteFrame(qint64 current_time_ms);
     
@@ -94,9 +94,7 @@ public:
     bool SupportsRecordingStats() const;
     
     // Image capture
-    void TakeImage(const QString& file_path, const QPixmap& pixmap);
     void TakeImage(const QString& file_path, const QImage& image);  // Thread-safe overload
-    void TakeAreaImage(const QString& file_path, const QPixmap& pixmap, const QRect& capture_area);
     void TakeAreaImage(const QString& file_path, const QImage& image, const QRect& capture_area);  // Thread-safe overload
 
 private:
