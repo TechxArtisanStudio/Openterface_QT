@@ -29,7 +29,9 @@
 #include <QtWidgets>
 #include <QtMultimedia>
 #include <QtMultimediaWidgets>
+#include <QLoggingCategory>
 
+Q_DECLARE_LOGGING_CATEGORY(log_ui_video)
 
 class VideoPane : public QGraphicsView
 {
@@ -61,6 +63,7 @@ public:
     void resetZoom();
     void zoomIn(double factor = 1.25);
     void zoomOut(double factor = 0.8);
+    void centerOn(const QPointF &pos); // Center the view on a specific point
     void fitToWindow();
     void actualSize();
     
@@ -73,18 +76,33 @@ public:
         
     // FFmpeg direct video frame support
     void updateVideoFrame(const QPixmap& frame);
+    void updateVideoFrameFromImage(const QImage& image);  // Optimized: receives QImage, converts to QPixmap on GUI thread
+    void updateGraphicsVideoItemFromImage(QGraphicsVideoItem* videoItem, const QImage& image);  // Updates QGraphicsVideoItem from QImage
     void enableDirectFFmpegMode(bool enable = true);
     bool isDirectFFmpegModeEnabled() const { return m_directFFmpegMode; }
+    void clearVideoFrame(); // Clear the current video frame display
 
     // Mouse position transformation for InputHandler
-    QPoint getTransformedMousePosition(const QPoint& viewportPos);
+    QPointF getTransformedMousePosition(const QPoint& viewportPos);
+    
+    // Debug helper to validate coordinate transformation consistency
+    void validateMouseCoordinates(const QPoint& original, const QString& eventType);
+    
+    // Get current zoom factor
+    double getZoomFactor() const { return m_scaleFactor; }
+    
+    // Set coordinate correction for zoom mode
+    void setZoomOffsetCorrection(int x, int y) { m_zoomOffsetCorrectionX = x; m_zoomOffsetCorrectionY = y; }
 
 signals:
     void mouseMoved(const QPoint& position, const QString& event);
+    void videoPaneResized(const QSize& newSize);  // Signal for video pane resize events
+    void viewportSizeChanged(const QSize& size);   // Signal for viewport size changes
 
 public slots:
     void onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice);
     void onCameraDeviceSwitchComplete(const QString& device);
+    void onCameraActiveChanged(bool active);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -119,12 +137,18 @@ private:
     QSize m_originalVideoSize;
     bool m_maintainAspectRatio;
     
+    // Coordinate correction for zoom mode
+    int m_zoomOffsetCorrectionX;
+    int m_zoomOffsetCorrectionY;
+    
     // Direct GStreamer mode support
     bool m_directGStreamerMode;
     QWidget* m_overlayWidget; // Widget for direct video overlay
     
     // Direct FFmpeg mode support
     bool m_directFFmpegMode;
+    QSize m_lastViewportSize;
+    bool m_frameIsViewportSized;
     
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);
@@ -134,6 +158,7 @@ private:
     void updateVideoItemTransform();
     void centerVideoItem();
     void setupScene();
+    void updateScrollBarsAndSceneRect();
 };
 
 #endif

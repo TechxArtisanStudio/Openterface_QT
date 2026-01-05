@@ -1,0 +1,232 @@
+# Configuration.cmake - Platform and architecture detection/configuration
+
+# Option to control USB functionality
+option(USE_USB "Enable USB functionality via libusb" ON)
+
+# Detect ARM64 architecture for both cross-compilation and native builds
+if(OPENTERFACE_IS_ARM64)    
+    # Apply ARM64-specific optimizations for native builds
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        # Debug build: Use minimal optimization for faster compilation
+        set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -DDEBUG" CACHE STRING "Debug flags" FORCE)
+        set(CMAKE_C_FLAGS_DEBUG "-O0 -g -DDEBUG" CACHE STRING "Debug flags" FORCE)
+        message(STATUS "Applied ARM64 native debug build optimizations (-O0)")
+    else()
+        # Release build: Use O1 for balance between speed and stability
+        set(CMAKE_CXX_FLAGS_RELEASE "-O1 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        set(CMAKE_C_FLAGS_RELEASE "-O1 -DNDEBUG" CACHE STRING "Release flags" FORCE)
+        message(STATUS "Applied ARM64 native release build optimizations (-O1)")
+    endif()
+    
+    # Essential stability flags for ARM64 native compilation (reduced)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -ftemplate-depth-64")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations")
+    
+    # Enable parallel compilation for native builds
+    include(ProcessorCount)
+    ProcessorCount(N)
+    if(NOT N EQUAL 0)
+        if(N GREATER 4)
+            # Limit to 4 jobs on ARM64 to prevent memory issues
+            set(PARALLEL_JOBS 4)
+        else()
+            set(PARALLEL_JOBS ${N})
+        endif()
+        message(STATUS "Using ${PARALLEL_JOBS} parallel compilation jobs for native ARM64")
+    endif()
+endif()
+
+# Set QT_BUILD_PATH and adjust CMAKE_PREFIX_PATH when not explicitly provided
+# Do not override user-provided CMAKE_PREFIX_PATH
+if(NOT DEFINED QT_BUILD_PATH)
+    if(WIN32)
+        set(QT_BUILD_PATH "E:/Qt/6.5.3/mingw_64" CACHE PATH "Qt6 installation directory for builds" FORCE)
+    else()
+        set(QT_BUILD_PATH "/opt/Qt6" CACHE PATH "Qt6 installation directory for builds" FORCE)
+    endif()
+    message(STATUS "QT_BUILD_PATH set to ${QT_BUILD_PATH}")
+endif()
+
+if(NOT DEFINED CMAKE_PREFIX_PATH OR CMAKE_PREFIX_PATH STREQUAL "")
+    # Initialize CMAKE_PREFIX_PATH to our chosen Qt build path
+    set(CMAKE_PREFIX_PATH "${QT_BUILD_PATH}" CACHE PATH "Prefix path for CMake to find Qt" FORCE)
+    message(STATUS "CMAKE_PREFIX_PATH set to ${CMAKE_PREFIX_PATH}")
+else()
+    message(STATUS "CMAKE_PREFIX_PATH already set: ${CMAKE_PREFIX_PATH}")
+    # Extract the first path as QT_BUILD_PATH for Qt6_DIR setting
+    list(GET CMAKE_PREFIX_PATH 0 QT_BUILD_PATH)
+    message(STATUS "QT_BUILD_PATH set from CMAKE_PREFIX_PATH: ${QT_BUILD_PATH}")
+endif()
+
+# Detect Qt toolchain (Qt5 or Qt6) after CMAKE_PREFIX_PATH has been set so user-provided
+# paths (e.g. -DCMAKE_PREFIX_PATH="/c/Qt6") are honored during configuration.
+# Try to locate Qt config files under common candidate paths and set Qt6_DIR/Qt5_DIR
+# so find_package() has an explicit hint if CMake can't discover them automatically.
+set(_qt_config_found FALSE)
+set(_qt_cands
+    "${QT_BUILD_PATH}/lib/cmake/Qt6"
+    "${QT_BUILD_PATH}/lib/cmake"
+    "${QT_BUILD_PATH}/cmake"
+    "${QT_BUILD_PATH}"
+)
+foreach(_cand IN LISTS _qt_cands)
+    if(EXISTS "${_cand}/Qt6Config.cmake")
+        set(Qt6_DIR "${_cand}" CACHE PATH "Detected Qt6_DIR" FORCE)
+        set(_qt_config_found TRUE)
+        message(STATUS "Detected Qt6 config at: ${_cand}/Qt6Config.cmake")
+        break()
+    elseif(EXISTS "${_cand}/Qt5Config.cmake")
+        set(Qt5_DIR "${_cand}" CACHE PATH "Detected Qt5_DIR" FORCE)
+        set(_qt_config_found TRUE)
+        message(STATUS "Detected Qt5 config at: ${_cand}/Qt5Config.cmake")
+        break()
+    endif()
+endforeach()
+if(NOT _qt_config_found)
+    message(STATUS "No QtConfig.cmake found in candidate locations; find_package will use CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+endif()
+
+find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core)
+
+
+# Find pkg-config dependencies required by Qt components (Linux only)
+if(NOT WIN32)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(Libudev REQUIRED IMPORTED_TARGET libudev)
+endif()
+
+# Include FFmpeg configuration
+include(cmake/FFmpeg.cmake)
+
+# Include GStreamer configuration (Linux only - Windows uses FFmpeg backend)
+if(NOT WIN32)
+    include(cmake/GStreamer.cmake)
+
+    # Set PKG_CONFIG_PATH for GStreamer after GStreamer.cmake has set GSTREAMER_PREFIX
+    # This ensures Qt's internal pkg-config calls can find GStreamer packages.
+    # Include both generic and arch-specific directories when present.
+    set(_GST_PKG_PATH_CANDIDATES)
+    list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/pkgconfig")
+        if(DEFINED CMAKE_LIBRARY_ARCHITECTURE AND CMAKE_LIBRARY_ARCHITECTURE)
+        list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/${CMAKE_LIBRARY_ARCHITECTURE}/pkgconfig")
+        list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/${CMAKE_LIBRARY_ARCHITECTURE}/gstreamer-1.0/pkgconfig")
+    endif()
+    list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/gstreamer-1.0/pkgconfig")
+
+    # Common Debian/Ubuntu multiarch fallbacks
+    list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/pkgconfig")
+    list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/aarch64-linux-gnu/gstreamer-1.0/pkgconfig")
+    list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/x86_64-linux-gnu/pkgconfig")
+    list(APPEND _GST_PKG_PATH_CANDIDATES "${GSTREAMER_PREFIX}/lib/x86_64-linux-gnu/gstreamer-1.0/pkgconfig")
+
+    foreach(_cand ${_GST_PKG_PATH_CANDIDATES})
+        if(EXISTS "${_cand}")
+            if(NOT "$ENV{PKG_CONFIG_PATH}" MATCHES "${_cand}")
+                if("$ENV{PKG_CONFIG_PATH}" STREQUAL "")
+                    set(ENV{PKG_CONFIG_PATH} "${_cand}")
+                else()
+                    set(ENV{PKG_CONFIG_PATH} "${_cand}:$ENV{PKG_CONFIG_PATH}")
+                endif()
+                message(STATUS "Added GStreamer to PKG_CONFIG_PATH: ${_cand}")
+            endif()
+        endif()
+    endforeach()
+endif()
+
+# Ensure we use the static Qt6 build by setting the Qt6 directory explicitly
+set(Qt6_DIR "${QT_BUILD_PATH}/lib/cmake/Qt6" CACHE PATH "Qt6 installation directory" FORCE)
+set(Qt6Core_DIR "${QT_BUILD_PATH}/lib/cmake/Qt6Core" CACHE PATH "Qt6Core directory" FORCE)
+set(Qt6Gui_DIR "${QT_BUILD_PATH}/lib/cmake/Qt6Gui" CACHE PATH "Qt6Gui directory" FORCE)
+set(Qt6Widgets_DIR "${QT_BUILD_PATH}/lib/cmake/Qt6Widgets" CACHE PATH "Qt6Widgets directory" FORCE)
+
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Concurrent Gui Multimedia MultimediaWidgets Network SerialPort Svg)
+find_package(Qt${QT_VERSION_MAJOR} OPTIONAL_COMPONENTS Widgets)
+if(UNIX AND NOT APPLE)
+    find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS DBus)
+endif()
+
+# Prioritize static Qt6 include directories over system Qt6 headers
+# This prevents header conflicts between system Qt6 and static Qt6 build
+include_directories(BEFORE SYSTEM 
+    ${QT_BUILD_PATH}/include
+    ${QT_BUILD_PATH}/include/QtCore
+    ${QT_BUILD_PATH}/include/QtGui
+    ${QT_BUILD_PATH}/include/QtWidgets
+    ${QT_BUILD_PATH}/include/QtMultimedia
+    ${QT_BUILD_PATH}/include/QtMultimediaWidgets
+    ${QT_BUILD_PATH}/include/QtNetwork
+    ${QT_BUILD_PATH}/include/QtSerialPort
+    ${QT_BUILD_PATH}/include/QtSvg
+    ${QT_BUILD_PATH}/include/QtConcurrent
+    ${QT_BUILD_PATH}/include/QtDBus
+)
+# Exclude system Qt6 include directories from implicit includes
+list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES "/usr/include/aarch64-linux-gnu/qt6")
+list(REMOVE_ITEM CMAKE_C_IMPLICIT_INCLUDE_DIRECTORIES "/usr/include/aarch64-linux-gnu/qt6")
+message(STATUS "Prioritized static Qt6 include directories over system headers")
+
+
+
+find_package(OpenGL REQUIRED COMPONENTS OpenGL)
+# Try to find additional OpenGL components (optional for better compatibility)
+find_package(OpenGL OPTIONAL_COMPONENTS GLX EGL)
+
+# Find X11 and related libraries (Linux only)
+if(NOT WIN32)
+    find_package(X11 REQUIRED COMPONENTS Xrandr)
+    find_package(EXPAT REQUIRED)
+    find_package(Freetype REQUIRED)
+    find_package(Fontconfig REQUIRED)
+    find_package(BZip2 REQUIRED)
+
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(XRENDER REQUIRED xrender)
+
+    # Check for XCB cursor library (required for static linking)
+    pkg_check_modules(XCB_CURSOR REQUIRED xcb-cursor)
+
+    if(XCB_CURSOR_FOUND)
+        message(STATUS "Found xcb-cursor: ${XCB_CURSOR_LIBRARIES}")
+        message(STATUS "xcb-cursor include dirs: ${XCB_CURSOR_INCLUDE_DIRS}")
+        message(STATUS "xcb-cursor library dirs: ${XCB_CURSOR_LIBRARY_DIRS}")
+        
+        # For static builds, ensure we link the static library
+        if(OPENTERFACE_BUILD_STATIC)
+            # Find the static library path (include common system and multiarch dirs)
+            set(_XCB_CURSOR_SEARCH_PATHS
+                ${XCB_CURSOR_LIBRARY_DIRS}
+                /usr/local/lib
+                /usr/lib
+                /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}
+                /opt/Qt6/lib
+            )
+            list(REMOVE_DUPLICATES _XCB_CURSOR_SEARCH_PATHS)
+            find_library(XCB_CURSOR_STATIC_LIB 
+                NAMES libxcb-cursor.a xcb-cursor
+                PATHS ${_XCB_CURSOR_SEARCH_PATHS}
+                NO_DEFAULT_PATH
+            )
+            if(XCB_CURSOR_STATIC_LIB)
+                set(XCB_CURSOR_LIBRARIES ${XCB_CURSOR_STATIC_LIB})
+                message(STATUS "Using static xcb-cursor library: ${XCB_CURSOR_STATIC_LIB}")
+            else()
+                if(OPENTERFACE_BUILD_STATIC)
+                    message(FATAL_ERROR "Static build requested but static libxcb-cursor.a not found in: ${_XCB_CURSOR_SEARCH_PATHS}. Ensure the Docker image installs libxcb-cursor.a (static) in a searchable path, e.g., /usr/lib/${CMAKE_LIBRARY_ARCHITECTURE}/libxcb-cursor.a.")
+                else()
+                    message(WARNING "Static xcb-cursor library not found. The app may require libxcb-cursor.so.0 at runtime.")
+                endif()
+            endif()
+        endif()
+    else()
+        message(WARNING "xcb-cursor not found - this may cause runtime linking issues")
+    endif()
+
+    # Check for additional XCB dependencies that xcb-cursor might need
+    pkg_check_modules(XCB_RENDER xcb-render)
+    pkg_check_modules(XCB_IMAGE xcb-image)
+    pkg_check_modules(XCB_XFIXES xcb-xfixes)
+endif()
+
+
+
+

@@ -60,14 +60,15 @@ void GlobalSetting::getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool 
     HID = m_settings.value("filter/HID", true).toBool();
 }
 
-void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device)
+void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host, bool device, bool backend, bool script)
 {
     m_settings.setValue("log/core", core);
     m_settings.setValue("log/serial", serial);
     m_settings.setValue("log/ui", ui);
-    m_settings.setValue("log/hostLayout", hostLayout);
+    m_settings.setValue("log/host", host);
     m_settings.setValue("log/device", device);
-    m_settings.setValue("log/backend", true); // Default to false, can be changed later
+    m_settings.setValue("log/backend", backend);
+    m_settings.setValue("log/script", script);
 }
 
 void GlobalSetting::loadLogSettings()
@@ -78,8 +79,10 @@ void GlobalSetting::loadLogSettings()
     logFilter += m_settings.value("log/host", false).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
     logFilter += m_settings.value("log/serial", false).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
     logFilter += m_settings.value("log/device", false).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
-    logFilter += m_settings.value("log/backend", true).toBool() ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
+    logFilter += m_settings.value("log/backend", false).toBool() ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
+    logFilter += m_settings.value("log/script", false).toBool() ? "opf.scripts.*=true\n" : "opf.scripts.*=false\n";
     QLoggingCategory::setFilterRules(logFilter);
+    qDebug() << "Log filter rules set to:\n" << logFilter;
 }
 
 void GlobalSetting::setLogStoreSettings(bool storeLog, QString logFilePath){
@@ -111,18 +114,47 @@ QString GlobalSetting::getMediaBackend() const {
 #endif
 }
 
+void GlobalSetting::setHardwareAcceleration(const QString &hwAccel) {
+    m_settings.setValue("video/hardwareAcceleration", hwAccel);
+    m_settings.sync();  // Ensure the setting is written immediately
+}
+
+QString GlobalSetting::getHardwareAcceleration() const {
+    return m_settings.value("video/hardwareAcceleration", "CPU").toString();
+}
+
+void GlobalSetting::setScalingQuality(const QString &quality) {
+    m_settings.setValue("video/scalingQuality", quality);
+    m_settings.sync();
+}
+
+QString GlobalSetting::getScalingQuality() const {
+    return m_settings.value("video/scalingQuality", "balanced").toString();
+}
+
 void GlobalSetting::setGStreamerPipelineTemplate(const QString &pipelineTemplate) {
     m_settings.setValue("video/gstreamerPipelineTemplate", pipelineTemplate);
 }
 
 QString GlobalSetting::getGStreamerPipelineTemplate() const {
-    // Default GStreamer pipeline template with placeholders
-    QString defaultTemplate = "v4l2src device=%DEVICE% ! "
+    // Default GStreamer pipeline template with placeholders, tee, and valve for recording support
+    QString defaultTemplate = "v4l2src device=%DEVICE% do-timestamp=true ! "
                              "image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! "
                              "jpegdec ! "
                              "videoconvert ! "
-                             "xvimagesink name=videosink";
+                             "identity sync=true ! "
+                             "tee name=t allow-not-linked=true "
+                             "t. ! queue max-size-buffers=2 leaky=downstream ! xvimagesink name=videosink sync=true "
+                             "t. ! valve name=recording-valve drop=true ! queue name=recording-queue ! identity name=recording-ready";
     return m_settings.value("video/gstreamerPipelineTemplate", defaultTemplate).toString();
+}
+
+void GlobalSetting::setGStreamerSinkPriority(const QStringList &priorityList) {
+    m_settings.setValue("video/gstreamerSinkPriority", priorityList);
+}
+
+QStringList GlobalSetting::getGStreamerSinkPriority() const {
+    return m_settings.value("video/gstreamerSinkPriority", QStringList() << "qt6videosink" << "qtvideosink" << "qtsink" << "xvimagesink" << "ximagesink" << "autovideosink").toStringList();
 }
 
 void GlobalSetting::setCameraDeviceSetting(QString deviceDescription){
@@ -225,6 +257,40 @@ void GlobalSetting::clearOpenterfacePortChain() {
     m_settings.sync();
 }
 
+// Serial port baudrate management
+void GlobalSetting::setSerialPortBaudrate(int baudrate) {
+    qDebug() << "Storing serial port baudrate:" << baudrate;
+    m_settings.setValue("serial/baudrate", baudrate);
+    m_settings.sync(); // Ensure immediate write to storage
+}
+
+int GlobalSetting::getSerialPortBaudrate() const {
+    return m_settings.value("serial/baudrate", -1).toInt(); // -1 means no stored baudrate
+}
+
+void GlobalSetting::clearSerialPortBaudrate() {
+    qDebug() << "Clearing stored serial port baudrate";
+    m_settings.remove("serial/baudrate");
+    m_settings.sync();
+}
+
+// ARM architecture baudrate performance prompt
+void GlobalSetting::setArmBaudratePromptDisabled(bool disabled) {
+    qDebug() << "Setting ARM baudrate prompt disabled:" << disabled;
+    m_settings.setValue("serial/armBaudratePromptDisabled", disabled);
+    m_settings.sync();
+}
+
+bool GlobalSetting::getArmBaudratePromptDisabled() const {
+    return m_settings.value("serial/armBaudratePromptDisabled", false).toBool();
+}
+
+void GlobalSetting::resetArmBaudratePrompt() {
+    qDebug() << "Resetting ARM baudrate prompt setting";
+    m_settings.remove("serial/armBaudratePromptDisabled");
+    m_settings.sync();
+}
+
 /*
 * Convert QString to ByteArray
 */
@@ -318,4 +384,105 @@ QByteArray GlobalSetting::convertStringToByteArray(QString str) {
             break;
     }
     return result;
+}
+
+// Video recording settings
+void GlobalSetting::setRecordingVideoCodec(const QString& codec)
+{
+    m_settings.setValue("recording/videoCodec", codec);
+}
+
+QString GlobalSetting::getRecordingVideoCodec() const
+{
+    return m_settings.value("recording/videoCodec", "mjpeg").toString();
+}
+
+void GlobalSetting::setRecordingVideoBitrate(int bitrate)
+{
+    m_settings.setValue("recording/videoBitrate", bitrate);
+}
+
+int GlobalSetting::getRecordingVideoBitrate() const
+{
+    return m_settings.value("recording/videoBitrate", 2000000).toInt();
+}
+
+void GlobalSetting::setRecordingPixelFormat(const QString& format)
+{
+    m_settings.setValue("recording/pixelFormat", format);
+}
+
+QString GlobalSetting::getRecordingPixelFormat() const
+{
+    return m_settings.value("recording/pixelFormat", "yuv420p").toString();
+}
+
+void GlobalSetting::setRecordingKeyframeInterval(int interval)
+{
+    m_settings.setValue("recording/keyframeInterval", interval);
+}
+
+int GlobalSetting::getRecordingKeyframeInterval() const
+{
+    return m_settings.value("recording/keyframeInterval", 30).toInt();
+}
+
+void GlobalSetting::setRecordingAudioCodec(const QString& codec)
+{
+    m_settings.setValue("recording/audioCodec", codec);
+}
+
+QString GlobalSetting::getRecordingAudioCodec() const
+{
+    return m_settings.value("recording/audioCodec", "aac").toString();
+}
+
+void GlobalSetting::setRecordingAudioBitrate(int bitrate)
+{
+    m_settings.setValue("recording/audioBitrate", bitrate);
+}
+
+int GlobalSetting::getRecordingAudioBitrate() const
+{
+    return m_settings.value("recording/audioBitrate", 128000).toInt();
+}
+
+void GlobalSetting::setRecordingAudioSampleRate(int sampleRate)
+{
+    m_settings.setValue("recording/audioSampleRate", sampleRate);
+}
+
+int GlobalSetting::getRecordingAudioSampleRate() const
+{
+    return m_settings.value("recording/audioSampleRate", 44100).toInt();
+}
+
+void GlobalSetting::setRecordingOutputFormat(const QString& format)
+{
+    m_settings.setValue("recording/outputFormat", format);
+}
+
+QString GlobalSetting::getRecordingOutputFormat() const
+{
+    return m_settings.value("recording/outputFormat", "avi").toString();
+}
+
+void GlobalSetting::setRecordingOutputPath(const QString& path)
+{
+    m_settings.setValue("recording/outputPath", path);
+}
+
+QString GlobalSetting::getRecordingOutputPath() const
+{
+    return m_settings.value("recording/outputPath", "").toString();
+}
+
+void GlobalSetting::setAudioMuted(bool muted)
+{
+    m_settings.setValue("audio/muted", muted);
+}
+
+bool GlobalSetting::getAudioMuted() const
+{
+    return m_settings.value("audio/muted", true).toBool();
 }

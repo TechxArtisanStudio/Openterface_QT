@@ -1,0 +1,81 @@
+# Build Qt declarative components on top of qt-base-qtml
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-qt-base-qtml:ubuntu-24.04-amd64
+ARG UBUNTU_VERSION=22.04
+ARG TARGETARCH=amd64
+FROM ${BASE_IMAGE}
+
+ARG BUILD_SHARED_LIBS=OFF
+
+# Create the environment variables and assign the values from the build arguments.
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+    
+WORKDIR ${BUILD_DIR}
+
+# Define declarative modules to build
+ENV MODULES="qtdeclarative"
+ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
+ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
+
+# Download and extract Qt declarative module
+RUN for module in ${MODULES}; do \
+        echo "Downloading $module..."; \
+        curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip" && \
+        unzip -q "$module.zip" && \
+        mv "$module-everywhere-src-${QT_VERSION}" "$module" && \
+        rm "$module.zip"; \
+    done
+
+# Build qtdeclarative (Qt Quick)
+RUN echo "Building qtdeclarative..." && \
+    cd ${BUILD_DIR}/qtdeclarative && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        .. && \
+    ninja -j 2 && \
+    ninja install -j 2
+
+# Create verification script for declarative components
+RUN mkdir -p ${INSTALL_PREFIX}/bin && \
+    echo '#!/bin/bash' > ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo 'echo "Qt Declarative Components Verification"' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo 'echo "======================================"' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo 'QT_DIR="/opt/Qt6"' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo 'echo "Qt version: $(${QT_DIR}/bin/qmake -query QT_VERSION)"' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo 'echo "Qt installation prefix: $(${QT_DIR}/bin/qmake -query QT_INSTALL_PREFIX)"' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo 'echo -e "\nChecking Qt declarative modules:"' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo 'MODULES="Core Widgets Gui OpenGL Qml Quick QuickWidgets"' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo 'for module in $MODULES; do' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo '    if [ -f "${QT_DIR}/lib/libQt6${module}.a" ]; then' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo '        echo "✓ Qt${module} static library found"' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo '    else' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo '        echo "✗ Qt${module} static library NOT found"' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo '    fi' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo 'done' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    echo 'echo -e "\nQt declarative components build ready!"' >> ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh && \
+    chmod +x ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh
+
+# Set Qt environment variables
+ENV PATH="${INSTALL_PREFIX}/bin:${PATH}"
+ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
+ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
+ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
+ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
+# Verify Qt declarative installation
+RUN ${INSTALL_PREFIX}/bin/verify-qt-declarative.sh
+
+# Clean up source files
+RUN cd ${BUILD_DIR} && \
+    for module in ${MODULES}; do \
+        rm -rf "$module"; \
+    done
+
+WORKDIR /workspace

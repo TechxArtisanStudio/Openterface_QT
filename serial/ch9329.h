@@ -17,9 +17,15 @@ const QByteArray CMD_RESET = QByteArray::fromHex("57 AB 00 0F 00");
 const QByteArray CMD_SET_DEFAULT_CFG = QByteArray::fromHex("57 AB 00 0C 00");
 const QByteArray CMD_SET_USB_STRING_PREFIX = QByteArray::fromHex("57 AB 00 0B");
 const QByteArray CMD_SEND_KB_GENERAL_DATA = QByteArray::fromHex("57 AB 00 02 08 00 00 00 00 00 00 00 00");
-const QByteArray CMD_SET_PARA_CFG_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
-// const QByteArray CMD_SET_INFO_PREFIX = QByteArray::fromHex("57 AB 00 09 32 82 80 00 00 01 C2 00");
+const QByteArray CMD_SET_PARA_CFG_PREFIX_115200 = QByteArray::fromHex("57 AB 00 09 32 00 80 00 00 01 C2 00");
+const QByteArray CMD_SET_PARA_CFG_PREFIX_9600 = QByteArray::fromHex("57 AB 00 09 32 00 80 00 00 00 25 80");
 const QByteArray CMD_SET_PARA_CFG_MID = QByteArray::fromHex("08 00 00 03 86 1a 29 e1 00 00 00 01 00 0d 00 00 00 00 00 00 00") + QByteArray(22, 0x00) ;
+
+// New USB switch commands for CH32V208 serial port (firmware with new USB switching protocol)
+// Command format: 57 AB 00 17 05 00 00 00 00 <param> <checksum>
+const QByteArray CMD_SWITCH_USB_TO_HOST = QByteArray::fromHex("57 AB 00 17 05 00 00 00 00 00");      // Switch USB to host
+const QByteArray CMD_SWITCH_USB_TO_TARGET = QByteArray::fromHex("57 AB 00 17 05 00 00 00 00 01");    // Switch USB to target
+const QByteArray CMD_CHECK_USB_STATUS = QByteArray::fromHex("57 AB 00 17 05 00 00 00 00 03");       // Check USB switch status
 
 /* some default value while using default mode */
 const QByteArray RESERVED_2BYTES = QByteArray::fromHex("08 00");    // reserved 2 bytes
@@ -70,7 +76,7 @@ T fromByteArray(const QByteArray &data) {
         // Debugging: Print the parsed fields
         // result.dump();
     } else {
-        qWarning(log_core_serial) << "Data size is too small to parse" << typeid(T).name();
+        qWarning(log_core_serial) << "Data size is too small to parse struct of size" << sizeof(T);
         qDebug(log_core_serial) << "Data content:" << data.toHex(' ');
     }
     return result;
@@ -124,7 +130,7 @@ struct CmdDataParamConfig
     uint8_t addr1;      //2, 0x00
     uint8_t cmd;        //3, 0x08
     uint8_t len;        //4, 0x32
-    uint8_t mode;       //5, 0x82
+    uint8_t mode;       //5, 0x82 or 0x02
     uint8_t cfg;        //6
     uint8_t addr2;      //7, 0x80
     uint32_t baudrate;  //8-11
@@ -169,8 +175,7 @@ struct CmdDataParamConfig
             // Debugging: Print the parsed fields
             config.dump();
         } else {
-            qWarning(log_core_serial) << "Data size is too small to parse CmdDataParamConfig";
-            qWarning(log_core_serial) << data.size() <<  sizeof(CmdDataParamConfig);
+            qWarning(log_core_serial) << "Data size is too small to parse CmdDataParamConfig, expected size:" << sizeof(CmdDataParamConfig) << ", actual size:" << data.size();
         }
         return config;
     }
@@ -217,7 +222,7 @@ struct CmdDataResult {
         if (data.size() >= static_cast<qsizetype>(sizeof(CmdDataResult))) {
             std::memcpy(&result, data.constData(), sizeof(CmdDataResult));
             // Debugging: Print the raw data
-            qDebug(log_core_serial) << "Raw data:" << data.toHex(' ');
+            // qDebug(log_core_serial) << "Raw data:" << data.toHex(' ');
 
             // Debugging: Print the parsed fields
             result.dump();
@@ -270,7 +275,7 @@ struct CmdResetResult {
         if (data.size() >= static_cast<qsizetype>(sizeof(CmdDataResult))) {
             std::memcpy(&result, data.constData(), sizeof(CmdDataResult));
             // Debugging: Print the raw data
-            qDebug(log_core_serial) << "Raw data:" << data.toHex(' ');
+            // qDebug(log_core_serial) << "Raw data:" << data.toHex(' ');
 
             // Debugging: Print the parsed fields
             result.dump();

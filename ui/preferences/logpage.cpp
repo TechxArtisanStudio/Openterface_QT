@@ -52,6 +52,8 @@ void LogPage::setupUI()
     uiCheckBox = new QCheckBox(tr("User Interface"));
     hostCheckBox = new QCheckBox(tr("Host"));
     deviceCheckBox = new QCheckBox(tr("Device"));
+    backendCheckBox = new QCheckBox(tr("Backend"));
+    scriptCheckBox = new QCheckBox(tr("Scripts"));
     storeLogCheckBox = new QCheckBox(tr("Enable file logging"));
     logFilePathLineEdit = new QLineEdit(this);
     browseButton = new QPushButton(tr("Browse"));
@@ -63,6 +65,8 @@ void LogPage::setupUI()
     uiCheckBox->setObjectName("ui");
     hostCheckBox->setObjectName("host");
     deviceCheckBox->setObjectName("device");
+    backendCheckBox->setObjectName("backend");
+    scriptCheckBox->setObjectName("script");
     logFilePathLineEdit->setObjectName("logFilePathLineEdit");
     browseButton->setObjectName("browseButton");
     storeLogCheckBox->setObjectName("storeLogCheckBox");
@@ -75,6 +79,8 @@ void LogPage::setupUI()
     logCheckboxLayout->addWidget(uiCheckBox);
     logCheckboxLayout->addWidget(hostCheckBox);
     logCheckboxLayout->addWidget(deviceCheckBox);
+    logCheckboxLayout->addWidget(backendCheckBox);
+    logCheckboxLayout->addWidget(scriptCheckBox);
     
     QHBoxLayout *logFilePathLayout = new QHBoxLayout();
     logFilePathLayout->addWidget(logFilePathLineEdit);
@@ -143,6 +149,7 @@ void LogPage::initLogSettings(){
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
     QCheckBox *deviceCheckBox = findChild<QCheckBox*>("device");
+    QCheckBox *backendCheckBox = findChild<QCheckBox*>("backend");
     QCheckBox *storeLogCheckBox = findChild<QCheckBox*>("storeLogCheckBox");
     QCheckBox *screenSaverCheckBox = findChild<QCheckBox*>("screenSaverCheckBox");
     QLineEdit *logFilePathLineEdit = findChild<QLineEdit*>("logFilePathLineEdit");
@@ -157,6 +164,10 @@ void LogPage::initLogSettings(){
     hostCheckBox->setChecked(settings.value("log/host", false).toBool());
 
     deviceCheckBox->setChecked(settings.value("log/device", false).toBool());
+
+    backendCheckBox->setChecked(settings.value("log/backend", false).toBool());
+
+    scriptCheckBox->setChecked(settings.value("log/script", false).toBool());
 
     storeLogCheckBox->setChecked(settings.value("log/storeLog", false).toBool());
 
@@ -175,6 +186,8 @@ void LogPage::applyLogsettings() {
     QCheckBox *uiCheckBox = findChild<QCheckBox*>("ui");
     QCheckBox *hostCheckBox = findChild<QCheckBox*>("host");
     QCheckBox *deviceCheckBox = findChild<QCheckBox*>("device");
+    QCheckBox *backendCheckBox = findChild<QCheckBox*>("backend");
+    QCheckBox *scriptCheckBox = findChild<QCheckBox*>("script");
     QCheckBox *storeLogCheckBox = findChild<QCheckBox*>("storeLogCheckBox");
     QCheckBox *screenSaverCheckBox = findChild<QCheckBox*>("screenSaverCheckBox");
     QLineEdit *logFilePathLineEdit = findChild<QLineEdit*>("logFilePathLineEdit");
@@ -183,6 +196,8 @@ void LogPage::applyLogsettings() {
     bool serial = serialCheckBox->isChecked();
     bool ui = uiCheckBox->isChecked();
     bool device = deviceCheckBox->isChecked();
+    bool backend = backendCheckBox->isChecked();
+    bool script = scriptCheckBox->isChecked();
     bool storeLog = storeLogCheckBox->isChecked();
     QString logFilePath = logFilePathLineEdit->text();
     // set the log filter value by check box
@@ -193,11 +208,13 @@ void LogPage::applyLogsettings() {
     logFilter += host ? "opf.host.*=true\n" : "opf.host.*=false\n";
     logFilter += serial ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
     logFilter += device ? "opf.device.*=true\n" : "opf.device.*=false\n";
+    logFilter += backend ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
+    logFilter += script ? "opf.scripts.*=true\n" : "opf.scripts.*=false\n";
 
     QLoggingCategory::setFilterRules(logFilter);
     // save the filter settings
 
-    GlobalSetting::instance().setLogSettings(core, serial, ui, host, device);
+    GlobalSetting::instance().setLogSettings(core, serial, ui, host, device, backend, script);
     GlobalSetting::instance().setLogStoreSettings(storeLog, logFilePath);
     LogHandler::instance().enableLogStore();
 

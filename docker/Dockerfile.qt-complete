@@ -1,15 +1,24 @@
 # Build Qt components
-ARG BASE_IMAGE=ghcr.io/kevinzjpeng/openterface-qt-gstreamer:latest
+ARG BASE_IMAGE=ghcr.io/techxartisanstudio/openterface-qtbuild-gstreamer:ubuntu-22.04-amd64
+ARG UBUNTU_VERSION=22.04
+ARG TARGETARCH=amd64
 FROM ${BASE_IMAGE}
 
+ARG BUILD_SHARED_LIBS=OFF
+# Create the environment variables and assign the values from the build arguments.
+ARG http_proxy 
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+    
 WORKDIR ${BUILD_DIR}
 
-# Define modules to build
-ENV MODULES="qtbase qtshadertools qtdeclarative qtmultimedia qtsvg qtserialport qttools"
+# Define modules to build (qtbase, qtshadertools, qtdeclarative already built in base image)
+ENV MODULES="qtmultimedia qtsvg qtserialport qttools"
 ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
 ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
 
-# Download and extract Qt modules
+# Download and extract remaining Qt modules
 RUN for module in ${MODULES}; do \
         echo "Downloading $module..."; \
         curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip" && \
@@ -18,81 +27,36 @@ RUN for module in ${MODULES}; do \
         rm "$module.zip"; \
     done
 
-# Build qtbase first (foundation)
-RUN echo "Building qtbase..." && \
-    cd ${BUILD_DIR}/qtbase && \
-    mkdir -p build && \
-    cd build && \
-    cmake -GNinja \
-        ${CMAKE_COMMON_FLAGS} \
-        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
-        -DFEATURE_dbus=ON \
-        -DFEATURE_sql=OFF \
-        -DFEATURE_testlib=OFF \
-        -DFEATURE_icu=OFF \
-        -DFEATURE_opengl=ON \
-        -DFEATURE_xlib=ON \
-        -DFEATURE_xcb_xlib=ON \
-        -DFEATURE_xkbcommon=ON \
-        -DFEATURE_xkbcommon_x11=ON \
-        -DTEST_xcb_syslibs=ON \
-        -DQT_FEATURE_clang=OFF \
-        -DFEATURE_clang=ON \
-        .. && \
-    ninja && \
-    ninja install
-
-# Build qtshadertools
-RUN echo "Building qtshadertools..." && \
-    cd ${BUILD_DIR}/qtshadertools && \
-    mkdir -p build && \
-    cd build && \
-    cmake -GNinja \
-        ${CMAKE_COMMON_FLAGS} \
-        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
-        -DCMAKE_EXE_LINKER_FLAGS="-lfontconfig -lfreetype" \
-        .. && \
-    ninja && \
-    ninja install
-
-# Build qtdeclarative (Qt Quick) before qtmultimedia
-RUN echo "Building qtdeclarative..." && \
-    cd ${BUILD_DIR}/qtdeclarative && \
-    mkdir -p build && \
-    cd build && \
-    cmake -GNinja \
-        ${CMAKE_COMMON_FLAGS} \
-        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
-        .. && \
-    ninja && \
-    ninja install
-
-# Build qtmultimedia with FFmpeg
+# Build qtmultimedia with FFmpeg (qtbase, qtshadertools, qtdeclarative already available)
 RUN echo "Building qtmultimedia..." && \
     cd ${BUILD_DIR}/qtmultimedia && \
     mkdir -p build && \
     cd build && \
-    PKG_CONFIG_PATH="${FFMPEG_PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH" \
+    PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:${GSTREAMER_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX};${FFMPEG_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
-        -DFEATURE_gstreamer=OFF \
-        -DINPUT_gstreamer=OFF \
+        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX};${FFMPEG_PREFIX};${GSTREAMER_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        -DFEATURE_gstreamer=ON \
+        -DINPUT_gstreamer=ON \
         -DFEATURE_pulseaudio=ON \
         -DFEATURE_ffmpeg=ON \
         -DINPUT_ffmpeg=ON \
         -DFEATURE_avfoundation=OFF \
-        -DCMAKE_FIND_ROOT_PATH="${FFMPEG_PREFIX}" \
-        -DCMAKE_EXE_LINKER_FLAGS="-L${FFMPEG_PREFIX}/lib" \
+        -DFEATURE_opengl=ON \
+        -DINPUT_opengl=ON \
+        -DCMAKE_FIND_ROOT_PATH="${FFMPEG_PREFIX};${GSTREAMER_PREFIX}" \
+        -DCMAKE_EXE_LINKER_FLAGS="-L${FFMPEG_PREFIX}/lib -L${GSTREAMER_PREFIX}/lib" \
+        -DCMAKE_SHARED_LINKER_FLAGS="-L${FFMPEG_PREFIX}/lib -L${GSTREAMER_PREFIX}/lib" \
+        -DCMAKE_MODULE_LINKER_FLAGS="-L${FFMPEG_PREFIX}/lib -L${GSTREAMER_PREFIX}/lib" \
+        -DCMAKE_FIND_LIBRARY_SUFFIXES=".a;.so" \
         -DFFMPEG_PATH="${FFMPEG_PREFIX}" \
+        -DGSTREAMER_PATH="${GSTREAMER_PREFIX}" \
         .. && \
-    ninja && \
+    ninja -j1 && \
     ninja install
 
 # Build qtsvg
@@ -100,13 +64,16 @@ RUN echo "Building qtsvg..." && \
     cd ${BUILD_DIR}/qtsvg && \
     mkdir -p build && \
     cd build && \
+    PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
         -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         .. && \
-    ninja && \
+    ninja -j1 && \
     ninja install
 
 # Build qtserialport
@@ -114,13 +81,15 @@ RUN echo "Building qtserialport..." && \
     cd ${BUILD_DIR}/qtserialport && \
     mkdir -p build && \
     cd build && \
+    PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         .. && \
-    ninja && \
+    ninja -j1 && \
     ninja install
 
 # Build qttools
@@ -128,11 +97,14 @@ RUN echo "Building qttools..." && \
     cd ${BUILD_DIR}/qttools && \
     mkdir -p build && \
     cd build && \
+    PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
     CLANG_PREFIX="/usr/lib/llvm-16" && \
     cmake -GNinja \
         ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         -DFEATURE_linguist=ON \
         -DFEATURE_lupdate=ON \
         -DFEATURE_lrelease=ON \
@@ -146,8 +118,18 @@ RUN echo "Building qttools..." && \
         -DLLVM_INSTALL_DIR="$CLANG_PREFIX" \
         -DLLVM_CMAKE_DIR="$CLANG_PREFIX/cmake" \
         .. && \
-    ninja && \
+    ninja -j1 && \
     ninja install
+
+# Generate Qt6 pkg-config files for GStreamer detection
+RUN mkdir -p ${INSTALL_PREFIX}/lib/pkgconfig && \
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Core\nDescription: Qt6 Core Library\nVersion: 6.6.3\nLibs: -L\${libdir} -lQt6Core\nCflags: -I\${includedir} -I\${includedir}/QtCore\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Core.pc && \
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Gui\nDescription: Qt6 GUI Library\nVersion: 6.6.3\nRequires: Qt6Core\nLibs: -L\${libdir} -lQt6Gui\nCflags: -I\${includedir} -I\${includedir}/QtGui\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Gui.pc && \
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Widgets\nDescription: Qt6 Widgets Library\nVersion: 6.6.3\nRequires: Qt6Core Qt6Gui\nLibs: -L\${libdir} -lQt6Widgets\nCflags: -I\${includedir} -I\${includedir}/QtWidgets\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Widgets.pc && \
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Quick\nDescription: Qt6 Quick Library\nVersion: 6.6.3\nRequires: Qt6Core Qt6Gui Qt6Qml\nLibs: -L\${libdir} -lQt6Quick\nCflags: -I\${includedir} -I\${includedir}/QtQuick\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Quick.pc && \
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Qml\nDescription: Qt6 QML Library\nVersion: 6.6.3\nRequires: Qt6Core\nLibs: -L\${libdir} -lQt6Qml\nCflags: -I\${includedir} -I\${includedir}/QtQml\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Qml.pc && \
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6OpenGL\nDescription: Qt6 OpenGL Library\nVersion: 6.6.3\nRequires: Qt6Core Qt6Gui\nLibs: -L\${libdir} -lQt6OpenGL\nCflags: -I\${includedir} -I\${includedir}/QtOpenGL\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6OpenGL.pc && \
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6ShaderTools\nDescription: Qt6 ShaderTools Library\nVersion: 6.6.3\nRequires: Qt6Core Qt6Gui\nLibs: -L\${libdir} -lQt6ShaderTools\nCflags: -I\${includedir} -I\${includedir}/QtShaderTools\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6ShaderTools.pc
 
 # Create verification script
 RUN mkdir -p ${INSTALL_PREFIX}/bin && \
@@ -158,7 +140,7 @@ RUN mkdir -p ${INSTALL_PREFIX}/bin && \
     echo 'echo "Qt version: $(${QT_DIR}/bin/qmake -query QT_VERSION)"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo 'echo "Qt installation prefix: $(${QT_DIR}/bin/qmake -query QT_INSTALL_PREFIX)"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo 'echo -e "\nChecking Qt modules:"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
-    echo 'MODULES="Core Widgets Gui Multimedia MultimediaWidgets SerialPort Svg SvgWidgets"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'MODULES="Core Widgets Gui Qml Quick QuickWidgets Multimedia MultimediaWidgets SerialPort Svg SvgWidgets OpenGL"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo 'for module in $MODULES; do' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo '    if [ -f "${QT_DIR}/lib/libQt6${module}.a" ]; then' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo '        echo "✓ Qt${module} static library found"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
@@ -170,11 +152,27 @@ RUN mkdir -p ${INSTALL_PREFIX}/bin && \
     chmod +x ${INSTALL_PREFIX}/bin/verify-qt-installation.sh
 
 # Set Qt environment variables
-ENV PATH="${INSTALL_PREFIX}/bin:${PATH}"
+# Ensure both bin and libexec (moc/uic/rcc in Qt6) are on PATH
+ENV PATH="${INSTALL_PREFIX}/bin:${INSTALL_PREFIX}/libexec:${PATH}"
+# Ensure both bin and libexec (moc/uic/rcc in Qt6) are on PATH
+ENV PATH="${INSTALL_PREFIX}/bin:${INSTALL_PREFIX}/libexec:${PATH}"
 ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
 ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
 ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
-ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH}"
+ENV CMAKE_PREFIX_PATH="${INSTALL_PREFIX}"
+
+# Provide qt6-suffixed tool aliases for Meson qt6 detection
+RUN set -eu; \
+    mkdir -p /usr/local/bin; \
+    if [ -x "${INSTALL_PREFIX}/bin/qmake6" ]; then ln -sf "${INSTALL_PREFIX}/bin/qmake6" /usr/local/bin/qmake6; \
+    elif [ -x "${INSTALL_PREFIX}/bin/qmake" ]; then ln -sf "${INSTALL_PREFIX}/bin/qmake" /usr/local/bin/qmake6; fi; \
+    if [ -x "${INSTALL_PREFIX}/bin/qtpaths6" ]; then ln -sf "${INSTALL_PREFIX}/bin/qtpaths6" /usr/local/bin/qtpaths6; \
+    elif [ -x "${INSTALL_PREFIX}/bin/qtpaths" ]; then ln -sf "${INSTALL_PREFIX}/bin/qtpaths" /usr/local/bin/qtpaths6; fi; \
+    if [ -x "${INSTALL_PREFIX}/libexec/moc" ]; then ln -sf "${INSTALL_PREFIX}/libexec/moc" /usr/local/bin/moc-qt6; fi; \
+    if [ -x "${INSTALL_PREFIX}/libexec/uic" ]; then ln -sf "${INSTALL_PREFIX}/libexec/uic" /usr/local/bin/uic-qt6; fi; \
+    if [ -x "${INSTALL_PREFIX}/libexec/rcc" ]; then ln -sf "${INSTALL_PREFIX}/libexec/rcc" /usr/local/bin/rcc-qt6; fi; \
+    if [ -x "${INSTALL_PREFIX}/libexec/lrelease" ]; then ln -sf "${INSTALL_PREFIX}/libexec/lrelease" /usr/local/bin/lrelease6; fi
 
 # Verify Qt installation
 RUN ${INSTALL_PREFIX}/bin/verify-qt-installation.sh
@@ -184,5 +182,116 @@ RUN cd ${BUILD_DIR} && \
     for module in ${MODULES}; do \
         rm -rf "$module"; \
     done
+
+RUN mkdir -p ${WORK_DIR}/gstreamer_sources && \
+    cd ${WORK_DIR}/gstreamer_sources && \
+    echo "Downloading gst-plugins-good..." && \
+    wget -O gst-plugins-good-${GSTREAMER_VERSION}.tar.xz \
+    https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
+    tar -xf gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
+    rm gst-plugins-good-${GSTREAMER_VERSION}.tar.xz && \
+    echo "Downloading gst-plugins-bad..." && \
+    wget -O gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz \
+    https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz && \
+    tar -xf gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz && \
+    rm gst-plugins-bad-${GSTREAMER_VERSION}.tar.xz
+
+# Verify Qt6 pkg-config files are working before building GStreamer plugins
+RUN echo "=== Verifying Qt6 pkg-config setup ===" && \
+    MULTIARCH_PATH=$(dpkg-architecture -qDEB_HOST_MULTIARCH) && \
+    export PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${GSTREAMER_PREFIX}/lib/pkgconfig:/usr/lib/${MULTIARCH_PATH}/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig" && \
+    echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH" && \
+    echo "Qt6 pkg-config files:" && \
+    ls -la ${INSTALL_PREFIX}/lib/pkgconfig/Qt6*.pc && \
+    echo "Testing Qt6 detection:" && \
+    pkg-config --exists Qt6Core && echo "✓ Qt6Core found" || echo "✗ Qt6Core NOT found" && \
+    pkg-config --exists Qt6Gui && echo "✓ Qt6Gui found" || echo "✗ Qt6Gui NOT found" && \
+    pkg-config --exists Qt6Quick && echo "✓ Qt6Quick found" || echo "✗ Qt6Quick NOT found" && \
+    pkg-config --exists Qt6OpenGL && echo "✓ Qt6OpenGL found" || echo "✗ Qt6OpenGL NOT found" && \
+    echo "Qt6 pkg-config verification complete"
+
+# Build gst-plugins-good (static libraries for essential plugins)
+RUN apt-get update && apt-get install -y  \
+    libjpeg-dev libpng-dev libv4l-dev \
+    libasound2-dev libxml2-dev libsoup2.4-dev \
+    libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+    gstreamer1.0-tools \
+    libgudev-1.0-dev \
+    rpm && \
+    pip3 install --no-cache-dir meson && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    echo "Building gst-plugins-good (static & shared)..." && \
+    . /etc/environment && \
+    # Ensure Meson can find qmake/qtpaths/moc/uic/rcc by exporting QMAKE and PATH
+    MULTIARCH_PATH=$(dpkg-architecture -qDEB_HOST_MULTIARCH) && \
+    if [ -x "${INSTALL_PREFIX}/bin/qmake6" ]; then export QMAKE="${INSTALL_PREFIX}/bin/qmake6"; elif [ -x "${INSTALL_PREFIX}/bin/qmake" ]; then export QMAKE="${INSTALL_PREFIX}/bin/qmake"; fi && \
+    export PATH="${INSTALL_PREFIX}/bin:${INSTALL_PREFIX}/libexec:${PATH}"; \
+    GSTREAMER_PC_DIR=$(find "${GSTREAMER_PREFIX}" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
+    if [ -n "$GSTREAMER_PC_DIR" ]; then \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/${MULTIARCH_PATH}/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig"; \
+    else \
+        export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/${MULTIARCH_PATH}/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig"; \
+    fi && \
+    cd "${WORK_DIR}/gstreamer_sources/gst-plugins-good-${GSTREAMER_VERSION}" && \
+    meson setup build \
+        --prefix="${GSTREAMER_PREFIX}" \
+        --default-library=both \
+        --buildtype=release \
+        --cmake-prefix-path="${INSTALL_PREFIX}" \
+        -Ddoc=disabled \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Dqt5=disabled \
+        -Dqt6=enabled \
+        -Dqt-method=qmake \
+        -Dqt-egl=enabled \
+        -Dqt-x11=enabled \
+        -Dnls=disabled \
+        -Drtp=enabled \
+        -Drtpmanager=enabled \
+        -Drtsp=enabled \
+        -Dudp=enabled \
+        -Dv4l2=enabled \
+        -Dvideocrop=enabled \
+        -Dvideofilter=enabled \
+        -Djpeg=enabled \
+        -Dpng=enabled \
+        -Dpulse=enabled \
+        -Dautodetect=enabled \
+        -Dximagesrc=enabled \
+        -Dequalizer=enabled \
+        -Ddeinterlace=enabled \
+        -Davi=enabled \
+        -Dmatroska=enabled \
+        -Dflv=enabled && \
+    ninja -C build -j1 && \
+    ninja -C build install
+
+# Build gst-plugins-bad (static libraries for additional codecs and features)
+RUN echo "Building gst-plugins-bad (static and shared)..." && \
+    . /etc/environment && \
+    MULTIARCH_PATH=$(dpkg-architecture -qDEB_HOST_MULTIARCH) && \
+    if [ -x "${INSTALL_PREFIX}/bin/qmake6" ]; then export QMAKE="${INSTALL_PREFIX}/bin/qmake6"; elif [ -x "${INSTALL_PREFIX}/bin/qmake" ]; then export QMAKE="${INSTALL_PREFIX}/bin/qmake"; fi && \
+    export PATH="${INSTALL_PREFIX}/bin:${INSTALL_PREFIX}/libexec:${PATH}"; \
+    GSTREAMER_PC_DIR=$(find "${GSTREAMER_PREFIX}" -name "gstreamer-1.0.pc" -type f -exec dirname {} \; 2>/dev/null | head -1) && \
+    if [ -n "$GSTREAMER_PC_DIR" ]; then \
+        export PKG_CONFIG_PATH="$GSTREAMER_PC_DIR:${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/${MULTIARCH_PATH}/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig"; \
+    else \
+        export PKG_CONFIG_PATH="${GSTREAMER_PREFIX}/lib/pkgconfig:${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/${MULTIARCH_PATH}/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/share/pkgconfig"; \
+    fi && \
+    cd "${WORK_DIR}/gstreamer_sources/gst-plugins-bad-${GSTREAMER_VERSION}" && \
+    meson setup build \
+        --prefix="${GSTREAMER_PREFIX}" \
+        --default-library=both \
+        --buildtype=release \
+        -Ddoc=disabled \
+        -Dexamples=disabled \
+        -Dtests=disabled \
+        -Dnls=disabled && \
+    ninja -C build -j1 && \
+    ninja -C build install
+
+# Clean up source files to reduce image size
+RUN cd ${WORK_DIR} && rm -rf gstreamer_sources
 
 WORKDIR /workspace

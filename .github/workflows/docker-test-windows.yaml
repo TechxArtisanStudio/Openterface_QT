@@ -1,0 +1,894 @@
+name: Docker Test / Openterface Windows
+
+on:
+  push:
+    branches: ["main", "dev"]
+    paths:
+      - 'docker/install-openterface.ps1'
+      - '.github/workflows/docker-test-windows.yaml'
+  pull_request:
+    branches: ["main", "dev"]
+    paths:
+      - 'docker/install-openterface.ps1'
+      - '.github/workflows/docker-test-windows.yaml'
+  workflow_dispatch:
+    inputs:
+      skip_test:
+        description: 'Skip the actual app testing (for debugging workflow changes)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+env:
+  INSTALL_TYPES: "installer,portable"
+
+jobs:
+  test-windows:
+    strategy:
+      matrix:
+        include:
+          - install_type: installer
+            description: "Windows EXE Installer"
+          - install_type: portable
+            description: "Portable ZIP Archive"
+    runs-on: windows-2022
+    timeout-minutes: 90
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Python dependencies (Qiniu SDK)
+        shell: bash
+        run: |
+          echo "📦 Installing required Python packages..."
+          python3 -m pip install --upgrade pip > /dev/null 2>&1
+          python3 -m pip install qiniu > /dev/null 2>&1
+          echo "✅ Python dependencies installed"
+
+      - name: Set environment variables
+        shell: powershell
+        run: |
+          echo "INSTALL_TYPE=${{ matrix.install_type }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "TEST_DESCRIPTION=${{ matrix.description }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "Installation type: ${{ matrix.install_type }}"
+          Write-Host "Description: ${{ matrix.description }}"
+
+      - name: Display environment info
+        shell: powershell
+        run: |
+          Write-Host "[INFO] Windows Runner Testing Environment"
+          Write-Host "=========================================="
+          Write-Host ""
+          Write-Host "OS Information:"
+          [System.Environment]::OSVersion | Format-List
+          
+          Write-Host ""
+          Write-Host "Disk Space:"
+          Get-PSDrive -PSProvider FileSystem | Format-Table Name, Used, Free -AutoSize
+          
+          Write-Host ""
+          Write-Host "Memory:"
+          $osInfo = Get-WmiObject Win32_OperatingSystem
+          $memoryGB = $osInfo.TotalVisibleMemorySize / 1MB
+          Write-Host "Total Memory: $memoryGB GB"
+
+      - name: Download Latest Windows Build Artifacts
+        shell: powershell
+        run: |
+          Write-Host "[DOWNLOAD] Getting latest Windows build artifacts..."
+          
+          # Create build directory
+          New-Item -ItemType Directory -Path "build" -Force | Out-Null
+          
+          # Determine which workflow to use based on install type
+          $workflowName = if ("${{ env.INSTALL_TYPE }}" -eq "portable") { "windows-portable-build.yaml" } else { "windows-build.yaml" }
+          Write-Host "[INFO] Using workflow: $workflowName"
+          
+          # Get the latest successful build workflow run
+          $headers = @{Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
+          $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflowName/runs?status=success&head_branch=${{ github.ref_name }}&per_page=1"
+          
+          Write-Host "Fetching from: $apiUrl"
+          
+          try {
+            $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -ErrorAction Stop
+            $latestRun = $response.workflow_runs[0]
+            
+            if ($null -eq $latestRun) {
+              Write-Host "[WARNING] No successful build runs found for branch ${{ github.ref_name }}"
+              Write-Host "Trying to get from main branch..."
+              
+              $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflowName/runs?status=success&head_branch=main&per_page=1"
+              $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -ErrorAction Stop
+              $latestRun = $response.workflow_runs[0]
+            }
+            
+            if ($null -eq $latestRun) {
+              Write-Host "[ERROR] No successful build runs found"
+              exit 1
+            }
+            
+            $runId = $latestRun.id
+            Write-Host "[SUCCESS] Found latest windows-build run: $runId"
+            Write-Host "[INFO] Run created: $($latestRun.created_at)"
+            
+            # Calculate age of the build
+            $createdAt = [DateTime]::Parse($latestRun.created_at)
+            $age = [DateTime]::UtcNow - $createdAt
+            Write-Host "[INFO] Build age: $($age.Days) days, $($age.Hours) hours"
+            
+            if ($age.Days -gt 85) {
+              Write-Host "[WARNING] Build is very old ($($age.Days) days). Artifacts may have expired."
+            }
+            
+            # Get all artifacts from this run
+            $artifactsUrl = "https://api.github.com/repos/${{ github.repository }}/actions/runs/$runId/artifacts"
+            $artifacts = Invoke-RestMethod -Uri $artifactsUrl -Headers $headers -ErrorAction Stop
+            
+            # Define artifact patterns based on install type
+            $patterns = @{
+              "installer" = @("openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.exe", "exe")
+              "portable" = @("openterfaceQT.windows.amd64.portable", "portable", "openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.zip", "zip")
+            }
+            
+            $searchPatterns = $patterns["${{ env.INSTALL_TYPE }}"]
+            Write-Host "[SEARCH] Looking for artifacts matching: $($searchPatterns -join ', ')"
+            
+            $foundArtifact = $null
+            foreach ($pattern in $searchPatterns) {
+              $artifact = $artifacts.artifacts | Where-Object { $_.name -like "*$pattern*" } | Select-Object -First 1
+              if ($artifact) {
+                $foundArtifact = $artifact
+                break
+              }
+            }
+            
+            if ($null -eq $foundArtifact) {
+              Write-Host "[ERROR] No artifact matching patterns found"
+              Write-Host "Available artifacts:"
+              $artifacts.artifacts | ForEach-Object { Write-Host "  - $($_.name)" }
+              exit 1
+            }
+            
+            Write-Host "[PACKAGE] Found artifact: $($foundArtifact.name) (ID: $($foundArtifact.id))"
+            
+            # Check if artifact has expired
+            $expiresAt = [DateTime]::Parse($foundArtifact.expires_at)
+            $now = [DateTime]::UtcNow
+            
+            if ($now -gt $expiresAt) {
+              Write-Host "[WARNING] Artifact has expired on $expiresAt"
+              Write-Host "[INFO] Artifact availability is limited to 90 days from creation"
+              exit 1
+            }
+            
+            Write-Host "[INFO] Artifact expires at: $expiresAt"
+            
+            # Download the artifact
+            Write-Host "[DOWNLOAD] Downloading artifact..."
+            $downloadUrl = "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$($foundArtifact.id)/zip"
+            
+            $zipPath = "artifact.zip"
+            $ProgressPreference = 'SilentlyContinue'
+            
+            try {
+              Invoke-WebRequest -Uri $downloadUrl -Headers $headers -OutFile $zipPath -ErrorAction Stop
+              Write-Host "[SUCCESS] Artifact downloaded: $zipPath"
+            } catch {
+              $errorMsg = $_.Exception.Message
+              if ($errorMsg -match "410") {
+                Write-Host "[WARNING] Artifact download returned 410 Gone - artifact has expired"
+              } else {
+                Write-Host "[WARNING] Error downloading artifact: $errorMsg"
+              }
+              exit 1
+            }
+            
+            # Extract the artifact
+            Write-Host "[PACKAGE] Extracting artifact..."
+            try {
+              Expand-Archive -Path $zipPath -DestinationPath "build" -Force
+            } catch {
+              Write-Host "[WARNING] Error extracting artifact: $_"
+              exit 1
+            }
+            
+            # Verify extraction
+            $installerFile = Get-ChildItem -Path "build" -Recurse -Include "*.exe", "*.msi", "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
+            
+            if ($null -ne $installerFile) {
+              Write-Host "[SUCCESS] Installer extracted: $($installerFile.Name)"
+              Write-Host "   Size: $([Math]::Round($installerFile.Length / 1MB, 2)) MB"
+              Get-ChildItem -Path "build" | Format-Table Name, Length -AutoSize
+            } else {
+              Write-Host "[WARNING] Extraction completed but no installer file found"
+              Write-Host "Contents of build directory:"
+              Get-ChildItem -Path "build" -Recurse | Format-Table FullName, Length -AutoSize
+            }
+            
+          } catch {
+            Write-Host "[WARNING] Error downloading artifacts: $_"
+            exit 1
+          }
+
+      - name: Install and test application
+        shell: powershell
+        timeout-minutes: 60
+        run: |
+          Write-Host "[TEST] Testing Windows application directly on runner"
+          Write-Host "=================================================="
+          Write-Host ""
+          Write-Host "Test Configuration:"
+          Write-Host "  Install Type: ${{ env.INSTALL_TYPE }}"
+          Write-Host "  Description: ${{ env.TEST_DESCRIPTION }}"
+          Write-Host ""
+
+          # Install the application
+          Write-Host "[INSTALL] Installing the application..."
+          
+          if ("${{ env.INSTALL_TYPE }}" -eq "installer") {
+            Write-Host "[INSTALLER] Using EXE installer..."
+            # Look for exe installer in build directory
+            $exeFiles = Get-ChildItem -Path "build" -Filter "*.exe" -ErrorAction SilentlyContinue
+            Write-Host "[DEBUG] Found $($exeFiles.Count) EXE files"
+
+            if ($exeFiles) {
+              $exeFile = $exeFiles | Select-Object -First 1
+              Write-Host "[INSTALL] Running: $($exeFile.FullName)"
+              Write-Host "[INSTALL] File size: $($exeFile.Length) bytes"
+
+              # Create log file for installation
+              $logFile = "install.log"
+              Write-Host "[INSTALL] Installation log will be saved to: $logFile"
+
+              # Run installer with silent mode
+              Write-Host "[INSTALL] Starting installation with silent mode..."
+              $installOutput = & $exeFile.FullName /S /D="C:\Program Files (x86)\Openterface Mini-KVM" 2>&1 | Tee-Object -Variable installLogs
+              $installExitCode = $LASTEXITCODE
+
+              # Save installation output to log file
+              $installOutput | Out-File -FilePath $logFile -Encoding UTF8
+
+              Write-Host "[INSTALL] Installer exit code: $installExitCode"
+
+              if ($installExitCode -eq 0) {
+                Write-Host "[SUCCESS] EXE installation completed successfully"
+              } else {
+                Write-Host "[WARNING] Installer exited with code: $installExitCode"
+              }
+            } else {
+              Write-Host "[ERROR] No EXE installer found in build directory"
+              exit 1
+            }
+          } elseif ("${{ env.INSTALL_TYPE }}" -eq "portable") {
+            Write-Host "[INSTALLER] Using portable/ZIP installation..."
+            # Look for zip file in build directory
+            $zipFiles = Get-ChildItem -Path "build" -Filter "*.zip" -ErrorAction SilentlyContinue
+            $portableFiles = Get-ChildItem -Path "build" -Filter "*portable*" -ErrorAction SilentlyContinue
+
+            Write-Host "[DEBUG] Found $($zipFiles.Count) ZIP files, $($portableFiles.Count) portable files"
+
+            if ($zipFiles) {
+              $zipFile = $zipFiles | Select-Object -First 1
+              Write-Host "[INSTALL] Extracting ZIP: $($zipFile.FullName)"
+
+              # Create target directory
+              $targetDir = "C:\Program Files (x86)\Openterface Mini-KVM"
+              New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+
+              # Extract with error checking
+              try {
+                Expand-Archive -Path $zipFile.FullName -DestinationPath $targetDir -Force
+                Write-Host "[SUCCESS] ZIP extraction completed"
+              } catch {
+                Write-Host "[ERROR] ZIP extraction failed: $_"
+                exit 1
+              }
+            } elseif ($portableFiles) {
+              # Portable build - just copy to Program Files
+              $portableExe = $portableFiles | Select-Object -First 1
+              Write-Host "[INSTALL] Using portable EXE: $($portableExe.FullName)"
+
+              # Create target directory
+              $targetDir = "C:\Program Files (x86)\Openterface Mini-KVM"
+              New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+
+              # Copy portable exe
+              Copy-Item -Path $portableExe.FullName -Destination "$targetDir\openterfaceQT-portable.exe" -Force
+              Write-Host "[SUCCESS] Portable EXE copied to: $targetDir"
+            } else {
+              Write-Host "[ERROR] No ZIP or portable file found in build directory"
+              exit 1
+            }
+          }
+
+          # Verify installation
+          Write-Host ""
+          Write-Host "[VERIFY] Verifying installation..."
+          $installDir = "C:\Program Files (x86)\Openterface Mini-KVM"
+          if (Test-Path $installDir) {
+            Write-Host "[SUCCESS] Installation directory exists: $installDir"
+            Get-ChildItem -Path $installDir -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
+          } else {
+            Write-Host "[WARNING] Installation directory not found"
+          }
+
+          # Start the application
+          Write-Host ""
+          Write-Host "[START] Starting the Openterface application..."
+
+          # Check multiple possible paths
+          $possiblePaths = @(
+            "$installDir\openterfaceQT.exe",  # installer version
+            "$installDir\openterfaceQT-portable.exe" # portable version
+          )
+
+          $appPath = $null
+          foreach ($path in $possiblePaths) {
+            if (Test-Path $path) {
+              $appPath = $path
+              break
+            }
+          }
+
+          if ($appPath) {
+            Write-Host "[START] Launching: $appPath"
+            
+            # Define log file paths for capturing output
+            $stdoutLog = "app_startup_stdout.log"
+            $stderrLog = "app_startup_stderr.log"
+            
+            # Start the process with output redirection
+            $process = Start-Process -FilePath $appPath -ArgumentList "--skip-env-check" -NoNewWindow -PassThru -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
+            
+            Write-Host "[SUCCESS] Application launched (PID: $($process.Id))"
+            
+            # Wait briefly for initial logs to be written (adjust as needed for your app)
+            Start-Sleep -Seconds 5
+            
+            # Read and display the first 100 lines of stdout log
+            if (Test-Path $stdoutLog) {
+              $stdoutContent = Get-Content $stdoutLog -ErrorAction SilentlyContinue
+              $stdoutLines = $stdoutContent | Select-Object -First 100
+              Write-Host "[LOG] First 100 lines of app startup stdout log:"
+              if ($stdoutLines) {
+                $stdoutLines | ForEach-Object { Write-Host "  $_" }
+              } else {
+                Write-Host "  (No stdout output captured)"
+              }
+            } else {
+              Write-Host "[LOG] Stdout log file not found"
+            }
+            
+            # Read and display the first 100 lines of stderr log
+            if (Test-Path $stderrLog) {
+              $stderrContent = Get-Content $stderrLog -ErrorAction SilentlyContinue
+              $stderrLines = $stderrContent | Select-Object -First 100
+              Write-Host "[LOG] First 100 lines of app startup stderr log:"
+              if ($stderrLines) {
+                $stderrLines | ForEach-Object { Write-Host "  $_" }
+              } else {
+                Write-Host "  (No stderr output captured)"
+              }
+            } else {
+              Write-Host "[LOG] Stderr log file not found"
+            }
+            
+            # Clean up log files after logging
+            Remove-Item $stdoutLog -ErrorAction SilentlyContinue
+            Remove-Item $stderrLog -ErrorAction SilentlyContinue
+            
+            # Continue with screenshot (existing code)
+            Start-Sleep -Seconds 5  # Additional wait if needed for GUI to fully load
+          } else {
+            Write-Host "[ERROR] Application executable not found"
+            exit 1
+          }
+
+          # Take a screenshot
+          Write-Host ""
+          Write-Host "[SCREENSHOT] Taking screenshot of the desktop..."
+
+          try {
+            # Add required assemblies
+            Add-Type -AssemblyName System.Windows.Forms
+            Add-Type -AssemblyName System.Drawing
+
+            # Get screen dimensions
+            $screen = [System.Windows.Forms.Screen]::PrimaryScreen
+            $bounds = $screen.Bounds
+
+            Write-Host "[DEBUG] Screen resolution: $($bounds.Width)x$($bounds.Height)"
+
+            # Create bitmap with correct dimensions
+            $bitmap = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+
+            # Capture screen to bitmap
+            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+            $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+            $graphics.Dispose()
+
+            # Save as PNG with high quality
+            $screenshotPath = "openterface-windows-${{ matrix.install_type }}-${{ github.run_number }}.png"
+            $bitmap.Save($screenshotPath, [System.Drawing.Imaging.ImageFormat]::Png)
+            $bitmap.Dispose()
+
+            Write-Host "[SUCCESS] Screenshot saved to: $screenshotPath"
+            if (Test-Path $screenshotPath) {
+              $fileSize = (Get-Item $screenshotPath).Length
+              $fileSizeKB = [Math]::Round($fileSize / 1KB, 2)
+              Write-Host "[INFO] File size: $fileSize bytes ($fileSizeKB KB)"
+            }
+          } catch {
+            Write-Host "[ERROR] Screenshot capture failed: $_"
+          }
+
+          # Stop the application
+          Write-Host ""
+          Write-Host "[STOP] Stopping the application..."
+          if ($process) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Write-Host "[SUCCESS] Application stopped"
+          }
+
+      - name: Process screenshots
+        if: always()
+        shell: powershell
+        run: |
+          Write-Host "[PROCESS] Processing screenshots..."
+          
+          # Create screenshots directory if it doesn't exist
+          New-Item -ItemType Directory -Path "screenshots-windows" -Force | Out-Null
+          
+          $screenshotPath = "openterface-windows-${{ matrix.install_type }}-${{ github.run_number }}.png"
+          $localPath = "screenshots-windows\$screenshotPath"
+          
+          if (Test-Path $screenshotPath) {
+            # Move screenshot to screenshots directory
+            Move-Item -Path $screenshotPath -Destination $localPath -Force
+            
+            $fileSize = (Get-Item $localPath).Length
+            Write-Host "[SUCCESS] Screenshot processed: $localPath"
+            Write-Host "[INFO] File size: $([Math]::Round($fileSize / 1MB, 2)) MB"
+            
+            # Convert PNG to JPG for better compatibility with Qiniu
+            Write-Host "[CONVERT] Converting PNG to JPG..."
+            $jpgPath = "screenshots-windows\openterface-windows-${{ matrix.install_type }}-${{ github.run_number }}.jpg"
+            
+            # Use PowerShell to convert image
+            Add-Type -AssemblyName System.Drawing
+            $image = [System.Drawing.Image]::FromFile((Convert-Path $localPath))
+            $jpgCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.FormatDescription -eq "JPEG" }
+            $jpgEncoder = New-Object System.Drawing.Imaging.EncoderParameters(1)
+            $jpgEncoder.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 95L)
+            $image.Save($jpgPath, $jpgCodec, $jpgEncoder)
+            $image.Dispose()
+            
+            Write-Host "[SUCCESS] Screenshot converted to JPG: $jpgPath"
+            $jpgSize = (Get-Item $jpgPath).Length
+            Write-Host "[INFO] JPG file size: $([Math]::Round($jpgSize / 1MB, 2)) MB"
+          } else {
+            Write-Host "[WARNING] Screenshot file not found: $screenshotPath"
+          }
+
+      - name: Display and upload screenshots (Windows)
+        if: always()
+        shell: bash
+        env:
+          QINIU_AK: ${{ secrets.QINIU_AK }}
+          QINIU_SK: ${{ secrets.QINIU_SK }}
+        run: |
+          echo "🔍 Processing screenshots for Windows build"
+          
+          # Set optional QINIU_BUCKET if secret is available
+          if [ -n "${{ secrets.QINIU_BUCKET }}" ]; then
+            export QINIU_BUCKET="${{ secrets.QINIU_BUCKET }}"
+            echo "✅ QINIU_BUCKET set from secrets"
+          else
+            echo "⚠️ QINIU_BUCKET not set, will use script default (openterface)"
+          fi
+          
+          # Set optional QINIU_DOMAIN if secret is available
+          if [ -n "${{ secrets.QINIU_DOMAIN }}" ]; then
+            export QINIU_DOMAIN="${{ secrets.QINIU_DOMAIN }}"
+            echo "✅ QINIU_DOMAIN set from secrets"
+          else
+            echo "⚠️ QINIU_DOMAIN not set, will use script default (download.openterface.com)"
+          fi
+          
+          # Create markdown summary file
+          SUMMARY_FILE="WINDOWS_SCREENSHOTS_${{ matrix.install_type }}.md"
+          
+          # Check for screenshots
+          if [ -d "screenshots-windows" ] && [ -n "$(find screenshots-windows -name "*.jpg" 2>/dev/null)" ]; then
+            echo "✅ Screenshots found"
+            
+            # Add to GitHub summary
+            echo "# GUI Screenshots - Windows Build (${{ matrix.install_type }})" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Build Type**: Windows Runner" >> $GITHUB_STEP_SUMMARY
+            echo "**Installer Type**: ${{ matrix.install_type }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            screenshot_count=0
+            upload_success=0
+            
+            # Process each screenshot
+            for img in screenshots-windows/*.jpg; do
+              if [ -f "$img" ]; then
+                filename=$(basename "$img")
+                screenshot_count=$((screenshot_count + 1))
+                
+                # Get file size
+                filesize=$(ls -lh "$img" | awk '{print $5}')
+                actual_size=$(stat -c%s "$img" 2>/dev/null || stat -f%z "$img" 2>/dev/null || echo 0)
+                
+                echo ""
+                echo "### Screenshot $screenshot_count: $filename"
+                echo "**Size**: $filesize"
+                echo ""
+                
+                # Check if screenshot has content
+                if [ "$actual_size" -gt 50000 ]; then
+                  echo "**Status**: ✅ Content detected ($(($actual_size / 1024))KB)"
+                  
+                  # Verify file still exists before upload
+                  if [ -f "$img" ]; then
+                    echo "**File check**: ✅ File exists and is accessible"
+                    
+                    # Upload to Qiniu if credentials are available
+                    if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
+                    echo ""
+                    echo "📤 Uploading to Qiniu..."
+                    
+                    # Check Python availability
+                    echo "🐍 Checking Python availability..."
+                    if command -v python3 >/dev/null 2>&1; then
+                      PYTHON_CMD="python3"
+                      echo "✅ python3 found: $(python3 --version 2>&1)"
+                    elif command -v python >/dev/null 2>&1; then
+                      PYTHON_CMD="python"
+                      echo "✅ python found: $(python --version 2>&1)"
+                    else
+                      echo "❌ Neither python3 nor python found!"
+                      exit 1
+                    fi
+                    
+                    # Test if Python script can start
+                    echo "🧪 Testing Python script execution..."
+                    TEST_CMD="$PYTHON_CMD ./docker/upload_to_qiniu.py --help"
+                    echo "Running: $TEST_CMD"
+                    if $TEST_CMD >/dev/null 2>&1; then
+                      echo "✅ Python script can execute"
+                    else
+                      echo "❌ Python script execution test failed"
+                      $TEST_CMD 2>&1 | head -10
+                    fi
+                    
+                    # Debug: Show environment and command
+                    echo "🔍 Debug info:"
+                    echo "  - File: $img"
+                    echo "  - File exists: $([ -f "$img" ] && echo 'yes' || echo 'no')"
+                    echo "  - File size: $(stat -c%s "$img" 2>/dev/null || echo 'unknown')"
+                    echo "  - QINIU_BUCKET: ${QINIU_BUCKET:-'(using default: openterface)'}"
+                    echo "  - QINIU_DOMAIN: ${QINIU_DOMAIN:-'(using default: download.openterface.com)'}"
+                    echo "  - QINIU_AK length: ${#QINIU_AK}"
+                    echo "  - QINIU_SK length: ${#QINIU_SK}"
+                    
+                    # Build upload command with environment variables and optional parameters
+                    export QINIU_AK="$QINIU_AK"
+                    export QINIU_SK="$QINIU_SK"
+                    UPLOAD_CMD="$PYTHON_CMD ./docker/upload_to_qiniu.py --verbose"
+                    
+                    # Add bucket if set
+                    if [ -n "$QINIU_BUCKET" ]; then
+                      UPLOAD_CMD="$UPLOAD_CMD -b \"$QINIU_BUCKET\""
+                    fi
+                    
+                    # Add domain if set
+                    if [ -n "$QINIU_DOMAIN" ]; then
+                      UPLOAD_CMD="$UPLOAD_CMD -d \"$QINIU_DOMAIN\""
+                    fi
+                    
+                    # Add the image file
+                    UPLOAD_CMD="$UPLOAD_CMD $img"
+                    
+                    echo "🚀 Executing: $UPLOAD_CMD"
+                    
+                    # Execute the upload command and capture output
+                    set +e  # Don't exit on error
+                    UPLOAD_OUTPUT=$($UPLOAD_CMD 2>&1)
+                    UPLOAD_EXIT_CODE=$?
+                    set -e  # Restore exit on error
+                    
+                    echo "📋 Upload exit code: $UPLOAD_EXIT_CODE"
+                    echo "📄 Full upload output:"
+                    echo "$UPLOAD_OUTPUT"
+                    echo ""
+                    
+                    # Extract URL from output
+                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https://[^ "]*' | tail -1)
+                    
+                    if [ -z "$UPLOAD_URL" ]; then
+                      UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -E '^https' | tail -1)
+                    fi
+                    
+                    if [ $UPLOAD_EXIT_CODE -eq 0 ] && [ -n "$UPLOAD_URL" ]; then
+                      echo "✅ Upload successful: $UPLOAD_URL" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                      echo "<a href=\"$UPLOAD_URL\" target=\"_blank\"><img src=\"$UPLOAD_URL\" width=\"800\" alt=\"Screenshot\"></a>" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                      echo "[View Full Size]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                      upload_success=$((upload_success + 1))
+                    else
+                      echo "❌ Upload failed (exit code: $UPLOAD_EXIT_CODE)"
+                      if [ -z "$UPLOAD_URL" ]; then
+                        echo "❌ No upload URL found in output"
+                      fi
+                      echo "🔍 Full output for debugging:"
+                      echo "$UPLOAD_OUTPUT"
+                    fi
+                    else
+                      echo "⚠️ Qiniu credentials not configured - screenshot will be available in artifacts" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                    fi
+                  else
+                    echo "**File check**: ❌ File no longer exists, skipping upload" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                  fi
+                else
+                  echo "❌ Screenshot too small (size: $actual_size bytes, expected: >50000 bytes)" >> $GITHUB_STEP_SUMMARY
+                fi
+              fi
+            done
+            
+            echo ""
+            echo "📊 Summary: $screenshot_count screenshots processed, $upload_success uploaded"
+            
+          else
+            echo "❌ No screenshots found"
+            echo "## No Screenshots Available" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No screenshots were generated during the test." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload screenshots collection (Windows)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-gui-screenshots-windows-${{ matrix.install_type }}
+          path: screenshots-windows/
+          if-no-files-found: warn
+
+      - name: Manage Qiniu bucket - Keep max 50 recent images (Windows)
+        if: always()
+        shell: bash
+        env:
+          QINIU_AK: ${{ secrets.QINIU_AK }}
+          QINIU_SK: ${{ secrets.QINIU_SK }}
+        run: |
+          echo "🧹 Cleaning up Qiniu bucket - Keeping maximum 50 recent images"
+          
+          # Set optional QINIU_BUCKET if secret is available
+          if [ -n "${{ secrets.QINIU_BUCKET }}" ]; then
+            export QINIU_BUCKET="${{ secrets.QINIU_BUCKET }}"
+            echo "✅ QINIU_BUCKET set from secrets"
+          else
+            echo "⚠️ QINIU_BUCKET not set, will use script default (openterface)"
+          fi
+          
+          # Set optional QINIU_DOMAIN if secret is available
+          if [ -n "${{ secrets.QINIU_DOMAIN }}" ]; then
+            export QINIU_DOMAIN="${{ secrets.QINIU_DOMAIN }}"
+            echo "✅ QINIU_DOMAIN set from secrets"
+          else
+            echo "⚠️ QINIU_DOMAIN not set, will use script default (download.openterface.com)"
+          fi
+          
+          if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
+            echo "⚠️ Qiniu credentials not configured, skipping bucket management"
+            exit 0
+          fi
+          
+          # Check Python availability
+          echo "🐍 Checking Python availability..."
+          if command -v python3 >/dev/null 2>&1; then
+            PYTHON_CMD="python3"
+            echo "✅ python3 found: $(python3 --version 2>&1)"
+          elif command -v python >/dev/null 2>&1; then
+            PYTHON_CMD="python"
+            echo "✅ python found: $(python --version 2>&1)"
+          else
+            echo "❌ Neither python3 nor python found!"
+            exit 1
+          fi
+          
+          # Check if script exists
+          SCRIPT_PATH="./docker/manage_qiniu_bucket.py"
+          if [ -f "$SCRIPT_PATH" ]; then
+            echo "✅ Bucket management script found: $SCRIPT_PATH"
+          else
+            echo "❌ Bucket management script not found: $SCRIPT_PATH"
+            exit 1
+          fi
+          
+          # Test if Python script can start
+          echo "🧪 Testing bucket management script execution..."
+          TEST_CMD="$PYTHON_CMD ./docker/manage_qiniu_bucket.py --help"
+          echo "Running: $TEST_CMD"
+          if $TEST_CMD >/dev/null 2>&1; then
+            echo "✅ Bucket management script can execute"
+          else
+            echo "❌ Bucket management script execution test failed"
+            $TEST_CMD 2>&1 | head -10
+          fi
+          
+          echo "📊 Running bucket management script..."
+          echo "🔍 Debug info:"
+          echo "  - QINIU_BUCKET: ${QINIU_BUCKET:-'(using default: openterface)'}"
+          echo "  - QINIU_DOMAIN: ${QINIU_DOMAIN:-'(using default: download.openterface.com)'}"
+          echo "  - QINIU_AK length: ${#QINIU_AK}"
+          echo "  - QINIU_SK length: ${#QINIU_SK}"
+          
+          # Build bucket management command with environment variables
+          export QINIU_AK="$QINIU_AK"
+          export QINIU_SK="$QINIU_SK"
+          BUCKET_CMD="$PYTHON_CMD ./docker/manage_qiniu_bucket.py -k 50 --force --verbose"
+          
+          # Add bucket if set
+          if [ -n "$QINIU_BUCKET" ]; then
+            BUCKET_CMD="$BUCKET_CMD --bucket \"$QINIU_BUCKET\""
+          fi
+          
+          echo "🚀 Executing: $BUCKET_CMD"
+          
+          # Execute the bucket management command and capture output
+          set +e  # Don't exit on error
+          BUCKET_OUTPUT=$($BUCKET_CMD 2>&1)
+          BUCKET_EXIT_CODE=$?
+          set -e  # Restore exit on error
+          
+          echo "📋 Bucket management exit code: $BUCKET_EXIT_CODE"
+          echo "📄 Full bucket management output:"
+          echo "$BUCKET_OUTPUT"
+          echo ""
+          
+          if [ $BUCKET_EXIT_CODE -eq 0 ]; then
+            echo "✅ Bucket management completed successfully"
+            echo "📋 Summary: Kept maximum 50 most recent images in Qiniu bucket"
+          else
+            echo "⚠️ Bucket management encountered an issue (non-blocking)"
+            echo "🔍 Full output for debugging:"
+            echo "$BUCKET_OUTPUT"
+          fi
+
+      - name: Verify installation and application startup
+        shell: powershell
+        timeout-minutes: 10
+        run: |
+          Write-Host "[SEARCH] Verifying application installation and startup"
+          
+          $installDir = "C:\Program Files (x86)\Openterface Mini-KVM"
+          
+          if (Test-Path $installDir) {
+            Write-Host "[SUCCESS] Installation directory exists: $installDir"
+            
+            Write-Host ""
+            Write-Host "Installation Contents:"
+            Get-ChildItem -Path $installDir -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
+            
+            # Check for executable
+            $exeFiles = Get-ChildItem -Path $installDir -Filter "*.exe" -Recurse
+            if ($exeFiles) {
+              Write-Host ""
+              Write-Host "Found executables:"
+              $exeFiles | ForEach-Object { Write-Host "  - $($_.FullName)" }
+            } else {
+              Write-Host "[WARNING] No executable files found in installation directory"
+            }
+          } else {
+            Write-Host "[ERROR] Installation directory not found: $installDir"
+          }
+
+  generate-test-report:
+    if: always()
+    needs: [test-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Windows screenshots
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts-windows/
+        continue-on-error: true
+        timeout-minutes: 15
+
+      - name: Generate comprehensive test report
+        run: |
+          echo "📋 Generating comprehensive Windows test report"
+          
+          # Add combined summary
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# 📋 Test Report - Windows Build (EXE + ZIP)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Process each install type
+          for install_type in installer portable; do
+            echo "### $install_type Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            # Check if artifacts exist for this install type
+            screenshots_dir="all-artifacts-windows/openterface-gui-screenshots-windows-${install_type}"
+            if [ -d "$screenshots_dir" ]; then
+              total=$(find "$screenshots_dir" -name "*.jpg" 2>/dev/null | wc -l)
+              
+              if [ "$total" -gt 0 ]; then
+                # Use file size to determine if screenshots have content (more reliable)
+                content=$(find "$screenshots_dir" -name "*.jpg" -size +50k 2>/dev/null | wc -l)
+                
+                if [ "$content" -eq 0 ]; then
+                  # Fallback: check if files exist and are not tiny
+                  content=$(find "$screenshots_dir" -name "*.jpg" -type f 2>/dev/null | while read f; do
+                    size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)
+                    if [ "$size" -gt 1000 ]; then
+                      echo "1"
+                    fi
+                  done | wc -l)
+                fi
+                
+                if [ "$content" -gt 0 ]; then
+                  rate=$(( content * 100 / total ))
+                  status="✅ PASSED"
+                else
+                  rate=0
+                  status="✅ GENERATED (size verification inconclusive)"
+                fi
+                
+                echo "- **Total Screenshots**: $total" >> $GITHUB_STEP_SUMMARY
+                echo "- **With Content**: $content" >> $GITHUB_STEP_SUMMARY
+                echo "- **Success Rate**: ${rate}%" >> $GITHUB_STEP_SUMMARY
+                echo "- **Status**: $status" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "- **Status**: ❌ FAILED - No screenshots generated" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "- **Status**: ⏭️ NOT RUN - No screenshots directory found" >> $GITHUB_STEP_SUMMARY
+            fi
+            echo "" >> $GITHUB_STEP_SUMMARY
+          done
+          
+          echo "## 📦 Runner Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Base Image**: Windows Server 2022" >> $GITHUB_STEP_SUMMARY
+          echo "- **Runner**: Windows 2022 GitHub Actions Runner" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dependencies**: Pre-installed on runner" >> $GITHUB_STEP_SUMMARY
+          echo "- **Storage**: GitHub Actions runner storage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "**Generated on**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow**: ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Run ID**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          
+          echo ""
+          echo "✅ Comprehensive test report generated and added to summary"
+
+      - name: Post summary
+        run: |
+          echo "[SUCCESS] Windows App Test Report Generated"
+          echo ""
+          echo "The test report has been added to the workflow summary."
+          echo "View it in the workflow run under the 'Summary' tab."

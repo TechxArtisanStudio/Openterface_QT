@@ -9,7 +9,7 @@
    <bool>true</bool>
   </property>
   <property name="windowTitle">
-   <string>Openterface Mini-KVM</string>
+   <string>Openterface KVM</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <property name="cursor">
@@ -129,6 +129,7 @@
     <addaction name="actionFactory_reset_HID"/>
     <addaction name="actionSerialConsole"/>
     <addaction name="actionScriptTool"/>
+    <addaction name="actionRecordingSettings"/>
     <addaction name="actionTCPServer"/>
     <addaction name="actionDeviceSelector"/>
     <addaction name="actionFirmwareManager"/>
@@ -151,11 +152,6 @@
   <action name="actionSettings">
    <property name="text">
     <string>Change Settings</string>
-   </property>
-  </action>
-  <action name="actionResetHID">
-   <property name="text">
-    <string>Reset Keyboard and Mouse</string>
    </property>
   </action>
   <action name="actionResetSerialPort">
@@ -238,6 +234,14 @@
   <action name="actionScriptTool">
    <property name="text">
     <string>Script Tool</string>
+   </property>
+  </action>
+  <action name="actionRecordingSettings">
+   <property name="text">
+    <string>Video Recording Settings</string>
+   </property>
+   <property name="toolTip">
+    <string>Configure video recording settings and start/stop recording</string>
    </property>
   </action>
   <action name="actionTCPServer">

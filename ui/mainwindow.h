@@ -35,7 +35,9 @@
 #include "ui/videopane.h"
 #include "ui/toolbar/toggleswitch.h"
 #include "ui/preferences/settingdialog.h"
+#include "ui/advance/recordingsettingsdialog.h"
 #include "ui/advance/serialportdebugdialog.h"
+#include "ui/recording/recordingcontroller.h"
 #include "ui/advance/DeviceSelectorDialog.h"
 #include "ui/advance/scripttool.h"
 #include "ui/advance/firmwaremanagerdialog.h"
@@ -46,14 +48,22 @@
 #include "ui/languagemanager.h"
 #include "ui/statusbar/statusbarmanager.h"
 #include "host/cameramanager.h"
-#include "scripts/semanticAnalyzer.h"
+#include "scripts/scriptRunner.h"
+#include "scripts/scriptExecutor.h"
 #include "scripts/AST.h"
 #include "ui/screensavermanager.h"
 #include "ui/screenscale.h"
 #include "ui/cornerwidget/cornerwidgetmanager.h"
+#include "ui/windowcontrolmanager.h"
+#include "ui/coordinator/devicecoordinator.h"
+#include "ui/coordinator/menucoordinator.h"
+#include "ui/coordinator/windowlayoutcoordinator.h"
+
+#include "ui/initializer/mainwindowinitializer.h"
 
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
+#include "host/imagecapturer.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -77,6 +87,7 @@
 #include <QPushButton>
 #include <QComboBox>
 #include <QApplication>
+#include <QShortcut>
 #include <QPalette>
 #include <QStyle>
 #include <QEvent>
@@ -95,6 +106,10 @@ QT_END_NAMESPACE
 
 class MetaDataDialog;
 
+#ifdef Q_OS_WIN
+class QtBackendHandler;
+#endif
+
 QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &size);
 
 enum class ratioType{
@@ -106,6 +121,7 @@ enum class ratioType{
 class MainWindow : public QMainWindow, public StatusEventCallback
 {
     Q_OBJECT
+    friend class MainWindowInitializer;
 
 public:
     MainWindow(LanguageManager *languageManager, QWidget *parent = nullptr);
@@ -123,6 +139,9 @@ public slots:
     void changeKeyboardLayout(const QString& layout);
     void initializeKeyboardLayouts();
     void onScreenRatioChanged(double ratio);
+    void showRecordingSettings();
+    void toggleRecording();
+    void toggleMute();
 
 private slots:
     void initCamera();
@@ -151,6 +170,8 @@ private slots:
     void displayCameraError();
 
     void updateCameraActive(bool active);
+    void onDeviceSwitchCompleted();
+    void onDeviceSelected(const QString &portChain, bool success, const QString &message);
     void setExposureCompensation(int index);
 
     void updateRecordTime();
@@ -178,9 +199,13 @@ private slots:
 
     void onTargetUsbConnected(const bool isConnected) override;
 
+    void onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock) override;
+
     void factoryReset(bool isStarted) override;
 
     void serialPortReset(bool isStarted) override;
+    
+    void onSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate) override;
 
     void showEnvironmentSetupDialog();
 
@@ -194,13 +219,11 @@ private slots:
 
     void onCtrlAltDelPressed();
     
-    void onBaudrateMenuTriggered(QAction* action);
+    void onArmBaudratePerformanceRecommendation(int currentBaudrate);
 
     void onToggleSwitchStateChanged(int state);
 
-    void onZoomIn();
-    void onZoomOut();
-    void onZoomReduction();
+
     void onKeyboardLayoutCombobox_Changed(const QString &layout);
     
     void checkMousePosition();
@@ -231,9 +254,11 @@ protected:
     void onToggleVirtualKeyboard();
 
     void onResolutionChange(const int& width, const int& height, const float& fps, const float& pixelClk);
+    void onGpio0StatusChanged(bool isToTarget);
 
     bool eventFilter(QObject *watched, QEvent *event) override;
 
+    friend class MainWindowInitializer;
 private:
     Ui::MainWindow *ui;
     AudioManager *m_audioManager;
@@ -251,11 +276,6 @@ private:
     
     
     void updateUI();
-    void setupLanguageMenu();
-    void setupDeviceMenu();
-    void updateDeviceMenu();
-    void onLanguageSelected(QAction *action);
-    void onDeviceSelected(QAction *action);
 
     QMediaDevices m_source;
     QScopedPointer<QImageCapture> m_imageCapture;
@@ -267,12 +287,15 @@ private:
     bool m_isCapturingImage = false;
     bool m_applicationExiting = false;
     bool m_doImageCapture = true;
+    bool m_deviceAutoSelected = false; // Flag to prevent multiple auto-selections
     int video_width = 1920;
     int video_height = 1080;
     QList<QCameraDevice> m_lastCameraList;
 
     MetaDataDialog *m_metaDataDialog = nullptr;
     SettingDialog *settingDialog = nullptr;
+    RecordingSettingsDialog *recordingSettingsDialog = nullptr;
+    RecordingController *m_recordingController = nullptr;
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
     DeviceSelectorDialog *deviceSelectorDialog = nullptr;
     FirmwareManagerDialog *firmwareManagerDialog = nullptr;
@@ -282,16 +305,14 @@ private:
 
     QComboBox *repeatingKeystrokeComboBox;
     
-    void updateBaudrateMenu(int baudrate);
     ToggleSwitch *toggleSwitch;
 
     CameraManager *m_cameraManager;
     InputHandler *m_inputHandler;
-    
-    // Device menu management
-    QActionGroup *m_deviceMenuGroup;
-    
-    // Camera coordination functionality removed - now handled by DeviceManager
+    DeviceCoordinator *m_deviceCoordinator;
+    MenuCoordinator *m_menuCoordinator;
+    WindowLayoutCoordinator *m_windowLayoutCoordinator;
+    MainWindowInitializer *m_initializer;
 
     void updateScrollbars();
     QPoint lastMousePos;
@@ -308,38 +329,24 @@ private:
     // CameraAdjust *cameraAdjust;
     std::unique_ptr<MouseManager> mouseManager;
     std::unique_ptr<KeyboardMouse> keyboardMouse;
-    std::unique_ptr<SemanticAnalyzer> semanticAnalyzer;
+    std::unique_ptr<ScriptExecutor> scriptExecutor;
+    std::unique_ptr<ScriptRunner> scriptRunner;
     TaskManager* taskmanager;
     void showScriptTool();
 
     void onToolbarVisibilityChanged(bool visible);
 
-    void animateVideoPane();
-
-    void doResize();
-    void handleScreenBoundsResize(int &currentWidth, int &currentHeight, 
-                                 int availableWidth, int availableHeight,
-                                 int maxContentHeight, int menuBarHeight, 
-                                 int statusBarHeight, double aspectRatio);
-    void handleAspectRatioResize(int currentWidth, int currentHeight, 
-                                int menuBarHeight, int statusBarHeight,
-                                double aspectRatio, double captureAspectRatio);
-
-    void centerVideoPane(int videoWidth, int videoHeight, int WindowWidth, int WindowHeight);
-    void checkInitSize();
-    void fullScreen();
-    bool isFullScreenMode();
-    bool fullScreenState = false;
-    Qt::WindowStates oldWindowState;
     ScriptTool *scriptTool;
     ScreenSaverManager *m_screenSaverManager;
     ScreenScale *m_screenScaleDialog = nullptr;
     CornerWidgetManager *m_cornerWidgetManager = nullptr;
+    WindowControlManager *m_windowControlManager = nullptr;
     void configScreenScale();
     
     ratioType currentRatioType = ratioType::EQUAL;
     void startServer();
     TcpServer *tcpServer;
+    ImageCapturer *m_imageCapturer;
 
 };
 #endif // MAINWINDOW_H

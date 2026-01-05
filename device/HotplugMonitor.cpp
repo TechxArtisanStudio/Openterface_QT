@@ -2,6 +2,7 @@
 #include "DeviceManager.h"
 #include <QLoggingCategory>
 #include <QMutexLocker>
+#include <QtConcurrent>
 
 Q_LOGGING_CATEGORY(log_hotplug_monitor, "opf.device.hotplug")
 
@@ -62,12 +63,16 @@ void HotplugMonitor::start(int pollIntervalMs)
         return;
     }
     
+    qCDebug(log_hotplug_monitor) << "Starting hotplug monitor with interval:" << pollIntervalMs << "ms";
     m_pollInterval = pollIntervalMs;
     m_timer->setInterval(m_pollInterval);
     
     // Take initial snapshot
-    m_lastSnapshot = m_deviceManager->discoverDevices();
-    m_initialSnapshot = m_lastSnapshot;
+    {
+        QMutexLocker locker(&m_mutex);
+        m_lastSnapshot = m_deviceManager->discoverDevices();
+        m_initialSnapshot = m_lastSnapshot;
+    }
     
     qCDebug(log_hotplug_monitor) << "Initial snapshot contains" << m_lastSnapshot.size() << "devices";
     for (const auto& device : m_lastSnapshot) {
@@ -94,6 +99,12 @@ void HotplugMonitor::stop()
     qCInfo(log_hotplug_monitor) << "Hotplug monitoring stopped";
 }
 
+QList<DeviceInfo> HotplugMonitor::getLastSnapshot() const
+{
+    QMutexLocker locker(&m_mutex);
+    return m_lastSnapshot;
+}
+
 void HotplugMonitor::checkForChanges()
 {
     if (!m_deviceManager) {
@@ -101,13 +112,21 @@ void HotplugMonitor::checkForChanges()
         return;
     }
     
+    qCDebug(log_hotplug_monitor) << "Checking for device changes...";
     QList<DeviceInfo> currentDevices = m_deviceManager->discoverDevices();
     
+    // Get previous snapshot with mutex protection
+    QList<DeviceInfo> previousSnapshot;
+    {
+        QMutexLocker locker(&m_mutex);
+        previousSnapshot = m_lastSnapshot;
+    }
+    
     qCDebug(log_hotplug_monitor) << "Checking for changes. Current devices:" << currentDevices.size() 
-                                << "Previous devices:" << m_lastSnapshot.size();
+                                << "Previous devices:" << previousSnapshot.size();
     
     // Create change event
-    DeviceChangeEvent event = createChangeEvent(currentDevices, m_lastSnapshot);
+    DeviceChangeEvent event = createChangeEvent(currentDevices, previousSnapshot);
     
     if (event.hasChanges()) {
         m_changeEventCount++;
@@ -138,8 +157,11 @@ void HotplugMonitor::checkForChanges()
         qCDebug(log_hotplug_monitor) << "Emitting deviceChangesDetected signal";
         emit deviceChangesDetected(event);
         
-        // Update last snapshot
-        m_lastSnapshot = currentDevices;
+        // Update last snapshot with mutex protection
+        {
+            QMutexLocker locker(&m_mutex);
+            m_lastSnapshot = currentDevices;
+        }
     } else {
         // Only log this occasionally to avoid spam
         static int noChangeCount = 0;
@@ -233,5 +255,8 @@ DeviceChangeEvent HotplugMonitor::getInitialState() const
 
 void HotplugMonitor::checkForChangesSlot()
 {
-    checkForChanges();
+    // Run device discovery in background thread to avoid blocking UI
+    QtConcurrent::run([this]() {
+        checkForChanges();
+    });
 }

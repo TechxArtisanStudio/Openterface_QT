@@ -24,7 +24,6 @@
 #define MULTIMEDIABACKEND_H
 
 #include <QObject>
-#include <QCamera>
 #include <QMediaCaptureSession>
 #include <QGraphicsVideoItem>
 #include <QCameraFormat>
@@ -38,7 +37,8 @@ Q_DECLARE_LOGGING_CATEGORY(log_multimedia_backend)
  */
 enum class MultimediaBackendType {
     Unknown,
-    QtMultimedia,    // Qt's native multimedia backend
+    QtMultimedia,    // Qt's native multimedia backend (legacy)
+    Qt,              // Qt's native multimedia backend (Windows)
     FFmpeg,
     GStreamer
 };
@@ -83,34 +83,58 @@ public:
 
     virtual MultimediaBackendType getBackendType() const = 0;
     virtual QString getBackendName() const = 0;
+    virtual bool isBackendAvailable() const { return true; }
     virtual MultimediaBackendConfig getDefaultConfig() const;
 
+    // Hardware acceleration support
+    virtual QStringList getAvailableHardwareAccelerations() const { return QStringList(); }
+
     // Camera lifecycle management
-    virtual void prepareCameraCreation(QCamera* oldCamera = nullptr);
-    virtual void configureCameraDevice(QCamera* camera, const QCameraDevice& device);
-    virtual void setupCaptureSession(QMediaCaptureSession* session, QCamera* camera);
+    virtual void prepareCameraCreation();
+    virtual void configureCameraDevice();
+    virtual void setupCaptureSession(QMediaCaptureSession* session);
     virtual void prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput);
     virtual void finalizeVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput);
-    virtual void startCamera(QCamera* camera);
-    virtual void stopCamera(QCamera* camera);
-    virtual void cleanupCamera(QCamera* camera);
+    virtual void startCamera();
+    virtual void stopCamera();
+    virtual void cleanupCamera();
 
     // Format and frame rate handling
     virtual QList<int> getSupportedFrameRates(const QCameraFormat& format) const;
     virtual bool isFrameRateSupported(const QCameraFormat& format, int frameRate) const;
+    virtual int getOptimalFrameRate(const QCameraFormat& format, int desiredFrameRate) const;
+    virtual void validateCameraFormat(const QCameraFormat& format) const;
     virtual QCameraFormat selectOptimalFormat(const QList<QCameraFormat>& formats, 
                                             const QSize& resolution, 
                                             int desiredFrameRate,
                                             QVideoFrameFormat::PixelFormat pixelFormat) const;
 
     // Error handling and recovery
-    virtual void handleCameraError(QCamera::Error error, const QString& errorString);
+    virtual void handleCameraError(int errorCode, const QString& errorString);
     virtual bool shouldRetryOperation(int attemptCount) const;
+
+    // Video recording interface (virtual methods for backend implementations)
+    virtual bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000) { return false; }
+    virtual bool stopRecording() { return false; }
+    virtual void pauseRecording() {}
+    virtual void resumeRecording() {}
+    virtual bool isRecording() const { return false; }
+    virtual QString getCurrentRecordingPath() const { return QString(); }
+    virtual qint64 getRecordingDuration() const { return 0; }
 
 signals:
     void backendMessage(const QString& message);
     void backendWarning(const QString& warning);
     void backendError(const QString& error);
+    void fpsChanged(double fps);
+    
+    // Recording signals
+    void recordingStarted(const QString& outputPath);
+    void recordingStopped();
+    void recordingPaused();
+    void recordingResumed();
+    void recordingError(const QString& error);
+    void recordingDurationChanged(qint64 duration);
 
 protected:
     MultimediaBackendConfig m_config;

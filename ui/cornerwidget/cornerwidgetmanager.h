@@ -6,6 +6,8 @@
 #include <QPushButton>
 #include <QComboBox>
 #include <QMenuBar>
+#include <QSvgRenderer>
+#include <QPainter>
 #include "ui/toolbar/toggleswitch.h"
 
 class CornerWidgetManager : public QObject {
@@ -19,7 +21,12 @@ public:
     void setMenuBar(QMenuBar *menuBar);
     void updatePosition(int windowWidth, int menuBarHeight, bool isFullScreen);
     void initializeKeyboardLayouts(const QStringList &layouts, const QString &defaultLayout);
+    void restoreMuteState(bool muted);
+    void updateUSBStatus(bool isToTarget);
+    bool isUpdatingFromStatus() const { return m_updatingFromStatus; }  // New getter
     QPushButton *screensaverButton;
+    QPushButton *recordingButton;
+    QPushButton *muteButton;
 
 signals:
     void zoomInClicked();
@@ -33,6 +40,8 @@ signals:
     void screensaverClicked(bool checked);
     void toggleSwitchChanged(int state);
     void keyboardLayoutChanged(const QString &layout);
+    void recordingToggled();
+    void muteToggled();
 
 private:
     void createWidgets();
@@ -52,8 +61,11 @@ private:
     
     ToggleSwitch *toggleSwitch;
     QHBoxLayout *horizontalLayout;
+    bool isRecording;
+    bool isMuted;
     QMenuBar *menuBar;
     int layoutThreshold;
+    bool m_updatingFromStatus;  // New flag to track programmatic updates
 };
 
 #endif // CORNERWIDGETMANAGER_H

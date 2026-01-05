@@ -37,7 +37,7 @@ public:
 
     static GlobalSetting& instance();
 
-    void setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device);
+    void setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device, bool backend, bool script);
 
     void setFilterSettings(bool Chipinfo, bool keyboardPress, bool mideaKeyboard, bool mouseMoveABS, bool mouseMoveREL, bool HID);
 
@@ -54,8 +54,17 @@ public:
     void setMediaBackend(const QString &backend);
     QString getMediaBackend() const;
     
+    void setHardwareAcceleration(const QString &hwAccel);
+    QString getHardwareAcceleration() const;
+    
+    void setScalingQuality(const QString &quality);
+    QString getScalingQuality() const;
+    
     void setGStreamerPipelineTemplate(const QString &pipelineTemplate);
     QString getGStreamerPipelineTemplate() const;
+
+    void setGStreamerSinkPriority(const QStringList &priorityList);
+    QStringList getGStreamerSinkPriority() const;
     
     void setCameraDeviceSetting(QString deviceDescription);
 
@@ -100,6 +109,42 @@ public:
     void setOpenterfacePortChain(const QString& portChain);
     QString getOpenterfacePortChain() const;
     void clearOpenterfacePortChain();
+
+    // Serial port baudrate management
+    void setSerialPortBaudrate(int baudrate);
+    int getSerialPortBaudrate() const;
+    void clearSerialPortBaudrate();
+    
+    // ARM architecture baudrate performance prompt
+    void setArmBaudratePromptDisabled(bool disabled);
+    bool getArmBaudratePromptDisabled() const;
+    void resetArmBaudratePrompt(); // Reset the prompt setting
+    
+    // Video recording settings
+    void setRecordingVideoCodec(const QString& codec);
+    QString getRecordingVideoCodec() const;
+    void setRecordingVideoBitrate(int bitrate);
+    int getRecordingVideoBitrate() const;
+    void setRecordingPixelFormat(const QString& format);
+    QString getRecordingPixelFormat() const;
+    void setRecordingKeyframeInterval(int interval);
+    int getRecordingKeyframeInterval() const;
+    
+    void setRecordingAudioCodec(const QString& codec);
+    QString getRecordingAudioCodec() const;
+    void setRecordingAudioBitrate(int bitrate);
+    int getRecordingAudioBitrate() const;
+    void setRecordingAudioSampleRate(int sampleRate);
+    int getRecordingAudioSampleRate() const;
+    
+    void setRecordingOutputFormat(const QString& format);
+    QString getRecordingOutputFormat() const;
+    void setRecordingOutputPath(const QString& path);
+    QString getRecordingOutputPath() const;
+    
+    // Audio mute setting
+    void setAudioMuted(bool muted);
+    bool getAudioMuted() const;
 
 private:
     QSettings m_settings;

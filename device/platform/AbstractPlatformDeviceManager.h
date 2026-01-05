@@ -23,6 +23,10 @@ public:
     QList<DeviceInfo> getDevicesByPortChain(const QString& targetPortChain);
     QStringList getAvailablePortChains();
     
+    // USB 3.0 Companion PortChain support
+    QList<DeviceInfo> getDevicesByAnyPortChain(const QString& targetPortChain);
+    QList<DeviceInfo> getDevicesWithCompanionPortChain(const QString& companionPortChain);
+    
 protected:
     // Common VID/PID constants for all platforms - Original generation
     static const QString SERIAL_VID;
@@ -36,9 +40,19 @@ protected:
     static const QString OPENTERFACE_VID_V2;
     static const QString OPENTERFACE_PID_V2;
     
+    // Common VID/PID constants for all platforms - V3 generation
+    static const QString SERIAL_VID_V3;
+    static const QString SERIAL_PID_V3;
+    static const QString OPENTERFACE_VID_V3;
+    static const QString OPENTERFACE_PID_V3;
+    
     // Helper method for filtering devices
     QList<DeviceInfo> filterDevicesByPortChain(const QList<DeviceInfo>& devices, 
                                                const QString& targetPortChain);
+    QList<DeviceInfo> filterDevicesByAnyPortChain(const QList<DeviceInfo>& devices,
+                                                  const QString& targetPortChain);
+    QList<DeviceInfo> filterDevicesByCompanionPortChain(const QList<DeviceInfo>& devices,
+                                                       const QString& companionPortChain);
 };
 
 #endif // ABSTRACTPLATFORMDEVICEMANAGER_H

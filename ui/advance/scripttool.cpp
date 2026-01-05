@@ -236,5 +236,5 @@ void ScriptTool::resetCommmandLine(bool status){
     qCDebug(log_script) << "Command reset" << "script status: " << status;
     scriptEdit->resetHighlightLine(lastHighlightedLine);
     commandLine = 1;
-    int lastHighlightedLine = -1;
+    lastHighlightedLine = -1;
 }

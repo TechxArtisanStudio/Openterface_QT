@@ -27,6 +27,8 @@
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QTimer>
+#include <QPixmap>
+#include <QPalette>
 
 class StatusWidget : public QWidget {
     Q_OBJECT
@@ -37,15 +39,23 @@ public:
 
     void setInputResolution(const int &width, const int &height, const float &fps, const float &pixelClk);
     void setCaptureResolution(const int &width, const int &height, const float &fps);
+    void setFps(const double &fps, const QString &backend = QString());
     void setKeyboardIndicators(const QString &indicators);
     void setConnectedPort(const QString &port, const int &baudrate);
     void setStatusUpdate(const QString &status);
     void setTargetUsbConnected(const bool isConnected);
+    void setKeyStates(bool numLock, bool capsLock, bool scrollLock);
+    void setRecordingTime(const QString &time);
+    void showRecordingTime(bool show);
     int getCaptureWidth() const;
     int getCaptureHeight() const;
 
+protected:
+    void changeEvent(QEvent *event) override;
+
 private slots:
     void updateCpuUsage();
+    void refreshAllIcons();
 
 public slots:
     void setBaudrate(int baudrate);
@@ -53,16 +63,28 @@ public slots:
 private:
     QLabel *statusLabel;
     QLabel *cpuUsageLabel;
+    QLabel *fpsLabel;
     QLabel *keyboardIndicatorsLabel;
+    QLabel *keyStatesLabel;
     QLabel *resolutionLabel;
     QLabel *inputResolutionLabel;
     QLabel *connectedPortLabel;
+    QLabel *recordingTimeLabel;
     QTimer *cpuTimer;
     int m_captureWidth;
     int m_captureHeight;
     float m_captureFramerate;
     
+    // SVG icon pixmaps
+    QPixmap keyboardIcon;
+    QPixmap monitorIcon;
+    QPixmap plugIcon;
+    
+    int m_cpuCoreCount = 1;
+
     double getCpuUsage();
+    QPixmap createIconTextLabel(const QString &svgPath, const QString &text, const QColor &textColor = QColor(), const QColor &iconColor = QColor());
+    QColor getIconColorForCurrentTheme() const;
 };
 
 #endif // STATUSWIDGET_H

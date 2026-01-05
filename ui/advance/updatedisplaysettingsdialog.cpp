@@ -211,29 +211,6 @@ void UpdateDisplaySettingsDialog::setupUI()
     
     mainLayout->addWidget(serialNumberGroup);
     
-    // Resolution Group
-    resolutionGroup = new QGroupBox(tr("Extension Block Resolutions"), this);
-    QVBoxLayout *resolutionLayout = new QVBoxLayout(resolutionGroup);
-    
-    // Setup the resolution table
-    setupResolutionTable();
-    resolutionLayout->addWidget(resolutionTable);
-    
-    // Control buttons for resolution selection
-    QHBoxLayout *resolutionButtonLayout = new QHBoxLayout();
-    selectAllButton = new QPushButton(tr("Select All"), this);
-    selectNoneButton = new QPushButton(tr("Select None"), this);
-    selectDefaultButton = new QPushButton(tr("Select Defaults"), this);
-    
-    resolutionButtonLayout->addWidget(selectAllButton);
-    resolutionButtonLayout->addWidget(selectNoneButton);
-    resolutionButtonLayout->addWidget(selectDefaultButton);
-    resolutionButtonLayout->addStretch();
-    
-    resolutionLayout->addLayout(resolutionButtonLayout);
-    
-    mainLayout->addWidget(resolutionGroup);
-    
     // Progress Group (initially hidden)
     progressGroup = new QGroupBox(tr("Reading Firmware"), this);
     QVBoxLayout *progressLayout = new QVBoxLayout(progressGroup);
@@ -280,11 +257,6 @@ void UpdateDisplaySettingsDialog::setupUI()
     connect(displayNameCheckBox, &QCheckBox::toggled, this, &UpdateDisplaySettingsDialog::onDisplayNameCheckChanged);
     connect(serialNumberCheckBox, &QCheckBox::toggled, this, &UpdateDisplaySettingsDialog::onSerialNumberCheckChanged);
     
-    // Resolution table connections
-    connect(selectAllButton, &QPushButton::clicked, this, &UpdateDisplaySettingsDialog::onSelectAllResolutions);
-    connect(selectNoneButton, &QPushButton::clicked, this, &UpdateDisplaySettingsDialog::onSelectNoneResolutions);
-    connect(selectDefaultButton, &QPushButton::clicked, this, &UpdateDisplaySettingsDialog::onSelectDefaultResolutions);
-    connect(resolutionTable, &QTableWidget::itemChanged, this, &UpdateDisplaySettingsDialog::onResolutionItemChanged);
     connect(cancelReadingButton, &QPushButton::clicked, this, &UpdateDisplaySettingsDialog::onCancelReadingClicked);
     
     // Connect text change signals to update button state
@@ -535,63 +507,49 @@ void UpdateDisplaySettingsDialog::loadCurrentEDIDSettings()
 {
     qDebug() << "Loading current EDID settings from firmware...";
     
-    try {
-        // Read firmware size
-        quint32 firmwareSize = VideoHid::getInstance().readFirmwareSize();
-        if (firmwareSize == 0) {
-            qWarning() << "Failed to read firmware size, cannot load current EDID settings";
-            displayNameLineEdit->setPlaceholderText(tr("Failed to read firmware - enter display name"));
-            serialNumberLineEdit->setPlaceholderText(tr("Failed to read firmware - enter serial number"));
-            return;
-        }
-        
-        qDebug() << "Firmware size:" << firmwareSize << "bytes";
-        
-        // Show embedded progress components
-        progressGroup->setVisible(true);
-        progressBar->setValue(0);
-        progressLabel->setText(tr("Reading firmware data..."));
-        
-        // Disable main dialog controls while reading
-        displayNameGroup->setEnabled(false);
-        serialNumberGroup->setEnabled(false);
-        resolutionGroup->setEnabled(false);
-        updateButton->setEnabled(false);
-        
-        // Create temporary file path for firmware reading
-        QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
-        QString tempFirmwarePath = tempDir + "/temp_firmware_read.bin";
-        
-        // Create firmware reader thread
-        firmwareReaderThread = new QThread(this);
-        firmwareReader = new FirmwareReader(&VideoHid::getInstance(), ADDR_EEPROM, firmwareSize, tempFirmwarePath);
-        firmwareReader->moveToThread(firmwareReaderThread);
-        
-        // Connect signals
-        connect(firmwareReaderThread, &QThread::started, firmwareReader, &FirmwareReader::process);
-        connect(firmwareReader, &FirmwareReader::progress, this, &UpdateDisplaySettingsDialog::onFirmwareReadProgress);
-        connect(firmwareReader, &FirmwareReader::finished, this, &UpdateDisplaySettingsDialog::onFirmwareReadFinished);
-        connect(firmwareReader, &FirmwareReader::error, this, &UpdateDisplaySettingsDialog::onFirmwareReadError);
-        connect(firmwareReader, &FirmwareReader::finished, firmwareReaderThread, &QThread::quit);
-        
-        // Note: We handle cleanup manually in cleanupFirmwareReaderThread() instead of auto-deleting
-        // to avoid crashes when the dialog is closed while the thread is running
-        
-        // Start the thread
-        firmwareReaderThread->start();
-        
-    } catch (...) {
-        qWarning() << "Exception occurred while starting firmware read";
-        displayNameLineEdit->setPlaceholderText(tr("Error reading firmware - enter display name"));
-        serialNumberLineEdit->setPlaceholderText(tr("Error reading firmware - enter serial number"));
-        progressGroup->setVisible(false);
-        
-        // Re-enable controls
-        displayNameGroup->setEnabled(true);
-        serialNumberGroup->setEnabled(true);
-        resolutionGroup->setEnabled(true);
-        enableUpdateButton();
+    // Read firmware size
+    quint32 firmwareSize = VideoHid::getInstance().readFirmwareSize();
+    if (firmwareSize == 0) {
+        qWarning() << "Failed to read firmware size, cannot load current EDID settings";
+        displayNameLineEdit->setPlaceholderText(tr("Failed to read firmware - enter display name"));
+        serialNumberLineEdit->setPlaceholderText(tr("Failed to read firmware - enter serial number"));
+        return;
     }
+    
+    qDebug() << "Firmware size:" << firmwareSize << "bytes";
+    
+    // Show embedded progress components
+    progressGroup->setVisible(true);
+    progressBar->setValue(0);
+    progressLabel->setText(tr("Reading firmware data..."));
+    
+    // Disable main dialog controls while reading
+    displayNameGroup->setEnabled(false);
+    serialNumberGroup->setEnabled(false);
+    if (resolutionGroup) resolutionGroup->setEnabled(false);
+    updateButton->setEnabled(false);
+    
+    // Create temporary file path for firmware reading
+    QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    QString tempFirmwarePath = tempDir + "/temp_firmware_read.bin";
+    
+    // Create firmware reader thread
+    firmwareReaderThread = new QThread(this);
+    firmwareReader = new FirmwareReader(&VideoHid::getInstance(), ADDR_EEPROM, firmwareSize, tempFirmwarePath);
+    firmwareReader->moveToThread(firmwareReaderThread);
+    
+    // Connect signals
+    connect(firmwareReaderThread, &QThread::started, firmwareReader, &FirmwareReader::process);
+    connect(firmwareReader, &FirmwareReader::progress, this, &UpdateDisplaySettingsDialog::onFirmwareReadProgress);
+    connect(firmwareReader, &FirmwareReader::finished, this, &UpdateDisplaySettingsDialog::onFirmwareReadFinished);
+    connect(firmwareReader, &FirmwareReader::error, this, &UpdateDisplaySettingsDialog::onFirmwareReadError);
+    connect(firmwareReader, &FirmwareReader::finished, firmwareReaderThread, &QThread::quit);
+    
+    // Note: We handle cleanup manually in cleanupFirmwareReaderThread() instead of auto-deleting
+    // to avoid crashes when the dialog is closed while the thread is running
+    
+    // Start the thread
+    firmwareReaderThread->start();
 }
 
 void UpdateDisplaySettingsDialog::onFirmwareReadProgress(int percent)
@@ -624,7 +582,7 @@ void UpdateDisplaySettingsDialog::onFirmwareReadFinished(bool success)
     // Re-enable dialog controls
     displayNameGroup->setEnabled(true);
     serialNumberGroup->setEnabled(true);
-    resolutionGroup->setEnabled(true);
+    if (resolutionGroup) resolutionGroup->setEnabled(true);
     
     if (!success) {
         qWarning() << "Failed to read firmware data, cannot load current EDID settings";
@@ -747,7 +705,7 @@ void UpdateDisplaySettingsDialog::onFirmwareReadError(const QString& errorMessag
     // Re-enable dialog controls
     displayNameGroup->setEnabled(true);
     serialNumberGroup->setEnabled(true);
-    resolutionGroup->setEnabled(true);
+    if (resolutionGroup) resolutionGroup->setEnabled(true);
     
     qWarning() << "Firmware read error:" << errorMessage;
     displayNameLineEdit->setPlaceholderText(tr("Error reading firmware - enter display name"));
@@ -794,7 +752,7 @@ void UpdateDisplaySettingsDialog::onCancelReadingClicked()
     // Re-enable dialog controls
     displayNameGroup->setEnabled(true);
     serialNumberGroup->setEnabled(true);
-    resolutionGroup->setEnabled(true);
+    if (resolutionGroup) resolutionGroup->setEnabled(true);
     
     // Update placeholders to indicate cancellation
     displayNameLineEdit->setPlaceholderText(tr("Reading cancelled - enter display name"));
@@ -1031,6 +989,8 @@ void UpdateDisplaySettingsDialog::addResolutionToList(const QString& description
 
 void UpdateDisplaySettingsDialog::populateResolutionTable()
 {
+    if (!resolutionTable) return;  // Skip if resolution table is not shown
+    
     resolutionTable->setRowCount(availableResolutions.size());
     
     for (int row = 0; row < availableResolutions.size(); ++row) {
@@ -1076,7 +1036,9 @@ void UpdateDisplaySettingsDialog::updateResolutionTableFromEDID(const QByteArray
 {
     // Clear existing resolutions
     availableResolutions.clear();
-    resolutionTable->setRowCount(0);
+    if (resolutionTable) {
+        resolutionTable->setRowCount(0);
+    }
     
     // Skip standard timings - only parse extension blocks for resolutions
     // parseStandardTimingsForResolutions(edidBlock);
@@ -1283,6 +1245,8 @@ QList<ResolutionInfo> UpdateDisplaySettingsDialog::getSelectedResolutions() cons
 
 bool UpdateDisplaySettingsDialog::hasResolutionChanges() const
 {
+    if (!resolutionTable) return false;  // No resolution UI, no changes
+    
     // Check if any resolution's current selection differs from its original enabled state
     for (const auto& resolution : availableResolutions) {
         if (resolution.userSelected != resolution.isEnabled) {

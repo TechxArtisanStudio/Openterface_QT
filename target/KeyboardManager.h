@@ -45,7 +45,7 @@ class KeyboardManager: public QObject
 public:
     explicit KeyboardManager(QObject *parent = nullptr);
 
-    void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown);
+    void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown, unsigned int nativeVirtualKey = 0);
     void handlePasteChar(int key, int modifiers);
 
     /*
@@ -57,6 +57,11 @@ public:
      * Check if the key is a keypad key
      */
     bool isKeypadKeys(int keycode, int modifiers);
+
+    /*
+     * Check if the key is a lock key (NumLock, CapsLock, ScrollLock)
+     */
+    bool isLockKey(int keycode);
 
     void pasteTextToTarget(const QString &text);
 

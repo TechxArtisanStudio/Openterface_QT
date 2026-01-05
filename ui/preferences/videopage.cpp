@@ -24,6 +24,8 @@
 #include "fontstyle.h"
 #include "ui/globalsetting.h"
 #include "host/cameramanager.h"
+#include "host/multimediabackend.h"
+#include "host/backend/ffmpegbackendhandler.h"
 #include <QDebug>
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -36,6 +38,10 @@
 #include <QFrame>
 #include <QMediaDevices>
 #include <QWidget>
+#include <QThread>
+#include <QApplication>
+#include <QEventLoop>
+#include <QTimer>
 
 
 VideoPage::VideoPage(CameraManager *cameraManager, QWidget *parent) : QWidget(parent)
@@ -94,7 +100,7 @@ void VideoPage::setupUI()
     videoLayout->addWidget(separatorLine);
 
     // Capture Resolution Setting Section
-    QString("<span style=' font-weight: bold;'>%1</span>").arg(tr("General video setting"));
+    videoLabel->setText(QString("<span style=' font-weight: bold;'>%1</span>").arg(tr("General video setting")));
     videoLabel->setStyleSheet(bigLabelFontSize);
     videoLabel->setTextFormat(Qt::RichText);
 
@@ -144,37 +150,104 @@ void VideoPage::setupUI()
     QLabel *backendHintLabel = new QLabel(tr("Note: Changing media backend requires application restart to take effect."));
     backendHintLabel->setStyleSheet("color: #666666; font-style: italic;");
 
+    // GStreamer Sink Priority Setting
+    QLabel *gstSinkLabel = new QLabel(tr("GStreamer Sink Priority: "));
+    gstSinkLabel->setStyleSheet(smallLabelFontSize);
+    gstSinkLabel->setObjectName("gstSinkLabel");
+
+    QLineEdit *gstSinkEdit = new QLineEdit();
+    gstSinkEdit->setObjectName("gstSinkEdit");
+    gstSinkEdit->setPlaceholderText("e.g. qt6videosink, xvimagesink, autovideosink");
+    gstSinkEdit->setText(GlobalSetting::instance().getGStreamerSinkPriority().join(", "));
+    
+    QLabel *gstSinkHintLabel = new QLabel(tr("Comma-separated list of sinks to try in order."));
+    gstSinkHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    gstSinkHintLabel->setObjectName("gstSinkHintLabel");
+
     // Connect the media backend change signal
     connect(mediaBackendBox, &QComboBox::currentIndexChanged, this, &VideoPage::onMediaBackendChanged);
 
-    // GStreamer Pipeline Configuration Section
-    QLabel *gstreamerPipelineLabel = new QLabel(tr("GStreamer Pipeline Template: "));
-    gstreamerPipelineLabel->setStyleSheet(smallLabelFontSize);
+    // Hardware Acceleration Setting Section
+    QLabel *hwAccelLabel = new QLabel(tr("Hardware Acceleration: "));
+    hwAccelLabel->setStyleSheet(smallLabelFontSize);
+    hwAccelLabel->setObjectName("hwAccelLabel");
 
-    QLineEdit *gstreamerPipelineEdit = new QLineEdit();
-    gstreamerPipelineEdit->setObjectName("gstreamerPipelineEdit");
-    gstreamerPipelineEdit->setPlaceholderText("v4l2src device=%DEVICE% ! image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! jpegdec ! videoconvert ! xvimagesink name=videosink");
-    
-    // Set current pipeline template from settings
-    QString currentPipeline = GlobalSetting::instance().getGStreamerPipelineTemplate();
-    gstreamerPipelineEdit->setText(currentPipeline);
-    
-    QLabel *gstreamerHintLabel = new QLabel(tr("Available placeholders: %DEVICE%, %WIDTH%, %HEIGHT%, %FRAMERATE%"));
-    gstreamerHintLabel->setStyleSheet("color: #666666; font-style: italic;");
-    
-    // Connect the pipeline change signal
-    connect(gstreamerPipelineEdit, &QLineEdit::textChanged, this, &VideoPage::onGStreamerPipelineChanged);
+    QComboBox *hwAccelBox = new QComboBox();
+    hwAccelBox->setObjectName("hwAccelBox");
 
-    // Create a widget to hold the GStreamer-specific options
-    QWidget *gstreamerOptionsWidget = new QWidget();
-    gstreamerOptionsWidget->setObjectName("gstreamerOptionsWidget");
-    QVBoxLayout *gstreamerLayout = new QVBoxLayout(gstreamerOptionsWidget);
-    gstreamerLayout->addWidget(gstreamerPipelineLabel);
-    gstreamerLayout->addWidget(gstreamerPipelineEdit);
-    gstreamerLayout->addWidget(gstreamerHintLabel);
+    QLabel *hwAccelHintLabel = new QLabel(tr("Note: Hardware acceleration improves performance but may not be available on all systems. Changing this setting requires application restart to take effect."));
+    hwAccelHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    hwAccelHintLabel->setObjectName("hwAccelHintLabel");
+
+    // Set initial visibility based on backend
+    bool isFFmpeg = (mediaBackendBox->currentData().toString() == "ffmpeg");
+    bool isGStreamer = (mediaBackendBox->currentData().toString() == "gstreamer");
     
-    // Initially hide GStreamer options if not using GStreamer backend
-    gstreamerOptionsWidget->setVisible(currentBackend == "gstreamer");
+    hwAccelLabel->setVisible(isFFmpeg);
+    hwAccelBox->setVisible(isFFmpeg);
+    hwAccelHintLabel->setVisible(isFFmpeg);
+
+    gstSinkLabel->setVisible(isGStreamer);
+    gstSinkEdit->setVisible(isGStreamer);
+    gstSinkHintLabel->setVisible(isGStreamer);
+
+    // Populate hardware acceleration options
+    if (m_cameraManager) {
+        MultimediaBackendHandler* backend = m_cameraManager->getBackendHandler();
+        if (backend) {
+            QStringList availableHwAccel = backend->getAvailableHardwareAccelerations();
+            hwAccelBox->clear();
+            for (const QString& hw : availableHwAccel) {
+                QString displayName;
+                if (hw == "auto") {
+                    displayName = tr("Auto (Recommended)");
+                } else if (hw == "cuda") {
+                    displayName = tr("NVIDIA CUDA");
+                } else if (hw == "qsv") {
+                    displayName = tr("Intel Quick Sync Video");
+                } else if (hw == "none") {
+                    displayName = tr("CPU");
+                } else {
+                    displayName = hw;
+                }
+                hwAccelBox->addItem(displayName, hw);
+            }
+
+            // Set current hardware acceleration from settings
+            QString currentHwAccel = GlobalSetting::instance().getHardwareAcceleration();
+            int hwIndex = hwAccelBox->findData(currentHwAccel);
+            if (hwIndex != -1) {
+                hwAccelBox->setCurrentIndex(hwIndex);
+            }
+        }
+    }
+
+    // Scaling Quality Setting Section
+    QLabel *scalingQualityLabel = new QLabel(tr("Image Quality: "));
+    scalingQualityLabel->setStyleSheet(smallLabelFontSize);
+
+    QComboBox *scalingQualityBox = new QComboBox();
+    scalingQualityBox->setObjectName("scalingQualityBox");
+    scalingQualityBox->addItem(tr("Fastest (Lower quality)"), "fast");
+    scalingQualityBox->addItem(tr("Balanced (Good quality)"), "balanced");
+    scalingQualityBox->addItem(tr("High Quality (Recommended)"), "quality");
+    scalingQualityBox->addItem(tr("Best Quality (Slower)"), "best");
+
+    // Set current scaling quality from settings
+    QString currentQuality = GlobalSetting::instance().getScalingQuality();
+    int qualityIndex = scalingQualityBox->findData(currentQuality);
+    if (qualityIndex != -1) {
+        scalingQualityBox->setCurrentIndex(qualityIndex);
+    } else {
+        // Default to "quality" (High Quality)
+        qualityIndex = scalingQualityBox->findData("quality");
+        if (qualityIndex != -1) {
+            scalingQualityBox->setCurrentIndex(qualityIndex);
+        }
+    }
+
+    QLabel *scalingQualityHintLabel = new QLabel(tr("Note: Higher quality settings provide sharper images but may use slightly more CPU."));
+    scalingQualityHintLabel->setStyleSheet("color: #666666; font-style: italic;");
 
     // Add Capture Resolution elements to the layout
     videoLayout->addWidget(hintLabel);
@@ -184,11 +257,19 @@ void VideoPage::setupUI()
     videoLayout->addLayout(hBoxLayout);
     videoLayout->addWidget(formatLabel);
     videoLayout->addWidget(pixelFormatBox);
+    videoLayout->addWidget(scalingQualityLabel);
+    videoLayout->addWidget(scalingQualityBox);
+    videoLayout->addWidget(scalingQualityHintLabel);
     videoLayout->addWidget(separatorLine2);
     videoLayout->addWidget(backendLabel);
     videoLayout->addWidget(mediaBackendBox);
     videoLayout->addWidget(backendHintLabel);
-    videoLayout->addWidget(gstreamerOptionsWidget);
+    videoLayout->addWidget(gstSinkLabel);
+    videoLayout->addWidget(gstSinkEdit);
+    videoLayout->addWidget(gstSinkHintLabel);
+    videoLayout->addWidget(hwAccelLabel);
+    videoLayout->addWidget(hwAccelBox);
+    videoLayout->addWidget(hwAccelHintLabel);
     videoLayout->addStretch();
 
     // Connect the checkbox state change to the slot
@@ -197,23 +278,48 @@ void VideoPage::setupUI()
     // Initialize the state of the custom resolution inputs
     toggleCustomResolutionInputs(overrideSettingsCheckBox->isChecked());
 
-    if (m_cameraManager && m_cameraManager->getCamera()) {
-        const QList<QCameraFormat> videoFormats = m_cameraManager->getCameraFormats();
-        populateResolutionBox(videoFormats);
+    // Note: Camera format enumeration removed with FFmpeg backend
+    // FFmpeg uses DirectShow/V4L2 format negotiation
+    if (m_cameraManager) {
+        // Populate with empty list (user can use custom resolution)
+        populateResolutionBox(QList<QCameraFormat>());
+        
+        // Add default resolution options for FFmpeg backend
+        if (videoFormatBox->count() == 0) {
+            // Add common resolutions as defaults when no camera formats available
+            std::set<int> defaultFps = {30, 60};
+            QVariant fpsVariant = QVariant::fromValue<std::set<int>>(defaultFps);
+            
+            videoFormatBox->addItem("1920x1080 [30 - 60 Hz]", fpsVariant);
+            videoFormatBox->addItem("1280x720 [30 - 60 Hz]", fpsVariant);
+            videoFormatBox->addItem("640x480 [30 - 60 Hz]", fpsVariant);
+            
+            // Set default resolution
+            m_currentResolution = QSize(1920, 1080);
+        }
+        
         connect(videoFormatBox, &QComboBox::currentIndexChanged, [this, videoFormatBox](int /*index*/){
-            this->setFpsRange(boxValue(videoFormatBox).value<std::set<int>>());
-
-            QString resolutionText = videoFormatBox->currentText();
-            QStringList resolutionParts = resolutionText.split(' ').first().split('x');
-            m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
+            if (videoFormatBox->count() > 0) {
+                QString resolutionText = videoFormatBox->currentText();
+                QStringList resolutionParts = resolutionText.split(' ').first().split('x');
+                if (resolutionParts.size() >= 2) {
+                    m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
+                }
+            }
         });
 
-        const std::set<int> fpsValues = boxValue(videoFormatBox).value<std::set<int>>();
-
-        setFpsRange(fpsValues);
-        QString resolutionText = videoFormatBox->currentText();
-        QStringList resolutionParts = resolutionText.split(' ').first().split('x');
-        m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
+        // Only process if combobox has items
+        if (videoFormatBox->count() > 0) {
+            const std::set<int> fpsValues = boxValue(videoFormatBox).value<std::set<int>>();
+            setFpsRange(fpsValues);
+            
+            QString resolutionText = videoFormatBox->currentText();
+            QStringList resolutionParts = resolutionText.split(' ').first().split('x');
+            if (resolutionParts.size() >= 2) {
+                m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
+            }
+        }
+        
         updatePixelFormats();
         // connect(pixelFormatBox, &QComboBox::currentIndexChanged, this,
         //         &VideoPage::updatePixelFormats);
@@ -321,28 +427,10 @@ void VideoPage::updatePixelFormats()
     QComboBox *pixelFormatBox = this->findChild<QComboBox*>("pixelFormatBox");
     pixelFormatBox->clear();
 
-    // Retrieve supported pixel formats from the camera manager
-    if (m_cameraManager) {
-        for (const auto &format : m_cameraManager->getSupportedPixelFormats()) {
-            QString description;
-
-            // Map pixel formats to their descriptions
-            switch (format.pixelFormat()) {
-                case QVideoFrameFormat::Format_YUV420P:
-                    description = "YUV420P";
-                    break;
-                case QVideoFrameFormat::Format_Jpeg:
-                    description = "JPEG";
-                    break;
-                default:
-                    description = "Unknown Format";
-                    break;
-            }
-
-            // Add each pixel format to the combo box
-            pixelFormatBox->addItem(description, QVariant::fromValue(format.pixelFormat()));
-        }
-    }
+    // Note: Pixel format enumeration removed with FFmpeg backend
+    // FFmpeg handles pixel format selection automatically
+    pixelFormatBox->addItem("Auto (FFmpeg)", QVariant::fromValue(0));
+    pixelFormatBox->setEnabled(false); // Disable as FFmpeg handles this
 
     m_updatingFormats = false;
 }
@@ -355,6 +443,10 @@ QVariant VideoPage::boxValue(const QComboBox *box) const
 
 void VideoPage::applyVideoSettings() {
     QComboBox *fpsComboBox = this->findChild<QComboBox*>("fpsComboBox");
+    if (!fpsComboBox) {
+        qWarning() << "fpsComboBox not found!";
+        return;
+    }
     int fps = fpsComboBox->currentData().toInt();
     qDebug() << "fpsComboBox current data:" << fpsComboBox->currentData();
     
@@ -375,21 +467,21 @@ void VideoPage::applyVideoSettings() {
 
     // Extract the pixel format from the QVariant
     QVariant pixelFormatVariant = boxValue(pixelFormatBox);
-    QVideoFrameFormat::PixelFormat pixelFormat = static_cast<QVideoFrameFormat::PixelFormat>(pixelFormatVariant.toInt());
+    // Note: Camera format selection removed with FFmpeg backend
+    // FFmpeg negotiates formats directly with DirectShow/V4L2
     
-    QCameraFormat format = m_cameraManager->getVideoFormat(m_currentResolution, fps, pixelFormat);
-
-    if (!format.isNull()) {
-        qDebug() << "Set Camera Format, resolution:" << format.resolution() << ", FPS:" << fps << format.pixelFormat();
-        if (isGStreamer) {
-            qDebug() << "GStreamer format range: min=" << format.minFrameRate() << "max=" << format.maxFrameRate();
-        }
-    } else {
-        qWarning() << "Invalid camera format!" << m_currentResolution << fps;
-        if (isGStreamer) {
-            qWarning() << "GStreamer may have rejected the format - try a different frame rate";
-        }
-        return;
+    // Save hardware acceleration setting
+    QComboBox *hwAccelBox = this->findChild<QComboBox*>("hwAccelBox");
+    if (hwAccelBox) {
+        QString hwAccel = hwAccelBox->currentData().toString();
+        GlobalSetting::instance().setHardwareAcceleration(hwAccel);
+    }
+    
+    // Save scaling quality setting
+    QComboBox *scalingQualityBox = this->findChild<QComboBox*>("scalingQualityBox");
+    if (scalingQualityBox) {
+        QString quality = scalingQualityBox->currentData().toString();
+        GlobalSetting::instance().setScalingQuality(quality);
     }
 
     if (!m_cameraManager) {
@@ -397,33 +489,64 @@ void VideoPage::applyVideoSettings() {
         return;
     }
 
+    // Save current device settings before stopping
+    // This prevents device path from being cleared during stop
+    QString savedPortChain = GlobalSetting::instance().getOpenterfacePortChain();
+    qDebug() << "Saving current device port chain before restart:" << savedPortChain;
+
     // Stop the camera if it is in an active status
-    m_cameraManager->stopCamera();
+    try {
+        m_cameraManager->stopCamera();
+        qDebug() << "Camera stopped successfully";
+    } catch (const std::exception& e) {
+        qCritical() << "Error stopping camera:" << e.what();
+        return;
+    }
 
-    // Set the new camera format
-    m_cameraManager->setCameraFormat(format);
+    // CRITICAL FIX: Wait for capture thread to fully terminate
+    // This prevents crash when FFmpeg resources are accessed during cleanup
+    qDebug() << "Waiting for capture thread to terminate...";
+    
+    // Process events to ensure stop signal is handled
+    QApplication::processEvents();
+    
+    // Reduced wait time since capture manager now handles proper thread termination
+    // Wait 200ms for thread to gracefully exit
+    QEventLoop loop;
+    QTimer::singleShot(200, &loop, &QEventLoop::quit);
+    loop.exec();
+    
+    qDebug() << "Capture thread should be terminated, proceeding with restart";
 
+    // Restore device settings before starting camera again
+    if (!savedPortChain.isEmpty()) {
+        GlobalSetting::instance().setOpenterfacePortChain(savedPortChain);
+        qDebug() << "Restored device port chain:" << savedPortChain;
+    }
+
+    // Store settings for FFmpeg backend
     handleResolutionSettings();
 
-    qDebug() << "Set global variable to:" << format.resolution().width() << format.resolution().height() << fps;
-    GlobalVar::instance().setCaptureWidth(format.resolution().width());
-    GlobalVar::instance().setCaptureHeight(format.resolution().height());
+    qDebug() << "Set global variable to:" << m_currentResolution.width() << m_currentResolution.height() << fps;
+    GlobalVar::instance().setCaptureWidth(m_currentResolution.width());
+    GlobalVar::instance().setCaptureHeight(m_currentResolution.height());
     GlobalVar::instance().setCaptureFps(fps);
 
     qDebug() << "Start the camera";
     // Start the camera with the new settings
-    m_cameraManager->startCamera();
-    // qDebug() << "Camera started";
+    try{
+        m_cameraManager->startCamera();
+        qDebug() << "Camera started successfully with new settings";
+    } catch (const std::exception& e){
+        qCritical() << "Error starting camera: " << e.what();
+    }
+    
 
-    // Debug output to confirm settings
-    QCameraFormat appliedFormat = m_cameraManager->getCameraFormat();
-    qDebug() << "Applied Camera Format, resolution:" << appliedFormat.resolution()
-             << ", FPS:" << fps
-             << appliedFormat.pixelFormat();
+    qDebug() << "Applied settings: resolution:" << m_currentResolution << ", FPS:" << fps;
 
     updatePixelFormats();
 
-    GlobalSetting::instance().setVideoSettings(format.resolution().width(), format.resolution().height(), fps);
+    GlobalSetting::instance().setVideoSettings(m_currentResolution.width(), m_currentResolution.height(), fps);
     // Emit the signal with the new width and height
     emit videoSettingsChanged();
 }
@@ -443,11 +566,13 @@ void VideoPage::initVideoSettings() {
     for (int i = 0; i < videoFormatBox->count(); ++i) {
         QString resolutionText = videoFormatBox->itemText(i).split(' ').first();
         QStringList resolutionParts = resolutionText.split('x');
-        qDebug() << "resolution text: "<< resolutionText;
-        qDebug() << resolutionParts[0].toInt()<< width << resolutionParts[1].toInt() << height;
-        if (resolutionParts[0].toInt() == width && resolutionParts[1].toInt() == height) {
-            videoFormatBox->setCurrentIndex(i);
-            break;
+        if (resolutionParts.size() >= 2) {
+            qDebug() << "resolution text: "<< resolutionText;
+            qDebug() << resolutionParts[0].toInt()<< width << resolutionParts[1].toInt() << height;
+            if (resolutionParts[0].toInt() == width && resolutionParts[1].toInt() == height) {
+                videoFormatBox->setCurrentIndex(i);
+                break;
+            }
         }
     }
 
@@ -465,19 +590,26 @@ void VideoPage::initVideoSettings() {
         if (backendIndex != -1) {
             mediaBackendBox->setCurrentIndex(backendIndex);
         }
-        
-        // Show/hide GStreamer options based on current backend
-        QWidget *gstreamerOptionsWidget = this->findChild<QWidget*>("gstreamerOptionsWidget");
-        if (gstreamerOptionsWidget) {
-            gstreamerOptionsWidget->setVisible(currentBackend == "gstreamer");
+    }
+
+    // Set the hardware acceleration in the combo box
+    QComboBox *hwAccelBox = this->findChild<QComboBox*>("hwAccelBox");
+    if (hwAccelBox) {
+        QString currentHwAccel = GlobalSetting::instance().getHardwareAcceleration();
+        int hwAccelIndex = hwAccelBox->findData(currentHwAccel);
+        if (hwAccelIndex != -1) {
+            hwAccelBox->setCurrentIndex(hwAccelIndex);
         }
     }
     
-    // Set the GStreamer pipeline template
-    QLineEdit *gstreamerPipelineEdit = this->findChild<QLineEdit*>("gstreamerPipelineEdit");
-    if (gstreamerPipelineEdit) {
-        QString currentPipeline = GlobalSetting::instance().getGStreamerPipelineTemplate();
-        gstreamerPipelineEdit->setText(currentPipeline);
+    // Set the scaling quality in the combo box
+    QComboBox *scalingQualityBox = this->findChild<QComboBox*>("scalingQualityBox");
+    if (scalingQualityBox) {
+        QString currentQuality = GlobalSetting::instance().getScalingQuality();
+        int qualityIndex = scalingQualityBox->findData(currentQuality);
+        if (qualityIndex != -1) {
+            scalingQualityBox->setCurrentIndex(qualityIndex);
+        }
     }
 }
 
@@ -513,39 +645,31 @@ void VideoPage::onMediaBackendChanged() {
         GlobalSetting::instance().setMediaBackend(selectedBackend);
         qDebug() << "Media backend changed to:" << selectedBackend;
         
-        // Show/hide GStreamer options based on selected backend
-        QWidget *gstreamerOptionsWidget = this->findChild<QWidget*>("gstreamerOptionsWidget");
-        if (gstreamerOptionsWidget) {
-            gstreamerOptionsWidget->setVisible(selectedBackend == "gstreamer");
-        }
+        bool isFFmpeg = (selectedBackend == "ffmpeg");
+        bool isGStreamer = (selectedBackend == "gstreamer");
         
+        // Find hardware acceleration widgets
+        QLabel *hwAccelLabel = this->findChild<QLabel*>("hwAccelLabel");
+        QComboBox *hwAccelBox = this->findChild<QComboBox*>("hwAccelBox");
+        QLabel *hwAccelHintLabel = this->findChild<QLabel*>("hwAccelHintLabel");
+        
+        if (hwAccelLabel) hwAccelLabel->setVisible(isFFmpeg);
+        if (hwAccelBox) hwAccelBox->setVisible(isFFmpeg);
+        if (hwAccelHintLabel) hwAccelHintLabel->setVisible(isFFmpeg);
+
+        // Find GStreamer sink widgets
+        QLabel *gstSinkLabel = this->findChild<QLabel*>("gstSinkLabel");
+        QLineEdit *gstSinkEdit = this->findChild<QLineEdit*>("gstSinkEdit");
+        QLabel *gstSinkHintLabel = this->findChild<QLabel*>("gstSinkHintLabel");
+
+        if (gstSinkLabel) gstSinkLabel->setVisible(isGStreamer);
+        if (gstSinkEdit) gstSinkEdit->setVisible(isGStreamer);
+        if (gstSinkHintLabel) gstSinkHintLabel->setVisible(isGStreamer);
+        
+        // Show/hide GStreamer options based on selected backend
         if (selectedBackend == "gstreamer") {
             qDebug() << "GStreamer backend selected - using conservative frame rate handling";
             qDebug() << "Note: GStreamer may require specific frame rate ranges to avoid assertion errors";
-        }
-    }
-}
-
-void VideoPage::onGStreamerPipelineChanged() {
-    QLineEdit *gstreamerPipelineEdit = this->findChild<QLineEdit*>("gstreamerPipelineEdit");
-    if (gstreamerPipelineEdit) {
-        QString pipelineTemplate = gstreamerPipelineEdit->text();
-        
-        // Basic validation: check if essential placeholders are present
-        bool hasDevice = pipelineTemplate.contains("%DEVICE%");
-        bool hasValidFormat = pipelineTemplate.contains("!") && !pipelineTemplate.trimmed().isEmpty();
-        
-        if (!hasDevice) {
-            qWarning() << "GStreamer pipeline template missing %DEVICE% placeholder";
-            gstreamerPipelineEdit->setStyleSheet("QLineEdit { border: 2px solid red; }");
-        } else if (!hasValidFormat) {
-            qWarning() << "GStreamer pipeline template appears to be invalid (missing ! separators or empty)";
-            gstreamerPipelineEdit->setStyleSheet("QLineEdit { border: 2px solid orange; }");
-        } else {
-            // Pipeline looks valid
-            gstreamerPipelineEdit->setStyleSheet("");
-            GlobalSetting::instance().setGStreamerPipelineTemplate(pipelineTemplate);
-            qDebug() << "GStreamer pipeline template updated:" << pipelineTemplate;
         }
     }
 }

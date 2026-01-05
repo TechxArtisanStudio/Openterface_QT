@@ -79,6 +79,9 @@ private:
     TargetControlPage *targetControlPage;
 
     QWidget *buttonWidget;
+    int m_currentPageIndex;
+    bool m_changingPage;
+    QTimer *m_pageChangeTimer;
 
     void createSettingTree();
     void createLayout();

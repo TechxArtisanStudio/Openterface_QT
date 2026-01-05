@@ -24,12 +24,13 @@
 #include "../../ui/videopane.h"
 #include "../../global.h"
 
+
+
 #include <QThread>
 #include <QDebug>
 #include <QLoggingCategory>
 #include <QCamera>
 #include <QMediaCaptureSession>
-#include <QCameraDevice>
 #include <QCameraFormat>
 #include <QGraphicsVideoItem>
 #include <QVideoFrameFormat>
@@ -74,34 +75,22 @@ MultimediaBackendConfig QtMultimediaBackendHandler::getDefaultConfig() const
     return config;
 }
 
-void QtMultimediaBackendHandler::prepareCameraCreation(QCamera* oldCamera)
+void QtMultimediaBackendHandler::prepareCameraCreation()
 {
-    if (oldCamera) {
-        qCDebug(log_qtmultimedia_backend) << "Qt Multimedia: Stopping old camera before creating new one";
-        oldCamera->stop();
-        QThread::msleep(m_config.deviceSwitchDelay);
-    }
     qCDebug(log_qtmultimedia_backend) << "Qt Multimedia: Camera creation prepared";
 }
 
-void QtMultimediaBackendHandler::configureCameraDevice(QCamera* camera, const QCameraDevice& device)
+void QtMultimediaBackendHandler::configureCameraDevice()
 {
-    qCDebug(log_qtmultimedia_backend) << "Qt Multimedia: Configuring camera device:" << device.description();
-    
-    if (camera) {
-        // Standard Qt camera configuration
-        qCDebug(log_qtmultimedia_backend) << "Camera configured for device:" << device.id();
-    }
+    qCDebug(log_qtmultimedia_backend) << "Qt Multimedia: Configuring camera device";
 }
 
-void QtMultimediaBackendHandler::setupCaptureSession(QMediaCaptureSession* session, QCamera* camera)
+void QtMultimediaBackendHandler::setupCaptureSession(QMediaCaptureSession* session)
 {
     qCDebug(log_qtmultimedia_backend) << "Qt Multimedia: Setting up capture session";
     
-    if (session && camera) {
-        // Standard Qt capture session setup
-        session->setCamera(camera);
-        qCDebug(log_qtmultimedia_backend) << "Capture session configured with camera";
+    if (session) {
+        qCDebug(log_qtmultimedia_backend) << "Capture session configured";
         
         // Allow time for session setup
         if (m_config.captureSessionDelay > 0) {
@@ -149,31 +138,19 @@ void QtMultimediaBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSess
     }
 }
 
-void QtMultimediaBackendHandler::startCamera(QCamera* camera)
+void QtMultimediaBackendHandler::startCamera()
 {
     qCDebug(log_qtmultimedia_backend) << "Qt Multimedia: Starting camera";
     
-    if (camera) {
-        camera->start();
-        qCDebug(log_qtmultimedia_backend) << "Camera started successfully";
-        
-        // Allow time for camera initialization
-        if (m_config.cameraInitDelay > 0) {
-            QThread::msleep(m_config.cameraInitDelay);
-        }
-    } else {
-        qCWarning(log_qtmultimedia_backend) << "No camera to start";
+    // Allow time for camera initialization
+    if (m_config.cameraInitDelay > 0) {
+        QThread::msleep(m_config.cameraInitDelay);
     }
 }
 
-void QtMultimediaBackendHandler::stopCamera(QCamera* camera)
+void QtMultimediaBackendHandler::stopCamera()
 {
     qCDebug(log_qtmultimedia_backend) << "Qt Multimedia: Stopping camera";
-    
-    if (camera) {
-        camera->stop();
-        qCDebug(log_qtmultimedia_backend) << "Camera stopped";
-    }
 }
 
 QCameraFormat QtMultimediaBackendHandler::selectOptimalFormat(const QList<QCameraFormat>& formats,

@@ -3,16 +3,53 @@
 
 #include <QObject>
 #include <QTimer>
+#include <atomic>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QEventLoop>
 #include <vector>
 #include <chrono>
+#include <QMutex>
+#include <QRecursiveMutex>
 
 #include "../ui/statusevents.h"
-#ifdef _WIN32
+
+// Chipset enumeration
+enum class VideoChipType {
+    MS2109,
+    MS2109S,
+    MS2130S,
+    UNKNOWN
+};
+
+// Helper struct containing addresses for all relevant input registers for VideoHid
+struct VideoHidRegisterSet {
+    quint16 width_h{0};
+    quint16 width_l{0};
+    quint16 height_h{0};
+    quint16 height_l{0};
+    quint16 fps_h{0};
+    quint16 fps_l{0};
+    quint16 clk_h{0};
+    quint16 clk_l{0};
+};
+
+// Helper struct containing the read values for resolution and timing for VideoHid
+struct VideoHidResolutionInfo {
+    quint32 width{0};
+    quint32 height{0};
+    float fps{0.0f};
+    float pixclk{0.0f};
+    bool hdmiConnected{false};
+};
+#if defined(_WIN32) && !defined(Q_MOC_RUN)
 #include <windows.h>
+#elif defined(_WIN32) && defined(Q_MOC_RUN)
+// Minimal stubs for moc parsing on Windows to avoid including heavy system headers
+typedef void* HANDLE;
+typedef unsigned long DWORD;
+typedef unsigned char BYTE;
 #elif __linux__
 #include <linux/hid.h>
 #endif
@@ -75,6 +112,9 @@ public:
 
     void switchToHost();
     void switchToTarget();
+    
+    // New USB switch status query method using serial command (for CH32V208 chips)
+    int getUsbStatusViaSerial();  // Returns: 0=host, 1=target, -1=error
 
     void setEventCallback(StatusEventCallback* callback);
     void clearDevicePathCache();
@@ -93,6 +133,10 @@ public:
 
     // HDMI timing Pixel clock
     float getPixelclk();
+    
+    // USB read/write methods for both chip types
+    QPair<QByteArray, bool> usbXdataRead4ByteMS2109(quint16 u16_address);
+    QPair<QByteArray, bool> usbXdataRead4ByteMS2130S(quint16 u16_address);
 
     void loadFirmwareToEeprom();
 
@@ -112,6 +156,9 @@ public:
     void connectToHotplugMonitor();
     void disconnectFromHotplugMonitor();
 
+    // This method is invokable so we can safely dispatch eventCallback calls to the object's thread
+    Q_INVOKABLE void dispatchSwitchableUsbToggle(bool isToTarget);
+
 signals:
     // Add new signals
     int safe_stoi(std::string str, int defaultValue = 0);
@@ -129,13 +176,17 @@ signals:
     void hidDeviceSwitched(const QString& fromPortChain, const QString& toPortChain);
     void hidDeviceConnected(const QString& devicePath);
     void hidDeviceDisconnected(const QString& devicePath);
+    void gpio0StatusChanged(bool isToTarget);
 
 private:
     explicit VideoHid(QObject *parent = nullptr);
+    ~VideoHid();
     std::vector<unsigned char> networkFirmware;
     std::string m_firmwareVersion;
     std::string m_currentfirmwareVersion;
     
+    // Helper method to start the monitoring timer
+    void startMonitoringTimer();
 
 #ifdef _WIN32
     HANDLE deviceHandle = INVALID_HANDLE_VALUE;
@@ -148,13 +199,43 @@ private:
     bool openHIDDeviceHandle();
     void closeHIDDeviceHandle();
     using StringCallback = std::function<void(const QString&)>;
-    QTimer *timer;
+    // Polling thread used to poll device status periodically. Replaces the previous QTimer-based approach.
+    class PollingThread; // forward-declared below in the cpp file (no moc required)
+    friend class PollingThread; // allow the nested polling thread to access private members
+    PollingThread *m_pollingThread{nullptr};
+    int m_pollIntervalMs{1000};
     QString firmwareURL = "https://assets.openterface.com/openterface/firmware/minikvm_latest_firmware.txt";
     QString extractPortNumberFromPath(const QString& path);
     QPair<QByteArray, bool> usbXdataRead4Byte(quint16 u16_address);
     bool usbXdataWrite4Byte(quint16 u16_address, QByteArray data);
+    
+    // Safe wrapper to read a single byte from USB Xdata - prevents crash on empty arrays
+    quint8 safeReadByte(quint16 u16_address, quint8 defaultValue = 0);
+
+    // Register set retrieval for the current chip
+    VideoHidRegisterSet getRegisterSetForCurrentChip() const;
+
+    // Read the full input status (resolution/fps/pixel clock) into a struct
+    VideoHidResolutionInfo getInputStatus();
+
+    // Normalize resolution based on chip specifics and pixel clock
+    void normalizeResolution(VideoHidResolutionInfo &info);
+
+    // A safe single-byte register reader used by high-level helpers
+    quint8 readRegisterSafe(quint16 addr, quint8 defaultValue = 0, const QString& tag = QString());
+
+    // A safe write helper for single-register writes; logs and returns success
+    bool writeRegisterSafe(quint16 addr, const QByteArray &data, const QString &tag = QString());
+
+    // Centralized SPDIF toggle handling
+    void handleSpdifToggle(bool currentSwitchOnTarget);
+
+    // Timer-driven polling implementation (previously a lambda in start())
+    void pollDeviceStatus();
+    
     QString devicePath;
-    bool isHardSwitchOnTarget = false;
+    // Use atomic for cross-thread accesses between poll thread and main thread
+    std::atomic_bool isHardSwitchOnTarget{false};
 
     StatusEventCallback* eventCallback = nullptr;
 
@@ -169,6 +250,7 @@ private:
 
 #ifdef _WIN32
     std::wstring getHIDDevicePath();
+    std::wstring getProperDevicePath(const std::wstring& deviceInstancePath);
     bool sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize);
     bool getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize);
 #elif __linux__
@@ -180,9 +262,17 @@ private:
     std::chrono::time_point<std::chrono::steady_clock> m_lastPathQuery = std::chrono::steady_clock::now();
     bool m_inTransaction = false;
     
+    // Mutex for thread-safe device handle operations
+    QRecursiveMutex m_deviceHandleMutex;
+    
     // Current HID device tracking
     QString m_currentHIDDevicePath;
     QString m_currentHIDPortChain;
+    
+    // Chipset identification and handling
+    VideoChipType m_chipType = VideoChipType::UNKNOWN;
+    Q_INVOKABLE void detectChipType();
+    VideoChipType getChipType() const { return m_chipType; }
 };
 
 #endif // VIDEOHID_H

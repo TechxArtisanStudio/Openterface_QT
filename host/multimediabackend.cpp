@@ -22,7 +22,10 @@
 
 #include "multimediabackend.h"
 #include "backend/ffmpegbackendhandler.h"
+#ifndef Q_OS_WIN
 #include "backend/gstreamerbackendhandler.h"
+#endif
+#include "backend/qtbackendhandler.h"
 #include "backend/qtmultimediabackendhandler.h"
 #include <QLoggingCategory>
 #include <QThread>
@@ -40,23 +43,22 @@ MultimediaBackendHandler::MultimediaBackendHandler(QObject *parent)
     m_config = getDefaultConfig();
 }
 
-void MultimediaBackendHandler::prepareCameraCreation(QCamera* oldCamera)
+void MultimediaBackendHandler::prepareCameraCreation()
 {
     // Default implementation: No special preparation needed
     logBackendMessage("Default: Preparing camera creation.");
 }
 
-void MultimediaBackendHandler::configureCameraDevice(QCamera* camera, const QCameraDevice& device)
+void MultimediaBackendHandler::configureCameraDevice()
 {
     // Default implementation: No special configuration needed
-    logBackendMessage(QString("Default: Configuring camera device to %1.").arg(device.description()));
+    logBackendMessage("Default: Configuring camera device.");
 }
 
-void MultimediaBackendHandler::setupCaptureSession(QMediaCaptureSession* session, QCamera* camera)
+void MultimediaBackendHandler::setupCaptureSession(QMediaCaptureSession* session)
 {
     // Default implementation: Standard setup
     logBackendMessage("Default: Setting up capture session.");
-    session->setCamera(camera);
 }
 
 void MultimediaBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput)
@@ -72,19 +74,17 @@ void MultimediaBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSessio
     session->setVideoOutput(videoOutput);
 }
 
-void MultimediaBackendHandler::startCamera(QCamera* camera)
+void MultimediaBackendHandler::startCamera()
 {
     logBackendMessage("Default: Starting camera.");
-    camera->start();
 }
 
-void MultimediaBackendHandler::stopCamera(QCamera* camera)
+void MultimediaBackendHandler::stopCamera()
 {
     logBackendMessage("Default: Stopping camera.");
-    camera->stop();
 }
 
-void MultimediaBackendHandler::cleanupCamera(QCamera* camera)
+void MultimediaBackendHandler::cleanupCamera()
 {
     // Default implementation: No special cleanup
     logBackendMessage("Default: Cleaning up camera.");
@@ -106,6 +106,29 @@ QList<int> MultimediaBackendHandler::getSupportedFrameRates(const QCameraFormat&
 bool MultimediaBackendHandler::isFrameRateSupported(const QCameraFormat& format, int frameRate) const
 {
     return frameRate >= format.minFrameRate() && frameRate <= format.maxFrameRate();
+}
+
+int MultimediaBackendHandler::getOptimalFrameRate(const QCameraFormat& format, int desiredFrameRate) const
+{
+    int minRate = format.minFrameRate();
+    int maxRate = format.maxFrameRate();
+    
+    if (desiredFrameRate < minRate) {
+        return minRate;
+    } else if (desiredFrameRate > maxRate) {
+        return maxRate;
+    } else {
+        return desiredFrameRate;
+    }
+}
+
+void MultimediaBackendHandler::validateCameraFormat(const QCameraFormat& format) const
+{
+    logBackendMessage(QString("Validating camera format: %1x%2, fps: %3-%4")
+                     .arg(format.resolution().width())
+                     .arg(format.resolution().height())
+                     .arg(format.minFrameRate())
+                     .arg(format.maxFrameRate()));
 }
 
 QCameraFormat MultimediaBackendHandler::selectOptimalFormat(const QList<QCameraFormat>& formats,
@@ -131,9 +154,9 @@ QCameraFormat MultimediaBackendHandler::selectOptimalFormat(const QList<QCameraF
     return bestMatch;
 }
 
-void MultimediaBackendHandler::handleCameraError(QCamera::Error error, const QString& errorString)
+void MultimediaBackendHandler::handleCameraError(int errorCode, const QString& errorString)
 {
-    logBackendError(QString("Camera error occurred: %1 - %2").arg(error).arg(errorString));
+    logBackendError(QString("Camera error occurred: %1 - %2").arg(errorCode).arg(errorString));
 }
 
 bool MultimediaBackendHandler::shouldRetryOperation(int attemptCount) const
@@ -179,17 +202,10 @@ MultimediaBackendType MultimediaBackendFactory::detectBackendType()
     QString backendName = GlobalSetting::instance().getMediaBackend();
     MultimediaBackendType type = parseBackendType(backendName);
     
-    // If no specific backend is configured or unknown, auto-detect based on platform
+    // If no specific backend is configured or unknown, auto-detect FFmpeg
     if (type == MultimediaBackendType::Unknown) {
-#ifdef Q_OS_WIN
-        // On Windows, default to Qt Multimedia since FFmpeg/GStreamer may not be available
-        qCDebug(log_multimedia_backend) << "Auto-detected Qt Multimedia backend for Windows";
-        return MultimediaBackendType::QtMultimedia;
-#else
-        // On Linux/Unix, prefer GStreamer if available, otherwise FFmpeg
-        qCDebug(log_multimedia_backend) << "Auto-detected FFmpeg backend for Linux/Unix";
+        qCDebug(log_multimedia_backend) << "Auto-detected FFmpeg backend";
         return MultimediaBackendType::FFmpeg;
-#endif
     }
     
     return type;
@@ -197,15 +213,17 @@ MultimediaBackendType MultimediaBackendFactory::detectBackendType()
 
 MultimediaBackendType MultimediaBackendFactory::parseBackendType(const QString& backendName)
 {
+    if (backendName.compare("qtmultimedia", Qt::CaseInsensitive) == 0) {
+        return MultimediaBackendType::QtMultimedia;
+    }
+    if (backendName.compare("qt", Qt::CaseInsensitive) == 0) {
+        return MultimediaBackendType::Qt;
+    }
     if (backendName.compare("gstreamer", Qt::CaseInsensitive) == 0) {
         return MultimediaBackendType::GStreamer;
     }
     if (backendName.compare("ffmpeg", Qt::CaseInsensitive) == 0) {
         return MultimediaBackendType::FFmpeg;
-    }
-    if (backendName.compare("qtmultimedia", Qt::CaseInsensitive) == 0 || 
-        backendName.compare("qt", Qt::CaseInsensitive) == 0) {
-        return MultimediaBackendType::QtMultimedia;
     }
     return MultimediaBackendType::Unknown;
 }
@@ -214,7 +232,9 @@ QString MultimediaBackendFactory::backendTypeToString(MultimediaBackendType type
 {
     switch (type) {
         case MultimediaBackendType::QtMultimedia:
-            return "Qt Multimedia";
+            return "Qt Multimedia (Legacy)";
+        case MultimediaBackendType::Qt:
+            return "Qt Multimedia (Windows)";
         case MultimediaBackendType::FFmpeg:
             return "FFmpeg";
         case MultimediaBackendType::GStreamer:
@@ -227,15 +247,19 @@ QString MultimediaBackendFactory::backendTypeToString(MultimediaBackendType type
 std::unique_ptr<MultimediaBackendHandler> MultimediaBackendFactory::createHandler(MultimediaBackendType type, QObject* parent)
 {
     switch (type) {
+#ifndef Q_OS_WIN
         case MultimediaBackendType::GStreamer:
             return std::make_unique<GStreamerBackendHandler>(parent);
+#endif
         case MultimediaBackendType::FFmpeg:
             return std::make_unique<FFmpegBackendHandler>(parent);
+        case MultimediaBackendType::Qt:
+            return std::make_unique<QtBackendHandler>(parent);
         case MultimediaBackendType::QtMultimedia:
             return std::make_unique<QtMultimediaBackendHandler>(parent);
         default:
-            qCWarning(log_multimedia_backend) << "Unknown backend type requested, falling back to Qt Multimedia.";
-            return std::make_unique<QtMultimediaBackendHandler>(parent);
+            qCWarning(log_multimedia_backend) << "Unknown backend type requested, falling back to FFmpeg backend.";
+            return std::make_unique<FFmpegBackendHandler>(parent);
     }
 }
 

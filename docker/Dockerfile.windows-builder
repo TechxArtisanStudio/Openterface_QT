@@ -1,0 +1,56 @@
+# Lightweight Ubuntu-based image tailored for cross-building Windows (x86_64) artifacts
+# - installs mingw-w64 cross-compilers, build tools, cmake, ninja
+# - installs Microsoft vcpkg (optional) to easily fetch dependencies for cross builds
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    VCPKG_ROOT=/opt/vcpkg \
+    TZ=UTC
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    build-essential \
+    autoconf \
+    automake \
+    libtool \
+    git \
+    wget \
+    curl \
+    unzip \
+    p7zip-full \
+    python3 \
+    python3-pip \
+    cmake \
+    ninja-build \
+    wget \
+    zip \
+    pkg-config \
+    yasm \
+    nasm \
+    mingw-w64 \
+    mingw-w64-tools \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# Install optional useful utilities
+RUN pip3 install --no-cache-dir meson==1.2.1
+
+WORKDIR /opt
+
+# Install vcpkg (used by the repository in many workflows). This speeds reproducing vcpkg-based flows
+RUN git clone https://github.com/microsoft/vcpkg.git ${VCPKG_ROOT} \
+ && cd ${VCPKG_ROOT} \
+ && git fetch --all --tags || true \
+ && ./bootstrap-vcpkg.sh -disableMetrics
+
+# Add vcpkg to PATH for convenience
+ENV PATH="${VCPKG_ROOT}:$PATH"
+
+# Add a small wrapper script that's executed by the container to build the project
+COPY docker/entrypoint-windows-build.sh /usr/local/bin/entrypoint-windows-build.sh
+RUN chmod +x /usr/local/bin/entrypoint-windows-build.sh
+
+WORKDIR /src
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-windows-build.sh"]

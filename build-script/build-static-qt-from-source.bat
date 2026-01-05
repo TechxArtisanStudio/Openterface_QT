@@ -3,19 +3,77 @@ REM To install OpenTerface QT with static OpenSSL support, you can run this scri
 
 setlocal enabledelayedexpansion
 
+REM Accept optional first argument as SOURCE_DIR (so CI can pass an explicit path)
+REM Usage: build-static-qt-from-source.bat [<SOURCE_DIR>] [<VCPKG_ROOT>]
+if "%~1"=="" (
+    set "SOURCE_DIR=%cd%"
+) else (
+    set "SOURCE_DIR=%~1"
+)
+
+if "%~2"=="" (
+    if not defined VCPKG_ROOT set "VCPKG_ROOT=C:\vcpkg"
+) else (
+    set "VCPKG_ROOT=%~2"
+)
+
+REM Set paths
+set "QT_SOURCE=C:\Qt6-source"
+set "QT_INSTALL=C:\Qt6"
+set "MINGW_PATH=C:\mingw64"
+if "%OPENSSL_ROOT%"=="" (
+    set "OPENSSL_ROOT=%VCPKG_ROOT%\installed\x64-mingw-static"
+)
+
 REM Configuration
-set QT_VERSION=6.5.3
-set QT_MAJOR_VERSION=6.5
+set QT_VERSION=6.6.3
+set QT_MAJOR_VERSION=6.6
 set INSTALL_PREFIX=C:\Qt6
 set BUILD_DIR=%cd%\qt-build
 set MODULES=qtbase qtshadertools qtmultimedia qtsvg qtserialport qttools
 set DOWNLOAD_BASE_URL=https://download.qt.io/archive/qt/%QT_MAJOR_VERSION%/%QT_VERSION%/submodules
-set VCPKG_DIR=C:\vcpkg
-set OPENSSL_DIR=%VCPKG_DIR%\installed\x64-mingw-static
+set VCPKG_DIR=D:\vcpkg
+
+REM Allow openssl to come from either the central vcpkg installation or a
+REM repo-local manifest install (vcpkg_installed). Prefer central vcpkg but
+REM fall back to repo-local to avoid CI failures when vcpkg copies installs
+REM into the repository instead of the shared vcpkg folder.
+set OPENSSL_DIR=%OPENSSL_ROOT%
 set OPENSSL_LIB_DIR=%OPENSSL_DIR%\lib
 set OPENSSL_INCLUDE_DIR=%OPENSSL_DIR%\include
 
-set PATH=C:\ProgramData\chocolatey\bin;C:\ProgramData\chocolatey\lib\ninja\tools;C:\mingw64\bin;%PATH%
+REM If the central vcpkg installed libraries are missing, try a repo-local manifest
+if not exist "%OPENSSL_LIB_DIR%" (
+    echo INFO: Central vcpkg path "%OPENSSL_LIB_DIR%" not found.
+    set "REPO_OPENSSL_DIR="
+    if defined SOURCE_DIR (
+        set "REPO_OPENSSL_DIR=%SOURCE_DIR%\vcpkg_installed\x64-mingw-static"
+    ) else (
+        REM fallback: derive the repository root from the script location so we don't
+        REM depend on %CD% (which can be "." in some environments).
+        REM %~dp0 points to this script's folder (ends with a backslash), so pushd to
+        REM "%~dp0.." (parent directory) to reliably get the repo root in %CD%.
+        pushd "%~dp0.." >nul 2>&1
+        if %errorlevel% neq 0 (
+            REM pushd failed, fall back to current dir
+            set "REPO_OPENSSL_DIR=%CD%\vcpkg_installed\x64-mingw-static"
+        ) else (
+            set "REPO_OPENSSL_DIR=%CD%\vcpkg_installed\x64-mingw-static"
+            popd >nul 2>&1
+        )
+    )
+    if exist "%REPO_OPENSSL_DIR%\lib" (
+        echo INFO: Found repo-local OpenSSL at "%REPO_OPENSSL_DIR%" - using it.
+        set "OPENSSL_DIR=%REPO_OPENSSL_DIR%"
+        rem Use delayed expansion so OPENSSL_LIB_DIR evaluates the updated OPENSSL_DIR
+        set "OPENSSL_LIB_DIR=!OPENSSL_DIR!\lib"
+        set "OPENSSL_INCLUDE_DIR=!OPENSSL_DIR!\include"
+    ) else (
+        echo INFO: Repo-local OpenSSL not found at "%REPO_OPENSSL_DIR%" either; will try to install later - may fail with diagnostics.
+    )
+)
+
+set PATH=C:\ProgramData\chocolatey\bin;C:\ProgramData\chocolatey\lib\ninja\tools;%EXTERNAL_MINGW%\bin;%PATH%
 
 REM Check for Ninja
 where ninja >nul 2>nul
@@ -25,15 +83,36 @@ if %errorlevel% neq 0 (
 )
 
 REM Check for OpenSSL static libraries
+echo Listing candidate OpenSSL library folder: %OPENSSL_LIB_DIR%
+if not exist "%OPENSSL_LIB_DIR%" (
+    echo ERROR: OpenSSL library folder not found at %OPENSSL_LIB_DIR%
+    echo Please ensure vcpkg installed OpenSSL for triplet x64-mingw-static or run vcpkg install --triplet=x64-mingw-static from the repository manifest.
+    exit /b 1
+)
 dir "%OPENSSL_LIB_DIR%"
+dir "%OPENSSL_INCLUDE_DIR%"
+
 if not exist "%OPENSSL_LIB_DIR%\libcrypto.a" (
-    echo OpenSSL static library libcrypto.a not found in %OPENSSL_LIB_DIR%. Please install OpenSSL static libraries.
+    echo ERROR: OpenSSL static library libcrypto.a not found in %OPENSSL_LIB_DIR%.
+    echo Please install OpenSSL static libraries: vcpkg install openssl --triplet=x64-mingw-static.
     exit /b 1
 )
+
 if not exist "%OPENSSL_LIB_DIR%\libssl.a" (
-    echo OpenSSL static library libssl.a not found in %OPENSSL_LIB_DIR%. Please install OpenSSL static libraries.
+    echo ERROR: OpenSSL static library libssl.a not found in %OPENSSL_LIB_DIR%.
+    echo Please install OpenSSL static libraries: vcpkg install openssl --triplet=x64-mingw-static.
     exit /b 1
 )
+
+REM Verify OpenSSL headers are present
+if not exist "%OPENSSL_INCLUDE_DIR%\openssl\ssl.h" (
+    echo ERROR: OpenSSL headers not found at %OPENSSL_INCLUDE_DIR%\openssl
+    echo Directory listing of include folder:
+    dir "%OPENSSL_INCLUDE_DIR%" /s
+    echo Please ensure vcpkg installed OpenSSL headers properly.
+    exit /b 1
+)
+echo OpenSSL headers verified at %OPENSSL_INCLUDE_DIR%\openssl\ssl.h
 
 REM Create build directory
 mkdir "%BUILD_DIR%"
@@ -62,16 +141,32 @@ cmake -G "Ninja" ^
     -DFEATURE_icu=OFF ^
     -DFEATURE_opengl=ON ^
     -DFEATURE_openssl=ON ^
-    -DOPENSSL_DIR="%OPENSSL_DIR%" ^
+    -DINPUT_openssl=linked ^
+    -DOPENSSL_ROOT_DIR="%OPENSSL_DIR%" ^
     -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
-    -DOPENSSL_LIB_DIR="%OPENSSL_LIB_DIR%" ^
+    -DOPENSSL_CRYPTO_LIBRARY="%OPENSSL_LIB_DIR%\libcrypto.a" ^
+    -DOPENSSL_SSL_LIBRARY="%OPENSSL_LIB_DIR%\libssl.a" ^
     -DCMAKE_C_FLAGS="-I%OPENSSL_INCLUDE_DIR%" ^
     -DCMAKE_CXX_FLAGS="-I%OPENSSL_INCLUDE_DIR%" ^
-    -DOPENSSL_LIBRARIES="%OPENSSL_LIB_DIR%\libssl.a;%OPENSSL_LIB_DIR%\libcrypto.a;-lws2_32;-lcrypt32" ^
+    -DCMAKE_EXE_LINKER_FLAGS="-L%OPENSSL_LIB_DIR% -lssl -lcrypto -lws2_32 -lcrypt32 -ladvapi32 -luser32 -lgdi32" ^
+    -DCMAKE_REQUIRED_LIBRARIES="ws2_32;crypt32;advapi32;user32;gdi32" ^
     -DCMAKE_TOOLCHAIN_FILE="%VCPKG_DIR%\scripts\buildsystems\vcpkg.cmake" ^
+    -DVCPKG_TARGET_TRIPLET=x64-mingw-static ^
     ..
+if %errorlevel% neq 0 (
+    echo CMake configuration failed for qtbase
+    exit /b 1
+)
 ninja
+if %errorlevel% neq 0 (
+    echo Build failed for qtbase
+    exit /b 1
+)
 ninja install
+if %errorlevel% neq 0 (
+    echo Install failed for qtbase
+    exit /b 1
+)
 
 REM Build other modules (including qttools)
 for %%m in (%MODULES%) do (
@@ -83,13 +178,28 @@ for %%m in (%MODULES%) do (
             -DCMAKE_INSTALL_PREFIX="%INSTALL_PREFIX%" ^
             -DCMAKE_PREFIX_PATH="%INSTALL_PREFIX%" ^
             -DBUILD_SHARED_LIBS=OFF ^
-            -DOPENSSL_DIR="%OPENSSL_DIR%" ^
+            -DOPENSSL_ROOT_DIR="%OPENSSL_DIR%" ^
             -DOPENSSL_INCLUDE_DIR="%OPENSSL_INCLUDE_DIR%" ^
-            -DOPENSSL_LIB_DIR="%OPENSSL_LIB_DIR%" ^
+            -DOPENSSL_CRYPTO_LIBRARY="%OPENSSL_LIB_DIR%\libcrypto.a" ^
+            -DOPENSSL_SSL_LIBRARY="%OPENSSL_LIB_DIR%\libssl.a" ^
+            -DCMAKE_EXE_LINKER_FLAGS="-L%OPENSSL_LIB_DIR% -lssl -lcrypto -lws2_32 -lcrypt32 -ladvapi32 -luser32 -lgdi32" ^
             -DCMAKE_TOOLCHAIN_FILE="%VCPKG_DIR%\scripts\buildsystems\vcpkg.cmake" ^
+            -DVCPKG_TARGET_TRIPLET=x64-mingw-static ^
             ..
+        if !errorlevel! neq 0 (
+            echo CMake configuration failed for %%m
+            exit /b 1
+        )
         ninja
+        if !errorlevel! neq 0 (
+            echo Build failed for %%m
+            exit /b 1
+        )
         ninja install
+        if !errorlevel! neq 0 (
+            echo Install failed for %%m
+            exit /b 1
+        )
     )
 )
 
@@ -109,3 +219,16 @@ if exist "%INSTALL_PREFIX%\bin\lupdate.exe" (
     echo Error: lupdate.exe not found in %INSTALL_PREFIX%\bin
     exit /b 1
 )
+
+REM Verify Qt configuration includes OpenSSL support
+echo Verifying Qt OpenSSL configuration...
+if exist "%INSTALL_PREFIX%\bin\qmake.exe" (
+    "%INSTALL_PREFIX%\bin\qmake.exe" -query QT_INSTALL_LIBS
+    echo Checking for OpenSSL feature in Qt...
+    findstr /C:"openssl" "%INSTALL_PREFIX%\mkspecs\qconfig.pri" && echo "Qt built with OpenSSL support" || echo "Warning: OpenSSL support not detected in Qt configuration"
+) else (
+    echo Error: qmake.exe not found in %INSTALL_PREFIX%\bin
+    exit /b 1
+)
+
+echo Qt static build with OpenSSL completed successfully!

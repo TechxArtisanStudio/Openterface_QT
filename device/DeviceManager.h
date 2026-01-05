@@ -5,11 +5,16 @@
 #include <QTimer>
 #include <QThread>
 #include <QMutex>
+#include <QSet>
 #include <QLoggingCategory>
 #include "DeviceInfo.h"
 #include "HotplugMonitor.h"
+#include "../video/videohid.h"
 
 class AbstractPlatformDeviceManager;
+class SerialPortManager;
+class VideoHid;
+class AudioManager;
 
 Q_DECLARE_LOGGING_CATEGORY(log_device_manager)
 
@@ -40,6 +45,11 @@ public:
     QList<DeviceInfo> getDevicesByPortChain(const QString& portChain);
     QStringList getAvailablePortChains();
     
+    // USB 3.0 Companion PortChain support
+    QString getCompositePortChain(const QString& requestedPortChain);
+    QString getSerialPortChain(const QString& requestedPortChain);
+    QString getCompanionPortChain(const QString& portChain);
+    
     // Device selection
     DeviceInfo selectDeviceByPortChain(const QString& portChain);
     DeviceInfo getFirstAvailableDevice();
@@ -50,36 +60,74 @@ public:
         bool cameraSuccess;
         bool hidSuccess; 
         bool serialSuccess;
+        bool audioSuccess;
         QString statusMessage;
         DeviceInfo selectedDevice;
     };
     DeviceSwitchResult switchToDeviceByPortChain(const QString& portChain);
     
-    // Complete device switching (with camera manager) - for use by UI components
+    // Complete device switching (with all managers) - for use by UI components
+    // Example usage:
+    //   CameraManager* camera = ...;
+    //   auto result = deviceManager.switchToDeviceByPortChainComplete(portChain, camera);
+    //   if (result.success) { /* all components switched successfully */ }
     template<typename CameraManagerType>
-    DeviceSwitchResult switchToDeviceByPortChainWithCamera(const QString& portChain, CameraManagerType* cameraManager) {
+    DeviceSwitchResult switchToDeviceByPortChainComplete(const QString& portChain, CameraManagerType* cameraManager) {
         DeviceSwitchResult result = switchToDeviceByPortChain(portChain);
         
         // Handle camera switching if camera manager is provided and device has camera
-        if (cameraManager && result.selectedDevice.isValid() && result.selectedDevice.hasCameraDevice()) {
+        if (cameraManager && result.selectedDevice.hasCameraDevice()) {
             result.cameraSuccess = cameraManager->switchToCameraDeviceByPortChain(portChain);
             if (result.cameraSuccess) {
                 qCInfo(log_device_manager) << "✓ Camera switched to device at port:" << portChain;
             } else {
                 qCWarning(log_device_manager) << "Failed to switch camera to device at port:" << portChain;
-                // Update status message to include camera failure
-                if (result.success) {
-                    result.statusMessage += " (Camera switch failed)";
-                    result.success = false; // Mark as failure if camera failed
-                }
+                result.statusMessage += " (Camera switch failed)";
+            }
+        } else if (result.selectedDevice.hasCameraDevice()) {
+            result.cameraSuccess = false; // Camera device exists but no manager provided
+            result.statusMessage += " (Camera manager not provided)";
+        } else {
+            result.cameraSuccess = true; // No camera device to switch
+        }
+        
+        // Update overall success based on component switches (audio already handled in basic method)
+        bool allComponentsSuccessful = result.serialSuccess && result.hidSuccess && result.cameraSuccess && result.audioSuccess;
+        if (result.success && !allComponentsSuccessful) {
+            result.success = false; // Mark as failure if any component failed
+        }
+        
+        // Update status message with overall result
+        if (result.success && allComponentsSuccessful) {
+            result.statusMessage = QString("Successfully switched all components to device at port %1").arg(portChain);
+        } else if (!result.success) {
+            if (result.statusMessage.isEmpty()) {
+                result.statusMessage = QString("Failed to switch to device at port %1").arg(portChain);
             }
         }
         
         return result;
     }
     
+    // Keep the original method for backward compatibility
+    template<typename CameraManagerType>
+    DeviceSwitchResult switchToDeviceByPortChainWithCamera(const QString& portChain, CameraManagerType* cameraManager) {
+        return switchToDeviceByPortChainComplete(portChain, cameraManager);
+    }
+    
+    // Helper methods for component switching
+    bool switchSerialPortByPortChain(const QString& portChain);
+    bool switchHIDDeviceByPortChain(const QString& portChain);
+    bool switchAudioDeviceByPortChain(const QString& portChain);
+
+    // Chipset detection helpers
+    VideoChipType getChipTypeForDevice(const DeviceInfo& device);
+    VideoChipType getChipTypeForPortChain(const QString& portChain);
+    bool isMS2109(const DeviceInfo& device);
+    bool isMS2130S(const DeviceInfo& device);
+    
     // Hotplug monitoring
-    void startHotplugMonitoring(int intervalMs = 5000);
+    void startHotplugMonitoring(int intervalMs = 3000);
     void stopHotplugMonitoring();
     bool isMonitoring() const { return m_monitoring; }
     
@@ -124,6 +172,7 @@ private:
     mutable QMutex m_mutex;
     bool m_monitoring;
     QString m_platformName;
+    QSet<QString> m_lastSerialPorts; // track systemLocation() of last serial ports to avoid unnecessary discover
 };
 
 #endif // DEVICEMANAGER_H

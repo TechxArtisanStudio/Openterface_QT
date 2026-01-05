@@ -66,6 +66,7 @@ private:
     // Generation-specific device discovery methods
     QList<DeviceInfo> discoverGeneration1DevicesLinux();
     QList<DeviceInfo> discoverGeneration2DevicesLinux();
+    QList<DeviceInfo> discoverGeneration3DevicesLinux();
     QList<DeviceInfo> processDeviceMap(const QList<UdevDeviceData>& serialDevices, 
                                      const QList<UdevDeviceData>& usbDevices, 
                                      QMap<QString, DeviceInfo>& deviceMap, 
@@ -86,7 +87,7 @@ private:
     // Cache management
     QList<DeviceInfo> m_cachedDevices;
     QDateTime m_lastCacheUpdate;
-    static const int CACHE_TIMEOUT_MS = 1000; // 1 second cache
+    static const int CACHE_TIMEOUT_MS = 5000; // 1 second cache
     
     // Async discovery
     QFutureWatcher<QList<DeviceInfo>>* m_futureWatcher;

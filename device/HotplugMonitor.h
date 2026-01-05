@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QTimer>
 #include <QDateTime>
+#include <QMutex>
 #include <functional>
 #include "DeviceInfo.h"
 
@@ -36,7 +37,7 @@ public:
     void removeCallback(ChangeCallback callback);
     void clearCallbacks();
     
-    void start(int pollIntervalMs = 5000);
+    void start(int pollIntervalMs = 3000);
     void stop();
     
     bool isRunning() const { return m_running; }
@@ -44,7 +45,7 @@ public:
     
     DeviceChangeEvent getCurrentState() const;
     DeviceChangeEvent getInitialState() const;
-    QList<DeviceInfo> getLastSnapshot() const { return m_lastSnapshot; }
+    QList<DeviceInfo> getLastSnapshot() const;
     
     // Statistics
     int getChangeEventCount() const { return m_changeEventCount; }
@@ -78,6 +79,7 @@ private:
     int m_pollInterval;
     int m_changeEventCount;
     QDateTime m_lastChangeTime;
+    mutable QMutex m_mutex;
 };
 
 #endif // HOTPLUGMONITOR_H

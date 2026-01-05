@@ -1,186 +1,705 @@
-name: Portable Build for windows
+name: Build / Openterface Windows Portable (Static)
 
 on:
   push:
-    branches: ["main", "dev_20250611_add_vertical_screen_operate"]
+    branches: [ main, "dev_1223_portable_build" ]
   pull_request:
-    branches: ["dev"]
+    branches: [ main ]
   workflow_dispatch:
 
-defaults:
-  run:
-    shell: cmd
-
 env:
-  ARTIFACT: openterfaceQT.windows.amd64.portable.exe
-  SOURCE_DIR: ${{ github.workspace }}
-  QT_VERSION: 6.5.3 
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  ORGANIZATION_NAME: "TechxArtisan"
-  VCPKG_DIR: C:\vcpkg
-  OPENSSL_DIR: C:\vcpkg\installed\x64-mingw-static
+  # MINGW_ROOT is set dynamically from the msys2 setup step to avoid hardcoded C:\\ paths
+  QT_PREFIX: C:\\Qt6
+  FFMPEG_PREFIX: C:\\ffmpeg-static
+  SOURCE_DIR: D:\\a\\openterface\\openterface
 
 jobs:
-  build:
+  setup-env:
+    name: Setup Build Environment
     runs-on: windows-2022
+    outputs:
+      qt-cache-hit: ${{ steps.cache-qt.outputs.cache-hit }}
+      ffmpeg-cache-hit: ${{ steps.cache-ffmpeg.outputs.cache-hit }}
     steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-
-      - name: Cache Qt Build
-        id: cache-qt
-        uses: actions/cache@v3
-        with:
-          path: C:\Qt6
-          key: qt-6.5.3-mingw-windows-static-openssl
-          restore-keys: |
-            qt-6.5.3-mingw-windows-static-openssl
-
-      - name: Cache MinGW and Ninja Build
-        id: cache-mingw
-        uses: actions/cache@v3
-        with:
-          path: |
-            C:\mingw64
-            C:\ProgramData\chocolatey\lib\ninja
-          key: mingw-ninja-windows-static
-          restore-keys: |
-            mingw-ninja-windows-static
-
-      - name: Cache vcpkg
-        id: cache-vcpkg
-        uses: actions/cache@v3
-        with:
-          path: C:\vcpkg
-          key: vcpkg-mingw-static-openssl-v2
-          restore-keys: |
-            vcpkg-mingw-static-openssl-v2
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
-      - name: Install Build environment
-        if: steps.cache-mingw.outputs.cache-hit != 'true'
-        run: |
-          echo "Installing Ninja"
-          choco install ninja -y
-    
-          echo "Downloading pre-compiled static build of MinGW-w64"
-          curl -L -o mingw-w64.zip https://sourceforge.net/projects/mingw-w64/files/latest/download
-          mkdir C:\mingw64
-          tar -xf mingw-w64.zip -C C:\mingw64 --strip-components=1
-    
-          echo "Setting up PATH for MinGW-w64"
-          set PATH=C:\mingw64\bin;%PATH%
-          g++ --version || (echo "g++ installation failed. Please check the installation." && exit 1)
+      - name: Setup MSYS2
+        id: setup-msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          location: C:\msys64
+          install: |
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-yasm
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-bzip2
+            mingw-w64-x86_64-xz
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-libmfx
+            mingw-w64-x86_64-libiconv
+            mingw-w64-x86_64-libb2
+            mingw-w64-x86_64-brotli
+            mingw-w64-x86_64-libjpeg-turbo
+            mingw-w64-x86_64-libusb
+            diffutils
+            make
+            libtool
+            git
+            perl
 
-      - name: Install vcpkg and OpenSSL
-        if: steps.cache-vcpkg.outputs.cache-hit != 'true'
-        run: |
-          echo "Installing vcpkg"
-          if not exist "%VCPKG_DIR%" (
-            git clone https://github.com/microsoft/vcpkg.git %VCPKG_DIR%
-            cd %VCPKG_DIR%
-            call bootstrap-vcpkg.bat
-          )
-          echo "Installing OpenSSL static libraries"
-          %VCPKG_DIR%\vcpkg update
-          %VCPKG_DIR%\vcpkg install openssl:x64-mingw-static zlib:x64-mingw-static --triplet x64-mingw-static --host-triplet x64-mingw-static --clean-after-build
-          %VCPKG_DIR%\vcpkg integrate install
+      - name: Cache Qt static build
+        id: cache-qt
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.QT_PREFIX }}
+          key: qt-6.6.3-msys2-mingw64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
-      - name: check OpenSSL installation
-        run: |
-          dir %OPENSSL_DIR%\lib
+      - name: Cache FFmpeg static build
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.FFMPEG_PREFIX }}
+          key: ffmpeg-static-msys2-mingw64-windows-v2-${{ hashFiles('build-script/build-static-ffmpeg-windows.sh') }}
 
-      - name: Build Qt Statically
-        if: steps.cache-qt.outputs.cache-hit != 'true'
-        run: |
-          call build-script/build-static-qt-from-source.bat
+  build-qt:
+    name: Build Qt 6.6.3 (Static)
+    needs: setup-env
+    runs-on: windows-2022
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Create build directory
-        run: |
-          mkdir ${{ runner.temp }}\build
-          
-      - name: Prepare .pro File for Static Build
-        run: |
-          echo "Checking and appending static build configuration to .pro file..."
-          if not exist "${{ env.SOURCE_DIR }}\openterfaceQT.pro" (
-            echo "Error: .pro file not found."
-            exit 1
-          )
-         
-          findstr /C:"CONFIG += static release" "${{ env.SOURCE_DIR }}\openterfaceQT.pro" >nul
-          if errorlevel 1 (
-            echo "" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-            echo "CONFIG += static release" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-            echo "Static build configuration added to .pro file."
-            set ERRORLEVEL=0
-          ) else (
-            echo "Static build configuration already present in .pro file."
-          )
-          
-          echo "QMAKE_LFLAGS += -static -static-libgcc -static-libstdc++ -static-libgfortran -L%OPENSSL_DIR%\lib -lssl -lcrypto -lws2_32 -lcrypt32" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-          echo "QMAKE_CXXFLAGS += -static -static-libgcc -static-libstdc++ -I%OPENSSL_DIR%\include" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-          echo "QMAKE_LINK = g++ -Wl,-subsystem,windows" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-          echo "CONFIG += static staticlib" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-          echo "INCLUDEPATH += %OPENSSL_DIR%\include" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
-          echo "LIBS += -L%OPENSSL_DIR%\lib -lssl -lcrypto -lws2_32 -lcrypt32" >> "${{ env.SOURCE_DIR }}\openterfaceQT.pro"
+      - name: Check Qt cache status
+        id: check-qt-cache
+        run: echo "cache-hit=${{ needs.setup-env.outputs.qt-cache-hit }}" >> $GITHUB_OUTPUT
 
-      - name: Prepare Driver Files
-        run: |
-          mkdir ${{ env.SOURCE_DIR }}\drivers
-          mkdir ${{ env.SOURCE_DIR }}\drivers\windows
-          copy driver\windows\* ${{ env.SOURCE_DIR }}\drivers\windows
+      - name: Setup MSYS2
+        id: setup-msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          location: C:\msys64
+          install: |
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-yasm
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-bzip2
+            mingw-w64-x86_64-xz
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-libmfx
+            mingw-w64-x86_64-libiconv
+            mingw-w64-x86_64-libb2
+            mingw-w64-x86_64-brotli
+            mingw-w64-x86_64-libjpeg-turbo
+            mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-lld
+            diffutils
+            make
+            libtool
+            git
+            perl
 
-      - name: Update and Release Translations
-        working-directory: ${{ runner.temp }}\build
+      - name: Build Qt statically from source
+        if: needs.setup-env.outputs.qt-cache-hit != 'true'
+        shell: msys2 {0}
+        env:
+          # Ensure correct compiler paths without duplication
+          CC: /mingw64/bin/gcc
+          CXX: /mingw64/bin/g++
+          PATH: /mingw64/bin:/usr/bin:/bin
         run: |
-          echo "Setting up Qt tools path..."
-          set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
-          echo "Verifying Qt tools..."
-          if not exist "C:\Qt6\bin\lupdate.exe" (
-            echo "Error: lupdate.exe not found in C:\Qt6\bin"
-            exit 1
-          )
-          echo "Running lupdate..."
-          C:\Qt6\bin\lupdate.exe "${{ env.SOURCE_DIR }}\openterfaceQT.pro" || (echo "lupdate failed" && exit 1)
-          echo "Running lrelease..."
-          C:\Qt6\bin\lrelease.exe "${{ env.SOURCE_DIR }}\openterfaceQT.pro" || (echo "lrelease failed" && exit 1)
-
-      - name: Build Portable Executable
-        working-directory: ${{ runner.temp }}\build
-        run: |
-          echo "Checking Qt configuration..."
-          C:\Qt6\bin\qmake -query
-          set PATH=C:\Qt6\bin;C:\mingw64\bin;%PATH%
-          set INCLUDE=C:\Qt6\include;%OPENSSL_DIR%\include;%INCLUDE%
-          
-          echo "Building with qmake..."
-          
-          qmake -r "${{ env.SOURCE_DIR }}\openterfaceQT.pro" "CONFIG+=static staticlib" "QMAKE_LFLAGS+=-static -L%OPENSSL_DIR%\lib -lssl -lcrypto -lws2_32 -lcrypt32" || (echo "qmake failed. Please check the .pro file and paths." && exit 1)
-          echo "Building with mingw32-make..."
-          set MINGW_STATIC_BUILD=1
-          mingw32-make VERBOSE=1 -j2 || (echo "mingw32-make failed. Please check the build configuration." && exit 1)
-          set ERRORLEVEL=0
-          
-          if not exist release\openterfaceQT.exe (
-            echo "Error: Failed to build openterfaceQT.exe"
-            exit 1
-          )
+          ./build-script/build-static-qt-from-source.sh
         
-          echo "Stripping debug symbols from executable..."
-          strip -s release\openterfaceQT.exe || (echo "Failed to strip debug symbols" && exit 1)
-          
-          echo "Creating portable package..."
-          mkdir package
-          copy release\openterfaceQT.exe package\openterfaceQT-portable.exe
+      - name: Verify Qt build succeeded
+        if: needs.setup-env.outputs.qt-cache-hit != 'true'
+        shell: powershell
+        run: |
+          if (-not (Test-Path "${{ env.QT_PREFIX }}\lib\cmake\Qt6\Qt6Config.cmake")) {
+            throw "Qt build failed - Qt6Config.cmake not found"
+          }
+          Write-Host "SUCCESS: Qt build verified"
 
-      - name: Save build artifact
+      - name: Upload Qt artifact
+        if: needs.setup-env.outputs.qt-cache-hit != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT }}
-          path: ${{ runner.temp }}\build\package\openterfaceQT-portable.exe
-          if-no-files-found: error
+          name: qt-static
+          path: ${{ env.QT_PREFIX }}
+          retention-days: 1
+
+      - name: Save Qt cache
+        if: needs.setup-env.outputs.qt-cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.QT_PREFIX }}
+          key: qt-6.6.3-msys2-mingw64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+
+  build-ffmpeg:
+    name: Build FFmpeg (Static)
+    needs: setup-env
+    runs-on: windows-2022
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check FFmpeg cache status
+        id: check-ffmpeg-cache
+        run: echo "cache-hit=${{ needs.setup-env.outputs.ffmpeg-cache-hit }}" >> $GITHUB_OUTPUT
+
+      - name: Setup MSYS2
+        id: setup-msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          location: C:\msys64
+          install: |
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-yasm
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-bzip2
+            mingw-w64-x86_64-xz
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-libmfx
+            mingw-w64-x86_64-libiconv
+            mingw-w64-x86_64-libusb
+            diffutils
+            make
+            libtool
+            git
+            perl
+
+      - name: Build FFmpeg statically
+        if: needs.setup-env.outputs.ffmpeg-cache-hit != 'true'
+        shell: msys2 {0}
+        run: |
+          ./build-script/build-static-ffmpeg-windows.sh
+        env:
+          FFMPEG_PREFIX: /c/ffmpeg-static
+          SKIP_PACKAGE_MINGW: 1
+
+      - name: Verify FFmpeg build succeeded
+        if: needs.setup-env.outputs.ffmpeg-cache-hit != 'true'
+        shell: powershell
+        run: |
+          if (-not (Test-Path "${{ env.FFMPEG_PREFIX }}\lib\libavcodec.a")) {
+            throw "FFmpeg build failed - libavcodec.a not found"
+          }
+          Write-Host "SUCCESS: FFmpeg build verified"
+
+      - name: Upload FFmpeg artifact
+        if: needs.setup-env.outputs.ffmpeg-cache-hit != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-static
+          path: ${{ env.FFMPEG_PREFIX }}
+          retention-days: 1
+
+      - name: Save FFmpeg cache
+        if: needs.setup-env.outputs.ffmpeg-cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.FFMPEG_PREFIX }}
+          key: ffmpeg-static-msys2-mingw64-windows-v2-${{ hashFiles('build-script/build-static-ffmpeg-windows.sh') }}
+
+  build-project:
+    name: Build Main Project (Static & Portable)
+    needs: [setup-env, build-qt, build-ffmpeg]
+    runs-on: windows-2022
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        id: setup-msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          location: C:\msys64
+          install: |
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-yasm
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-bzip2
+            mingw-w64-x86_64-xz
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-libmfx
+            mingw-w64-x86_64-libiconv
+            mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-brotli
+            diffutils
+            make
+            libtool
+            git
+            perl
+
+      - name: Fix hardcoded MSYS paths in CMake files
+        shell: powershell
+        run: |
+          Write-Host "Replacing hardcoded C:/msys64/mingw64 paths with C:/msys64/mingw64"
+          $mingwPath = "C:/msys64/mingw64"
+          Write-Host "Target MINGW path = $mingwPath"
+          
+          Get-ChildItem -Path cmake -Filter *.cmake -Recurse | ForEach-Object {
+            $content = Get-Content $_.FullName -Raw
+            if ($content -match 'C:/msys64/msys64') {
+              Write-Host "Fixing invalid path in $($_.FullName)"
+              $content = $content -replace 'C:/msys64/msys64/mingw64', $mingwPath
+              Set-Content -Path $_.FullName -Value $content -NoNewline
+            }
+          }
+
+      - name: Fix Qt CMake config files for invalid MINGW paths
+        shell: powershell
+        run: |
+          Write-Host "Scanning Qt6 CMake files for hardcoded library paths..."
+          $qtPath = "C:\Qt6"
+          if (Test-Path $qtPath) {
+            Get-ChildItem -Path $qtPath -Filter "*.cmake" -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+              $content = Get-Content $_.FullName -Raw -ErrorAction SilentlyContinue
+              if ($content) {
+                $modified = $false
+                
+                # Fix /lib/lib paths (invalid absolute paths)
+                if ($content -match '/lib/lib[a-z0-9_\-]+\.a') {
+                  Write-Host "  Fixing /lib/lib* paths in $($_.Name)"
+                  $content = $content -replace '(["\s;])/lib/(lib[a-z0-9_\-]+\.a)', '$1C:/msys64/mingw64/lib/$2'
+                  $modified = $true
+                }
+                
+                # Fix C:/msys64/msys64 duplicate paths
+                if ($content -match 'C:/msys64/msys64') {
+                  Write-Host "  Fixing duplicate msys64 path in $($_.Name)"
+                  $content = $content -replace 'C:/msys64/msys64/mingw64', 'C:/msys64/mingw64'
+                  $modified = $true
+                }
+                
+                # Replace DLL references with static library equivalents
+                if ($content -match 'libzstd\.dll') {
+                  Write-Host "  Replacing libzstd.dll with static library in $($_.Name)"
+                  $content = $content -replace 'libzstd\.dll', 'libzstd.a'
+                  $modified = $true
+                }
+                
+                # Replace absolute library paths with linker flags to let the linker search
+                $systemLibs = @('libz.a', 'libbz2.a', 'libb2.a', 'liblzma.a', 'libmfx.a', 
+                                'libwinpthread.a', 'libiconv.a', 'libbrotlidec.a', 'libbrotlicommon.a',
+                                'libusb-1.0.a', 'libzstd.a', 'libcrypto.a', 'libssl.a')
+                
+                foreach ($lib in $systemLibs) {
+                  $libName = $lib -replace '^lib', '' -replace '\.a$', ''
+                  # Replace full paths like "C:/msys64/mingw64/lib/libz.a" with "-lz"
+                  if ($content -match [regex]::Escape("C:/msys64/mingw64/lib/$lib")) {
+                    Write-Host "  Replacing hardcoded path for $lib with linker flag -l$libName in $($_.Name)"
+                    $content = $content -replace [regex]::Escape("C:/msys64/mingw64/lib/$lib"), "-l$libName"
+                    $modified = $true
+                  }
+                  # Also handle quoted paths
+                  $quotedPath = '"C:/msys64/mingw64/lib/' + $lib + '"'
+                  $quotedReplacement = '"-l' + $libName + '"'
+                  if ($content -match [regex]::Escape($quotedPath)) {
+                    Write-Host "  Replacing quoted hardcoded path for $lib in $($_.Name)"
+                    $content = $content -replace [regex]::Escape($quotedPath), $quotedReplacement
+                    $modified = $true
+                  }
+                }
+                
+                if ($modified) {
+                  Set-Content -Path $_.FullName -Value $content -NoNewline
+                  Write-Host "  Done: Fixed $($_.FullName)"
+                }
+              }
+            }
+            Write-Host "Qt CMake config files scan complete"
+          } else {
+            Write-Host "Qt6 path not found, skipping"
+          }
+
+      - name: Fix FFmpeg CMake to include Brotli libraries
+        shell: powershell
+        run: |
+          Write-Host "Adding Brotli library dependencies to FFmpeg.cmake"
+          $ffmpegCmake = "cmake\FFmpeg.cmake"
+          
+          if (Test-Path $ffmpegCmake) {
+            $content = Get-Content $ffmpegCmake -Raw
+            
+            # Check if Brotli libraries are already present
+            if ($content -notmatch 'libbrotli') {
+              Write-Host "Adding Brotli libraries (libbrotlidec, libbrotlienc, libbrotlicommon)"
+              
+              # Find the _FFMPEG_STATIC_DEPS section and add after liblzma
+              # Order matters: dec/enc before common
+              $pattern = '(\$\{MINGW_ROOT\}/lib/liblzma\.a")'
+              $replacement = '$1' + "`n" + '                    "${MINGW_ROOT}/lib/libbrotlidec.a"' + "`n" + '                    "${MINGW_ROOT}/lib/libbrotlienc.a"' + "`n" + '                    "${MINGW_ROOT}/lib/libbrotlicommon.a"'
+              
+              $content = $content -replace $pattern, $replacement
+              
+              Set-Content -Path $ffmpegCmake -Value $content -NoNewline
+              Write-Host "Successfully added Brotli libraries to FFmpeg.cmake"
+            } else {
+              Write-Host "Brotli libraries already present in FFmpeg.cmake"
+            }
+          } else {
+            Write-Host "Warning: FFmpeg.cmake not found at $ffmpegCmake"
+          }
+
+      - name: Download Qt artifact
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: qt-static
+          path: C:\
+          if-no-files-found: warn
+
+      - name: Restore Qt cache
+        id: restore-qt
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.QT_PREFIX }}
+          key: qt-6.6.3-msys2-mingw64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+
+      - name: Show Qt cache restore result
+        run: |
+          echo "qt-cache-hit=${{ steps.restore-qt.outputs.cache-hit }}"
+
+      - name: List Qt directory (PowerShell debug)
+        run: |
+          echo "QT_PREFIX=${{ env.QT_PREFIX }}"
+          if (Test-Path "${{ env.QT_PREFIX }}") { dir "${{ env.QT_PREFIX }}" } else { echo "${{ env.QT_PREFIX }} not found" }
+
+      - name: Download FFmpeg artifact
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ffmpeg-static
+          path: C:\
+          if-no-files-found: warn
+
+      - name: Restore FFmpeg cache
+        id: restore-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.FFMPEG_PREFIX }}
+          key: ffmpeg-static-msys2-mingw64-windows-v2-${{ hashFiles('build-script/build-static-ffmpeg-windows.sh') }}
+
+      - name: Show FFmpeg cache restore result
+        run: |
+          echo "ffmpeg-cache-hit=${{ steps.restore-ffmpeg.outputs.cache-hit }}"
+
+      - name: List FFmpeg directory (PowerShell debug)
+        run: |
+          echo "FFMPEG_PREFIX=${{ env.FFMPEG_PREFIX }}"
+          if (Test-Path "${{ env.FFMPEG_PREFIX }}") { dir "${{ env.FFMPEG_PREFIX }}" } else { echo "${{ env.FFMPEG_PREFIX }} not found" }
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: List Qt/FFmpeg in msys2 (debug)
+        shell: msys2 {0}
+        run: |
+          echo "Listing /c/Qt6 and /c/ffmpeg-static"
+          ls /c/Qt6 || echo "/c/Qt6 not found"
+          ls /c/ffmpeg-static || echo "/c/ffmpeg-static not found"
+          echo "Listing /c/msys64/mingw64/lib for dependencies***************************************************"
+          ls /c/msys64/mingw64/lib || echo "/c/msys64/mingw64/lib not found"
+
+      - name: Debug locate Qt CMake config
+        shell: powershell
+        run: >
+          Write-Host "Looking for Qt*Config.cmake under C:\\Qt6";
+          if (Test-Path "C:\\Qt6") {
+            Get-ChildItem -Path C:\\Qt6 -Recurse -Filter 'Qt*Config.cmake' -ErrorAction SilentlyContinue | ForEach-Object { Write-Host $_.FullName };
+            if (-not (Get-ChildItem -Path C:\\Qt6 -Recurse -Filter 'Qt*Config.cmake' -ErrorAction SilentlyContinue)) { Write-Host "No QtConfig files found under C:\\Qt6" };
+            Write-Host "Listing C:\\Qt6\lib\cmake (if present):";
+            if (Test-Path "C:\\Qt6\\lib\\cmake") { Get-ChildItem "C:\\Qt6\\lib\\cmake" -Recurse | ForEach-Object { Write-Host $_.FullName } } else { Write-Host "C:\\Qt6\\lib\\cmake not found" }
+          } else { Write-Host "C:\\Qt6 not found" }
+
+      - name: Configure CMake (Static Build)
+        shell: msys2 {0}
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm mingw-w64-x86_64-gcc \
+            mingw-w64-x86_64-cmake \
+            mingw-w64-x86_64-make \
+            mingw-w64-x86_64-nasm \
+            mingw-w64-x86_64-yasm \
+            mingw-w64-x86_64-zlib \
+            mingw-w64-x86_64-bzip2 \
+            mingw-w64-x86_64-xz \
+            mingw-w64-x86_64-openssl \
+            mingw-w64-x86_64-libmfx \
+            mingw-w64-x86_64-libiconv \
+            mingw-w64-x86_64-libb2 \
+            mingw-w64-x86_64-brotli \
+            mingw-w64-x86_64-libjpeg-turbo \
+            mingw-w64-x86_64-libusb \
+            mingw-w64-x86_64-zstd
+          
+          # Ensure C:\msys64 symlink exists for Qt CMake files that expect it
+          # In MSYS2, /c/msys64 and /mingw64 are DIFFERENT paths
+          # /mingw64 -> actual mingw64 installation
+          # /c/msys64 -> Windows C:\msys64 path (which may not have mingw64 subdirectory)
+          
+          echo "=== Fixing path mismatch between /mingw64 and /c/msys64/mingw64 ==="
+          
+          # Check if /c/msys64/mingw64/lib exists but is empty
+          if [ ! -f "/c/msys64/mingw64/lib/libz.a" ]; then
+            echo "Libraries not found in /c/msys64/mingw64/lib - creating directory junction"
+            
+            # Remove empty directory if it exists
+            if [ -d "/c/msys64/mingw64" ]; then
+              echo "Removing existing empty /c/msys64/mingw64"
+              rm -rf /c/msys64/mingw64
+            fi
+            
+            # Create directory junction using Windows mklink (works better than ln -s)
+            echo "Creating directory junction from C:\\msys64\\mingw64 to actual mingw64"
+            cmd //c mklink //J "C:\\msys64\\mingw64" "C:\\msys64\\msys64\\mingw64" || {
+              echo "mklink failed, trying direct approach..."
+              # If junction fails, just copy the lib directory
+              mkdir -p /c/msys64/mingw64
+              cp -r /mingw64/lib /c/msys64/mingw64/
+              cp -r /mingw64/bin /c/msys64/mingw64/
+              cp -r /mingw64/include /c/msys64/mingw64/
+            }
+          fi
+          
+          # Verify the fix worked
+          if [ -f "/c/msys64/mingw64/lib/libz.a" ]; then
+            echo "✓ Successfully created path: /c/msys64/mingw64/lib/libz.a now exists"
+          else
+            echo "✗ Failed to create accessible path - build will likely fail"
+            echo "Attempting alternate fix: creating individual symlinks"
+            mkdir -p /c/msys64/mingw64/lib
+            for lib in /mingw64/lib/*.a; do
+              ln -sf "$lib" "/c/msys64/mingw64/lib/$(basename $lib)" 2>/dev/null || cp "$lib" "/c/msys64/mingw64/lib/"
+            done
+            # Check again
+            if [ -f "/c/msys64/mingw64/lib/libz.a" ]; then
+              echo "✓ Symlink/copy approach worked"
+            else
+              echo "✗ All approaches failed"
+              exit 1
+            fi
+          fi
+          
+          # Use consistent MSYS2 path - always /mingw64 within MSYS2 shell
+          MSYS_MINGW_PATH="/mingw64"
+          echo "MSYS_MINGW_PATH=$MSYS_MINGW_PATH"
+          
+          # Fix PATH to ensure correct tools are used (no duplicate msys64)
+          export PATH="/mingw64/bin:/usr/bin:/bin:$PATH"
+          echo "PATH=$PATH"
+          
+          # Verify tool paths to ensure no C:/msys64/msys64 duplication
+          echo ""
+          echo "=== Verifying tool paths ==="
+          which gcc
+          which g++
+          which cmake
+          which mingw32-make
+          echo ""
+          
+          # Verify these resolve to correct paths (not C:/msys64/msys64)
+          if which gcc | grep -q "msys64/msys64"; then
+            echo "ERROR: gcc path contains duplicate msys64!"
+            exit 1
+          fi
+          if which cmake | grep -q "msys64/msys64"; then
+            echo "ERROR: cmake path contains duplicate msys64!"
+            exit 1
+          fi
+
+          # Set pkg-config path
+          export PKG_CONFIG_PATH="${MSYS_MINGW_PATH}/lib/pkgconfig:${MSYS_MINGW_PATH}/share/pkgconfig"
+          echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
+          
+          # Force reinstall zstd to ensure static library is available
+          pacman -S --noconfirm --needed mingw-w64-x86_64-zstd
+          
+          # Verify critical static libraries exist
+          echo "Verifying static libraries in ${MSYS_MINGW_PATH}/lib:"
+          for lib in libz.a libbz2.a libb2.a liblzma.a libmfx.a libwinpthread.a libiconv.a libbrotlidec.a libbrotlicommon.a libbrotlienc.a libusb-1.0.a libzstd.a libcrypto.a libssl.a; do
+            if [ -f "${MSYS_MINGW_PATH}/lib/$lib" ]; then
+              echo "  ✓ $lib"
+            else
+              echo "  ✗ $lib (MISSING - will cause linker failure)"
+              exit 1
+            fi
+          done
+          
+          # Verify FFmpeg static libraries
+          echo "Verifying FFmpeg static libraries in /c/ffmpeg-static/lib:"
+          for lib in libavcodec.a libavformat.a libavutil.a libswscale.a libturbojpeg.a; do
+            if [ -f "/c/ffmpeg-static/lib/$lib" ]; then
+              echo "  ✓ $lib"
+            else
+              echo "  ✗ $lib (MISSING - will cause linker failure)"
+              exit 1
+            fi
+          done
+          
+          # List actual library files to confirm they exist
+          echo ""
+          echo "=== Listing actual MSYS2 libraries ==="
+          ls -lh /mingw64/lib/libz.a /mingw64/lib/libbz2.a /mingw64/lib/libusb-1.0.a 2>&1 || echo "Some libraries not found!"
+          
+          echo ""
+          echo "=== Checking Windows path accessibility from MSYS2 ==="
+          ls -lh /c/msys64/mingw64/lib/libz.a 2>&1 || echo "Windows path C:/msys64/mingw64/lib/libz.a NOT accessible!"
+          
+          # Clean build directory
+          rm -rf build
+          mkdir build && cd build
+
+          # CMake configuration using pkg-config to find libraries automatically
+          # This avoids hardcoded paths that may not exist at link time
+          # Force static linking for all third-party libraries
+          cmake .. \
+            -G "MinGW Makefiles" \
+            -DHAVE_LIBJPEG_TURBO=ON \
+            -DCMAKE_C_COMPILER="/mingw64/bin/gcc.exe" \
+            -DCMAKE_CXX_COMPILER="/mingw64/bin/g++.exe" \
+            -DCMAKE_MAKE_PROGRAM="/mingw64/bin/mingw32-make.exe" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="C:/Qt6;C:/ffmpeg-static" \
+            -DMINGW_ROOT="/mingw64" \
+            -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++ -L/mingw64/lib -L/c/ffmpeg-static/lib -Wl,-Bstatic,-lzstd,-Bdynamic" \
+            -DCMAKE_MODULE_LINKER_FLAGS="-Wl,-Bstatic" \
+            -DTURBOJPEG_LIBRARY="/c/ffmpeg-static/lib/libturbojpeg.a" \
+            -DZSTD_LIBRARY="/mingw64/lib/libzstd.a" \
+            -DZSTD_INCLUDE_DIR="/mingw64/include" \
+            -DBROTLI_DEC_LIBRARY="/mingw64/lib/libbrotlidec.a" \
+            -DBROTLI_ENC_LIBRARY="/mingw64/lib/libbrotlienc.a" \
+            -DBROTLI_COMMON_LIBRARY="/mingw64/lib/libbrotlicommon.a" \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DSTATIC_LINKAGE=ON \
+            -DOPENTERFACE_BUILD_STATIC=ON
+          
+          # Verify no invalid paths in CMake cache
+          echo "=== Checking for invalid library paths in CMakeCache.txt ==="
+          if grep -E '(/lib/lib|/msys64/msys64)' CMakeCache.txt; then
+            echo "WARNING: Found potentially invalid paths in CMakeCache.txt"
+            grep -E '(/lib/lib|/msys64/msys64)' CMakeCache.txt || true
+          else
+            echo "✓ No invalid paths found"
+          fi
+          
+          # Show all library paths that will be linked
+          echo "=== Checking link.txt files for library paths ==="
+          find CMakeFiles -name "link.txt" -o -name "linkLibs.rsp" | while read f; do
+            echo "--- $f ---"
+            cat "$f" | head -100
+            echo ""
+          done || true
+
+        env:
+          CC: gcc
+          CXX: g++
+
+      - name: Build project
+        shell: msys2 {0}
+        run: |
+          cd build
+          mingw32-make VERBOSE=1 -j$(nproc)
+
+      - name: Verify static linking (no DLL dependencies)
+        shell: powershell
+        run: |
+          # Find the executable
+          $exe = Get-ChildItem -Path "build" -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          
+          if (-not $exe) {
+            Write-Error "No executable found in build directory"
+            Get-ChildItem -Path "build" -Recurse | Where-Object { $_.Extension -eq ".exe" -or $_.Name -like "*openterface*" }
+            exit 1
+          }
+          
+          Write-Host "Found executable: $exe"
+          
+          if (-not (Test-Path $exe)) {
+            throw "Executable not found at: $exe"
+          }
+          
+          Write-Host "`n=== Checking DLL dependencies ==="
+          $allOutput = objdump -p $exe | Select-String "DLL Name:"
+          
+          if ($allOutput) {
+            Write-Host "DLL dependencies found:"
+            $allOutput | ForEach-Object { Write-Host "  $_" }
+            
+            # Comprehensive list of acceptable Windows system DLLs
+            $systemDlls = @(
+              "KERNEL32.dll", "msvcrt.dll", "USER32.dll", "GDI32.dll", "ADVAPI32.dll", 
+              "SHELL32.dll", "WS2_32.dll", "ole32.dll", "OLEAUT32.dll", "IMM32.dll", 
+              "WINMM.dll", "SETUPAPI.dll", "VERSION.dll", "UxTheme.dll", "DWMAPI.dll", 
+              "COMDLG32.dll", "WINSPOOL.DRV", "OPENGL32.dll", "comdlg32.dll",
+              "AUTHZ.dll", "bcrypt.dll", "CRYPT32.dll", "d3d11.dll", "d3d12.dll", 
+              "d3d9.dll", "DWrite.dll", "dxgi.dll", "dxva2.dll", "EVR.dll",
+              "HID.DLL", "IPHLPAPI.DLL", "MFReadWrite.dll", "ncrypt.dll", "NETAPI32.dll",
+              "api-ms-win-core-winrt-l1-1-0.dll", "api-ms-win-core-winrt-string-l1-1-0.dll",
+              "Secur32.dll", "SHCORE.dll", "SHLWAPI.dll", "api-ms-win-core-synch-l1-2-0.dll",
+              "USERENV.dll", "AVICAP32.dll", "WINHTTP.dll", "WTSAPI32.dll",
+              "MF.dll", "MFPlat.DLL", "PROPSYS.dll"
+            )
+            
+            $problematicDlls = $allOutput | Where-Object { 
+              $line = $_.ToString()
+              $dll = ($line -split "DLL Name:")[1].Trim()
+              $systemDlls -notcontains $dll
+            }
+            
+            if ($problematicDlls) {
+              Write-Host "`n=== THIRD-PARTY DLLs (should be statically linked) ==="
+              $problematicDlls | ForEach-Object { Write-Host "  $_" }
+              Write-Warning "Build has third-party DLL dependencies - not fully static, but may still be portable if DLLs are bundled"
+            } else {
+              Write-Host "`nSUCCESS: Only Windows system DLLs found - build is portable!"
+            }
+          } else {
+            Write-Host "SUCCESS: No DLL dependencies - fully static!"
+          }
+
+      - name: Rename portable executable
+        shell: powershell
+        run: |
+          # Locate the first executable in the build directory and copy it to the target portable name
+          $exe = Get-ChildItem -Path "build" -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $exe) {
+            Write-Error "No executable found to rename"
+            exit 1
+          }
+          $dest = Join-Path (Split-Path $exe -Parent) "openterfaceQT-portable.exe"
+          Copy-Item -Path $exe -Destination $dest -Force
+          Write-Host "Created portable executable: $dest"
+
+      - name: Upload final portable executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT-portable.exe
+          path: build/openterfaceQT-portable.exe

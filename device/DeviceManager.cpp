@@ -1,6 +1,7 @@
 #include "DeviceManager.h"
 #include "platform/DeviceFactory.h"
 #include "platform/AbstractPlatformDeviceManager.h"
+#include "device/platform/DeviceConstants.h"
 #ifdef __linux__
 #include "platform/LinuxDeviceManager.h"
 #endif
@@ -8,8 +9,10 @@
 #include "../ui/globalsetting.h"
 #include "../video/videohid.h"
 #include "../serial/SerialPortManager.h"
+#include "../host/audiomanager.h"
 #include <QMutexLocker>
 #include <QtConcurrent>
+#include <QtSerialPort/QSerialPortInfo>
 
 Q_LOGGING_CATEGORY(log_device_manager, "opf.device.manager")
 
@@ -25,15 +28,6 @@ DeviceManager::DeviceManager()
     // Create HotplugMonitor instance
     m_hotplugMonitor = new HotplugMonitor(this, this);
     
-    // Setup hotplug timer
-    m_hotplugTimer->setSingleShot(false);
-    connect(m_hotplugTimer, &QTimer::timeout, this, &DeviceManager::onHotplugTimerTimeout);
-    
-    // Start the HotplugMonitor to enable signal emission
-    if (m_hotplugMonitor) {
-        m_hotplugMonitor->start(2000); // Start with 2 second interval
-        qCDebug(log_device_manager) << "HotplugMonitor started";
-    }
     
     // Auto-start hotplug monitoring
     startHotplugMonitoring();
@@ -117,7 +111,7 @@ void DeviceManager::discoverDevicesAsync()
     {
         // For other platforms, fall back to synchronous discovery
         // but run it in a background thread to avoid blocking
-        QtConcurrent::run([this]() {
+        auto future = QtConcurrent::run([this]() {
             QList<DeviceInfo> devices = discoverDevices();
             emit devicesChanged(devices);
         });
@@ -130,7 +124,8 @@ QList<DeviceInfo> DeviceManager::getDevicesByPortChain(const QString& portChain)
         return QList<DeviceInfo>();
     }
     
-    return m_platformManager->getDevicesByPortChain(portChain);
+    // First try exact PortChain match, then try companion PortChain match for USB 3.0 devices
+    return m_platformManager->getDevicesByAnyPortChain(portChain);
 }
 
 QStringList DeviceManager::getAvailablePortChains()
@@ -140,6 +135,51 @@ QStringList DeviceManager::getAvailablePortChains()
     }
     
     return m_platformManager->getAvailablePortChains();
+}
+
+QString DeviceManager::getCompositePortChain(const QString& requestedPortChain)
+{
+    if (!m_platformManager || requestedPortChain.isEmpty()) {
+        return requestedPortChain;
+    }
+    
+    QList<DeviceInfo> devices = m_platformManager->getDevicesByAnyPortChain(requestedPortChain);
+    if (devices.isEmpty()) {
+        return requestedPortChain;
+    }
+    
+    DeviceInfo device = devices.first();
+    return device.getCompositePortChain();
+}
+
+QString DeviceManager::getSerialPortChain(const QString& requestedPortChain)
+{
+    if (!m_platformManager || requestedPortChain.isEmpty()) {
+        return requestedPortChain;
+    }
+    
+    QList<DeviceInfo> devices = m_platformManager->getDevicesByAnyPortChain(requestedPortChain);
+    if (devices.isEmpty()) {
+        return requestedPortChain;
+    }
+    
+    DeviceInfo device = devices.first();
+    return device.hasCompanionPortChain() ? device.companionPortChain : device.portChain;
+}
+
+QString DeviceManager::getCompanionPortChain(const QString& portChain)
+{
+    if (!m_platformManager || portChain.isEmpty()) {
+        return QString();
+    }
+    
+    QList<DeviceInfo> devices = m_platformManager->getDevicesByAnyPortChain(portChain);
+    if (devices.isEmpty()) {
+        return QString();
+    }
+    
+    DeviceInfo device = devices.first();
+    return device.companionPortChain;
 }
 
 DeviceInfo DeviceManager::selectDeviceByPortChain(const QString& portChain)
@@ -157,6 +197,7 @@ DeviceInfo DeviceManager::selectDeviceByPortChain(const QString& portChain)
 
 DeviceInfo DeviceManager::getFirstAvailableDevice()
 {
+    qCDebug(log_device_manager) << "Getting first available device...";
     QList<DeviceInfo> devices = discoverDevices();
     if (!devices.isEmpty()) {
         m_selectedDevice = devices.first();
@@ -170,7 +211,7 @@ DeviceInfo DeviceManager::getFirstAvailableDevice()
 
 DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChain(const QString& portChain)
 {
-    DeviceSwitchResult result = {false, false, false, false, "", DeviceInfo()};
+    DeviceSwitchResult result = {false, false, false, false, false, "", DeviceInfo()};
     
     if (portChain.isEmpty()) {
         result.statusMessage = "Cannot switch to device with empty port chain";
@@ -190,6 +231,10 @@ DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChain(const
     
     DeviceInfo selectedDevice = devices.first();
     result.selectedDevice = selectedDevice;
+
+    // Log chipset for selected device (determined from DeviceInfo)
+    VideoChipType selectedChip = getChipTypeForDevice(selectedDevice);
+    qCDebug(log_device_manager) << "Selected device chipset:" << (selectedChip == VideoChipType::MS2109 ? "MS2109" : (selectedChip == VideoChipType::MS2130S ? "MS2130S" : "Unknown"));
     
     // Update global settings first
     GlobalSetting::instance().setOpenterfacePortChain(portChain);
@@ -206,25 +251,50 @@ DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChain(const
     
     // Switch HID device
     if (selectedDevice.hasHidDevice()) {
-        result.hidSuccess = VideoHid::getInstance().switchToHIDDeviceByPortChain(portChain);
+        QString hidPortChain = selectedDevice.getCompositePortChain();
+        result.hidSuccess = VideoHid::getInstance().switchToHIDDeviceByPortChain(hidPortChain);
         if (result.hidSuccess) {
             successMessages << "HID device switched";
-            qCInfo(log_device_manager) << "✓ HID device switched to device at port:" << portChain;
+            qCInfo(log_device_manager) << "✓ HID device switched to device at port:" << hidPortChain;
         } else {
             failureMessages << "HID device switch failed";
-            qCWarning(log_device_manager) << "Failed to switch HID device to port:" << portChain;
+            qCWarning(log_device_manager) << "Failed to switch HID device to port:" << hidPortChain;
+        }
+    }
+    
+    // Switch audio device
+    if (selectedDevice.hasAudioDevice()) {
+        QString audioPortChain = selectedDevice.getCompositePortChain();
+        result.audioSuccess = AudioManager::getInstance().switchToAudioDeviceByPortChain(audioPortChain);
+        if (result.audioSuccess) {
+            successMessages << "Audio device switched";
+            qCInfo(log_device_manager) << "✓ Audio device switched to device at port:" << audioPortChain;
+        } else {
+            failureMessages << "Audio device switch failed";
+            qCWarning(log_device_manager) << "Failed to switch audio device to port:" << audioPortChain;
         }
     }
     
     // Switch serial port device
     if (selectedDevice.hasSerialPort()) {
-        result.serialSuccess = SerialPortManager::getInstance().switchSerialPortByPortChain(portChain);
+        QString serialPortChain = selectedDevice.getSerialPortChain();
+        result.serialSuccess = SerialPortManager::getInstance().switchSerialPortByPortChain(serialPortChain);
+        
+        if (!result.serialSuccess && !selectedDevice.companionPortChain.isEmpty()) {
+            // For USB 3.0 devices like KVMGO, try companion port chain for serial
+            qCDebug(log_device_manager) << "Serial switch failed, trying companion port chain:" << selectedDevice.companionPortChain;
+            result.serialSuccess = SerialPortManager::getInstance().switchSerialPortByPortChain(selectedDevice.companionPortChain);
+            if (result.serialSuccess) {
+                qCInfo(log_device_manager) << "✓ Serial port switched using companion port chain:" << selectedDevice.companionPortChain;
+            }
+        }
+        
         if (result.serialSuccess) {
             successMessages << "Serial port switched";
-            qCInfo(log_device_manager) << "✓ Serial port switched to device at port:" << portChain;
+            qCInfo(log_device_manager) << "✓ Serial port switched to device at port:" << (selectedDevice.companionPortChain.isEmpty() ? serialPortChain : selectedDevice.companionPortChain);
         } else {
             failureMessages << "Serial port switch failed";
-            qCWarning(log_device_manager) << "Failed to switch serial port to device at port:" << portChain;
+            qCWarning(log_device_manager) << "Failed to switch serial port to device at port:" << serialPortChain << " or companion:" << selectedDevice.companionPortChain;
         }
     }
     
@@ -232,9 +302,10 @@ DeviceManager::DeviceSwitchResult DeviceManager::switchToDeviceByPortChain(const
     setCurrentSelectedDevice(selectedDevice);
     
     // Determine overall success and create status message
-    bool hasSuccess = result.hidSuccess || result.serialSuccess;
+    bool hasSuccess = result.hidSuccess || result.serialSuccess || result.audioSuccess;
     bool hasFailure = (!result.hidSuccess && selectedDevice.hasHidDevice()) || 
-                      (!result.serialSuccess && selectedDevice.hasSerialPort());
+                      (!result.serialSuccess && selectedDevice.hasSerialPort()) ||
+                      (!result.audioSuccess && selectedDevice.hasAudioDevice());
     
     if (hasSuccess && !hasFailure) {
         result.success = true;
@@ -269,10 +340,15 @@ void DeviceManager::startHotplugMonitoring(int intervalMs)
     
     // Take initial snapshot
     m_lastSnapshot = discoverDevices();
+    // Initialize serial port snapshot to detect real changes before running discovery
+    m_lastSerialPorts.clear();
+    const auto initialPorts = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo& port : initialPorts) {
+        m_lastSerialPorts.insert(port.systemLocation());
+    }
     
     // Start monitoring
-    m_hotplugTimer->setInterval(intervalMs);
-    m_hotplugTimer->start();
+    m_hotplugMonitor->start(intervalMs);
     m_monitoring = true;
     
     emit monitoringStarted();
@@ -300,10 +376,11 @@ QList<DeviceInfo> DeviceManager::getCurrentDevices() const
 
 void DeviceManager::onHotplugTimerTimeout()
 {
+    qCDebug(log_device_manager) << "Hotplug timer timeout - checking for device changes";
     if (!m_monitoring) {
         return;
     }
-    
+
     QList<DeviceInfo> currentDevices = discoverDevices();
     compareDeviceSnapshots(currentDevices, m_lastSnapshot);
     m_lastSnapshot = currentDevices;
@@ -355,12 +432,8 @@ DeviceInfo DeviceManager::findDeviceByKey(const QList<DeviceInfo>& devices, cons
 
 void DeviceManager::checkForChanges()
 {
-    if (m_hotplugMonitor) {
-        m_hotplugMonitor->checkForChanges();
-    } else {
-        // Fallback to manual check
-        onHotplugTimerTimeout();
-    }
+    // Always use DeviceManager's own detection logic. Avoid delegating to HotplugMonitor
+    onHotplugTimerTimeout();
 }
 
 void DeviceManager::forceRefresh()
@@ -378,4 +451,148 @@ void DeviceManager::forceRefresh()
     m_lastSnapshot = currentDevices;
     
     emit devicesChanged(currentDevices);
+}
+
+bool DeviceManager::switchHIDDeviceByPortChain(const QString& portChain)
+{
+    qCDebug(log_device_manager) << "Attempting to switch HID device to device at port chain:" << portChain;
+    
+    try {
+        QString hidPortChain = getCompositePortChain(portChain);
+        VideoHid& videoHid = VideoHid::getInstance();
+        bool success = videoHid.switchToHIDDeviceByPortChain(hidPortChain);
+        
+        if (success) {
+            qCInfo(log_device_manager) << "✓ Successfully switched HID device to port chain:" << hidPortChain;
+        } else {
+            qCWarning(log_device_manager) << "Failed to switch HID device to port chain:" << hidPortChain;
+        }
+        
+        return success;
+    } catch (const std::exception& e) {
+        qCCritical(log_device_manager) << "Exception while switching HID device:" << e.what();
+        return false;
+    }
+}
+
+bool DeviceManager::switchAudioDeviceByPortChain(const QString& portChain)
+{
+    qCDebug(log_device_manager) << "Attempting to switch audio device to device at port chain:" << portChain;
+    
+    try {
+        QString audioPortChain = getCompositePortChain(portChain);
+        AudioManager& audioManager = AudioManager::getInstance();
+        bool success = audioManager.switchToAudioDeviceByPortChain(audioPortChain);
+        
+        if (success) {
+            qCInfo(log_device_manager) << "✓ Successfully switched audio device to port chain:" << audioPortChain;
+        } else {
+            qCWarning(log_device_manager) << "Failed to switch audio device to port chain:" << audioPortChain;
+        }
+        
+        return success;
+    } catch (const std::exception& e) {
+        qCCritical(log_device_manager) << "Exception while switching audio device:" << e.what();
+        return false;
+    }
+}
+
+bool DeviceManager::switchSerialPortByPortChain(const QString& portChain)
+{
+    qCDebug(log_device_manager) << "Attempting to switch serial port to device at port chain:" << portChain;
+    
+    try {
+        QString serialPortChain = getSerialPortChain(portChain);
+        SerialPortManager& serialPortManager = SerialPortManager::getInstance();
+        bool success = serialPortManager.switchSerialPortByPortChain(serialPortChain);
+        
+        if (success) {
+            qCInfo(log_device_manager) << "✓ Successfully switched serial port to port chain:" << serialPortChain;
+        } else {
+            qCWarning(log_device_manager) << "Failed to switch serial port to port chain:" << serialPortChain;
+        }
+        
+        return success;
+    } catch (const std::exception& e) {
+        qCCritical(log_device_manager) << "Exception while switching serial port:" << e.what();
+        return false;
+    }
+}
+
+// Determine chip type based on DeviceInfo (vid/pid or device paths).
+// This function intentionally does not consult VideoHid runtime detection.
+VideoChipType DeviceManager::getChipTypeForDevice(const DeviceInfo& device)
+{
+    using A = AbstractPlatformDeviceManager;
+
+    // Check explicit VID/PID fields first
+    if (!device.vid.isEmpty() && !device.pid.isEmpty()) {
+        QString vid = device.vid.toUpper();
+        QString pid = device.pid.toUpper();
+        if (vid == OPENTERFACE_VID.toUpper() && pid == OPENTERFACE_PID.toUpper()) {
+            return VideoChipType::MS2109;
+        }
+        if (vid == OPENTERFACE_VID_V2.toUpper() && pid == OPENTERFACE_PID_V2.toUpper()) {
+            return VideoChipType::MS2130S;
+        }
+        if (vid == OPENTERFACE_VID_V3.toUpper() && pid == OPENTERFACE_PID_V3.toUpper()) {
+            // Treat V3 as MS2130S family by register mapping
+            return VideoChipType::MS2130S;
+        }
+    }
+
+    // Inspect device paths and IDs for VID/PID hints
+    auto matchPaths = [&](const QString& p) -> VideoChipType {
+        if (p.isEmpty()) return VideoChipType::UNKNOWN;
+        QString s = p.toUpper();
+    if (s.contains(OPENTERFACE_VID_V2.toUpper()) && s.contains(OPENTERFACE_PID_V2.toUpper())) return VideoChipType::MS2130S;
+    if (s.contains(OPENTERFACE_VID.toUpper()) && s.contains(OPENTERFACE_PID.toUpper())) return VideoChipType::MS2109;
+    if (s.contains(OPENTERFACE_VID_V3.toUpper()) && s.contains(OPENTERFACE_PID_V3.toUpper())) return VideoChipType::MS2130S;
+        // Windows style variants
+    if (s.contains("VID_" + OPENTERFACE_VID_V2, Qt::CaseInsensitive) && s.contains("PID_" + OPENTERFACE_PID_V2, Qt::CaseInsensitive)) return VideoChipType::MS2130S;
+    if (s.contains("VID_" + OPENTERFACE_VID, Qt::CaseInsensitive) && s.contains("PID_" + OPENTERFACE_PID, Qt::CaseInsensitive)) return VideoChipType::MS2109;
+        return VideoChipType::UNKNOWN;
+    };
+
+    VideoChipType t = matchPaths(device.hidDevicePath);
+    if (t != VideoChipType::UNKNOWN) return t;
+    t = matchPaths(device.deviceInstanceId);
+    if (t != VideoChipType::UNKNOWN) return t;
+    t = matchPaths(device.cameraDevicePath);
+    if (t != VideoChipType::UNKNOWN) return t;
+    t = matchPaths(device.serialPortPath);
+    if (t != VideoChipType::UNKNOWN) return t;
+
+    return VideoChipType::UNKNOWN;
+}
+
+VideoChipType DeviceManager::getChipTypeForPortChain(const QString& portChain)
+{
+    if (portChain.isEmpty()) return VideoChipType::UNKNOWN;
+    QList<DeviceInfo> devices = getDevicesByPortChain(portChain);
+    qCDebug(log_device_manager) << "Found" << devices.size() << "devices for port chain:" << portChain;
+    if (devices.isEmpty()) return VideoChipType::UNKNOWN;
+
+    // Prefer device entries that have HID or composite interfaces
+    for (const DeviceInfo& d : devices) {
+        qCDebug(log_device_manager) << "Checking HID device, vid:" << d.vid << "pid:" << d.pid;
+        if (d.hasHidDevice()) {
+            VideoChipType t = getChipTypeForDevice(d);
+            qCDebug(log_device_manager) << "Determined chip type from HID device:" << (t == VideoChipType::MS2109 ? "MS2109" : (t == VideoChipType::MS2130S ? "MS2130S" : "Unknown"));
+            if (t != VideoChipType::UNKNOWN) return t;
+        }
+    }
+    qCDebug(log_device_manager) << "No HID devices found for port chain, checking composite devices";
+    // Otherwise fall back to the first device
+    return getChipTypeForDevice(devices.first());
+}
+
+bool DeviceManager::isMS2109(const DeviceInfo& device)
+{
+    return getChipTypeForDevice(device) == VideoChipType::MS2109;
+}
+
+bool DeviceManager::isMS2130S(const DeviceInfo& device)
+{
+    return getChipTypeForDevice(device) == VideoChipType::MS2130S;
 }

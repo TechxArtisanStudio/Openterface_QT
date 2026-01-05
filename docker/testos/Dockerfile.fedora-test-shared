@@ -1,0 +1,128 @@
+# Dockerfile for Testing Openterface QT Application on Fedora
+# This Dockerfile creates a clean testing environment for the Openterface QT application
+# Downloads and installs the prebuilt package with runtime dependencies only
+
+FROM fedora:latest
+
+# Build arguments
+ARG GITHUB_TOKEN=""
+ARG INSTALL_TYPE="deb"
+
+# Set environment variables
+ENV TZ=UTC
+ENV GITHUB_TOKEN=${GITHUB_TOKEN}
+ENV INSTALL_TYPE=${INSTALL_TYPE}
+
+# Set up display environment for GUI applications
+ENV DISPLAY=:0
+
+# Install minimal system dependencies and runtime libraries only
+RUN dnf update -y && \
+    dnf install -y --setopt=install_weak_deps=False --skip-unavailable \
+        # Essential utilities
+        curl \
+        wget \
+        ca-certificates \
+        sudo \
+        udev \
+        usbutils \
+        procps-ng \
+        # Core system libraries (CRITICAL - needed by basic commands like tee, sed, head)
+        pcre2 \
+        pcre2-utf16 \
+        glibc \
+        # Hardware interface libraries (runtime only)
+        systemd-udev \
+        pulseaudio-libs \
+        # X11 and graphics libraries (runtime only)
+        libX11 \
+        libXrandr \
+        libXrender \
+        libXcursor \
+        libXfixes \
+        libXinerama \
+        libXi \
+        libXext \
+        libxcb \
+        libxkbcommon \
+        libxkbcommon-x11 \
+        expat \
+        freetype \
+        fontconfig \
+        bzip2-libs \
+        # XCB utility libraries (xcb-util-* packages in Fedora)
+        xcb-util \
+        xcb-util-image \
+        xcb-util-keysyms \
+        xcb-util-renderutil \
+        xcb-util-wm \
+        xcb-util-cursor \
+        # Wayland libraries and support
+        libwayland-client \
+        libwayland-cursor \
+        libwayland-egl \
+        # OpenGL and GPU libraries for rendering
+        mesa-libGL \
+        mesa-libGLU \
+        mesa-libglapi \
+        mesa-libEGL \
+        mesa-libGLES \
+        # Optional platform support (Wayland, EGL)
+        mesa-dri-drivers \
+        # FFmpeg-related codec libraries (available in Fedora repos)
+        libtheora \
+        libvorbis \
+        libvpx \
+        # FUSE support for AppImage installations
+        fuse \
+        fuse-libs \
+        # X11 utilities for screenshots
+        xdotool \
+        xwininfo \
+        ImageMagick \
+        # Virtual display for headless testing
+        xorg-x11-server-Xvfb \
+        # Clean up to reduce image size
+    && dnf clean all && \
+    rm -rf /var/cache/dnf
+
+# Create a non-root user for running the application
+RUN useradd -m -s /bin/bash openterface && \
+    usermod -a -G dialout,audio,video openterface && \
+    # Configure sudo for container environment (no password, no PAM)
+    echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers && \
+    mkdir -p /etc/sudoers.d && \
+    echo "Defaults !pam_session" > /etc/sudoers.d/openterface && \
+    echo "Defaults use_pty" >> /etc/sudoers.d/openterface && \
+    echo "openterface ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/openterface && \
+    chmod 0440 /etc/sudoers.d/openterface
+
+# Copy installation scripts for runtime execution
+COPY ./install-openterface.sh /docker/install-openterface.sh
+RUN chmod +x /docker/install-openterface.sh
+
+# Copy and setup entrypoint script
+COPY ./entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Set up udev rules for Openterface hardware (backup rules, main setup in install script)
+RUN echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' > /etc/udev/rules.d/50-openterface-backup.rules && \
+    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules && \
+    echo 'SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules && \
+    echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess", MODE="0666"' >> /etc/udev/rules.d/50-openterface-backup.rules
+
+# Set the working directory
+WORKDIR /home/openterface
+
+# Add labels for metadata
+LABEL maintainer="TechxArtisan Studio"
+LABEL description="Openterface QT Mini-KVM testing environment on Fedora"
+LABEL version="latest"
+LABEL purpose="testing"
+
+# Set entrypoint to handle installation on first run
+# Note: Entrypoint runs as root to handle installation
+ENTRYPOINT ["/entrypoint.sh"]
+
+# Default command (will be passed to entrypoint)
+CMD ["/bin/bash"]

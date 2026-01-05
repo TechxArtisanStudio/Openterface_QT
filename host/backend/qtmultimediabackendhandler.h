@@ -28,7 +28,6 @@
 
 class QCamera;
 class QMediaCaptureSession;
-class QCameraDevice;
 class QGraphicsVideoItem;
 class VideoPane;
 
@@ -52,13 +51,13 @@ public:
     MultimediaBackendConfig getDefaultConfig() const override;
 
     // Camera lifecycle management
-    void prepareCameraCreation(QCamera* oldCamera = nullptr) override;
-    void configureCameraDevice(QCamera* camera, const QCameraDevice& device) override;
-    void setupCaptureSession(QMediaCaptureSession* session, QCamera* camera) override;
+    void prepareCameraCreation() override;
+    void configureCameraDevice() override;
+    void setupCaptureSession(QMediaCaptureSession* session) override;
     void prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput) override;
     void finalizeVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput) override;
-    void startCamera(QCamera* camera) override;
-    void stopCamera(QCamera* camera) override;
+    void startCamera() override;
+    void stopCamera() override;
     
     // Format selection
     QCameraFormat selectOptimalFormat(const QList<QCameraFormat>& formats, 

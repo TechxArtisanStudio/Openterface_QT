@@ -8,6 +8,7 @@
 #include <QWidget>
 #include <QTimer>
 #include "statuswidget.h"
+#include "../globalsetting.h"
 
 class StatusBarManager : public QObject
 {
@@ -23,6 +24,7 @@ public:
     void setStatusUpdate(const QString& status);
     void setInputResolution(int width, int height, float fps, float pixelClk);
     void setCaptureResolution(int width, int height, int fps);
+    void setFps(double fps);
     void setTargetUsbConnected(bool isConnected);
     void factoryReset(bool isStarted);
     void serialPortReset(bool isStarted);
@@ -30,7 +32,11 @@ public:
     void showDeviceUnplugged(const QString& portChain);
     void showCameraSwitching(const QString& fromDevice, const QString& toDevice);
     void showCameraSwitchComplete(const QString& device);
+    void setKeyStates(bool numLock, bool capsLock, bool scrollLock);
     void updateIconColor();
+    void showSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate);
+    void setRecordingTime(const QString& time);
+    void showRecordingIndicator(bool show);
 
 
 private:
@@ -41,7 +47,7 @@ private:
     QLabel *keyPressedLabel;
     QLabel *keyLabel;
     QColor iconColor;
-    QLabel *resetLabel;
+    QLabel *statusMessageLabel;
     
     // Message throttling to prevent flooding during device switches
     QTimer *m_messageTimer;
