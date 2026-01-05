@@ -423,7 +423,9 @@ jobs:
           # Priority 1: Check cache for MinGW-compatible LibUSB
           if [ -f "/c/libusb/bin/msys-usb-1.0.dll" ]; then
             cp /c/libusb/bin/msys-usb-1.0.dll ${{ env.PACKAGE_DIR }}
-            echo "✓ Copied msys-usb-1.0.dll from cache"
+            # Also create libusb-1.0.dll for compatibility
+            cp /c/libusb/bin/msys-usb-1.0.dll ${{ env.PACKAGE_DIR }}/libusb-1.0.dll
+            echo "✓ Copied msys-usb-1.0.dll from cache and created libusb-1.0.dll"
             LIBUSB_FOUND=true
           elif [ -f "/c/libusb/bin/libusb-1.0.dll" ]; then
             cp /c/libusb/bin/libusb-1.0.dll ${{ env.PACKAGE_DIR }}
