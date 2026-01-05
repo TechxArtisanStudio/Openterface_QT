@@ -623,7 +623,7 @@ jobs:
       - name: Upload windows installer
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT_windows_amd_64_installer
+          name: openterfaceQT_windows_amd64_installer
           path: ${{ env.SOURCE_DIR }}\Output\*.exe
           if-no-files-found: error
 
