@@ -43,6 +43,7 @@ defaults:
 env:
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.6.3
+  FFMPEG_VERSION: 6.1.1
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   QT_CACHE_KEY: qt-6.6.3-mingw-windows
   JOM_CACHE_KEY: jom-1.1.3-windows
@@ -167,9 +168,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\ffmpeg-shared
-          key: ffmpeg-shared-6.1.1-windows-v1-${{ hashFiles('.github/workflows/windows-build.yaml') }}
+          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v1-${{ runner.os }}
           restore-keys: |
-            ffmpeg-shared-6.1.1-windows-v1-
+            ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v1-
 
       - name: Check Build Scripts Available
         shell: cmd
@@ -205,6 +206,14 @@ jobs:
             exit $EXIT_CODE
           fi
           echo "FFmpeg build succeeded"
+
+      - name: Upload FFmpeg artifact (on build)
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-shared-${{ env.FFMPEG_VERSION }}
+          path: C:\ffmpeg-shared
+          retention-days: 7
 
       - name: Verify FFmpeg installation
         shell: msys2 {0}
