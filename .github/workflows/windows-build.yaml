@@ -79,6 +79,7 @@ jobs:
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-libiconv
             mingw-w64-x86_64-libmfx
+            mingw-w64-x86_64-ffnvcodec-headers 
             mingw-w64-x86_64-libusb
             diffutils
             make
