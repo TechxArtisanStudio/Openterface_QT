@@ -20,7 +20,7 @@ public:
     explicit ImageCapturer(QObject *parent = nullptr);
     ~ImageCapturer();
     
-    // 自动启动捕获，带默认参数
+    // Start capturing images at specified intervals (in seconds)
     void startCapturingAuto(CameraManager* cameraManager, TcpServer* tcpServer, const QString& savePath = QString(), int intervalSeconds = 1);
     void startCapturing(CameraManager* cameraManager, TcpServer* tcpServer, const QString& savePath, int intervalSeconds = 1);
     void stopCapturing();

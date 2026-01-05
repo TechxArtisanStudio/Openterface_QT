@@ -156,20 +156,20 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
 }
 
 void MainWindow::startServer(){
-    // 1. 创建并启动 TCP 服务器
+    // 1. create and start TCP server
     tcpServer = new TcpServer(this);
     tcpServer->startServer(SERVER_PORT);
     
-    // 2. 创建并初始化 ImageCapturer
+    // 2. create and initialize ImageCapturer
     m_imageCapturer = new ImageCapturer(this);
     
-    // 3. 设置默认保存路径
+    // 3. set default save path
     QString savePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/openterface";
     
-    // 4. 启动定时自动捕获（每秒一次）
+    // 4. start periodic auto capture (once per second)
     m_imageCapturer->startCapturingAuto(m_cameraManager, tcpServer, savePath, 1);
     
-    // 5. 建立信号槽连接
+    // 5. establish signal-slot connections
     connect(m_cameraManager, &CameraManager::lastImagePath, tcpServer, &TcpServer::handleImgPath);
     connect(tcpServer, &TcpServer::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     connect(this, &MainWindow::emitTCPCommandStatus, tcpServer, &TcpServer::recvTCPCommandStatus);
