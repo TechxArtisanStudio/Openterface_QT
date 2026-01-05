@@ -112,7 +112,7 @@ jobs:
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yml/dispatches \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yaml/dispatches \
             -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"build_type\":\"both\",\"ubuntu_version\":\"22.04\"}}"
 
       - name: Dispatch Windows Portable build (on patch increment)
