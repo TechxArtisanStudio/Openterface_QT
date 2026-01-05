@@ -104,6 +104,25 @@ jobs:
           fi
         shell: bash
 
+      - name: Commit and push version bump
+        if: ${{ github.event.inputs.increase_version == 'true' || github.event.inputs.increase_minor == 'true' || github.event.inputs.increase_major == 'true' }}
+        shell: bash
+        run: |
+          echo "Committing updated version.h and creating tag v$NEW_VERSION"
+          git status --porcelain
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add resources/version.h
+          git commit -m "Bump version to $NEW_VERSION" || echo "No changes to commit"
+          # Create annotated tag if it doesn't already exist
+          if ! git rev-parse "refs/tags/v$NEW_VERSION" >/dev/null 2>&1; then
+            git tag -a "v$NEW_VERSION" -m "Release $NEW_VERSION"
+          else
+            echo "Tag v$NEW_VERSION already exists, skipping tag creation"
+          fi
+          # Push branch and tags back to origin
+          git push origin "HEAD:${{ github.ref_name }}" --follow-tags || echo "Push failed; check permissions or branch protection"
+
       - name: Dispatch Linux build (on patch increment)
         if: ${{ github.event.inputs.increase_version == 'true' }}
         shell: bash
