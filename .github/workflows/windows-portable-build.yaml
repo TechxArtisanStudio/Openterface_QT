@@ -688,5 +688,5 @@ jobs:
       - name: Upload final portable executable
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-windows-portable
+          name: openterface-portable
           path: build/*.exe
