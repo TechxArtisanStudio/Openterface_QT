@@ -685,8 +685,21 @@ jobs:
             Write-Host "SUCCESS: No DLL dependencies - fully static!"
           }
 
+      - name: Rename portable executable
+        shell: powershell
+        run: |
+          # Locate the first executable in the build directory and copy it to the target portable name
+          $exe = Get-ChildItem -Path "build" -Filter "*.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $exe) {
+            Write-Error "No executable found to rename"
+            exit 1
+          }
+          $dest = Join-Path (Split-Path $exe -Parent) "openterfaceQT-portable.exe"
+          Copy-Item -Path $exe -Destination $dest -Force
+          Write-Host "Created portable executable: $dest"
+
       - name: Upload final portable executable
         uses: actions/upload-artifact@v4
         with:
-          name: openterface-portable.exe
-          path: build/*.exe
+          name: openterface-windows-portable
+          path: build/openterfaceQT-portable.exe

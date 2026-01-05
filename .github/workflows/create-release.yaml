@@ -98,7 +98,7 @@ jobs:
         with:
           workflow: windows-portable-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT_windows_amd64_portable.exe
+          name: openterfaceQT-portable.exe
           path: artifacts/windows/portable
           
       - name: Upload Windows portable artifact
