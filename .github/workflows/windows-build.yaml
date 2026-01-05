@@ -297,6 +297,11 @@ jobs:
             # Copy MinGW runtime dependencies that might be needed
             cp /mingw64/bin/libwinpthread-1.dll /c/libusb/bin/ 2>/dev/null || true
             cp /mingw64/bin/libgcc_s_seh-1.dll /c/libusb/bin/ 2>/dev/null || true
+            
+            # Copy library and header files for linking
+            cp /mingw64/lib/*usb* /c/libusb/lib/ 2>/dev/null || echo "No USB libs to copy"
+            cp -r /mingw64/include/libusb* /c/libusb/include/ 2>/dev/null || echo "No USB headers to copy"
+            
             LIBUSB_FOUND=true
           else
             echo "MinGW libusb-1.0.dll not found in /mingw64/bin"
@@ -471,12 +476,34 @@ jobs:
             fi
           fi
           
+          # CRITICAL: Fail the build if LibUSB DLL is missing
           if [ "$LIBUSB_FOUND" = "false" ]; then
-            echo "✗ LibUSB DLL not found. Application will likely fail at runtime."
-            echo "This may cause heap corruption errors (c0000374)."
-          else
-            echo "✓ LibUSB DLL setup completed"
+            echo "✗✗✗ CRITICAL ERROR: LibUSB DLL not found ✗✗✗"
+            echo "Application cannot run without libusb-1.0.dll"
+            echo "This will cause heap corruption errors (c0000374) at runtime."
+            echo ""
+            echo "Debugging information:"
+            echo "  - Cache location: /c/libusb/bin/"
+            ls -la /c/libusb/bin/ 2>/dev/null || echo "    Cache directory does not exist or is empty"
+            echo "  - MinGW64 location: /mingw64/bin/"
+            ls -la /mingw64/bin/*usb* 2>/dev/null || echo "    No USB DLLs in MinGW64"
+            echo "  - Installed USB packages:"
+            pacman -Q | grep -i usb || echo "    No USB packages found"
+            echo ""
+            echo "TERMINATING BUILD - LibUSB DLL is required"
+            exit 1
           fi
+          
+          # Verify the DLL was actually copied
+          if [ ! -f "${{ env.PACKAGE_DIR }}/libusb-1.0.dll" ]; then
+            echo "✗✗✗ CRITICAL ERROR: libusb-1.0.dll not found in package directory after copy ✗✗✗"
+            ls -la ${{ env.PACKAGE_DIR }}/*usb* 2>/dev/null || echo "No USB DLLs in package directory"
+            exit 1
+          fi
+          
+          echo "✓✓✓ LibUSB DLL setup completed successfully ✓✓✓"
+          echo "Verifying copied files:"
+          ls -la ${{ env.PACKAGE_DIR }}/*usb* || echo "Warning: No USB DLLs visible (but copy succeeded)"
           echo "Copying MSYS2 runtime dependencies..."
           cp /mingw64/bin/libiconv-2.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libiconv-2.dll not found"
           cp /mingw64/bin/libbz2-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libbz2-1.dll not found"
