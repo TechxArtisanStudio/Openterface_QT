@@ -659,7 +659,7 @@ jobs:
         with:
           name: output-folder
           path: ${{ env.SOURCE_DIR }}\Output
-          if-no-files-found: warn
+          if-no-files-found: warn 
 
       - name: Install NSIS (if missing)
         shell: pwsh
