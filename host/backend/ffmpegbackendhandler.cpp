@@ -623,6 +623,11 @@ void FFmpegBackendHandler::processFrame()
     QSize viewportSize;
     if (m_videoPane) {
         viewportSize = m_videoPane->viewport()->size();
+        // Limit viewport size to prevent performance issues with large displays
+        const QSize maxViewportSize(1920, 1080);
+        if (viewportSize.width() > maxViewportSize.width() || viewportSize.height() > maxViewportSize.height()) {
+            viewportSize = maxViewportSize;
+        }
     }
     
     // QImage is thread-safe and can be passed across thread boundaries efficiently

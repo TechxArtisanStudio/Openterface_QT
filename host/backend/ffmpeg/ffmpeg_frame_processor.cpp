@@ -285,13 +285,23 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
         frame_to_convert = AV_FRAME_RAW(sw_frame);
     }
     
-    // First convert to original resolution (without targetSize scaling)
-    QImage originalResult = ConvertFrameToImage(frame_to_convert, QSize());
+    // Determine if we need both original and scaled images
+    int frame_width = frame_to_convert->width;
+    int frame_height = frame_to_convert->height;
+    QSize frameSize(frame_width, frame_height);
+    bool needOriginal = targetSize.isValid() && !targetSize.isEmpty() && targetSize != frameSize;
     
-    // Then convert with scaling if targetSize is specified
-    QImage result = originalResult;
-    if (targetSize.isValid() && !targetSize.isEmpty()) {
+    QImage result;
+    QImage originalResult;
+    
+    if (needOriginal) {
+        // Need both original and scaled versions
+        originalResult = ConvertFrameToImage(frame_to_convert, QSize());
         result = ConvertFrameToImage(frame_to_convert, targetSize);
+    } else {
+        // Only need one version (either scaled or original)
+        result = ConvertFrameToImage(frame_to_convert, targetSize.isValid() ? targetSize : QSize());
+        originalResult = result;  // Same image serves as both
     }
     
     if (sw_frame) {
@@ -299,7 +309,7 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
     }
     
     // Update statistics and store latest frames
-    if (!result.isNull() && !originalResult.isNull()) {
+    if (!result.isNull()) {
         frame_count_++;
         
         // Skip startup frames if configured
@@ -307,10 +317,10 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
             return QImage();
         }
         
-        // Store both original and scaled frames for image capture
+        // Store frames
         {
             QMutexLocker locker(&mutex_);
-            latest_frame_ = result.copy();  // Scaled frame for display
+            latest_frame_ = result.copy();  // Frame for display
             latest_original_frame_ = originalResult.copy();  // Original frame for screenshots
         }
     }
@@ -419,7 +429,7 @@ QImage FFmpegFrameProcessor::ConvertWithScalingToImage(AVFrame* frame, const QSi
     UpdateScalingContext(width, height, format, QSize(targetWidth, targetHeight));
     
     // CRITICAL FIX: Allocate image BEFORE locking mutex to reduce lock time
-    QImage image(targetWidth, targetHeight, QImage::Format_ARGB32);
+    QImage image(targetWidth, targetHeight, QImage::Format_RGB888);
     if (image.isNull()) {
         return QImage();
     }
@@ -491,7 +501,7 @@ void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFo
                                << width << "x" << height 
                                << "to" << targetWidth << "x" << targetHeight
                                << "from format" << format << "(" << (format_name ? format_name : "unknown") << ")"
-                               << "to RGB32 (32-bit ARGB)"
+                               << "to RGB24 (24-bit RGB)"
                                << "with algorithm" << algorithm_name;
     
     // OPTIMIZATION: Choose scaling algorithm based on performance needs
@@ -509,7 +519,7 @@ void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFo
     
     sws_context_ = sws_getContext(
         width, height, format,
-        targetWidth, targetHeight, AV_PIX_FMT_BGRA,
+        targetWidth, targetHeight, AV_PIX_FMT_RGB24,
         scaling_flags,  // Optimized for performance
         nullptr, nullptr, nullptr
     );
