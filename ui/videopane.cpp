@@ -72,8 +72,8 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     
     // ============ OPTIMIZED RENDERING FOR VIDEO STREAMING ============
-    setRenderHint(QPainter::Antialiasing, true);
-    setRenderHint(QPainter::SmoothPixmapTransform, true);
+    setRenderHint(QPainter::Antialiasing, false);
+    setRenderHint(QPainter::SmoothPixmapTransform, false);
     setRenderHint(QPainter::TextAntialiasing, true);  // Critical for text clarity
     
     
