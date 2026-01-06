@@ -26,10 +26,15 @@ def update_version(increase_version, increase_major, increase_minor):
             exit(1)
 
     # Split version into parts
-    try:
-        major, minor, patch, days = version.split('.')
-    except ValueError:
-        print(f"Error: Invalid version format: {version}")
+    parts = version.split('.')
+    if len(parts) == 3:
+        major, minor, patch = parts
+        has_days = False
+    elif len(parts) == 4:
+        major, minor, patch, days = parts
+        has_days = True
+    else:
+        print(f"Error: Invalid version format: {version} (expected 3 or 4 parts)")
         exit(1)
 
     # Increment major or minor version if specified
@@ -45,13 +50,11 @@ def update_version(increase_version, increase_major, increase_minor):
     if increase_version:
         patch = str(int(patch) + 1)
 
-    # Calculate days from start of year
-    current_date = datetime.now()
-    days_from_start = (current_date - datetime(current_date.year, 1, 1)).days + 1
-    days = str(days_from_start).zfill(3)  # Ensure it's always 3 digits
-
     # Create new version string
-    new_version = f"{major}.{minor}.{patch}.{days}"
+    if has_days:
+        new_version = f"{major}.{minor}.{patch}.{days}"
+    else:
+        new_version = f"{major}.{minor}.{patch}"
 
     # Update version.h file
     new_version_content = re.sub(
