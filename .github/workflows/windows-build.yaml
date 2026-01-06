@@ -43,6 +43,7 @@ defaults:
 env:
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.6.3
+  FFMPEG_VERSION: 6.1.1
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   QT_CACHE_KEY: qt-6.6.3-mingw-windows
   JOM_CACHE_KEY: jom-1.1.3-windows
@@ -79,6 +80,7 @@ jobs:
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-libiconv
             mingw-w64-x86_64-libmfx
+            mingw-w64-x86_64-ffnvcodec-headers 
             mingw-w64-x86_64-libusb
             diffutils
             make
@@ -104,6 +106,25 @@ jobs:
           fi
         shell: bash
 
+      - name: Commit and push version bump
+        if: ${{ github.event.inputs.increase_version == 'true' || github.event.inputs.increase_minor == 'true' || github.event.inputs.increase_major == 'true' }}
+        shell: bash
+        run: |
+          echo "Committing updated version.h and creating tag v$NEW_VERSION"
+          git status --porcelain
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add resources/version.h
+          git commit -m "Bump version to $NEW_VERSION" || echo "No changes to commit"
+          # Create annotated tag if it doesn't already exist
+          if ! git rev-parse "refs/tags/v$NEW_VERSION" >/dev/null 2>&1; then
+            git tag -a "v$NEW_VERSION" -m "Release $NEW_VERSION"
+          else
+            echo "Tag v$NEW_VERSION already exists, skipping tag creation"
+          fi
+          # Push branch and tags back to origin
+          git push origin "HEAD:${{ github.ref_name }}" --follow-tags || echo "Push failed; check permissions or branch protection"
+
       - name: Dispatch Linux build (on patch increment)
         if: ${{ github.event.inputs.increase_version == 'true' }}
         shell: bash
@@ -112,19 +133,16 @@ jobs:
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yml/dispatches \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yaml/dispatches \
             -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"build_type\":\"both\",\"ubuntu_version\":\"22.04\"}}"
 
       - name: Dispatch Windows Portable build (on patch increment)
         if: ${{ github.event.inputs.increase_version == 'true' }}
-        shell: bash
-        run: |
-          echo "Dispatching windows-portable-build.yaml workflow via REST API"
-          curl -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/actions/workflows/windows-portable-build.yaml/dispatches \
-            -d "{\"ref\":\"${{ github.ref_name }}\"}"
+        uses: peter-evans/workflow-dispatch@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: windows-portable-build.yaml
+          ref: ${{ github.ref_name }}
 
       - name: Get all tags for correct version determination
         working-directory: ${{ github.workspace }}
@@ -147,9 +165,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\ffmpeg-shared
-          key: ffmpeg-shared-6.1.1-windows-v1-${{ hashFiles('.github/workflows/windows-build.yaml') }}
+          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v1-${{ runner.os }}
           restore-keys: |
-            ffmpeg-shared-6.1.1-windows-v1-
+            ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v1-
 
       - name: Check Build Scripts Available
         shell: cmd
@@ -185,6 +203,14 @@ jobs:
             exit $EXIT_CODE
           fi
           echo "FFmpeg build succeeded"
+
+      - name: Upload FFmpeg artifact (on build)
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-shared-${{ env.FFMPEG_VERSION }}
+          path: C:\ffmpeg-shared
+          retention-days: 7
 
       - name: Verify FFmpeg installation
         shell: msys2 {0}
@@ -245,62 +271,72 @@ jobs:
         shell: msys2 {0}
         run: |
           echo "Setting up LibUSB for Qt/MinGW compatibility..."
-          
-          # First check if MinGW LibUSB was installed
-          echo "Checking MinGW LibUSB installation..."
-          ls -la /mingw64/bin/*usb* || echo "No MinGW LibUSB DLLs found"
-          ls -la /mingw64/lib/*usb* || echo "No MinGW LibUSB libraries found"
-          
-          # MinGW64 is primary; no UCRT64 backup checks
-          echo "Checking MinGW64 LibUSB installation..."
-          ls -la /mingw64/bin/*usb* || echo "No MinGW LibUSB DLLs found"
-          ls -la /mingw64/lib/*usb* || echo "No MinGW LibUSB libraries found"
-          
-          # Check installed packages
-          pacman -Q | grep -i usb || echo "No USB packages installed"
-          
-          # Verify pkg-config for MinGW64
-          echo "Checking pkg-config..."
-          PKG_CONFIG_PATH="/mingw64/lib/pkgconfig:$PKG_CONFIG_PATH" pkg-config --exists libusb-1.0 && echo "✓ LibUSB pkg-config found" || {
-            echo "✗ LibUSB pkg-config not found, trying to install MinGW version..."
-            pacman -S --needed --noconfirm mingw-w64-x86_64-libusb
-          }
-          
+
+          # Update package DB and ensure MinGW libusb package is installed
+          echo "Updating package database and installing mingw-w64-x86_64-libusb (if needed)..."
+          pacman -Sy --noconfirm --needed mingw-w64-x86_64-libusb || echo "pacman returned non-zero status"
+
+          # List package files if installed (helps debugging)
+          if pacman -Qi mingw-w64-x86_64-libusb >/dev/null 2>&1; then
+            echo "Installed files for mingw-w64-x86_64-libusb:"; pacman -Ql mingw-w64-x86_64-libusb || true
+          fi
+
           # Create cache directory structure
           mkdir -p /c/libusb/bin /c/libusb/lib /c/libusb/include
-          
-          # Priority: MinGW LibUSB (better Qt compatibility)
+
           LIBUSB_FOUND=false
-          
-          # Try MinGW version first (better ABI compatibility with Qt)
+
+          # Preferred: MinGW libusb DLL (best ABI compatibility with Qt/MinGW)
           if [ -f "/mingw64/bin/libusb-1.0.dll" ]; then
-            echo "✓ Found MinGW libusb-1.0.dll (preferred for Qt compatibility)"
-            cp /mingw64/bin/libusb-1.0.dll /c/libusb/bin/
-            cp /mingw64/bin/libusb-1.0.dll /c/libusb/bin/msys-usb-1.0.dll
-            echo "✓ Created msys-usb-1.0.dll from MinGW libusb-1.0.dll"
-            LIBUSB_FOUND=true
-            
+            echo "✓ Found MinGW libusb-1.0.dll"
+            cp /mingw64/bin/libusb-1.0.dll /c/libusb/bin/ || true
+            cp /mingw64/bin/libusb-1.0.dll /c/libusb/bin/msys-usb-1.0.dll || true
             # Copy MinGW runtime dependencies that might be needed
-            cp /mingw64/bin/libgcc_s_dw2-1.dll /c/libusb/bin/ 2>/dev/null || echo "MinGW libgcc_s_dw2-1.dll not found"
-            cp /mingw64/bin/libwinpthread-1.dll /c/libusb/bin/ 2>/dev/null || echo "MinGW libwinpthread-1.dll not found"
+            cp /mingw64/bin/libwinpthread-1.dll /c/libusb/bin/ 2>/dev/null || true
+            cp /mingw64/bin/libgcc_s_seh-1.dll /c/libusb/bin/ 2>/dev/null || true
             
+            # Copy library and header files for linking
+            cp /mingw64/lib/*usb* /c/libusb/lib/ 2>/dev/null || echo "No USB libs to copy"
+            cp -r /mingw64/include/libusb* /c/libusb/include/ 2>/dev/null || echo "No USB headers to copy"
+            
+            LIBUSB_FOUND=true
           else
-            echo "✗ No LibUSB DLL found in MinGW64"
+            echo "MinGW libusb-1.0.dll not found in /mingw64/bin"
           fi
-          
-          # Copy library and header files
-          cp /mingw64/lib/*usb* /c/libusb/lib/ 2>/dev/null || echo "No USB libs to copy"
-          cp -r /mingw64/include/libusb* /c/libusb/include/ 2>/dev/null || echo "No USB headers to copy"
-          
-          # Final verification
+
+          # Fallback: check cached copy or search for possible DLLs and copy them
+          if [ "$LIBUSB_FOUND" = "false" ]; then
+            echo "Checking cache at /c/libusb and searching the filesystem for libusb DLLs..."
+            if [ -f "/c/libusb/bin/libusb-1.0.dll" ]; then
+              echo "✓ Found libusb-1.0.dll in cache"
+              cp /c/libusb/bin/libusb-1.0.dll /c/libusb/bin/ || true
+              LIBUSB_FOUND=true
+            else
+              USB_DLLS=$(find / -name "libusb-1.0.dll" -o -name "msys-usb-1.0.dll" 2>/dev/null | head -5 || true)
+              if [ -n "$USB_DLLS" ]; then
+                echo "Found USB DLLs: $USB_DLLS"
+                for dll in $USB_DLLS; do
+                  echo "Copying $dll to /c/libusb/bin/"
+                  cp "$dll" /c/libusb/bin/ 2>/dev/null || true
+                  LIBUSB_FOUND=true
+                done
+              fi
+            fi
+          fi
+
+          # If still missing, fail early with actionable message
+          if [ "$LIBUSB_FOUND" = "false" ]; then
+            echo "ERROR: libusb-1.0.dll not found after installation and search attempts."
+            echo "Suggestions:"
+            echo "  - Enable 'force_rebuild' input to force reinstallation in CI or run the workflow again."
+            echo "  - Ensure MSYS2 pacman can access mingw-w64-x86_64-libusb (network/firewall issues may block it)."
+            echo "  - As a last resort place a compatible libusb-1.0.dll in /c/libusb/bin or next to the executable."
+            exit 1
+          fi
+
           echo "Final LibUSB cache contents:"
           ls -la /c/libusb/bin/ || echo "No files in cache bin"
-          
-          if [ "$LIBUSB_FOUND" = "true" ]; then
-            echo "✓ LibUSB setup completed successfully"
-          else
-            echo "✗ LibUSB setup failed"
-          fi
+          echo "✓ LibUSB setup completed successfully"
 
       - name: Upload FFmpeg Build Log
         if: always()
@@ -384,7 +420,9 @@ jobs:
           # Priority 1: Check cache for MinGW-compatible LibUSB
           if [ -f "/c/libusb/bin/msys-usb-1.0.dll" ]; then
             cp /c/libusb/bin/msys-usb-1.0.dll ${{ env.PACKAGE_DIR }}
-            echo "✓ Copied msys-usb-1.0.dll from cache"
+            # Also create libusb-1.0.dll for compatibility
+            cp /c/libusb/bin/msys-usb-1.0.dll ${{ env.PACKAGE_DIR }}/libusb-1.0.dll
+            echo "✓ Copied msys-usb-1.0.dll from cache and created libusb-1.0.dll"
             LIBUSB_FOUND=true
           elif [ -f "/c/libusb/bin/libusb-1.0.dll" ]; then
             cp /c/libusb/bin/libusb-1.0.dll ${{ env.PACKAGE_DIR }}
@@ -437,12 +475,34 @@ jobs:
             fi
           fi
           
+          # CRITICAL: Fail the build if LibUSB DLL is missing
           if [ "$LIBUSB_FOUND" = "false" ]; then
-            echo "✗ LibUSB DLL not found. Application will likely fail at runtime."
-            echo "This may cause heap corruption errors (c0000374)."
-          else
-            echo "✓ LibUSB DLL setup completed"
+            echo "✗✗✗ CRITICAL ERROR: LibUSB DLL not found ✗✗✗"
+            echo "Application cannot run without libusb-1.0.dll"
+            echo "This will cause heap corruption errors (c0000374) at runtime."
+            echo ""
+            echo "Debugging information:"
+            echo "  - Cache location: /c/libusb/bin/"
+            ls -la /c/libusb/bin/ 2>/dev/null || echo "    Cache directory does not exist or is empty"
+            echo "  - MinGW64 location: /mingw64/bin/"
+            ls -la /mingw64/bin/*usb* 2>/dev/null || echo "    No USB DLLs in MinGW64"
+            echo "  - Installed USB packages:"
+            pacman -Q | grep -i usb || echo "    No USB packages found"
+            echo ""
+            echo "TERMINATING BUILD - LibUSB DLL is required"
+            exit 1
           fi
+          
+          # Verify the DLL was actually copied
+          if [ ! -f "${{ env.PACKAGE_DIR }}/libusb-1.0.dll" ]; then
+            echo "✗✗✗ CRITICAL ERROR: libusb-1.0.dll not found in package directory after copy ✗✗✗"
+            ls -la ${{ env.PACKAGE_DIR }}/*usb* 2>/dev/null || echo "No USB DLLs in package directory"
+            exit 1
+          fi
+          
+          echo "✓✓✓ LibUSB DLL setup completed successfully ✓✓✓"
+          echo "Verifying copied files:"
+          ls -la ${{ env.PACKAGE_DIR }}/*usb* || echo "Warning: No USB DLLs visible (but copy succeeded)"
           echo "Copying MSYS2 runtime dependencies..."
           cp /mingw64/bin/libiconv-2.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libiconv-2.dll not found"
           cp /mingw64/bin/libbz2-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libbz2-1.dll not found"
@@ -596,7 +656,7 @@ jobs:
         with:
           name: output-folder
           path: ${{ env.SOURCE_DIR }}\Output
-          if-no-files-found: warn
+          if-no-files-found: warn 
 
       - name: Install NSIS (if missing)
         shell: pwsh

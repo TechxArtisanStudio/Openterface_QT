@@ -67,7 +67,7 @@ jobs:
         with:
           workflow: windows-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.windows.amd64.installer
+          name: openterfaceQT_windows_amd64_installer
           path: artifacts/windows
 
       - name: Upload Windows installer artifact
@@ -98,7 +98,7 @@ jobs:
         with:
           workflow: windows-portable-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.windows.amd64.portable.exe
+          name: openterfaceQT-portable.exe
           path: artifacts/windows/portable
           
       - name: Upload Windows portable artifact
