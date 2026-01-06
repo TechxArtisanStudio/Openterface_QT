@@ -73,7 +73,7 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     
     // ============ OPTIMIZED RENDERING FOR VIDEO STREAMING ============
     setRenderHint(QPainter::Antialiasing, false);
-    setRenderHint(QPainter::SmoothPixmapTransform, false);
+    setRenderHint(QPainter::SmoothPixmapTransform, false); 
     setRenderHint(QPainter::TextAntialiasing, true);  // Critical for text clarity
     
     
