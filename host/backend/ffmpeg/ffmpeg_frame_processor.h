@@ -88,6 +88,10 @@ private:
     QImage ConvertRgbFrameDirectlyToImage(AVFrame* frame);
     QImage ConvertWithScalingToImage(AVFrame* frame, const QSize& targetSize = QSize());
     
+    // FFmpeg decoding implementation (extracted from main processing logic)
+    QImage ProcessWithFFmpegDecoding(AVPacket* packet, AVCodecContext* codec_context, 
+                                     bool is_recording, const QSize& targetSize = QSize());
+    
     // Frame dropping logic
     bool ShouldDropFrame(bool is_recording);
     

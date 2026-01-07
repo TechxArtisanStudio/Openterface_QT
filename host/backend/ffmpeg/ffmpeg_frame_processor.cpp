@@ -242,13 +242,23 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
         return QImage();
     }
     
+    // PRIORITY 1: Hardware acceleration decoding (highest priority)
+    // Check if codec is a hardware decoder before attempting decode
+    bool is_hardware_decoder = IsHardwareDecoder(codec_context);
+    if (is_hardware_decoder) {
+        qCDebug(log_ffmpeg_backend) << "Using hardware decoder:" << codec_context->codec->name;
+        // Proceed directly to FFmpeg hardware decoding
+        return ProcessWithFFmpegDecoding(packet, codec_context, is_recording, targetSize);
+    }
+    
 #ifdef HAVE_LIBJPEG_TURBO
-    // Fast TurboJPEG path for MJPEG data (bypass FFmpeg decoder for better performance)
+    // PRIORITY 2: TurboJPEG acceleration (for MJPEG only, when no hardware acceleration)
     if (codec_context->codec_id == AV_CODEC_ID_MJPEG) {
         tjhandle handle = GetThreadLocalTurboJPEGHandle();
         if (handle) {
             QImage turbojpeg_result = DecodeMJPEGWithTurboJPEG(packet, targetSize, handle);
             if (!turbojpeg_result.isNull()) {
+                qCDebug(log_ffmpeg_backend) << "Successfully decoded with TurboJPEG acceleration";
                 // Success with TurboJPEG - store frames and return
                 QImage originalResult = turbojpeg_result;
                 QImage result = turbojpeg_result;
@@ -270,11 +280,18 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
                 return result.copy();
             }
         }
-        // TurboJPEG failed - fallback to FFmpeg
+        qCDebug(log_ffmpeg_backend) << "TurboJPEG failed, falling back to CPU decode";
     }
 #endif
+    
+    // PRIORITY 3: CPU direct decoding (fallback when no acceleration available)
+    qCDebug(log_ffmpeg_backend) << "Using CPU decoder:" << codec_context->codec->name;
+    return ProcessWithFFmpegDecoding(packet, codec_context, is_recording, targetSize);
+}
 
-    // Decode packet to frame (reuse existing decode logic)
+QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodecContext* codec_context, 
+                                                      bool is_recording, const QSize& targetSize)
+{
     if (!temp_frame_) {
         temp_frame_ = make_av_frame();
         if (!temp_frame_) {
