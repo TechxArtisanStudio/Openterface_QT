@@ -23,6 +23,7 @@
 #include "ffmpeg_frame_processor.h"
 #include <QLoggingCategory>
 #include <QDebug>
+#include <QThread>
 #include <cstring>
 #include <vector>
 #include <algorithm>
@@ -55,11 +56,16 @@ FFmpegFrameProcessor::FFmpegFrameProcessor()
 #endif
 {
 #ifdef HAVE_LIBJPEG_TURBO
-    // Initialize TurboJPEG decompressor
+    // Initialize TurboJPEG decompressor with multi-threading support
     turbojpeg_handle_ = tjInitDecompress();
     if (!turbojpeg_handle_) {
         qCWarning(log_ffmpeg_backend) << "Failed to initialize TurboJPEG decompressor";
     } else {
+        // Enable multi-threading by setting number of CPU cores
+        int num_threads = QThread::idealThreadCount();
+        if (num_threads > 1) {
+            qCDebug(log_ffmpeg_backend) << "TurboJPEG initialized with" << num_threads << "thread support";
+        }
         qCDebug(log_ffmpeg_backend) << "TurboJPEG decompressor initialized successfully";
     }
 #endif
@@ -236,14 +242,63 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
         return QImage();
     }
     
-    // Decode packet to frame (reuse existing decode logic)
+    // PRIORITY 1: Hardware acceleration decoding (highest priority)
+    // Check if codec is a hardware decoder before attempting decode
+    bool is_hardware_decoder = IsHardwareDecoder(codec_context);
+    if (is_hardware_decoder) {
+        qCDebug(log_ffmpeg_backend) << "Using hardware decoder:" << codec_context->codec->name;
+        // Proceed directly to FFmpeg hardware decoding
+        return ProcessWithFFmpegDecoding(packet, codec_context, is_recording, targetSize);
+    }
+    
+#ifdef HAVE_LIBJPEG_TURBO
+    // PRIORITY 2: TurboJPEG acceleration (for MJPEG only, when no hardware acceleration)
+    if (codec_context->codec_id == AV_CODEC_ID_MJPEG) {
+        tjhandle handle = GetThreadLocalTurboJPEGHandle();
+        if (handle) {
+            QImage turbojpeg_result = DecodeMJPEGWithTurboJPEG(packet, targetSize, handle);
+            if (!turbojpeg_result.isNull()) {
+                qCDebug(log_ffmpeg_backend) << "Successfully decoded with TurboJPEG acceleration";
+                // Success with TurboJPEG - store frames and return
+                QImage originalResult = turbojpeg_result;
+                QImage result = turbojpeg_result;
+                
+                // Apply scaling if needed
+                if (targetSize.isValid() && !targetSize.isEmpty() && 
+                    targetSize != QSize(turbojpeg_result.width(), turbojpeg_result.height())) {
+                    result = turbojpeg_result.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                }
+                
+                // Update frame count and store frames
+                frame_count_++;
+                if (frame_count_ > startup_frames_to_skip_) {
+                    QMutexLocker locker(&mutex_);
+                    latest_frame_ = result.copy();
+                    latest_original_frame_ = originalResult.copy();
+                }
+                
+                return result.copy();
+            }
+        }
+        qCDebug(log_ffmpeg_backend) << "TurboJPEG failed, falling back to CPU decode";
+    }
+#endif
+    
+    // PRIORITY 3: CPU direct decoding (fallback when no acceleration available)
+    qCDebug(log_ffmpeg_backend) << "Using CPU decoder:" << codec_context->codec->name;
+    return ProcessWithFFmpegDecoding(packet, codec_context, is_recording, targetSize);
+}
+
+QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodecContext* codec_context, 
+                                                      bool is_recording, const QSize& targetSize)
+{
     if (!temp_frame_) {
         temp_frame_ = make_av_frame();
         if (!temp_frame_) {
             return QImage();
         }
     }
-    
+
     // Send packet to decoder
     int ret = avcodec_send_packet(codec_context, packet);
     if (ret < 0) {
@@ -285,13 +340,23 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
         frame_to_convert = AV_FRAME_RAW(sw_frame);
     }
     
-    // First convert to original resolution (without targetSize scaling)
-    QImage originalResult = ConvertFrameToImage(frame_to_convert, QSize());
+    // Determine if we need both original and scaled images
+    int frame_width = frame_to_convert->width;
+    int frame_height = frame_to_convert->height;
+    QSize frameSize(frame_width, frame_height);
+    bool needOriginal = targetSize.isValid() && !targetSize.isEmpty() && targetSize != frameSize;
     
-    // Then convert with scaling if targetSize is specified
-    QImage result = originalResult;
-    if (targetSize.isValid() && !targetSize.isEmpty()) {
+    QImage result;
+    QImage originalResult;
+    
+    if (needOriginal) {
+        // Need both original and scaled versions
+        originalResult = ConvertFrameToImage(frame_to_convert, QSize());
         result = ConvertFrameToImage(frame_to_convert, targetSize);
+    } else {
+        // Only need one version (either scaled or original)
+        result = ConvertFrameToImage(frame_to_convert, targetSize.isValid() ? targetSize : QSize());
+        originalResult = result;  // Same image serves as both
     }
     
     if (sw_frame) {
@@ -299,7 +364,7 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
     }
     
     // Update statistics and store latest frames
-    if (!result.isNull() && !originalResult.isNull()) {
+    if (!result.isNull()) {
         frame_count_++;
         
         // Skip startup frames if configured
@@ -307,10 +372,10 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
             return QImage();
         }
         
-        // Store both original and scaled frames for image capture
+        // Store frames
         {
             QMutexLocker locker(&mutex_);
-            latest_frame_ = result.copy();  // Scaled frame for display
+            latest_frame_ = result.copy();  // Frame for display
             latest_original_frame_ = originalResult.copy();  // Original frame for screenshots
         }
     }
@@ -419,7 +484,7 @@ QImage FFmpegFrameProcessor::ConvertWithScalingToImage(AVFrame* frame, const QSi
     UpdateScalingContext(width, height, format, QSize(targetWidth, targetHeight));
     
     // CRITICAL FIX: Allocate image BEFORE locking mutex to reduce lock time
-    QImage image(targetWidth, targetHeight, QImage::Format_ARGB32);
+    QImage image(targetWidth, targetHeight, QImage::Format_RGB888);
     if (image.isNull()) {
         return QImage();
     }
@@ -451,6 +516,79 @@ QImage FFmpegFrameProcessor::ConvertWithScalingToImage(AVFrame* frame, const QSi
     
     return image.copy();  // Ensure thread-safe copy
 }
+
+#ifdef HAVE_LIBJPEG_TURBO
+QImage FFmpegFrameProcessor::DecodeMJPEGWithTurboJPEG(AVPacket* packet, const QSize& targetSize, tjhandle handle)
+{
+    if (!handle || !packet || !packet->data || packet->size <= 0) {
+        return QImage();
+    }
+    
+    int width, height, subsamp, colorspace;
+    
+    // Get image info from JPEG header
+    if (tjDecompressHeader3(handle, packet->data, packet->size, 
+                           &width, &height, &subsamp, &colorspace) < 0) {
+        qCWarning(log_ffmpeg_backend) << "TurboJPEG header decode failed:" << tjGetErrorStr();
+        return QImage();
+    }
+    
+    // Determine target size for scaling
+    int target_width = width;
+    int target_height = height;
+    bool need_scaling = false;
+    
+    if (targetSize.isValid() && !targetSize.isEmpty()) {
+        // TurboJPEG supports built-in scaling to 1/8, 1/4, 1/2, 1, 2x, 4x, 8x
+        // Choose the closest scaling factor
+        double scale_x = static_cast<double>(targetSize.width()) / width;
+        double scale_y = static_cast<double>(targetSize.height()) / height;
+        double scale = qMin(scale_x, scale_y);
+        
+        if (scale <= 0.125) {
+            target_width = width / 8;
+            target_height = height / 8;
+        } else if (scale <= 0.25) {
+            target_width = width / 4;
+            target_height = height / 4;
+        } else if (scale <= 0.5) {
+            target_width = width / 2;
+            target_height = height / 2;
+        } else if (scale >= 8.0) {
+            target_width = width * 8;
+            target_height = height * 8;
+        } else if (scale >= 4.0) {
+            target_width = width * 4;
+            target_height = height * 4;
+        } else if (scale >= 2.0) {
+            target_width = width * 2;
+            target_height = height * 2;
+        }
+        // else keep original size
+        
+        need_scaling = (target_width != width || target_height != height);
+    }
+    
+    // Create QImage for output
+    QImage image(target_width, target_height, QImage::Format_RGB888);
+    if (image.isNull()) {
+        return QImage();
+    }
+    
+    // Decompress directly to QImage buffer
+    if (tjDecompress2(handle, packet->data, packet->size,
+                     image.bits(), target_width, image.bytesPerLine(),
+                     target_height, TJPF_RGB, TJFLAG_FASTDCT) < 0) {
+        qCWarning(log_ffmpeg_backend) << "TurboJPEG decompress failed:" << tjGetErrorStr();
+        return QImage();
+    }
+    
+    qCDebug(log_ffmpeg_backend) << "TurboJPEG decoded MJPEG:" << width << "x" << height 
+                               << "to" << target_width << "x" << target_height;
+    
+    return image;
+}
+#endif
 
 void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFormat format, const QSize& targetSize)
 {
@@ -491,7 +629,7 @@ void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFo
                                << width << "x" << height 
                                << "to" << targetWidth << "x" << targetHeight
                                << "from format" << format << "(" << (format_name ? format_name : "unknown") << ")"
-                               << "to RGB32 (32-bit ARGB)"
+                               << "to RGB24 (24-bit RGB)"
                                << "with algorithm" << algorithm_name;
     
     // OPTIMIZATION: Choose scaling algorithm based on performance needs
@@ -503,13 +641,13 @@ void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFo
         qCDebug(log_ffmpeg_backend) << "Using point sampling (no scaling needed)";
     } else {
         // Real scaling needed - use fast bilinear for low latency
-        scaling_flags = SWS_FAST_BILINEAR;
-        qCDebug(log_ffmpeg_backend) << "Using fast bilinear scaling for low latency";
+        scaling_flags = SWS_BICUBIC;
+        qCDebug(log_ffmpeg_backend) << "Using bicubic scaling for better quality";
     }
     
     sws_context_ = sws_getContext(
         width, height, format,
-        targetWidth, targetHeight, AV_PIX_FMT_BGRA,
+        targetWidth, targetHeight, AV_PIX_FMT_RGB24,
         scaling_flags,  // Optimized for performance
         nullptr, nullptr, nullptr
     );
@@ -584,3 +722,25 @@ void FFmpegFrameProcessor::CleanupScalingContext()
     last_format_ = AV_PIX_FMT_NONE;
     last_scaling_algorithm_ = -1;
 }
+
+#ifdef HAVE_LIBJPEG_TURBO
+tjhandle FFmpegFrameProcessor::GetThreadLocalTurboJPEGHandle()
+{
+    // Use thread-local storage for TurboJPEG handles to enable multi-threading
+    thread_local tjhandle local_handle = nullptr;
+    
+    if (!local_handle) {
+        local_handle = tjInitDecompress();
+        if (!local_handle) {
+            qCWarning(log_ffmpeg_backend) << "Failed to initialize thread-local TurboJPEG handle";
+            return nullptr;
+        }
+        
+        qCDebug(log_ffmpeg_backend) << "Created thread-local TurboJPEG handle for thread ID:"
+                                   << QThread::currentThreadId();
+    }
+    
+    return local_handle;
+}
+#endif
+

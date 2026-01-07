@@ -28,6 +28,7 @@
 #include <QLoggingCategory>
 #include <QDateTime>
 #include <QDebug>
+#include <QThread>
 #include <thread>
 
 extern "C" {
@@ -506,10 +507,11 @@ bool FFmpegDeviceManager::SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator
     
     // ============ MJPEG-SPECIFIC QUALITY SETTINGS ============
     
-    // Use optimal thread count (4 threads = best balance)
-    // Too many threads cause context switching overhead and actual slowdown
-    codec_context_->thread_count = 4;
-    codec_context_->thread_type = FF_THREAD_FRAME;
+    // Use optimal thread count based on CPU cores (max 8 for stability)
+    // Dynamic threading for better CPU utilization
+    int optimal_threads = std::min(8, std::max(2, QThread::idealThreadCount()));
+    codec_context_->thread_count = optimal_threads;
+    codec_context_->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;  // Enable both frame and slice threading
     
     // Request full-range YUV output (better quality than limited range)
     codec_context_->pix_fmt = AV_PIX_FMT_YUVJ420P;
@@ -522,8 +524,8 @@ bool FFmpegDeviceManager::SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator
     
     qCInfo(log_ffmpeg_backend) << "=== CODEC CONFIGURATION FOR QUALITY ===";
     qCInfo(log_ffmpeg_backend) << "Codec:" << (codec->name ? codec->name : "unknown");
-    qCInfo(log_ffmpeg_backend) << "Thread count: 4 (optimal for balance)";
-    qCInfo(log_ffmpeg_backend) << "Thread type: FRAME";
+    qCInfo(log_ffmpeg_backend) << "Thread count:" << optimal_threads << "(CPU cores:" << QThread::idealThreadCount() << ")";
+    qCInfo(log_ffmpeg_backend) << "Thread type: FRAME + SLICE (hybrid threading)"; 
     qCInfo(log_ffmpeg_backend) << "Output pixel format:" << av_get_pix_fmt_name(codec_context_->pix_fmt);
     qCInfo(log_ffmpeg_backend) << "Skip frame: NONE (decode all)";
     qCInfo(log_ffmpeg_backend) << "Fast decoding: DISABLED (quality over speed)";
@@ -567,14 +569,15 @@ bool FFmpegDeviceManager::SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator
             codec_context_->skip_loop_filter = AVDISCARD_NONE;
             
             // ============ MJPEG-SPECIFIC QUALITY SETTINGS FOR FALLBACK ============
-            codec_context_->thread_count = 4;  // Fixed 4 threads for stability
-            codec_context_->thread_type = FF_THREAD_FRAME;
+            int fallback_threads = std::min(6, std::max(2, QThread::idealThreadCount() - 1));  // Leave 1 core for system
+            codec_context_->thread_count = fallback_threads;
+            codec_context_->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
             codec_context_->pix_fmt = AV_PIX_FMT_YUVJ420P;
             codec_context_->strict_std_compliance = FF_COMPLIANCE_NORMAL;
             codec_context_->flags |= AV_CODEC_FLAG_COPY_OPAQUE;
             
             usingHwDecoder = false;
-            qCInfo(log_ffmpeg_backend) << "Falling back to software decoder:" << codec->name << "(4 threads)";
+            qCInfo(log_ffmpeg_backend) << "Falling back to software decoder:" << codec->name << "(" << fallback_threads << "threads, CPU cores:" << QThread::idealThreadCount() << ")"; 
         } else {
             const char* hwType = (hw_device_type == AV_HWDEVICE_TYPE_CUDA) ? "CUDA/NVDEC" : "QSV";
             qCInfo(log_ffmpeg_backend) << "✓" << hwType << "hardware device context set successfully";

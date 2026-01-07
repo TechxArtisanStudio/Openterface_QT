@@ -72,8 +72,8 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     
     // ============ OPTIMIZED RENDERING FOR VIDEO STREAMING ============
-    setRenderHint(QPainter::Antialiasing, false);
-    setRenderHint(QPainter::SmoothPixmapTransform, false);
+    setRenderHint(QPainter::Antialiasing, true);
+    setRenderHint(QPainter::SmoothPixmapTransform, true); 
     setRenderHint(QPainter::TextAntialiasing, true);  // Critical for text clarity
     
     
@@ -1108,9 +1108,9 @@ void VideoPane::updateVideoFrameFromImage(const QImage& image)
     qreal widgetDpr = 1.0;
     if (window()) widgetDpr = window()->devicePixelRatioF();
     else widgetDpr = this->devicePixelRatioF();
-    QImage safeimage = image.copy();
-    // Convert QImage to QPixmap and force the pixmap DPR to the widget DPR
-    QPixmap frame = QPixmap::fromImage(safeimage);
+    
+    // Convert QImage to QPixmap (fromImage already does a deep copy, no need for extra copy)
+    QPixmap frame = QPixmap::fromImage(image);
     frame.setDevicePixelRatio(widgetDpr);
 
     qCDebug(log_ui_video) << "updateVideoFrameFromImage: image.size()=" << image.size()

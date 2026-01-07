@@ -66,6 +66,11 @@ public:
     // Configuration
     void SetFrameDropThreshold(int display_threshold_ms, int recording_threshold_ms);
     void SetScalingQuality(const QString &quality);
+    
+#ifdef HAVE_LIBJPEG_TURBO
+    // TurboJPEG fast MJPEG decoding
+    QImage DecodeMJPEGWithTurboJPEG(AVPacket* packet, const QSize& targetSize, tjhandle handle);
+#endif
     void StopCaptureGracefully();
     void StartCapture();
     void ResetFrameCount();
@@ -82,6 +87,10 @@ private:
     QImage ConvertFrameToImage(AVFrame* frame, const QSize& targetSize = QSize());
     QImage ConvertRgbFrameDirectlyToImage(AVFrame* frame);
     QImage ConvertWithScalingToImage(AVFrame* frame, const QSize& targetSize = QSize());
+    
+    // FFmpeg decoding implementation (extracted from main processing logic)
+    QImage ProcessWithFFmpegDecoding(AVPacket* packet, AVCodecContext* codec_context, 
+                                     bool is_recording, const QSize& targetSize = QSize());
     
     // Frame dropping logic
     bool ShouldDropFrame(bool is_recording);
@@ -126,6 +135,9 @@ private:
     
 #ifdef HAVE_LIBJPEG_TURBO
     tjhandle turbojpeg_handle_;
+    
+    // Thread-safe TurboJPEG handle access
+    tjhandle GetThreadLocalTurboJPEGHandle();
 #endif
 };
 
