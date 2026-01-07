@@ -1240,12 +1240,33 @@ void SerialPortManager::readData() {
         return;
     }
 
-    // // Prepend any buffered incomplete data from previous reads
+    // Add minimum data length check
     QByteArray completeData = data;
+    if (completeData.size() < 6) {  // Minimum packet size: header(2) + reserved(1) + cmd(1) + len(1) + checksum(1)
+        qCWarning(log_core_serial) << "Received packet too small, size:" << completeData.size() << "Data:" << completeData.toHex(' ');
+        return;
+    }
+    
+    // Safe access to index 4 to get payload length
     int payloadLen = static_cast<unsigned char>(completeData[4]);
     int packetSize = 6 + payloadLen; // header (2) + reserved(1) + cmd(1) + len(1) + payload(len) + checksum(1)
+    
+    // Check if calculated packet size exceeds actual data size
+    if (packetSize > completeData.size()) {
+        qCWarning(log_core_serial) << "Calculated packet size" << packetSize 
+                                   << "exceeds actual data size" << completeData.size()
+                                   << "Data:" << completeData.toHex(' ');
+        return;
+    }
+    
     QByteArray packet = completeData.left(packetSize);
-    // completeData = completeData.mid(packetSize);
+    
+    // Ensure packet has minimum size before accessing indices
+    if (packet.size() < 6) {
+        qCWarning(log_core_serial) << "Packet size too small after extraction:" << packet.size();
+        return;
+    }
+    
     unsigned char cmdCode = static_cast<unsigned char>(packet[3]);
     unsigned char responseKey = static_cast<unsigned char>(cmdCode | 0x80);
     unsigned char status = static_cast<unsigned char>(packet[5]);
@@ -1476,6 +1497,12 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
 QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force) {
     if(!force && !ready) return QByteArray();
     
+    // Add bounds checking for data array access
+    if (data.size() < 4) {
+        qCWarning(log_core_serial) << "sendSyncCommand: Command data too small, size:" << data.size();
+        return QByteArray();
+    }
+    
     emit dataSent(data);
     QByteArray command = data;
     
@@ -1528,6 +1555,7 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
 
 QByteArray SerialPortManager::collectSyncResponse(int totalTimeoutMs, int waitStepMs)
 {
+    const int MAX_ACCEPTABLE_PACKET = 1024; // Define reasonable maximum packet size
     if (!serialPort || !serialPort->isOpen()) {
         qCWarning(log_core_serial) << "collectSyncResponse: Serial port not open";
         return QByteArray();
@@ -1538,7 +1566,6 @@ QByteArray SerialPortManager::collectSyncResponse(int totalTimeoutMs, int waitSt
     QByteArray responseData;
 
     int expectedResponseLength = 6; // minimal header + checksum
-    const int MAX_ACCEPTABLE_PACKET = 4096;
 
     while (timer.elapsed() < totalTimeoutMs && responseData.size() < expectedResponseLength) {
         if (serialPort->waitForReadyRead(waitStepMs)) {
