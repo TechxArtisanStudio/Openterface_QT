@@ -11,9 +11,6 @@ MOC_DIR = moc
 OBJECTS_DIR = obj
 RCC_DIR = rcc
 
-QMAKE_CXX = E:/QT/Tools/mingw1120_64/bin/g++.exe
-QMAKE_CC = E:/QT/Tools/mingw1120_64/bin/gcc.exe
-
 QT       += core gui multimedia multimediawidgets serialport concurrent svg svgwidgets network opengl openglwidgets xml dbus
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -31,6 +28,7 @@ SOURCES += main.cpp \
     host/cameramanager.cpp \
     host/usbcontrol.cpp \
     host/multimediabackend.cpp \
+    host/imagecapturer.cpp \
     host/backend/qtmultimediabackendhandler.cpp \
     host/backend/qtbackendhandler.cpp \
     host/backend/ffmpegbackendhandler.cpp \
@@ -48,6 +46,8 @@ SOURCES += main.cpp \
     scripts/Parser.cpp \
     scripts/semanticAnalyzer.cpp \
     scripts/scriptEditor.cpp \
+    scripts/scriptRunner.cpp \
+    scripts/scriptExecutor.cpp \
     serial/SerialPortManager.cpp \
     server/tcpServer.cpp \
     target/KeyboardLayouts.cpp \
@@ -136,6 +136,7 @@ HEADERS  += \
     host/cameramanager.h \
     host/usbcontrol.h \
     host/multimediabackend.h \
+    host/imagecapturer.h \
     host/backend/qtmultimediabackendhandler.h \
     host/backend/qtbackendhandler.h \
     host/backend/ffmpegbackendhandler.h \
@@ -155,6 +156,8 @@ HEADERS  += \
     scripts/Parser.h \
     scripts/semanticAnalyzer.h \
     scripts/scriptEditor.h \
+    scripts/scriptRunner.h \
+    scripts/scriptExecutor.h \
     serial/SerialPortManager.h \
     serial/ch9329.h \
     server/tcpServer.h \
@@ -284,7 +287,8 @@ win32 {
 
 unix {
     # Add Linux-specific sources if any
-    SOURCES += dlopen_wrapper.c
+    SOURCES += dlopen_wrapper.c \
+               device/platform/LinuxDeviceManager.cpp
     HEADERS += device/platform/LinuxDeviceManager.h
 
     INCLUDEPATH += /usr/include
