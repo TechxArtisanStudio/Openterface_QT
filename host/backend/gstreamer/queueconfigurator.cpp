@@ -8,6 +8,8 @@
 #include <gst/gst.h>
 #endif
 
+Q_LOGGING_CATEGORY(log_gstreamer_queueconfigurator, "opf.backend.queueconfigurator")
+
 using namespace Openterface::GStreamer;
 
 void QueueConfigurator::configureDisplayQueue(void* pipeline)
@@ -24,10 +26,10 @@ void QueueConfigurator::configureDisplayQueue(void* pipeline)
                      "max-size-time", G_GUINT64_CONSTANT(100000000), // 100ms
                      "leaky", 2, // GST_QUEUE_LEAK_DOWNSTREAM
                      NULL);
-        qCDebug(log_gstreamer_backend) << "✓ Configured display queue with higher priority for qtsink";
+        qCDebug(log_gstreamer_queueconfigurator) << "✓ Configured display queue with higher priority for qtsink";
         gst_object_unref(displayQueue);
     } else {
-        qCDebug(log_gstreamer_backend) << "Display queue element not found (no named display-queue)";
+        qCDebug(log_gstreamer_queueconfigurator) << "Display queue element not found (no named display-queue)";
     }
 #else
     Q_UNUSED(pipeline);
@@ -48,7 +50,7 @@ void QueueConfigurator::configureRecordingQueue(void* pipeline)
                      "max-size-time", G_GUINT64_CONSTANT(500000000), // 500ms
                      "leaky", 1, // GST_QUEUE_LEAK_UPSTREAM
                      NULL);
-        qCDebug(log_gstreamer_backend) << "✓ Configured recording queue with lower priority relative to display";
+        qCDebug(log_gstreamer_queueconfigurator) << "✓ Configured recording queue with lower priority relative to display";
         gst_object_unref(recordingQueue);
     }
 #else
