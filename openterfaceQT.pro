@@ -287,8 +287,7 @@ win32 {
 
 unix {
     # Add Linux-specific sources if any
-    SOURCES += dlopen_wrapper.c \
-               device/platform/LinuxDeviceManager.cpp
+    SOURCES += device/platform/LinuxDeviceManager.cpp
     HEADERS += device/platform/LinuxDeviceManager.h
 
     INCLUDEPATH += /usr/include
