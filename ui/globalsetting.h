@@ -37,7 +37,7 @@ public:
 
     static GlobalSetting& instance();
 
-    void setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device, bool backend);
+    void setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device, bool backend, bool script);
 
     void setFilterSettings(bool Chipinfo, bool keyboardPress, bool mideaKeyboard, bool mouseMoveABS, bool mouseMoveREL, bool HID);
 
@@ -57,8 +57,14 @@ public:
     void setHardwareAcceleration(const QString &hwAccel);
     QString getHardwareAcceleration() const;
     
+    void setScalingQuality(const QString &quality);
+    QString getScalingQuality() const;
+    
     void setGStreamerPipelineTemplate(const QString &pipelineTemplate);
     QString getGStreamerPipelineTemplate() const;
+
+    void setGStreamerSinkPriority(const QStringList &priorityList);
+    QStringList getGStreamerSinkPriority() const;
     
     void setCameraDeviceSetting(QString deviceDescription);
 

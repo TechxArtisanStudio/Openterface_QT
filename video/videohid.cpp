@@ -786,7 +786,7 @@ void VideoHid::pollDeviceStatus() {
     try {
         bool currentSwitchOnTarget = getGpio0();
         bool hdmiConnected = isHdmiConnected();
-
+        qCDebug(log_host_hid) << "chip type" << (m_chipType == VideoChipType::MS2109 ? "MS2109" : (m_chipType == VideoChipType::MS2130S ? "MS2130S" : "Unknown"));
         if (eventCallback) {
             VideoHidResolutionInfo info = getInputStatus();
             normalizeResolution(info);
@@ -808,10 +808,10 @@ void VideoHid::pollDeviceStatus() {
                 emit resolutionChangeUpdate(0, 0, 0, 0);
             }
 
-            // Handle SPDIF toggle based on hard switch state change
-            if (isHardSwitchOnTarget != currentSwitchOnTarget) {
-                handleSpdifToggle(currentSwitchOnTarget);
+            if (m_chipType == VideoChipType::MS2109){
+                emit gpio0StatusChanged(currentSwitchOnTarget);
             }
+            
         }
     }
     catch (...) {
@@ -1448,6 +1448,7 @@ void VideoHid::loadEepromToFile(const QString &filePath) {
     quint32 firmwareSize = readFirmwareSize();
 
     QThread* thread = new QThread();
+    thread->setObjectName("FirmwareReaderThread");
     FirmwareReader *worker = new FirmwareReader(this, ADDR_EEPROM, firmwareSize, filePath);
     worker->moveToThread(thread);
 
@@ -2377,6 +2378,7 @@ void VideoHid::loadFirmwareToEeprom() {
     
     // Create a worker thread to handle firmware writing
     QThread* thread = new QThread();
+    thread->setObjectName("FirmwareWriterThread");
     FirmwareWriter* worker = new FirmwareWriter(this, ADDR_EEPROM, firmware);
     worker->moveToThread(thread);
     

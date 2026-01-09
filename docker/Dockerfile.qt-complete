@@ -128,7 +128,8 @@ RUN mkdir -p ${INSTALL_PREFIX}/lib/pkgconfig && \
     printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Widgets\nDescription: Qt6 Widgets Library\nVersion: 6.6.3\nRequires: Qt6Core Qt6Gui\nLibs: -L\${libdir} -lQt6Widgets\nCflags: -I\${includedir} -I\${includedir}/QtWidgets\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Widgets.pc && \
     printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Quick\nDescription: Qt6 Quick Library\nVersion: 6.6.3\nRequires: Qt6Core Qt6Gui Qt6Qml\nLibs: -L\${libdir} -lQt6Quick\nCflags: -I\${includedir} -I\${includedir}/QtQuick\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Quick.pc && \
     printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Qml\nDescription: Qt6 QML Library\nVersion: 6.6.3\nRequires: Qt6Core\nLibs: -L\${libdir} -lQt6Qml\nCflags: -I\${includedir} -I\${includedir}/QtQml\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Qml.pc && \
-    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6OpenGL\nDescription: Qt6 OpenGL Library\nVersion: 6.6.3\nRequires: Qt6Core Qt6Gui\nLibs: -L\${libdir} -lQt6OpenGL\nCflags: -I\${includedir} -I\${includedir}/QtOpenGL\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6OpenGL.pc
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6OpenGL\nDescription: Qt6 OpenGL Library\nVersion: 6.6.3\nRequires: Qt6Core Qt6Gui\nLibs: -L\${libdir} -lQt6OpenGL\nCflags: -I\${includedir} -I\${includedir}/QtOpenGL\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6OpenGL.pc && \
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6ShaderTools\nDescription: Qt6 ShaderTools Library\nVersion: 6.6.3\nRequires: Qt6Core Qt6Gui\nLibs: -L\${libdir} -lQt6ShaderTools\nCflags: -I\${includedir} -I\${includedir}/QtShaderTools\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6ShaderTools.pc
 
 # Create verification script
 RUN mkdir -p ${INSTALL_PREFIX}/bin && \
@@ -211,8 +212,7 @@ RUN echo "=== Verifying Qt6 pkg-config setup ===" && \
 
 # Build gst-plugins-good (static libraries for essential plugins)
 RUN apt-get update && apt-get install -y  \
-    qml6-module-qtquick \
-    libqt6opengl6-dev libqt6quick6 libqt6qml6 libjpeg-dev libpng-dev libv4l-dev \
+    libjpeg-dev libpng-dev libv4l-dev \
     libasound2-dev libxml2-dev libsoup2.4-dev \
     libglib2.0-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
     gstreamer1.0-tools \

@@ -80,6 +80,8 @@ private:
     QPixmap monitorIcon;
     QPixmap plugIcon;
     
+    int m_cpuCoreCount = 1;
+
     double getCpuUsage();
     QPixmap createIconTextLabel(const QString &svgPath, const QString &text, const QColor &textColor = QColor(), const QColor &iconColor = QColor());
     QColor getIconColorForCurrentTheme() const;

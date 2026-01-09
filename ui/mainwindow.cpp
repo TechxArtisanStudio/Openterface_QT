@@ -28,6 +28,7 @@
 #include "host/HostManager.h"
 #include "host/cameramanager.h"
 #include "serial/SerialPortManager.h"
+#include <QStandardPaths>
 #include "device/DeviceManager.h"
 #include "device/HotplugMonitor.h"
 #include "ui/preferences/settingdialog.h"
@@ -36,6 +37,7 @@
 #include "video/videohid.h"
 #include "ui/help/versioninfomanager.h"
 #include "ui/TaskManager.h"
+#include "regex/RegularExpression.h"
 #include "ui/advance/serialportdebugdialog.h"
 #include "ui/advance/firmwareupdatedialog.h"
 #include "ui/advance/envdialog.h"
@@ -134,6 +136,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     , m_menuCoordinator(nullptr)
     , m_deviceAutoSelected(false)
     , mouseEdgeTimer(nullptr)
+    , taskmanager(TaskManager::instance())
 {
     qCDebug(log_ui_mainwindow) << "Initializing MainWindow...";
     
@@ -153,12 +156,25 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
 }
 
 void MainWindow::startServer(){
+    // 1. create and start TCP server
     tcpServer = new TcpServer(this);
     tcpServer->startServer(SERVER_PORT);
-    qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345";
+    
+    // 2. create and initialize ImageCapturer
+    m_imageCapturer = new ImageCapturer(this);
+    
+    // 3. set default save path
+    QString savePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/openterface";
+    
+    // 4. start periodic auto capture (once per second)
+    m_imageCapturer->startCapturingAuto(m_cameraManager, tcpServer, savePath, 1);
+    
+    // 5. establish signal-slot connections
     connect(m_cameraManager, &CameraManager::lastImagePath, tcpServer, &TcpServer::handleImgPath);
     connect(tcpServer, &TcpServer::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     connect(this, &MainWindow::emitTCPCommandStatus, tcpServer, &TcpServer::recvTCPCommandStatus);
+    
+    qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345 with auto image capture";
 }
 
 
@@ -399,6 +415,11 @@ void MainWindow::onActionSwitchToTargetTriggered()
 
 void MainWindow::onToggleSwitchStateChanged(int state)
 {
+    // Ignore if this change is from a programmatic status update
+    if (m_cornerWidgetManager && m_cornerWidgetManager->isUpdatingFromStatus()) {
+        return;
+    }
+
     qCDebug(log_ui_mainwindow) << "Toggle switch state changed to:" << state;
     if (state == Qt::Checked) {
         onActionSwitchToTargetTriggered();
@@ -424,6 +445,12 @@ void MainWindow::onResolutionChange(const int& width, const int& height, const f
     m_statusBarManager->setCaptureResolution(width, height, fps);
     
     // No popup message for resolution changes
+}
+
+void MainWindow::onGpio0StatusChanged(bool isToTarget)
+{
+    qCDebug(log_ui_mainwindow) << "GPIO0 status changed to:" << (isToTarget ? "target" : "host");
+    toggleSwitch->setChecked(isToTarget);
 }
 
 void MainWindow::onTargetUsbConnected(const bool isConnected)
@@ -542,7 +569,6 @@ void MainWindow::processCapturedImage(int requestId, const QImage &img)
     QImage scaledImage =
             img.scaled(ui->centralwidget->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
-   // ui->lastImagePreviewLabel->setPixmap(QPixmap::fromImage(scaledImage));
 
     // Display captured image for 4 seconds.
     displayCapturedImage();
@@ -1200,20 +1226,24 @@ void MainWindow::showScriptTool()
 
 // run the sematic analyzer
 void MainWindow::handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree) {
-    QPointer<QObject> senderObj = sender();
-    QPointer<MainWindow> thisPtr(this); // Add protection for this pointer
-    taskmanager->addTask([thisPtr, syntaxTree, senderObj]() {
-        if (!senderObj || !thisPtr) return; // Check both pointers
-        bool runStatus = thisPtr->semanticAnalyzer->analyze(syntaxTree.get());
-        qCDebug(log_ui_mainwindow) << "Script run status: " << runStatus;
-        emit thisPtr->emitScriptStatus(runStatus);
-        
-        if (senderObj == thisPtr->tcpServer) {
-            qCDebug(log_ui_mainwindow) << "run finish: " << runStatus;
-            emit thisPtr->emitTCPCommandStatus(runStatus);
-        }
-    });
-} 
+    if (!syntaxTree) {
+        qCDebug(log_ui_mainwindow) << "handleSyntaxTree: empty tree";
+        emit emitScriptStatus(false);
+        return;
+    }
+
+    if (!scriptRunner) {
+        qCDebug(log_ui_mainwindow) << "No ScriptRunner available";
+        emit emitScriptStatus(false);
+        return;
+    }
+
+    QObject* origin = sender();
+    scriptRunner->runTree(std::move(syntaxTree), origin);
+}
+
+
+
 
 MainWindow::~MainWindow()
 {
@@ -1338,6 +1368,14 @@ MainWindow::~MainWindow()
         toggleSwitch->deleteLater();
         toggleSwitch = nullptr;
         qCDebug(log_ui_mainwindow) << "toggleSwitch destroyed successfully";
+    }
+    
+    // Clean up image capturer
+    if (m_imageCapturer) {
+        m_imageCapturer->stopCapturing();
+        m_imageCapturer->deleteLater();
+        m_imageCapturer = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_imageCapturer destroyed successfully";
     }
     
     if (m_audioManager) {

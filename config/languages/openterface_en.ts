@@ -616,7 +616,7 @@ Please try again after restarting the application.</source>
     <name>MainWindow</name>
     <message>
         <location filename="../../ui/mainwindow.ui" line="12"/>
-        <source>Openterface Mini-KVM</source>
+        <source>Openterface KVM</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -1678,7 +1678,7 @@ Please:
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="50"/>
-        <source>The target USB port is a muti-functional composite device for keyboard and mouse. Best competibility with Mac OS, Andriod and Linux.</source>
+        <source>The target USB port is a muti-functional composite device for keyboard and mouse. Best competibility with Mac OS, Android and Linux.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2077,7 +2077,7 @@ Do you want to continue?</source>
     </message>
     <message>
         <location filename="../../ui/help/versioninfomanager.cpp" line="213"/>
-        <source>Openterface Mini KVM</source>
+        <source>Openterface KVM</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2142,7 +2142,7 @@ Please check your internet connection.
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="124"/>
-        <source>Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable.</source>
+        <source>Note: On Linux the video may go black after OK or Apply. Please unplug and re-plug the host cable.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

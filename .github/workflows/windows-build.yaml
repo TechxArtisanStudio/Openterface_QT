@@ -2,7 +2,7 @@ name: Build / Openterface Windows Installer
 
 on:
   push:
-    branches: ["main", "dev"]
+    branches: ["main", "dev_1223_portable_build"]
     tags: ["v*"]
     paths:
       - '.github/workflows/windows-build.yaml'
@@ -43,6 +43,7 @@ defaults:
 env:
   SOURCE_DIR: ${{ github.workspace }}
   QT_VERSION: 6.6.3
+  FFMPEG_VERSION: 6.1.1
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   QT_CACHE_KEY: qt-6.6.3-mingw-windows
   JOM_CACHE_KEY: jom-1.1.3-windows
@@ -62,37 +63,35 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup MSYS2 MinGW64 environment
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: |
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-nasm
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-bzip2
+            mingw-w64-x86_64-xz
+            mingw-w64-x86_64-libjpeg-turbo
+            mingw-w64-x86_64-libiconv
+            mingw-w64-x86_64-libmfx
+            mingw-w64-x86_64-ffnvcodec-headers 
+            mingw-w64-x86_64-libusb
+            diffutils
+            make
+            libtool
+            git
+            perl
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
-      - name: Cache MinGW and CMake
-        id: cache-mingw
-        uses: actions/cache@v4
-        with:
-          path: C:\msys64\mingw64
-          key: msys2-mingw64-cmake-windows
-          restore-keys: |
-            msys2-mingw64-cmake-windows
-
-      - name: Cache MSYS2
-        id: cache-msys2
-        uses: actions/cache@v4
-        with:
-          path: C:\msys64
-          key: msys2-base-windows
-          restore-keys: |
-            msys2-base-windows
-
-      - name: Cache FFmpeg
-        id: cache-ffmpeg
-        uses: actions/cache@v4
-        with:
-          path: C:\ffmpeg-static
-          key: ffmpeg-static-6.1.1-windows-qsv
-          restore-keys: |
-            ffmpeg-static-6.1.1-windows-qsv
 
       - name: Update version
         run: |
@@ -107,34 +106,51 @@ jobs:
           fi
         shell: bash
 
+      - name: Commit and push version bump
+        if: ${{ github.event.inputs.increase_version == 'true' || github.event.inputs.increase_minor == 'true' || github.event.inputs.increase_major == 'true' }}
+        shell: bash
+        run: |
+          echo "Committing updated version.h and creating tag v$NEW_VERSION"
+          git status --porcelain
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add resources/version.h
+          git commit -m "Bump version to $NEW_VERSION" || echo "No changes to commit"
+          # Create annotated tag if it doesn't already exist
+          if ! git rev-parse "refs/tags/v$NEW_VERSION" >/dev/null 2>&1; then
+            git tag -a "v$NEW_VERSION" -m "Release $NEW_VERSION"
+          else
+            echo "Tag v$NEW_VERSION already exists, skipping tag creation"
+          fi
+          # Push branch and tags back to origin
+          git push origin "HEAD:${{ github.ref_name }}" --follow-tags || echo "Push failed; check permissions or branch protection"
+
+      - name: Dispatch Linux build (on patch increment)
+        if: ${{ github.event.inputs.increase_version == 'true' }}
+        shell: bash
+        run: |
+          echo "Dispatching linux-build.yml workflow via REST API"
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yaml/dispatches \
+            -d "{\"ref\":\"${{ github.ref_name }}\",\"inputs\":{\"build_type\":\"both\",\"ubuntu_version\":\"22.04\"}}"
+
+      - name: Dispatch Windows Portable build (on patch increment)
+        if: ${{ github.event.inputs.increase_version == 'true' }}
+        uses: peter-evans/repository-dispatch@v1
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: windows-portable-build.yaml
+          ref: ${{ github.ref_name }}
+
       - name: Get all tags for correct version determination
         working-directory: ${{ github.workspace }}
         run: |
           git fetch --all --tags -f
 
-      - name: Install MSYS2
-        run: |
-          if exist "C:\msys64\usr\bin\pacman.exe" (
-            echo "MSYS2 already installed"
-          ) else (
-            echo "Installing MSYS2..."
-            curl -L -o msys2.exe https://github.com/msys2/msys2-installer/releases/download/2023-10-26/msys2-x86_64-20231026.exe
-            msys2.exe --script install_msys2.msys2
-            del msys2.exe
-          )
-
-      - name: Install MinGW and CMake
-        if: steps.cache-mingw.outputs.cache-hit != 'true'
-        run: |
-          echo "Installing MinGW-w64 and CMake via MSYS2..."
-          set PATH=C:\msys64\usr\bin;%PATH%
-          pacman -S --needed --noconfirm --overwrite=* mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-libiconv mingw-w64-x86_64-libmfx
-
-          echo "Setting up PATH..."
-          echo "C:\msys64\mingw64\bin" >> $GITHUB_PATH
-
       - name: Install Qt
-        if: steps.cache-qt.outputs.cache-hit != 'true'
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
@@ -145,121 +161,546 @@ jobs:
           modules: qtmultimedia qtserialport qtimageformats
           setup-python: false
 
-      - name: Build Static FFmpeg
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-        run: |
-          echo "Building static FFmpeg..."
-          cd build-script
-          call build-static-ffmpeg-windows.bat
-
-      - name: Set up Visual Studio shell
-        uses: egor-tensin/vs-shell@v2
+      - name: Cache FFmpeg (shared)
+        id: cache-ffmpeg
+        uses: actions/cache@v4
         with:
-          arch: x64
-      
-      - name: Create build directory
+          path: C:\ffmpeg-shared
+          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v1-${{ runner.os }}
+          restore-keys: |
+            ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v1-
+
+      - name: Check Build Scripts Available
+        shell: cmd
         run: |
-          mkdir ${{ runner.temp }}\build
+          echo "Checking available build scripts..."
+          cd /d "${{ env.SOURCE_DIR }}"
+          dir build-script\*.bat
+          dir build-script\*.sh
+
+      - name: Build Shared FFmpeg (using MSYS2 MinGW64)
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: |
+          echo "Building shared FFmpeg using MSYS2 MinGW64..."
+          export SKIP_MSYS_MINGW=1
+          export EXTERNAL_MINGW_MSYS="/mingw64"
+          export FFMPEG_INSTALL_PREFIX="/c/ffmpeg-shared"
+          # Ensure pkg-config can find MinGW pkgconfig
+          export PKG_CONFIG_PATH="/mingw64/lib/pkgconfig:$PKG_CONFIG_PATH"
+
+          export ENABLE_NVENC=1
+
+          export AUTO_INSTALL_FFNV=1
+
+          export ENABLE_LIBMFX=1
+
+          cd "${{ env.SOURCE_DIR }}/build-script"
+          ./build-shared-ffmpeg-windows.sh > "${{ github.workspace }}/ffmpeg_build.log" 2>&1
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "ERROR: FFmpeg build failed!"
+            tail -n 200 "${{ github.workspace }}/ffmpeg_build.log" || true
+            exit $EXIT_CODE
+          fi
+          echo "FFmpeg build succeeded"
+
+      - name: Upload FFmpeg artifact (on build)
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-shared-${{ env.FFMPEG_VERSION }}
+          path: C:\ffmpeg-shared
+          retention-days: 7
+
+      - name: Verify FFmpeg installation
+        shell: msys2 {0}
+        run: |
+          if [ -f "/c/ffmpeg-shared/bin/avcodec-60.dll" ]; then
+            echo "✓ FFmpeg DLLs found"
+          else
+            echo "✗ FFmpeg DLLs missing"
+            ls -la "/c/ffmpeg-shared/bin/" || echo "FFmpeg bin directory does not exist"
+            exit 1
+          fi
+          if [ -f "/c/ffmpeg-shared/lib/libavcodec.dll.a" ]; then
+            echo "✓ FFmpeg import libraries found"
+          else
+            echo "✗ FFmpeg import libraries missing"
+            ls -la "/c/ffmpeg-shared/lib/" || echo "FFmpeg lib directory does not exist"
+            exit 1
+          fi
+
+      - name: Verify FFmpeg hwaccel and mjpeg decoders
+        shell: msys2 {0}
+        run: |
+          echo "=== FFmpeg hardware acceleration summary ==="
+          /c/ffmpeg-shared/bin/ffmpeg -hide_banner -hwaccels || echo "ffmpeg not found or hwaccels failed"
+          echo ""
+          echo "=== MJPEG decoders ==="
+          /c/ffmpeg-shared/bin/ffmpeg -hide_banner -decoders | grep -i mjpeg || echo "No mjpeg decoders found"
+          echo ""
+          echo "=== NVENC/QSV specific checks ==="
+          /c/ffmpeg-shared/bin/ffmpeg -hide_banner -decoders | grep -E "(cuvid|qsv)" || echo "No NVENC/QSV decoders found"
+          echo ""
+          echo "=== Tail of configure log (if present) ==="
+          if [ -f "${{ env.SOURCE_DIR }}/build-script/ffmpeg-build-temp/ffmpeg-configure.log" ]; then
+            tail -n 200 "${{ env.SOURCE_DIR }}/build-script/ffmpeg-build-temp/ffmpeg-configure.log" || true
+          else
+            echo "Configure log not found"
+          fi
+
+      - name: Upload FFmpeg configure log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-configure-log
+          path: ${{ env.SOURCE_DIR }}/build-script/ffmpeg-build-temp/ffmpeg-configure.log
+          if-no-files-found: warn
+
+      - name: Cache LibUSB
+        id: cache-libusb
+        uses: actions/cache@v4
+        with:
+          path: C:\libusb
+          key: libusb-1.0.27-windows-v1
+          restore-keys: |
+            libusb-1.0.27-windows-v1
+
+      - name: Verify and Setup LibUSB
+        if: steps.cache-libusb.outputs.cache-hit != 'true' || github.event.inputs.force_rebuild == 'true'
+        shell: msys2 {0}
+        run: |
+          echo "Setting up LibUSB for Qt/MinGW compatibility..."
+
+          # Update package DB and ensure MinGW libusb package is installed
+          echo "Updating package database and installing mingw-w64-x86_64-libusb (if needed)..."
+          pacman -Sy --noconfirm --needed mingw-w64-x86_64-libusb || echo "pacman returned non-zero status"
+
+          # List package files if installed (helps debugging)
+          if pacman -Qi mingw-w64-x86_64-libusb >/dev/null 2>&1; then
+            echo "Installed files for mingw-w64-x86_64-libusb:"; pacman -Ql mingw-w64-x86_64-libusb || true
+          fi
+
+          # Create cache directory structure
+          mkdir -p /c/libusb/bin /c/libusb/lib /c/libusb/include
+
+          LIBUSB_FOUND=false
+
+          # Preferred: MinGW libusb DLL (best ABI compatibility with Qt/MinGW)
+          if [ -f "/mingw64/bin/libusb-1.0.dll" ]; then
+            echo "✓ Found MinGW libusb-1.0.dll"
+            cp /mingw64/bin/libusb-1.0.dll /c/libusb/bin/ || true
+            cp /mingw64/bin/libusb-1.0.dll /c/libusb/bin/msys-usb-1.0.dll || true
+            # Copy MinGW runtime dependencies that might be needed
+            cp /mingw64/bin/libwinpthread-1.dll /c/libusb/bin/ 2>/dev/null || true
+            cp /mingw64/bin/libgcc_s_seh-1.dll /c/libusb/bin/ 2>/dev/null || true
+            
+            # Copy library and header files for linking
+            cp /mingw64/lib/*usb* /c/libusb/lib/ 2>/dev/null || echo "No USB libs to copy"
+            cp -r /mingw64/include/libusb* /c/libusb/include/ 2>/dev/null || echo "No USB headers to copy"
+            
+            LIBUSB_FOUND=true
+          else
+            echo "MinGW libusb-1.0.dll not found in /mingw64/bin"
+          fi
+
+          # Fallback: check cached copy or search for possible DLLs and copy them
+          if [ "$LIBUSB_FOUND" = "false" ]; then
+            echo "Checking cache at /c/libusb and searching the filesystem for libusb DLLs..."
+            if [ -f "/c/libusb/bin/libusb-1.0.dll" ]; then
+              echo "✓ Found libusb-1.0.dll in cache"
+              cp /c/libusb/bin/libusb-1.0.dll /c/libusb/bin/ || true
+              LIBUSB_FOUND=true
+            else
+              USB_DLLS=$(find / -name "libusb-1.0.dll" -o -name "msys-usb-1.0.dll" 2>/dev/null | head -5 || true)
+              if [ -n "$USB_DLLS" ]; then
+                echo "Found USB DLLs: $USB_DLLS"
+                for dll in $USB_DLLS; do
+                  echo "Copying $dll to /c/libusb/bin/"
+                  cp "$dll" /c/libusb/bin/ 2>/dev/null || true
+                  LIBUSB_FOUND=true
+                done
+              fi
+            fi
+          fi
+
+          # If still missing, fail early with actionable message
+          if [ "$LIBUSB_FOUND" = "false" ]; then
+            echo "ERROR: libusb-1.0.dll not found after installation and search attempts."
+            echo "Suggestions:"
+            echo "  - Enable 'force_rebuild' input to force reinstallation in CI or run the workflow again."
+            echo "  - Ensure MSYS2 pacman can access mingw-w64-x86_64-libusb (network/firewall issues may block it)."
+            echo "  - As a last resort place a compatible libusb-1.0.dll in /c/libusb/bin or next to the executable."
+            exit 1
+          fi
+
+          echo "Final LibUSB cache contents:"
+          ls -la /c/libusb/bin/ || echo "No files in cache bin"
+          echo "✓ LibUSB setup completed successfully"
+
+      - name: Upload FFmpeg Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-build-log
+          path: ${{ github.workspace }}/ffmpeg_build.log
+          if-no-files-found: warn
+
+      - name: Upload LibUSB Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libusb-build-log
+          path: ${{ github.workspace }}/libusb_build.log
+          if-no-files-found: warn
+
+      - name: Dump FFmpeg and LibUSB logs (tail)
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path "$env:GITHUB_WORKSPACE\ffmpeg_build.log") { Write-Host "---- FFmpeg tail (last 200 lines) ----"; Get-Content "$env:GITHUB_WORKSPACE\ffmpeg_build.log" -Tail 200 } else { Write-Host "No ffmpeg_build.log" }
+          if (Test-Path "$env:GITHUB_WORKSPACE\libusb_build.log") { Write-Host "---- LibUSB tail (last 200 lines) ----"; Get-Content "$env:GITHUB_WORKSPACE\libusb_build.log" -Tail 200 } else { Write-Host "No libusb_build.log" }
+
+      - name: Create build directory
+        run: mkdir ${{ runner.temp }}\build
 
       - name: Build
         working-directory: ${{ runner.temp }}\build
+        shell: msys2 {0}
         run: |
           echo "Setting up build environment..."
-          set PATH=C:\msys64\mingw64\bin;${{ runner.temp }}\Qt\${{ env.QT_VERSION }}\mingw_64\bin;%PATH%
-
+          # Convert Windows paths to MSYS2 format
+          SOURCE_DIR_MSYS="/$(echo '${{ env.SOURCE_DIR }}' | sed 's|\\|/|g' | sed 's|:||')"
+          QT_PATH_MSYS="/$(echo '${{ runner.temp }}/Qt/6.6.3/mingw_64/bin' | sed 's|\\|/|g' | sed 's|:||')"
+          
+          # Add Qt tools to PATH for MSYS2 environment
+          export PATH="/mingw64/bin:${QT_PATH_MSYS}:$PATH"
+          echo "Updated PATH: $PATH"
+          echo "Source directory (MSYS2 format): $SOURCE_DIR_MSYS"
+          
+          echo "Checking Qt tools availability..."
+          which lupdate || echo "lupdate not found in PATH"
+          which lrelease || echo "lrelease not found in PATH"
+          
           echo "Updating translations with lupdate..."
-          lupdate ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-
+          lupdate "${SOURCE_DIR_MSYS}/openterfaceQT.pro"
           echo "Generating .qm files with lrelease..."
-          lrelease ${{ env.SOURCE_DIR }}\openterfaceQT.pro
-
+          lrelease "${SOURCE_DIR_MSYS}/openterfaceQT.pro"
+          
           echo "Configuring with CMake..."
-          cmake -G "MinGW Makefiles" ^
-            -DCMAKE_BUILD_TYPE=Release ^
-            -DFFMPEG_PREFIX=C:\ffmpeg-static ^
-            ${{ env.SOURCE_DIR }}
-
+          cmake -G "MinGW Makefiles" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DFFMPEG_PREFIX=C:/ffmpeg-shared \
+            -DUSE_SHARED_FFMPEG=ON \
+            -DHAVE_LIBJPEG_TURBO=ON \
+            "$SOURCE_DIR_MSYS"
           echo "Building with mingw32-make..."
           mingw32-make -j2
-
-          echo "Build directory contents:"
-          dir
-
-          if not exist openterfaceQT.exe (
+          if [ ! -f openterfaceQT.exe ]; then
             echo "Error: Failed to build openterfaceQT.exe"
             exit 1
-          )
+          fi
+          echo "Build directory contents:"
+          ls -la
+          # ... rest of packaging steps (copy files, etc.)
+          mkdir -p ${{ env.PACKAGE_DIR }}/driver/windows
+          mkdir -p ${{ env.PACKAGE_DIR }}/config/languages
+          mkdir -p ${{ env.PACKAGE_DIR }}/config/keyboards
+          cp openterfaceQT.exe ${{ env.PACKAGE_DIR }}/${{ env.EXE_NAME }}
+          cp "${SOURCE_DIR_MSYS}/LICENSE" ${{ env.PACKAGE_DIR }}
+          cp "${SOURCE_DIR_MSYS}/driver/windows/"* ${{ env.PACKAGE_DIR }}/driver/windows/
+          echo "Copying FFmpeg DLLs..."
+          cp /c/ffmpeg-shared/bin/av*.dll ${{ env.PACKAGE_DIR }}
+          cp /c/ffmpeg-shared/bin/sw*.dll ${{ env.PACKAGE_DIR }}
+          cp /c/ffmpeg-shared/bin/postproc-57.dll ${{ env.PACKAGE_DIR }} || echo "Warning: postproc-57.dll not found"
+          cp /c/ffmpeg-shared/bin/libturbojpeg.dll ${{ env.PACKAGE_DIR }}
+          echo "Copying LibUSB DLLs..."
+          LIBUSB_FOUND=false
           
-          echo "Creating package directory..."
-          mkdir ${{ env.PACKAGE_DIR }}
-          mkdir ${{ env.PACKAGE_DIR }}\driver
-          mkdir ${{ env.PACKAGE_DIR }}\driver\windows
-          mkdir ${{ env.PACKAGE_DIR }}\config\languages
-          mkdir ${{ env.PACKAGE_DIR }}\config\keyboards
-
-          copy openterfaceQT.exe ${{ env.PACKAGE_DIR }}\${{ env.EXE_NAME }}
-          copy ${{ env.SOURCE_DIR }}\LICENSE ${{ env.PACKAGE_DIR }}
-          copy ${{ env.SOURCE_DIR }}\driver\windows\* ${{ env.PACKAGE_DIR }}\driver\windows
+          # Priority 1: Check cache for MinGW-compatible LibUSB
+          if [ -f "/c/libusb/bin/msys-usb-1.0.dll" ]; then
+            cp /c/libusb/bin/msys-usb-1.0.dll ${{ env.PACKAGE_DIR }}
+            # Also create libusb-1.0.dll for compatibility
+            cp /c/libusb/bin/msys-usb-1.0.dll ${{ env.PACKAGE_DIR }}/libusb-1.0.dll
+            echo "✓ Copied msys-usb-1.0.dll from cache and created libusb-1.0.dll"
+            LIBUSB_FOUND=true
+          elif [ -f "/c/libusb/bin/libusb-1.0.dll" ]; then
+            cp /c/libusb/bin/libusb-1.0.dll ${{ env.PACKAGE_DIR }}
+            cp /c/libusb/bin/libusb-1.0.dll ${{ env.PACKAGE_DIR }}/msys-usb-1.0.dll
+            echo "✓ Copied libusb-1.0.dll and created msys-usb-1.0.dll from cache"
+            LIBUSB_FOUND=true
+          fi
           
+          # Priority 2: Check MinGW64 directly (best ABI compatibility with Qt)
+          if [ "$LIBUSB_FOUND" = "false" ] && [ -f "/mingw64/bin/libusb-1.0.dll" ]; then
+            cp /mingw64/bin/libusb-1.0.dll ${{ env.PACKAGE_DIR }}
+            cp /mingw64/bin/libusb-1.0.dll ${{ env.PACKAGE_DIR }}/msys-usb-1.0.dll
+            echo "✓ Copied MinGW libusb-1.0.dll and created msys-usb-1.0.dll (best compatibility)"
+            
+            # Copy MinGW runtime dependencies to prevent ABI mismatches
+            cp /mingw64/bin/libgcc_s_dw2-1.dll ${{ env.PACKAGE_DIR }} 2>/dev/null || echo "MinGW libgcc_s_dw2-1.dll not needed"
+            cp /mingw64/bin/libwinpthread-1.dll ${{ env.PACKAGE_DIR }} 2>/dev/null && echo "✓ Copied MinGW pthread" || echo "MinGW pthread not needed"
+            LIBUSB_FOUND=true
+            
+          # No UCRT64 fallback (MinGW64 only)
+          fi
+          
+          # Copy additional MinGW runtime DLLs that may be needed for LibUSB compatibility
+          if [ "$LIBUSB_FOUND" = "true" ]; then
+            echo "Ensuring runtime compatibility..."
+            # Note: Qt is built with MinGW, so ensure MinGW runtimes are present when using LibUSB
+            for dll in libgcc_s_dw2-1.dll libwinpthread-1.dll; do
+              if [ -f "/mingw64/bin/$dll" ] && [ ! -f "${{ env.PACKAGE_DIR }}/$dll" ]; then
+                cp "/mingw64/bin/$dll" ${{ env.PACKAGE_DIR }} && echo "✓ Copied MinGW runtime $dll"
+              fi
+            done
+          fi
+          
+          # Final comprehensive search if still not found
+          if [ "$LIBUSB_FOUND" = "false" ]; then
+            echo "⚠ LibUSB DLL not found in preferred locations, searching comprehensively..."
+            USB_DLLS=$(find /mingw64 -name "*usb*.dll" 2>/dev/null | head -5)
+            if [ -n "$USB_DLLS" ]; then
+              echo "Found USB DLLs: $USB_DLLS"
+              for dll in $USB_DLLS; do
+                dll_name=$(basename "$dll")
+                cp "$dll" ${{ env.PACKAGE_DIR }}/
+                if [ "$dll_name" = "libusb-1.0.dll" ]; then
+                  cp "$dll" ${{ env.PACKAGE_DIR }}/msys-usb-1.0.dll
+                  echo "✓ Created msys-usb-1.0.dll from found $dll_name"
+                fi
+                echo "✓ Copied $dll_name from $(dirname "$dll")"
+                LIBUSB_FOUND=true
+              done
+            fi
+          fi
+          
+          # CRITICAL: Fail the build if LibUSB DLL is missing
+          if [ "$LIBUSB_FOUND" = "false" ]; then
+            echo "✗✗✗ CRITICAL ERROR: LibUSB DLL not found ✗✗✗"
+            echo "Application cannot run without libusb-1.0.dll"
+            echo "This will cause heap corruption errors (c0000374) at runtime."
+            echo ""
+            echo "Debugging information:"
+            echo "  - Cache location: /c/libusb/bin/"
+            ls -la /c/libusb/bin/ 2>/dev/null || echo "    Cache directory does not exist or is empty"
+            echo "  - MinGW64 location: /mingw64/bin/"
+            ls -la /mingw64/bin/*usb* 2>/dev/null || echo "    No USB DLLs in MinGW64"
+            echo "  - Installed USB packages:"
+            pacman -Q | grep -i usb || echo "    No USB packages found"
+            echo ""
+            echo "TERMINATING BUILD - LibUSB DLL is required"
+            exit 1
+          fi
+          
+          # Verify the DLL was actually copied
+          if [ ! -f "${{ env.PACKAGE_DIR }}/libusb-1.0.dll" ]; then
+            echo "✗✗✗ CRITICAL ERROR: libusb-1.0.dll not found in package directory after copy ✗✗✗"
+            ls -la ${{ env.PACKAGE_DIR }}/*usb* 2>/dev/null || echo "No USB DLLs in package directory"
+            exit 1
+          fi
+          
+          echo "✓✓✓ LibUSB DLL setup completed successfully ✓✓✓"
+          echo "Verifying copied files:"
+          ls -la ${{ env.PACKAGE_DIR }}/*usb* || echo "Warning: No USB DLLs visible (but copy succeeded)"
+          echo "Copying MSYS2 runtime dependencies..."
+          cp /mingw64/bin/libiconv-2.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libiconv-2.dll not found"
+          cp /mingw64/bin/libbz2-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libbz2-1.dll not found"
+          cp /mingw64/bin/liblzma-5.dll ${{ env.PACKAGE_DIR }} || echo "Warning: liblzma-5.dll not found"
+          cp /mingw64/bin/zlib1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: zlib1.dll not found"
+          cp /mingw64/bin/libwinpthread-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libwinpthread-1.dll not found"
+          cp /mingw64/bin/libgcc_s_seh-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libgcc_s_seh-1.dll not found"
+          cp /mingw64/bin/libstdc++-6.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libstdc++-6.dll not found"
           echo "Copying translation & keyboard layouts files..."
-          copy ${{ env.SOURCE_DIR }}\config\keyboards\*.json ${{ env.PACKAGE_DIR }}\config\keyboards
-          copy ${{ env.SOURCE_DIR }}\config\languages\*.qm ${{ env.PACKAGE_DIR }}\config\languages
-          
+          cp "${SOURCE_DIR_MSYS}/config/keyboards/"*.json ${{ env.PACKAGE_DIR }}/config/keyboards/
+          cp "${SOURCE_DIR_MSYS}/config/languages/"*.qm ${{ env.PACKAGE_DIR }}/config/languages/
           echo "Running windeployqt..."
           cd ${{ env.PACKAGE_DIR }}
-          windeployqt ${{ env.EXE_NAME }} --compiler-runtime --multimedia --network
-          
+          # Note: windeployqt is a Windows executable, so we need to call it from cmd
+          # We'll switch back to cmd shell for this step
 
-      - name: Move build artifacts
-        run: move /Y ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }} ${{ env.SOURCE_DIR }}
-
-      - name: Compile .NSI to .EXE Installer
+      - name: Run windeployqt (Windows native tool)
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
         run: |
-          echo "Compiling NSIS installer..."
-          mkdir ${{ env.SOURCE_DIR }}\Output
-          dir ${{ env.SOURCE_DIR }}\${{ env.PACKAGE_DIR }}
-          makensis /DWorkingDir="${{ env.SOURCE_DIR }}\${{ env.PACKAGE_DIR }}" ^
-                   /DMyAppVersion="${{ env.VERSION_FOR_INNO }}" ^
-                   /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" ^
-                   /DMyAppURL="${{ vars.MY_APP_URL }}" ^
-                   /DOutputDir="${{ env.SOURCE_DIR }}\Output" ^
-                   /DOutputBaseFileName=openterfaceQT.windows.amd64.installer ^
-                   /DMyAppExeName=${{ env.EXE_NAME }} ^
-                   installer.nsi
+          windeployqt ${{ env.EXE_NAME }} --compiler-runtime --multimedia --network
 
-      - name: Save build artifacts
+      - name: Verify DLL dependencies
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        shell: msys2 {0}
+        run: |
+          echo "=== DLL Dependency Analysis ==="
+          echo "Checking all DLLs in package..."
+          ls -la *.dll || true
+          
+          echo ""
+          echo "=== Checking openterfaceQT.exe dependencies ==="
+          if command -v objdump >/dev/null 2>&1; then
+            echo "Using objdump to check dependencies:"
+            objdump -p openterfaceQT.exe | grep -i "DLL Name" || true
+          fi
+          
+          echo ""
+          echo "=== Checking for LibUSB dependencies ==="
+          ldd openterfaceQT.exe | grep -i usb || echo "No USB dependencies found in ldd output"
+          
+          echo ""
+          echo "=== Runtime Library Compatibility Check ==="
+          # Check for potential ABI conflicts
+          echo "Checking Qt DLLs..."
+          ls -la Qt*.dll | head -5 || echo "No Qt DLLs found"
+          
+          echo "Checking MSYS2 runtime DLLs..."
+          for dll in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll libgcc_s_dw2-1.dll; do
+            if [ -f "$dll" ]; then
+              echo "✓ Found $dll"
+              # Check DLL info using objdump
+              if command -v objdump >/dev/null 2>&1; then
+                echo "  Architecture: $(objdump -f "$dll" | grep "^architecture" || echo "unknown")"
+              fi
+            else
+              echo "✗ Missing $dll"
+            fi
+          done
+          
+          echo ""
+          echo "=== LibUSB DLL Analysis ==="
+          for dll in libusb-1.0.dll msys-usb-1.0.dll; do
+            if [ -f "$dll" ]; then
+              echo "✓ Found $dll"
+              if command -v objdump >/dev/null 2>&1; then
+                echo "  Architecture: $(objdump -f "$dll" | grep "^architecture" || echo "unknown")"
+                echo "  Imports: $(objdump -p "$dll" | grep -i "DLL Name" | wc -l) DLLs"
+              fi
+            else
+              echo "✗ Missing $dll"
+            fi
+          done
+          
+          echo ""
+          echo "=== Potential ABI Compatibility Issues ==="
+          # Check if we're mixing different compiler runtimes
+          echo "Checking for mixed runtime libraries..."
+          
+          # Check for MinGW libraries only
+          echo "MinGW64 DLLs:"
+          ls -la /mingw64/bin/*.dll 2>/dev/null | head -10 || echo "No MinGW64 DLLs found"
+          
+          echo "Qt DLLs:"
+          ls -la Qt*.dll 2>/dev/null | head -3 || echo "No Qt DLLs found"
+          
+          echo "Qt DLLs:"
+          ls -la Qt*.dll 2>/dev/null | head -3 || echo "No Qt DLLs found"
+          
+          echo ""
+          echo "=== Debug Diagnostics (optional) ==="
+          if [ "${{ github.event.inputs.collect_debug }}" = "true" ]; then
+            echo "Collecting debug build and gdb backtrace..."
+            mkdir -p ${RUNNER_TEMP}/build-debug
+            cd ${RUNNER_TEMP}/build-debug
+            cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug -DFFMPEG_PREFIX=C:/ffmpeg-shared -DUSE_SHARED_FFMPEG=ON "${{ env.SOURCE_DIR_MSYS }}"
+            mingw32-make -j2 || echo "Debug build failed"
+            if [ -f openterfaceQT.exe ]; then
+              echo "Running gdb to capture backtrace..."
+              gdb --batch -ex "set pagination 0" -ex "run" -ex "thread apply all bt full" --args ./openterfaceQT.exe > "${{ github.workspace }}/gdb_bt.log" 2>&1 || true
+            else
+              echo "Debug executable not found; skipping gdb run"
+            fi
+            echo "Collecting objdump info for package DLLs..."
+            mkdir -p "${{ github.workspace }}/dll_info"
+            for f in *.dll ${RUNNER_TEMP}/build-debug/*.dll ${RUNNER_TEMP}/build/${{ env.PACKAGE_DIR }}/*.dll ${RUNNER_TEMP}/build/${{ env.PACKAGE_DIR }}/*/*.dll; do
+              if [ -f "$f" ]; then
+                base=$(basename "$f")
+                objdump -p "$f" > "${{ github.workspace }}/dll_info/${base}.objdump.txt" 2>&1 || true
+              fi
+            done
+          else
+            echo "collect_debug not enabled; skipping debug diagnostics"
+          fi
+          
+          echo ""
+          echo "=== Recommendation ==="
+          echo "If the application crashes with heap corruption (c0000374):"
+          echo "1. Ensure all DLLs use the same runtime (MinGW64 preferred for Qt)"
+          echo "2. Check for missing or mismatched Qt platform plugins"
+          echo "3. Verify LibUSB is compatible with the Qt/MinGW runtime"
+          echo "4. Run the application under gdb to collect a backtrace (enable collect_debug input)"
+          echo ""
+          echo "Verification complete"
+
+      - name: Upload gdb backtrace
+        if: github.event.inputs.collect_debug == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.amd64.installer
-          path: |
-            ${{ env.SOURCE_DIR }}\Output\openterfaceQT.windows.amd64.installer.exe
+          name: gdb-backtrace
+          path: ${{ github.workspace }}\gdb_bt.log
+          if-no-files-found: warn
+
+      - name: Upload DLL info (objdump outputs)
+        if: github.event.inputs.collect_debug == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dll-info
+          path: ${{ github.workspace }}\dll_info
+          if-no-files-found: warn
+
+      - name: Inspect Output and package directories
+        shell: pwsh
+        run: |
+          Write-Host "Listing Output directory: $env:SOURCE_DIR\Output"
+          if (Test-Path "$env:SOURCE_DIR\Output") { Get-ChildItem "$env:SOURCE_DIR\Output" -Recurse -Force | Select-Object -First 200 } else { Write-Host "Output directory not found" }
+          Write-Host "Listing package directory: $env:SOURCE_DIR\$env:PACKAGE_DIR"
+          if (Test-Path "$env:SOURCE_DIR\$env:PACKAGE_DIR") { Get-ChildItem "$env:SOURCE_DIR\$env:PACKAGE_DIR" -Recurse -Force | Select-Object -First 200 } else { Write-Host "Package directory not found" }
+
+      - name: Upload Output folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-folder
+          path: ${{ env.SOURCE_DIR }}\Output
+          if-no-files-found: warn 
+
+      - name: Install NSIS (if missing)
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+            Write-Host "makensis not found; installing NSIS via Chocolatey..."
+            choco install nsis -y
+          } else {
+            Write-Host "makensis already available"
+          }
+
+      - name: Compile .NSI to .EXE Installer
+        shell: pwsh
+        run: |
+          Write-Host "Compiling NSIS installer..."
+          $pkg = "${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}"
+          if (-not (Test-Path $pkg)) {
+            Write-Host "Package dir not found: $pkg"; exit 1
+          }
+          New-Item -ItemType Directory -Path "${{ env.SOURCE_DIR }}\Output" -Force | Out-Null
+          # Run makensis with defines used by installer script
+          & makensis /DWorkingDir="$pkg" /DMyAppVersion="${{ env.NEW_VERSION }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}" /DOutputDir="${{ env.SOURCE_DIR }}\Output" /DOutputBaseFileName=openterfaceQT.windows.amd64.installer /DMyAppExeName=${{ env.EXE_NAME }} "${{ env.SOURCE_DIR }}\installer.nsi"
+          if ($LASTEXITCODE -ne 0) { Write-Host "makensis failed with exit code $LASTEXITCODE"; exit $LASTEXITCODE }
+          Write-Host "Installer build completed. Listing Output directory:"
+          Get-ChildItem "${{ env.SOURCE_DIR }}\Output" -Recurse | Select-Object -First 200
+
+      - name: Upload windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT_windows_amd64_installer
+          path: ${{ env.SOURCE_DIR }}\Output\*.exe
           if-no-files-found: error
 
-      - name: Commit and push version update
-        if: success() && (github.event.inputs.increase_version == 'true' || github.event.inputs.increase_major == 'true' || github.event.inputs.increase_minor == 'true')
+      - name: Copy package to workspace for inspection (optional)
+        shell: pwsh
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add resources/version.h
-          git commit -m "Bump version to ${{ env.NEW_VERSION }}" -a || echo "No changes to commit"
-          
-          git pull --rebase https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git ${{ github.ref }}
-          git push https://${{ env.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:${{ github.ref }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
-      - name: Trigger other workflows
-        if: success() && (github.event.inputs.increase_version == 'true' || github.event.inputs.increase_major == 'true' || github.event.inputs.increase_minor == 'true')
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const workflows = ['linux-build.yaml','windows-portable-build.yaml'];
-            for (const workflow of workflows) {
-              await github.rest.actions.createWorkflowDispatch({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                workflow_id: workflow,
-                ref: context.ref
-              });
-            }
+          $src = "${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}"
+          $dst = "${{ env.SOURCE_DIR }}\${{ env.PACKAGE_DIR }}"
+          if (Test-Path $src) {
+            Remove-Item -Recurse -Force $dst -ErrorAction SilentlyContinue || true
+            Copy-Item -Recurse -Force $src $dst
+            Write-Host "Copied package to workspace: $dst"
+          } else {
+            Write-Host "Package dir not found: $src"
+          }
+

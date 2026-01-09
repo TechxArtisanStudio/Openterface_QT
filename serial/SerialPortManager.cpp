@@ -43,30 +43,52 @@ const int SerialPortManager::BAUDRATE_LOWSPEED;
 const int SerialPortManager::DEFAULT_BAUDRATE;
 const int SerialPortManager::SERIAL_TIMER_INTERVAL;
 
-SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialPort(nullptr), serialThread(new QThread(nullptr)), serialTimer(new QTimer(nullptr)){
+SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialPort(nullptr), m_serialWorkerThread(new QThread(nullptr)), serialTimer(new QTimer(nullptr)),
+    m_connectionWatchdog(nullptr), m_errorRecoveryTimer(nullptr), m_usbStatusCheckTimer(nullptr){
     qCDebug(log_core_serial) << "Initialize serial port.";
+
+    // Set name for the serial worker thread for better logging
+    m_serialWorkerThread->setObjectName("SerialWorkerThread");
+
+    this->moveToThread(m_serialWorkerThread);
 
     // Initialize port chain tracking member variables
     m_currentSerialPortPath = QString();
     m_currentSerialPortChain = QString();
     
-    // Initialize enhanced stability members
-    m_connectionWatchdog = new QTimer(this);
-    m_errorRecoveryTimer = new QTimer(this);
-    m_connectionWatchdog->setSingleShot(true);
-    m_errorRecoveryTimer->setSingleShot(true);
+    // Initialize elapsed timers (these don't need thread affinity)
     m_lastSuccessfulCommand.start();
-    
-    // Initialize error frequency tracking
     m_errorTrackingTimer.start();
     
-    setupConnectionWatchdog();
-
-    // this->moveToThread(serialThread);
+    // IMPORTANT: Timers must be created in the worker thread to avoid cross-thread issues
+    // Use QThread::started signal to create timers after moveToThread takes effect
+    connect(m_serialWorkerThread, &QThread::started, this, [this]() {
+        qCDebug(log_core_serial) << "Worker thread started, creating timers in worker thread context";
+        
+        // Create timers in the worker thread context
+        m_connectionWatchdog = new QTimer(this);
+        m_errorRecoveryTimer = new QTimer(this);
+        m_usbStatusCheckTimer = new QTimer(this);
+        
+        m_connectionWatchdog->setSingleShot(true);
+        m_errorRecoveryTimer->setSingleShot(true);
+        m_usbStatusCheckTimer->setInterval(2000);  // Check every 2 seconds
+        
+        connect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
+        
+        setupConnectionWatchdog();
+        
+        qCDebug(log_core_serial) << "Timers created successfully in worker thread";
+    }, Qt::DirectConnection);  // DirectConnection ensures it runs in the worker thread
 
     connect(this, &SerialPortManager::serialPortConnected, this, &SerialPortManager::onSerialPortConnected);
     connect(this, &SerialPortManager::serialPortDisconnected, this, &SerialPortManager::onSerialPortDisconnected);
     connect(this, &SerialPortManager::serialPortConnectionSuccess, this, &SerialPortManager::onSerialPortConnectionSuccess);
+    
+    // Connect thread-safe reset operation signals to handlers (QueuedConnection ensures they run in worker thread)
+    connect(this, &SerialPortManager::requestResetHidChip, this, &SerialPortManager::handleResetHidChip, Qt::QueuedConnection);
+    connect(this, &SerialPortManager::requestFactoryReset, this, &SerialPortManager::handleFactoryReset, Qt::QueuedConnection);
+    connect(this, &SerialPortManager::requestFactoryResetV191, this, &SerialPortManager::handleFactoryResetV191, Qt::QueuedConnection);
     
     // Connect parameter configuration success signal to automatically send reset command
     connect(this, &SerialPortManager::parameterConfigurationSuccess, this, [this]() {
@@ -101,13 +123,13 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
 void SerialPortManager::observeSerialPortNotification(){
     qCDebug(log_core_serial) << "Created a timer to observer SerialPort...";
 
-    serialTimer->moveToThread(serialThread);
+    serialTimer->moveToThread(m_serialWorkerThread);
 
-    connect(serialThread, &QThread::finished, serialTimer, &QObject::deleteLater);
-    connect(serialThread, &QThread::finished, serialThread, &QObject::deleteLater);
+    connect(m_serialWorkerThread, &QThread::finished, serialTimer, &QObject::deleteLater);
+    connect(m_serialWorkerThread, &QThread::finished, m_serialWorkerThread, &QObject::deleteLater);
     connect(this, &SerialPortManager::sendCommandAsync, this, &SerialPortManager::sendCommand);
     
-    serialThread->start();
+    m_serialWorkerThread->start();
 }
 
 void SerialPortManager::stop() {
@@ -122,9 +144,9 @@ void SerialPortManager::stop() {
     // Prevent callback access during shutdown
     eventCallback = nullptr;
     
-    if (serialThread && serialThread->isRunning()) {
-        serialThread->quit();
-        serialThread->wait(3000); // Wait up to 3 seconds
+    if (m_serialWorkerThread && m_serialWorkerThread->isRunning()) {
+        m_serialWorkerThread->quit();
+        m_serialWorkerThread->wait(3000); // Wait up to 3 seconds
     }
     
     if (serialPort && serialPort->isOpen()) {
@@ -595,12 +617,12 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
     // Extra debug: confirm readyRead signals and thread id (and bytesAvailable at the moment)
     // This lambda helps validate whether readyRead is fired and on which thread context.
-    connect(serialPort, &QSerialPort::readyRead, this, [this]() {
-        qCDebug(log_core_serial) << "readyRead: emitted; threadId:" << (qulonglong)QThread::currentThreadId()
-                                 << "port:" << (serialPort ? serialPort->portName() : QString("null"))
-                                 << "bytesAvailable:" << (serialPort ? serialPort->bytesAvailable() : -1)
-                                 << "bytesToWrite:" << (serialPort ? serialPort->bytesToWrite() : -1);
-    });
+    // connect(serialPort, &QSerialPort::readyRead, this, [this]() {
+        // qCDebug(log_core_serial) << "readyRead: emitted; threadId:" << (qulonglong)QThread::currentThreadId()
+        //                          << "port:" << (serialPort ? serialPort->portName() : QString("null"))
+        //                          << "bytesAvailable:" << (serialPort ? serialPort->bytesAvailable() : -1)
+        //                          << "bytesToWrite:" << (serialPort ? serialPort->bytesToWrite() : -1);
+    // });
     
     // Connect error signal for enhanced error handling
     connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
@@ -610,13 +632,23 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     resetErrorCounters();
     m_lastSuccessfulCommand.restart();
 
-    if(eventCallback!=nullptr) eventCallback->onPortConnected(portName, serialPort->baudRate());
+    emit connectedPortChanged(portName, serialPort->baudRate());
 
     qCDebug(log_core_serial) << "Enable the switchable USB now...";
     // serialPort->setDataTerminalReady(false);
 
-    // Start connection watchdog
+    // Start connection watchdog (already handles thread safety internally)
     setupConnectionWatchdog();
+
+    // Start USB status check timer for CH32V208 (thread-safe)
+    if (isChipTypeCH32V208() && m_usbStatusCheckTimer) {
+        if (QThread::currentThread() == m_usbStatusCheckTimer->thread()) {
+            m_usbStatusCheckTimer->start();
+        } else {
+            QMetaObject::invokeMethod(m_usbStatusCheckTimer, "start", Qt::QueuedConnection);
+        }
+        qCDebug(log_core_serial) << "Started USB status check timer for CH32V208";
+    }
 
     sendAsyncCommand(CMD_GET_INFO, true);
 }
@@ -627,12 +659,35 @@ void SerialPortManager::setEventCallback(StatusEventCallback* callback) {
 
 /* 
  * Reset the hid chip, set the baudrate to specified rate and mode to 0x82 and reset the chip
+ * This is a thread-safe wrapper that emits a signal to perform the actual reset in the worker thread
  * CH32V208: Only supports 115200, just close and reopen with 115200
  * CH9329: Supports both baudrates, requires reconfiguration command + reset command
  */
 bool SerialPortManager::resetHipChip(int targetBaudrate){
-    qCDebug(log_core_serial) << "Reset the hid chip now...";
+    qCDebug(log_core_serial) << "Reset HID chip requested from thread:" << QThread::currentThread()->objectName();
+    
+    // If called from the worker thread, execute directly
+    if (QThread::currentThread() == this->thread()) {
+        return handleResetHidChipInternal(targetBaudrate);
+    }
+    
+    // Otherwise, emit signal to execute in worker thread (non-blocking)
+    emit requestResetHidChip(targetBaudrate);
+    return true;  // Return true as the request was queued successfully
+}
+
+// Internal implementation that runs in the worker thread
+bool SerialPortManager::handleResetHidChipInternal(int targetBaudrate) {
+    qCDebug(log_core_serial) << "Reset the hid chip now (internal)...";
+    
+    if (!serialPort) {
+        qCWarning(log_core_serial) << "Serial port is null, cannot reset";
+        emit resetHidChipCompleted(false);
+        return false;
+    }
+    
     QString portName = serialPort->portName();
+    bool success = false;
     
     // Handle CH32V208 chip - simple close/reopen, no commands needed
     if (isChipTypeCH32V208()) {
@@ -649,12 +704,15 @@ bool SerialPortManager::resetHipChip(int targetBaudrate){
         
         // Use non-blocking timer instead of msleep
         QTimer::singleShot(100, this, [this, portName, targetBaudrate]() {
+            bool reopenSuccess = false;
             if (openPort(portName, targetBaudrate)) {
                 qCInfo(log_core_serial) << "CH32V208 chip successfully reopened at 115200";
                 onSerialPortConnected(portName);
+                reopenSuccess = true;
             } else {
                 qCWarning(log_core_serial) << "Failed to reopen CH32V208 chip at 115200";
             }
+            emit resetHidChipCompleted(reopenSuccess);
         });
         
         return true;
@@ -670,19 +728,17 @@ bool SerialPortManager::resetHipChip(int targetBaudrate){
                 qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << targetBaudrate;
                 setBaudRate(targetBaudrate);
                 restartPort();
-                return true;
+                success = true;
             }else{
                 qCWarning(log_core_serial) << "Reset the hid chip fail - send reset command failed";
-                return false;
             }
         }else{
             qCWarning(log_core_serial) << "Set data config fail - reconfigureHidChip returned false";
-            // Don't call restartPort() here as it causes infinite loop
-            // Just mark as not ready and let the normal connection flow handle it
             ready = false;
             qCDebug(log_core_serial) << "Target baudrate was: " << targetBaudrate << "Current baudrate: " << serialPort->baudRate();
-            return false;
         }
+        emit resetHidChipCompleted(success);
+        return success;
     }
     
     // Unknown chip type - try the CH9329 approach as fallback
@@ -693,22 +749,24 @@ bool SerialPortManager::resetHipChip(int targetBaudrate){
             qCDebug(log_core_serial) << "Reopen the serial port with baudrate: " << targetBaudrate;
             setBaudRate(targetBaudrate);
             restartPort();
-            return true;
+            success = true;
         }else{
             qCWarning(log_core_serial) << "Reset the hid chip fail - send reset command failed";
-            return false;
         }
     }else{
         qCWarning(log_core_serial) << "Set data config fail - reconfigureHidChip returned false";
-        // Don't call restartPort() here as it causes infinite loop
-        // Just mark as not ready and let the normal connection flow handle it
         ready = false;
         qCDebug(log_core_serial) << "Target baudrate was: " << targetBaudrate << "Current baudrate: " << serialPort->baudRate();
-        return false;
     }
+    emit resetHidChipCompleted(success);
+    return success;
 }
 
-
+// Slot handler for thread-safe reset operation
+void SerialPortManager::handleResetHidChip(int targetBaudrate) {
+    qCDebug(log_core_serial) << "handleResetHidChip slot called in thread:" << QThread::currentThread()->objectName();
+    handleResetHidChipInternal(targetBaudrate);
+}
 
 /*
  * Send the reset command to the hid chip
@@ -724,48 +782,108 @@ bool SerialPortManager::sendResetCommand(){
     }
 }
 
+void SerialPortManager::onUsbStatusCheckTimeout() {
+    if (m_isShuttingDown || !serialPort || !serialPort->isOpen() || !isChipTypeCH32V208()) {
+        return;  // Skip if shutting down, port not open, or not CH32V208
+    }
+
+    sendAsyncCommand(CMD_CHECK_USB_STATUS, true);
+    qCDebug(log_core_serial) << "Sent USB status check command asynchronously";
+}
+
 /*
  * Supported hardware 1.9 and > 1.9.1
  * Factory reset the hid chip by holding the RTS pin to low for 4 seconds
+ * This is a thread-safe wrapper that emits a signal to perform the actual reset in the worker thread
  * CH32V208: Uses RTS pin reset method only
  * CH9329: Uses RTS pin reset method
  */
 bool SerialPortManager::factoryResetHipChip(){
-    qCDebug(log_core_serial) << "Factory reset Hid chip now...";
+    qCDebug(log_core_serial) << "Factory reset HID chip requested from thread:" << QThread::currentThread()->objectName();
+    
+    // If called from the worker thread, execute directly
+    if (QThread::currentThread() == this->thread()) {
+        return handleFactoryResetInternal();
+    }
+    
+    // Otherwise, emit signal to execute in worker thread (non-blocking)
+    emit requestFactoryReset();
+    return true;  // Return true as the request was queued successfully
+}
+
+// Internal implementation that runs in the worker thread
+bool SerialPortManager::handleFactoryResetInternal() {
+    qCDebug(log_core_serial) << "Factory reset Hid chip now (internal)...";
 
     // Clear stored baudrate on factory reset
     clearStoredBaudrate();
 
+    if (!serialPort) {
+        qCWarning(log_core_serial) << "Serial port is null, cannot factory reset";
+        emit factoryResetCompleted(false);
+        return false;
+    }
+
     if(serialPort->setRequestToSend(true)){
-        if (eventCallback != nullptr) {
-            eventCallback->factoryReset(true);
-        }
+        emit factoryReset(true);
         qCDebug(log_core_serial) << "Set RTS to low";
         QTimer::singleShot(4000, this, [this]() {
-            if (serialPort->setRequestToSend(false)) {
+            bool success = false;
+            if (serialPort && serialPort->setRequestToSend(false)) {
                 qCDebug(log_core_serial) << "Set RTS to high";
-                if (eventCallback != nullptr) {
-                    eventCallback->factoryReset(false);
-                }
+                emit factoryReset(false);
                 restartPort();
+                success = true;
             }
+            emit factoryResetCompleted(success);
         });
+        return true;
     }
+    emit factoryResetCompleted(false);
     return false;
+}
+
+// Slot handler for thread-safe factory reset operation
+void SerialPortManager::handleFactoryReset() {
+    qCDebug(log_core_serial) << "handleFactoryReset slot called in thread:" << QThread::currentThread()->objectName();
+    handleFactoryResetInternal();
 }
 
 /*
  * Supported hardware == 1.9.1
  * Factory reset the hid chip by sending set default cfg command
+ * This is a thread-safe wrapper that emits a signal to perform the actual reset in the worker thread
  * CH32V208: May not support this command, will try at 115200 only
  * CH9329: Supports this command at both baudrates
  */
 bool SerialPortManager::factoryResetHipChipV191(){
-    qCDebug(log_core_serial) << "Factory reset Hid chip for 1.9.1 now...";
-    if(eventCallback) eventCallback->onStatusUpdate("Factory reset Hid chip now.");
+    qCDebug(log_core_serial) << "Factory reset HID chip V191 requested from thread:" << QThread::currentThread()->objectName();
+    
+    // If called from the worker thread, execute directly
+    if (QThread::currentThread() == this->thread()) {
+        return handleFactoryResetV191Internal();
+    }
+    
+    // Otherwise, emit signal to execute in worker thread (non-blocking)
+    emit requestFactoryResetV191();
+    return true;  // Return true as the request was queued successfully
+}
+
+// Internal implementation that runs in the worker thread
+bool SerialPortManager::handleFactoryResetV191Internal() {
+    qCDebug(log_core_serial) << "Factory reset Hid chip for 1.9.1 now (internal)...";
+    emit statusUpdate("Factory reset Hid chip now.");
 
     // Clear stored baudrate on factory reset
     clearStoredBaudrate();
+
+    if (!serialPort) {
+        qCWarning(log_core_serial) << "Serial port is null, cannot factory reset";
+        emit factoryResetCompleted(false);
+        return false;
+    }
+
+    bool success = false;
 
     // CH32V208 chip only supports 115200, don't try 9600
     if (isChipTypeCH32V208()) {
@@ -773,38 +891,48 @@ bool SerialPortManager::factoryResetHipChipV191(){
         QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
         if (retByte.size() > 0) {
             qCDebug(log_core_serial) << "Factory reset the hid chip success.";
-            if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip success.");
-            return true;
+            emit statusUpdate("Factory reset the hid chip success.");
+            success = true;
         } else {
             qCWarning(log_core_serial) << "CH32V208 chip factory reset failed - chip may not support this command";
-            if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip failure.");
-            return false;
+            emit statusUpdate("Factory reset the hid chip failure.");
         }
+        emit factoryResetCompleted(success);
+        return success;
     }
 
     // CH9329 chip - try current baudrate first, then alternative
     QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
     if (retByte.size() > 0) {
         qCDebug(log_core_serial) << "Factory reset the hid chip success.";
-        if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip success.");
+        emit statusUpdate("Factory reset the hid chip success.");
+        emit factoryResetCompleted(true);
         return true;
     } else{
         qCDebug(log_core_serial) << "Factory reset the hid chip fail.";
         // toggle to another baudrate
         serialPort->close();
         setBaudRate(anotherBaudrate());
-        if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip@9600.");
+        emit statusUpdate("Factory reset the hid chip@9600.");
         if(serialPort->open(QIODevice::ReadWrite)){
             QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
             if (retByte.size() > 0) {
                 qCDebug(log_core_serial) << "Factory reset the hid chip success.";
-                if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip success@9600.");
+                emit statusUpdate("Factory reset the hid chip success@9600.");
+                emit factoryResetCompleted(true);
                 return true;
             }
         }
     }
-    if(eventCallback) eventCallback->onStatusUpdate("Factory reset the hid chip failure.");
+    emit statusUpdate("Factory reset the hid chip failure.");
+    emit factoryResetCompleted(false);
     return false;
+}
+
+// Slot handler for thread-safe factory reset V191 operation
+void SerialPortManager::handleFactoryResetV191() {
+    qCDebug(log_core_serial) << "handleFactoryResetV191 slot called in thread:" << QThread::currentThread()->objectName();
+    handleFactoryResetV191Internal();
 }
 
 /*
@@ -825,17 +953,43 @@ SerialPortManager::~SerialPortManager() {
     // Disconnect from hotplug monitor
     disconnectFromHotplugMonitor();
     
-    // Clean up timers
+    // Clean up timers - use thread-safe stopping first
+    // Note: Since we're in destructor and thread may be stopped, we need to be careful
+    // The stop() call above should have already stopped the worker thread
+    
     if (m_connectionWatchdog) {
-        m_connectionWatchdog->stop();
+        // If thread is still running, use invokeMethod; otherwise direct stop is safe
+        if (m_serialWorkerThread && m_serialWorkerThread->isRunning() && 
+            QThread::currentThread() != m_connectionWatchdog->thread()) {
+            QMetaObject::invokeMethod(m_connectionWatchdog, "stop", Qt::BlockingQueuedConnection);
+        } else {
+            m_connectionWatchdog->stop();
+        }
         m_connectionWatchdog->deleteLater();
         m_connectionWatchdog = nullptr;
     }
     
     if (m_errorRecoveryTimer) {
-        m_errorRecoveryTimer->stop();
+        if (m_serialWorkerThread && m_serialWorkerThread->isRunning() && 
+            QThread::currentThread() != m_errorRecoveryTimer->thread()) {
+            QMetaObject::invokeMethod(m_errorRecoveryTimer, "stop", Qt::BlockingQueuedConnection);
+        } else {
+            m_errorRecoveryTimer->stop();
+        }
         m_errorRecoveryTimer->deleteLater();
         m_errorRecoveryTimer = nullptr;
+    }
+    
+    // Clean up USB status check timer
+    if (m_usbStatusCheckTimer) {
+        if (m_serialWorkerThread && m_serialWorkerThread->isRunning() && 
+            QThread::currentThread() != m_usbStatusCheckTimer->thread()) {
+            QMetaObject::invokeMethod(m_usbStatusCheckTimer, "stop", Qt::BlockingQueuedConnection);
+        } else {
+            m_usbStatusCheckTimer->stop();
+        }
+        m_usbStatusCheckTimer->deleteLater();
+        m_usbStatusCheckTimer = nullptr;
     }
     
     // Final cleanup
@@ -864,7 +1018,7 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         return true;
     }
     
-    if(eventCallback!=nullptr) eventCallback->onStatusUpdate("Going to open the port");
+    emit statusUpdate("Going to open the port");
     
     if(serialPort == nullptr){
         serialPort = new QSerialPort();
@@ -922,8 +1076,8 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         // Reset error counters on successful connection
         resetErrorCounters();
 
-        if(eventCallback!=nullptr) eventCallback->onStatusUpdate("");
-        if(eventCallback!=nullptr) eventCallback->onPortConnected(portName, baudRate);
+        emit statusUpdate("");
+        emit connectedPortChanged(portName, baudRate);
         qCDebug(log_core_serial) << "Serial port: " << portName << ", baudrate: " << baudRate << "opened";
         return true;
     } else {
@@ -932,7 +1086,7 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
                           .arg(static_cast<int>(lastError));
         qCWarning(log_core_serial) << errorMsg;
 
-        if(eventCallback!=nullptr) eventCallback->onStatusUpdate(errorMsg);
+        emit statusUpdate(errorMsg);
         return false;
     }
 }
@@ -980,12 +1134,21 @@ void SerialPortManager::closePort() {
     }
     
     ready = false;
-    if (eventCallback != nullptr) {
-        eventCallback->onPortConnected("NA", 0);
-    }
+    // Notify listeners that port is not available
+    emit connectedPortChanged("NA", 0);
     
-    // Stop watchdog while port is closed
+    // Stop watchdog while port is closed (thread-safe)
     stopConnectionWatchdog();
+    
+    // Stop USB status check timer (thread-safe)
+    if (m_usbStatusCheckTimer) {
+        if (QThread::currentThread() == m_usbStatusCheckTimer->thread()) {
+            m_usbStatusCheckTimer->stop();
+        } else {
+            QMetaObject::invokeMethod(m_usbStatusCheckTimer, "stop", Qt::QueuedConnection);
+        }
+        qCDebug(log_core_serial) << "Stopped USB status check timer";
+    }
     
     // Use non-blocking timer instead of msleep - removed delay as it's not critical
     // Port closing should be immediate, any OS-level delays are handled internally
@@ -995,22 +1158,18 @@ bool SerialPortManager::restartPort() {
     QString portName = serialPort->portName();
     qint32 baudRate = serialPort->baudRate();
     qCDebug(log_core_serial) << "Restart port" << portName << "baudrate:" << baudRate;
-    if (eventCallback != nullptr) {
-        eventCallback->serialPortReset(true);
-    }
+    emit serialPortReset(true);
     closePort();
     
     // Use non-blocking timer instead of msleep
     QTimer::singleShot(100, this, [this, portName, baudRate]() {
         openPort(portName, baudRate);
         onSerialPortConnected(portName);
-        if (eventCallback != nullptr) {
-            eventCallback->serialPortReset(false);
-        }
+        emit serialPortReset(false);
     });
     
     return ready;
-}
+} 
 
 void SerialPortManager::scheduleConfigRetry(const QString &portName, int attempt, int maxAttempts, int delayMs)
 {
@@ -1050,19 +1209,16 @@ void SerialPortManager::updateSpecialKeyState(uint8_t data){
     CapsLockState = (data & 0b00000010) != 0; // CapsLockState bit
     ScrollLockState = (data & 0b00000100) != 0; // ScrollLockState bit
     
-    // Notify callback about key state changes
-    if (eventCallback != nullptr) {
-        qDebug(log_core_serial) << "NumLockState:" << NumLockState 
-                               << "CapsLockState:" << CapsLockState 
-                               << "ScrollLockState:" << ScrollLockState;
-        eventCallback->onKeyStatesChanged(NumLockState, CapsLockState, ScrollLockState);
-    }
+    // Emit a thread-safe signal for key state changes
+    qCDebug(log_core_serial) << "NumLockState:" << NumLockState 
+                            << "CapsLockState:" << CapsLockState 
+                            << "ScrollLockState:" << ScrollLockState;
+    emit keyStatesChanged(NumLockState, CapsLockState, ScrollLockState);
 }
 /*
  * Read the data from the serial port
  */
 void SerialPortManager::readData() {
-    qCDebug(log_core_serial) << "readData: Data available signal received";
     if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
         qCDebug(log_core_serial) << "readData: Ignored read - shutting down or port not open";
         return;
@@ -1097,7 +1253,7 @@ void SerialPortManager::readData() {
         dumpError(status, packet);
         // m_consecutiveErrors++;
     } else {
-        qCDebug(log_core_serial) << "Receive from serial port @" << (serialPort ? serialPort->baudRate() : 0) << ":" << packet.toHex(' ');
+        qCDebug(log_core_serial).nospace().noquote() << "Data Received(" << serialPort->portName() << "@" <<(serialPort ? serialPort->baudRate() : 0) << "bps): " << packet.toHex(' ');
         static QSettings settings("Techxartisan", "Openterface");
         latestUpdateTime = QDateTime::currentDateTime();
         ready = true;
@@ -1109,19 +1265,16 @@ void SerialPortManager::readData() {
         switch (code) {
             case 0x81:
                 isTargetUsbConnected = CmdGetInfoResult::fromByteArray(packet).targetConnected == 0x01;
-                if (eventCallback != nullptr) {
-                    eventCallback->onTargetUsbConnected(isTargetUsbConnected);
-                }
+                emit targetUSBStatus(isTargetUsbConnected);
                 updateSpecialKeyState(CmdGetInfoResult::fromByteArray(packet).indicators);
                 break;
             case 0x82:
                 qCDebug(log_core_serial) << "Keyboard event sent, status" << statusCodeToString(packet[5]);
                 break;
             case 0x84:
-                qCDebug(log_core_serial) << "Absolute mouse event sent, status" << statusCodeToString(packet[5]);
                 if(isChipTypeCH32V208()){
                     ready=true;
-                    eventCallback->onTargetUsbConnected(true);
+                    emit targetUSBStatus(true);
                 }
                 break;
             case 0x85:
@@ -1147,6 +1300,23 @@ void SerialPortManager::readData() {
                 qCDebug(log_core_serial) << "Reset command, status" << statusCodeToString(packet[5]);
                 if (packet[5] == DEF_CMD_SUCCESS) {
                     qCDebug(log_core_serial) << "Factory reset successful, clearing stored baudrate";
+                }
+                break;
+            case 0x97:  // Response to CMD_CHECK_USB_STATUS (0x17 | 0x80)
+                if (packet.size() >= 7 && packet[0] == 0x57 && packet[1] == (char)0xAB && 
+                    packet[2] == 0x00 && packet[4] == 0x01) {
+                    int status = static_cast<unsigned char>(packet[5]);
+                    if (status == 0x00) {
+                        qCInfo(log_core_serial) << "USB is currently pointing to HOST";
+                        emit usbStatusChanged(false);
+                    } else if (status == 0x01) {
+                        qCInfo(log_core_serial) << "USB is currently pointing to TARGET";
+                        emit usbStatusChanged(true);
+                    } else {
+                        qCWarning(log_core_serial) << "Unknown USB status value:" << QString::number(status, 16);
+                    }
+                } else {
+                    qCWarning(log_core_serial) << "Invalid USB status response format:" << packet.toHex(' ');
                 }
                 break;
             default:
@@ -1235,7 +1405,7 @@ bool SerialPortManager::writeData(const QByteArray &data) {
         return false;
     }
     
-    QMutexLocker locker(&m_serialPortMutex);
+    // QMutexLocker locker(&m_serialPortMutex);
     
     if (!serialPort || !serialPort->isOpen()) {
         qCWarning(log_core_serial) << "Serial port not open, cannot write data";
@@ -1259,8 +1429,8 @@ bool SerialPortManager::writeData(const QByteArray &data) {
         // Ensure data is flushed to OS driver and wait for kernel write completion
         serialPort->flush();
 
-        qCDebug(log_core_serial) << "Data written to serial port:" << serialPort->portName()
-                        << "baudrate:" << serialPort->baudRate() << ":" << data.toHex(' ');
+        qCDebug(log_core_serial).nospace().noquote() << "Data written (" << serialPort->portName()
+                        << "@" << serialPort->baudRate() << "bps): " << data.toHex(' ');
             
         
         return true;
@@ -1469,58 +1639,6 @@ void SerialPortManager::switchUsbToTargetViaSerial() {
 }
 
 /*
- * Check USB switch status via serial command (new CH32V208 protocol)
- * Command: 57 AB 00 17 05 00 00 00 00 03 + checksum
- * Returns: 0 if pointing to host, 1 if pointing to target, -1 on error
- */
-int SerialPortManager::checkUsbStatusViaSerial() {
-    qCDebug(log_core_serial) << "Checking USB switch status via serial command...";
-    
-    if (!serialPort || !serialPort->isOpen()) {
-        qCWarning(log_core_serial) << "Serial port not open, cannot check USB status";
-        return -1;
-    }
-    
-    // Only use this method for CH32V208 chips
-    if (!isChipTypeCH32V208()) {
-        qCDebug(log_core_serial) << "Not CH32V208 chip, skipping serial-based USB status check";
-        return -1;
-    }
-    
-    QByteArray response = sendSyncCommand(CMD_CHECK_USB_STATUS, true);
-    
-    if (response.size() > 0) {
-        qCDebug(log_core_serial) << "Check USB status response:" << response.toHex(' ');
-        
-        // Expected response: 57 AB 00 17 01 <status> + checksum
-        // status: 0x00 = host, 0x01 = target
-        if (response.size() >= 7 && 
-            response[0] == 0x57 && response[1] == (char)0xAB && 
-            response[2] == 0x00 && response[3] == 0x17 &&
-            response[4] == 0x01) {
-            
-            int status = static_cast<unsigned char>(response[5]);
-            if (status == 0x00) {
-                qCInfo(log_core_serial) << "USB is currently pointing to HOST";
-                return 0;
-            } else if (status == 0x01) {
-                qCInfo(log_core_serial) << "USB is currently pointing to TARGET";
-                return 1;
-            } else {
-                qCWarning(log_core_serial) << "Unknown USB status value:" << QString::number(status, 16);
-                return -1;
-            }
-        } else {
-            qCWarning(log_core_serial) << "Unexpected response for check USB status:" << response.toHex(' ');
-            return -1;
-        }
-    }
-    
-    qCWarning(log_core_serial) << "No response received for check USB status command";
-    return -1;
-}
-
-/*
 * Set the USB configuration
 */
 void SerialPortManager::setUSBconfiguration(int targetBaudrate){
@@ -1671,7 +1789,7 @@ void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
         if (baudRate != BAUDRATE_HIGHSPEED) {
             qCWarning(log_core_serial) << "CH32V208 chip only supports 115200 baudrate. Ignoring user request for" << baudRate;
             if (eventCallback) {
-                eventCallback->onStatusUpdate("CH32V208 chip only supports 115200 baudrate");
+                emit statusUpdate("CH32V208 chip only supports 115200 baudrate");
             }
             return;
         }
@@ -1913,7 +2031,7 @@ void SerialPortManager::attemptRecovery()
         qCCritical(log_core_serial) << "Maximum retry attempts reached. Giving up recovery.";
         ready = false;
         if (eventCallback) {
-            eventCallback->onStatusUpdate("Serial port recovery failed - max retries exceeded");
+            emit statusUpdate("Serial port recovery failed - max retries exceeded");
         }
         return;
     }
@@ -1942,12 +2060,12 @@ void SerialPortManager::attemptRecovery()
                 qCInfo(log_core_serial) << "✓ Serial port recovery successful";
                 resetErrorCounters();
                 if (eventCallback) {
-                    eventCallback->onStatusUpdate("Serial port recovered successfully");
+                    emit statusUpdate("Serial port recovered successfully");
                 }
             } else {
                 qCWarning(log_core_serial) << "Serial port recovery attempt failed";
                 if (eventCallback) {
-                    eventCallback->onStatusUpdate(QString("Recovery attempt %1 failed").arg(m_connectionRetryCount));
+                    emit statusUpdate(QString("Recovery attempt %1 failed").arg(m_connectionRetryCount.load()));
                 }
                 
                 // Try again if we haven't exceeded max attempts
@@ -1976,7 +2094,17 @@ bool SerialPortManager::isRecoveryNeeded() const
 
 void SerialPortManager::setupConnectionWatchdog()
 {
+    // Null check - timers may not be created yet if called before thread starts
+    if (!m_connectionWatchdog) {
+        qCDebug(log_core_serial) << "setupConnectionWatchdog: timer not yet created, skipping";
+        return;
+    }
+    
     m_connectionWatchdog->setInterval(30000); // 30 seconds
+    
+    // Disconnect any previous connections to avoid duplicate handling
+    disconnect(m_connectionWatchdog, &QTimer::timeout, nullptr, nullptr);
+    
     connect(m_connectionWatchdog, &QTimer::timeout, this, [this]() {
         if (m_isShuttingDown) {
             return;
@@ -1993,21 +2121,43 @@ void SerialPortManager::setupConnectionWatchdog()
         }
         
         // Restart watchdog
-        m_connectionWatchdog->start();
+        if (m_connectionWatchdog) {
+            m_connectionWatchdog->start();
+        }
     });
     
-    if (!m_isShuttingDown) {
-        m_connectionWatchdog->start();
+    if (!m_isShuttingDown && m_connectionWatchdog) {
+        if (QThread::currentThread() == m_connectionWatchdog->thread()) {
+            m_connectionWatchdog->start();
+        } else {
+            QMetaObject::invokeMethod(m_connectionWatchdog, "start", Qt::QueuedConnection);
+        }
     }
 }
 
 void SerialPortManager::stopConnectionWatchdog()
 {
+    // Thread-safe timer stopping: timers must be stopped from their owning thread
     if (m_connectionWatchdog) {
-        m_connectionWatchdog->stop();
+        if (QThread::currentThread() == m_connectionWatchdog->thread()) {
+            m_connectionWatchdog->stop();
+        } else {
+            QMetaObject::invokeMethod(m_connectionWatchdog, "stop", Qt::QueuedConnection);
+        }
     }
     if (m_errorRecoveryTimer) {
-        m_errorRecoveryTimer->stop();
+        if (QThread::currentThread() == m_errorRecoveryTimer->thread()) {
+            m_errorRecoveryTimer->stop();
+        } else {
+            QMetaObject::invokeMethod(m_errorRecoveryTimer, "stop", Qt::QueuedConnection);
+        }
+    }
+    if (m_usbStatusCheckTimer) {
+        if (QThread::currentThread() == m_usbStatusCheckTimer->thread()) {
+            m_usbStatusCheckTimer->stop();
+        } else {
+            QMetaObject::invokeMethod(m_usbStatusCheckTimer, "stop", Qt::QueuedConnection);
+        }
     }
 }
 

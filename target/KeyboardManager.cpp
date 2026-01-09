@@ -101,14 +101,14 @@ QString KeyboardManager::mapModifierKeysToNames(int modifiers) {
     return modifierNames.join(" + ");
 }
 
-void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown) {
+void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown, unsigned int nativeVirtualKey) {
     QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;
     unsigned int combinedModifiers = 0;
 
-    // Debug the incoming key code with modifier names
+    // Debug the incoming key code with modifier names and native VK (when available)
     qCDebug(log_keyboard) << "Processing key:" << QString::number(keyCode) + "(0x" + QString::number(keyCode, 16) + ")"
                          << "with modifiers:" << mapModifierKeysToNames(modifiers)
-                         << "isKeyDown:" << isKeyDown;
+                         << "isKeyDown:" << isKeyDown << " nativeVK:" << QString::number(nativeVirtualKey, 16);
 
     
     // Check if it's a function key
@@ -155,20 +155,69 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     qCDebug(log_keyboard) << "Layout has" << currentLayout.keyMap.size() << "mappings";
 
     if(isModiferKeys(keyCode)){
-        // Distingush the left or right modifiers, the modifiers is a native event
-        // And the keyMap uses right modifer by default
-        if( modifiers == 1537){ // left shift
-            mappedKeyCode = 0xe1;
-            currentModifiers |= 0x02;
-        } else if(modifiers == 1538){// left ctrl
-            mappedKeyCode = 0xe0;
-            currentModifiers |= 0x01;
-        } else if(modifiers == 1540){ //left alt
-            mappedKeyCode = 0xe2;
-            currentModifiers |= 0x04;
-        }else if(modifiers & Qt::GroupSwitchModifier){ // altgr
-            mappedKeyCode = 0xE6;
-            currentModifiers |= 0x40;
+        // Distinguish the left or right modifiers using nativeVirtualKey where available
+        if (nativeVirtualKey != 0) {
+            switch (nativeVirtualKey) {
+                case 0xA0: // VK_LSHIFT
+                    mappedKeyCode = 0xE1; // left shift
+                    if (isKeyDown) currentModifiers |= 0x02; else currentModifiers &= ~0x02;
+                    combinedModifiers = isKeyDown ? 0x02 : 0x00;
+                    qCDebug(log_keyboard) << "Detected Left Shift (VK 0xA0)";
+                    break;
+                case 0xA1: // VK_RSHIFT
+                    mappedKeyCode = 0xE5; // right shift
+                    if (isKeyDown) currentModifiers |= 0x02; else currentModifiers &= ~0x02;
+                    combinedModifiers = isKeyDown ? 0x02 : 0x00;
+                    qCDebug(log_keyboard) << "Detected Right Shift (VK 0xA1)";
+                    break;
+                case 0xA2: // VK_LCONTROL
+                    mappedKeyCode = 0xE0; // left ctrl
+                    if (isKeyDown) currentModifiers |= 0x01; else currentModifiers &= ~0x01;
+                    combinedModifiers = isKeyDown ? 0x01 : 0x00;
+                    qCDebug(log_keyboard) << "Detected Left Ctrl (VK 0xA2)";
+                    break;
+                case 0xA3: // VK_RCONTROL
+                    mappedKeyCode = 0xE4; // right ctrl
+                    if (isKeyDown) currentModifiers |= 0x01; else currentModifiers &= ~0x01;
+                    combinedModifiers = isKeyDown ? 0x01 : 0x00;
+                    qCDebug(log_keyboard) << "Detected Right Ctrl (VK 0xA3)";
+                    break;
+                case 0xA4: // VK_LMENU (Left Alt)
+                    mappedKeyCode = 0xE2; // left alt
+                    if (isKeyDown) currentModifiers |= 0x04; else currentModifiers &= ~0x04;
+                    combinedModifiers = isKeyDown ? 0x04 : 0x00;
+                    qCDebug(log_keyboard) << "Detected Left Alt (VK 0xA4)";
+                    break;
+                case 0xA5: // VK_RMENU (Right Alt)
+                    mappedKeyCode = 0xE6; // right alt / AltGr
+                    if (isKeyDown) currentModifiers |= 0x40; else currentModifiers &= ~0x40;
+                    combinedModifiers = isKeyDown ? 0x40 : 0x00;
+                    qCDebug(log_keyboard) << "Detected Right Alt (VK 0xA5)";
+                    break;
+                default:
+                    qCDebug(log_keyboard) << "Unknown native VK, falling back to legacy detection";
+            }
+        }
+
+        // Fallback for platforms where nativeVirtualKey is unavailable or unknown
+        if (mappedKeyCode == 0) {
+            if( modifiers == 1537){ // left shift
+                mappedKeyCode = 0xe1;
+                if (isKeyDown) currentModifiers |= 0x02; else currentModifiers &= ~0x02;
+                combinedModifiers = isKeyDown ? 0x02 : 0x00;
+            } else if(modifiers == 1538){// left ctrl
+                mappedKeyCode = 0xe0;
+                if (isKeyDown) currentModifiers |= 0x01; else currentModifiers &= ~0x01;
+                combinedModifiers = isKeyDown ? 0x01 : 0x00;
+            } else if(modifiers == 1540){ //left alt
+                mappedKeyCode = 0xe2;
+                if (isKeyDown) currentModifiers |= 0x04; else currentModifiers &= ~0x04;
+                combinedModifiers = isKeyDown ? 0x04 : 0x00;
+            }else if(modifiers & Qt::GroupSwitchModifier){ // altgr
+                mappedKeyCode = 0xE6;
+                if (isKeyDown) currentModifiers |= 0x40; else currentModifiers &= ~0x40;
+                combinedModifiers = isKeyDown ? 0x40 : 0x00;
+            }
         }
     }else if(isKeypadKeys(keyCode, modifiers)){
         if (keyCode == Qt::Key_NumLock) {
@@ -222,34 +271,32 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     }
 
 
-    if(currentMappedKeyCodes.contains(mappedKeyCode)){
-        if(!isKeyDown){
+    if (mappedKeyCode != 0) {
+        // Update currentMappedKeyCodes: add on press, remove on release
+        if (isKeyDown) {
+            if (!currentMappedKeyCodes.contains(mappedKeyCode) && currentMappedKeyCodes.size() < 6) {
+                currentMappedKeyCodes.insert(mappedKeyCode);
+            }
+        } else {
             currentMappedKeyCodes.remove(mappedKeyCode);
         }
-    }else{
-        if(isKeyDown && currentMappedKeyCodes.size() < 6){
-            currentMappedKeyCodes.insert(mappedKeyCode);
-        }
-    }
-    
-    qCDebug(log_keyboard) << "isKeyDown:" << isKeyDown << ", KeyCode:"<< QString::number(keyCode, 16) <<", Mapped Keycode:" << QString::number(mappedKeyCode, 16) << ", modifiers: " << QString::number(combinedModifiers, 16);
-    if (mappedKeyCode != 0) {
-        keyData[5] = isKeyDown ? combinedModifiers : 0;
+
+        // Always use currentModifiers for the modifier byte
+        keyData[5] = currentModifiers;
+
+        // Set the key array from currentMappedKeyCodes
         int i = 0;
-        for (const auto &keyCode : currentMappedKeyCodes) {
-            keyData[7 + i] = keyCode;
+        for (const auto &key : currentMappedKeyCodes) {
+            keyData[7 + i] = key;
             i++;
         }
-        qCDebug(log_keyboard) << "currentMappedKeyCodes size:" << currentMappedKeyCodes.size();
-        if(currentMappedKeyCodes.size() == 1 && !isKeyDown){
-            for(int j = 0; j < 6; j++){
-                keyData[7 + j] = 0;
-            }
-            currentMappedKeyCodes.clear();
+        // Fill remaining slots with 0
+        for (; i < 6; ++i) {
+            keyData[7 + i] = 0;
         }
-        
+
+        // Send the command
         emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
-        currentMappedKeyCodes.clear(); //clear the mapped keycodes after send command
 
         // If this is a lock key (NumLock, CapsLock, or ScrollLock), request key state update
         if (isLockKey(keyCode)) {
@@ -259,7 +306,6 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
                 emit SerialPortManager::getInstance().sendCommandAsync(CMD_GET_INFO, false);
             });
         }
-
     }
 }
 
@@ -306,15 +352,7 @@ int KeyboardManager::handleKeyModifiers(int modifier, bool isKeyDown) {
         combinedModifiers |= 0x04;
     }
 
-    if ((modifier & Qt::ControlModifier) && (modifier & Qt::AltModifier)) {
-        // Clear Ctrl and Alt modifier，set AltGr modifier
-        combinedModifiers &= ~0x01; // clear Ctrl
-        combinedModifiers &= ~0x04; //  clear Alt
-        combinedModifiers |= 0x40;  // set AltGr
-    }
-
     if (modifier & Qt::GroupSwitchModifier) {
-        combinedModifiers &= ~0x01;
         combinedModifiers &= ~0x04;
         combinedModifiers |= 0x40;  // Alt modifier
     }

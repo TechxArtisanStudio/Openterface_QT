@@ -74,8 +74,6 @@ public:
         return instance;
     }
     
-    
-
     SerialPortManager(SerialPortManager const&) = delete; // Don't Implement
     void operator=(SerialPortManager const&) = delete; // Don't implement
 
@@ -145,7 +143,6 @@ public:
     // New USB switch methods for CH32V208 serial port (firmware with new protocol)
     void switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)
     void switchUsbToTargetViaSerial();    // Switch USB to target via serial command (57 AB 00 17...)
-    int checkUsbStatusViaSerial();        // Check USB switch status (returns: 0=host, 1=target, -1=error)
     
 signals:
     void dataReceived(const QByteArray &data);
@@ -160,6 +157,21 @@ signals:
     void armBaudratePerformanceRecommendation(int currentBaudrate); // Signal for ARM performance recommendation
     void parameterConfigurationSuccess(); // Signal emitted when parameter configuration is successful and reset is needed
     void syncResponseReady();  // Emitted when m_syncCommandResponse is filled for sync commands
+    void usbStatusChanged(bool isToTarget);  // New signal: true = target, false = host
+    void targetUSBStatus(bool isTargetUSBConnected);
+    void keyStatesChanged(bool numLock, bool capsLock, bool scrollLock); // Key state updates (thread-safe)
+    void serialPortReset(bool isStarted); // Serial port reset started/ended
+    void statusUpdate(const QString &status); // General status update for UI
+    void factoryReset(bool isStarted); // Factory reset started/ended
+    
+    // Thread-safe reset operation signals (internal use)
+    void requestResetHidChip(int targetBaudrate);
+    void requestFactoryReset();
+    void requestFactoryResetV191();
+    
+    // Signals to notify completion of reset operations
+    void resetHidChipCompleted(bool success);
+    void factoryResetCompleted(bool success);
     
 private slots:
     void observeSerialPortNotification();
@@ -169,6 +181,11 @@ private slots:
     static quint8 calculateChecksum(const QByteArray &data);
     
     void initializeSerialPortFromPortChain();
+    
+    // Thread-safe reset operation handlers (called via queued connection)
+    void handleResetHidChip(int targetBaudrate);
+    void handleFactoryReset();
+    void handleFactoryResetV191();
 
     // /*
     //  * Check if the USB switch status
@@ -180,6 +197,7 @@ private slots:
     void onSerialPortConnected(const QString &portName);
     void onSerialPortDisconnected(const QString &portName);
     void onSerialPortConnectionSuccess(const QString &portName);
+    void onUsbStatusCheckTimeout();  // New slot for USB status check timer
     
     
 private:
@@ -196,10 +214,15 @@ private:
     ConfigResult attemptBaudrateDetection();
     void handleChipSpecificLogic(const ConfigResult &config);
     void storeBaudrateIfNeeded(int workingBaudrate);
+    
+    // Thread-safe reset internal implementations (run in worker thread)
+    bool handleResetHidChipInternal(int targetBaudrate);
+    bool handleFactoryResetInternal();
+    bool handleFactoryResetV191Internal();
 
     QSet<QString> availablePorts;
     
-    QThread *serialThread;
+    QThread *m_serialWorkerThread;
     QTimer *serialTimer;
 
     QList<QSerialPortInfo> m_lastPortList;
@@ -229,6 +252,7 @@ private:
     std::atomic<int> m_consecutiveErrors = 0;
     QTimer* m_connectionWatchdog;
     QTimer* m_errorRecoveryTimer;
+    QTimer* m_usbStatusCheckTimer;  // New timer for periodic USB status checks
     QMutex m_serialPortMutex;
     QQueue<QByteArray> m_commandQueue;
     QMutex m_commandQueueMutex;

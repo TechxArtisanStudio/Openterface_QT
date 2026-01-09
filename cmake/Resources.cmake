@@ -43,7 +43,7 @@ qt_add_resources(openterfaceQT "mainwindow"
     FILES
         ${mainwindow_resource_files}
     OPTIONS
-        --compress-algo none
+        --compress 2
 )
 
 set(keyboard_layouts_resource_files
@@ -65,7 +65,7 @@ qt_add_resources(openterfaceQT "keyboard_layouts"
     FILES
         ${keyboard_layouts_resource_files}
     OPTIONS
-        --compress-algo none
+        --compress 2
 )
 
 set(languages_resources_files
@@ -86,7 +86,7 @@ qt_add_resources(openterfaceQT "languages"
     FILES
         ${languages_resources_files}
     OPTIONS
-        --compress-algo none
+        --compress 2
 )
 
 set(qmake_immediate_resource_files
@@ -99,7 +99,7 @@ qt_add_resources(openterfaceQT "qmake_immediate"
     FILES
         ${qmake_immediate_resource_files}
     OPTIONS
-        --compress-algo none
+        --compress 2
 )
 
 set(app_icons_resource_files
@@ -114,7 +114,7 @@ qt_add_resources(openterfaceQT "app_icons"
     FILES
         ${app_icons_resource_files}
     OPTIONS
-        --compress-algo none
+        --compress 2
 )
 
 if((QT_VERSION_MAJOR GREATER 4))
@@ -135,13 +135,18 @@ if(WIN32)
 
     # Find libusb-1.0 library for Windows
     if(USE_USB)
+        # Search project lib folder and a common install location C:/libusb
         find_library(LIBUSB_LIBRARY 
             NAMES libusb-1.0 usb-1.0
-            PATHS ${CMAKE_CURRENT_SOURCE_DIR}/lib
+            PATHS ${CMAKE_CURRENT_SOURCE_DIR}/lib "C:/libusb/lib" "C:/libusb/bin"
         )
         
         if(LIBUSB_LIBRARY)
             message(STATUS "Found libusb-1.0 for Windows: ${LIBUSB_LIBRARY}")
+            # If headers exist under C:/libusb/include, add it so includes (<libusb-1.0/libusb.h>) work
+            if(EXISTS "C:/libusb/include/libusb-1.0/libusb.h")
+                target_include_directories(openterfaceQT PRIVATE "C:/libusb/include")
+            endif()
             target_link_libraries(openterfaceQT PRIVATE
                 hid
                 ${LIBUSB_LIBRARY}
@@ -334,12 +339,20 @@ install(FILES ${CMAKE_SOURCE_DIR}/com.openterface.openterfaceQT.metainfo.xml
 
 # Guard deploy script generation for Qt < 6.3 on Ubuntu 22.04
 if(COMMAND qt_generate_deploy_app_script)
-    qt_generate_deploy_app_script(
-        TARGET openterfaceQT
-        FILENAME_VARIABLE deploy_script    
-        NO_UNSUPPORTED_PLATFORM_ERROR
-    )
-    install(SCRIPT ${deploy_script})
+    # Allow disabling automatic qt deploy via -DENABLE_QT_DEPLOY=OFF
+    if(NOT DEFINED ENABLE_QT_DEPLOY)
+        set(ENABLE_QT_DEPLOY ON)
+    endif()
+    if(ENABLE_QT_DEPLOY)
+        qt_generate_deploy_app_script(
+            TARGET openterfaceQT
+            FILENAME_VARIABLE deploy_script    
+            NO_UNSUPPORTED_PLATFORM_ERROR
+        )
+        install(SCRIPT ${deploy_script})
+    else()
+        message(STATUS "Qt deploy disabled (ENABLE_QT_DEPLOY=OFF); skipping deploy script generation")
+    endif()
 else()
     message(STATUS "qt_generate_deploy_app_script not available; skipping deploy script generation on this Qt version")
 endif()

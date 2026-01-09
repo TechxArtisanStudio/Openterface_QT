@@ -70,6 +70,7 @@ private slots:
     void onMediaBackendChanged();
 
 
+
 private:
     CameraManager *m_cameraManager;
     QSize m_currentResolution;

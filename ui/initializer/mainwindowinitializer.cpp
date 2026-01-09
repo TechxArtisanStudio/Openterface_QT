@@ -28,6 +28,7 @@
 #include "../statusbar/statusbarmanager.h"
 #include "../../host/HostManager.h"
 #include "../../host/cameramanager.h"
+#include "../../host/imagecapturer.h"
 #include "../recording/recordingcontroller.h"
 #include "../../serial/SerialPortManager.h"
 #include "../../device/DeviceManager.h"
@@ -46,7 +47,8 @@
 #include "../../ui/advance/scripttool.h"
 #include "../../target/MouseManager.h"
 #include "../../scripts/KeyboardMouse.h"
-#include "../../scripts/semanticAnalyzer.h"
+#include "../../scripts/scriptRunner.h"
+#include "../../scripts/scriptExecutor.h"
 #include "../../host/audiomanager.h"
 #include "../../server/tcpServer.h"
 
@@ -206,6 +208,24 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     connect(m_cornerWidgetManager, &CornerWidgetManager::keyboardLayoutChanged, m_mainWindow, &MainWindow::onKeyboardLayoutCombobox_Changed);
     connect(m_cornerWidgetManager, &CornerWidgetManager::recordingToggled, m_mainWindow, &MainWindow::toggleRecording);
     connect(m_cornerWidgetManager, &CornerWidgetManager::muteToggled, m_mainWindow, &MainWindow::toggleMute);
+
+    // Connect SerialPortManager USB status changes to CornerWidgetManager
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
+            m_cornerWidgetManager, &CornerWidgetManager::updateUSBStatus);
+
+    // Thread-safe connections to MainWindow (use queued connection to ensure slots run on GUI thread)
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
+            m_mainWindow, &MainWindow::onTargetUsbConnected, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::keyStatesChanged,
+            m_mainWindow, &MainWindow::onKeyStatesChanged, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::serialPortReset,
+            m_mainWindow, &MainWindow::serialPortReset, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::statusUpdate,
+            m_mainWindow, &MainWindow::onStatusUpdate, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged,
+            m_mainWindow, &MainWindow::onPortConnected, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::factoryReset,
+            m_mainWindow, &MainWindow::factoryReset, Qt::QueuedConnection);
 
     // Connect layout changes to update corner widget position
     // CRITICAL FIX: Capture specific pointers instead of 'this' to avoid dangling reference
@@ -370,6 +390,8 @@ void MainWindowInitializer::connectVideoHidSignals()
             m_statusBarManager, &StatusBarManager::onLastMouseLocation);
     connect(&VideoHid::getInstance(), &VideoHid::inputResolutionChanged, m_mainWindow, &MainWindow::onInputResolutionChanged);
     connect(&VideoHid::getInstance(), &VideoHid::resolutionChangeUpdate, m_mainWindow, &MainWindow::onResolutionChange);
+    connect(&VideoHid::getInstance(), &VideoHid::gpio0StatusChanged, m_mainWindow, &MainWindow::onGpio0StatusChanged);
+    connect(&VideoHid::getInstance(), &VideoHid::gpio0StatusChanged, m_cornerWidgetManager, &CornerWidgetManager::updateUSBStatus);
 }
 
 void MainWindowInitializer::setupRecordingController()
@@ -428,13 +450,27 @@ void MainWindowInitializer::setupScriptComponents()
     qCDebug(log_ui_mainwindowinitializer) << "Setting up script components...";
     m_mainWindow->mouseManager = std::make_unique<MouseManager>();
     m_mainWindow->keyboardMouse = std::make_unique<KeyboardMouse>();
-    m_mainWindow->semanticAnalyzer = std::make_unique<SemanticAnalyzer>(m_mainWindow->mouseManager.get(), m_mainWindow->keyboardMouse.get());
-    connect(m_mainWindow->semanticAnalyzer.get(), &SemanticAnalyzer::captureImg, m_mainWindow, &MainWindow::takeImage);
-    connect(m_mainWindow->semanticAnalyzer.get(), &SemanticAnalyzer::captureAreaImg, m_mainWindow, &MainWindow::takeAreaImage);
-    
+
+    // Script tool UI
     m_mainWindow->scriptTool = new ScriptTool(m_mainWindow);
     connect(m_mainWindow, &MainWindow::emitScriptStatus, m_mainWindow->scriptTool, &ScriptTool::resetCommmandLine);
-    connect(m_mainWindow->semanticAnalyzer.get(), &SemanticAnalyzer::commandIncrease, m_mainWindow->scriptTool, &ScriptTool::handleCommandIncrement);
+
+    // Script executor lives in main thread and executes UI/mouse/keyboard commands
+    m_mainWindow->scriptExecutor = std::make_unique<ScriptExecutor>(m_mainWindow);
+    m_mainWindow->scriptExecutor->setMouseManager(m_mainWindow->mouseManager.get());
+    m_mainWindow->scriptExecutor->setKeyboardMouse(m_mainWindow->keyboardMouse.get());
+    connect(m_mainWindow->scriptExecutor.get(), &ScriptExecutor::captureImg, m_mainWindow, &MainWindow::takeImage, Qt::QueuedConnection);
+    connect(m_mainWindow->scriptExecutor.get(), &ScriptExecutor::captureAreaImg, m_mainWindow, &MainWindow::takeAreaImage, Qt::QueuedConnection);
+
+    // Script runner handles worker threads and analysis
+    m_mainWindow->scriptRunner = std::make_unique<ScriptRunner>(m_mainWindow->scriptTool, m_mainWindow->scriptExecutor.get());
+    {
+        MainWindow* mainWindow = m_mainWindow;
+        connect(m_mainWindow->scriptRunner.get(), &ScriptRunner::analysisFinished, m_mainWindow, [mainWindow](QObject* originSender, bool success){
+            mainWindow->emitScriptStatus(success);
+            if (originSender == mainWindow->tcpServer) mainWindow->emitTCPCommandStatus(success);
+        });
+    }
 }
 
 void MainWindowInitializer::setupEventCallbacks()
@@ -481,7 +517,7 @@ void MainWindowInitializer::setupKeyboardShortcuts()
 void MainWindowInitializer::finalize()
 {
     qCDebug(log_ui_mainwindowinitializer) << "Finalizing initialization...";
-    QString windowTitle = QString("Openterface Mini-KVM - %1").arg(APP_VERSION);
+    QString windowTitle = QString("Openterface KVM - %1").arg(APP_VERSION);
     m_mainWindow->setWindowTitle(windowTitle);
 
     m_mainWindow->mouseEdgeTimer = new QTimer(m_mainWindow);
@@ -497,5 +533,6 @@ void MainWindowInitializer::finalize()
 
     GlobalVar::instance().setMouseAutoHide(GlobalSetting::instance().getMouseAutoHideEnable());
     m_mainWindow->initializeKeyboardLayouts();
+    
 }
 

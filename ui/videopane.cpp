@@ -47,7 +47,9 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     m_maintainAspectRatio(true),
     m_directGStreamerMode(false),
     m_overlayWidget(nullptr),
-    m_directFFmpegMode(false)
+    m_directFFmpegMode(false),
+    m_lastViewportSize(QSize()),
+    m_frameIsViewportSized(false)
 {
     qDebug(log_ui_video) << "VideoPane init...";
     
@@ -68,10 +70,23 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     setDragMode(QGraphicsView::NoDrag);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    
+    // ============ OPTIMIZED RENDERING FOR VIDEO STREAMING ============
     setRenderHint(QPainter::Antialiasing, true);
-    setRenderHint(QPainter::SmoothPixmapTransform, true);
-    setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, true);
-    setViewportUpdateMode(QGraphicsView::SmartViewportUpdate);
+    setRenderHint(QPainter::SmoothPixmapTransform, true); 
+    setRenderHint(QPainter::TextAntialiasing, true);  // Critical for text clarity
+    
+    
+    // DO NOT use DontAdjustForAntialiasing - it degrades quality for performance
+    // setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, true);  // REMOVED
+    
+    // CRITICAL FIX: Use MinimalViewportUpdate for better video streaming performance
+    // FullViewportUpdate can cause update batching that leads to freezing
+    setViewportUpdateMode(QGraphicsView::MinimalViewportUpdate);
+    
+    // CRITICAL FIX: Disable cache for video streaming to prevent stale frames
+    // CacheBackground can hold old frames and prevent updates
+    setCacheMode(QGraphicsView::CacheNone);
 
     this->setMouseTracking(true);
     this->installEventFilter(m_inputHandler);
@@ -423,10 +438,20 @@ void VideoPane::resizeEvent(QResizeEvent *event)
 {
     QGraphicsView::resizeEvent(event);
     
-    // Update scene rect and scroll bars on resize
-    updateScrollBarsAndSceneRect();
+    // Track viewport size changes and emit signal
+    QSize newViewportSize = viewport()->size();
+    if (m_lastViewportSize != newViewportSize) {
+        m_lastViewportSize = newViewportSize;
+        emit viewportSizeChanged(newViewportSize);
+    }
     
-    // Update scroll bars and scene rect based on current zoom level
+    // If in FFmpeg direct mode and we have a pixmap, re-evaluate frame sizing so we can pre-scale to exact viewport
+    if (m_directFFmpegMode && m_pixmapItem && !m_pixmapItem->pixmap().isNull()) {
+        // Re-run the update path with the currently displayed pixmap to keep 1:1 mapping on resize
+        updateVideoFrame(m_pixmapItem->pixmap());
+    }
+
+    // Update scene rect and scroll bars on resize
     updateScrollBarsAndSceneRect();
     
     updateVideoItemTransform();
@@ -482,6 +507,23 @@ void VideoPane::updateVideoItemTransform()
     // Normalize the item rectangle to start from (0,0) and get the original offset
     QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
     QPointF itemOffset = itemRect.topLeft();
+
+    // Check if frame is viewport-sized (pre-scaled at decode time) and use 1:1 scaling
+    if (m_directFFmpegMode && m_frameIsViewportSized) {
+        // Frame is already sized to viewport - use identity transform for 1:1 display
+        qCDebug(log_ui_video) << "Using 1:1 scaling for viewport-sized frame:" << normalizedRect.size() << "viewport:" << viewRect.size();
+        
+        QTransform transform;
+        // Identity transform (no scaling)
+        targetItem->setTransform(transform);
+        
+        // Center the item directly without additional scaling
+        double x = (viewRect.width() - normalizedRect.width()) / 2.0 - itemOffset.x();
+        double y = (viewRect.height() - normalizedRect.height()) / 2.0 - itemOffset.y();
+        targetItem->setPos(x, y);
+        
+        return; // Skip standard scaling logic
+    }
 
     if (m_scaleFactor > 1.0) {
         // When zoomed in, use the view transform to scale the item, but apply a base transform
@@ -859,6 +901,34 @@ void VideoPane::mouseMoveEvent(QMouseEvent *event)
                              << "scroll=" << QPoint(horizontalScrollBar()->value(), verticalScrollBar()->value());
     }
     
+    // Track mouse move event intervals
+    static qint64 lastMoveTime = 0;
+    static qint64 totalMoveInterval = 0;
+    static int moveEventCount = 0;
+    static qint64 lastPrintTime = 0;
+    
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    
+    if (lastMoveTime > 0) {
+        qint64 interval = currentTime - lastMoveTime;
+        totalMoveInterval += interval;
+        moveEventCount++;
+        
+        // Print average interval every second
+        if (currentTime - lastPrintTime >= 1000) {
+            double avgInterval = static_cast<double>(totalMoveInterval) / moveEventCount;
+            qCDebug(log_ui_video) << "Mouse Move Event Statistics:"
+                                 << "Event count (1s):" << moveEventCount
+                                 << "Average interval:" << QString::number(avgInterval, 'f', 2) << "ms";
+            
+            // Reset counters
+            totalMoveInterval = 0;
+            moveEventCount = 0;
+            lastPrintTime = currentTime;
+        }
+    }
+    lastMoveTime = currentTime;
+    
     // Validate coordinate transformation consistency (debug helper) - but reduce frequency
     static int moveValidationCounter = 0;
     if (++moveValidationCounter % 10 == 1) { // Only validate every 10th move for performance
@@ -1027,222 +1097,164 @@ void VideoPane::setupForGStreamerOverlay()
     }
 }
 
-// FFmpeg direct video frame support
+// FFmpeg direct video frame support - optimized version receiving QImage
+void VideoPane::updateVideoFrameFromImage(const QImage& image)
+{
+    if (image.isNull()) {
+        return;
+    }
+
+    // Use window/widget DPR to ensure consistent logical/physical pixel mapping
+    qreal widgetDpr = 1.0;
+    if (window()) widgetDpr = window()->devicePixelRatioF();
+    else widgetDpr = this->devicePixelRatioF();
+    
+    // Convert QImage to QPixmap (fromImage already does a deep copy, no need for extra copy)
+    QPixmap frame = QPixmap::fromImage(image);
+    frame.setDevicePixelRatio(widgetDpr);
+
+    qCDebug(log_ui_video) << "updateVideoFrameFromImage: image.size()=" << image.size()
+                         << " image.dpr=" << image.devicePixelRatioF()
+                         << " widgetDpr=" << widgetDpr
+                         << " resulting pixmap.logicalSize=" << QSizeF(frame.width()/widgetDpr, frame.height()/widgetDpr);
+
+    updateVideoFrame(frame);
+    
+    // CRITICAL FIX: Force immediate viewport update to prevent freezing
+    viewport()->update();
+}
+
+// Update QGraphicsVideoItem from QImage (GUI thread conversion)
+void VideoPane::updateGraphicsVideoItemFromImage(QGraphicsVideoItem* videoItem, const QImage& image)
+{
+    if (!videoItem || image.isNull()) {
+        return;
+    }
+
+    if (!videoItem->scene()) {
+        qCWarning(log_ui_video) << "QGraphicsVideoItem has no scene";
+        return;
+    }
+
+    // Convert QImage to QPixmap on GUI thread
+    QPixmap frame = QPixmap::fromImage(image);
+    
+    // Find or create pixmap item for display
+    QGraphicsPixmapItem* pixmapItem = nullptr;
+    QList<QGraphicsItem*> items = videoItem->scene()->items();
+    for (auto item : items) {
+        if (auto pItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item)) {
+            pixmapItem = pItem;
+            break;
+        }
+    }
+
+    if (!pixmapItem) {
+        pixmapItem = videoItem->scene()->addPixmap(frame);
+        pixmapItem->setZValue(1); // Above video item
+    } else {
+        pixmapItem->setPixmap(frame);
+    }
+}
+
 void VideoPane::updateVideoFrame(const QPixmap& frame)
 {
-    // Start timing for entire frame update
-    QElapsedTimer totalTimer;
-    totalTimer.start();
-    
-    // PERFORMANCE: Eliminate per-frame logging completely
     if (!m_directFFmpegMode || frame.isNull()) {
         return;
     }
-    
-    // Update native video size for FFmpeg mode
-    m_originalVideoSize = frame.size();
-    
-    // RESPONSIVENESS OPTIMIZATION: Reduce frame rate limiting for better mouse response
-    // More aggressive frame dropping to prioritize mouse responsiveness
-    static qint64 lastFrameTime = 0;
-    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
-    qint64 frameInterval = currentTime - lastFrameTime;
-    
-    // Reduce UI update interval for more responsive mouse handling
-    // 12ms = ~83 FPS max (was 16ms = ~60 FPS)
-    // Temporarily disable frame dropping to ensure frames are displayed
-    // if (currentTime - lastFrameTime < 12) {
-    //     return; // Drop frame silently for performance
-    // }
-    lastFrameTime = currentTime;
-    
-    // PERFORMANCE: Log only the very first frame
-    static bool firstFrameProcessed = false;
-    static int frameCounter = 0;
-    frameCounter++;
-    
-    QElapsedTimer sectionTimer;
-    sectionTimer.start();
-    
-    if (!firstFrameProcessed && !frame.isNull()) {
-        firstFrameProcessed = true;
-        qCDebug(log_ui_video) << "VideoPane: First FFmpeg frame received, size:" << frame.size();
-        // Skip all expensive analysis for performance
-    }
-    qint64 firstFrameCheckTime = sectionTimer.restart();
-    
-    // PERFORMANCE OPTIMIZATION: Track frame size changes to only update transform when needed
-    static QSize lastFrameSize;
-    static QSize lastViewportSize;
-    QSize currentFrameSize = frame.size();
-    QSize currentViewportSize = viewport()->rect().size();
-    
-    bool frameSizeChanged = (currentFrameSize != lastFrameSize);
-    bool viewportSizeChanged = (currentViewportSize != lastViewportSize);
-    bool needsTransformUpdate = frameSizeChanged || viewportSizeChanged;
-    qint64 sizeCheckTime = sectionTimer.restart();
-    
-    // Create or update pixmap item for displaying the decoded frame
-    qint64 pixmapCreateTime = 0;
-    qint64 pixmapUpdateTime = 0;
-    qint64 transformTime = 0;
-    qint64 centerTime = 0;
-    
-    if (!m_pixmapItem) {
-        m_pixmapItem = m_scene->addPixmap(frame);
-        m_pixmapItem->setZValue(2); // Above video item and GStreamer overlay
-        m_pixmapItem->setVisible(true);
-        pixmapCreateTime = sectionTimer.restart();
-        
-        // CRITICAL: Hide Qt video item to prevent interference
-        if (m_videoItem) {
-            m_videoItem->setVisible(false);
+
+    // Ensure widget DPR is used consistently
+    qreal widgetDpr = 1.0;
+    if (window()) widgetDpr = window()->devicePixelRatioF();
+    else widgetDpr = this->devicePixelRatioF();
+
+    // Force pixmap DPR to widget DPR (incoming pixmap may carry different DPR)
+    QPixmap local = frame;
+    local.setDevicePixelRatio(widgetDpr);
+
+    // Logical frame size in device-independent pixels
+    QSizeF logicalFrameSizeF(local.width() / widgetDpr, local.height() / widgetDpr);
+    QSize logicalFrameSize(qRound(logicalFrameSizeF.width()), qRound(logicalFrameSizeF.height()));
+
+    qCDebug(log_ui_video) << "updateVideoFrame: pixmap.physical=" << local.size()
+                         << " widgetDpr=" << widgetDpr
+                         << " logicalFrameSize=" << logicalFrameSizeF
+                         << " viewport=" << viewport()->rect().size();
+
+    // Store original video logical size
+    m_originalVideoSize = logicalFrameSize;
+
+    // Compare using logical pixels (allow small tolerance to account for rounding/DPR differences)
+    QSize viewportLogical = viewport()->rect().size();
+    const int tolerance = 2; // allow small diffs (rounding, DPR, scrollbars, etc.)
+    m_frameIsViewportSized = (qAbs(qRound(logicalFrameSizeF.width()) - viewportLogical.width()) <= tolerance &&
+                              qAbs(qRound(logicalFrameSizeF.height()) - viewportLogical.height()) <= tolerance);
+
+    // FAST PATH: 1:1 mapping of logical pixels (no runtime resampling)
+    if (m_frameIsViewportSized) {
+        // If the sizes are close but not exact, pre-scale the pixmap to exact viewport physical size
+        QSize targetPhysicalSize(qRound(viewportLogical.width() * widgetDpr), qRound(viewportLogical.height() * widgetDpr));
+        if (local.size() != targetPhysicalSize) {
+            qCDebug(log_ui_video) << "Treating near-match as viewport-sized; pre-scaling pixmap to exact viewport (physical):" << targetPhysicalSize;
+            QPixmap scaled = local.scaled(targetPhysicalSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            scaled.setDevicePixelRatio(widgetDpr);
+            local = scaled;
         }
-        
-        // Always update transform for the first frame
-        updateVideoItemTransform();
-        transformTime = sectionTimer.restart();
-        
-        centerVideoItem();
-        centerTime = sectionTimer.restart();
-        
-        needsTransformUpdate = false; // Already handled
-        
-    } else {
-        // For subsequent frames, just update the pixmap - much faster!
-        m_pixmapItem->setPixmap(frame);
-        pixmapUpdateTime = sectionTimer.restart();
-        
-        // Ensure pixmap item is visible (only if needed)
-        if (!m_pixmapItem->isVisible()) {
-            m_pixmapItem->setVisible(true);
-        }
-        
-        // Ensure item is properly added to scene if it somehow got removed
-        if (m_pixmapItem->scene() != m_scene) {
-            m_scene->addItem(m_pixmapItem);
+
+        if (!m_pixmapItem) {
+            m_pixmapItem = m_scene->addPixmap(local);
             m_pixmapItem->setZValue(2);
+            m_pixmapItem->setTransformationMode(Qt::SmoothTransformation);
+            m_pixmapItem->setCacheMode(QGraphicsItem::NoCache);
+        } else {
+            m_pixmapItem->setPixmap(local);
         }
+
+        m_pixmapItem->setTransform(QTransform());
+        m_pixmapItem->setPos(0, 0);
+        m_pixmapItem->setVisible(true);
+
+        if (m_videoItem) m_videoItem->setVisible(false);
+
+        // Ensure scene rect equals viewport logical rect (use integers)
+        m_scene->setSceneRect(QRectF(0, 0, viewportLogical.width(), viewportLogical.height()));
         
-        // Force update of the pixmap item
-        m_pixmapItem->update();
-        qint64 visibilityCheckTime = sectionTimer.restart();
+        // CRITICAL FIX: Force immediate updates to prevent freezing
+        QRectF updateRect = m_pixmapItem->boundingRect();
+        m_pixmapItem->update(updateRect);
+        m_scene->invalidate(updateRect, QGraphicsScene::ForegroundLayer);
+        m_scene->update(updateRect);
+        viewport()->update();
+        
+        return;
     }
-    
-    // SMART OPTIMIZATION: Only update transform when frame size or viewport size changes
-    qint64 conditionalTransformTime = 0;
-    qint64 conditionalCenterTime = 0;
-    qint64 scrollBarUpdateTime = 0;
-    
-    if (needsTransformUpdate) {
-        updateVideoItemTransform();
-        conditionalTransformTime = sectionTimer.restart();
-        
-        centerVideoItem();
-        conditionalCenterTime = sectionTimer.restart();
-        
-        updateScrollBarsAndSceneRect();
-        scrollBarUpdateTime = sectionTimer.restart();
-        
-        // Update cached sizes
-        lastFrameSize = currentFrameSize;
-        lastViewportSize = currentViewportSize;
-        
-        qCDebug(log_ui_video) << "VideoPane: Updated transform due to size change - frame:" 
-                              << currentFrameSize << "viewport:" << currentViewportSize;
+
+    // FALLBACK: Non-viewport-sized frame - let transform pipeline handle it,
+    // but keep pixmap DPR consistent and disable item caching to avoid stale scaled cache.
+    if (!m_pixmapItem) {
+        m_pixmapItem = m_scene->addPixmap(local);
+        m_pixmapItem->setZValue(2);
+        m_pixmapItem->setVisible(true);
+        m_pixmapItem->setTransformationMode(Qt::SmoothTransformation);
+        m_pixmapItem->setCacheMode(QGraphicsItem::NoCache);
+    } else {
+        m_pixmapItem->setPixmap(local);
     }
-    
-    // PERFORMANCE: Minimize update calls - only update the pixmap item region
-    qint64 sceneUpdateTime = 0;
-    if (m_pixmapItem) {
-        // Force immediate scene invalidation for just the pixmap area - more efficient
-        m_scene->update(m_pixmapItem->boundingRect());
-        sceneUpdateTime = sectionTimer.restart();
-    }
-    
-    // CRITICAL: Hide Qt video item to prevent interference
-    qint64 videoItemHideTime = 0;
-    if (m_videoItem) {
-        m_videoItem->setVisible(false);
-        videoItemHideTime = sectionTimer.restart();
-    }
-    
-    // Update video item transform to handle scaling and aspect ratio
+    if (m_videoItem) m_videoItem->setVisible(false);
+
     updateVideoItemTransform();
-    qint64 finalTransformTime = sectionTimer.restart();
-    
-    // Center the display
     centerVideoItem();
-    qint64 finalCenterTime = sectionTimer.restart();
+    updateScrollBarsAndSceneRect();
     
-    // PERFORMANCE: Minimize updates for better performance
-    if (m_scene) {
-        m_scene->update(); // Update scene
-    }
-    qint64 sceneFullUpdateTime = sectionTimer.restart();
-    
-    this->update(); // Update view
-    qint64 viewUpdateTime = sectionTimer.elapsed();
-    
-    // Calculate total time
-    qint64 totalTime = totalTimer.elapsed();
-    
-    // PERFORMANCE STATISTICS: Log detailed timing every 100 frames
-    static int timingCounter = 0;
-    static qint64 totalFrameTime = 0;
-    static qint64 totalPixmapUpdateTime = 0;
-    static qint64 totalTransformTime = 0;
-    static qint64 totalSceneUpdateTime = 0;
-    
-    totalFrameTime += totalTime;
-    totalPixmapUpdateTime += pixmapUpdateTime;
-    totalTransformTime += (transformTime + conditionalTransformTime + finalTransformTime);
-    totalSceneUpdateTime += (sceneUpdateTime + sceneFullUpdateTime);
-    
-    if (++timingCounter % 100 == 0) {
-        double avgFps = 1000.0 / (frameInterval > 0 ? frameInterval : 1);
-        double avgTotal = totalFrameTime / 100.0;
-        double avgPixmap = totalPixmapUpdateTime / 100.0;
-        double avgTransform = totalTransformTime / 100.0;
-        double avgScene = totalSceneUpdateTime / 100.0;
-        
-        qCInfo(log_ui_video) << "=== Frame Update Performance (last 100 frames) ===";
-        qCInfo(log_ui_video) << "FPS:" << QString::number(avgFps, 'f', 1)
-                            << "Frame interval:" << frameInterval << "ms";
-        qCInfo(log_ui_video) << "Avg total time:" << QString::number(avgTotal, 'f', 2) << "ms";
-        qCInfo(log_ui_video) << "  - Pixmap update:" << QString::number(avgPixmap, 'f', 2) << "ms";
-        qCInfo(log_ui_video) << "  - Transform ops:" << QString::number(avgTransform, 'f', 2) << "ms";
-        qCInfo(log_ui_video) << "  - Scene update:" << QString::number(avgScene, 'f', 2) << "ms";
-        
-        // Reset counters
-        totalFrameTime = 0;
-        totalPixmapUpdateTime = 0;
-        totalTransformTime = 0;
-        totalSceneUpdateTime = 0;
-    }
-    
-    // DETAILED TIMING: Log individual frame timing every 500 frames for deep analysis
-    static int detailedTimingCounter = 0;
-    if (++detailedTimingCounter % 500 == 0) {
-        qCDebug(log_ui_video) << "=== Detailed Frame #" << frameCounter << "Timing ===";
-        qCDebug(log_ui_video) << "Total:" << totalTime << "ms";
-        qCDebug(log_ui_video) << "  First frame check:" << firstFrameCheckTime << "ms";
-        qCDebug(log_ui_video) << "  Size check:" << sizeCheckTime << "ms";
-        qCDebug(log_ui_video) << "  Pixmap create:" << pixmapCreateTime << "ms";
-        qCDebug(log_ui_video) << "  Pixmap update:" << pixmapUpdateTime << "ms";
-        qCDebug(log_ui_video) << "  Transform:" << transformTime << "ms";
-        qCDebug(log_ui_video) << "  Center:" << centerTime << "ms";
-        qCDebug(log_ui_video) << "  Conditional transform:" << conditionalTransformTime << "ms";
-        qCDebug(log_ui_video) << "  Conditional center:" << conditionalCenterTime << "ms";
-        qCDebug(log_ui_video) << "  Scrollbar update:" << scrollBarUpdateTime << "ms";
-        qCDebug(log_ui_video) << "  Scene update:" << sceneUpdateTime << "ms";
-        qCDebug(log_ui_video) << "  Video item hide:" << videoItemHideTime << "ms";
-        qCDebug(log_ui_video) << "  Final transform:" << finalTransformTime << "ms";
-        qCDebug(log_ui_video) << "  Final center:" << finalCenterTime << "ms";
-        qCDebug(log_ui_video) << "  Scene full update:" << sceneFullUpdateTime << "ms";
-        qCDebug(log_ui_video) << "  View update:" << viewUpdateTime << "ms";
-    }
+    // CRITICAL FIX: Force updates in fallback path to prevent freezing
+    QRectF updateRect = m_pixmapItem->boundingRect();
+    m_pixmapItem->update(updateRect);
+    m_scene->invalidate(updateRect, QGraphicsScene::ForegroundLayer);
+    m_scene->update(updateRect);
+    viewport()->update();
 }
+
+
 void VideoPane::enableDirectFFmpegMode(bool enable)
 {
     qCDebug(log_ui_video) << "VideoPane: enableDirectFFmpegMode called with:" << enable << "current mode:" << m_directFFmpegMode;

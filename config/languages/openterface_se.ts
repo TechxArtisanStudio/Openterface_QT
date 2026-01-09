@@ -644,8 +644,8 @@ Försök igen efter att ha startat om programmet.</translation>
     <name>MainWindow</name>
     <message>
         <location filename="../../ui/mainwindow.ui" line="12"/>
-        <source>Openterface Mini-KVM</source>
-        <translation>Openterface Mini-KVM</translation>
+        <source>Openterface KVM</source>
+        <translation>Openterface KVM</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="50"/>
@@ -2105,8 +2105,8 @@ Do you want to continue?</source>
     </message>
     <message>
         <location filename="../../ui/help/versioninfomanager.cpp" line="213"/>
-        <source>Openterface Mini KVM</source>
-        <translation>Openterface Mini KVM</translation>
+        <source>Openterface KVM</source>
+        <translation>Openterface KVM</translation>
     </message>
     <message>
         <location filename="../../ui/help/versioninfomanager.cpp" line="216"/>

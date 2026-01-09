@@ -2,7 +2,7 @@
 #include "videooverlaymanager.h"
 
 #include <QDebug>
-#include <QLoggingCategory>
+#include "logging.h"
 #include <QGuiApplication>
 
 #ifdef HAVE_GSTREAMER

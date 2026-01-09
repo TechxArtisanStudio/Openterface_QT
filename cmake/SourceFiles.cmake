@@ -23,7 +23,22 @@ set(DEVICE_SOURCES
     device/HotplugMonitor.cpp device/HotplugMonitor.h
     device/platform/AbstractPlatformDeviceManager.cpp device/platform/AbstractPlatformDeviceManager.h
     device/platform/DeviceFactory.cpp device/platform/DeviceFactory.h
+    device/platform/windows/WinDeviceEnumerator.h device/platform/windows/WinDeviceEnumerator.cpp
+    device/platform/windows/IDeviceEnumerator.h
 )
+
+if(WIN32)
+    list(APPEND DEVICE_SOURCES
+        device/platform/WindowsDeviceManager.cpp device/platform/WindowsDeviceManager.h
+        device/platform/windows/WinDeviceEnumerator.cpp device/platform/windows/WinDeviceEnumerator.h
+        device/platform/windows/IDeviceEnumerator.h
+        device/platform/windows/discoverers/IDeviceDiscoverer.h
+        device/platform/windows/discoverers/BaseDeviceDiscoverer.cpp device/platform/windows/discoverers/BaseDeviceDiscoverer.h
+        device/platform/windows/discoverers/BotherDeviceDiscoverer.cpp device/platform/windows/discoverers/BotherDeviceDiscoverer.h
+        device/platform/windows/discoverers/Generation3Discoverer.cpp device/platform/windows/discoverers/Generation3Discoverer.h
+        device/platform/windows/discoverers/DeviceDiscoveryManager.cpp device/platform/windows/discoverers/DeviceDiscoveryManager.h
+    )
+endif()
 
 # Host management
 set(HOST_SOURCES
@@ -33,9 +48,20 @@ set(HOST_SOURCES
     host/cameramanager.cpp host/cameramanager.h
     host/usbcontrol.cpp host/usbcontrol.h
     host/multimediabackend.cpp host/multimediabackend.h
+    host/imagecapturer.cpp host/imagecapturer.h
     host/backend/ffmpegbackendhandler.cpp host/backend/ffmpegbackendhandler.h
     host/backend/qtmultimediabackendhandler.cpp host/backend/qtmultimediabackendhandler.h
     host/backend/qtbackendhandler.cpp host/backend/qtbackendhandler.h
+    host/backend/ffmpeg/capturethread.cpp host/backend/ffmpeg/capturethread.h
+    host/backend/ffmpeg/ffmpeg_hardware_accelerator.cpp host/backend/ffmpeg/ffmpeg_hardware_accelerator.h
+    host/backend/ffmpeg/ffmpeg_device_manager.cpp host/backend/ffmpeg/ffmpeg_device_manager.h
+    host/backend/ffmpeg/ffmpeg_frame_processor.cpp host/backend/ffmpeg/ffmpeg_frame_processor.h
+    host/backend/ffmpeg/ffmpeg_recorder.cpp host/backend/ffmpeg/ffmpeg_recorder.h
+    host/backend/ffmpeg/ffmpeg_device_validator.cpp host/backend/ffmpeg/ffmpeg_device_validator.h
+    host/backend/ffmpeg/ffmpeg_hotplug_handler.cpp host/backend/ffmpeg/ffmpeg_hotplug_handler.h
+    host/backend/ffmpeg/ffmpeg_capture_manager.cpp host/backend/ffmpeg/ffmpeg_capture_manager.h
+    host/backend/ffmpeg/icapture_frame_reader.h
+    host/backend/ffmpeg/ffmpegutils.h
 )
 
 # Add GStreamer backend only on Linux
@@ -80,6 +106,8 @@ set(SCRIPT_SOURCES
     scripts/Lexer.cpp scripts/Lexer.h
     scripts/Parser.cpp scripts/Parser.h
     scripts/semanticAnalyzer.cpp scripts/semanticAnalyzer.h
+    scripts/scriptExecutor.cpp scripts/scriptExecutor.h
+    scripts/scriptRunner.cpp scripts/scriptRunner.h
     scripts/scriptEditor.cpp scripts/scriptEditor.h
 )
 
