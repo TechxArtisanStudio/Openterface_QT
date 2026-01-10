@@ -1204,7 +1204,6 @@ jobs:
             if [ -f "openterfaceQT" ] && [ -x "openterfaceQT" ]; then
               echo "✅ Build successful! Executable created:"
               ls -lh openterfaceQT
-              file openterfaceQT
             else
               echo "❌ Build failed - executable not found"
               echo "📁 Build directory contents:"
