@@ -1075,7 +1075,8 @@ jobs:
           echo "📦 Installing build dependencies in Fedora container"
           
           docker exec fedora-build-test bash -c '
-            # Update system
+            # Update system and clean cache
+            dnf clean all
             dnf update -y --nogpgcheck
             
             # Install Qt6 development packages
@@ -1092,11 +1093,23 @@ jobs:
               gstreamer1-devel \
               gstreamer1-plugins-base-devel \
               libjpeg-turbo-devel \
-              libusb1-devel
+              libusb1-devel \
+              systemd-devel
+            
+            # Verify installations
+            echo "🔍 Verifying package installations..."
+            for pkg in ffmpeg-devel gstreamer1-devel libjpeg-turbo-devel libusb1-devel systemd-devel; do
+              if rpm -q $pkg >/dev/null 2>&1; then
+                echo "✅ $pkg: installed"
+              else
+                echo "❌ $pkg: NOT installed"
+              fi
+            done
             
             # Install system libraries
             dnf install -y --nogpgcheck \
               libudev-devel \
+              systemd-devel \
               libX11-devel \
               make \
               gcc-c++ \
@@ -1108,6 +1121,21 @@ jobs:
               ImageMagick \
               xwd
             
+            # Verify pkg-config can find the required libraries
+            echo "🔍 Verifying pkg-config setup..."
+            pkg-config --list-all | grep -E "(gstreamer|libav|libjpeg|libusb|libudev)" | head -10
+            
+            echo "🔍 Checking specific pkg-config files..."
+            for pkg in gstreamer-1.0 libavformat libjpeg libusb-1.0 libudev; do
+              if pkg-config --exists $pkg; then
+                echo "✅ $pkg: found"
+              else
+                echo "❌ $pkg: NOT found"
+                # Try to find the .pc file
+                find /usr -name "$pkg.pc" 2>/dev/null | head -1 || echo "  .pc file not found"
+              fi
+            done
+            
             echo "✅ All build dependencies installed"
           '
 
@@ -1118,17 +1146,41 @@ jobs:
           docker exec fedora-build-test bash -c '
             cd /workspace
             
+            # Debug: Check what pkg-config files are available
+            echo "🔍 Available pkg-config files:"
+            find /usr/lib64/pkgconfig -name "*.pc" | grep -E "(gstreamer|libav|libjpeg|libusb|libudev)" | head -10
+            
+            # Debug: Check specific pkg-config existence
+            echo "🔍 Checking pkg-config availability:"
+            for pkg in gstreamer-1.0 gstreamer-video-1.0 libavformat libavcodec libavutil libswscale libavdevice libjpeg libturbojpeg libusb-1.0 libudev; do
+              if pkg-config --exists $pkg 2>/dev/null; then
+                echo "✅ $pkg: found ($(pkg-config --modversion $pkg 2>/dev/null || echo "no version"))"
+              else
+                echo "❌ $pkg: NOT found"
+              fi
+            done
+            
             # Create build directory
             mkdir -p build
             cd build
             
             # Configure with qmake
             echo "📋 Running qmake..."
-            qmake .. || exit 1
+            if ! qmake ..; then
+              echo "❌ qmake failed. Checking what qmake found..."
+              qmake -v
+              echo "🔍 Checking Qt installation..."
+              find /usr -name "qmake*" -type f 2>/dev/null | head -5
+              exit 1
+            fi
             
             # Build with make
             echo "🔨 Running make..."
-            make -j$(nproc) || exit 2
+            if ! make -j$(nproc); then
+              echo "❌ make failed. Last few lines of output:"
+              tail -20 build.log 2>/dev/null || echo "No build.log found"
+              exit 2
+            fi
             
             # Verify executable was created
             if [ -f "openterfaceQT" ] && [ -x "openterfaceQT" ]; then
@@ -1137,6 +1189,8 @@ jobs:
               file openterfaceQT
             else
               echo "❌ Build failed - executable not found"
+              echo "📁 Build directory contents:"
+              ls -la
               exit 3
             fi
           '
