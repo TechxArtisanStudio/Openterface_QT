@@ -1100,6 +1100,7 @@ jobs:
               gstreamer1-devel \
               gstreamer1-plugins-base-devel \
               libjpeg-turbo-devel \
+              turbojpeg-devel \
               libusb1-devel \
               systemd-devel; then
               echo "❌ Multimedia package installation failed"
@@ -1112,7 +1113,7 @@ jobs:
             
             # Verify installations
             echo "🔍 Verifying package installations..."
-            for pkg in ffmpeg-devel gstreamer1-devel libjpeg-turbo-devel libusb1-devel systemd-devel; do
+            for pkg in ffmpeg-devel gstreamer1-devel libjpeg-turbo-devel turbojpeg-devel libusb1-devel systemd-devel; do
               if rpm -q $pkg >/dev/null 2>&1; then
                 echo "✅ $pkg: installed"
               else
