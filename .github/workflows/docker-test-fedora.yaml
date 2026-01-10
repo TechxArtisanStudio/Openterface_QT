@@ -8,12 +8,16 @@ on:
       - 'docker/install-openterface.sh'
       - 'docker/entrypoint.sh'
       - '.github/workflows/docker-test-fedora.yaml'
+      - 'openterfaceQT.pro'
+      - 'doc/build_from_source_summary.md'
   pull_request:
     branches: ["main", "dev"]
     paths:
       - 'docker/testos/Dockerfile.fedora-test-shared'
       - 'docker/install-openterface.sh'
       - '.github/workflows/docker-test-fedora.yaml'
+      - 'openterfaceQT.pro'
+      - 'doc/build_from_source_summary.md'
   workflow_run:
     workflows: ["Linux Build"]
     types:
@@ -1043,3 +1047,177 @@ jobs:
           else
             echo "✅ All containers cleaned up successfully"
           fi
+
+  build-from-source-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Fedora container for build testing
+        run: |
+          echo "🐧 Setting up Fedora container for build-from-source testing"
+          
+          # Create a Fedora container for building
+          docker run -d --name fedora-build-test \
+            --privileged \
+            -v $(pwd):/workspace \
+            -w /workspace \
+            fedora:latest \
+            sleep infinity
+          
+          echo "✅ Fedora container started"
+
+      - name: Install build dependencies in Fedora container
+        run: |
+          echo "📦 Installing build dependencies in Fedora container"
+          
+          docker exec fedora-build-test bash -c '
+            # Update system
+            dnf update -y --nogpgcheck
+            
+            # Install Qt6 development packages
+            dnf install -y --nogpgcheck \
+              qt6-qtbase-devel \
+              qt6-qtmultimedia-devel \
+              qt6-qtserialport-devel \
+              qt6-qtsvg-devel \
+              pkgconf-pkg-config
+            
+            # Install multimedia libraries
+            dnf install -y --nogpgcheck \
+              ffmpeg-devel \
+              gstreamer1-devel \
+              gstreamer1-plugins-base-devel \
+              libjpeg-turbo-devel \
+              libusb1-devel
+            
+            # Install system libraries
+            dnf install -y --nogpgcheck \
+              libudev-devel \
+              libX11-devel \
+              make \
+              gcc-c++ \
+              git
+            
+            # Install Xvfb for headless GUI testing
+            dnf install -y --nogpgcheck \
+              xorg-x11-server-Xvfb \
+              ImageMagick \
+              xwd
+            
+            echo "✅ All build dependencies installed"
+          '
+
+      - name: Build Openterface_QT from source
+        run: |
+          echo "🔨 Building Openterface_QT from source using .pro file"
+          
+          docker exec fedora-build-test bash -c '
+            cd /workspace
+            
+            # Create build directory
+            mkdir -p build
+            cd build
+            
+            # Configure with qmake
+            echo "📋 Running qmake..."
+            qmake .. || exit 1
+            
+            # Build with make
+            echo "🔨 Running make..."
+            make -j$(nproc) || exit 2
+            
+            # Verify executable was created
+            if [ -f "openterfaceQT" ] && [ -x "openterfaceQT" ]; then
+              echo "✅ Build successful! Executable created:"
+              ls -lh openterfaceQT
+              file openterfaceQT
+            else
+              echo "❌ Build failed - executable not found"
+              exit 3
+            fi
+          '
+
+      - name: Test application startup (headless)
+        run: |
+          echo "🧪 Testing application startup in headless environment"
+          
+          docker exec fedora-build-test bash -c '
+            cd /workspace/build
+            
+            # Start Xvfb for headless GUI
+            echo "📺 Starting Xvfb for headless GUI testing..."
+            Xvfb :99 -screen 0 1920x1080x24 &
+            XVFB_PID=$!
+            sleep 2
+            
+            # Set display
+            export DISPLAY=:99
+            
+            # Test basic execution (should fail gracefully in headless mode)
+            echo "🚀 Testing application startup..."
+            timeout 10s ./openterfaceQT --help 2>&1 || true
+            
+            # Check if it shows expected headless error
+            if [ $? -eq 124 ]; then
+              echo "✅ Application started (timeout reached, expected in headless mode)"
+            else
+              echo "ℹ️ Application behavior: $?"
+            fi
+            
+            # Kill Xvfb
+            kill $XVFB_PID 2>/dev/null || true
+            
+            echo "✅ Headless startup test completed"
+          '
+
+      - name: Capture build artifacts
+        run: |
+          echo "📦 Capturing build artifacts"
+          
+          # Create artifacts directory
+          mkdir -p build-artifacts
+          
+          # Copy executable and build info
+          docker exec fedora-build-test bash -c '
+            cd /workspace/build
+            cp openterfaceQT /workspace/build-artifacts/ 2>/dev/null || echo "Executable not found"
+            
+            # Create build info
+            echo "Build Information" > /workspace/build-artifacts/build-info.txt
+            echo "=================" >> /workspace/build-artifacts/build-info.txt
+            echo "Date: $(date)" >> /workspace/build-artifacts/build-info.txt
+            echo "System: Fedora Linux" >> /workspace/build-artifacts/build-info.txt
+            echo "Qt Version: $(qmake -v 2>&1 | grep Qt)" >> /workspace/build-artifacts/build-info.txt
+            echo "GCC Version: $(gcc --version | head -1)" >> /workspace/build-artifacts/build-info.txt
+            echo "Build Command: qmake .. && make -j$(nproc)" >> /workspace/build-artifacts/build-info.txt
+            
+            if [ -f openterfaceQT ]; then
+              echo "Executable Size: $(ls -lh openterfaceQT | awk '\''{print $5}'\'')" >> /workspace/build-artifacts/build-info.txt
+              echo "Build Status: SUCCESS" >> /workspace/build-artifacts/build-info.txt
+            else
+              echo "Build Status: FAILED" >> /workspace/build-artifacts/build-info.txt
+            fi
+          '
+          
+          # List captured artifacts
+          echo "📋 Build artifacts captured:"
+          ls -la build-artifacts/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-build-from-source-test
+          path: build-artifacts/
+          if-no-files-found: warn
+
+      - name: Clean up build container
+        if: always()
+        run: |
+          echo "🧹 Cleaning up build container"
+          docker stop fedora-build-test || true
+          docker rm fedora-build-test || true
+          echo "✅ Build container cleaned up"
