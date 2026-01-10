@@ -1079,6 +1079,12 @@ jobs:
             dnf clean all
             dnf update -y --nogpgcheck
             
+            # Enable additional repositories for multimedia packages
+            echo "📦 Enabling RPM Fusion repositories..."
+            dnf install -y --nogpgcheck dnf-plugins-core || echo "dnf-plugins-core not available"
+            dnf install -y --nogpgcheck https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm || echo "RPM Fusion free not available"
+            dnf install -y --nogpgcheck https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm || echo "RPM Fusion nonfree not available"
+            
             # Install Qt6 development packages
             dnf install -y --nogpgcheck \
               qt6-qtbase-devel \
@@ -1088,13 +1094,21 @@ jobs:
               pkgconf-pkg-config
             
             # Install multimedia libraries
-            dnf install -y --nogpgcheck \
+            echo "📦 Installing multimedia libraries..."
+            if ! dnf install -y --nogpgcheck \
               ffmpeg-devel \
               gstreamer1-devel \
               gstreamer1-plugins-base-devel \
               libjpeg-turbo-devel \
               libusb1-devel \
-              systemd-devel
+              systemd-devel; then
+              echo "❌ Multimedia package installation failed"
+              echo "🔍 Checking what packages are available..."
+              dnf list available | grep -E "(ffmpeg|gstreamer|libjpeg|libusb)" | head -10 || echo "No matching packages found"
+              echo "🔍 Trying to find alternative package names..."
+              dnf search ffmpeg | head -5 || echo "ffmpeg search failed"
+              exit 1
+            fi
             
             # Verify installations
             echo "🔍 Verifying package installations..."
@@ -1103,6 +1117,8 @@ jobs:
                 echo "✅ $pkg: installed"
               else
                 echo "❌ $pkg: NOT installed"
+                echo "   Trying to find what provides $pkg..."
+                dnf provides $pkg 2>/dev/null | head -3 || echo "   No providers found"
               fi
             done
             
