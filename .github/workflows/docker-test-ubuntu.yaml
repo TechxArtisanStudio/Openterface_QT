@@ -1193,10 +1193,10 @@ jobs:
             # Install Qt6 development packages
             apt install -y \
               qt6-base-dev \
-              qt6-qmake \
               qt6-multimedia-dev \
               qt6-serialport-dev \
               qt6-svg-dev \
+              qmake6 \
               pkg-config 
             
             # Install multimedia libraries
