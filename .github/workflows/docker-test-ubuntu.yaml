@@ -1193,11 +1193,11 @@ jobs:
             # Install Qt6 development packages
             apt install -y \
               qt6-base-dev \
+              qt6-qmake \
               qt6-multimedia-dev \
               qt6-serialport-dev \
               qt6-svg-dev \
-              pkg-config \
-              cmake
+              pkg-config 
             
             # Install multimedia libraries
             echo "📦 Installing multimedia libraries..."
@@ -1265,7 +1265,7 @@ jobs:
 
       - name: Build Openterface_QT from source
         run: |
-          echo "🔨 Building Openterface_QT from source using .pro file"
+          echo "🔨 Building Openterface_QT from source using qmake6"
           
           docker exec ubuntu-build-test bash -c '
             cd /workspace
@@ -1288,10 +1288,10 @@ jobs:
             mkdir -p build
             cd build
             
-            # Configure with cmake
-            echo "📋 Running cmake..."
-            if ! cmake ..; then
-              echo "❌ cmake failed."
+            # Configure with qmake6
+            echo "📋 Running qmake6..."
+            if ! qmake6 ..; then
+              echo "❌ qmake6 failed."
               exit 1
             fi
             
@@ -1400,9 +1400,9 @@ jobs:
             echo "=================" >> /workspace/build-artifacts/build-info.txt
             echo "Date: $(date)" >> /workspace/build-artifacts/build-info.txt
             echo "System: Ubuntu Linux" >> /workspace/build-artifacts/build-info.txt
-            echo "Qt Version: $(cmake --version | head -1)" >> /workspace/build-artifacts/build-info.txt
+            echo "Qt Version: $(qmake6 --version | head -1)" >> /workspace/build-artifacts/build-info.txt
             echo "GCC Version: $(gcc --version | head -1)" >> /workspace/build-artifacts/build-info.txt
-            echo "Build Command: cmake .. && make -j$(nproc)" >> /workspace/build-artifacts/build-info.txt
+            echo "Build Command: qmake6 .. && make -j$(nproc)" >> /workspace/build-artifacts/build-info.txt
             
             if [ -f openterfaceQT ]; then
               echo "Executable Size: $(ls -lh openterfaceQT | awk '\''{print $5}'\'')" >> /workspace/build-artifacts/build-info.txt
