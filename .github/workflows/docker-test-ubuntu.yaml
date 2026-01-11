@@ -34,6 +34,8 @@ jobs:
       matrix:
         install_type: ['deb', 'appimage']
     runs-on: ubuntu-24.04
+    container:
+      image: ubuntu:24.04
     timeout-minutes: 60
     
     steps:
@@ -1149,6 +1151,8 @@ jobs:
           fi
   build-from-source-test:
     runs-on: ubuntu-24.04
+    container:
+      image: ubuntu:24.04
     timeout-minutes: 30
     
     steps:
@@ -1192,8 +1196,6 @@ jobs:
               qt6-base-dev \
               cmake \
               qt6-multimedia-dev \
-              qt6-serialport-dev \
-              qt6-svg-dev \
               pkg-config
             
             # Install multimedia libraries
@@ -1644,6 +1646,8 @@ jobs:
     if: always()
     needs: [build-test-shared, build-from-source-test]
     runs-on: ubuntu-24.04
+    container:
+      image: ubuntu:24.04
     timeout-minutes: 30
     
     steps:
