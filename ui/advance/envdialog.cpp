@@ -254,7 +254,7 @@ void EnvironmentSetupDialog::extractDriverFiles() {
             if (targetFile.open(QIODevice::WriteOnly)) {
                 targetFile.write(resourceFile.readAll()); // Read from resource and write to target
                 targetFile.close();
-                qCDebug() << "Copied " << QFileInfo(filePath).fileName() << " to " << tempDir;
+                qCDebug(envDialog) << "Copied " << QFileInfo(filePath).fileName() << " to " << tempDir;
             } else {
                 qCDebug(envDialog) << "Failed to open target file for writing: " << targetPath;
             }
