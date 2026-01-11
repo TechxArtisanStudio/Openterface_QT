@@ -831,7 +831,7 @@ jobs:
                   
                   # Use Python script for upload instead of bash script
                   UPLOAD_EXIT_CODE=0
-                  UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
+                  UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" QINIU_FOLDER="testresult/" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
                   
                   if [ $UPLOAD_EXIT_CODE -ne 0 ]; then
                     echo "❌ Upload script failed with exit code: $UPLOAD_EXIT_CODE"
@@ -1375,7 +1375,7 @@ jobs:
                   
                   # Use Python script for upload instead of bash script
                   UPLOAD_EXIT_CODE=0
-                  UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
+                  UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" QINIU_FOLDER="testresult/" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
                   
                   if [ $UPLOAD_EXIT_CODE -ne 0 ]; then
                     echo "❌ Upload script failed with exit code: $UPLOAD_EXIT_CODE"
