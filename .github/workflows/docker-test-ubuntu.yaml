@@ -1189,7 +1189,7 @@ jobs:
               qt6-base-dev \
               qt6-tools-dev \
               qt6-multimedia-dev \
-              qt6-serialport6-dev \
+              qt6-serialport-dev \
               qt6-svg-dev \
               pkg-config
             
