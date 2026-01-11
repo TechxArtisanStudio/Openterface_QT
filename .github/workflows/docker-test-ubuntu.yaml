@@ -1190,7 +1190,7 @@ jobs:
             # Install Qt6 development packages
             apt install -y \
               qt6-base-dev \
-              qt6-tools-dev \
+              cmake \
               qt6-multimedia-dev \
               qt6-serialport-dev \
               qt6-svg-dev \
@@ -1285,13 +1285,10 @@ jobs:
             mkdir -p build
             cd build
             
-            # Configure with qmake
-            echo "📋 Running qmake..."
-            if ! qmake6 ..; then
-              echo "❌ qmake6 failed. Checking what qmake found..."
-              qmake6 -v
-              echo "🔍 Checking Qt installation..."
-              find /usr -name "qmake*" -type f 2>/dev/null | head -5
+            # Configure with cmake
+            echo "📋 Running cmake..."
+            if ! cmake ..; then
+              echo "❌ cmake failed."
               exit 1
             fi
             
@@ -1400,9 +1397,9 @@ jobs:
             echo "=================" >> /workspace/build-artifacts/build-info.txt
             echo "Date: $(date)" >> /workspace/build-artifacts/build-info.txt
             echo "System: Ubuntu Linux" >> /workspace/build-artifacts/build-info.txt
-            echo "Qt Version: $(qmake6 -v 2>&1 | grep Qt)" >> /workspace/build-artifacts/build-info.txt
+            echo "Qt Version: $(cmake --version | head -1)" >> /workspace/build-artifacts/build-info.txt
             echo "GCC Version: $(gcc --version | head -1)" >> /workspace/build-artifacts/build-info.txt
-            echo "Build Command: qmake6 .. && make -j$(nproc)" >> /workspace/build-artifacts/build-info.txt
+            echo "Build Command: cmake .. && make -j$(nproc)" >> /workspace/build-artifacts/build-info.txt
             
             if [ -f openterfaceQT ]; then
               echo "Executable Size: $(ls -lh openterfaceQT | awk '\''{print $5}'\'')" >> /workspace/build-artifacts/build-info.txt
