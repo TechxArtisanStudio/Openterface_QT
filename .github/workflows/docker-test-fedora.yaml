@@ -711,19 +711,8 @@ jobs:
           screenshot_jpg="$SCREENSHOTS_DIR/openterface_app_${timestamp}.jpg"
           
           SCREENSHOT_SUCCESS=false
-          
-          # Use scrot
-          if ! $SCREENSHOT_SUCCESS; then
-              echo "📌 Attempting screenshot method 2: scrot..."
-              if docker exec $CONTAINER_ID sh -c "DISPLAY=:0 scrot -z $container_screenshot 2>&1"; then
-                  SCREENSHOT_SUCCESS=true
-                  echo "✅ Screenshot captured using scrot"
-              else
-                  echo "⚠️ scrot method failed, trying alternative..."
-              fi
-          fi
-          
-          # Method 3: Use import with explicit geometry
+
+          # Use import with explicit geometry
           if ! $SCREENSHOT_SUCCESS; then
               echo "📌 Attempting screenshot method 3: import with explicit geometry..."
               if docker exec $CONTAINER_ID sh -c "DISPLAY=:0 import -window root -quality 100 -geometry 1920x1080 $container_screenshot 2>&1"; then
@@ -1229,11 +1218,12 @@ jobs:
             # Take screenshot
             echo "📷 Taking screenshot..."
             timestamp=$(date +"%Y%m%d_%H%M%S")
-            screenshot_file="/workspace/build/screenshot_startup_${timestamp}.jpg"
+            mkdir -p /workspace/screenshots-build-from-source
+            screenshot_file="/workspace/screenshots-build-from-source/screenshot_startup_${timestamp}.jpg"
             
             SCREENSHOT_SUCCESS=false
             
-            # Use import
+            # Use import with explicit geometry
             if ! $SCREENSHOT_SUCCESS; then
               echo "📌 Attempting screenshot with import..."
               if import -window root -quality 100 -geometry 1920x1080 "$screenshot_file" 2>/dev/null; then
@@ -1274,8 +1264,8 @@ jobs:
             cp openterfaceQT /workspace/build-artifacts/ 2>/dev/null || echo "Executable not found"
             
             # Copy screenshot if it exists
-            if ls screenshot_startup_*.jpg 1> /dev/null 2>&1; then
-              cp screenshot_startup_*.jpg /workspace/build-artifacts/ || echo "Screenshot copy failed"
+            if ls /workspace/screenshots-build-from-source/screenshot_startup_*.jpg 1> /dev/null 2>&1; then
+              cp /workspace/screenshots-build-from-source/screenshot_startup_*.jpg /workspace/build-artifacts/ || echo "Screenshot copy failed"
             else
               echo "No startup screenshot found"
             fi
@@ -1307,6 +1297,218 @@ jobs:
           name: openterface-build-from-source-test
           path: build-artifacts/
           if-no-files-found: warn
+
+      - name: Display screenshots in summary (build-from-source)
+        if: always()
+        env:
+          QINIU_AK: ${{ secrets.QINIU_AK }}
+          QINIU_SK: ${{ secrets.QINIU_SK }}
+          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
+          QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
+        run: |
+          echo "🔍 DEBUG: Starting screenshot summary generation (build-from-source)"
+          echo "📁 Checking for screenshots directory..."
+          ls -la screenshots-build-from-source/ 2>&1 || echo "Directory not found"
+          
+          # Start the summary
+          echo "# GUI Screenshots - Build From Source Test" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Type**: Build From Source (Fedora)" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -d "screenshots-build-from-source" ] && [ "$(ls -A screenshots-build-from-source/*.jpg 2>/dev/null)" ]; then
+            echo "✅ Screenshots directory found"
+            echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            total_jpgs=$(find screenshots-build-from-source/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_jpgs=$(find screenshots-build-from-source/ -name "*.jpg" -exec identify -ping -format "%[mean]" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            
+            echo "📊 Found $total_jpgs screenshots with $content_jpgs containing content"
+            
+            echo "- **Total Screenshots**: $total_jpgs" >> $GITHUB_STEP_SUMMARY
+            echo "- **With Content**: $content_jpgs" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$total_jpgs" -gt 0 ]; then
+              echo "- **Status**: SUCCESS" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## Screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            screenshot_count=0
+            api_key_shown=0
+            upload_failed=0
+            
+            for img in screenshots-build-from-source/*.jpg; do
+              if [ -f "$img" ]; then
+                filename=$(basename "$img")
+                screenshot_count=$((screenshot_count + 1))
+                
+                artifact_name="screenshot-build-from-source-${screenshot_count}-$(echo "$filename" | sed 's/[^a-zA-Z0-9.-]/_/g')"
+                echo "$artifact_name|$img" >> /tmp/screenshot_artifacts_build_from_source.txt
+                
+                filesize=$(ls -lh "$img" | awk '{print $5}')
+                
+                echo "### Screenshot $screenshot_count: $filename" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "**Size:** $filesize" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                
+                # Determine if screenshot has content based on file size
+                actual_size=$(stat -f%z "$img" 2>/dev/null || stat -c%s "$img" 2>/dev/null || echo 0)
+                if [ "$actual_size" -gt 50000 ]; then
+                  echo "**Status:** ✅ Content detected ($(($actual_size / 1024))KB)" >> $GITHUB_STEP_SUMMARY
+                else
+                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >50000 bytes)" >> $GITHUB_STEP_SUMMARY
+                  echo "Screenshot file size validation failed: $actual_size bytes < 50000 bytes"
+                  exit 1
+                fi
+                echo "" >> $GITHUB_STEP_SUMMARY
+                
+                if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
+                  echo "📤 Uploading $filename to Qiniu using Python script..."
+                  echo "🔑 Qiniu credentials validation: AK=${#QINIU_AK} chars, SK=${#QINIU_SK} chars"
+                  
+                  # Use Python script for upload instead of bash script
+                  UPLOAD_EXIT_CODE=0
+                  UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
+                  
+                  if [ $UPLOAD_EXIT_CODE -ne 0 ]; then
+                    echo "❌ Upload script failed with exit code: $UPLOAD_EXIT_CODE"
+                    echo "📋 Upload output:"
+                    echo "$UPLOAD_OUTPUT"
+                    echo "---"
+                  fi
+                  
+                  # Extract URL from Python script output
+                  UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https://[^ "]*' | tail -1)
+                  
+                  if [ -z "$UPLOAD_URL" ]; then
+                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -E '^https' | tail -1)
+                  fi
+                  
+                  if [ -n "$UPLOAD_URL" ]; then
+                    echo "✅ Upload successful: $UPLOAD_URL"
+                    echo "<a href=\"$UPLOAD_URL\" target=\"_blank\"><img src=\"$UPLOAD_URL\" width=\"800\" alt=\"Screenshot\"></a>" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                    echo "[View Full Size]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                  else
+                    echo "⚠️ Upload URL extraction inconclusive for $filename"
+                    echo "   Raw output (last 10 lines):"
+                    echo "$UPLOAD_OUTPUT" | tail -10 | sed 's|^|   |'
+                    FALLBACK_URL=$(echo "$UPLOAD_OUTPUT" | grep -o 'https[^[:space:]]*' | tail -1)
+                    if [ -n "$FALLBACK_URL" ]; then
+                      echo "   ✅ Recovered URL: $FALLBACK_URL"
+                      echo "<a href=\"$FALLBACK_URL\" target=\"_blank\"><img src=\"$FALLBACK_URL\" width=\"800\" alt=\"Screenshot\"></a>" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                      echo "[View Full Size]($FALLBACK_URL)" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                    else
+                      upload_failed=1
+                      echo "⚠️ Upload to Qiniu failed - See artifacts for full image" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                    fi
+                  fi
+                else
+                  if [ $api_key_shown -eq 0 ]; then
+                    echo "⚠️ Qiniu AK/SK not configured - displaying artifacts instead" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                    api_key_shown=1
+                  fi
+                fi
+              fi
+            done
+            
+            if [ $upload_failed -eq 1 ] || [ $api_key_shown -eq 1 ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "## 📥 Download Screenshots from Artifacts" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Since Qiniu upload is not available, all screenshots are saved as artifacts:" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "- **openterface-gui-screenshots-build-from-source-collection** - All screenshots" >> $GITHUB_STEP_SUMMARY
+              echo "- **openterface-gui-screenshots-build-from-source-individual** - Individual images" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 📋 Step Logs" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "See the logs of the **Test application startup (GUI)** step for detailed test output." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+          else
+            echo "❌ Screenshots directory not found or empty"
+            echo "## No Screenshots Available" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No screenshots were generated during the test. Please check the logs of the **Test application startup (GUI)** step for details." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload individual screenshots (build-from-source)
+        if: always()
+        run: |
+          echo "📤 Uploading individual screenshots as artifacts"
+          
+          mkdir -p /tmp/individual_screenshots_build_from_source
+          
+          if [ -f /tmp/screenshot_artifacts_build_from_source.txt ]; then
+            while IFS='|' read -r artifact_name img_path; do
+              if [ -f "$img_path" ]; then
+                cp "$img_path" "/tmp/individual_screenshots_build_from_source/$(basename "$img_path")"
+                echo "Prepared: $img_path -> $artifact_name"
+              fi
+            done < /tmp/screenshot_artifacts_build_from_source.txt
+          fi
+
+      - name: Upload screenshots collection (build-from-source)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-gui-screenshots-build-from-source-collection
+          path: screenshots-build-from-source/
+          if-no-files-found: warn
+
+      - name: Upload individual screenshots as artifacts (build-from-source)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-gui-screenshots-build-from-source-individual
+          path: /tmp/individual_screenshots_build_from_source/
+          if-no-files-found: warn
+
+      - name: Manage Qiniu bucket - Keep max 50 recent images (build-from-source)
+        if: always()
+        env:
+          QINIU_AK: ${{ secrets.QINIU_AK }}
+          QINIU_SK: ${{ secrets.QINIU_SK }}
+          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
+          QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
+        run: |
+          echo "🧹 Cleaning up Qiniu bucket - Keeping maximum 50 recent images"
+          
+          if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
+            echo "⚠️ Qiniu credentials not configured, skipping bucket management"
+            exit 0
+          fi
+          
+          echo "📊 Running bucket management script..."
+          QINIU_AK="$QINIU_AK" \
+          QINIU_SK="$QINIU_SK" \
+          QINIU_BUCKET="${QINIU_BUCKET:-openterface}" \
+          QINIU_DOMAIN="$QINIU_DOMAIN" \
+          python3 ./docker/manage_qiniu_bucket.py -k 50 --force 2>&1
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Bucket management completed successfully"
+            echo "📋 Summary: Kept maximum 50 most recent images in Qiniu bucket"
+          else
+            echo "⚠️ Bucket management encountered an issue (non-blocking)"
+            echo "   This may occur if the bucket has fewer than 50 images or credentials are invalid"
+          fi
 
       - name: Clean up build container
         if: always()
