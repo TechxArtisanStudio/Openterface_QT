@@ -1164,7 +1164,7 @@ jobs:
             --privileged \
             -v $(pwd):/workspace \
             -w /workspace \
-            ubuntu:22.04 \
+            ubuntu:24.04 \
             sleep infinity
           
           echo "✅ Ubuntu container started"
@@ -1194,7 +1194,7 @@ jobs:
             apt install -y \
               qt6-base-dev \
               qt6-multimedia-dev \
-              qt6-serialport6-dev \
+              qt6-serialport-dev \
               qt6-svg-dev \
               pkg-config \
               cmake
