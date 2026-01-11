@@ -1183,7 +1183,10 @@ jobs:
           docker exec ubuntu-build-test bash -c '
             # Update system
             apt update -y
-            
+            apt install -y software-properties-common
+            add-apt-repository universe
+            apt update -y
+
             # Install Qt6 development packages
             apt install -y \
               qt6-base-dev \
