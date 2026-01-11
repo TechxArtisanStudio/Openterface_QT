@@ -1480,6 +1480,13 @@ jobs:
           path: /tmp/individual_screenshots_build_from_source/
           if-no-files-found: warn
 
+      - name: Install Python dependencies (Qiniu SDK)
+        run: |
+          echo "📦 Installing required Python packages..."
+          python3 -m pip install --upgrade pip > /dev/null 2>&1
+          python3 -m pip install qiniu > /dev/null 2>&1
+          echo "✅ Python dependencies installed"
+
       - name: Manage Qiniu bucket - Keep max 50 recent images (build-from-source)
         if: always()
         env:
