@@ -1186,7 +1186,8 @@ jobs:
             apt update -y
             apt install -y ca-certificates
 
-            sed -i 's/Components: main/Components: main universe/' /etc/apt/sources.list.d/ubuntu.sources
+            # Enable universe repository
+            echo "deb http://archive.ubuntu.com/ubuntu jammy main universe" > /etc/apt/sources.list.d/universe.list
             apt update -y
 
             # Install Qt6 development packages
