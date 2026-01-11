@@ -1184,17 +1184,17 @@ jobs:
             # Update system
             apt update -y
             apt install -y software-properties-common
-            add-apt-repository universe
+            add-apt-repository -y universe
             apt update -y
 
             # Install Qt6 development packages
             apt install -y \
               qt6-base-dev \
-              cmake \
               qt6-multimedia-dev \
               qt6-serialport6-dev \
               qt6-svg-dev \
-              pkg-config
+              pkg-config \
+              cmake
             
             # Install multimedia libraries
             echo "📦 Installing multimedia libraries..."
