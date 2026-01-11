@@ -831,7 +831,7 @@ jobs:
                   
                   # Use Python script for upload instead of bash script
                   UPLOAD_EXIT_CODE=0
-                  UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" QINIU_FOLDER="testresult/" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
+                  UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
                   
                   if [ $UPLOAD_EXIT_CODE -ne 0 ]; then
                     echo "❌ Upload script failed with exit code: $UPLOAD_EXIT_CODE"
@@ -1048,6 +1048,13 @@ jobs:
           
           echo "✅ Fedora container started"
 
+      - name: Install Python dependencies (Qiniu SDK)
+        run: |
+          echo "📦 Installing required Python packages..."
+          python3 -m pip install --upgrade pip > /dev/null 2>&1
+          python3 -m pip install qiniu > /dev/null 2>&1
+          echo "✅ Python dependencies installed"
+          
       - name: Install build dependencies in Fedora container
         run: |
           echo "📦 Installing build dependencies in Fedora container"
@@ -1375,7 +1382,7 @@ jobs:
                   
                   # Use Python script for upload instead of bash script
                   UPLOAD_EXIT_CODE=0
-                  UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" QINIU_FOLDER="testresult/" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
+                  UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
                   
                   if [ $UPLOAD_EXIT_CODE -ne 0 ]; then
                     echo "❌ Upload script failed with exit code: $UPLOAD_EXIT_CODE"
@@ -1479,13 +1486,6 @@ jobs:
           name: openterface-gui-screenshots-build-from-source-individual
           path: /tmp/individual_screenshots_build_from_source/
           if-no-files-found: warn
-
-      - name: Install Python dependencies (Qiniu SDK)
-        run: |
-          echo "📦 Installing required Python packages..."
-          python3 -m pip install --upgrade pip > /dev/null 2>&1
-          python3 -m pip install qiniu > /dev/null 2>&1
-          echo "✅ Python dependencies installed"
 
       - name: Manage Qiniu bucket - Keep max 50 recent images (build-from-source)
         if: always()

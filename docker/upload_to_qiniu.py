@@ -80,8 +80,7 @@ def upload_to_qiniu(
     secret_key: str,
     bucket: str = "openterface",
     domain: str = "download.openterface.com",
-    timeout: int = 120,
-    folder: str = "uploads/"
+    timeout: int = 120
 ) -> Tuple[bool, str]:
     """
     Upload file to Qiniu using official SDK
@@ -131,9 +130,7 @@ def upload_to_qiniu(
     now = datetime.now()
     timestamp = int(now.timestamp() * 1000000)  # microseconds
     ext = path.suffix or ".bin"
-    if not folder.endswith('/'):
-        folder = folder + '/'
-    qiniu_key = f"{folder}{now.strftime('%Y%m%d')}/{timestamp}{ext}"
+    qiniu_key = f"uploads/{now.strftime('%Y%m%d')}/{timestamp}{ext}"
     
     log_info(f"Using Qiniu key: {qiniu_key}")
     
@@ -249,15 +246,14 @@ EXAMPLES:
   # Using command line arguments
   python3 upload_to_qiniu.py -a your_ak -s your_sk photo.jpeg
   
-  # With custom domain and folder
-  QINIU_AK=ak QINIU_SK=sk python3 upload_to_qiniu.py -d download.openterface.com -f testresult/ photo.jpeg
+  # With custom domain
+  QINIU_AK=ak QINIU_SK=sk python3 upload_to_qiniu.py -d download.openterface.com photo.jpeg
 
 ENVIRONMENT VARIABLES:
   QINIU_AK              Qiniu Access Key
   QINIU_SK              Qiniu Secret Key
   QINIU_BUCKET          Qiniu bucket name (default: openterface)
   QINIU_DOMAIN          Your Qiniu domain (default: download.openterface.com)
-  QINIU_FOLDER          Folder prefix for uploads (default: uploads/)
         """
     )
     
@@ -295,10 +291,10 @@ ENVIRONMENT VARIABLES:
     )
     
     parser.add_argument(
-        '-f', '--folder',
-        dest='folder',
-        default='uploads/',
-        help='Folder prefix for uploaded files (default: uploads/)'
+        '--timeout',
+        type=int,
+        default=120,
+        help='Request timeout in seconds (default: 120)'
     )
     
     parser.add_argument(
@@ -314,7 +310,6 @@ ENVIRONMENT VARIABLES:
     secret_key = args.secret_key or os.environ.get('QINIU_SK')
     domain = os.environ.get('QINIU_DOMAIN') or args.domain
     bucket = os.environ.get('QINIU_BUCKET') or args.bucket
-    folder = os.environ.get('QINIU_FOLDER') or args.folder
     
     # Check if we have credentials
     if not access_key or not secret_key:
@@ -336,8 +331,7 @@ ENVIRONMENT VARIABLES:
         secret_key=secret_key,
         bucket=bucket,
         domain=domain,
-        timeout=args.timeout,
-        folder=folder
+        timeout=args.timeout
     )
     
     if success:
