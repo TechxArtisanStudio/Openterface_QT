@@ -712,18 +712,7 @@ jobs:
           
           SCREENSHOT_SUCCESS=false
           
-          # Method 1: Use xwd + convert
-          if ! $SCREENSHOT_SUCCESS; then
-              echo "📌 Attempting screenshot method 1: xwd + convert..."
-              if docker exec $CONTAINER_ID sh -c "DISPLAY=:0 xwd -root 2>/dev/null | convert xwd:- -quality 100 -geometry 1920x1080 $container_screenshot 2>&1"; then
-                  SCREENSHOT_SUCCESS=true
-                  echo "✅ Screenshot captured using xwd + convert"
-              else
-                  echo "⚠️ xwd + convert method failed, trying alternative..."
-              fi
-          fi
-          
-          # Method 2: Use scrot
+          # Use scrot
           if ! $SCREENSHOT_SUCCESS; then
               echo "📌 Attempting screenshot method 2: scrot..."
               if docker exec $CONTAINER_ID sh -c "DISPLAY=:0 scrot -z $container_screenshot 2>&1"; then
@@ -1212,15 +1201,15 @@ jobs:
             fi
           '
 
-      - name: Test application startup (headless)
+      - name: Test application startup (GUI)
         run: |
-          echo "🧪 Testing application startup in headless environment"
+          echo "🧪 Testing application startup with GUI"
           
           docker exec fedora-build-test bash -c '
             cd /workspace/build
             
-            # Start Xvfb for headless GUI
-            echo "📺 Starting Xvfb for headless GUI testing..."
+            # Start Xvfb for GUI testing
+            echo "📺 Starting Xvfb for GUI testing..."
             Xvfb :99 -screen 0 1920x1080x24 &
             XVFB_PID=$!
             sleep 2
@@ -1228,21 +1217,48 @@ jobs:
             # Set display
             export DISPLAY=:99
             
-            # Test basic execution (should fail gracefully in headless mode)
-            echo "🚀 Testing application startup..."
-            timeout 10s ./openterfaceQT --help 2>&1 || true
+            # Start the application in background
+            echo "🚀 Starting application..."
+            ./openterfaceQT &
+            APP_PID=$!
             
-            # Check if it shows expected headless error
-            if [ $? -eq 124 ]; then
-              echo "✅ Application started (timeout reached, expected in headless mode)"
-            else
-              echo "ℹ️ Application behavior: $?"
+            # Wait for app to start and render
+            echo "⏳ Waiting 5 seconds for app to render..."
+            sleep 5
+            
+            # Take screenshot
+            echo "📷 Taking screenshot..."
+            timestamp=$(date +"%Y%m%d_%H%M%S")
+            screenshot_file="/workspace/build/screenshot_startup_${timestamp}.jpg"
+            
+            SCREENSHOT_SUCCESS=false
+            
+            # Use import
+            if ! $SCREENSHOT_SUCCESS; then
+              echo "📌 Attempting screenshot with import..."
+              if import -window root -quality 100 -geometry 1920x1080 "$screenshot_file" 2>/dev/null; then
+                SCREENSHOT_SUCCESS=true
+                echo "✅ Screenshot captured using import"
+              else
+                echo "⚠️ import method failed"
+              fi
             fi
+            
+            if [ "$SCREENSHOT_SUCCESS" = true ]; then
+              echo "✅ Screenshot saved to: $screenshot_file"
+              ls -lh "$screenshot_file"
+            else
+              echo "❌ All screenshot methods failed"
+            fi
+            
+            # Kill the application
+            echo "🛑 Killing application..."
+            kill $APP_PID 2>/dev/null || true
             
             # Kill Xvfb
             kill $XVFB_PID 2>/dev/null || true
             
-            echo "✅ Headless startup test completed"
+            echo "✅ GUI startup test completed"
           '
 
       - name: Capture build artifacts
@@ -1252,10 +1268,17 @@ jobs:
           # Create artifacts directory
           mkdir -p build-artifacts
           
-          # Copy executable and build info
+          # Copy executable, screenshot, and build info
           docker exec fedora-build-test bash -c '
             cd /workspace/build
             cp openterfaceQT /workspace/build-artifacts/ 2>/dev/null || echo "Executable not found"
+            
+            # Copy screenshot if it exists
+            if ls screenshot_startup_*.jpg 1> /dev/null 2>&1; then
+              cp screenshot_startup_*.jpg /workspace/build-artifacts/ || echo "Screenshot copy failed"
+            else
+              echo "No startup screenshot found"
+            fi
             
             # Create build info
             echo "Build Information" > /workspace/build-artifacts/build-info.txt
