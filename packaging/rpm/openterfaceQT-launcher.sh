@@ -1,6 +1,6 @@
 #!/bin/bash
-# OpenterfaceQT Launcher - Fedora Qt Conflict Resolution
-# Uses LD_PRELOAD to force bundled Qt libraries to load instead of system Qt
+# OpenterfaceQT Launcher - Sets up bundled library paths
+# This script ensures bundled Qt6, FFmpeg, and GStreamer libraries are loaded with proper priority
 
 # ============================================
 # Error Handling & Logging
@@ -573,9 +573,6 @@ else
     } >> "$LAUNCHER_LOG"
 fi
 
-# ============================================
-# Debug Output
-# ============================================
 # ============================================
 # Application Execution
 # ============================================
