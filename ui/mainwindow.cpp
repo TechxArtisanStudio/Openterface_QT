@@ -942,6 +942,7 @@ void MainWindow::imageSaved(int id, const QString &fileName)
     ui->statusbar->showMessage(tr("Captured \"%1\"").arg(QDir::toNativeSeparators(fileName)));
 
     m_isCapturingImage = false;
+
     qDebug() << "m_isCapturingImage set to false";
     qDebug() << "m_applicationExiting:" << m_applicationExiting;
     
