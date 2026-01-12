@@ -6,6 +6,8 @@
 # Error Handling & Logging
 # ============================================
 LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
+CLEANUP_HANDLER_RAN=0
+
 {
     echo "=== OpenterfaceQT Launcher Started at $(date) ==="
     echo "Script PID: $$"
@@ -14,7 +16,7 @@ LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
 
 # Trap errors and log them (but don't use set -e to allow graceful library lookups)
 # Only trap real errors, not expected return codes from find_library function
-trap 'if [ $? -ne 1 ]; then echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; fi' ERR
+trap 'if [ $? -ne 1 ] && [ $? -ne 143 ] && [ $? -ne 137 ]; then echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; fi' ERR
 
 # ============================================
 # Library Path Setup (CRITICAL for bundled libs)
@@ -343,6 +345,12 @@ fi
 # ============================================
 # This trap ensures that lingering binary processes are properly terminated
 cleanup_handler() {
+    # Prevent handler from running multiple times
+    if [ $CLEANUP_HANDLER_RAN -eq 1 ]; then
+        return
+    fi
+    CLEANUP_HANDLER_RAN=1
+    
     local exit_code=$?
     
     {
@@ -380,7 +388,7 @@ cleanup_handler() {
     fi
     
     # Kill any remaining child processes of the launcher
-    local child_pids=$(pgrep -P $$)
+    local child_pids=$(pgrep -P $$ 2>/dev/null)
     if [ -n "$child_pids" ]; then
         {
             echo "Killing remaining child processes: $child_pids"
@@ -389,7 +397,7 @@ cleanup_handler() {
     fi
     
     # Also try killing any openterfaceQT.bin processes that may have been orphaned
-    local orphaned_pids=$(pgrep -f "openterfaceQT\\.bin|openterfaceQT-bin" 2>/dev/null | grep -v $$)
+    local orphaned_pids=$(pgrep -f "openterfaceQT\\.bin|openterfaceQT-bin" 2>/dev/null | grep -v "^$$")
     if [ -n "$orphaned_pids" ]; then
         {
             echo "Killing orphaned openterface processes: $orphaned_pids"
@@ -401,7 +409,8 @@ cleanup_handler() {
         echo "=== Cleanup Complete ===" 
     } | tee -a "$LAUNCHER_LOG"
     
-    return $exit_code
+    # Exit with the captured exit code
+    exit $exit_code
 }
 
 # Set up cleanup trap for normal exit and signals
@@ -485,7 +494,8 @@ APP_PID=$!
 } | tee -a "$LAUNCHER_LOG"
 
 # Wait for application to finish and capture exit code
-wait $APP_PID
+# Use wait with error suppression since the process might be killed by cleanup handler
+wait $APP_PID 2>/dev/null
 APP_EXIT_CODE=$?
 
 {
@@ -494,5 +504,3 @@ APP_EXIT_CODE=$?
     echo "Exit Code: $APP_EXIT_CODE"
     echo "Time: $(date)"
 } | tee -a "$LAUNCHER_LOG"
-
-exit $APP_EXIT_CODE

@@ -6,6 +6,8 @@
 # Error Handling & Logging
 # ============================================
 LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
+CLEANUP_HANDLER_RAN=0
+
 {
     echo "=== OpenterfaceQT Launcher Started at $(date) ==="
     echo "Script PID: $$"
@@ -14,7 +16,7 @@ LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
 
 # Trap errors and log them (but don't use set -e to allow graceful library lookups)
 # Only trap real errors, not expected return codes from find_library function
-trap 'if [ $? -ne 1 ]; then echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; fi' ERR
+trap 'if [ $? -ne 1 ] && [ $? -ne 143 ] && [ $? -ne 137 ]; then echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; fi' ERR
 
 # ============================================
 # Library Path Setup (CRITICAL for bundled libs)
@@ -574,10 +576,86 @@ else
 fi
 
 # ============================================
+# Cleanup Handler - Force Kill on Exit
+# ============================================
+# This trap ensures that lingering binary processes are properly terminated
+cleanup_handler() {
+    # Prevent handler from running multiple times
+    if [ $CLEANUP_HANDLER_RAN -eq 1 ]; then
+        return
+    fi
+    CLEANUP_HANDLER_RAN=1
+    
+    local exit_code=$?
+    
+    {
+        echo ""
+        echo "=== Cleanup Handler Triggered ===" 
+        echo "App PID: $APP_PID"
+        echo "Exit Code: $exit_code"
+        echo "Time: $(date)"
+    } | tee -a "$LAUNCHER_LOG"
+    
+    # Kill the app if it's still running (gracefully first, then forcefully)
+    if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
+        {
+            echo "Application process still running (PID: $APP_PID). Attempting graceful termination..."
+        } | tee -a "$LAUNCHER_LOG"
+        
+        # Try graceful termination first (SIGTERM)
+        kill -TERM "$APP_PID" 2>/dev/null
+        
+        # Wait up to 3 seconds for graceful shutdown
+        local wait_count=0
+        while [ $wait_count -lt 30 ] && kill -0 "$APP_PID" 2>/dev/null; do
+            sleep 0.1
+            wait_count=$((wait_count + 1))
+        done
+        
+        # If still running, force kill (SIGKILL)
+        if kill -0 "$APP_PID" 2>/dev/null; then
+            {
+                echo "Process did not terminate gracefully. Force killing (SIGKILL)..."
+            } | tee -a "$LAUNCHER_LOG"
+            kill -KILL "$APP_PID" 2>/dev/null
+            sleep 0.5
+        fi
+    fi
+    
+    # Kill any remaining child processes of the launcher
+    local child_pids=$(pgrep -P $$ 2>/dev/null)
+    if [ -n "$child_pids" ]; then
+        {
+            echo "Killing remaining child processes: $child_pids"
+        } | tee -a "$LAUNCHER_LOG"
+        kill -KILL $child_pids 2>/dev/null
+    fi
+    
+    # Also try killing any openterfaceQT.bin processes that may have been orphaned
+    local orphaned_pids=$(pgrep -f "openterfaceQT\\.bin|openterfaceQT-bin" 2>/dev/null | grep -v "^$$")
+    if [ -n "$orphaned_pids" ]; then
+        {
+            echo "Killing orphaned openterface processes: $orphaned_pids"
+        } | tee -a "$LAUNCHER_LOG"
+        echo "$orphaned_pids" | xargs kill -KILL 2>/dev/null
+    fi
+    
+    {
+        echo "=== Cleanup Complete ===" 
+    } | tee -a "$LAUNCHER_LOG"
+    
+    # Exit with the captured exit code
+    exit $exit_code
+}
+
+# Set up cleanup trap for normal exit and signals
+trap cleanup_handler EXIT INT TERM
+
+# ============================================
 # Application Execution
 # ============================================
 # Locate and execute the OpenterfaceQT binary
-# NOTE: The binary is at /usr/local/bin/openterfaceQT.bin (with .bin extension)
+# NOTE: The binary is at /usr/bin/openterfaceQT-bin (with -bin extension for RPM)
 # This ensures LD_PRELOAD and environment variables are ALWAYS applied
 
 # Try multiple locations for the binary (with fallbacks)
@@ -906,7 +984,8 @@ APP_PID=$!
 } | tee -a "$LAUNCHER_LOG"
 
 # Wait for application to finish and capture exit code
-wait $APP_PID
+# Use wait with error suppression since the process might be killed by cleanup handler
+wait $APP_PID 2>/dev/null
 APP_EXIT_CODE=$?
 
 {
@@ -915,5 +994,3 @@ APP_EXIT_CODE=$?
     echo "Exit Code: $APP_EXIT_CODE"
     echo "Time: $(date)"
 } | tee -a "$LAUNCHER_LOG"
-
-exit $APP_EXIT_CODE
