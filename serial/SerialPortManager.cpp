@@ -21,6 +21,10 @@
 */
 
 #include "SerialPortManager.h"
+#include "FactoryResetManager.h"
+#include "SerialCommandCoordinator.h"
+#include "SerialStateManager.h"
+#include "SerialStatistics.h"
 #include "../ui/globalsetting.h"
 #include "../host/cameramanager.h"
 #include "../device/DeviceManager.h"
@@ -63,6 +67,18 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     // Initialize protocol layer (Phase 2 refactoring)
     m_protocol = std::make_unique<SerialProtocol>(nullptr);
     
+    // Initialize command coordinator (Phase 4 refactoring)
+    m_commandCoordinator = std::make_unique<SerialCommandCoordinator>(nullptr);
+    
+    // Initialize state manager (Phase 4 refactoring)
+    m_stateManager = std::make_unique<SerialStateManager>(nullptr);
+    
+    // Initialize statistics module (Phase 4 refactoring)
+    m_statistics = std::make_unique<SerialStatistics>(nullptr);
+    
+    // Connect command coordinator with statistics module
+    m_commandCoordinator->setStatisticsModule(m_statistics.get());
+    
     // Initialize connection watchdog (Phase 3 refactoring)
     m_watchdog = std::make_unique<ConnectionWatchdog>(nullptr);
     m_watchdog->setRecoveryHandler(this);  // SerialPortManager implements IRecoveryHandler
@@ -84,11 +100,58 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
         qCDebug(log_core_serial) << "Connection state changed to:" << static_cast<int>(state);
     });
     
+    // Connect command coordinator signals to SerialPortManager
+    connect(m_commandCoordinator.get(), &SerialCommandCoordinator::dataSent, this, &SerialPortManager::dataSent);
+    connect(m_commandCoordinator.get(), &SerialCommandCoordinator::dataReceived, this, &SerialPortManager::dataReceived);
+    connect(m_commandCoordinator.get(), &SerialCommandCoordinator::commandExecuted, this, [this](const QByteArray& cmd, bool success) {
+        qCDebug(log_core_serial) << "Command executed:" << cmd.toHex(' ') << "Success:" << success;
+    });
+    
+    // Connect state manager signals to SerialPortManager signals
+    connect(m_stateManager.get(), &SerialStateManager::keyStatesChanged, this, &SerialPortManager::keyStatesChanged);
+    connect(m_stateManager.get(), &SerialStateManager::targetUsbStatusChanged, this, &SerialPortManager::targetUSBStatus);
+    connect(m_stateManager.get(), &SerialStateManager::connectionStateChanged, this, [this](ConnectionState newState, ConnectionState oldState) {
+        Q_UNUSED(oldState);
+        // Update ready flag when connection state changes
+        ready = (newState == ConnectionState::Connected);
+        qCDebug(log_core_serial) << "Connection state changed, ready=" << ready;
+    });
+    connect(m_stateManager.get(), &SerialStateManager::serialPortInfoChanged, this, [this](const SerialPortInfo& newInfo, const SerialPortInfo& oldInfo) {
+        Q_UNUSED(oldInfo);
+        emit serialPortDeviceChanged(oldInfo.portPath, newInfo.portPath);
+        emit connectedPortChanged(newInfo.portPath, newInfo.baudRate);
+    });
+    
+    // Connect statistics module signals to SerialPortManager signals
+    connect(m_statistics.get(), &SerialStatistics::statisticsUpdated, this, [this](const StatisticsData& data) {
+        qCDebug(log_core_serial) << "Statistics updated - Commands sent:" << data.commandsSent
+                                << "Responses received:" << data.responsesReceived
+                                << "Error rate:" << QString::number(data.errorRate(), 'f', 2) << "%";
+    });
+    connect(m_statistics.get(), &SerialStatistics::performanceThresholdExceeded, this, [this](const QString& metric, int currentValue, int threshold) {
+        qCWarning(log_core_serial) << "Performance threshold exceeded for" << metric 
+                                   << "- Current:" << currentValue << "Threshold:" << threshold;
+    });
+    connect(m_statistics.get(), &SerialStatistics::recoveryRecommended, this, [this](const QString& reason) {
+        qCWarning(log_core_serial) << "Recovery recommended:" << reason;
+        emit statusUpdate(QString("Recovery recommended: %1").arg(reason));
+    });
+    connect(m_statistics.get(), &SerialStatistics::armBaudrateRecommendation, this, [this](int current, int recommended) {
+        emit armBaudratePerformanceRecommendation(current);
+        qCDebug(log_core_serial) << "ARM baudrate recommendation: Current=" << current << "Recommended=" << recommended;
+    });
+    
     // Connect protocol layer signals to SerialPortManager
     connect(m_protocol.get(), &SerialProtocol::getInfoReceived, this, [this](bool targetConnected, uint8_t indicators) {
-        isTargetUsbConnected = targetConnected;
-        emit targetUSBStatus(targetConnected);
-        updateSpecialKeyState(indicators);
+        // Update state manager
+        if (m_stateManager) {
+            m_stateManager->setTargetUsbConnected(targetConnected);
+            m_stateManager->updateKeyStates(indicators);
+        } else {
+            // Fallback - direct emission
+            emit targetUSBStatus(targetConnected);
+            updateSpecialKeyState(indicators);
+        }
     });
     connect(m_protocol.get(), &SerialProtocol::usbSwitchStatusReceived, this, &SerialPortManager::usbStatusChanged);
     connect(m_protocol.get(), &SerialProtocol::paramConfigReceived, this, [this](int baudrate, uint8_t mode) {
@@ -154,6 +217,11 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     //             checkDeviceConnections(devices);
     //         });
 
+    // Initialize FactoryResetManager and forward its signals for backward compatibility
+    m_factoryResetManager = std::make_unique<FactoryResetManager>(this);
+    connect(m_factoryResetManager.get(), &FactoryResetManager::factoryReset, this, &SerialPortManager::factoryReset, Qt::QueuedConnection);
+    connect(m_factoryResetManager.get(), &FactoryResetManager::factoryResetCompleted, this, &SerialPortManager::factoryResetCompleted, Qt::QueuedConnection);
+
     observeSerialPortNotification();
     m_lastCommandTime.start();
     m_commandDelayMs = 0;  // Default no delay
@@ -198,9 +266,20 @@ void SerialPortManager::stop() {
         closePort();
     }
     
+    // Clear command coordinator queue
+    if (m_commandCoordinator) {
+        m_commandCoordinator->clearCommandQueue();
+    }
+    
+    // Clear state manager
+    if (m_stateManager) {
+        m_stateManager->clearAllStates();
+    }
+    
     // Clear command queue
-    QMutexLocker locker(&m_commandQueueMutex);
-    m_commandQueue.clear();
+    if (m_commandCoordinator) {
+        m_commandCoordinator->clearCommandQueue();
+    }
     
     qCDebug(log_core_serial) << "Serial port manager stopped";
 }
@@ -267,16 +346,24 @@ void SerialPortManager::initializeSerialPortFromPortChain() {
 
 QString SerialPortManager::getCurrentSerialPortPath() const
 {
-    return m_currentSerialPortPath;
+    return m_stateManager ? m_stateManager->getCurrentPortPath() : QString();
 }
 
 QString SerialPortManager::getCurrentSerialPortChain() const
 {
-    return m_currentSerialPortChain;
+    return m_stateManager ? m_stateManager->getCurrentPortChain() : QString();
 }
 
 int SerialPortManager::getCurrentBaudrate() const
 {
+    if (m_stateManager) {
+        int stateBaudrate = m_stateManager->getCurrentBaudRate();
+        if (stateBaudrate > 0) {
+            return stateBaudrate;
+        }
+    }
+    
+    // Fallback to serial port if state manager not available or has invalid baudrate
     if (serialPort && serialPort->isOpen()) {
         return serialPort->baudRate();
     }
@@ -337,7 +424,17 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
             closePort();
         }
 
-        // Update current device tracking
+        // Update current device tracking in state manager
+        if (m_stateManager) {
+            SerialPortInfo newPortInfo;
+            newPortInfo.portPath = selectedDevice.serialPortPath;
+            newPortInfo.portChain = portChain;
+            newPortInfo.baudRate = getCurrentBaudrate();
+            newPortInfo.chipType = m_currentChipType;
+            m_stateManager->setSerialPortInfo(newPortInfo);
+        }
+        
+        // Update legacy tracking for backward compatibility
         m_currentSerialPortPath = selectedDevice.serialPortPath;
         m_currentSerialPortChain = portChain;
 
@@ -383,6 +480,15 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     
     // Detect chip type FIRST
     m_currentChipType = detectChipType(portName);
+    
+    // Update state manager with port and chip info
+    if (m_stateManager) {
+        SerialPortInfo portInfo;
+        portInfo.portPath = portName;
+        portInfo.chipType = m_currentChipType;
+        m_stateManager->setSerialPortInfo(portInfo);
+        m_stateManager->setConnectionState(ConnectionState::Connecting);
+    }
     
     // Create appropriate chip strategy based on detected chip type
     m_chipStrategy = ChipStrategyFactory::createStrategyForPort(portName);
@@ -592,6 +698,15 @@ ConfigResult SerialPortManager::attemptBaudrateDetection() {
 void SerialPortManager::handleChipSpecificLogic(const ConfigResult &config) {
     if (config.success) {
         ready = true;
+        
+        // Update state manager
+        if (m_stateManager) {
+            m_stateManager->setConnectionState(ConnectionState::Connected);
+            m_stateManager->setBaudRate(config.workingBaudrate);
+            m_stateManager->resetErrorCounters();
+            m_stateManager->updateLastSuccessfulCommand();
+        }
+        
         resetErrorCounters();
         m_lastSuccessfulCommand.restart();
     }
@@ -620,6 +735,12 @@ int SerialPortManager::anotherBaudrate(){
  */
 void SerialPortManager::onSerialPortDisconnected(const QString &portName){
     qCDebug(log_core_serial) << "Serial port disconnected:" << portName;
+    
+    // Update state manager
+    if (m_stateManager) {
+        m_stateManager->setConnectionState(ConnectionState::Disconnected);
+    }
+    
     if (serialPort) {
         qCDebug(log_core_serial) << "Last error:" << serialPort->errorString();
         qCDebug(log_core_serial) << "Port state:" << (serialPort->isOpen() ? "Open" : "Closed");
@@ -845,59 +966,11 @@ bool SerialPortManager::factoryResetHipChip(){
 
 // Internal implementation that runs in the worker thread
 bool SerialPortManager::handleFactoryResetInternal() {
-    qCDebug(log_core_serial) << "Factory reset Hid chip now (internal)...";
-
-    // Clear stored baudrate on factory reset
-    clearStoredBaudrate();
-
-    if (!serialPort) {
-        qCWarning(log_core_serial) << "Serial port is null, cannot factory reset";
-        emit factoryResetCompleted(false);
-        return false;
+    // Delegate to FactoryResetManager for implementation
+    if (m_factoryResetManager) {
+        return m_factoryResetManager->handleFactoryResetInternal();
     }
-
-    QString currentPortName = serialPort->portName();  // Save current port name
-
-    if(serialPort->setRequestToSend(true)){
-        emit factoryReset(true);
-        qCDebug(log_core_serial) << "Set RTS to low";
-        QTimer::singleShot(4000, this, [this, currentPortName]() {
-            bool success = false;
-            if (serialPort && serialPort->setRequestToSend(false)) {
-                qCDebug(log_core_serial) << "Set RTS to high";
-                emit factoryReset(false);
-                
-                // Use full reconnection process instead of simple restartPort
-                QTimer::singleShot(500, this, [this, currentPortName]() {
-                    qCDebug(log_core_serial) << "Reinitializing connection after factory reset";
-                    
-                    // Close current connection
-                    if (serialPort && serialPort->isOpen()) {
-                        closePort();
-                    }
-                    
-                    // Wait longer for device reboot to complete after factory reset
-                    // Factory reset requires more stabilization time than normal reset
-                    QTimer::singleShot(2000, this, [this, currentPortName]() {
-                        qCDebug(log_core_serial) << "Reconnecting to port after factory reset:" << currentPortName;
-                        
-                        // Use full connection initialization process
-                        onSerialPortConnected(currentPortName);
-                        
-                        // Use polling to wait for ready state instead of fixed delay
-                        // onSerialPortConnected triggers async retry logic, so we need to poll
-                        startReadyStatePolling(currentPortName);
-                    });
-                });
-                
-                success = true;
-            } else {
-                // If RTS setting fails, report failure directly
-                emit factoryResetCompleted(false);
-            }
-        });
-        return true;
-    }
+    qCWarning(log_core_serial) << "FactoryResetManager not initialized";
     emit factoryResetCompleted(false);
     return false;
 }
@@ -930,60 +1003,10 @@ bool SerialPortManager::factoryResetHipChipV191(){
 
 // Internal implementation that runs in the worker thread
 bool SerialPortManager::handleFactoryResetV191Internal() {
-    qCDebug(log_core_serial) << "Factory reset Hid chip for 1.9.1 now (internal)...";
-    emit statusUpdate("Factory reset Hid chip now.");
-
-    // Clear stored baudrate on factory reset
-    clearStoredBaudrate();
-
-    if (!serialPort) {
-        qCWarning(log_core_serial) << "Serial port is null, cannot factory reset";
-        emit factoryResetCompleted(false);
-        return false;
+    if (m_factoryResetManager) {
+        return m_factoryResetManager->handleFactoryResetV191Internal();
     }
-
-    bool success = false;
-
-    // CH32V208 chip only supports 115200, don't try 9600
-    if (isChipTypeCH32V208()) {
-        qCInfo(log_core_serial) << "CH32V208 chip detected - attempting factory reset at 115200 only";
-        QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
-        if (retByte.size() > 0) {
-            qCDebug(log_core_serial) << "Factory reset the hid chip success.";
-            emit statusUpdate("Factory reset the hid chip success.");
-            success = true;
-        } else {
-            qCWarning(log_core_serial) << "CH32V208 chip factory reset failed - chip may not support this command";
-            emit statusUpdate("Factory reset the hid chip failure.");
-        }
-        emit factoryResetCompleted(success);
-        return success;
-    }
-
-    // CH9329 chip - try current baudrate first, then alternative
-    QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
-    if (retByte.size() > 0) {
-        qCDebug(log_core_serial) << "Factory reset the hid chip success.";
-        emit statusUpdate("Factory reset the hid chip success.");
-        emit factoryResetCompleted(true);
-        return true;
-    } else{
-        qCDebug(log_core_serial) << "Factory reset the hid chip fail.";
-        // toggle to another baudrate
-        serialPort->close();
-        setBaudRate(anotherBaudrate());
-        emit statusUpdate("Factory reset the hid chip@9600.");
-        if(serialPort->open(QIODevice::ReadWrite)){
-            QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
-            if (retByte.size() > 0) {
-                qCDebug(log_core_serial) << "Factory reset the hid chip success.";
-                emit statusUpdate("Factory reset the hid chip success@9600.");
-                emit factoryResetCompleted(true);
-                return true;
-            }
-        }
-    }
-    emit statusUpdate("Factory reset the hid chip failure.");
+    qCWarning(log_core_serial) << "FactoryResetManager not initialized";
     emit factoryResetCompleted(false);
     return false;
 }
@@ -1020,201 +1043,22 @@ bool SerialPortManager::factoryResetHipChipV191Sync(int timeoutMs) {
  * Internal synchronous factory reset implementation - RTS pin method
  */
 bool SerialPortManager::handleFactoryResetSyncInternal(int timeoutMs) {
-    qCDebug(log_core_serial) << "Starting synchronous factory reset internal (RTS method)...";
-    
-    if (!serialPort) {
-        qCWarning(log_core_serial) << "Serial port is null, cannot factory reset";
-        return false;
+    if (m_factoryResetManager) {
+        return m_factoryResetManager->handleFactoryResetSyncInternal(timeoutMs);
     }
-    
-    if (!serialPort->isOpen()) {
-        qCWarning(log_core_serial) << "Serial port is not open, cannot factory reset";
-        return false;
-    }
-    
-    QString currentPortName = serialPort->portName();
-    qCInfo(log_core_serial) << "Factory reset on port:" << currentPortName;
-    
-    try {
-        // Step 1: Set RTS to low (start reset)
-        qCInfo(log_core_serial) << "Step 1: Setting RTS to low for factory reset";
-        if (!serialPort->setRequestToSend(true)) {
-            qCWarning(log_core_serial) << "Failed to set RTS to low for factory reset";
-            return false;
-        }
-        
-        qCInfo(log_core_serial) << "RTS set to low, starting 4-second reset period";
-        emit factoryReset(true);
-        
-        // Step 2: Wait 4 seconds while RTS is low
-        QEventLoop waitLoop;
-        QTimer::singleShot(4000, &waitLoop, &QEventLoop::quit);
-        waitLoop.exec();
-        
-        // Step 3: Set RTS to high (end reset)
-        qCInfo(log_core_serial) << "Step 2: Setting RTS to high (end reset)";
-        if (!serialPort->setRequestToSend(false)) {
-            qCWarning(log_core_serial) << "Failed to set RTS to high after factory reset";
-            emit factoryReset(false);
-            return false;
-        }
-        
-        qCInfo(log_core_serial) << "RTS set to high - factory reset signal complete";
-        emit factoryReset(false);
-        
-        // Step 4: Close current connection and wait for device reboot
-        qCInfo(log_core_serial) << "Step 3: Closing port and waiting for device reboot";
-        if (serialPort && serialPort->isOpen()) {
-            closePort();
-        }
-        
-        QEventLoop stabilizeLoop;
-        QTimer::singleShot(2000, &stabilizeLoop, &QEventLoop::quit); // Wait for device reboot
-        stabilizeLoop.exec();
-        
-        // Step 5: Attempt reconnection with verification
-        qCInfo(log_core_serial) << "Step 4: Attempting reconnection after factory reset...";
-        
-        // Try reconnection multiple times with increasing delays
-        bool reconnectSuccess = false;
-        for (int attempt = 1; attempt <= 5; attempt++) {
-            qCInfo(log_core_serial) << "Reconnection attempt" << attempt << "/5";
-            
-            // Attempt to reconnect
-            onSerialPortConnected(currentPortName);
-            
-            // Wait for connection to stabilize
-            QEventLoop connectWait;
-            QTimer::singleShot(1000, &connectWait, &QEventLoop::quit);
-            connectWait.exec();
-            
-            // Verify connection by testing communication
-            if (ready && serialPort && serialPort->isOpen()) {
-                qCDebug(log_core_serial) << "Port is ready and open, testing communication...";
-                QByteArray response = sendSyncCommand(CMD_GET_INFO, true);
-                if (!response.isEmpty() && response.size() >= static_cast<int>(sizeof(CmdGetInfoResult))) {
-                    CmdGetInfoResult result = CmdGetInfoResult::fromByteArray(response);
-                    if (result.prefix == 0xAB57) {
-                        qCInfo(log_core_serial) << "Factory reset reconnection successful on attempt" << attempt;
-                        reconnectSuccess = true;
-                        break;
-                    } else {
-                        qCDebug(log_core_serial) << "Invalid response prefix:" << QString::number(result.prefix, 16);
-                    }
-                } else {
-                    qCDebug(log_core_serial) << "No response or invalid response size:" << response.size();
-                }
-            } else {
-                qCDebug(log_core_serial) << "Port not ready or not open. Ready:" << ready << "Open:" << (serialPort ? serialPort->isOpen() : false);
-            }
-            
-            if (attempt < 5) {
-                qCDebug(log_core_serial) << "Reconnection attempt" << attempt << "failed, waiting" << (1000 * attempt) << "ms before retry...";
-                QEventLoop retryWait;
-                QTimer::singleShot(1000 * attempt, &retryWait, &QEventLoop::quit); // Progressive delay
-                retryWait.exec();
-            } else {
-                qCWarning(log_core_serial) << "All reconnection attempts failed";
-            }
-        }
-        
-        if (reconnectSuccess) {
-            qCInfo(log_core_serial) << "Synchronous factory reset completed successfully";
-            return true;
-        } else {
-            qCWarning(log_core_serial) << "Synchronous factory reset failed - device not responding after all attempts";
-            return false;
-        }
-        
-    } catch (const std::exception& e) {
-        qCCritical(log_core_serial) << "Exception during factory reset:" << e.what();
-        return false;
-    } catch (...) {
-        qCCritical(log_core_serial) << "Unknown exception during factory reset";
-        return false;
-    }
+    qCWarning(log_core_serial) << "FactoryResetManager not initialized";
+    return false;
 }
 
 /*
  * Internal synchronous factory reset V191 implementation - command method
  */
 bool SerialPortManager::handleFactoryResetV191SyncInternal(int timeoutMs) {
-    qCDebug(log_core_serial) << "Starting synchronous factory reset V191 internal (command method)...";
-    
-    if (!serialPort) {
-        qCWarning(log_core_serial) << "Serial port is null, cannot factory reset";
-        return false;
+    if (m_factoryResetManager) {
+        return m_factoryResetManager->handleFactoryResetV191SyncInternal(timeoutMs);
     }
-    
-    if (!serialPort->isOpen()) {
-        qCWarning(log_core_serial) << "Serial port is not open, cannot factory reset";
-        return false;
-    }
-    
-    QString currentPortName = serialPort->portName();
-    qCInfo(log_core_serial) << "V191 Factory reset on port:" << currentPortName;
-    
-    try {
-        // Try sending CMD_SET_DEFAULT_CFG command
-        qCInfo(log_core_serial) << "Step 1: Sending factory reset command (CMD_SET_DEFAULT_CFG)";
-        QByteArray retByte = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
-        
-        if (retByte.size() > 0) {
-            qCInfo(log_core_serial) << "Factory reset command sent successfully";
-            
-            // Wait for device to apply settings
-            qCInfo(log_core_serial) << "Step 2: Waiting for device to apply settings...";
-            QEventLoop waitLoop;
-            QTimer::singleShot(2000, &waitLoop, &QEventLoop::quit); // Increased wait time
-            waitLoop.exec();
-            
-            // Step 3: Verify with multiple test commands
-            qCInfo(log_core_serial) << "Step 3: Verifying factory reset with communication tests...";
-            bool verificationSuccess = false;
-            
-            for (int attempt = 1; attempt <= 3; attempt++) {
-                qCInfo(log_core_serial) << "Verification attempt" << attempt << "/3";
-                QByteArray verifyByte = sendSyncCommand(CMD_GET_INFO, true);
-                
-                if (!verifyByte.isEmpty() && verifyByte.size() >= static_cast<int>(sizeof(CmdGetInfoResult))) {
-                    CmdGetInfoResult result = CmdGetInfoResult::fromByteArray(verifyByte);
-                    if (result.prefix == 0xAB57) {
-                        qCInfo(log_core_serial) << "V191 factory reset verification successful on attempt" << attempt << "- version:" << result.version;
-                        verificationSuccess = true;
-                        break;
-                    } else {
-                        qCDebug(log_core_serial) << "Invalid response prefix:" << QString::number(result.prefix, 16);
-                    }
-                } else {
-                    qCDebug(log_core_serial) << "No response or invalid response size:" << verifyByte.size();
-                }
-                
-                if (attempt < 3) {
-                    QEventLoop retryWait;
-                    QTimer::singleShot(500, &retryWait, &QEventLoop::quit);
-                    retryWait.exec();
-                }
-            }
-            
-            if (verificationSuccess) {
-                qCInfo(log_core_serial) << "V191 factory reset completed successfully";
-                return true;
-            } else {
-                qCWarning(log_core_serial) << "V191 factory reset verification failed - device not responding properly";
-                return false;
-            }
-        } else {
-            qCWarning(log_core_serial) << "Factory reset command failed - no response from device";
-            return false;
-        }
-        
-    } catch (const std::exception& e) {
-        qCCritical(log_core_serial) << "Exception during V191 factory reset:" << e.what();
-        return false;
-    } catch (...) {
-        qCCritical(log_core_serial) << "Unknown exception during V191 factory reset";
-        return false;
-    }
+    qCWarning(log_core_serial) << "FactoryResetManager not initialized";
+    return false;
 }
 
 /*
@@ -1415,7 +1259,7 @@ void SerialPortManager::closePort() {
         
         // Reset error handler state when port is closed
         m_errorHandlerDisconnected = false;
-        m_errorCount = 0;
+        // LEGACY: m_errorCount removed - error tracking handled by SerialStatistics
         m_errorTrackingTimer.restart();
     } else {
         qCDebug(log_core_serial) << "Serial port is not opened.";
@@ -1446,6 +1290,12 @@ bool SerialPortManager::restartPort() {
     QString portName = serialPort->portName();
     qint32 baudRate = serialPort->baudRate();
     qCDebug(log_core_serial) << "Restart port" << portName << "baudrate:" << baudRate;
+    
+    // Record serial reset in statistics
+    if (m_statistics) {
+        m_statistics->recordSerialReset();
+    }
+    
     emit serialPortReset(true);
     closePort();
     
@@ -1491,17 +1341,22 @@ void SerialPortManager::scheduleConfigRetry(const QString &portName, int attempt
 
 
 void SerialPortManager::updateSpecialKeyState(uint8_t data){
-
-    qCDebug(log_core_serial) << "Data received: " << data;
-    NumLockState = (data & 0b00000001) != 0; // NumLockState bit
-    CapsLockState = (data & 0b00000010) != 0; // CapsLockState bit
-    ScrollLockState = (data & 0b00000100) != 0; // ScrollLockState bit
+    qCDebug(log_core_serial) << "Data received:" << data;
     
-    // Emit a thread-safe signal for key state changes
-    qCDebug(log_core_serial) << "NumLockState:" << NumLockState 
-                            << "CapsLockState:" << CapsLockState 
-                            << "ScrollLockState:" << ScrollLockState;
-    emit keyStatesChanged(NumLockState, CapsLockState, ScrollLockState);
+    if (m_stateManager) {
+        m_stateManager->updateKeyStates(data);
+    } else {
+        // Fallback to legacy behavior if state manager not available
+    if (m_stateManager) {
+        m_stateManager->updateKeyStates(data);
+    } else {
+        // Fallback - direct emission
+        bool numLock = (data & 0b00000001) != 0;
+        bool capsLock = (data & 0b00000010) != 0; 
+        bool scrollLock = (data & 0b00000100) != 0;
+        emit keyStatesChanged(numLock, capsLock, scrollLock);
+    }
+    }
 }
 /*
  * Read the data from the serial port
@@ -1567,10 +1422,10 @@ void SerialPortManager::readData() {
         
         // Process response using protocol layer - signals are already connected
         m_protocol->processRawData(packet);
-        
-        // Statistics tracking for valid responses
-        if (m_isStatsEnabled && parsed.valid) {
-            m_statsReceived++;
+
+        // Record response for statistics tracking (counts async responses)
+        if (m_statistics) {
+            m_statistics->recordResponseReceived();
         }
         
         // Additional chip-specific handling for 0x84 (absolute mouse) response
@@ -1713,143 +1568,30 @@ bool SerialPortManager::writeData(const QByteArray &data) {
  * Send the async command to the serial port
  */
 bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
-    if(!force && !ready) return false;
-    QByteArray command = data;
-    emit dataSent(data);
-    command.append(calculateChecksum(command));
-
-    // Statistics tracking
-    if (m_isStatsEnabled) {
-        m_statsSent++;
+    if (m_isShuttingDown || !m_commandCoordinator) {
+        return false;
     }
-
-    // Check if less than the configured delay has passed since the last command
-    if (m_lastCommandTime.isValid() && m_lastCommandTime.elapsed() < m_commandDelayMs) {
-        // Calculate remaining delay time
-        int remainingDelay = m_commandDelayMs - m_lastCommandTime.elapsed();
-        
-        // Use QTimer::singleShot for non-blocking delay
-        QTimer::singleShot(remainingDelay, this, [this, command]() {
-            writeData(command);
-            m_lastCommandTime.start();
-        });
-        
-        return true;
-    }
-
-    bool result = writeData(command);
-    m_lastCommandTime.start();
-    return result;
+    
+    // Update command coordinator ready state
+    m_commandCoordinator->setReady(ready);
+    
+    // Delegate to command coordinator
+    return m_commandCoordinator->sendAsyncCommand(serialPort, data, force);
 }
 
  /*
  * Send the sync command to the serial port
  */
 QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force) {
-    if(!force && !ready) return QByteArray();
-    
-    // Add bounds checking for data array access
-    if (data.size() < 4) {
-        qCWarning(log_core_serial) << "sendSyncCommand: Command data too small, size:" << data.size();
+    if (m_isShuttingDown || !m_commandCoordinator) {
         return QByteArray();
     }
     
-    emit dataSent(data);
-    QByteArray command = data;
+    // Update command coordinator ready state
+    m_commandCoordinator->setReady(ready);
     
-    const int commandCode = static_cast<unsigned char>(data[3]);
-
-    serialPort->readAll(); // Clear any existing data in the buffer before sending command
-    command.append(calculateChecksum(command));
-    writeData(command);
-    
-    // Use new helper to wait for and collect the sync response
-    QByteArray responseData = collectSyncResponse(/* totalTimeoutMs = */ 1000, /* waitStepMs = */ 100);
-
-    // verify response command code matches expected
-    if (responseData.size() >= 4) {
-        unsigned char respCmdCode = static_cast<unsigned char>(responseData[3]);
-        if (respCmdCode != (commandCode | 0x80)) {
-            qCWarning(log_core_serial).nospace().noquote() << "sendSyncCommand: Mismatched response command. Expected 0x" 
-                                       << QString::number(commandCode | 0x80, 16) << ", but got 0x" 
-                                       << QString::number(respCmdCode, 16) << ". Response data:" << responseData.toHex(' ');
-
-            // Special case: if we got a previous get info response, keep receive until get the expected one or timeout
-            if(respCmdCode == 0x81 && commandCode == 0x88){
-                qCWarning(log_core_serial) << "sendSyncCommand: Received previous get info response from device, get the expected one or timeout.";
-                QElapsedTimer timer;
-                timer.start();
-                while(respCmdCode == 0x81 && timer.elapsed() < 1000){
-                    responseData = collectSyncResponse(/* totalTimeoutMs = */ 1000, /* waitStepMs = */ 100);
-                    if(responseData.size() < 4) break;
-                    respCmdCode = static_cast<unsigned char>(responseData[3]);
-                }
-            }else {
-                // Resend command again
-                writeData(command);
-                responseData = collectSyncResponse(/* totalTimeoutMs = */ 1000, /* waitStepMs = */ 100);
-            }
-        }
-    } else {
-        qCWarning(log_core_serial) << "sendSyncCommand: Incomplete response data received. Size:" 
-                                   << responseData.size() << "Data:" << responseData.toHex(' ');
-        return QByteArray();
-    }
-
-    // Notify serial console of received data
-    if (!responseData.isEmpty()) {
-        emit dataReceived(responseData);
-        return responseData;
-    }
-    return responseData;
-}
-
-QByteArray SerialPortManager::collectSyncResponse(int totalTimeoutMs, int waitStepMs)
-{
-    const int MAX_ACCEPTABLE_PACKET = 1024; // Define reasonable maximum packet size
-    if (!serialPort || !serialPort->isOpen()) {
-        qCWarning(log_core_serial) << "collectSyncResponse: Serial port not open";
-        return QByteArray();
-    }
-
-    QElapsedTimer timer;
-    timer.start();
-    QByteArray responseData;
-
-    int expectedResponseLength = 6; // minimal header + checksum
-
-    while (timer.elapsed() < totalTimeoutMs && responseData.size() < expectedResponseLength) {
-        if (serialPort->waitForReadyRead(waitStepMs)) {
-            QByteArray chunk = serialPort->readAll();
-            if (!chunk.isEmpty()) {
-                responseData += chunk;
-                qCDebug(log_core_serial) << "collectSyncResponse: Read" << responseData.size() << "bytes:" << responseData.toHex(' ');
-
-                // If we already have at least the header, recompute expected length from response header
-                if (responseData.size() > 4) {
-                    int respLen = static_cast<unsigned char>(responseData[4]);
-                    int newExpected = respLen + 6; // payload + header.. + checksum
-                    // Sanity bounds to avoid pathological values
-                    if (newExpected >= 6 && newExpected <= MAX_ACCEPTABLE_PACKET && newExpected > expectedResponseLength) {
-                        expectedResponseLength = newExpected;
-                        qCDebug(log_core_serial) << "collectSyncResponse: Updated expected response length from header to" << expectedResponseLength;
-                    }
-                }
-            }
-        }
-        qCDebug(log_core_serial) << "collectSyncResponse: Elapsed time:" << timer.elapsed() << "ms, current response size:" << responseData.size();
-    }
-
-    qCDebug(log_core_serial) << "collectSyncResponse: Total response size after wait:" << responseData.size() << "Data:" << responseData.toHex(' ');
-    return responseData;
-}
-
-quint8 SerialPortManager::calculateChecksum(const QByteArray &data) {
-    quint32 sum = 0;
-    for (auto byte : data) {
-        sum += static_cast<unsigned char>(byte);
-    }
-    return sum % 256;
+    // Delegate to command coordinator
+    return m_commandCoordinator->sendSyncCommand(serialPort, data, force);
 }
 
 /*
@@ -2053,8 +1795,17 @@ void SerialPortManager::sendCommand(const QByteArray &command, bool waitForAck) 
 }
 
 bool SerialPortManager::setBaudRate(int baudRate) {
+    if (!serialPort) {
+        qCWarning(log_core_serial) << "Cannot set baud rate: serialPort is null";
+        return false;
+    }
+
     if (serialPort->baudRate() == baudRate) {
         qCDebug(log_core_serial) << "Baud rate is already set to" << baudRate;
+        // Keep state manager in sync
+        if (m_stateManager) {
+            m_stateManager->setBaudRate(baudRate);
+        }
         return true;
     }
 
@@ -2063,13 +1814,18 @@ bool SerialPortManager::setBaudRate(int baudRate) {
     if (serialPort->setBaudRate(baudRate)) {
         qCDebug(log_core_serial) << "Baud rate successfully set to" << baudRate;
         
+        // Update state manager so getCurrentBaudrate() reflects actual host setting
+        if (m_stateManager) {
+            m_stateManager->setBaudRate(baudRate);
+        }
+
         emit connectedPortChanged(serialPort->portName(), baudRate);
         return true;
     } else {
         qCWarning(log_core_serial) << "Failed to set baud rate to" << baudRate << ": " << serialPort->errorString();
         return false;
     }
-}
+} 
 
 void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
     qCDebug(log_core_serial) << "User manually selected baudrate:" << baudRate;
@@ -2121,6 +1877,12 @@ void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
 void SerialPortManager::clearStoredBaudrate() {
     qCDebug(log_core_serial) << "Clearing stored baudrate setting";
     GlobalSetting::instance().clearSerialPortBaudrate();
+
+    // Also reset runtime state so that getCurrentBaudrate() falls back to the actual serial port
+    // This prevents stale state (e.g., 9600) causing tests to incorrectly report a mismatch after factory reset
+    if (m_stateManager) {
+        m_stateManager->setBaudRate(-1);
+    }
 }
 
 // Chip type detection and management
@@ -2181,6 +1943,11 @@ void SerialPortManager::checkArmBaudratePerformance(int baudrate) {
 }
 
 void SerialPortManager::setCommandDelay(int delayMs) {
+    if (m_commandCoordinator) {
+        m_commandCoordinator->setCommandDelay(delayMs);
+    }
+    
+    // Keep local setting for backward compatibility
     m_commandDelayMs = delayMs;
 }
 
@@ -2296,6 +2063,12 @@ bool SerialPortManager::isConnectionStable() const
 
 int SerialPortManager::getConsecutiveErrorCount() const
 {
+    // Delegate to statistics module first
+    if (m_statistics) {
+        return m_statistics->getConsecutiveErrors();
+    }
+    
+    // Fallback to watchdog
     if (m_watchdog) {
         return m_watchdog->getConsecutiveErrorCount();
     }
@@ -2304,10 +2077,8 @@ int SerialPortManager::getConsecutiveErrorCount() const
 
 int SerialPortManager::getConnectionRetryCount() const
 {
-    if (m_watchdog) {
-        return m_watchdog->getRetryAttemptCount();
-    }
-    return 0;
+    return m_statistics ? m_statistics->getConnectionRetries() :
+           (m_watchdog ? m_watchdog->getRetryAttemptCount() : 0);
 }
 
 void SerialPortManager::forceRecovery()
@@ -2323,6 +2094,11 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
 {
     QString errorString = serialPort ? serialPort->errorString() : "Unknown error";
     qCWarning(log_core_serial) << "Serial port error occurred:" << errorString << "Error code:" << static_cast<int>(error);
+    
+    // Record error in statistics module
+    if (m_statistics && error != QSerialPort::NoError) {
+        m_statistics->recordConsecutiveError();
+    }
     
     // Report error to ConnectionWatchdog (Phase 3)
     if (m_watchdog && error != QSerialPort::NoError) {
@@ -2346,13 +2122,13 @@ void SerialPortManager::attemptRecovery()
 
 void SerialPortManager::resetErrorCounters()
 {
-    m_consecutiveErrors = 0;
-    m_connectionRetryCount = 0;
-    
-    // Also reset watchdog counters (Phase 3)
+    if (m_statistics) {
+        m_statistics->resetErrorCounters();
+    }
     if (m_watchdog) {
         m_watchdog->resetCounters();
     }
+    qCDebug(log_core_serial) << "Error counters reset";
 }
 
 bool SerialPortManager::isRecoveryNeeded() const
@@ -2466,6 +2242,11 @@ bool SerialPortManager::performRecovery(int attempt)
 {
     qCInfo(log_core_serial) << "Performing recovery attempt" << attempt;
     
+    // Record connection retry in statistics
+    if (m_statistics) {
+        m_statistics->recordConnectionRetry();
+    }
+    
     QString currentPortPath = m_currentSerialPortPath;
     QString currentPortChain = m_currentSerialPortChain;
     
@@ -2558,34 +2339,73 @@ void SerialPortManager::startReadyStatePolling(const QString& portName)
 // Statistics tracking implementation
 void SerialPortManager::startStats()
 {
-    m_isStatsEnabled = true;
-    m_statsSent = 0;
-    m_statsReceived = 0;
-    m_statsStartTime = QDateTime::currentDateTime();
+    if (m_statistics) {
+        m_statistics->startTracking();
+    }
+    if (m_commandCoordinator) {
+        m_commandCoordinator->startStats();
+    }
     qCDebug(log_core_serial) << "Statistics tracking started";
 }
 
 void SerialPortManager::stopStats()
 {
-    m_isStatsEnabled = false;
+    if (m_statistics) {
+        m_statistics->stopTracking();
+    }
+    if (m_commandCoordinator) {
+        m_commandCoordinator->stopStats();
+    }
     qCDebug(log_core_serial) << "Statistics tracking stopped";
 }
 
 void SerialPortManager::resetStats()
 {
-    m_statsSent = 0;
-    m_statsReceived = 0;
-    m_statsStartTime = QDateTime::currentDateTime();
-    qCDebug(log_core_serial) << "Statistics tracking reset";
+    if (m_statistics) {
+        m_statistics->resetStatistics();
+    }
+    if (m_commandCoordinator) {
+        m_commandCoordinator->resetStats();
+    }
+    qCDebug(log_core_serial) << "Statistics reset";
+}
+
+int SerialPortManager::getCommandsSent() const
+{
+    return m_statistics ? m_statistics->getCommandsSent() : 
+           (m_commandCoordinator ? m_commandCoordinator->getStatsSent() : 0);
+}
+
+int SerialPortManager::getResponsesReceived() const
+{
+    return m_statistics ? m_statistics->getResponsesReceived() :
+           (m_commandCoordinator ? m_commandCoordinator->getStatsReceived() : 0);
 }
 
 double SerialPortManager::getResponseRate() const
 {
-    if (m_statsSent == 0) return 0.0;
-    return (double)m_statsReceived / m_statsSent * 100.0;
+    return m_statistics ? m_statistics->getResponseRate() :
+           (m_commandCoordinator ? m_commandCoordinator->getResponseRate() : 0.0);
 }
 
 qint64 SerialPortManager::getStatsElapsedMs() const
 {
-    return m_statsStartTime.msecsTo(QDateTime::currentDateTime());
+    return m_statistics ? m_statistics->getElapsedMs() :
+           (m_commandCoordinator ? m_commandCoordinator->getStatsElapsedMs() : 0);
+}
+
+// Key state accessor methods (moved from header to avoid incomplete type issues)
+bool SerialPortManager::getNumLockState() 
+{
+    return m_stateManager ? m_stateManager->getNumLockState() : false;
+}
+
+bool SerialPortManager::getCapsLockState() 
+{
+    return m_stateManager ? m_stateManager->getCapsLockState() : false;
+}
+
+bool SerialPortManager::getScrollLockState() 
+{
+    return m_stateManager ? m_stateManager->getScrollLockState() : false;
 }

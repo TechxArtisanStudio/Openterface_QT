@@ -43,11 +43,15 @@
 #include "chipstrategy/ChipStrategyFactory.h"
 #include "protocol/SerialProtocol.h"
 #include "watchdog/ConnectionWatchdog.h"
+#include "FactoryResetManager.h"
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
-// Forward declaration
+// Forward declarations
 class DeviceInfo;
+class SerialCommandCoordinator;
+class SerialStateManager;
+class SerialStatistics;
 
 // Chip type enumeration (kept for backward compatibility)
 // New code should use ChipTypeId from ChipStrategyFactory.h
@@ -65,6 +69,37 @@ struct ConfigResult {
     uint8_t mode = 0;
 };
 
+/**
+ * @brief SerialPortManager - Core serial port management with modular architecture
+ * 
+ * REFACTORED ARCHITECTURE (Phase 4 Complete):
+ * This class has been significantly refactored to use a modular, component-based architecture:
+ * 
+ * Core Components:
+ * - SerialCommandCoordinator: Handles command queuing, execution, and response processing
+ * - SerialStateManager: Manages connection states, device info, and key states  
+ * - SerialStatistics: Performance monitoring, error tracking, and ARM optimization
+ * - ConnectionWatchdog: Auto-recovery and connection monitoring
+ * - SerialFacade: Simplified high-level interface for common operations
+ * 
+ * Legacy Compatibility:
+ * - Public interface maintained for backward compatibility
+ * - All methods delegate to appropriate specialized components
+ * - Deprecated functionality marked with LEGACY comments
+ * 
+ * Usage Patterns:
+ * - For simple operations: Use SerialFacade class for clean, high-level API
+ * - For advanced usage: Access SerialPortManager directly (maintains full compatibility)
+ * - For statistics: All tracking is automatic via SerialStatistics module
+ * - For recovery: Auto-recovery handled by ConnectionWatchdog component
+ * 
+ * Architecture Benefits:
+ * - Improved maintainability through separation of concerns
+ * - Better testability with isolated components  
+ * - Enhanced performance monitoring and diagnostics
+ * - Simplified interface through facade pattern
+ * - Retained backward compatibility for existing code
+ */
 class SerialPortManager : public QObject, public IRecoveryHandler
 {
     Q_OBJECT
@@ -91,9 +126,9 @@ public:
     void closePort();
     bool restartPort();
 
-    bool getNumLockState(){return NumLockState;};
-    bool getCapsLockState(){return CapsLockState;};
-    bool getScrollLockState(){return ScrollLockState;};
+    bool getNumLockState();
+    bool getCapsLockState();
+    bool getScrollLockState();
 
     bool writeData(const QByteArray &data);
     bool sendAsyncCommand(const QByteArray &data, bool force);
@@ -153,12 +188,12 @@ public:
     // Get current baudrate
     int getCurrentBaudrate() const;
     
-    // Statistics tracking for diagnostics
+    // Statistics - delegated to SerialStatistics module
     void startStats();
     void stopStats();
     void resetStats();
-    int getCommandsSent() const { return m_statsSent; }
-    int getResponsesReceived() const { return m_statsReceived; }
+    int getCommandsSent() const;
+    int getResponsesReceived() const;
     double getResponseRate() const;
     qint64 getStatsElapsedMs() const;
     
@@ -205,8 +240,6 @@ private slots:
     void observeSerialPortNotification();
     void readData();
     void bytesWritten(qint64 bytes);
-
-    static quint8 calculateChecksum(const QByteArray &data);
     
     void initializeSerialPortFromPortChain();
     
@@ -233,7 +266,6 @@ private:
     QSerialPort *serialPort;
 
     void sendCommand(const QByteArray &command, bool waitForAck);
-    QByteArray collectSyncResponse(int totalTimeoutMs = 1000, int waitStepMs = 100);
     
     // Refactored helper methods for onSerialPortConnected
     int determineBaudrate() const;
@@ -263,11 +295,7 @@ private:
     QList<QSerialPortInfo> m_lastPortList;
     std::atomic<bool> ready = false;
     StatusEventCallback* eventCallback = nullptr;
-    bool isSwitchToHost = false;
-    bool isTargetUsbConnected = false;
-    bool NumLockState;
-    bool CapsLockState;
-    bool ScrollLockState;
+    // Legacy state variables moved to SerialStateManager
     void updateSpecialKeyState(uint8_t data);
     QDateTime lastSerialPortCheckTime;
     
@@ -287,16 +315,24 @@ private:
     // Protocol layer for packet building/parsing (Phase 2 refactoring)
     std::unique_ptr<SerialProtocol> m_protocol;
     
+    // Command coordinator for command handling (Phase 4 refactoring)
+    std::unique_ptr<SerialCommandCoordinator> m_commandCoordinator;
+    
+    // State manager for centralized state management (Phase 4 refactoring)
+    std::unique_ptr<SerialStateManager> m_stateManager;
+    
+    // Statistics module for performance monitoring (Phase 4 refactoring)
+    std::unique_ptr<SerialStatistics> m_statistics;
+    
     // Connection watchdog for monitoring and recovery (Phase 3 refactoring)
     std::unique_ptr<ConnectionWatchdog> m_watchdog;
     
     // Enhanced stability members (some delegated to ConnectionWatchdog)
     std::atomic<bool> m_isShuttingDown = false;
-    std::atomic<int> m_connectionRetryCount = 0;
-    std::atomic<int> m_consecutiveErrors = 0;
-    QTimer* m_connectionWatchdog;      // Legacy timer - to be removed after full migration
-    QTimer* m_errorRecoveryTimer;      // Legacy timer - to be removed after full migration
-    QTimer* m_usbStatusCheckTimer;  // New timer for periodic USB status checks
+    // Legacy error counters removed - handled by SerialStatistics and ConnectionWatchdog
+    QTimer* m_connectionWatchdog;
+    QTimer* m_errorRecoveryTimer;
+    QTimer* m_usbStatusCheckTimer;
     QMutex m_serialPortMutex;
     QQueue<QByteArray> m_commandQueue;
     QMutex m_commandQueueMutex;
@@ -304,9 +340,6 @@ private:
     int m_maxRetryAttempts = 5;
     int m_maxConsecutiveErrors = 10;
     QElapsedTimer m_lastSuccessfulCommand;
-    
-    // Error frequency tracking for auto-disconnect mechanism
-    std::atomic<int> m_errorCount = 0;
     QElapsedTimer m_errorTrackingTimer;
     bool m_errorHandlerDisconnected = false;
     static const int MAX_ERRORS_PER_SECOND = 10;
@@ -328,6 +361,10 @@ private:
     std::atomic<bool> m_factoryResetResult = false;
     QMutex m_factoryResetMutex;
     QWaitCondition m_factoryResetCondition;
+
+    // Factory reset manager (extracted for compatibility and testability)
+    friend class FactoryResetManager;
+    std::unique_ptr<FactoryResetManager> m_factoryResetManager;
     
     // Command tracking for auto-restart logic
     std::atomic<int> m_commandsSent = 0;
@@ -338,11 +375,7 @@ private:
     static const int MAX_SERIAL_RESETS = 3;
     static constexpr double COMMAND_LOSS_THRESHOLD = 0.30; // 30% loss rate
     
-    // Statistics tracking for diagnostics
-    std::atomic<bool> m_isStatsEnabled = false;
-    std::atomic<int> m_statsSent = 0;
-    std::atomic<int> m_statsReceived = 0;
-    QDateTime m_statsStartTime;
+    // Legacy variables removed - functionality moved to specialized modules
     
     // Enhanced error handling
     void handleSerialError(QSerialPort::SerialPortError error);

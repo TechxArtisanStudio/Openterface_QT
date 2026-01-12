@@ -49,6 +49,10 @@ SOURCES += main.cpp \
     scripts/semanticAnalyzer.cpp \
     scripts/scriptEditor.cpp \
     serial/SerialPortManager.cpp \
+    serial/SerialCommandCoordinator.cpp \
+    serial/SerialStateManager.cpp \
+    serial/SerialStatistics.cpp \
+    serial/SerialFacade.cpp \
     server/tcpServer.cpp \
     target/KeyboardLayouts.cpp \
     target/KeyboardManager.cpp \
@@ -157,6 +161,10 @@ HEADERS  += \
     scripts/semanticAnalyzer.h \
     scripts/scriptEditor.h \
     serial/SerialPortManager.h \
+    serial/SerialCommandCoordinator.h \
+    serial/SerialStateManager.h \
+    serial/SerialStatistics.h \
+    serial/SerialFacade.h \
     serial/ch9329.h \
     server/tcpServer.h \
     target/KeyboardLayouts.h \
