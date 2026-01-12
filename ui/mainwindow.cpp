@@ -890,19 +890,29 @@ void MainWindow::displayCameraError()
 }
 
 void MainWindow::stop(){
-    qDebug() << "Stop camera data...";
+    qDebug() << "===== MAINWINDOW STOP() START =====";
+    
+    qDebug() << "Disconnecting camera...";
     disconnect(m_camera.data());
     qDebug() << "Camera data stopped.";
+    
+    qDebug() << "Disconnecting audio manager...";
     m_audioManager->disconnect();
     qDebug() << "Audio manager stopped.";
 
+    qDebug() << "Disconnecting capture session...";
     m_captureSession.disconnect();
+    qDebug() << "Capture session disconnected";
 
+    qDebug() << "Stopping camera manager...";
     m_cameraManager->stopCamera();
+    qDebug() << "Camera manager stopped";
 
+    qDebug() << "Closing serial port...";
     SerialPortManager::getInstance().closePort();
+    qDebug() << "Serial port closed.";
 
-    qDebug() << "Camera stopped.";
+    qDebug() << "===== MAINWINDOW STOP() END =====";
 }
 
 void MainWindow::displayViewfinder()
@@ -927,27 +937,38 @@ void MainWindow::onArmBaudratePerformanceRecommendation(int currentBaudrate)
 
 void MainWindow::imageSaved(int id, const QString &fileName)
 {
+    qDebug() << "imageSaved() called - id:" << id << "fileName:" << fileName;
     Q_UNUSED(id);
     ui->statusbar->showMessage(tr("Captured \"%1\"").arg(QDir::toNativeSeparators(fileName)));
 
     m_isCapturingImage = false;
+    qDebug() << "m_isCapturingImage set to false";
+    qDebug() << "m_applicationExiting:" << m_applicationExiting;
+    
     if (m_applicationExiting) {
-        qDebug() << "Image saved during shutdown, quitting application...";
+        qDebug() << "Application is exiting, calling QApplication::quit()";
         QApplication::quit();
     }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    qDebug() << "========== WINDOW CLOSE EVENT TRIGGERED ==========";
+    qDebug() << "m_isCapturingImage:" << m_isCapturingImage;
+    qDebug() << "m_applicationExiting:" << m_applicationExiting;
+    
     if (m_isCapturingImage) {
+        qDebug() << "Image is being captured, ignoring close event and setting m_applicationExiting flag";
         setEnabled(false);
         m_applicationExiting = true;
         event->ignore();
     } else {
+        qDebug() << "No image capture in progress, accepting close event";
         event->accept();
         // Explicitly quit the application to ensure all threads are properly terminated
-        qDebug() << "Close event accepted, quitting application...";
+        qDebug() << "Calling QApplication::quit()...";
         QApplication::quit();
+        qDebug() << "QApplication::quit() returned";
     }
 }
 
@@ -1252,56 +1273,64 @@ void MainWindow::handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree) {
 
 MainWindow::~MainWindow()
 {
+    qDebug() << "========== MAINWINDOW DESTRUCTOR START ==========";
     qCDebug(log_ui_mainwindow) << "MainWindow destructor called";
     
     // Set global shutdown flag to prevent Qt Multimedia operations
     g_applicationShuttingDown.storeRelease(1);
+    qDebug() << "Global shutdown flag set";
     
     // 0. CRITICAL: Stop any running animations before cleanup
+    qDebug() << "Stopping animations...";
     QList<QPropertyAnimation*> animations = this->findChildren<QPropertyAnimation*>();
     for (QPropertyAnimation* animation : animations) {
         animation->stop();
         animation->deleteLater();
     }
+    qDebug() << "Stopped" << animations.count() << "animations";
     
     QList<QParallelAnimationGroup*> animationGroups = this->findChildren<QParallelAnimationGroup*>();
     for (QParallelAnimationGroup* group : animationGroups) {
         group->stop();
         group->deleteLater();
     }
-    
-    // No need to process events - deleteLater will handle cleanup asynchronously
+    qDebug() << "Stopped" << animationGroups.count() << "animation groups";
     
     // 1. Stop all operations first
+    qDebug() << "Calling stop()...";
     stop();
+    qDebug() << "stop() completed";
     
     // 1.5. CRITICAL: Stop audio first before anything else to prevent segfault
+    qDebug() << "Stopping audio manager...";
     if (m_audioManager) {
         m_audioManager->disconnect();
         m_audioManager = nullptr;
         qCDebug(log_ui_mainwindow) << "m_audioManager disconnected and cleared successfully";
     }
-    
+
     // Also ensure singleton audio manager is stopped (but only if not already stopped)
     static bool audioManagerStopped = false;
     if (!audioManagerStopped) {
+        qDebug() << "Stopping AudioManager singleton...";
         AudioManager::getInstance().stop();
         audioManagerStopped = true;
         qCDebug(log_ui_mainwindow) << "AudioManager singleton stopped";
     }
-    
-    // No need to process events or sleep - let cleanup happen naturally
-    // Audio manager uses proper threading internally
+    qDebug() << "Audio cleanup completed";
     
     // 2. Stop camera operations and disconnect signals
+    qDebug() << "Stopping camera manager...";
     if (m_cameraManager) {
         disconnect(m_cameraManager);
         m_cameraManager->stopCamera();
         m_cameraManager->deleteLater();
         m_cameraManager = nullptr;
     }
+    qDebug() << "Camera manager stopped";
     
     // 3. Clean up managers in dependency order
+    qDebug() << "Cleaning up managers...";
     if (m_versionInfoManager) {
         m_versionInfoManager->deleteLater();
         m_versionInfoManager = nullptr;
@@ -1397,19 +1426,28 @@ MainWindow::~MainWindow()
     }
     VideoHid::getInstance().stop();
     // AudioManager::getInstance().stop(); // Already stopped above to prevent double cleanup
+    qDebug() << "Stopping HID and serial port...";
+    VideoHid::getInstance().stop();
+    // AudioManager::getInstance().stop(); // Already stopped above to prevent double cleanup
     SerialPortManager::getInstance().stop();
+    qDebug() << "HID and serial port stopped";
     
     // Delete initializer
+    qDebug() << "Deleting initializer...";
     delete m_initializer;
     m_initializer = nullptr;
+    qDebug() << "Initializer deleted";
     
     // 7. Delete UI last
+    qDebug() << "Deleting UI...";
     if (ui) {
         delete ui;
         ui = nullptr;
     }
+    qDebug() << "UI deleted";
 
     qCDebug(log_ui_mainwindow) << "MainWindow destroyed successfully";
+    qDebug() << "========== MAINWINDOW DESTRUCTOR END ==========";
 }
 
 void MainWindow::onToolbarVisibilityChanged(bool visible) {

@@ -348,14 +348,17 @@ int main(int argc, char *argv[])
     MainWindow window(&languageManager);
     window.show();
 
+    qDebug() << "========== ENTERING QApplication::exec() ==========";
     int result = app.exec();
+    qDebug() << "========== QApplication::exec() RETURNED, result:" << result << "==========";
     
     // Clean up GStreamer
     #ifdef HAVE_GSTREAMER
+    qDebug() << "Deinitializing GStreamer...";
     gst_deinit();
     qDebug() << "GStreamer deinitialized";
     #endif
     
-    
+    qDebug() << "Main function returning with result:" << result;
     return result;
 };
