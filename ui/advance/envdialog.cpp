@@ -252,13 +252,13 @@ void EnvironmentSetupDialog::extractDriverFiles() {
             if (targetFile.open(QIODevice::WriteOnly)) {
                 targetFile.write(resourceFile.readAll()); // Read from resource and write to target
                 targetFile.close();
-                qDebug() << "Copied " << QFileInfo(filePath).fileName().toStdString() << " to " << tempDir.toStdString();
+                qDebug() << "Copied " << QFileInfo(filePath).fileName() << " to " << tempDir;
             } else {
-                qDebug() << "Failed to open target file for writing: " << targetPath.toStdString();
+                qDebug() << "Failed to open target file for writing: " << targetPath;
             }
             resourceFile.close();
         } else {
-            qDebug() << "Failed to open resource file: " << filePath.toStdString();
+            qDebug() << "Failed to open resource file: " << filePath;
         }
     }
 
@@ -378,7 +378,7 @@ bool EnvironmentSetupDialog::checkHidPermission() {
         
         if (fileInfo.isReadable() && fileInfo.isWritable()) {
             hasPermission = true;
-            qDebug() << "Found device with RW access: " << device.toStdString();
+            qDebug() << "Found device with RW access: " << device;
             break;
         }
         
@@ -387,7 +387,7 @@ bool EnvironmentSetupDialog::checkHidPermission() {
         statProcess.start("stat", QStringList() << "-c" << "%a %G" << device);
         statProcess.waitForFinished();
         QString statOutput = statProcess.readAllStandardOutput().trimmed();
-        qDebug() << "Device " << device.toStdString() << " permissions: " << statOutput.toStdString();
+        qDebug() << "Device " << device << " permissions: " << statOutput;
         
         // Check for 666 permissions (rw for all) or 664 permissions (rw for group)
         QString permString = statOutput.split(' ').first();
@@ -406,8 +406,8 @@ bool EnvironmentSetupDialog::checkHidPermission() {
             
             if (groupsOutput.contains(groupName)) {
                 hasPermission = true;
-                qDebug() << "User is in group " << groupName.toStdString() 
-                          << " with access to " << device.toStdString();
+                qDebug() << "User is in group " << groupName 
+                          << " with access to " << device;
                 break;
             }
         }
@@ -630,8 +630,8 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     latestFirmware = VideoHid::getInstance().isLatestFirmware();
     std::string version = VideoHid::getInstance().getCurrentFirmwareVersion();
     std::string latestVersion = VideoHid::getInstance().getLatestFirmwareVersion();
-    qDebug() << "Driver detect: " << version;
-    qDebug() << "Latest driver: " << latestVersion;
+    qDebug() << "Driver detect: " << QString::fromStdString(version);
+    qDebug() << "Latest driver: " << QString::fromStdString(latestVersion);
     qDebug() << "Driver is latest: " << (latestFirmware == FirmwareResult::Latest ? "yes" : "no" );
     latestFirewareDescription ="<br>Current version: " + QString::fromStdString(version) + 
     "<br>" + "Latest version: " + QString::fromStdString(latestVersion) +

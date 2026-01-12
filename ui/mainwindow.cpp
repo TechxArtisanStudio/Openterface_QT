@@ -932,8 +932,10 @@ void MainWindow::imageSaved(int id, const QString &fileName)
     ui->statusbar->showMessage(tr("Captured \"%1\"").arg(QDir::toNativeSeparators(fileName)));
 
     m_isCapturingImage = false;
-    if (m_applicationExiting)
-        close();
+    if (m_applicationExiting) {
+        qDebug() << "Image saved during shutdown, quitting application...";
+        QApplication::quit();
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -944,6 +946,9 @@ void MainWindow::closeEvent(QCloseEvent *event)
         event->ignore();
     } else {
         event->accept();
+        // Explicitly quit the application to ensure all threads are properly terminated
+        qDebug() << "Close event accepted, quitting application...";
+        QApplication::quit();
     }
 }
 
