@@ -42,6 +42,7 @@
 #include "ui/advance/scripttool.h"
 #include "ui/advance/firmwaremanagerdialog.h"
 #include "ui/advance/updatedisplaysettingsdialog.h"
+#include "ui/advance/devicediagnosticsdialog.h"
 #include "ui/help/versioninfomanager.h"
 #include "ui/toolbar/toolbarmanager.h"
 #include "ui/TaskManager.h"
@@ -212,6 +213,8 @@ private slots:
     void showFirmwareManagerDialog();
 
     void showUpdateDisplaySettingsDialog();
+
+    void showHardwareDiagnostics();
 
     void updateFirmware(); 
 

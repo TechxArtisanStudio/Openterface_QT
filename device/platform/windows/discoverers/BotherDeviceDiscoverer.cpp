@@ -161,8 +161,9 @@ void BotherDeviceDiscoverer::processGeneration1MediaInterfaces(DeviceInfo& devic
         qCDebug(log_device_discoverer) << "      Hardware ID:" << childHardwareId;
         qCDebug(log_device_discoverer) << "      Class:" << childClass;
         
-        // Skip interface endpoints we don't need
-        if (childDeviceId.contains("&0002") || childDeviceId.contains("&0004")) {
+        // Skip only interface endpoints that are known irrelevant (e.g. &0004). Do NOT skip &0002
+        // because audio on some devices (e.g. MI_02) appears with an &0002 suffix and would be ignored.
+        if (childDeviceId.contains("&0004")) {
             qCDebug(log_device_discoverer) << "      Skipping interface endpoint" << childDeviceId;
             continue;
         }
@@ -177,8 +178,14 @@ void BotherDeviceDiscoverer::processGeneration1MediaInterfaces(DeviceInfo& devic
             qCDebug(log_device_discoverer) << "      ✓ Found camera device ID:" << childDeviceId;
         }
         
-        // Check for audio device (MI_01 or Audio in hardware ID)
-        if (!deviceInfo.hasAudioDevice() && (childHardwareId.contains("AUDIO") || childHardwareId.contains("MI_01"))) {
+        // Check for audio device (MI_01 for older Gen1, MI_02 present on some boards, or Audio/Sound in hardware ID, or class=MEDIA)
+        if (!deviceInfo.hasAudioDevice() && (
+                childHardwareId.contains("AUDIO") ||
+                childHardwareId.contains("SOUND") ||
+                childHardwareId.contains("MI_01") ||
+                childHardwareId.contains("MI_02") ||
+                childClass.toUpper().contains("MEDIA")
+            )) {
             deviceInfo.audioDeviceId = childDeviceId;
             qCDebug(log_device_discoverer) << "      ✓ Found audio device ID:" << childDeviceId;
         }

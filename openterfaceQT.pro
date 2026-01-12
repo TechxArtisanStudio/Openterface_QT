@@ -74,6 +74,7 @@ SOURCES += main.cpp \
     ui/advance/scripttool.cpp \
     ui/advance/serialportdebugdialog.cpp \
     ui/advance/DeviceSelectorDialog.cpp \
+    ui/advance/devicediagnosticsdialog.cpp \
     ui/advance/envdialog.cpp \
     ui/advance/firmwareupdatedialog.cpp \
     ui/advance/firmwaremanagerdialog.cpp \
@@ -186,6 +187,7 @@ HEADERS  += \
     ui/advance/scripttool.h \
     ui/advance/serialportdebugdialog.h \
     ui/advance/DeviceSelectorDialog.h \
+    ui/advance/devicediagnosticsdialog.h \
     ui/advance/envdialog.h \
     ui/advance/firmwareupdatedialog.h \
     ui/advance/firmwaremanagerdialog.h \

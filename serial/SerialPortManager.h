@@ -36,29 +36,36 @@
 #include <QWaitCondition>
 #include <QEventLoop>
 #include <atomic>
+#include <memory>
 
 #include "ch9329.h"
+#include "chipstrategy/IChipStrategy.h"
+#include "chipstrategy/ChipStrategyFactory.h"
+#include "protocol/SerialProtocol.h"
+#include "watchdog/ConnectionWatchdog.h"
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
 // Forward declaration
 class DeviceInfo;
 
-// Chip type enumeration
+// Chip type enumeration (kept for backward compatibility)
+// New code should use ChipTypeId from ChipStrategyFactory.h
 enum class ChipType : uint32_t {
     UNKNOWN = 0,
     CH9329 = 0x1A867523,     // 1A86:7523 - Supports both 9600 and 115200, requires commands for baudrate switching and reset
-    CH32V208 = 0x1A86FE0C        // 1A86:FE0C - Only supports 115200, uses simple close/reopen for baudrate changes
+    CH32V208 = 0x1A86FE0C    // 1A86:FE0C - Only supports 115200, uses simple close/reopen for baudrate changes
 };
 
-// Struct to hold configuration command results
+// Struct to hold configuration command results (kept for backward compatibility)
+// New code should use ChipConfigResult from IChipStrategy.h
 struct ConfigResult {
     bool success = false;
     int workingBaudrate = 9600;  // Use literal value instead of SerialPortManager::DEFAULT_BAUDRATE
     uint8_t mode = 0;
 };
 
-class SerialPortManager : public QObject
+class SerialPortManager : public QObject, public IRecoveryHandler
 {
     Q_OBJECT
 
@@ -97,6 +104,10 @@ public:
     bool reconfigureHidChip(int targetBaudrate = DEFAULT_BAUDRATE);
     bool factoryResetHipChipV191();
     bool factoryResetHipChip();
+    
+    // Synchronous factory reset methods for diagnostics
+    bool factoryResetHipChipSync(int timeoutMs = 10000);
+    bool factoryResetHipChipV191Sync(int timeoutMs = 5000);
     void restartSwitchableUSB();
     void setUSBconfiguration(int targetBaudrate = DEFAULT_BAUDRATE);
     void changeUSBDescriptor();
@@ -122,7 +133,7 @@ public:
     void connectToHotplugMonitor();
     void disconnectFromHotplugMonitor();
     
-    // Enhanced stability features
+    // Enhanced stability features (delegated to ConnectionWatchdog - Phase 3 refactoring)
     void enableAutoRecovery(bool enable = true);
     void setMaxRetryAttempts(int maxRetries);
     void setMaxConsecutiveErrors(int maxErrors);
@@ -131,8 +142,25 @@ public:
     int getConnectionRetryCount() const;
     void forceRecovery();
     
+    // IRecoveryHandler interface implementation (Phase 3 refactoring)
+    bool performRecovery(int attempt) override;
+    void onRecoveryFailed() override;
+    void onRecoverySuccess() override;
+    
+    // Factory reset helper - polls for ready state after reconnection
+    void startReadyStatePolling(const QString& portName);
+    
     // Get current baudrate
     int getCurrentBaudrate() const;
+    
+    // Statistics tracking for diagnostics
+    void startStats();
+    void stopStats();
+    void resetStats();
+    int getCommandsSent() const { return m_statsSent; }
+    int getResponsesReceived() const { return m_statsReceived; }
+    double getResponseRate() const;
+    qint64 getStatsElapsedMs() const;
     
     // Chip type detection and management
     ChipType detectChipType(const QString &portName) const;
@@ -219,6 +247,13 @@ private:
     bool handleResetHidChipInternal(int targetBaudrate);
     bool handleFactoryResetInternal();
     bool handleFactoryResetV191Internal();
+    
+    // Synchronous reset internal implementations (run in worker thread)
+    bool handleFactoryResetSyncInternal(int timeoutMs);
+    bool handleFactoryResetV191SyncInternal(int timeoutMs);
+    
+    // Helper for blocking wait with timeout
+    bool waitForFactoryResetCompletion(int timeoutMs);
 
     QSet<QString> availablePorts;
     
@@ -246,12 +281,21 @@ private:
     QString m_currentSerialPortChain;
     ChipType m_currentChipType = ChipType::UNKNOWN;
     
-    // Enhanced stability members
+    // Chip strategy for chip-specific operations (Phase 1 refactoring)
+    std::unique_ptr<IChipStrategy> m_chipStrategy;
+    
+    // Protocol layer for packet building/parsing (Phase 2 refactoring)
+    std::unique_ptr<SerialProtocol> m_protocol;
+    
+    // Connection watchdog for monitoring and recovery (Phase 3 refactoring)
+    std::unique_ptr<ConnectionWatchdog> m_watchdog;
+    
+    // Enhanced stability members (some delegated to ConnectionWatchdog)
     std::atomic<bool> m_isShuttingDown = false;
     std::atomic<int> m_connectionRetryCount = 0;
     std::atomic<int> m_consecutiveErrors = 0;
-    QTimer* m_connectionWatchdog;
-    QTimer* m_errorRecoveryTimer;
+    QTimer* m_connectionWatchdog;      // Legacy timer - to be removed after full migration
+    QTimer* m_errorRecoveryTimer;      // Legacy timer - to be removed after full migration
     QTimer* m_usbStatusCheckTimer;  // New timer for periodic USB status checks
     QMutex m_serialPortMutex;
     QQueue<QByteArray> m_commandQueue;
@@ -279,6 +323,12 @@ private:
     QWaitCondition m_syncResponseCondition;
     unsigned char m_pendingSyncExpectedKey = 0;
     
+    // Internal state tracking for sync factory reset operations
+    std::atomic<bool> m_factoryResetInProgress = false;
+    std::atomic<bool> m_factoryResetResult = false;
+    QMutex m_factoryResetMutex;
+    QWaitCondition m_factoryResetCondition;
+    
     // Command tracking for auto-restart logic
     std::atomic<int> m_commandsSent = 0;
     std::atomic<int> m_commandsReceived = 0;
@@ -287,6 +337,12 @@ private:
     static const int COMMAND_TRACKING_INTERVAL = 5000; // 5 seconds
     static const int MAX_SERIAL_RESETS = 3;
     static constexpr double COMMAND_LOSS_THRESHOLD = 0.30; // 30% loss rate
+    
+    // Statistics tracking for diagnostics
+    std::atomic<bool> m_isStatsEnabled = false;
+    std::atomic<int> m_statsSent = 0;
+    std::atomic<int> m_statsReceived = 0;
+    QDateTime m_statsStartTime;
     
     // Enhanced error handling
     void handleSerialError(QSerialPort::SerialPortError error);

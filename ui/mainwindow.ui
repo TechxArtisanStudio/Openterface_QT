@@ -129,6 +129,7 @@
     <addaction name="actionFactory_reset_HID"/>
     <addaction name="actionSerialConsole"/>
     <addaction name="actionScriptTool"/>
+    <addaction name="actionHardwareDiagnostics"/>
     <addaction name="actionRecordingSettings"/>
     <addaction name="actionTCPServer"/>
     <addaction name="actionDeviceSelector"/>
@@ -242,6 +243,14 @@
    </property>
    <property name="toolTip">
     <string>Configure video recording settings and start/stop recording</string>
+   </property>
+  </action>
+  <action name="actionHardwareDiagnostics">
+   <property name="text">
+    <string>Hardware Diagnostics</string>
+   </property>
+   <property name="toolTip">
+    <string>Run hardware diagnostics to test device functionality</string>
    </property>
   </action>
   <action name="actionTCPServer">

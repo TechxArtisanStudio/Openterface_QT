@@ -42,6 +42,7 @@
 #include "ui/advance/firmwareupdatedialog.h"
 #include "ui/advance/envdialog.h"
 #include "ui/advance/updatedisplaysettingsdialog.h"
+#include "ui/advance/devicediagnosticsdialog.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -1564,4 +1565,60 @@ void MainWindow::showUpdateDisplaySettingsDialog() {
         updateDisplaySettingsDialog->raise();
         updateDisplaySettingsDialog->activateWindow();
     }
+}
+
+void MainWindow::showHardwareDiagnostics() {
+    qCDebug(log_ui_mainwindow) << "Opening hardware diagnostics dialog";
+    
+    DeviceDiagnosticsDialog* diagnosticsDialog = new DeviceDiagnosticsDialog(this);
+    
+    // Connect signals for backend test implementation
+    connect(diagnosticsDialog, &DeviceDiagnosticsDialog::testStarted, 
+            [this](int testIndex) {
+        qCDebug(log_ui_mainwindow) << "Hardware test started, index:" << testIndex;
+        
+        // TODO: Implement actual test logic based on testIndex
+        // For now, we'll simulate tests with existing functionality
+        switch (testIndex) {
+            case 0: // Overall Connection
+                // Test overall device connection
+                break;
+            case 1: // Target Plug & Play
+                // Test target device plug & play
+                break;
+            case 2: // Host Plug & Play  
+                // Test host device plug & play
+                break;
+            case 3: // Serial Connection
+                // Test serial communication
+                if (m_deviceCoordinator) {
+                    // Use existing device coordination for serial testing
+                }
+                break;
+            case 4: // Factory Reset
+                // Trigger factory reset test (similar to existing factory reset)
+                break;
+            case 5: // High Baudrate
+                // Test high baudrate communication
+                break;
+            case 6: // Stress Test
+                // Perform hardware stress test
+                break;
+        }
+    });
+    
+    connect(diagnosticsDialog, &DeviceDiagnosticsDialog::testCompleted,
+            [this](int testIndex, bool success) {
+        qCDebug(log_ui_mainwindow) << "Hardware test completed - Index:" << testIndex 
+                                  << "Success:" << success;
+    });
+    
+    connect(diagnosticsDialog, &DeviceDiagnosticsDialog::diagnosticsCompleted,
+            [this]() {
+        qCDebug(log_ui_mainwindow) << "All hardware diagnostics completed";
+        // Optional: Show completion notification
+        this->popupMessage("Hardware diagnostics completed!");
+    });
+    
+    diagnosticsDialog->show();
 }
