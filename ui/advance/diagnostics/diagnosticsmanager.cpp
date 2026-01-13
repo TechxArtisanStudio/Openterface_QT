@@ -343,7 +343,7 @@ void DiagnosticsManager::startTargetPlugPlayTest()
     
     appendToLog("Started test: Target Plug & Play");
     appendToLog("Test requires detecting 2 plug-in events to complete successfully.");
-    appendToLog("Test will timeout after 30 seconds if not completed.");
+    appendToLog("Test will timeout after 10 seconds if not completed.");
     emit testStarted(1);
     
     // Check initial target connection status
@@ -407,8 +407,8 @@ void DiagnosticsManager::onTargetStatusCheckTimeout()
         m_targetPreviouslyConnected = currentStatus;
     }
     
-    // Check for timeout (30 seconds)
-    if (m_targetTestElapsedTime >= 30000) {
+    // Check for timeout (10 seconds)
+    if (m_targetTestElapsedTime >= 10000) {
         m_targetCheckTimer->stop();
         m_statuses[1] = TestStatus::Failed;
         emit statusChanged(1, TestStatus::Failed);
