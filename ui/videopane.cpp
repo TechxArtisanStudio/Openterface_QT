@@ -100,24 +100,34 @@ VideoPane::~VideoPane()
 {
     qDebug() << "VideoPane destructor started";
     
-    // 1. FIRST: Remove event filter and stop input handler to prevent event processing
+    // 1. FIRST: Clean up overlay widget before anything else (to prevent event filter crashes)
+    if (m_overlayWidget) {
+        qCDebug(log_ui_video) << "VideoPane: Cleaning up overlay widget in destructor";
+        m_overlayWidget->hide();
+        // Do NOT call deleteLater here - it's already been called from stopCamera()
+        // Just clear the pointer to prevent dangling reference
+        m_overlayWidget = nullptr;
+    }
+    
+    // 2. Remove event filter and stop input handler to prevent event processing
     if (m_inputHandler) {
         removeEventFilter(m_inputHandler);
         m_inputHandler->deleteLater(); // Use deleteLater for safer cleanup
         m_inputHandler = nullptr;
     }
     
-    // 2. Stop timers
+    // 3. Stop timers
     if (escTimer) {
         escTimer->stop();
         escTimer->deleteLater();
         escTimer = nullptr;
     }
     
-    // 3. Disconnect all signals to prevent callbacks during destruction
-    disconnect();
+    // 4. Specific signal disconnection to prevent callbacks during destruction
+    // Note: Do NOT use wildcard disconnect() as it causes crashes during app shutdown
+    // when trying to disconnect from destroyed signals on partially-destroyed objects
     
-    // 4. Clean up graphics items in correct order
+    // 5. Clean up graphics items in correct order
     if (m_scene) {
         // Remove items from scene before deleting them
         if (m_videoItem) {
@@ -1351,6 +1361,7 @@ void VideoPane::onCameraActiveChanged(bool active)
         // Camera deactivated, clear the current frame
         qWarning() << "VideoPane: Clearing video frame due to camera deactivation";
         clearVideoFrame();
+        qWarning() << "VideoPane: Video frame cleared";
     }
 }
 

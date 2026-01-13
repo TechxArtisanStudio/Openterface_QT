@@ -183,6 +183,12 @@ private:
     QTimer* m_healthCheckTimer;
     QProcess* m_gstProcess;  // Fallback for process-based approach
     
+    // Track all objects with installed event filters for cleanup during destruction
+    QSet<QObject*> m_watchedObjects;
+    
+    // Destruction state - signals to event filter to exit early
+    std::atomic<bool> m_isDestructing{false};
+    
     // Pipeline state
     bool m_pipelineRunning;
     QString m_selectedSink; // textual name of the selected video sink element
