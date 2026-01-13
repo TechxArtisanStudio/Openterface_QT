@@ -99,6 +99,26 @@ void HotplugMonitor::stop()
     qCInfo(log_hotplug_monitor) << "Hotplug monitoring stopped";
 }
 
+void HotplugMonitor::updateInterval(int newIntervalMs)
+{
+    if (newIntervalMs <= 0) {
+        qCWarning(log_hotplug_monitor) << "Invalid interval:" << newIntervalMs << "ms, ignoring";
+        return;
+    }
+    
+    if (m_pollInterval == newIntervalMs) {
+        return; // No change needed
+    }
+    
+    qCDebug(log_hotplug_monitor) << "Updating monitoring interval from" << m_pollInterval << "ms to" << newIntervalMs << "ms";
+    m_pollInterval = newIntervalMs;
+    
+    if (m_running && m_timer) {
+        m_timer->setInterval(m_pollInterval);
+        qCInfo(log_hotplug_monitor) << "Hotplug monitoring interval updated to" << m_pollInterval << "ms";
+    }
+}
+
 QList<DeviceInfo> HotplugMonitor::getLastSnapshot() const
 {
     QMutexLocker locker(&m_mutex);

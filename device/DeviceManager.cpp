@@ -22,6 +22,9 @@ DeviceManager::DeviceManager()
     , m_hotplugTimer(new QTimer(this))
     , m_hotplugMonitor(nullptr)
     , m_monitoring(false)
+    , m_normalInterval(3000)  // 3 seconds when devices are present
+    , m_noDeviceInterval(2000)  // 2 seconds when no devices are present
+    , m_currentInterval(3000)
 {
     initializePlatformManager();
     
@@ -336,7 +339,10 @@ void DeviceManager::startHotplugMonitoring(int intervalMs)
         return;
     }
     
-    qCDebug(log_device_manager) << "Starting hotplug monitoring with interval:" << intervalMs << "ms";
+    // Store the normal interval (when devices are present)
+    m_normalInterval = intervalMs;
+    
+    qCDebug(log_device_manager) << "Starting hotplug monitoring with normal interval:" << intervalMs << "ms, no-device interval:" << m_noDeviceInterval << "ms";
     
     // Take initial snapshot
     m_lastSnapshot = discoverDevices();
@@ -347,8 +353,11 @@ void DeviceManager::startHotplugMonitoring(int intervalMs)
         m_lastSerialPorts.insert(port.systemLocation());
     }
     
-    // Start monitoring
-    m_hotplugMonitor->start(intervalMs);
+    // Determine initial interval based on current device count
+    updateMonitoringInterval(m_lastSnapshot.size());
+    
+    // Start monitoring with determined interval
+    m_hotplugMonitor->start(m_currentInterval);
     m_monitoring = true;
     
     emit monitoringStarted();
@@ -382,8 +391,19 @@ void DeviceManager::onHotplugTimerTimeout()
     }
 
     QList<DeviceInfo> currentDevices = discoverDevices();
+    int previousDeviceCount = m_lastSnapshot.size();
+    int currentDeviceCount = currentDevices.size();
+    
     compareDeviceSnapshots(currentDevices, m_lastSnapshot);
     m_lastSnapshot = currentDevices;
+    
+    // Update monitoring interval if device count changed
+    if ((previousDeviceCount == 0) != (currentDeviceCount == 0)) {
+        updateMonitoringInterval(currentDeviceCount);
+        if (m_hotplugMonitor && m_monitoring) {
+            m_hotplugMonitor->updateInterval(m_currentInterval);
+        }
+    }
     
     emit devicesChanged(currentDevices);
 }
@@ -595,4 +615,15 @@ bool DeviceManager::isMS2109(const DeviceInfo& device)
 bool DeviceManager::isMS2130S(const DeviceInfo& device)
 {
     return getChipTypeForDevice(device) == VideoChipType::MS2130S;
+}
+
+void DeviceManager::updateMonitoringInterval(int deviceCount)
+{
+    int newInterval = (deviceCount == 0) ? m_noDeviceInterval : m_normalInterval;
+    
+    if (newInterval != m_currentInterval) {
+        m_currentInterval = newInterval;
+        qCDebug(log_device_manager) << "Updated monitoring interval to" << m_currentInterval 
+                                   << "ms (device count:" << deviceCount << ")";
+    }
 }
