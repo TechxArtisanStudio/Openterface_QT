@@ -150,6 +150,19 @@ GStreamerBackendHandler::~GStreamerBackendHandler()
 {
     qCDebug(log_gstreamer_backend) << "GStreamerBackendHandler destructor";
 
+    // CRITICAL: Set destruction flag FIRST to signal event filter to exit early
+    // This prevents access to potentially destroyed members (m_videoPane, m_videoWidget, etc.)
+    m_isDestructing = true;
+
+    // SECOND: Block all signals to prevent any signal/slot activity during destruction
+    blockSignals(true);
+
+    // NOTE: Do NOT try to remove event filters - Qt's destruction sequence will handle this.
+    // If we try to call removeEventFilter() on objects being destroyed, it will crash.
+    // The event filter will check m_isDestructing and return early for any events during shutdown.
+    // Simply clear our tracking set.
+    m_watchedObjects.clear();
+
     // Stop camera / pipelines cleanly
     stopCamera();
 
@@ -769,8 +782,12 @@ void GStreamerBackendHandler::setVideoOutput(VideoPane* videoPane)
     if (m_videoPane && m_videoPane->getOverlayWidget()) {
         QWidget* prevOv = m_videoPane->getOverlayWidget();
         prevOv->removeEventFilter(this);
+        m_watchedObjects.remove(prevOv);
         if (QWidget* top = prevOv->window()) {
-            if (top != prevOv) top->removeEventFilter(this);
+            if (top != prevOv) {
+                top->removeEventFilter(this);
+                m_watchedObjects.remove(top);
+            }
         }
         qCDebug(log_gstreamer_backend) << "Removed event filter from previous VideoPane overlay widget (" << prevOv << ")";
     }
@@ -785,8 +802,12 @@ void GStreamerBackendHandler::setVideoOutput(VideoPane* videoPane)
     // If the VideoPane exposes an overlay widget, install event filter
     if (QWidget* ov = videoPane->getOverlayWidget()) {
         ov->installEventFilter(this);
+        m_watchedObjects.insert(ov);
         if (QWidget* top = ov->window()) {
-            if (top != ov) top->installEventFilter(this);
+            if (top != ov) {
+                top->installEventFilter(this);
+                m_watchedObjects.insert(top);
+            }
         }
         if (!ov->isVisible()) ov->show();
         if (ov->winId() == 0) ov->createWinId();
@@ -824,10 +845,16 @@ void GStreamerBackendHandler::setupVideoOverlayForCurrentPipeline()
     if (windowId != 0) {
         // Choose the target widget to pass into the overlay setup - prefer VideoPane overlay widget when available
         QWidget* targetWidget = nullptr;
-        if (m_videoPane && m_videoPane->getOverlayWidget()) targetWidget = m_videoPane->getOverlayWidget();
-        else if (m_videoWidget) targetWidget = m_videoWidget;
+        // Be defensive: check if m_videoPane still exists and is valid before accessing it
+        if (m_videoPane) {
+            QWidget* ov = m_videoPane->getOverlayWidget();
+            if (ov) targetWidget = ov;
+        }
+        if (!targetWidget && m_videoWidget) {
+            targetWidget = m_videoWidget;
+        }
 
-    qCDebug(log_gstreamer_backend) << "Attempting overlay setup for pipeline with windowId:" << windowId << "targetWidget:" << targetWidget << "graphicsItem:" << m_graphicsVideoItem;
+        qCDebug(log_gstreamer_backend) << "Attempting overlay setup for pipeline with windowId:" << windowId << "targetWidget:" << targetWidget << "graphicsItem:" << m_graphicsVideoItem;
         bool ok = Openterface::GStreamer::VideoOverlayManager::setupVideoOverlayForPipeline(m_pipeline, windowId, targetWidget, m_graphicsVideoItem);
         if (ok) {
             m_overlaySetupPending = false;
@@ -922,12 +949,14 @@ void GStreamerBackendHandler::installVideoWidgetEventFilter()
         // Install on the widget itself
         m_videoWidget->removeEventFilter(this);
         m_videoWidget->installEventFilter(this);
+        m_watchedObjects.insert(m_videoWidget);
         // Also install on the top-level window, so we catch WinId changes associated with
         // the native window of the top-level (when the video widget is a child)
     if (QWidget* top = m_videoWidget->window()) {
             if (top != m_videoWidget) {
                 top->removeEventFilter(this);
                 top->installEventFilter(this);
+                m_watchedObjects.insert(top);
                 qCDebug(log_gstreamer_backend) << "Installed event filter on video widget top-level (" << top << ")";
             }
             qCDebug(log_gstreamer_backend) << "Installed event filter on video widget (" << m_videoWidget << ") class:" << m_videoWidget->metaObject()->className() << "winId:" << m_videoWidget->winId();
@@ -940,9 +969,13 @@ void GStreamerBackendHandler::uninstallVideoWidgetEventFilter()
     if (m_videoWidget) {
         // Remove from the widget itself
         m_videoWidget->removeEventFilter(this);
+        m_watchedObjects.remove(m_videoWidget);
         // Also remove from the top-level window if present
         if (QWidget* top = m_videoWidget->window()) {
-            if (top != m_videoWidget) top->removeEventFilter(this);
+            if (top != m_videoWidget) {
+                top->removeEventFilter(this);
+                m_watchedObjects.remove(top);
+            }
             qCDebug(log_gstreamer_backend) << "Removed event filter from video widget top-level (" << top << ")";
         }
         qCDebug(log_gstreamer_backend) << "Removed event filter from video widget (" << m_videoWidget << ")";
@@ -954,11 +987,13 @@ void GStreamerBackendHandler::installGraphicsViewEventFilter(QGraphicsView* view
     if (view) {
         view->removeEventFilter(this);
         view->installEventFilter(this);
+        m_watchedObjects.insert(view);
         // Also install on top-level window to catch winId related events
         if (QWidget* top = view->window()) {
             if (top != view) {
                 top->removeEventFilter(this);
                 top->installEventFilter(this);
+                m_watchedObjects.insert(top);
             }
         }
         qCDebug(log_gstreamer_backend) << "Installed event filter on graphics view (" << view << ") and top-level";
@@ -969,8 +1004,12 @@ void GStreamerBackendHandler::uninstallGraphicsViewEventFilter(QGraphicsView* vi
 {
     if (view) {
         view->removeEventFilter(this);
+        m_watchedObjects.remove(view);
         if (QWidget* top = view->window()) {
-            if (top != view) top->removeEventFilter(this);
+            if (top != view) {
+                top->removeEventFilter(this);
+                m_watchedObjects.remove(top);
+            }
         }
         qCDebug(log_gstreamer_backend) << "Removed event filter from graphics view (" << view << ")";
     }
@@ -978,6 +1017,12 @@ void GStreamerBackendHandler::uninstallGraphicsViewEventFilter(QGraphicsView* vi
 
 bool GStreamerBackendHandler::eventFilter(QObject *watched, QEvent *event)
 {
+    // CRITICAL: If handler is destructing, exit early to avoid accessing destroyed members
+    // This prevents crashes when Qt calls event filters during shutdown sequence
+    if (m_isDestructing) {
+        return QObject::eventFilter(watched, event);
+    }
+
     // Video widget events
     if (m_videoWidget && (watched == m_videoWidget || watched == m_videoWidget->window())) {
         switch (event->type()) {
@@ -1046,27 +1091,47 @@ bool GStreamerBackendHandler::eventFilter(QObject *watched, QEvent *event)
     }
 
     // VideoPane overlay widget events
-    QWidget* ovWidget = (m_videoPane ? m_videoPane->getOverlayWidget() : nullptr);
+    // Be defensive: m_videoPane or its overlay widget might be destroyed
+    if (!m_videoPane) {
+        // VideoPane already destroyed, nothing to do
+        return QObject::eventFilter(watched, event);
+    }
+    
+    QWidget* ovWidget = m_videoPane->getOverlayWidget();
     if (ovWidget && (watched == ovWidget || watched == ovWidget->window())) {
         switch (event->type()) {
             case QEvent::Show:
             case QEvent::WinIdChange:
-                qCDebug(log_gstreamer_backend) << "Overlay trigger (VideoPane overlay widget): targetOverlay=" << ovWidget << "watched=" << watched << "event=" << qEventTypeName(event->type()) << "winId=" << (ovWidget ? ovWidget->winId() : 0);
+            {
+                WId wid = ovWidget ? ovWidget->winId() : 0;
+                qCDebug(log_gstreamer_backend) << "Overlay trigger (VideoPane overlay widget): targetOverlay=" << ovWidget << "watched=" << watched << "event=" << qEventTypeName(event->type()) << "winId=" << wid;
                 setupVideoOverlayForCurrentPipeline();
                 break;
+            }
             case QEvent::Resize:
             {
                 QResizeEvent* re = static_cast<QResizeEvent*>(event);
-                if (re) {
+                if (re && ovWidget) {
                     qCDebug(log_gstreamer_backend) << "VideoPane overlay resize event: new size=" << re->size();
                     updateVideoRenderRectangle(re->size());
                 }
                 break;
             }
             case QEvent::Destroy:
+            {
                 qCDebug(log_gstreamer_backend) << "VideoPane overlay widget destroyed - removing event filters, overlay=" << ovWidget << "watched=" << watched;
-                if (auto w = m_videoPane->getOverlayWidget()) w->removeEventFilter(this);
+                // Do NOT try to access m_videoPane again after widget is destroyed
+                // Just remove the filter from the watched object directly
+                if (watched && watched == ovWidget) {
+                    watched->removeEventFilter(this);
+                } else if (watched && ovWidget) {
+                    // Remove from window if watched is the window
+                    if (watched == ovWidget->window()) {
+                        watched->removeEventFilter(this);
+                    }
+                }
                 break;
+            }
             default:
                 break;
         }
