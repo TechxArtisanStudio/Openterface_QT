@@ -88,6 +88,7 @@ SOURCES += main.cpp \
     ui/toolbar/toggleswitch.cpp \
     ui/toolbar/toolbarmanager.cpp \
     ui/recording/recordingcontroller.cpp \
+    ui/splashscreen.cpp \
     ui/preferences/cameraadjust.cpp \
     ui/preferences/fpsspinbox.cpp \
     ui/preferences/settingdialog.cpp \
@@ -176,6 +177,7 @@ HEADERS  += \
     ui/inputhandler.h \
     ui/loghandler.h \
     ui/mainwindow.h \
+    ui/splashscreen.h \
     ui/videopane.h \
     ui/statusevents.h \
     ui/languagemanager.h \

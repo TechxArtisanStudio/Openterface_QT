@@ -33,6 +33,7 @@ set(mainwindow_resource_files
     "ui/../images/stopRecord.svg"
     "ui/../images/audio.svg"
     "ui/../images/mute.svg"
+    "ui/../images/openterface-splash.svg"
 )
 
 qt_add_resources(openterfaceQT "mainwindow"

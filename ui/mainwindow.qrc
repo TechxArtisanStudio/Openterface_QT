@@ -33,5 +33,6 @@
         <file>../images/stopRecord.svg</file>
         <file>../images/audio.svg</file>
         <file>../images/mute.svg</file>
+        <file>../images/openterface-splash.svg</file>
     </qresource>
 </RCC>
