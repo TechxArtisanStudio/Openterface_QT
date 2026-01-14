@@ -56,15 +56,14 @@
 
       openterface-qt = pkgs.stdenv.mkDerivation rec {
         pname = "openterface-qt";
-        version = "0.5.8";
+        version = "0.5.10";
 
-        src = pkgs.fetchurl {
-          url = "https://github.com/TechxArtisanStudio/Openterface_QT/archive/refs/tags/${version}.tar.gz";
-          sha256 = "sha256-RZqaBvTc3opi2hpACROdh3JaAE701FAzWUwAdAEUU+w=";
+        src = pkgs.fetchFromGitHub {
+          owner = "TechxArtisanStudio";
+          repo = "Openterface_QT";
+          rev = version;
+          sha256 = "sha256-Kzg8Jj2OKP/MjrLQQpdAxuKyOp/paZkOXAmtocM8hvA=";
         };
-
-        # The archive extracts to Openterface_QT-${version}/
-        sourceRoot = "Openterface_QT-${version}";
 
         nativeBuildInputs = with pkgs; [
           cmake
