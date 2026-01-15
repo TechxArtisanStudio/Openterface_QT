@@ -449,16 +449,55 @@ bool DiagnosticsManager::checkTargetConnectionStatus()
             // Try to get SerialPortManager instance and send CMD_GET_INFO
             SerialPortManager& serialManager = SerialPortManager::getInstance();
             if (serialManager.getCurrentSerialPortPath() == device.serialPortPath) {
-                // Send CMD_GET_INFO command and parse response
-                QByteArray response = serialManager.sendSyncCommand(CMD_GET_INFO, false);
-                if (!response.isEmpty() && response.size() >= static_cast<int>(sizeof(CmdGetInfoResult))) {
-                    CmdGetInfoResult result = CmdGetInfoResult::fromByteArray(response);
-                    bool isConnected = (result.targetConnected != 0);
-                    
-                    qCDebug(log_device_diagnostics) << "Target connection status:" << isConnected 
-                                                   << "Response:" << response.toHex(' ');
-                    return isConnected;
+                // Try the current baudrate first, then fall back to common alternatives (115200, 9600).
+                // Use the first baudrate that yields any response; if a baudrate responds, keep it for future use.
+                int origBaud = serialManager.getCurrentBaudrate();
+                QList<int> baudsToTry;
+                baudsToTry << origBaud;
+                if (origBaud != SerialPortManager::BAUDRATE_HIGHSPEED)
+                    baudsToTry << SerialPortManager::BAUDRATE_HIGHSPEED;
+                if (!baudsToTry.contains(9600))
+                    baudsToTry << 9600;
+
+                for (int tryBaud : baudsToTry) {
+                    // Do not append verbose per-baud logs; keep only debug logs. Single attempt per baudrate as requested.
+                    if (!serialManager.setBaudRate(tryBaud)) {
+                        qCDebug(log_device_diagnostics) << "Failed to set host-side baudrate to" << tryBaud << "for target check";
+                        continue;
+                    }
+
+                    // Allow a short time for the baudrate change to stabilize
+                    QEventLoop settleLoop;
+                    QTimer::singleShot(200, &settleLoop, &QEventLoop::quit);
+                    settleLoop.exec();
+
+                    // Single send only
+                    QByteArray response = serialManager.sendSyncCommand(CMD_GET_INFO, false);
+                    if (!response.isEmpty()) {
+                        // If the response has the expected structure, parse the connected state, otherwise treat as response present
+                        if (response.size() >= static_cast<int>(sizeof(CmdGetInfoResult))) {
+                            CmdGetInfoResult result = CmdGetInfoResult::fromByteArray(response);
+                            bool isConnected = (result.targetConnected != 0);
+
+                            qCDebug(log_device_diagnostics) << "Target connection status:" << isConnected
+                                                           << "baud:" << tryBaud
+                                                           << "Response:" << response.toHex(' ');
+
+                            // Keep successful baudrate
+                            serialManager.setBaudRate(tryBaud);
+                            return isConnected;
+                        } else {
+                            // Non-standard response present; keep baudrate but treat as not connected
+                            qCDebug(log_device_diagnostics) << "Received non-standard response at" << tryBaud << response.toHex(' ');
+
+                            serialManager.setBaudRate(tryBaud);
+                            return false; // Response exists but cannot decode connected flag
+                        }
+                    }
                 }
+
+                // No baudrate succeeded; restore original baudrate
+                serialManager.setBaudRate(origBaud);
             }
             break;
         }
