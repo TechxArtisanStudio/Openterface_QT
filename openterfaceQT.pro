@@ -53,6 +53,12 @@ SOURCES += main.cpp \
     serial/SerialStateManager.cpp \
     serial/SerialStatistics.cpp \
     serial/SerialFacade.cpp \
+    serial/FactoryResetManager.cpp \
+    serial/chipstrategy/CH9329Strategy.cpp \
+    serial/chipstrategy/CH32V208Strategy.cpp \
+    serial/chipstrategy/ChipStrategyFactory.cpp \
+    serial/protocol/SerialProtocol.cpp \
+    serial/watchdog/ConnectionWatchdog.cpp \
     server/tcpServer.cpp \
     target/KeyboardLayouts.cpp \
     target/KeyboardManager.cpp \
@@ -79,6 +85,7 @@ SOURCES += main.cpp \
     ui/advance/serialportdebugdialog.cpp \
     ui/advance/DeviceSelectorDialog.cpp \
     ui/advance/devicediagnosticsdialog.cpp \
+    ui/advance/diagnostics/diagnosticsmanager.cpp \
     ui/advance/envdialog.cpp \
     ui/advance/firmwareupdatedialog.cpp \
     ui/advance/firmwaremanagerdialog.cpp \
@@ -169,7 +176,14 @@ HEADERS  += \
     serial/SerialStateManager.h \
     serial/SerialStatistics.h \
     serial/SerialFacade.h \
+    serial/FactoryResetManager.h \
     serial/ch9329.h \
+    serial/chipstrategy/IChipStrategy.h \
+    serial/chipstrategy/CH9329Strategy.h \
+    serial/chipstrategy/CH32V208Strategy.h \
+    serial/chipstrategy/ChipStrategyFactory.h \
+    serial/protocol/SerialProtocol.h \
+    serial/watchdog/ConnectionWatchdog.h \
     server/tcpServer.h \
     target/KeyboardLayouts.h \
     target/KeyboardManager.h \
@@ -201,6 +215,8 @@ HEADERS  += \
     ui/advance/serialportdebugdialog.h \
     ui/advance/DeviceSelectorDialog.h \
     ui/advance/devicediagnosticsdialog.h \
+    ui/advance/diagnostics/diagnosticsmanager.h \
+    ui/advance/diagnostics/diagnostics_constants.h \
     ui/advance/envdialog.h \
     ui/advance/firmwareupdatedialog.h \
     ui/advance/firmwaremanagerdialog.h \
