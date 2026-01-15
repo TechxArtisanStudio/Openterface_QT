@@ -53,6 +53,7 @@ public slots:
     void onCheckNowClicked();
     void onTestItemClicked(QListWidgetItem* item);
     void onOpenLogFileClicked();
+    void onSupportEmailClicked();
     
 private slots:
     void onLogAppended(const QString &entry);
@@ -94,6 +95,7 @@ private:
     QPushButton* m_previousButton;
     QPushButton* m_nextButton;
     QPushButton* m_checkNowButton;
+    QPushButton* m_supportEmailButton;
     
     // Test management
     int m_currentTestIndex;
@@ -108,6 +110,9 @@ private:
     QSvgWidget* m_connectionSvg;
     QTimer* m_svgAnimationTimer;
     bool m_svgAnimationState;  // Toggle between two SVG states
+    
+    // Diagnostics completion status
+    bool m_diagnosticsCompleted;
 };
 
 #endif // DEVICEDIAGNOSTICSDIALOG_H

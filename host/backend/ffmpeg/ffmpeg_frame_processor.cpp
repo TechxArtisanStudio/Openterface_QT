@@ -258,7 +258,7 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
         if (handle) {
             QImage turbojpeg_result = DecodeMJPEGWithTurboJPEG(packet, targetSize, handle);
             if (!turbojpeg_result.isNull()) {
-                qCDebug(log_ffmpeg_backend) << "Successfully decoded with TurboJPEG acceleration";
+                // qCDebug(log_ffmpeg_backend) << "Successfully decoded with TurboJPEG acceleration";
                 // Success with TurboJPEG - store frames and return
                 QImage originalResult = turbojpeg_result;
                 QImage result = turbojpeg_result;
@@ -583,8 +583,8 @@ QImage FFmpegFrameProcessor::DecodeMJPEGWithTurboJPEG(AVPacket* packet, const QS
         return QImage();
     }
     
-    qCDebug(log_ffmpeg_backend) << "TurboJPEG decoded MJPEG:" << width << "x" << height 
-                               << "to" << target_width << "x" << target_height;
+    // qCDebug(log_ffmpeg_backend) << "TurboJPEG decoded MJPEG:" << width << "x" << height 
+    //                            << "to" << target_width << "x" << target_height;
     
     return image;
 }

@@ -26,6 +26,10 @@ public:
     // USB 3.0 Companion PortChain support
     QList<DeviceInfo> getDevicesByAnyPortChain(const QString& targetPortChain);
     QList<DeviceInfo> getDevicesWithCompanionPortChain(const QString& companionPortChain);
+
+    // Device tree helpers (platform-specific detailed tree or generic formatter)
+    virtual QString getDeviceTreeDetailed() const { return QString(); }
+    QString formatDeviceTreeFromDevices(const QList<DeviceInfo>& devices) const; 
     
 protected:
     // Common VID/PID constants for all platforms - Original generation

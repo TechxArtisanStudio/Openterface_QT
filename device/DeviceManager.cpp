@@ -13,6 +13,7 @@
 #include <QMutexLocker>
 #include <QtConcurrent>
 #include <QtSerialPort/QSerialPortInfo>
+#include <algorithm>
 
 Q_LOGGING_CATEGORY(log_device_manager, "opf.device.manager")
 
@@ -382,6 +383,45 @@ QList<DeviceInfo> DeviceManager::getCurrentDevices() const
     QMutexLocker locker(&m_mutex);
     return m_currentDevices;
 }
+
+QString DeviceManager::getDeviceTree() const
+{
+    QList<DeviceInfo> devicesCopy;
+    AbstractPlatformDeviceManager* pm = nullptr;
+    {
+        QMutexLocker locker(&m_mutex);
+        devicesCopy = m_currentDevices;
+        pm = m_platformManager;
+    }
+
+    if (pm) {
+        QString detailed = pm->getDeviceTreeDetailed();
+        if (!detailed.isEmpty()) return detailed;
+        return pm->formatDeviceTreeFromDevices(devicesCopy);
+    }
+
+    if (devicesCopy.isEmpty()) return QString("No devices found");
+
+    QStringList lines;
+    QList<DeviceInfo> sorted = devicesCopy;
+    std::sort(sorted.begin(), sorted.end(), [](const DeviceInfo& a, const DeviceInfo& b){
+        return a.portChain < b.portChain;
+    });
+
+    for (const DeviceInfo& d : sorted) {
+        lines << QString("%1").arg(d.portChain);
+        if (!d.vid.isEmpty() || !d.pid.isEmpty()) {
+            lines << QString("  VID: %1 PID: %2").arg(d.vid, d.pid);
+        }
+        if (!d.serialPortPath.isEmpty()) lines << QString("  Serial: %1").arg(d.serialPortPath);
+        if (!d.hidDevicePath.isEmpty()) lines << QString("  HID: %1").arg(d.hidDevicePath);
+        if (!d.cameraDevicePath.isEmpty()) lines << QString("  Camera: %1").arg(d.cameraDevicePath);
+        if (!d.audioDevicePath.isEmpty()) lines << QString("  Audio: %1").arg(d.audioDevicePath);
+        if (!d.deviceInstanceId.isEmpty()) lines << QString("  DeviceInstanceId: %1").arg(d.deviceInstanceId);
+    }
+
+    return lines.join("\n");
+} 
 
 void DeviceManager::onHotplugTimerTimeout()
 {

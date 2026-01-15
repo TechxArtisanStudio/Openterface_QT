@@ -133,6 +133,7 @@ public:
     
     // Current state
     QList<DeviceInfo> getCurrentDevices() const;
+    QString getDeviceTree() const;
     DeviceInfo getCurrentSelectedDevice() const { return m_selectedDevice; }
     void setCurrentSelectedDevice(const DeviceInfo& device) { m_selectedDevice = device; }
     
