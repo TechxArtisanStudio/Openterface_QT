@@ -998,34 +998,57 @@ bool DiagnosticsManager::performHighBaudrateTest()
         // Method: Proper command-based baudrate switching
         appendToLog("Performing proper command-based baudrate switching to 115200...");
         
-        // Step 1: Send configuration command at current baudrate (following applyCommandBasedBaudrateChange pattern)
-        appendToLog("Step 1: Sending baudrate configuration command at current rate...");
-        
+        // Step 1: Try sending baudrate configuration command at both 9600 and 115200 baudrates.
+        appendToLog("Step 1: Trying configuration command at 9600 and 115200 baudrates...");
+
         // Get system settings for mode
         static QSettings settings("Techxartisan", "Openterface");
         uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
-        
+
         // Build configuration command for 115200
         QByteArray command = CMD_SET_PARA_CFG_PREFIX_115200;
         command[5] = mode;  // Set mode byte
         command.append(CMD_SET_PARA_CFG_MID);
-        
-        appendToLog("Sending configuration command to device...");
-        QByteArray configResponse = serialManager.sendSyncCommand(command, true);
-        
-        if (configResponse.isEmpty()) {
-            appendToLog("Configuration command failed - no response from device");
+
+        bool configSuccess = false;
+        int baudsToTry[2] = {9600, SerialPortManager::BAUDRATE_HIGHSPEED};
+        int configBaudUsed = currentBaudrate;
+
+        for (int i = 0; i < 2; ++i) {
+            int tryBaud = baudsToTry[i];
+            appendToLog(QString("Attempting configuration at %1 baud...").arg(tryBaud));
+
+            if (!serialManager.setBaudRate(tryBaud)) {
+                appendToLog(QString("Failed to set host-side baudrate to %1 for configuration attempt").arg(tryBaud));
+                continue;
+            }
+
+            QByteArray configResponse = serialManager.sendSyncCommand(command, true);
+            if (configResponse.isEmpty()) {
+                appendToLog(QString("No response for configuration command at %1 baud").arg(tryBaud));
+                continue;
+            }
+
+            CmdDataResult configResult = CmdDataResult::fromByteArray(configResponse);
+            if (configResult.data == DEF_CMD_SUCCESS) {
+                appendToLog(QString("Configuration command succeeded at %1 baud").arg(tryBaud));
+                configSuccess = true;
+                configBaudUsed = tryBaud;
+                break;
+            } else {
+                appendToLog(QString("Configuration command returned error 0x%1 at %2 baud").arg(configResult.data, 2, 16, QChar('0')).arg(tryBaud));
+            }
+        }
+
+        if (!configSuccess) {
+            appendToLog("Configuration command failed at both 9600 and 115200 baudrates");
+            // Restore original baudrate before failing
+            serialManager.setBaudRate(currentBaudrate);
             return false;
         }
-        
-        // Parse configuration response
-        CmdDataResult configResult = CmdDataResult::fromByteArray(configResponse);
-        if (configResult.data != DEF_CMD_SUCCESS) {
-            appendToLog(QString("Configuration command failed with status: 0x%1").arg(configResult.data, 2, 16, QChar('0')));
-            return false;
-        }
-        
-        appendToLog("Configuration command successful");
+        // Ensure host-side baud is set to the baud where configuration was applied
+        serialManager.setBaudRate(configBaudUsed);
+        appendToLog(QString("Proceeding with reset at %1 baud (configuration applied)").arg(configBaudUsed));
         
         // Step 2: Send reset command at current baudrate
         appendToLog("Step 2: Sending reset command...");
@@ -1052,13 +1075,13 @@ bool DiagnosticsManager::performHighBaudrateTest()
             return false;
         }
         
-        // Step 5: 增加波特率切换等待时间
+        // Step 5: Added wait time for stabilization
         appendToLog("Step 5: Waiting for baudrate change to stabilize...");
         QEventLoop stabilizeLoop;
-        QTimer::singleShot(1500, &stabilizeLoop, &QEventLoop::quit); // 增加到1.5秒
+        QTimer::singleShot(1500, &stabilizeLoop, &QEventLoop::quit); // Added 1.5 seconds wait
         stabilizeLoop.exec();
         
-        // Step 6: 验证波特率设置
+        // Step 6: Verify current baudrate
         int newBaudrate = serialManager.getCurrentBaudrate();
         appendToLog(QString("Host-side baudrate now set to: %1").arg(newBaudrate));
         
@@ -1067,7 +1090,7 @@ bool DiagnosticsManager::performHighBaudrateTest()
             return false;
         }
         
-        // Step 7: 多次尝试高速通信测试
+        // Step 7: Multiple attempts to test high-speed communication
         appendToLog("Step 7: Testing communication at 115200 baudrate...");
         
         bool communicationSuccess = false;
