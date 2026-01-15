@@ -50,8 +50,9 @@ def update_version(increase_version, increase_major, increase_minor):
     days_from_start = (current_date - datetime(current_date.year, 1, 1)).days + 1
     days = str(days_from_start).zfill(3)  # Ensure it's always 3 digits
 
-    # Create new version string
-    new_version = f"{major}.{minor}.{patch}.{days}"
+    # Create new version strings
+    new_version = f"{major}.{minor}.{patch}.{days}"  # 4段式版本号用于APP_VERSION
+    git_tag_version = f"{major}.{minor}.{patch}"     # 3段式版本号用于Git标签
 
     # Update version.h file
     new_version_content = re.sub(
@@ -62,12 +63,19 @@ def update_version(increase_version, increase_major, increase_minor):
     with open(version_file_path, 'w') as f:
         f.write(new_version_content)
 
-    print(f"Updated version to {new_version}")
+    print(f"Updated APP_VERSION to {new_version}")
+    print(f"Git tag version: {git_tag_version}")
 
     # Set environment variables for use in later steps
-    with open(os.environ['GITHUB_ENV'], 'a') as env_file:
-        env_file.write(f"NEW_VERSION={new_version}\n")
-        env_file.write(f"VERSION_FOR_INNO={new_version}\n")
+    if 'GITHUB_ENV' in os.environ:
+        with open(os.environ['GITHUB_ENV'], 'a') as env_file:
+            env_file.write(f"NEW_VERSION={new_version}\n")
+            env_file.write(f"GIT_TAG_VERSION={git_tag_version}\n")
+            env_file.write(f"VERSION_FOR_INNO={new_version}\n")
+    else:
+        # If not in GitHub Actions environment, print environment variables directly
+        print(f"NEW_VERSION={new_version}")
+        print(f"GIT_TAG_VERSION={git_tag_version}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Update the version in version.h')
