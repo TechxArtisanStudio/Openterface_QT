@@ -161,6 +161,7 @@ set(UI_CORE_SOURCES
     ui/languagemanager.cpp ui/languagemanager.h
     ui/screensavermanager.cpp ui/screensavermanager.h
     ui/screenscale.h ui/screenscale.cpp
+    ui/splashscreen.cpp ui/splashscreen.h
     ui/statusevents.h
 )
 

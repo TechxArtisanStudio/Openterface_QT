@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug openterfaceQT",
+            "name": "Debug openterfaceQT (Windows)",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/Debug/openterfaceQT.exe",
@@ -22,6 +22,25 @@
                 "exceptions": false
             },
             "visualizerFile": "c:\\Users\\ASUS\\AppData\\Roaming\\Code\\User\\workspaceStorage\\bda99ef74caf1525fefba88cf2ec936f\\tonka3000.qtvsctools\\qt.natvis.xml"
+        },
+        {
+            "name": "Debug openterfaceQT (Linux)",
+            "type": "gdb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/openterfaceQT",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         }
     ]
 }
