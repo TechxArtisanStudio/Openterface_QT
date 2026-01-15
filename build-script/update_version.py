@@ -26,10 +26,15 @@ def update_version(increase_version, increase_major, increase_minor):
             exit(1)
 
     # Split version into parts
-    try:
-        major, minor, patch, days = version.split('.')
-    except ValueError:
-        print(f"Error: Invalid version format: {version}")
+    version_parts = version.split('.')
+    if len(version_parts) == 3:
+        # 3段式版本号 (如 "0.5.10")
+        major, minor, patch = version_parts
+    elif len(version_parts) == 4:
+        # 4段式版本号 (如 "0.5.10.015")
+        major, minor, patch, days = version_parts
+    else:
+        print(f"Error: Invalid version format: {version}. Expected 3 or 4 parts (major.minor.patch or major.minor.patch.days)")
         exit(1)
 
     # Increment major or minor version if specified
@@ -45,36 +50,36 @@ def update_version(increase_version, increase_major, increase_minor):
     if increase_version:
         patch = str(int(patch) + 1)
 
-    # Calculate days from start of year
+    # Git标签版本始终使用3段式
+    git_tag_version = f"{major}.{minor}.{patch}"
+    
+    # 计算天数并创建4段式版本号用于APP_VERSION
     current_date = datetime.now()
     days_from_start = (current_date - datetime(current_date.year, 1, 1)).days + 1
     days = str(days_from_start).zfill(3)  # Ensure it's always 3 digits
+    app_version = f"{major}.{minor}.{patch}.{days}"
 
-    # Create new version strings
-    new_version = f"{major}.{minor}.{patch}.{days}"  # 4段式版本号用于APP_VERSION
-    git_tag_version = f"{major}.{minor}.{patch}"     # 3段式版本号用于Git标签
-
-    # Update version.h file
+    # Update version.h file with 4段式版本号
     new_version_content = re.sub(
         r'#define APP_VERSION "[^"]+"',
-        f'#define APP_VERSION "{new_version}"',
+        f'#define APP_VERSION "{app_version}"',
         version_content
     )
     with open(version_file_path, 'w') as f:
         f.write(new_version_content)
 
-    print(f"Updated APP_VERSION to {new_version}")
+    print(f"Updated APP_VERSION to {app_version}")
     print(f"Git tag version: {git_tag_version}")
 
     # Set environment variables for use in later steps
     if 'GITHUB_ENV' in os.environ:
         with open(os.environ['GITHUB_ENV'], 'a') as env_file:
-            env_file.write(f"NEW_VERSION={new_version}\n")
+            env_file.write(f"NEW_VERSION={app_version}\n")
             env_file.write(f"GIT_TAG_VERSION={git_tag_version}\n")
-            env_file.write(f"VERSION_FOR_INNO={new_version}\n")
+            env_file.write(f"VERSION_FOR_INNO={app_version}\n")
     else:
         # If not in GitHub Actions environment, print environment variables directly
-        print(f"NEW_VERSION={new_version}")
+        print(f"NEW_VERSION={app_version}")
         print(f"GIT_TAG_VERSION={git_tag_version}")
 
 if __name__ == "__main__":
