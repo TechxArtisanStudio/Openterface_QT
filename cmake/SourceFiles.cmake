@@ -183,7 +183,7 @@ set(UI_ADVANCE_SOURCES
     ui/advance/serialportdebugdialog.cpp ui/advance/serialportdebugdialog.h
     ui/advance/DeviceSelectorDialog.cpp ui/advance/DeviceSelectorDialog.h
     ui/advance/devicediagnosticsdialog.cpp ui/advance/devicediagnosticsdialog.h
-    ui/advance/diagnostics/diagnosticsmanager.cpp ui/advance/diagnostics/diagnosticsmanager.h ui/advance/diagnostics/diagnostics_constants.h
+    ui/advance/diagnostics/diagnosticsmanager.cpp ui/advance/diagnostics/diagnosticsmanager.h ui/advance/diagnostics/diagnostics_constants.h ui/advance/diagnostics/LogWriter.cpp ui/advance/diagnostics/LogWriter.h ui/advance/diagnostics/SupportEmailDialog.cpp ui/advance/diagnostics/SupportEmailDialog.h
     ui/advance/envdialog.cpp ui/advance/envdialog.h ui/advance/envdialog.ui
     ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
     ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h

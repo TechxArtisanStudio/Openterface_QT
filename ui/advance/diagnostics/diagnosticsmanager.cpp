@@ -10,6 +10,9 @@
 #include <QEventLoop>
 #include <QTimer>
 #include <QSettings>
+#include <QThread>
+
+#include "LogWriter.h"
 
 #include "device/DeviceManager.h" // for device presence checks
 #include "device/DeviceInfo.h"
@@ -71,6 +74,13 @@ DiagnosticsManager::DiagnosticsManager(QObject *parent)
     m_stressTestTimer = new QTimer(this);
     m_stressTestTimer->setInterval(50); // Send command every 50ms (600 commands in 30 seconds)
     connect(m_stressTestTimer, &QTimer::timeout, this, &DiagnosticsManager::onStressTestTimeout);
+
+    // Initialize asynchronous logging
+    m_logThread = new QThread(this);
+    m_logWriter = new LogWriter(getLogFilePath(), this);
+    m_logWriter->moveToThread(m_logThread);
+    connect(this, &DiagnosticsManager::logMessage, m_logWriter, &LogWriter::writeLog);
+    m_logThread->start();
 }
 
 TestStatus DiagnosticsManager::testStatus(int index) const
@@ -107,14 +117,8 @@ void DiagnosticsManager::appendToLog(const QString &message)
     // Emit to UI
     emit logAppended(logEntry);
 
-    // Also write to file
-    QString logPath = getLogFilePath();
-    QFile logFile(logPath);
-    if (logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
-        QTextStream out(&logFile);
-        out << logEntry << "\n";
-        logFile.close();
-    }
+    // Write to file asynchronously
+    emit logMessage(logEntry);
 }
 
 void DiagnosticsManager::startTest(int testIndex)
@@ -166,6 +170,15 @@ void DiagnosticsManager::startTest(int testIndex)
             if (d.hasAudioDevice()) {
                 foundAudio = true;
                 appendToLog(QString("Audio present on port %1").arg(d.getPortChainDisplay()));
+            }
+        }
+
+        // Also append a full device tree for richer diagnostics
+        QString deviceTree = DeviceManager::getInstance().getDeviceTree();
+        if (!deviceTree.isEmpty()) {
+            appendToLog("Device tree:");
+            for (const QString &line : deviceTree.split('\n')) {
+                appendToLog(QString("  %1").arg(line));
             }
         }
 
@@ -659,20 +672,50 @@ bool DiagnosticsManager::performSerialConnectionTest()
     }
     
     appendToLog(QString("Using serial port: %1").arg(currentPortPath));
-    appendToLog("Testing target connection status with 3 attempts (1 second interval)...");
+    appendToLog("Testing serial connection at 115200 baudrate...");
+    
+    // Test at 115200 baudrate first
+    bool success115200 = testSerialConnectionAtBaudrate(115200);
+    
+    appendToLog("Testing serial connection at 9600 baudrate...");
+    
+    // Test at 9600 baudrate
+    bool success9600 = testSerialConnectionAtBaudrate(9600);
+    
+    // Test passes if either baudrate works
+    if (success115200 || success9600) {
+        appendToLog("Serial Connection test: PASSED - Successfully connected at least one baudrate");
+        return true;
+    } else {
+        appendToLog("Serial Connection test: FAILED - No connection at either 115200 or 9600 baudrate");
+        return false;
+    }
+}
+
+bool DiagnosticsManager::testSerialConnectionAtBaudrate(int baudrate)
+{
+    SerialPortManager& serialManager = SerialPortManager::getInstance();
+    
+    // Set baudrate
+    if (!serialManager.setBaudRate(baudrate)) {
+        appendToLog(QString("Failed to set baudrate to %1").arg(baudrate));
+        return false;
+    }
+    
+    appendToLog(QString("Testing target connection status at %1 baudrate with 3 attempts (1 second interval)...").arg(baudrate));
     
     // Retry up to 3 times with 1 second intervals
     for (int attempt = 1; attempt <= 3; attempt++) {
-        appendToLog(QString("Attempt %1/3: Sending CMD_GET_INFO command...").arg(attempt));
+        appendToLog(QString("Attempt %1/3 at %2 baudrate: Sending CMD_GET_INFO command...").arg(attempt).arg(baudrate));
         
         try {
             // Send CMD_GET_INFO command and wait for response
             QByteArray response = serialManager.sendSyncCommand(CMD_GET_INFO, false);
             
             if (response.isEmpty()) {
-                appendToLog(QString("Attempt %1: No response received from serial port").arg(attempt));
+                appendToLog(QString("Attempt %1 at %2 baudrate: No response received from serial port").arg(attempt).arg(baudrate));
             } else {
-                appendToLog(QString("Attempt %1: Received response: %2").arg(attempt).arg(QString(response.toHex(' '))));
+                appendToLog(QString("Attempt %1 at %2 baudrate: Received response: %3").arg(attempt).arg(baudrate).arg(QString(response.toHex(' '))));
                 
                 // Validate response structure
                 if (response.size() >= static_cast<int>(sizeof(CmdGetInfoResult))) {
@@ -680,35 +723,38 @@ bool DiagnosticsManager::performSerialConnectionTest()
                     
                     // Check if response has valid header (0x57AB)
                     if (result.prefix == 0xAB57) { // Little-endian format
-                        appendToLog(QString("Attempt %1: Valid response - Version: %2, Target Connected: %3")
+                        appendToLog(QString("Attempt %1 at %2 baudrate: Valid response - Version: %3, Target Connected: %4")
                                    .arg(attempt)
+                                   .arg(baudrate)
                                    .arg(result.version)
                                    .arg(result.targetConnected ? "Yes" : "No"));
                         
                         // Check if target is connected
                         if (result.targetConnected != 0) {
-                            appendToLog(QString("Target connection detected on attempt %1 - Test PASSED").arg(attempt));
+                            appendToLog(QString("Target connection detected on attempt %1 at %2 baudrate - Test PASSED").arg(attempt).arg(baudrate));
                             return true;
                         } else {
-                            appendToLog(QString("Attempt %1: Target not connected").arg(attempt));
+                            appendToLog(QString("Attempt %1 at %2 baudrate: Target not connected").arg(attempt).arg(baudrate));
                         }
                     } else {
-                        appendToLog(QString("Attempt %1: Invalid response header: 0x%2 (expected 0x57AB)")
+                        appendToLog(QString("Attempt %1 at %2 baudrate: Invalid response header: 0x%3 (expected 0x57AB)")
                                    .arg(attempt)
+                                   .arg(baudrate)
                                    .arg(result.prefix, 4, 16, QChar('0')));
                     }
                 } else {
-                    appendToLog(QString("Attempt %1: Response too short: %2 bytes (expected at least %3 bytes)")
+                    appendToLog(QString("Attempt %1 at %2 baudrate: Response too short: %3 bytes (expected at least %4 bytes)")
                                .arg(attempt)
+                               .arg(baudrate)
                                .arg(response.size())
                                .arg(sizeof(CmdGetInfoResult)));
                 }
             }
             
         } catch (const std::exception& e) {
-            appendToLog(QString("Attempt %1: Exception during serial communication: %2").arg(attempt).arg(e.what()));
+            appendToLog(QString("Attempt %1 at %2 baudrate: Exception during serial communication: %3").arg(attempt).arg(baudrate).arg(e.what()));
         } catch (...) {
-            appendToLog(QString("Attempt %1: Unknown error during serial communication").arg(attempt));
+            appendToLog(QString("Attempt %1 at %2 baudrate: Unknown error during serial communication").arg(attempt).arg(baudrate));
         }
         
         // Wait 1 second before next attempt (except for the last attempt)
@@ -720,7 +766,7 @@ bool DiagnosticsManager::performSerialConnectionTest()
         }
     }
     
-    appendToLog("All 3 attempts completed - Target connection not detected");
+    appendToLog(QString("Failed to connect at %1 baudrate after 3 attempts").arg(baudrate));
     return false;
 }
 
@@ -772,35 +818,17 @@ bool DiagnosticsManager::performFactoryResetTest()
     appendToLog(QString("Using serial port: %1 for factory reset test").arg(currentPortPath));
     
     try {
-        // Step 1: Test current communication before reset
-        appendToLog("Step 1: Testing communication before factory reset...");
-        QByteArray preResetResponse = serialManager.sendSyncCommand(CMD_GET_INFO, true);
-        bool preResetSuccess = false;
-        
-        if (!preResetResponse.isEmpty() && preResetResponse.size() >= static_cast<int>(sizeof(CmdGetInfoResult))) {
-            CmdGetInfoResult preResult = CmdGetInfoResult::fromByteArray(preResetResponse);
-            if (preResult.prefix == 0xAB57) {
-                appendToLog(QString("Pre-reset communication successful - version: %1").arg(preResult.version));
-                preResetSuccess = true;
-            }
-        }
-        
-        if (!preResetSuccess) {
-            appendToLog("Pre-reset communication failed - device may not be responding");
-            return false;
-        }
-        
-        // Step 2: Attempt standard factory reset (RTS pin method)
-        appendToLog("Step 2: Performing standard factory reset (RTS pin method)...");
+        // Directly perform factory reset without pre-communication test
+        appendToLog("Performing standard factory reset (RTS pin method)...");
         appendToLog("This will hold RTS pin low for 4 seconds, then reconnect...");
         
         bool resetSuccess = serialManager.factoryResetHipChipSync(10000); // 10 second timeout
         
         if (resetSuccess) {
-            appendToLog("Step 2: Standard factory reset completed successfully");
+            appendToLog("Standard factory reset completed successfully");
             
-            // Step 3: Verify communication after reset
-            appendToLog("Step 3: Verifying communication after factory reset...");
+            // Verify communication after reset
+            appendToLog("Verifying communication after factory reset...");
             
             // Test communication multiple times to ensure stability
             bool communicationVerified = false;
@@ -832,23 +860,23 @@ bool DiagnosticsManager::performFactoryResetTest()
             }
             
             if (communicationVerified) {
-                appendToLog("Step 3: Factory reset verification successful!");
+                appendToLog("Factory reset verification successful!");
                 appendToLog("Device has been reset to factory defaults and is responding correctly.");
                 return true;
             } else {
-                appendToLog("Step 3: Factory reset verification failed - device not responding properly");
+                appendToLog("Factory reset verification failed - device not responding properly");
                 return false;
             }
         } else {
-            appendToLog("Step 2: Standard factory reset failed");
+            appendToLog("Standard factory reset failed");
             
-            // Step 4: Try V191 command method as fallback
-            appendToLog("Step 4: Trying V191 factory reset method (command-based) as fallback...");
+            // Try V191 command method as fallback
+            appendToLog("Trying V191 factory reset method (command-based) as fallback...");
             
             bool v191Success = serialManager.factoryResetHipChipV191Sync(5000); // 5 second timeout
             
             if (v191Success) {
-                appendToLog("Step 4: V191 factory reset completed successfully");
+                appendToLog("V191 factory reset completed successfully");
                 
                 // Verify communication
                 QByteArray v191Response = serialManager.sendSyncCommand(CMD_GET_INFO, true);
@@ -862,7 +890,7 @@ bool DiagnosticsManager::performFactoryResetTest()
                 appendToLog("V191 factory reset completed but verification failed");
                 return false;
             } else {
-                appendToLog("Step 4: V191 factory reset also failed");
+                appendToLog("V191 factory reset also failed");
                 appendToLog("Both factory reset methods failed - device may not support factory reset");
                 return false;
             }
@@ -1301,4 +1329,12 @@ void DiagnosticsManager::finishStressTest()
     
     qCDebug(log_device_diagnostics) << "Stress Test finished:" << (success ? "PASS" : "FAIL")
                                    << "Response rate:" << responseRate << "%";
+}
+
+DiagnosticsManager::~DiagnosticsManager()
+{
+    if (m_logThread) {
+        m_logThread->quit();
+        m_logThread->wait();
+    }
 }

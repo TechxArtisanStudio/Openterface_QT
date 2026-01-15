@@ -37,6 +37,7 @@
 #include <QtSerialPort>
 #include <QElapsedTimer>
 #include <QSysInfo>
+#include <QStandardPaths>
 
 
 Q_LOGGING_CATEGORY(log_core_serial, "opf.core.serial")
@@ -104,7 +105,7 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     connect(m_commandCoordinator.get(), &SerialCommandCoordinator::dataSent, this, &SerialPortManager::dataSent);
     connect(m_commandCoordinator.get(), &SerialCommandCoordinator::dataReceived, this, &SerialPortManager::dataReceived);
     connect(m_commandCoordinator.get(), &SerialCommandCoordinator::commandExecuted, this, [this](const QByteArray& cmd, bool success) {
-        qCDebug(log_core_serial) << "Command executed:" << cmd.toHex(' ') << "Success:" << success;
+        qCDebug(log_core_serial) << "Tx: :" << cmd.toHex(' ') << "Success:" << success;
     });
     
     // Connect state manager signals to SerialPortManager signals
@@ -229,6 +230,14 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     
     // Connect to hotplug monitor for automatic device management
     connectToHotplugMonitor();
+    
+    // Initialize asynchronous logging
+    QString logPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/serial_log.txt";
+    m_logThread = new QThread(this);
+    m_logWriter = new LogWriter(logPath, this);
+    m_logWriter->moveToThread(m_logThread);
+    connect(this, &SerialPortManager::logMessage, m_logWriter, &LogWriter::writeLog);
+    m_logThread->start();
     
     qCDebug(log_core_serial) << "SerialPortManager initialized with DeviceManager integration and enhanced stability features";
 }
@@ -1130,6 +1139,18 @@ SerialPortManager::~SerialPortManager() {
         serialPort = nullptr;
     }
     
+    // Clean up logging thread
+    if (m_logThread) {
+        m_logThread->quit();
+        m_logThread->wait();
+        delete m_logThread;
+        m_logThread = nullptr;
+    }
+    if (m_logWriter) {
+        delete m_logWriter;
+        m_logWriter = nullptr;
+    }
+    
     qCDebug(log_core_serial) << "Serial port manager destroyed";
 }
 
@@ -1414,7 +1435,7 @@ void SerialPortManager::readData() {
     if (parsed.status != STATUS_SUCCESS && (parsed.commandCode >= 0xC0 && parsed.commandCode <= 0xCF)) {
         dumpError(parsed.status, packet);
     } else {
-        qCDebug(log_core_serial).nospace().noquote() << "Data Received(" << serialPort->portName() << "@" 
+        qCDebug(log_core_serial).nospace().noquote() << "RX (" << serialPort->portName() << "@" 
             << (serialPort ? serialPort->baudRate() : 0) << "bps): " << packet.toHex(' ');
         
         latestUpdateTime = QDateTime::currentDateTime();
@@ -2408,4 +2429,11 @@ bool SerialPortManager::getCapsLockState()
 bool SerialPortManager::getScrollLockState() 
 {
     return m_stateManager ? m_stateManager->getScrollLockState() : false;
+}
+
+void SerialPortManager::log(const QString& message)
+{
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
+    QString logEntry = QString("[%1] %2").arg(timestamp, message);
+    emit logMessage(logEntry);
 }

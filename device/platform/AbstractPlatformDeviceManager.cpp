@@ -126,6 +126,8 @@ QList<DeviceInfo> AbstractPlatformDeviceManager::filterDevicesByAnyPortChain(
     return filtered;
 }
 
+#include <algorithm>
+
 QList<DeviceInfo> AbstractPlatformDeviceManager::filterDevicesByCompanionPortChain(
     const QList<DeviceInfo>& devices, const QString& companionPortChain)
 {
@@ -147,3 +149,28 @@ QList<DeviceInfo> AbstractPlatformDeviceManager::filterDevicesByCompanionPortCha
 
     return filtered;
 }
+
+QString AbstractPlatformDeviceManager::formatDeviceTreeFromDevices(const QList<DeviceInfo>& devices) const
+{
+    if (devices.isEmpty()) return QString("No devices found");
+
+    QStringList lines;
+    QList<DeviceInfo> sorted = devices;
+    std::sort(sorted.begin(), sorted.end(), [](const DeviceInfo& a, const DeviceInfo& b){
+        return a.portChain < b.portChain;
+    });
+
+    for (const DeviceInfo& d : sorted) {
+        lines << QString("%1").arg(d.portChain);
+        if (!d.vid.isEmpty() || !d.pid.isEmpty()) {
+            lines << QString("  VID: %1 PID: %2").arg(d.vid, d.pid);
+        }
+        if (!d.serialPortPath.isEmpty()) lines << QString("  Serial: %1").arg(d.serialPortPath);
+        if (!d.hidDevicePath.isEmpty()) lines << QString("  HID: %1").arg(d.hidDevicePath);
+        if (!d.cameraDevicePath.isEmpty()) lines << QString("  Camera: %1").arg(d.cameraDevicePath);
+        if (!d.audioDevicePath.isEmpty()) lines << QString("  Audio: %1").arg(d.audioDevicePath);
+        if (!d.deviceInstanceId.isEmpty()) lines << QString("  DeviceInstanceId: %1").arg(d.deviceInstanceId);
+    }
+
+    return lines.join("\n");
+} 

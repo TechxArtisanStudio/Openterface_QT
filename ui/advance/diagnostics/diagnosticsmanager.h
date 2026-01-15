@@ -5,7 +5,9 @@
 #include <QTimer>
 #include <QStringList>
 #include <QVector>
+#include <QThread>
 #include "diagnosticstypes.h" // for TestStatus
+#include "LogWriter.h"
 
 Q_DECLARE_LOGGING_CATEGORY(log_device_diagnostics)
 
@@ -14,6 +16,7 @@ class DiagnosticsManager : public QObject
     Q_OBJECT
 public:
     explicit DiagnosticsManager(QObject *parent = nullptr);
+    ~DiagnosticsManager();
 
     QStringList testTitles() const { return m_testTitles; }
     TestStatus testStatus(int index) const;
@@ -31,6 +34,7 @@ signals:
     void diagnosticsCompleted(bool allSuccessful);
     void logAppended(const QString &entry);
     void statusChanged(int index, TestStatus status);
+    void logMessage(const QString& msg);
 
 private slots:
     void onTimerTimeout();
@@ -45,6 +49,7 @@ private:
     bool checkHostConnectionStatus();
     void startSerialConnectionTest();
     bool performSerialConnectionTest();
+    bool testSerialConnectionAtBaudrate(int baudrate);
     void startFactoryResetTest();
     bool performFactoryResetTest();
     void startHighBaudrateTest();
@@ -83,6 +88,10 @@ private:
     int m_stressTotalCommands;
     int m_stressSuccessfulCommands;
     QTimer *m_stressTestTimer;
+
+    // Logging
+    QThread* m_logThread;
+    LogWriter* m_logWriter;
 };
 
 #endif // DIAGNOSTICSMANAGER_H

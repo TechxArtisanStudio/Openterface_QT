@@ -44,6 +44,7 @@
 #include "protocol/SerialProtocol.h"
 #include "watchdog/ConnectionWatchdog.h"
 #include "FactoryResetManager.h"
+#include "../ui/advance/diagnostics/LogWriter.h"
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
@@ -207,6 +208,9 @@ public:
     void switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)
     void switchUsbToTargetViaSerial();    // Switch USB to target via serial command (57 AB 00 17...)
     
+    // Logging
+    void log(const QString& message);
+    
 signals:
     void dataReceived(const QByteArray &data);
     void dataSent(const QByteArray &data);
@@ -235,6 +239,8 @@ signals:
     // Signals to notify completion of reset operations
     void resetHidChipCompleted(bool success);
     void factoryResetCompleted(bool success);
+    
+    void logMessage(const QString& msg);
     
 private slots:
     void observeSerialPortNotification();
@@ -418,6 +424,10 @@ private:
     // Command tracking methods
     void checkCommandLossRate();
     void resetCommandCounters();
+
+    // Logging
+    QThread* m_logThread;
+    LogWriter* m_logWriter;
 };
 
 #endif // SERIALPORTMANAGER_H

@@ -12,6 +12,7 @@
 #include <QSvgWidget>
 #include "diagnostics/diagnosticsmanager.h"
 #include "diagnostics/diagnostics_constants.h"
+#include "diagnostics/SupportEmailDialog.h"
 
 Q_LOGGING_CATEGORY(log_device_diagnostics, "opf.diagnostics")
 
@@ -76,10 +77,12 @@ DeviceDiagnosticsDialog::DeviceDiagnosticsDialog(QWidget *parent)
     , m_previousButton(nullptr)
     , m_nextButton(nullptr)
     , m_checkNowButton(nullptr)
+    , m_supportEmailButton(nullptr)
     , m_currentTestIndex(0)
     , m_connectionSvg(nullptr)
     , m_svgAnimationTimer(nullptr)
     , m_svgAnimationState(false)
+    , m_diagnosticsCompleted(false)
 {
     setWindowTitle(tr(Diagnostics::WINDOW_TITLE));
     setMinimumSize(900, 600);
@@ -322,11 +325,17 @@ void DeviceDiagnosticsDialog::setupRightPanel()
     m_checkNowButton->setMinimumHeight(35);
     connect(m_checkNowButton, &QPushButton::clicked, this, &DeviceDiagnosticsDialog::onCheckNowClicked);
     
+    m_supportEmailButton = new QPushButton(tr("Support Email"), this);
+    m_supportEmailButton->setIcon(style()->standardIcon(QStyle::SP_MessageBoxInformation));
+    m_supportEmailButton->setMinimumHeight(35);
+    connect(m_supportEmailButton, &QPushButton::clicked, this, &DeviceDiagnosticsDialog::onSupportEmailClicked);
+    
     m_buttonLayout->addWidget(m_restartButton);
     m_buttonLayout->addStretch();
     m_buttonLayout->addWidget(m_previousButton);
     m_buttonLayout->addWidget(m_nextButton);
     m_buttonLayout->addWidget(m_checkNowButton);
+    m_buttonLayout->addWidget(m_supportEmailButton);
     
     m_rightLayout->addLayout(m_buttonLayout);
     
@@ -506,12 +515,27 @@ void DeviceDiagnosticsDialog::onLogAppended(const QString &entry)
 
 void DeviceDiagnosticsDialog::onDiagnosticsCompleted(bool allSuccessful)
 {
+    m_diagnosticsCompleted = true;
     stopSvgAnimation();  // Stop animation when diagnostics complete
-    QString message = allSuccessful ?
-        tr(Diagnostics::DIAGNOSTICS_COMPLETE_SUCCESS) :
-        tr(Diagnostics::DIAGNOSTICS_COMPLETE_FAIL);
 
-    QMessageBox::information(this, tr("Diagnostics Complete"), message);
+    if (!allSuccessful) {
+        // Collect failed tests
+        QStringList failedTests;
+        for (int i = 0; i < m_testTitles.size(); ++i) {
+            TestStatus status = m_manager->testStatus(i);
+            if (status == TestStatus::Failed) {
+                failedTests.append(m_testTitles[i]);
+            }
+        }
+
+        // Show support email dialog
+        QString logFilePath = m_manager->getLogFilePath();
+        SupportEmailDialog* dialog = new SupportEmailDialog(failedTests, logFilePath, true, this);
+        dialog->exec();
+    } else {
+        QString message = tr(Diagnostics::DIAGNOSTICS_COMPLETE_SUCCESS);
+        QMessageBox::information(this, tr("Diagnostics Complete"), message);
+    }
 }
 
 void DeviceDiagnosticsDialog::updateConnectionSvg()
@@ -578,5 +602,27 @@ void DeviceDiagnosticsDialog::stopSvgAnimation()
         m_svgAnimationTimer->stop();
         m_svgAnimationState = false;
     }
+}
+
+void DeviceDiagnosticsDialog::onSupportEmailClicked()
+{
+    // Collect failed tests (even if not completed)
+    QStringList failedTests;
+    for (int i = 0; i < m_testTitles.size(); ++i) {
+        TestStatus status = m_manager->testStatus(i);
+        if (status == TestStatus::Failed) {
+            failedTests.append(m_testTitles[i]);
+        }
+    }
+
+    // If no failed tests and diagnostics not completed, show a message
+    if (failedTests.isEmpty() && !m_diagnosticsCompleted) {
+        failedTests.append(tr("Diagnostics not completed"));
+    }
+
+    // Show support email dialog
+    QString logFilePath = m_manager->getLogFilePath();
+    SupportEmailDialog* dialog = new SupportEmailDialog(failedTests, logFilePath, m_diagnosticsCompleted, this);
+    dialog->exec();
 }
 
