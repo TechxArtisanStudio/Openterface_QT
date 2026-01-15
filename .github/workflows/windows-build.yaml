@@ -138,10 +138,10 @@ jobs:
 
       - name: Dispatch Windows Portable build (on patch increment)
         if: ${{ github.event.inputs.increase_version == 'true' }}
-        uses: peter-evans/repository-dispatch@v1
+        uses: peter-evans/workflow-dispatch@v1
         with:
-          repository: ${{ github.repository }}
           token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
           workflow: windows-portable-build.yaml
           ref: ${{ github.ref_name }}
 
