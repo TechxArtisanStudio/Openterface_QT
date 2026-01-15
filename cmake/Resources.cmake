@@ -33,6 +33,7 @@ set(mainwindow_resource_files
     "ui/../images/stopRecord.svg"
     "ui/../images/audio.svg"
     "ui/../images/mute.svg"
+    "ui/../images/openterface-splash.svg"
     "ui/../images/H_to_T.svg"
     "ui/../images/H0T0V0.svg"
     "ui/../images/H0T1V1.svg"

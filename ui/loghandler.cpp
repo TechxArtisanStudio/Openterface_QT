@@ -104,6 +104,9 @@ void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &co
     case QtFatalMsg:
         txt = QString("[%1][F][%2] %3").arg(threadName).arg(category).arg(msg);
         break;
+    default:
+        txt = QString("[%1][U][%2] %3").arg(threadName).arg(category).arg(msg);
+        break;
     }
 
     ts << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
@@ -115,6 +118,11 @@ void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &co
 void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
     // Q_UNUSED(context)
+
+    // Suppress specific Qt warnings that are not useful
+    if (msg.contains("QWidget::paintEngine")) {
+        return; // Skip logging this warning
+    }
 
     const char* categoryName = context.category;
     QString category = categoryName ? QString(categoryName) : "opf.default.msg";
@@ -162,5 +170,9 @@ void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &
     // Use fprintf to stderr instead of std::cout to avoid C++ stream issues
     fprintf(stderr, "%s\n", txt.toUtf8().constData());
     fflush(stderr);
+    
+    // Also write to stdout as a backup to ensure visibility
+    fprintf(stdout, "%s\n", txt.toUtf8().constData());
+    fflush(stdout);
 #endif
 }
