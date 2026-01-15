@@ -299,6 +299,7 @@ void VideoHid::stop() {
     
     // Close the HID device when stopping
     endTransaction();
+    qCDebug(log_host_hid)  << "VideoHid stopped successfully.";
 }
 
 /*

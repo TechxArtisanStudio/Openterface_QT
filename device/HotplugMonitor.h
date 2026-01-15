@@ -39,6 +39,7 @@ public:
     
     void start(int pollIntervalMs = 3000);
     void stop();
+    void updateInterval(int newIntervalMs);
     
     bool isRunning() const { return m_running; }
     int getPollInterval() const { return m_pollInterval; }

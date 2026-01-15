@@ -114,7 +114,18 @@ set(SCRIPT_SOURCES
 # Serial sources
 set(SERIAL_SOURCES
     serial/SerialPortManager.cpp serial/SerialPortManager.h
+    serial/SerialCommandCoordinator.cpp serial/SerialCommandCoordinator.h
+    serial/SerialStateManager.cpp serial/SerialStateManager.h
+    serial/SerialStatistics.cpp serial/SerialStatistics.h
+    serial/SerialFacade.cpp serial/SerialFacade.h
+    serial/FactoryResetManager.cpp serial/FactoryResetManager.h
     serial/ch9329.h
+    serial/chipstrategy/IChipStrategy.h
+    serial/chipstrategy/CH9329Strategy.cpp serial/chipstrategy/CH9329Strategy.h
+    serial/chipstrategy/CH32V208Strategy.cpp serial/chipstrategy/CH32V208Strategy.h
+    serial/chipstrategy/ChipStrategyFactory.cpp serial/chipstrategy/ChipStrategyFactory.h
+    serial/protocol/SerialProtocol.cpp serial/protocol/SerialProtocol.h
+    serial/watchdog/ConnectionWatchdog.cpp serial/watchdog/ConnectionWatchdog.h
 )
 
 # Server sources
@@ -172,6 +183,8 @@ set(UI_ADVANCE_SOURCES
     ui/advance/scripttool.cpp ui/advance/scripttool.h
     ui/advance/serialportdebugdialog.cpp ui/advance/serialportdebugdialog.h
     ui/advance/DeviceSelectorDialog.cpp ui/advance/DeviceSelectorDialog.h
+    ui/advance/devicediagnosticsdialog.cpp ui/advance/devicediagnosticsdialog.h
+    ui/advance/diagnostics/diagnosticsmanager.cpp ui/advance/diagnostics/diagnosticsmanager.h ui/advance/diagnostics/diagnostics_constants.h
     ui/advance/envdialog.cpp ui/advance/envdialog.h ui/advance/envdialog.ui
     ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
     ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h

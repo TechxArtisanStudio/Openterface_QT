@@ -42,6 +42,7 @@
 #include "ui/advance/firmwareupdatedialog.h"
 #include "ui/advance/envdialog.h"
 #include "ui/advance/updatedisplaysettingsdialog.h"
+#include "ui/advance/devicediagnosticsdialog.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -891,15 +892,14 @@ void MainWindow::displayCameraError()
 
 void MainWindow::stop(){
     qDebug() << "Stop camera data...";
-    disconnect(m_camera.data());
-    qDebug() << "Camera data stopped.";
-    m_audioManager->disconnect();
-    qDebug() << "Audio manager stopped.";
-
-    m_captureSession.disconnect();
-
+    // Note: Do NOT use wildcard disconnect() calls as they cause crashes during shutdown
+    // when trying to disconnect from destroyed signals on partially-destroyed objects.
+    // Qt will handle signal disconnections automatically when objects are destroyed.
+    
+    qDebug() << "Stopping camera manager...";
     m_cameraManager->stopCamera();
 
+    qDebug() << "Closing serial port...";
     SerialPortManager::getInstance().closePort();
 
     qDebug() << "Camera stopped.";
@@ -931,8 +931,10 @@ void MainWindow::imageSaved(int id, const QString &fileName)
     ui->statusbar->showMessage(tr("Captured \"%1\"").arg(QDir::toNativeSeparators(fileName)));
 
     m_isCapturingImage = false;
-    if (m_applicationExiting)
-        close();
+    if (m_applicationExiting) {
+        qDebug() << "Image saved during shutdown, quitting application...";
+        QApplication::quit();
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -942,7 +944,60 @@ void MainWindow::closeEvent(QCloseEvent *event)
         m_applicationExiting = true;
         event->ignore();
     } else {
+        qCDebug(log_ui_mainwindow) << "MainWindow closeEvent - initiating shutdown";
         event->accept();
+        
+        // Set shutdown flag first to signal all threads to stop
+        g_applicationShuttingDown.storeRelease(1);
+        
+        // Call stop() to properly clean up camera, audio, and serial port
+        qCDebug(log_ui_mainwindow) << "Calling stop() to clean up resources";
+        stop();
+        
+        // Stop threads in safe order
+        qCDebug(log_ui_mainwindow) << "Stopping background threads";
+        
+        // Stop HID thread first before other cleanup
+        if (m_initializer && m_initializer->getHidThread()) {
+            qCDebug(log_ui_mainwindow) << "Stopping HID thread";
+            if (m_initializer->getHidThread()->isRunning()) {
+                m_initializer->getHidThread()->quit();
+                if (!m_initializer->getHidThread()->wait(1000)) {
+                    qCWarning(log_ui_mainwindow) << "HID thread did not finish cleanly, terminating";
+                    m_initializer->getHidThread()->terminate();
+                    m_initializer->getHidThread()->wait(500);
+                }
+            }
+        }
+        
+        // Stop video HID
+        try {
+            VideoHid::getInstance().stop();
+        } catch (...) {
+            qCWarning(log_ui_mainwindow) << "Exception while stopping VideoHid";
+        }
+        
+        // Stop serial port manager
+        try {
+            SerialPortManager::getInstance().stop();
+        } catch (...) {
+            qCWarning(log_ui_mainwindow) << "Exception while stopping SerialPortManager";
+        }
+        
+        // Stop audio manager last
+        try {
+            AudioManager::getInstance().stop();
+        } catch (...) {
+            qCWarning(log_ui_mainwindow) << "Exception while stopping AudioManager";
+        }
+        
+        qCDebug(log_ui_mainwindow) << "All threads stopped, processing pending events before quit";
+        
+        // Process any pending events to allow deleteLater() to work before quit
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+        
+        // Trigger application quit
+        QTimer::singleShot(0, qApp, &QApplication::quit);
     }
 }
 
@@ -1247,7 +1302,7 @@ void MainWindow::handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree) {
 
 MainWindow::~MainWindow()
 {
-    qCDebug(log_ui_mainwindow) << "MainWindow destructor called";
+    qDebug() << "MainWindow destructor called";
     
     // Set global shutdown flag to prevent Qt Multimedia operations
     g_applicationShuttingDown.storeRelease(1);
@@ -1288,48 +1343,48 @@ MainWindow::~MainWindow()
     // No need to process events or sleep - let cleanup happen naturally
     // Audio manager uses proper threading internally
     
-    // 2. Stop camera operations and disconnect signals
+    // 2. Stop camera operations - do NOT call disconnect() as it causes crashes
     if (m_cameraManager) {
-        disconnect(m_cameraManager);
+        // Note: threads should already be stopped in closeEvent, so just clean up here
         m_cameraManager->stopCamera();
-        m_cameraManager->deleteLater();
+        delete m_cameraManager;
         m_cameraManager = nullptr;
     }
     
-    // 3. Clean up managers in dependency order
+    // 3. Clean up managers in dependency order - use direct delete in destructor
     if (m_versionInfoManager) {
-        m_versionInfoManager->deleteLater();
+        delete m_versionInfoManager;
         m_versionInfoManager = nullptr;
         qCDebug(log_ui_mainwindow) << "m_versionInfoManager destroyed successfully";
     }
     
     if (m_screenSaverManager) {
-        m_screenSaverManager->deleteLater();
+        delete m_screenSaverManager;
         m_screenSaverManager = nullptr;
         qCDebug(log_ui_mainwindow) << "m_screenSaverManager destroyed successfully";
     }
     
     if (m_cornerWidgetManager) {
-        m_cornerWidgetManager->deleteLater();
+        delete m_cornerWidgetManager;
         m_cornerWidgetManager = nullptr;
         qCDebug(log_ui_mainwindow) << "m_cornerWidgetManager destroyed successfully";
     }
 
     if (m_windowControlManager) {
         m_windowControlManager->setAutoHideEnabled(false); // Disable before cleanup
-        m_windowControlManager->deleteLater();
+        delete m_windowControlManager;
         m_windowControlManager = nullptr;
         qCDebug(log_ui_mainwindow) << "m_windowControlManager destroyed successfully";
     }
 
     if (m_screenScaleDialog) {
-        m_screenScaleDialog->deleteLater();
+        delete m_screenScaleDialog;
         m_screenScaleDialog = nullptr;
         qCDebug(log_ui_mainwindow) << "m_screenScaleDialog destroyed successfully";
     }
 
     if (firmwareManagerDialog) {
-        firmwareManagerDialog->deleteLater();
+        delete firmwareManagerDialog;
         firmwareManagerDialog = nullptr;
         qCDebug(log_ui_mainwindow) << "firmwareManagerDialog destroyed successfully";
     }
@@ -1346,57 +1401,60 @@ MainWindow::~MainWindow()
     }
     
     if (stackedLayout) {
-        stackedLayout->deleteLater();
+        delete stackedLayout;
         stackedLayout = nullptr;
     }
     
-    // 5. Clean up other components
+    // 5. Clean up other components - use direct delete in destructor
     if (mouseEdgeTimer) {
         mouseEdgeTimer->stop();
-        mouseEdgeTimer->deleteLater();
+        delete mouseEdgeTimer;
         mouseEdgeTimer = nullptr;
         qCDebug(log_ui_mainwindow) << "mouseEdgeTimer destroyed successfully";
     }
     
     if (toolbarManager) {
-        toolbarManager->deleteLater();
+        delete toolbarManager;
         toolbarManager = nullptr;
         qCDebug(log_ui_mainwindow) << "toolbarManager destroyed successfully";
     }
     
     if (toggleSwitch) {
-        toggleSwitch->deleteLater();
+        delete toggleSwitch;
         toggleSwitch = nullptr;
         qCDebug(log_ui_mainwindow) << "toggleSwitch destroyed successfully";
     }
     
     // Clean up image capturer
-    if (m_imageCapturer) {
-        m_imageCapturer->stopCapturing();
-        m_imageCapturer->deleteLater();
-        m_imageCapturer = nullptr;
-        qCDebug(log_ui_mainwindow) << "m_imageCapturer destroyed successfully";
-    }
+    // if (m_imageCapturer) {
+    //     m_imageCapturer->stopCapturing();
+    //     delete m_imageCapturer;
+    //     m_imageCapturer = nullptr;
+    //     qCDebug(log_ui_mainwindow) << "m_imageCapturer destroyed successfully";
+    // }else{
+    //     qCDebug(log_ui_mainwindow) << "m_imageCapturer was already null in destructor";
+    // }
     
     if (m_audioManager) {
         // AudioManager is now a singleton, and we already disconnected it above
         // Just clear the reference here
         m_audioManager = nullptr;
         qCDebug(log_ui_mainwindow) << "m_audioManager reference cleared successfully (already disconnected)";
+    }else{
+        qCDebug(log_ui_mainwindow) << "m_audioManager was already null in destructor";
     }
     
-    // 6. Clean up static instances (but skip AudioManager since it's already stopped)
-    if (m_initializer && m_initializer->getHidThread()) {
-        m_initializer->getHidThread()->quit();
-        m_initializer->getHidThread()->wait(3000); // Wait up to 3 seconds for thread to finish
+    // 6. Clean up static instances
+    // Note: Threads should already be stopped in closeEvent, so don't call wait() here
+    // to avoid hangs. Just clean up the initializer reference.
+    if (m_initializer) {
+        delete m_initializer;
+        m_initializer = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_initializer cleaned up successfully";
     }
-    VideoHid::getInstance().stop();
-    // AudioManager::getInstance().stop(); // Already stopped above to prevent double cleanup
-    SerialPortManager::getInstance().stop();
     
-    // Delete initializer
-    delete m_initializer;
-    m_initializer = nullptr;
+    // These singletons should already be stopped in closeEvent
+    // Don't call them again here to avoid hangs
     
     // 7. Delete UI last
     if (ui) {
@@ -1564,4 +1622,60 @@ void MainWindow::showUpdateDisplaySettingsDialog() {
         updateDisplaySettingsDialog->raise();
         updateDisplaySettingsDialog->activateWindow();
     }
+}
+
+void MainWindow::showHardwareDiagnostics() {
+    qCDebug(log_ui_mainwindow) << "Opening hardware diagnostics dialog";
+    
+    DeviceDiagnosticsDialog* diagnosticsDialog = new DeviceDiagnosticsDialog(this);
+    
+    // Connect signals for backend test implementation
+    connect(diagnosticsDialog, &DeviceDiagnosticsDialog::testStarted, 
+            [this](int testIndex) {
+        qCDebug(log_ui_mainwindow) << "Hardware test started, index:" << testIndex;
+        
+        // TODO: Implement actual test logic based on testIndex
+        // For now, we'll simulate tests with existing functionality
+        switch (testIndex) {
+            case 0: // Overall Connection
+                // Test overall device connection
+                break;
+            case 1: // Target Plug & Play
+                // Test target device plug & play
+                break;
+            case 2: // Host Plug & Play  
+                // Test host device plug & play
+                break;
+            case 3: // Serial Connection
+                // Test serial communication
+                if (m_deviceCoordinator) {
+                    // Use existing device coordination for serial testing
+                }
+                break;
+            case 4: // Factory Reset
+                // Trigger factory reset test (similar to existing factory reset)
+                break;
+            case 5: // High Baudrate
+                // Test high baudrate communication
+                break;
+            case 6: // Stress Test
+                // Perform hardware stress test
+                break;
+        }
+    });
+    
+    connect(diagnosticsDialog, &DeviceDiagnosticsDialog::testCompleted,
+            [this](int testIndex, bool success) {
+        qCDebug(log_ui_mainwindow) << "Hardware test completed - Index:" << testIndex 
+                                  << "Success:" << success;
+    });
+    
+    connect(diagnosticsDialog, &DeviceDiagnosticsDialog::diagnosticsCompleted,
+            [this]() {
+        qCDebug(log_ui_mainwindow) << "All hardware diagnostics completed";
+        // Optional: Show completion notification
+        this->popupMessage("Hardware diagnostics completed!");
+    });
+    
+    diagnosticsDialog->show();
 }

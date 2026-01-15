@@ -49,6 +49,10 @@ SOURCES += main.cpp \
     scripts/scriptRunner.cpp \
     scripts/scriptExecutor.cpp \
     serial/SerialPortManager.cpp \
+    serial/SerialCommandCoordinator.cpp \
+    serial/SerialStateManager.cpp \
+    serial/SerialStatistics.cpp \
+    serial/SerialFacade.cpp \
     server/tcpServer.cpp \
     target/KeyboardLayouts.cpp \
     target/KeyboardManager.cpp \
@@ -74,6 +78,7 @@ SOURCES += main.cpp \
     ui/advance/scripttool.cpp \
     ui/advance/serialportdebugdialog.cpp \
     ui/advance/DeviceSelectorDialog.cpp \
+    ui/advance/devicediagnosticsdialog.cpp \
     ui/advance/envdialog.cpp \
     ui/advance/firmwareupdatedialog.cpp \
     ui/advance/firmwaremanagerdialog.cpp \
@@ -160,6 +165,10 @@ HEADERS  += \
     scripts/scriptRunner.h \
     scripts/scriptExecutor.h \
     serial/SerialPortManager.h \
+    serial/SerialCommandCoordinator.h \
+    serial/SerialStateManager.h \
+    serial/SerialStatistics.h \
+    serial/SerialFacade.h \
     serial/ch9329.h \
     server/tcpServer.h \
     target/KeyboardLayouts.h \
@@ -191,6 +200,7 @@ HEADERS  += \
     ui/advance/scripttool.h \
     ui/advance/serialportdebugdialog.h \
     ui/advance/DeviceSelectorDialog.h \
+    ui/advance/devicediagnosticsdialog.h \
     ui/advance/envdialog.h \
     ui/advance/firmwareupdatedialog.h \
     ui/advance/firmwaremanagerdialog.h \
