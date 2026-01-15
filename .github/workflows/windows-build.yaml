@@ -50,13 +50,14 @@ env:
   PACKAGE_DIR: "package_online"
   EXE_NAME: "openterfaceQT.exe"
 
+permissions:
+  contents: write
+  actions: write
+  workflows: write
+
 jobs:
   build:
     runs-on: windows-2022
-    permissions:
-      contents: write
-      actions: write
-      workflows: write
     environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
     
     steps:
