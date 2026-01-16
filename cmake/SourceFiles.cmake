@@ -145,9 +145,11 @@ set(TARGET_SOURCES
 # Video sources
 set(VIDEO_SOURCES
     video/videohid.cpp video/videohid.h
+    video/platformhidadapter.cpp video/platformhidadapter.h
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/firmwarereader.cpp video/firmwarereader.h
     video/ms2109.h
+    video/videohidchip.cpp video/videohidchip.h
 )
 
 # UI core sources

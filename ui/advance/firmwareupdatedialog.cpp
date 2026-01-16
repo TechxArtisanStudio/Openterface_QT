@@ -60,21 +60,38 @@ void FirmwareUpdateDialog::onProgressTimerTimeout()
     }
 }
 
+void FirmwareUpdateDialog::beginLoad()
+{
+    // Kick off the firmware write operation
+    VideoHid::getInstance().loadFirmwareToEeprom();
+}
+
+#include <QCoreApplication>
+
 bool FirmwareUpdateDialog::startUpdate()
 {
     statusLabel->setText(tr("Updating firmware... Please do not disconnect the device."));
 
+    // Connect signals before starting
     connect(&VideoHid::getInstance(), &VideoHid::firmwareWriteProgress, this, &FirmwareUpdateDialog::updateProgress);
     connect(&VideoHid::getInstance(), &VideoHid::firmwareWriteComplete, this, &FirmwareUpdateDialog::updateComplete);
-    VideoHid::getInstance().loadFirmwareToEeprom();
-    
+
+    // Show the dialog first so the user sees it immediately, then start the firmware load
+    // on the next event loop iteration to ensure the UI is visible before the write starts.
+    this->show();
+    QTimer::singleShot(0, this, &FirmwareUpdateDialog::beginLoad);
+
     exec();
     return updateResult;
 }
 
 void FirmwareUpdateDialog::updateProgress(int value)
 {
+    // Update value
     progressBar->setValue(value);
+    // Force an immediate repaint so progress is visible even if heavy work is blocking
+    progressBar->repaint();
+    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 }
 
 void FirmwareUpdateDialog::updateComplete(bool success)
