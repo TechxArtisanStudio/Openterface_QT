@@ -49,6 +49,11 @@
     </screenshots>
 
     <releases>
+        <release version="0.5.11" date="2025-01-15">
+            <description>
+                <p>Hotfix hardware diagnostics issues.</p>
+            </description>
+        </release>
         <release version="0.5.10" date="2025-01-12">
             <description>
                 <p>Add the hardware diagnostics feature.</p>
