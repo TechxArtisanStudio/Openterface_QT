@@ -1004,20 +1004,35 @@ void LinuxDeviceManager::findAndAssociateInterfaceDevicesLinux(DeviceInfo& devic
                 if (vid && pid) {
                     QString deviceVidStr = QString(vid).toUpper();
                     QString devicePidStr = QString(pid).toUpper();
-                    
-                    // Check if this HID device belongs to our companion device (Gen2 VID/PID)
-                    if (deviceVidStr == AbstractPlatformDeviceManager::OPENTERFACE_VID_V2.toUpper() && 
-                        devicePidStr == AbstractPlatformDeviceManager::OPENTERFACE_PID_V2.toUpper()) {
-                        
+
+                    // Check if this HID device belongs to our companion device (Gen1/Gen2/Gen3 VID/PID)
+                    if ((deviceVidStr == AbstractPlatformDeviceManager::OPENTERFACE_VID_V2.toUpper() &&
+                         devicePidStr == AbstractPlatformDeviceManager::OPENTERFACE_PID_V2.toUpper()) ||
+                        (deviceVidStr == AbstractPlatformDeviceManager::OPENTERFACE_VID_V3.toUpper() &&
+                         devicePidStr == AbstractPlatformDeviceManager::OPENTERFACE_PID_V3.toUpper()) ||
+                        (deviceVidStr == AbstractPlatformDeviceManager::OPENTERFACE_VID.toUpper() &&
+                         devicePidStr == AbstractPlatformDeviceManager::OPENTERFACE_PID.toUpper())) {
+
                         QString devicePortChain = extractPortChainFromSyspath(QString(udev_device_get_syspath(usb_device)));
-                        
+
                         // Check if this HID device is from the same companion device
                         if (devicePortChain == companionDevice.portChain) {
                             QString devNode = hidrawDevice.properties.value("DEVNAME").toString();
                             if (!devNode.isEmpty()) {
                                 deviceInfo.hidDevicePath = devNode;
                                 deviceInfo.hidDeviceId = hidrawDevice.syspath;
-                                qCDebug(log_device_linux) << "Found Gen2 HID device:" << devNode << "for companion device";
+                                qCDebug(log_device_linux) << QString("Found HID device (VID:PID %1:%2):").arg(deviceVidStr, devicePidStr) << devNode << "for companion device";
+                            }
+                        }
+                    } else {
+                        // Fallback: when VID/PID don't match expected constants, still try port-chain match
+                        QString devicePortChain = extractPortChainFromSyspath(QString(udev_device_get_syspath(usb_device)));
+                        if (devicePortChain == companionDevice.portChain) {
+                            QString devNode = hidrawDevice.properties.value("DEVNAME").toString();
+                            if (!devNode.isEmpty() && deviceInfo.hidDevicePath.isEmpty()) {
+                                deviceInfo.hidDevicePath = devNode;
+                                deviceInfo.hidDeviceId = hidrawDevice.syspath;
+                                qCDebug(log_device_linux) << "Found HID device by port match (fallback):" << devNode << "for companion device";
                             }
                         }
                     }
