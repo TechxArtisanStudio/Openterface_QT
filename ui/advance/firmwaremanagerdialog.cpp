@@ -54,8 +54,8 @@ FirmwareManagerDialog::~FirmwareManagerDialog() {
 QByteArray FirmwareManagerDialog::readBinFileToByteArray(const QString &filePath){
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly)) {
-        qWarning("Can't open bin file");
-        return NULL;
+        qWarning() << "Can't open bin file:" << filePath;
+        return QByteArray();
     }
     QByteArray byteArray = file.readAll();
     return byteArray;
@@ -76,9 +76,9 @@ void FirmwareManagerDialog::onWriteFirmwareFromFileClick() {
 
     QWidget *mainWindow = this->parentWidget();
     if (mainWindow){
-        VideoHid::getInstance().stop();
-        SerialPortManager::getInstance().stop();
-        mainWindow->close();
+        // Keep VideoHid running - stopping it would stop the device thread and prevent the write.
+        // Hide the main window while the write operation runs.
+        mainWindow->hide();
     }
 
 
@@ -87,11 +87,17 @@ void FirmwareManagerDialog::onWriteFirmwareFromFileClick() {
     progressDialog->setWindowModality(Qt::WindowModal);
     progressDialog->setAutoClose(false);
     progressDialog->setAutoReset(false);
+    // Ensure it appears immediately rather than waiting for the default minimum duration
+    progressDialog->setMinimumDuration(0);
     progressDialog->show();
+    // Ensure the progress bar starts at 0
+    progressDialog->setValue(0);
 
     // Create the FirmwareWriter
     QThread* thread = new QThread();
-    FirmwareWriter* worker = new FirmwareWriter(&VideoHid::getInstance(), ADDR_EEPROM, firmware, this);
+    // Do NOT set a GUI parent on the worker; moving a QObject with a GUI-thread parent
+    // into another thread can cause crashes. Use nullptr here.
+    FirmwareWriter* worker = new FirmwareWriter(&VideoHid::getInstance(), ADDR_EEPROM, firmware, nullptr);
     worker->moveToThread(thread);
 
     // Connect signals for progress, completion, and error handling
@@ -105,26 +111,36 @@ void FirmwareManagerDialog::onWriteFirmwareFromFileClick() {
             "Please:\n"
             "1. Restart the application\n"
             "2. Disconnect and reconnect all cables"));
+            progressDialog->deleteLater();
+            progressDialog = nullptr;
             QApplication::quit();
+            return;
         } else {
+            // Show main window so user can try again
+            if (mainWindow) {
+                mainWindow->show();
+            }
             QMessageBox::critical(this, tr("Error"), tr("Failed to write firmware to EEPROM\n"
             "Please try again"));
         }
         progressDialog->deleteLater();
         progressDialog = nullptr;
     });
-    connect(worker, &FirmwareWriter::finished, thread, &QThread::quit);
-    connect(worker, &FirmwareWriter::finished, worker, &FirmwareWriter::deleteLater);
-    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     connect(progressDialog, &QProgressDialog::canceled, this, [=]() {
         thread->requestInterruption();
         thread->quit();
         thread->wait();
         progressDialog->deleteLater();
         progressDialog = nullptr;
+        // Show main window when cancelled
+        if (mainWindow) {
+            mainWindow->show();
+        }
         QMessageBox::warning(this, tr("Cancelled"), tr("Firmware write operation was cancelled"));
     });
-
+    connect(worker, &FirmwareWriter::finished, thread, &QThread::quit);
+    connect(worker, &FirmwareWriter::finished, worker, &FirmwareWriter::deleteLater);
+    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
     thread->start();
 }
 
@@ -165,9 +181,9 @@ void FirmwareManagerDialog::onReadFromFileClicked() {
 
     QWidget *mainWindow = this->parentWidget();
     if (mainWindow){
-        VideoHid::getInstance().stop();
-        SerialPortManager::getInstance().stop();
-        mainWindow->close();
+        // Keep VideoHid running - stopping it would stop the device thread and prevent the read.
+        // Hide the main window to provide a full-screen modal experience while the read runs.
+        mainWindow->hide();
     }
 
     // Create and configure the progress dialog
@@ -175,12 +191,18 @@ void FirmwareManagerDialog::onReadFromFileClicked() {
     progressDialog->setWindowModality(Qt::WindowModal);
     progressDialog->setAutoClose(false);
     progressDialog->setAutoReset(false);
+    // Ensure it appears immediately rather than waiting for the default minimum duration
+    progressDialog->setMinimumDuration(0);
     progressDialog->show();
+    // Ensure the progress bar starts at 0
+    progressDialog->setValue(0);
 
     // Create the FirmwareReader
     quint32 firmwareSize = VideoHid::getInstance().readFirmwareSize();
     QThread* thread = new QThread();
-    FirmwareReader* worker = new FirmwareReader(&VideoHid::getInstance(), ADDR_EEPROM, firmwareSize, path, this);
+    // Do NOT set a GUI parent on the worker; moving a QObject with a GUI-thread parent
+    // into another thread can cause crashes. Use nullptr here.
+    FirmwareReader* worker = new FirmwareReader(&VideoHid::getInstance(), ADDR_EEPROM, firmwareSize, path, nullptr);
     worker->moveToThread(thread);
 
     // Connect signals for progress, completion, and error handling
@@ -188,6 +210,10 @@ void FirmwareManagerDialog::onReadFromFileClicked() {
     connect(worker, &FirmwareReader::progress, progressDialog, &QProgressDialog::setValue);
     connect(worker, &FirmwareReader::finished, this, [=](bool success) {
         progressDialog->setValue(100); // Ensure progress bar reaches 100% on completion
+        // Show main window
+        if (mainWindow) {
+            mainWindow->show();
+        }
         if (success) {
             QMessageBox::information(this, "Success", "Firmware read and saved successfully to: " + path +"\nYou can restart the app or wirte the firmware");
         } else {
@@ -197,6 +223,10 @@ void FirmwareManagerDialog::onReadFromFileClicked() {
         progressDialog = nullptr;
     });
     connect(worker, &FirmwareReader::error, this, [=](const QString& errorMessage) {
+        // Show main window on error
+        if (mainWindow) {
+            mainWindow->show();
+        }
         QMessageBox::critical(this, "Error", errorMessage);
         progressDialog->deleteLater();
         progressDialog = nullptr;
@@ -208,6 +238,10 @@ void FirmwareManagerDialog::onReadFromFileClicked() {
         thread->requestInterruption();
         thread->quit();
         thread->wait();
+        // Show main window when cancelled
+        if (mainWindow) {
+            mainWindow->show();
+        }
         progressDialog->deleteLater();
         progressDialog = nullptr;
         QMessageBox::warning(this, "Cancelled", "Firmware read operation was cancelled.");
