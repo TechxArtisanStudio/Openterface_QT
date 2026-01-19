@@ -601,6 +601,22 @@ VideoChipType DeviceManager::getChipTypeForDevice(const DeviceInfo& device)
         }
     }
 
+    // Linux/other: check platformSpecific VID/PID (e.g., udev) if device.vid/pid not set
+    if (device.platformSpecific.contains("VID") && device.platformSpecific.contains("PID")) {
+        QString pvid = device.platformSpecific.value("VID").toString().toUpper();
+        QString ppid = device.platformSpecific.value("PID").toString().toUpper();
+        qCDebug(log_device_manager) << "Platform-specific VID/PID:" << pvid << ppid;
+        if (pvid == OPENTERFACE_VID.toUpper() && ppid == OPENTERFACE_PID.toUpper()) {
+            return VideoChipType::MS2109;
+        }
+        if (pvid == OPENTERFACE_VID_V2.toUpper() && ppid == OPENTERFACE_PID_V2.toUpper()) {
+            return VideoChipType::MS2130S;
+        }
+        if (pvid == OPENTERFACE_VID_V3.toUpper() && ppid == OPENTERFACE_PID_V3.toUpper()) {
+            return VideoChipType::MS2109S;
+        }
+    }
+
     // Inspect device paths and IDs for VID/PID hints
     auto matchPaths = [&](const QString& p) -> VideoChipType {
         if (p.isEmpty()) return VideoChipType::UNKNOWN;
