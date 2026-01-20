@@ -1437,7 +1437,40 @@ void GStreamerBackendHandler::setResolutionAndFramerate(const QSize& resolution,
 
 void GStreamerBackendHandler::updateVideoRenderRectangle(const QSize& widgetSize)
 {
-    updateVideoRenderRectangle(0, 0, widgetSize.width(), widgetSize.height());
+    // Calculate scaling based on viewport size vs original video resolution
+    if (widgetSize.width() <= 0 || widgetSize.height() <= 0) {
+        qCDebug(log_gstreamer_backend) << "Invalid widget size, using render rectangle at 0,0," << widgetSize.width() << widgetSize.height();
+        updateVideoRenderRectangle(0, 0, widgetSize.width(), widgetSize.height());
+        return;
+    }
+
+    // Scale video to fill the viewport - calculate dimensions to maintain aspect ratio
+    double videoAspect = (double)m_currentResolution.width() / m_currentResolution.height();
+    double viewportAspect = (double)widgetSize.width() / widgetSize.height();
+    
+    int scaledWidth = widgetSize.width();
+    int scaledHeight = widgetSize.height();
+    
+    // If video is wider than viewport, scale down height; otherwise scale down width
+    if (videoAspect > viewportAspect) {
+        // Video is wider - scale to fit width, center vertically
+        scaledHeight = (int)(widgetSize.width() / videoAspect);
+    } else {
+        // Video is taller - scale to fit height, center horizontally
+        scaledWidth = (int)(widgetSize.height() * videoAspect);
+    }
+    
+    // Center the scaled video in the viewport
+    int offsetX = (widgetSize.width() - scaledWidth) / 2;
+    int offsetY = (widgetSize.height() - scaledHeight) / 2;
+    
+    qCDebug(log_gstreamer_backend) << "Calculated viewport-based scaling:"
+                                   << "viewport:" << widgetSize
+                                   << "videoRes:" << m_currentResolution
+                                   << "scaledSize:" << QSize(scaledWidth, scaledHeight)
+                                   << "offset:" << offsetX << offsetY;
+    
+    updateVideoRenderRectangle(offsetX, offsetY, scaledWidth, scaledHeight);
 }
 
 void GStreamerBackendHandler::updateVideoRenderRectangle(int x, int y, int width, int height)
