@@ -54,6 +54,8 @@ private:
     bool performFactoryResetTest();
     void startHighBaudrateTest();
     bool performHighBaudrateTest();
+    void startLowBaudrateTest();
+    bool performLowBaudrateTest();
     void startStressTest();
     void onStressTestTimeout();
     void finishStressTest();

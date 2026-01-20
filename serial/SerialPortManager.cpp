@@ -51,7 +51,7 @@ const int SerialPortManager::DEFAULT_BAUDRATE;
 const int SerialPortManager::SERIAL_TIMER_INTERVAL;
 
 SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialPort(nullptr), m_serialWorkerThread(new QThread(nullptr)), serialTimer(new QTimer(nullptr)),
-    m_connectionWatchdog(nullptr), m_errorRecoveryTimer(nullptr), m_usbStatusCheckTimer(nullptr){
+    m_connectionWatchdog(nullptr), m_errorRecoveryTimer(nullptr), m_usbStatusCheckTimer(nullptr), m_getInfoTimer(nullptr){
     qCDebug(log_core_serial) << "Initialize serial port.";
 
     // Set name for the serial worker thread for better logging
@@ -146,15 +146,9 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     
     // Connect protocol layer signals to SerialPortManager
     connect(m_protocol.get(), &SerialProtocol::getInfoReceived, this, [this](bool targetConnected, uint8_t indicators) {
-        // Update state manager
-        if (m_stateManager) {
-            m_stateManager->setTargetUsbConnected(targetConnected);
-            m_stateManager->updateKeyStates(indicators);
-        } else {
             // Fallback - direct emission
             emit targetUSBStatus(targetConnected);
             updateSpecialKeyState(indicators);
-        }
     });
     connect(m_protocol.get(), &SerialProtocol::usbSwitchStatusReceived, this, &SerialPortManager::usbStatusChanged);
     connect(m_protocol.get(), &SerialProtocol::paramConfigReceived, this, [this](int baudrate, uint8_t mode) {
@@ -180,12 +174,15 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
         m_connectionWatchdog = new QTimer(this);
         m_errorRecoveryTimer = new QTimer(this);
         m_usbStatusCheckTimer = new QTimer(this);
+        m_getInfoTimer = new QTimer(this);
         
         m_connectionWatchdog->setSingleShot(true);
         m_errorRecoveryTimer->setSingleShot(true);
         m_usbStatusCheckTimer->setInterval(2000);  // Check every 2 seconds
+        m_getInfoTimer->setInterval(3000);  // Send GET_INFO every 3 seconds
         
         connect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
+        connect(m_getInfoTimer, &QTimer::timeout, this, &SerialPortManager::onGetInfoTimeout);
         
         setupConnectionWatchdog();
         
@@ -830,6 +827,16 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
         qCDebug(log_core_serial) << "Started USB status check timer for CH32V208";
     }
 
+    // Start GET_INFO timer for periodic status updates
+    if (m_getInfoTimer) {
+        if (QThread::currentThread() == m_getInfoTimer->thread()) {
+            m_getInfoTimer->start();
+        } else {
+            QMetaObject::invokeMethod(m_getInfoTimer, "start", Qt::QueuedConnection);
+        }
+        qCDebug(log_core_serial) << "Started periodic GET_INFO timer";
+    }
+
     sendAsyncCommand(CMD_GET_INFO, true);
 }
 
@@ -974,6 +981,15 @@ void SerialPortManager::onUsbStatusCheckTimeout() {
 
     sendAsyncCommand(CMD_CHECK_USB_STATUS, true);
     qCDebug(log_core_serial) << "Sent USB status check command asynchronously";
+}
+
+void SerialPortManager::onGetInfoTimeout() {
+    if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
+        return;  // Skip if shutting down or port not open
+    }
+
+    sendAsyncCommand(CMD_GET_INFO, true);
+    qCDebug(log_core_serial) << "Sent periodic GET_INFO command asynchronously";
 }
 
 /*
@@ -2260,6 +2276,13 @@ void SerialPortManager::stopConnectionWatchdog()
             m_usbStatusCheckTimer->stop();
         } else {
             QMetaObject::invokeMethod(m_usbStatusCheckTimer, "stop", Qt::QueuedConnection);
+        }
+    }
+    if (m_getInfoTimer) {
+        if (QThread::currentThread() == m_getInfoTimer->thread()) {
+            m_getInfoTimer->stop();
+        } else {
+            QMetaObject::invokeMethod(m_getInfoTimer, "stop", Qt::QueuedConnection);
         }
     }
 }

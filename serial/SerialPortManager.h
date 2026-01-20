@@ -270,6 +270,7 @@ private slots:
     void onSerialPortDisconnected(const QString &portName);
     void onSerialPortConnectionSuccess(const QString &portName);
     void onUsbStatusCheckTimeout();  // New slot for USB status check timer
+    void onGetInfoTimeout();  // New slot for periodic GET_INFO requests
     
     
 private:
@@ -344,6 +345,7 @@ private:
     QTimer* m_connectionWatchdog;
     QTimer* m_errorRecoveryTimer;
     QTimer* m_usbStatusCheckTimer;
+    QTimer* m_getInfoTimer;  // Timer for periodic GET_INFO requests
     QMutex m_serialPortMutex;
     QQueue<QByteArray> m_commandQueue;
     QMutex m_commandQueueMutex;

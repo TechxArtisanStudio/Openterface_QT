@@ -590,7 +590,7 @@ void DeviceDiagnosticsDialog::updateConnectionSvg()
             }
             break;
             
-        default:  // All other tests (3-6): always H1T1V1
+        default:  // All other tests (3-7): always H1T1V1
             svgPath = ":/images/H1T1V1.svg";
             break;
     }

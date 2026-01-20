@@ -241,6 +241,12 @@ void MainWindowInitializer::connectDeviceManagerSignals()
     qCDebug(log_ui_mainwindowinitializer) << "Connecting device manager signals...";
     m_statusBarManager = new StatusBarManager(m_ui->statusbar, m_mainWindow);
     m_mainWindow->m_statusBarManager = m_statusBarManager;
+
+    // Connect SerialPortManager signals directly to StatusBarManager (thread-safe)
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::targetUSBStatus,
+            m_statusBarManager, &StatusBarManager::setTargetUsbConnected, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::keyStatesChanged,
+            m_statusBarManager, &StatusBarManager::setKeyStates, Qt::QueuedConnection);
     
     DeviceManager& deviceManager = DeviceManager::getInstance();
     HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
