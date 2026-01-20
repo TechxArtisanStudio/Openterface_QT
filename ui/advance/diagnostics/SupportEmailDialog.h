@@ -13,8 +13,11 @@ class SupportEmailDialog : public QDialog {
     Q_OBJECT
 
 public:
-    explicit SupportEmailDialog(const QStringList& failedTests, const QString& logFilePath, bool diagnosticsCompleted, QWidget* parent = nullptr);
+    explicit SupportEmailDialog(const QStringList& failedTests, const QString& diagnosticsLogFilePath, const QString& serialLogFilePath, bool diagnosticsCompleted, QWidget* parent = nullptr);
     ~SupportEmailDialog();
+
+private:
+    QString m_serialLogFilePath; 
 
 private slots:
     void onApplyClicked();

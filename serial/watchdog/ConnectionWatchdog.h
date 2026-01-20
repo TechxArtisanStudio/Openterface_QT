@@ -30,7 +30,7 @@
 #include <atomic>
 #include <functional>
 
-Q_DECLARE_LOGGING_CATEGORY(log_watchdog)
+Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
 /**
  * @brief Connection state enumeration

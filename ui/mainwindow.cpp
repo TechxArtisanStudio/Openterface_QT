@@ -1568,13 +1568,21 @@ void MainWindow::updateFirmware() {
                 VideoHid::getInstance().stop();
                 SerialPortManager::getInstance().stop();
                 stop();
-                
-                close();
-                // Create and show firmware update dialog
+
+                // Hide main window while update dialog runs to keep app alive and allow dialog to control shutdown
+                this->hide();
+                // Create and show firmware update dialog (capture result to restore main window on failure)
                 FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
-                updateDialog->startUpdate();
-                // The application will be closed by the dialog if the update is successful
+                bool success = updateDialog->startUpdate();
                 updateDialog->deleteLater();
+
+                // If update failed, restore main window so user can retry
+                if (!success) {
+                    this->show();
+                }else{
+                    qDebug() << "Firmware updated successfully, closing main window.";
+                    this->close(); // Close main window on successful update
+                }
             }
             break;
         case FirmwareResult::Timeout:

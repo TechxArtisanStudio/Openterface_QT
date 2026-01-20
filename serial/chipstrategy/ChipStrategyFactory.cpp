@@ -23,7 +23,8 @@
 #include "ChipStrategyFactory.h"
 #include <QDebug>
 
-Q_LOGGING_CATEGORY(log_chip_factory, "opf.chip.factory")
+// Declare the unified serial logging category (defined in SerialPortManager.cpp)
+Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
 ChipTypeId ChipStrategyFactory::detectChipType(const QString& portName)
 {
@@ -37,16 +38,16 @@ ChipTypeId ChipStrategyFactory::detectChipType(const QString& portName)
             QString vidStr = QString("%1").arg(vid, 4, 16, QChar('0')).toUpper();
             QString pidStr = QString("%1").arg(pid, 4, 16, QChar('0')).toUpper();
             
-            qCDebug(log_chip_factory) << "Detected VID:PID =" << vidStr << ":" << pidStr 
+            qCDebug(log_core_serial) << "Detected VID:PID =" << vidStr << ":" << pidStr 
                                       << "for port" << portName;
             
             uint32_t detectedVidPid = (static_cast<uint32_t>(vid) << 16) | pid;
             
             if (detectedVidPid == static_cast<uint32_t>(ChipTypeId::CH9329)) {
-                qCInfo(log_chip_factory) << "Detected CH9329 chip for port" << portName;
+                qCInfo(log_core_serial) << "Detected CH9329 chip for port" << portName;
                 return ChipTypeId::CH9329;
             } else if (detectedVidPid == static_cast<uint32_t>(ChipTypeId::CH32V208)) {
-                qCInfo(log_chip_factory) << "Detected CH32V208 chip for port" << portName;
+                qCInfo(log_core_serial) << "Detected CH32V208 chip for port" << portName;
                 return ChipTypeId::CH32V208;
             }
             
@@ -54,7 +55,7 @@ ChipTypeId ChipStrategyFactory::detectChipType(const QString& portName)
         }
     }
     
-    qCWarning(log_chip_factory) << "Unknown chip type for port" << portName;
+    qCWarning(log_core_serial) << "Unknown chip type for port" << portName;
     return ChipTypeId::Unknown;
 }
 
@@ -62,17 +63,17 @@ std::unique_ptr<IChipStrategy> ChipStrategyFactory::createStrategy(ChipTypeId ch
 {
     switch (chipType) {
         case ChipTypeId::CH9329:
-            qCDebug(log_chip_factory) << "Creating CH9329 strategy";
+            qCDebug(log_core_serial) << "Creating CH9329 strategy";
             return std::make_unique<CH9329Strategy>();
             
         case ChipTypeId::CH32V208:
-            qCDebug(log_chip_factory) << "Creating CH32V208 strategy";
+            qCDebug(log_core_serial) << "Creating CH32V208 strategy";
             return std::make_unique<CH32V208Strategy>();
             
         case ChipTypeId::Unknown:
         default:
             // Default to CH9329 strategy for unknown chips (backward compatible)
-            qCWarning(log_chip_factory) << "Unknown chip type, using CH9329 strategy as fallback";
+            qCWarning(log_core_serial) << "Unknown chip type, using CH9329 strategy as fallback";
             return std::make_unique<CH9329Strategy>();
     }
 }

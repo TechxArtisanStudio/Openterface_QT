@@ -24,7 +24,6 @@
 #include <QDebug>
 #include <QtMath>
 
-Q_LOGGING_CATEGORY(log_watchdog, "opf.serial.watchdog")
 
 ConnectionWatchdog::ConnectionWatchdog(QObject *parent)
     : QObject(parent)
@@ -43,13 +42,13 @@ ConnectionWatchdog::ConnectionWatchdog(QObject *parent)
     m_uptimeTimer.start();
     m_errorRateTimer.start();
     
-    qCDebug(log_watchdog) << "ConnectionWatchdog initialized";
+    qCDebug(log_core_serial) << "ConnectionWatchdog initialized";
 }
 
 ConnectionWatchdog::~ConnectionWatchdog()
 {
     stop();
-    qCDebug(log_watchdog) << "ConnectionWatchdog destroyed";
+    qCDebug(log_core_serial) << "ConnectionWatchdog destroyed";
 }
 
 // ========== Configuration ==========
@@ -57,7 +56,7 @@ ConnectionWatchdog::~ConnectionWatchdog()
 void ConnectionWatchdog::setConfig(const WatchdogConfig& config)
 {
     m_config = config;
-    qCDebug(log_watchdog) << "Watchdog config updated:"
+    qCDebug(log_core_serial) << "Watchdog config updated:"
                           << "interval=" << config.watchdogIntervalMs << "ms"
                           << "maxErrors=" << config.maxConsecutiveErrors
                           << "maxRetries=" << config.maxRetryAttempts
@@ -67,25 +66,25 @@ void ConnectionWatchdog::setConfig(const WatchdogConfig& config)
 void ConnectionWatchdog::setRecoveryHandler(IRecoveryHandler* handler)
 {
     m_recoveryHandler = handler;
-    qCDebug(log_watchdog) << "Recovery handler set:" << (handler ? "valid" : "null");
+    qCDebug(log_core_serial) << "Recovery handler set:" << (handler ? "valid" : "null");
 }
 
 void ConnectionWatchdog::setAutoRecoveryEnabled(bool enabled)
 {
     m_config.autoRecoveryEnabled = enabled;
-    qCDebug(log_watchdog) << "Auto recovery" << (enabled ? "enabled" : "disabled");
+    qCDebug(log_core_serial) << "Auto recovery" << (enabled ? "enabled" : "disabled");
 }
 
 void ConnectionWatchdog::setMaxRetryAttempts(int maxRetries)
 {
     m_config.maxRetryAttempts = maxRetries;
-    qCDebug(log_watchdog) << "Max retry attempts set to" << maxRetries;
+    qCDebug(log_core_serial) << "Max retry attempts set to" << maxRetries;
 }
 
 void ConnectionWatchdog::setMaxConsecutiveErrors(int maxErrors)
 {
     m_config.maxConsecutiveErrors = maxErrors;
-    qCDebug(log_watchdog) << "Max consecutive errors set to" << maxErrors;
+    qCDebug(log_core_serial) << "Max consecutive errors set to" << maxErrors;
 }
 
 // ========== Lifecycle ==========
@@ -93,7 +92,7 @@ void ConnectionWatchdog::setMaxConsecutiveErrors(int maxErrors)
 void ConnectionWatchdog::start()
 {
     if (m_isRunning) {
-        qCDebug(log_watchdog) << "Watchdog already running";
+        qCDebug(log_core_serial) << "Watchdog already running";
         return;
     }
     
@@ -107,7 +106,7 @@ void ConnectionWatchdog::start()
     m_watchdogTimer->start();
     
     setConnectionState(ConnectionState::Connected);
-    qCInfo(log_watchdog) << "Watchdog started with interval" << m_config.watchdogIntervalMs << "ms";
+    qCInfo(log_core_serial) << "Watchdog started with interval" << m_config.watchdogIntervalMs << "ms";
 }
 
 void ConnectionWatchdog::stop()
@@ -128,7 +127,7 @@ void ConnectionWatchdog::stop()
     }
     
     setConnectionState(ConnectionState::Disconnected);
-    qCInfo(log_watchdog) << "Watchdog stopped";
+    qCInfo(log_core_serial) << "Watchdog stopped";
 }
 
 bool ConnectionWatchdog::isRunning() const
@@ -166,7 +165,7 @@ void ConnectionWatchdog::recordSuccess()
             m_recoveryHandler->onRecoverySuccess();
         }
         
-        qCInfo(log_watchdog) << "Recovery successful after" << m_retryAttemptCount.load() << "attempts";
+        qCInfo(log_core_serial) << "Recovery successful after" << m_retryAttemptCount.load() << "attempts";
         m_retryAttemptCount = 0;
     }
 }
@@ -179,7 +178,7 @@ void ConnectionWatchdog::recordError()
     
     updateErrorRate();
     
-    qCDebug(log_watchdog) << "Error recorded. Consecutive:" << m_consecutiveErrors.load()
+    qCDebug(log_core_serial) << "Error recorded. Consecutive:" << m_consecutiveErrors.load()
                           << "Total:" << m_totalErrors.load();
     
     // Check if we should transition to unstable state
@@ -205,7 +204,7 @@ void ConnectionWatchdog::resetCounters()
     m_errorsInWindow = 0;
     m_errorRateTimer.restart();
     
-    qCDebug(log_watchdog) << "Error counters reset";
+    qCDebug(log_core_serial) << "Error counters reset";
 }
 
 bool ConnectionWatchdog::isRecoveryNeeded() const
@@ -244,7 +243,7 @@ bool ConnectionWatchdog::isConnectionStable() const
 
 void ConnectionWatchdog::forceRecovery()
 {
-    qCInfo(log_watchdog) << "Force recovery requested";
+    qCInfo(log_core_serial) << "Force recovery requested";
     
     // Force error threshold to trigger recovery
     m_consecutiveErrors = m_config.maxConsecutiveErrors;
@@ -259,12 +258,12 @@ void ConnectionWatchdog::onWatchdogTimeout()
         return;
     }
     
-    qCDebug(log_watchdog) << "Watchdog check - last success:" 
+    qCDebug(log_core_serial) << "Watchdog check - last success:" 
                           << m_lastSuccessfulCommand.elapsed() << "ms ago";
     
     // Check if we haven't had successful communication
     if (m_lastSuccessfulCommand.elapsed() > m_config.communicationTimeoutMs) {
-        qCWarning(log_watchdog) << "Watchdog triggered - no communication for" 
+        qCWarning(log_core_serial) << "Watchdog triggered - no communication for" 
                                 << m_config.communicationTimeoutMs << "ms";
         
         emit watchdogTimeout();
@@ -292,7 +291,7 @@ void ConnectionWatchdog::executeRecovery()
     
     m_retryAttemptCount++;
     
-    qCInfo(log_watchdog) << "Executing recovery attempt" << m_retryAttemptCount.load()
+    qCInfo(log_core_serial) << "Executing recovery attempt" << m_retryAttemptCount.load()
                          << "of" << m_config.maxRetryAttempts;
     
     emit recoveryStarted(m_retryAttemptCount.load());
@@ -307,16 +306,16 @@ void ConnectionWatchdog::executeRecovery()
     if (m_recoveryHandler) {
         success = m_recoveryHandler->performRecovery(m_retryAttemptCount.load());
     } else {
-        qCWarning(log_watchdog) << "No recovery handler set - cannot perform recovery";
+        qCWarning(log_core_serial) << "No recovery handler set - cannot perform recovery";
     }
     
     if (success) {
         recordSuccess();
     } else {
-        qCWarning(log_watchdog) << "Recovery attempt" << m_retryAttemptCount.load() << "failed";
+        qCWarning(log_core_serial) << "Recovery attempt" << m_retryAttemptCount.load() << "failed";
         
         if (m_retryAttemptCount >= m_config.maxRetryAttempts) {
-            qCCritical(log_watchdog) << "Maximum retry attempts reached. Recovery failed.";
+            qCCritical(log_core_serial) << "Maximum retry attempts reached. Recovery failed.";
             setConnectionState(ConnectionState::Failed);
             emit recoveryFailed();
             emit statusUpdate("Recovery failed - max retries exceeded");
@@ -339,7 +338,7 @@ void ConnectionWatchdog::setConnectionState(ConnectionState state)
         ConnectionState oldState = m_connectionState;
         m_connectionState = state;
         
-        qCDebug(log_watchdog) << "Connection state changed from" 
+        qCDebug(log_core_serial) << "Connection state changed from" 
                               << static_cast<int>(oldState) << "to" << static_cast<int>(state);
         
         emit connectionStateChanged(state);
@@ -353,13 +352,13 @@ void ConnectionWatchdog::scheduleRecovery()
     }
     
     if (m_retryAttemptCount >= m_config.maxRetryAttempts) {
-        qCWarning(log_watchdog) << "Cannot schedule recovery - max attempts reached";
+        qCWarning(log_core_serial) << "Cannot schedule recovery - max attempts reached";
         return;
     }
     
     int delay = calculateRetryDelay();
     
-    qCInfo(log_watchdog) << "Scheduling recovery in" << delay << "ms"
+    qCInfo(log_core_serial) << "Scheduling recovery in" << delay << "ms"
                          << "(attempt" << (m_retryAttemptCount.load() + 1) << ")";
     
     m_recoveryTimer->stop();

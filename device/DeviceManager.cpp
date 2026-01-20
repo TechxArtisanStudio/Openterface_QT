@@ -596,8 +596,8 @@ VideoChipType DeviceManager::getChipTypeForDevice(const DeviceInfo& device)
             return VideoChipType::MS2130S;
         }
         if (vid == OPENTERFACE_VID_V3.toUpper() && pid == OPENTERFACE_PID_V3.toUpper()) {
-            // Treat V3 as MS2130S family by register mapping
-            return VideoChipType::MS2130S;
+            // V3 (345F:2109) uses MS2109S register mapping
+            return VideoChipType::MS2109S;
         }
     }
 
@@ -607,7 +607,7 @@ VideoChipType DeviceManager::getChipTypeForDevice(const DeviceInfo& device)
         QString s = p.toUpper();
     if (s.contains(OPENTERFACE_VID_V2.toUpper()) && s.contains(OPENTERFACE_PID_V2.toUpper())) return VideoChipType::MS2130S;
     if (s.contains(OPENTERFACE_VID.toUpper()) && s.contains(OPENTERFACE_PID.toUpper())) return VideoChipType::MS2109;
-    if (s.contains(OPENTERFACE_VID_V3.toUpper()) && s.contains(OPENTERFACE_PID_V3.toUpper())) return VideoChipType::MS2130S;
+    if (s.contains(OPENTERFACE_VID_V3.toUpper()) && s.contains(OPENTERFACE_PID_V3.toUpper())) return VideoChipType::MS2109S;
         // Windows style variants
     if (s.contains("VID_" + OPENTERFACE_VID_V2, Qt::CaseInsensitive) && s.contains("PID_" + OPENTERFACE_PID_V2, Qt::CaseInsensitive)) return VideoChipType::MS2130S;
     if (s.contains("VID_" + OPENTERFACE_VID, Qt::CaseInsensitive) && s.contains("PID_" + OPENTERFACE_PID, Qt::CaseInsensitive)) return VideoChipType::MS2109;

@@ -30,7 +30,7 @@
 #include <QSerialPortInfo>
 #include <QLoggingCategory>
 
-Q_DECLARE_LOGGING_CATEGORY(log_chip_factory)
+Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
 /**
  * @brief Chip type enumeration matching VID:PID combinations

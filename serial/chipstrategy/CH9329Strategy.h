@@ -26,7 +26,7 @@
 #include "IChipStrategy.h"
 #include <QLoggingCategory>
 
-Q_DECLARE_LOGGING_CATEGORY(log_chip_ch9329)
+Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
 /**
  * @brief Strategy implementation for CH9329 HID controller chip

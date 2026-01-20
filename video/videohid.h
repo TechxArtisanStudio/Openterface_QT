@@ -12,8 +12,13 @@
 #include <chrono>
 #include <QMutex>
 #include <QRecursiveMutex>
+#include <memory>
+#include "platformhidadapter.h"
 
 #include "../ui/statusevents.h"
+
+// Safe stoi helper declared as free function (was incorrectly placed in signals)
+int safe_stoi(std::string str, int defaultValue = 0);
 
 // Chipset enumeration
 enum class VideoChipType {
@@ -56,6 +61,7 @@ typedef unsigned char BYTE;
 
 class FirmwareWriter; // Forward declaration
 class FirmwareReader; // Forward declaration
+class VideoChip; // Forward declaration for chip abstraction
 
 enum class FirmwareResult {
     Latest,
@@ -72,6 +78,15 @@ class VideoHid : public QObject
 
     friend class FirmwareWriter; // Add FirmwareWriter as friend
     friend class FirmwareReader; // Add FirmwareReader as friend
+    friend class PlatformHidAdapter; // Allow platform adapter to call platform_* helpers
+    // Also allow concrete adapters access (friend not inherited)
+    friend class WindowsHidAdapter;
+    friend class LinuxHidAdapter;
+    // Allow chip implementations to call lower-level usb helpers
+    friend class VideoChip;
+    friend class Ms2109Chip;
+    friend class Ms2109sChip;
+    friend class Ms2130sChip;
 
 public:
     static VideoHid* getPointer(){
@@ -111,6 +126,10 @@ public:
     FirmwareResult isLatestFirmware();
 
     void switchToHost();
+
+    // Returns the latest firmware write percent reported (thread-safe)
+    int getFirmwareWritePercent() const { return m_lastFirmwarePercent.load(); }
+
     void switchToTarget();
     
     // New USB switch status query method using serial command (for CH32V208 chips)
@@ -136,6 +155,7 @@ public:
     
     // USB read/write methods for both chip types
     QPair<QByteArray, bool> usbXdataRead4ByteMS2109(quint16 u16_address);
+    QPair<QByteArray, bool> usbXdataRead4ByteMS2109S(quint16 u16_address);
     QPair<QByteArray, bool> usbXdataRead4ByteMS2130S(quint16 u16_address);
 
     void loadFirmwareToEeprom();
@@ -161,7 +181,6 @@ public:
 
 signals:
     // Add new signals
-    int safe_stoi(std::string str, int defaultValue = 0);
     void firmwareWriteProgress(int percent);
     void firmwareWriteComplete(bool success);
     void firmwareWriteChunkComplete(int writtenBytes);
@@ -198,6 +217,17 @@ private:
 
     bool openHIDDeviceHandle();
     void closeHIDDeviceHandle();
+
+    // Platform adapter for HID operations (introduced to encapsulate Windows/Linux differences)
+    std::unique_ptr<PlatformHidAdapter> m_platformAdapter{nullptr};
+
+    // Thin wrappers used by the adapter to call the existing platform-specific implementations
+    bool platform_openDevice();
+    void platform_closeDevice();
+    bool platform_sendFeatureReport(uint8_t* reportBuffer, size_t bufferSize);
+    bool platform_getFeatureReport(uint8_t* reportBuffer, size_t bufferSize);
+    QString platform_getHIDDevicePath();
+
     using StringCallback = std::function<void(const QString&)>;
     // Polling thread used to poll device status periodically. Replaces the previous QTimer-based approach.
     class PollingThread; // forward-declared below in the cpp file (no moc required)
@@ -248,6 +278,10 @@ private:
     uint16_t written_size = 0;
     uint32_t read_size = 0;
 
+    // Last firmware write percent (updated from writer thread and read by UI)
+    std::atomic_int m_lastFirmwarePercent{0};
+
+
 #ifdef _WIN32
     std::wstring getHIDDevicePath();
     std::wstring getProperDevicePath(const std::wstring& deviceInstancePath);
@@ -271,8 +305,22 @@ private:
     
     // Chipset identification and handling
     VideoChipType m_chipType = VideoChipType::UNKNOWN;
+
+    // Abstraction for chip-specific behavior
+    std::unique_ptr<VideoChip> m_chipImpl{nullptr};
+
     Q_INVOKABLE void detectChipType();
     VideoChipType getChipType() const { return m_chipType; }
+    VideoChip* getChipImpl() const { return m_chipImpl.get(); }
+
+public slots:
+    // Called by FirmwareWriter via a queued/blocking invoke to ensure EEPROM writes run in VideoHid's thread
+    bool performWriteEeprom(quint16 address, const QByteArray &data);
+
+private slots:
+    // Internal slots used to safely schedule hotplug-driven actions into VideoHid's thread
+    void handleScheduledDisconnect(const QString &oldPath);
+    void handleScheduledConnect();
 };
 
 #endif // VIDEOHID_H

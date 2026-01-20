@@ -22,11 +22,15 @@
 
 #include "CH9329Strategy.h"
 #include "../ch9329.h"
+#include "../SerialPortManager.h"
 #include <QSerialPort>
 #include <QSettings>
 #include <QDebug>
+#include <QLoggingCategory>
 
-Q_LOGGING_CATEGORY(log_chip_ch9329, "opf.chip.ch9329")
+// Declare the unified serial logging category (defined in SerialPortManager.cpp)
+Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
+
 
 bool CH9329Strategy::supportsBaudrate(int baudrate) const
 {
@@ -52,7 +56,7 @@ int CH9329Strategy::validateBaudrate(int requestedBaudrate) const
     if (supportsBaudrate(requestedBaudrate)) {
         return requestedBaudrate;
     }
-    qCWarning(log_chip_ch9329) << "CH9329: Unsupported baudrate" << requestedBaudrate 
+    qCWarning(log_core_serial) << "CH9329: Unsupported baudrate" << requestedBaudrate 
                                << ", falling back to" << BAUDRATE_LOW;
     return BAUDRATE_LOW;
 }
@@ -68,10 +72,10 @@ QByteArray CH9329Strategy::buildReconfigurationCommand(int targetBaudrate, uint8
     
     if (targetBaudrate == BAUDRATE_LOW) {
         command = CMD_SET_PARA_CFG_PREFIX_9600;
-        qCDebug(log_chip_ch9329) << "CH9329: Building 9600 baudrate configuration command";
+        qCDebug(log_core_serial) << "CH9329: Building 9600 baudrate configuration command";
     } else {
         command = CMD_SET_PARA_CFG_PREFIX_115200;
-        qCDebug(log_chip_ch9329) << "CH9329: Building 115200 baudrate configuration command";
+        qCDebug(log_core_serial) << "CH9329: Building 115200 baudrate configuration command";
     }
     
     // Set mode byte at index 5 (6th byte)
@@ -80,7 +84,7 @@ QByteArray CH9329Strategy::buildReconfigurationCommand(int targetBaudrate, uint8
     // Append the mid portion of the command
     command.append(CMD_SET_PARA_CFG_MID);
     
-    qCDebug(log_chip_ch9329) << "CH9329: Configuration command built:" << command.toHex(' ');
+    qCDebug(log_core_serial) << "CH9329: Configuration command built:" << command.toHex(' ');
     return command;
 }
 
@@ -97,11 +101,18 @@ bool CH9329Strategy::performReset(
     Q_UNUSED(openPort)
     
     if (!serialPort) {
-        qCWarning(log_chip_ch9329) << "CH9329: Serial port is null, cannot reset";
+        qCWarning(log_core_serial) << "CH9329: Serial port is null, cannot reset";
         return false;
     }
     
-    qCInfo(log_chip_ch9329) << "CH9329: Performing command-based reset to baudrate" << targetBaudrate;
+    qCInfo(log_core_serial) << "CH9329: Performing command-based reset to baudrate" << targetBaudrate;
+    
+    // Also explicitly log CH9329 reset to file during diagnostics
+    if (SerialPortManager* manager = &SerialPortManager::getInstance()) {
+        if (manager->getSerialLogFilePath().contains("serial_log_diagnostics")) {
+            manager->log(QString("CH9329 RESET: target_baudrate=%1").arg(targetBaudrate));
+        }
+    }
     
     // Validate and adjust baudrate
     targetBaudrate = validateBaudrate(targetBaudrate);
@@ -115,32 +126,39 @@ bool CH9329Strategy::performReset(
     QByteArray response = sendSyncCommand(configCommand, true);
     
     if (response.isEmpty()) {
-        qCWarning(log_chip_ch9329) << "CH9329: No response to reconfiguration command";
+        qCWarning(log_core_serial) << "CH9329: No response to reconfiguration command";
         return false;
     }
     
     // Check response status
     if (response.size() >= 6 && response[5] == DEF_CMD_SUCCESS) {
-        qCDebug(log_chip_ch9329) << "CH9329: Reconfiguration command successful";
+        qCDebug(log_core_serial) << "CH9329: Reconfiguration command successful";
+        
+        // Also explicitly log reconfiguration success to file during diagnostics
+        if (SerialPortManager* manager = &SerialPortManager::getInstance()) {
+            if (manager->getSerialLogFilePath().contains("serial_log_diagnostics")) {
+                manager->log(QString("CH9329 RECONFIG SUCCESS: baudrate=%1").arg(targetBaudrate));
+            }
+        }
         
         // Send reset command
         QByteArray resetResponse = sendSyncCommand(CMD_RESET, true);
         if (resetResponse.isEmpty()) {
-            qCWarning(log_chip_ch9329) << "CH9329: Reset command failed";
+            qCWarning(log_core_serial) << "CH9329: Reset command failed";
             return false;
         }
         
-        qCDebug(log_chip_ch9329) << "CH9329: Reset command successful, changing baudrate and restarting";
+        qCDebug(log_core_serial) << "CH9329: Reset command successful, changing baudrate and restarting";
         
         // Change baudrate and restart port
         setBaudRate(targetBaudrate);
         restartPort();
         
-        qCInfo(log_chip_ch9329) << "CH9329: Reset completed successfully at baudrate" << targetBaudrate;
+        qCInfo(log_core_serial) << "CH9329: Reset completed successfully at baudrate" << targetBaudrate;
         return true;
     }
     
-    qCWarning(log_chip_ch9329) << "CH9329: Reconfiguration command returned error:" 
+    qCWarning(log_core_serial) << "CH9329: Reconfiguration command returned error:" 
                                << QString::number(static_cast<uint8_t>(response[5]), 16);
     return false;
 }
@@ -152,21 +170,21 @@ bool CH9329Strategy::performFactoryReset(
     std::function<int()> getAlternateBaudrate)
 {
     if (!serialPort) {
-        qCWarning(log_chip_ch9329) << "CH9329: Serial port is null, cannot factory reset";
+        qCWarning(log_core_serial) << "CH9329: Serial port is null, cannot factory reset";
         return false;
     }
     
-    qCInfo(log_chip_ch9329) << "CH9329: Performing factory reset";
+    qCInfo(log_core_serial) << "CH9329: Performing factory reset";
     
     // Try current baudrate first
     QByteArray response = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
     if (response.size() > 0) {
-        qCInfo(log_chip_ch9329) << "CH9329: Factory reset successful at current baudrate";
+        qCInfo(log_core_serial) << "CH9329: Factory reset successful at current baudrate";
         return true;
     }
     
     // Try alternate baudrate
-    qCDebug(log_chip_ch9329) << "CH9329: Factory reset failed at current baudrate, trying alternate";
+    qCDebug(log_core_serial) << "CH9329: Factory reset failed at current baudrate, trying alternate";
     
     int altBaudrate = getAlternateBaudrate();
     serialPort->close();
@@ -175,12 +193,12 @@ bool CH9329Strategy::performFactoryReset(
     if (serialPort->open(QIODevice::ReadWrite)) {
         response = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
         if (response.size() > 0) {
-            qCInfo(log_chip_ch9329) << "CH9329: Factory reset successful at" << altBaudrate;
+            qCInfo(log_core_serial) << "CH9329: Factory reset successful at" << altBaudrate;
             return true;
         }
     }
     
-    qCWarning(log_chip_ch9329) << "CH9329: Factory reset failed at all baudrates";
+    qCWarning(log_core_serial) << "CH9329: Factory reset failed at all baudrates";
     return false;
 }
 
@@ -197,7 +215,7 @@ ChipConfigResult CH9329Strategy::attemptBaudrateDetection(
     ChipConfigResult result;
     
     if (!serialPort) {
-        qCWarning(log_chip_ch9329) << "CH9329: Serial port is null";
+        qCWarning(log_core_serial) << "CH9329: Serial port is null";
         return result;
     }
     
@@ -205,7 +223,14 @@ ChipConfigResult CH9329Strategy::attemptBaudrateDetection(
     int currentBaudrate = serialPort->baudRate();
     int altBaudrate = getAlternateBaudrate(currentBaudrate);
     
-    qCDebug(log_chip_ch9329) << "CH9329: Attempting baudrate detection, trying" << altBaudrate;
+    qCDebug(log_core_serial) << "CH9329: Attempting baudrate detection, trying" << altBaudrate;
+    
+    // Also explicitly log baudrate detection attempt to file during diagnostics
+    if (SerialPortManager* manager = &SerialPortManager::getInstance()) {
+        if (manager->getSerialLogFilePath().contains("serial_log_diagnostics")) {
+            manager->log(QString("CH9329 BAUDRATE DETECT: trying=%1").arg(altBaudrate));
+        }
+    }
     
     closePort();
     openPort(portName, altBaudrate);
@@ -213,31 +238,31 @@ ChipConfigResult CH9329Strategy::attemptBaudrateDetection(
     QByteArray response = sendSyncCommand(CMD_GET_PARA_CFG, true);
     if (response.size() > 0) {
         CmdDataParamConfig config = CmdDataParamConfig::fromByteArray(response);
-        qCDebug(log_chip_ch9329) << "CH9329: Connected at baudrate" << altBaudrate 
+        qCDebug(log_core_serial) << "CH9329: Connected at baudrate" << altBaudrate 
                                  << ", mode:" << QString::number(config.mode, 16);
         
         if (config.mode == expectedMode) {
-            qCDebug(log_chip_ch9329) << "CH9329: Mode is correct";
+            qCDebug(log_core_serial) << "CH9329: Mode is correct";
             result.success = true;
             result.workingBaudrate = altBaudrate;
             result.mode = config.mode;
             setBaudRate(altBaudrate);
         } else {
-            qCWarning(log_chip_ch9329) << "CH9329: Mode mismatch, attempting reconfiguration";
+            qCWarning(log_core_serial) << "CH9329: Mode mismatch, attempting reconfiguration";
             
             if (reconfigureChip(altBaudrate)) {
-                qCDebug(log_chip_ch9329) << "CH9329: Reconfiguration successful, sending reset";
+                qCDebug(log_core_serial) << "CH9329: Reconfiguration successful, sending reset";
                 if (sendResetCommand()) {
                     result.success = true;
                     result.workingBaudrate = altBaudrate;
                     result.mode = expectedMode;
                 }
             } else {
-                qCWarning(log_chip_ch9329) << "CH9329: Reconfiguration failed";
+                qCWarning(log_core_serial) << "CH9329: Reconfiguration failed";
             }
         }
     } else {
-        qCWarning(log_chip_ch9329) << "CH9329: No response at alternate baudrate" << altBaudrate;
+        qCWarning(log_core_serial) << "CH9329: No response at alternate baudrate" << altBaudrate;
     }
     
     return result;

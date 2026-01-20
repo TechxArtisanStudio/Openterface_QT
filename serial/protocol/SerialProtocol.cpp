@@ -21,9 +21,13 @@
 */
 
 #include "SerialProtocol.h"
+#include "../SerialPortManager.h"
 #include <QDebug>
+#include <QLoggingCategory>
 
-Q_LOGGING_CATEGORY(log_serial_protocol, "opf.serial.protocol")
+// Declare the unified serial logging category (defined in SerialPortManager.cpp)
+Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
+
 
 using namespace SerialProtocolConstants;
 
@@ -95,7 +99,7 @@ ParsedPacket SerialProtocol::parsePacket(const QByteArray& data)
     if (data.size() < MIN_PACKET_SIZE) {
         result.errorMessage = QString("Packet too small: %1 bytes (minimum %2)")
                               .arg(data.size()).arg(MIN_PACKET_SIZE);
-        qCWarning(log_serial_protocol) << result.errorMessage;
+        qCWarning(log_core_serial) << result.errorMessage;
         return result;
     }
     
@@ -104,7 +108,7 @@ ParsedPacket SerialProtocol::parsePacket(const QByteArray& data)
         result.errorMessage = QString("Invalid header: expected 0x57AB, got 0x%1%2")
                               .arg(static_cast<uint8_t>(data[0]), 2, 16, QChar('0'))
                               .arg(static_cast<uint8_t>(data[1]), 2, 16, QChar('0'));
-        qCWarning(log_serial_protocol) << result.errorMessage;
+        qCWarning(log_core_serial) << result.errorMessage;
         return result;
     }
     
@@ -118,7 +122,7 @@ ParsedPacket SerialProtocol::parsePacket(const QByteArray& data)
     if (data.size() < expectedSize) {
         result.errorMessage = QString("Packet incomplete: expected %1 bytes, got %2")
                               .arg(expectedSize).arg(data.size());
-        qCWarning(log_serial_protocol) << result.errorMessage;
+        qCWarning(log_core_serial) << result.errorMessage;
         return result;
     }
     
@@ -134,16 +138,26 @@ ParsedPacket SerialProtocol::parsePacket(const QByteArray& data)
     QByteArray packetToVerify = data.left(expectedSize);
     if (!verifyChecksum(packetToVerify)) {
         result.errorMessage = "Checksum verification failed";
-        qCWarning(log_serial_protocol) << result.errorMessage << "Data:" << data.toHex(' ');
+        qCWarning(log_core_serial) << result.errorMessage << "Data:" << data.toHex(' ');
         // Still mark as valid for now, as some responses may have checksum issues
     }
     
     result.valid = true;
     result.rawPacket = packetToVerify;
     
-    qCDebug(log_serial_protocol) << "Parsed packet: cmd=0x" << QString::number(result.commandCode, 16)
+    qCDebug(log_core_serial) << "Parsed packet: cmd=0x" << QString::number(result.commandCode, 16)
                                  << "len=" << result.payloadLength
                                  << "status=0x" << QString::number(result.status, 16);
+    
+    // Also explicitly log protocol parsing to file during diagnostics
+    if (SerialPortManager* manager = &SerialPortManager::getInstance()) {
+        if (manager->getSerialLogFilePath().contains("serial_log_diagnostics")) {
+            manager->log(QString("PROTOCOL PARSE: cmd=0x%1, len=%2, status=0x%3")
+                        .arg(result.commandCode, 2, 16, QChar('0'))
+                        .arg(result.payloadLength)
+                        .arg(result.status, 2, 16, QChar('0')));
+        }
+    }
     
     return result;
 }
@@ -221,7 +235,7 @@ ResponseResult SerialProtocol::processResponse(const ParsedPacket& packet)
             
         default:
             result.description = QString("Unknown response code: 0x%1").arg(respCode, 2, 16, QChar('0'));
-            qCDebug(log_serial_protocol) << result.description << "Packet:" << packet.rawPacket.toHex(' ');
+            qCDebug(log_core_serial) << result.description << "Packet:" << packet.rawPacket.toHex(' ');
             if (m_handler) {
                 m_handler->onUnknownResponse(packet.rawPacket);
             }
@@ -318,7 +332,7 @@ ResponseResult SerialProtocol::processGetParamConfigResponse(const ParsedPacket&
             result.mode = static_cast<uint8_t>(packet.rawPacket[5]);
         }
         
-        qCDebug(log_serial_protocol) << "Param config: baudrate=" << result.baudrate 
+        qCDebug(log_core_serial) << "Param config: baudrate=" << result.baudrate 
                                      << "mode=0x" << QString::number(result.mode, 16);
         
         if (m_handler) {
@@ -328,7 +342,7 @@ ResponseResult SerialProtocol::processGetParamConfigResponse(const ParsedPacket&
     } else {
         result.success = false;
         result.description = QString("Incomplete param config response: %1 bytes").arg(packet.rawPacket.size());
-        qCWarning(log_serial_protocol) << result.description;
+        qCWarning(log_core_serial) << result.description;
     }
     
     return result;
@@ -382,15 +396,15 @@ ResponseResult SerialProtocol::processUsbSwitchResponse(const ParsedPacket& pack
             result.success = true;
             result.usbToTarget = false;
             result.description = "USB pointing to HOST";
-            qCInfo(log_serial_protocol) << result.description;
+            qCInfo(log_core_serial) << result.description;
         } else if (usbStatus == 0x01) {
             result.success = true;
             result.usbToTarget = true;
             result.description = "USB pointing to TARGET";
-            qCInfo(log_serial_protocol) << result.description;
+            qCInfo(log_core_serial) << result.description;
         } else {
             result.description = QString("Unknown USB status: 0x%1").arg(usbStatus, 2, 16, QChar('0'));
-            qCWarning(log_serial_protocol) << result.description;
+            qCWarning(log_core_serial) << result.description;
         }
         
         if (result.success) {
@@ -401,7 +415,7 @@ ResponseResult SerialProtocol::processUsbSwitchResponse(const ParsedPacket& pack
         }
     } else {
         result.description = QString("Invalid USB status response format");
-        qCWarning(log_serial_protocol) << result.description << "Packet:" << packet.rawPacket.toHex(' ');
+        qCWarning(log_core_serial) << result.description << "Packet:" << packet.rawPacket.toHex(' ');
     }
     
     return result;
@@ -438,25 +452,25 @@ QString SerialProtocol::commandToString(uint8_t code)
     QString suffix = (code & RESPONSE_BIT) ? " (Response)" : "";
     
     switch (baseCode) {
-        case CMD_GET_INFO:
+        case SerialProtocolConstants::CMD_GET_INFO:
             return "GET_INFO" + suffix;
-        case CMD_SEND_KB_GENERAL:
+        case SerialProtocolConstants::CMD_SEND_KB_GENERAL:
             return "SEND_KB_GENERAL" + suffix;
-        case CMD_SEND_MOUSE_ABS:
+        case SerialProtocolConstants::CMD_SEND_MOUSE_ABS:
             return "SEND_MOUSE_ABS" + suffix;
-        case CMD_SEND_MOUSE_REL:
+        case SerialProtocolConstants::CMD_SEND_MOUSE_REL:
             return "SEND_MOUSE_REL" + suffix;
-        case CMD_GET_PARA_CFG:
+        case SerialProtocolConstants::CMD_GET_PARA_CFG:
             return "GET_PARA_CFG" + suffix;
-        case CMD_SET_PARA_CFG:
+        case SerialProtocolConstants::CMD_SET_PARA_CFG:
             return "SET_PARA_CFG" + suffix;
-        case CMD_SET_USB_STRING:
+        case SerialProtocolConstants::CMD_SET_USB_STRING:
             return "SET_USB_STRING" + suffix;
-        case CMD_SET_DEFAULT_CFG:
+        case SerialProtocolConstants::CMD_SET_DEFAULT_CFG:
             return "SET_DEFAULT_CFG" + suffix;
-        case CMD_RESET:
+        case SerialProtocolConstants::CMD_RESET:
             return "RESET" + suffix;
-        case CMD_USB_SWITCH:
+        case SerialProtocolConstants::CMD_USB_SWITCH:
             return "USB_SWITCH" + suffix;
         default:
             return QString("UNKNOWN_CMD(0x%1)%2").arg(code, 2, 16, QChar('0')).arg(suffix);

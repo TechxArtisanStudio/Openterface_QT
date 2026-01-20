@@ -25,6 +25,8 @@ private slots:
     void updateComplete(bool success);
     void onCloseButtonClicked();
     void onProgressTimerTimeout();
+    // Start the firmware load after the dialog is visible
+    void beginLoad();
 
 signals:
     void updateFinished(bool success);

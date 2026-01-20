@@ -11,6 +11,7 @@ public:
 
 public slots:
     void writeLog(const QString& message);
+    void setFilePath(const QString& filePath);
 
 private:
     QString m_filePath;

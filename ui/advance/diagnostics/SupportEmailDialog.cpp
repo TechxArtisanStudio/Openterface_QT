@@ -13,8 +13,8 @@
 #include <QMessageBox>
 #include <QStandardPaths>
 
-SupportEmailDialog::SupportEmailDialog(const QStringList& failedTests, const QString& logFilePath, bool diagnosticsCompleted, QWidget* parent)
-    : QDialog(parent), m_logFilePath(logFilePath) {
+SupportEmailDialog::SupportEmailDialog(const QStringList& failedTests, const QString& diagnosticsLogFilePath, const QString& serialLogFilePath, bool diagnosticsCompleted, QWidget* parent)
+    : QDialog(parent), m_logFilePath(diagnosticsLogFilePath), m_serialLogFilePath(serialLogFilePath) {
     QString title = tr("Support Email Draft");
     if (!diagnosticsCompleted) {
         title += tr(" - Please complete the diagnostics tests first");
@@ -120,7 +120,12 @@ QString SupportEmailDialog::generateEmailDraft(const QStringList& failedTests) {
         draft += QString("- %1\n").arg(test);
     }
 
-    draft += tr("\nPlease find attached the diagnostics log file for your reference.\n\n");
+    draft += tr("Please find attached the diagnostics log file for your reference.\n");
+    if (!m_serialLogFilePath.isEmpty()) {
+        draft += tr("Also attached: Serial log file for diagnostics: %1\n\n").arg(m_serialLogFilePath);
+    } else {
+        draft += tr("(If available, please include the serial log file as well.)\n\n");
+    }
     draft += tr("Best regards,\n");
     draft += tr("[Your Name]\n");
 
@@ -152,18 +157,23 @@ void SupportEmailDialog::onOrderIdApplyClicked() {
 }
 
 void SupportEmailDialog::onShowLogClicked() {
-    QFileInfo fileInfo(m_logFilePath);
-    if (!fileInfo.exists()) {
-        QMessageBox::warning(this, tr("Warning"), tr("Log file does not exist."));
+    QFileInfo diagInfo(m_logFilePath);
+    QFileInfo serialInfo(m_serialLogFilePath);
+    if (!diagInfo.exists() && !serialInfo.exists()) {
+        QMessageBox::warning(this, tr("Warning"), tr("No log files exist."));
         return;
     }
 
-    // Open the directory containing the log file
-    QString dirPath = fileInfo.absolutePath();
+    // Open the directory containing the diagnostics log file (or serial if diagnostics missing)
+    QString dirPath = diagInfo.exists() ? diagInfo.absolutePath() : serialInfo.absolutePath();
     if (!QDesktopServices::openUrl(QUrl::fromLocalFile(dirPath))) {
         QMessageBox::warning(this, tr("Error"), tr("Could not open log file directory."));
     } else {
-        QMessageBox::information(this, tr("Log File"), tr("Please attach the diagnostics_log.txt file to your email."));
+        QString infoMsg = tr("Please attach the diagnostics log file to your email.");
+        if (serialInfo.exists()) {
+            infoMsg += tr("\nAlso attach the serial log file: %1").arg(serialInfo.fileName());
+        }
+        QMessageBox::information(this, tr("Log File"), infoMsg);
     }
 }
 

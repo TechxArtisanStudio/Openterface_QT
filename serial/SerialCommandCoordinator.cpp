@@ -22,25 +22,27 @@
 
 #include "SerialCommandCoordinator.h"
 #include "SerialStatistics.h"
+#include "SerialPortManager.h"
 #include <QTimer>
 #include <QLoggingCategory>
 #include <QEventLoop>
 #include <QElapsedTimer>
 
-Q_LOGGING_CATEGORY(log_serial_command, "opf.serial.command")
+// Declare the unified serial logging category (defined in SerialPortManager.cpp)
+Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
 SerialCommandCoordinator::SerialCommandCoordinator(QObject *parent)
     : QObject(parent)
     , m_commandDelayMs(0)
     , m_statsStartTime(QDateTime::currentDateTime())
 {
-    qCDebug(log_serial_command) << "SerialCommandCoordinator initialized";
+    qCDebug(log_core_serial) << "SerialCommandCoordinator initialized";
     m_lastCommandTime.start();
 }
 
 SerialCommandCoordinator::~SerialCommandCoordinator()
 {
-    qCDebug(log_serial_command) << "SerialCommandCoordinator destroyed";
+    qCDebug(log_core_serial) << "SerialCommandCoordinator destroyed";
     m_isShuttingDown = true;
     clearCommandQueue();
 }
@@ -48,12 +50,12 @@ SerialCommandCoordinator::~SerialCommandCoordinator()
 bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const QByteArray &data, bool force)
 {
     if (!force && !m_ready) {
-        qCDebug(log_serial_command) << "Cannot send async command: not ready";
+        qCDebug(log_core_serial) << "Cannot send async command: not ready";
         return false;
     }
     
     if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
-        qCDebug(log_serial_command) << "Cannot send async command: shutting down or port not open";
+        qCDebug(log_core_serial) << "Cannot send async command: shutting down or port not open";
         return false;
     }
     
@@ -69,7 +71,7 @@ bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const Q
     // Check command delay
     if (m_lastCommandTime.isValid() && m_lastCommandTime.elapsed() < m_commandDelayMs) {
         int remainingDelay = m_commandDelayMs - m_lastCommandTime.elapsed();
-        qCDebug(log_serial_command) << "Delaying command by" << remainingDelay << "ms";
+        qCDebug(log_core_serial) << "Delaying command by" << remainingDelay << "ms";
         
         QEventLoop loop;
         QTimer::singleShot(remainingDelay, &loop, &QEventLoop::quit);
@@ -86,18 +88,18 @@ bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const Q
 QByteArray SerialCommandCoordinator::sendSyncCommand(QSerialPort* serialPort, const QByteArray &data, bool force, int timeoutMs)
 {
     if (!force && !m_ready) {
-        qCDebug(log_serial_command) << "Cannot send sync command: not ready";
+        qCDebug(log_core_serial) << "Cannot send sync command: not ready";
         return QByteArray();
     }
     
     if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
-        qCDebug(log_serial_command) << "Cannot send sync command: shutting down or port not open";
+        qCDebug(log_core_serial) << "Cannot send sync command: shutting down or port not open";
         return QByteArray();
     }
     
     // Add bounds checking for data array access
     if (data.size() < 4) {
-        qCWarning(log_serial_command) << "Command data too small:" << data.size();
+        qCWarning(log_core_serial) << "Command data too small:" << data.size();
         return QByteArray();
     }
     
@@ -105,12 +107,18 @@ QByteArray SerialCommandCoordinator::sendSyncCommand(QSerialPort* serialPort, co
     QByteArray command = data;
     
     const int commandCode = static_cast<unsigned char>(data[3]);
+    
+    // Also explicitly log command send to file during diagnostics
+    if (SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics")) {
+        int baudrate = serialPort ? serialPort->baudRate() : 0;
+        SerialPortManager::getInstance().log(QString("TX (%1): %2").arg(baudrate).arg(QString(command.toHex(' '))));
+    }
 
     serialPort->readAll(); // Clear any existing data in the buffer before sending command
     command.append(calculateChecksum(command));
     
     if (!executeCommand(serialPort, command)) {
-        qCWarning(log_serial_command) << "Failed to execute sync command";
+        qCWarning(log_core_serial) << "Failed to execute sync command";
         return QByteArray();
     }
     
@@ -120,15 +128,33 @@ QByteArray SerialCommandCoordinator::sendSyncCommand(QSerialPort* serialPort, co
     // Verify response command code matches expected
     if (responseData.size() >= 4) {
         int responseCode = static_cast<unsigned char>(responseData[3]);
-        if (responseCode != commandCode) {
-            qCWarning(log_serial_command) << "Command code mismatch - sent:" 
+        int expectedResponseCode = commandCode | 0x80; // Response code is command code + 0x80
+        if (responseCode != expectedResponseCode) {
+            qCWarning(log_core_serial) << "Command code mismatch - sent:" 
                                         << QString("0x%1").arg(commandCode, 2, 16, QChar('0'))
                                         << "received:" 
-                                        << QString("0x%1").arg(responseCode, 2, 16, QChar('0'));
+                                        << QString("0x%1").arg(responseCode, 2, 16, QChar('0'))
+                                        << "expected:"
+                                        << QString("0x%1").arg(expectedResponseCode, 2, 16, QChar('0'));
+            // Log actual error to file during diagnostics
+            if (SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics")) {
+                int baudrate = serialPort ? serialPort->baudRate() : 0;
+                SerialPortManager::getInstance().log(QString("RX (%1): %2 (ERROR: Code mismatch - expected 0x%3, received 0x%4)")
+                                                      .arg(baudrate)
+                                                      .arg(QString(responseData.toHex(' ')))
+                                                      .arg(expectedResponseCode, 2, 16, QChar('0'))
+                                                      .arg(responseCode, 2, 16, QChar('0')));
+            }
         } else {
-            qCDebug(log_serial_command) << "Command code verified:" 
+            qCDebug(log_core_serial) << "Command code verified:" 
                                        << QString("0x%1").arg(commandCode, 2, 16, QChar('0'));
+            // Log successful response to file during diagnostics
+            if (SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics")) {
+                int baudrate = serialPort ? serialPort->baudRate() : 0;
+                SerialPortManager::getInstance().log(QString("RX (%1): %2").arg(baudrate).arg(QString(responseData.toHex(' '))));
+            }
         }
+
         
         // Statistics tracking for successful responses
         if (responseData.size() >= 4) {
@@ -144,7 +170,7 @@ QByteArray SerialCommandCoordinator::sendSyncCommand(QSerialPort* serialPort, co
             m_statsReceived++;
         }
     } else {
-        qCWarning(log_serial_command) << "Invalid response size:" << responseData.size();
+        qCWarning(log_core_serial) << "Invalid response size:" << responseData.size();
         
         // Record command loss in statistics
         if (m_statistics) {
@@ -169,7 +195,7 @@ QByteArray SerialCommandCoordinator::sendSyncCommand(QSerialPort* serialPort, co
 void SerialCommandCoordinator::setCommandDelay(int delayMs)
 {
     m_commandDelayMs = qMax(0, delayMs);
-    qCDebug(log_serial_command) << "Command delay set to:" << m_commandDelayMs << "ms";
+    qCDebug(log_core_serial) << "Command delay set to:" << m_commandDelayMs << "ms";
 }
 
 void SerialCommandCoordinator::startStats()
@@ -178,13 +204,13 @@ void SerialCommandCoordinator::startStats()
     m_statsSent = 0;
     m_statsReceived = 0;
     m_statsStartTime = QDateTime::currentDateTime();
-    qCDebug(log_serial_command) << "Command statistics tracking started";
+    qCDebug(log_core_serial) << "Command statistics tracking started";
 }
 
 void SerialCommandCoordinator::stopStats()
 {
     m_isStatsEnabled = false;
-    qCDebug(log_serial_command) << "Command statistics tracking stopped";
+    qCDebug(log_core_serial) << "Command statistics tracking stopped";
     emit statisticsUpdated(m_statsSent, m_statsReceived, getResponseRate());
 }
 
@@ -193,7 +219,7 @@ void SerialCommandCoordinator::resetStats()
     m_statsSent = 0;
     m_statsReceived = 0;
     m_statsStartTime = QDateTime::currentDateTime();
-    qCDebug(log_serial_command) << "Command statistics reset";
+    qCDebug(log_core_serial) << "Command statistics reset";
     emit statisticsUpdated(0, 0, 0.0);
 }
 
@@ -221,7 +247,7 @@ void SerialCommandCoordinator::clearCommandQueue()
 {
     QMutexLocker locker(&m_commandQueueMutex);
     m_commandQueue.clear();
-    qCDebug(log_serial_command) << "Command queue cleared";
+    qCDebug(log_core_serial) << "Command queue cleared";
 }
 
 int SerialCommandCoordinator::getQueueSize() const
@@ -233,7 +259,7 @@ int SerialCommandCoordinator::getQueueSize() const
 QByteArray SerialCommandCoordinator::collectSyncResponse(QSerialPort* serialPort, int totalTimeoutMs, int waitStepMs)
 {
     if (!serialPort || !serialPort->isOpen()) {
-        qCWarning(log_serial_command) << "Cannot collect response: port not available";
+        qCWarning(log_core_serial) << "Cannot collect response: port not available";
         return QByteArray();
     }
 
@@ -251,14 +277,14 @@ QByteArray SerialCommandCoordinator::collectSyncResponse(QSerialPort* serialPort
         QByteArray newData = serialPort->readAll();
         if (!newData.isEmpty()) {
             responseData.append(newData);
-            qCDebug(log_serial_command) << "Collected" << newData.size() << "bytes, total:" << responseData.size();
+            qCDebug(log_core_serial) << "Collected" << newData.size() << "bytes, total:" << responseData.size();
             
             // If we have enough data to determine packet length, update expected length
             if (responseData.size() >= 2 && expectedResponseLength == MIN_PACKET_SIZE) {
                 int packetLength = static_cast<unsigned char>(responseData[1]);
                 if (packetLength > MIN_PACKET_SIZE && packetLength <= MAX_ACCEPTABLE_PACKET) {
                     expectedResponseLength = packetLength;
-                    qCDebug(log_serial_command) << "Updated expected response length to:" << expectedResponseLength;
+                    qCDebug(log_core_serial) << "Updated expected response length to:" << expectedResponseLength;
                 }
             }
         }
@@ -269,7 +295,7 @@ QByteArray SerialCommandCoordinator::collectSyncResponse(QSerialPort* serialPort
         }
     }
 
-    qCDebug(log_serial_command) << "collectSyncResponse: Total response size after wait:" << responseData.size() 
+    qCDebug(log_core_serial) << "collectSyncResponse: Total response size after wait:" << responseData.size() 
                                << "Data:" << responseData.toHex(' ');
     return responseData;
 }
@@ -277,25 +303,25 @@ QByteArray SerialCommandCoordinator::collectSyncResponse(QSerialPort* serialPort
 bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QByteArray &command)
 {
     if (!serialPort || !serialPort->isOpen()) {
-        qCWarning(log_serial_command) << "Cannot execute command: port not available";
+        qCWarning(log_core_serial) << "Cannot execute command: port not available";
         return false;
     }
 
     try {
         qint64 bytesWritten = serialPort->write(command);
         if (bytesWritten == -1) {
-            qCWarning(log_serial_command) << "Failed to write command to serial port:" << serialPort->errorString();
+            qCWarning(log_core_serial) << "Failed to write command to serial port:" << serialPort->errorString();
             return false;
         }
         
         if (bytesWritten != command.size()) {
-            qCWarning(log_serial_command) << "Incomplete write: expected" << command.size() 
+            qCWarning(log_core_serial) << "Incomplete write: expected" << command.size() 
                                          << "bytes, wrote" << bytesWritten;
             return false;
         }
         
         if (!serialPort->waitForBytesWritten(1000)) {
-            qCWarning(log_serial_command) << "Timeout waiting for bytes to be written:" << serialPort->errorString();
+            qCWarning(log_core_serial) << "Timeout waiting for bytes to be written:" << serialPort->errorString();
             return false;
         }
         
@@ -309,11 +335,11 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
             m_statsSent++;
         }
         
-        qCDebug(log_serial_command) << "Successfully wrote" << bytesWritten << "bytes to serial port";
+        qCDebug(log_core_serial) << "Successfully wrote" << bytesWritten << "bytes to serial port";
         return true;
         
     } catch (...) {
-        qCCritical(log_serial_command) << "Exception while writing to serial port";
+        qCCritical(log_core_serial) << "Exception while writing to serial port";
         return false;
     }
 }
@@ -322,11 +348,11 @@ void SerialCommandCoordinator::processCommandQueue()
 {
     // This method can be extended in the future for advanced queue processing
     // Currently, commands are processed immediately rather than queued
-    qCDebug(log_serial_command) << "Processing command queue (currently immediate execution)";
+    qCDebug(log_core_serial) << "Processing command queue (currently immediate execution)";
 }
 
 void SerialCommandCoordinator::setStatisticsModule(SerialStatistics* statistics)
 {
     m_statistics = statistics;
-    qCDebug(log_serial_command) << "Statistics module" << (statistics ? "connected" : "disconnected");
+    qCDebug(log_core_serial) << "Statistics module" << (statistics ? "connected" : "disconnected");
 }

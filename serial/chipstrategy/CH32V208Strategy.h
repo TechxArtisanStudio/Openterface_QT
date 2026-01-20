@@ -26,7 +26,7 @@
 #include "IChipStrategy.h"
 #include <QLoggingCategory>
 
-Q_DECLARE_LOGGING_CATEGORY(log_chip_ch32v208)
+Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
 /**
  * @brief Strategy implementation for CH32V208 HID controller chip

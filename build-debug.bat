@@ -155,7 +155,7 @@ echo.
 
 REM Build the project
 echo Building project...
-cmake --build "%OUTPUT_DIR%" --config Debug -j2
+cmake --build "%OUTPUT_DIR%" --config Debug
 
 if %errorlevel% neq 0 (
     echo Build failed
