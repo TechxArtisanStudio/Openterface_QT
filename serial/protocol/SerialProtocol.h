@@ -30,7 +30,7 @@
 #include <functional>
 #include <cstdint>
 
-Q_DECLARE_LOGGING_CATEGORY(log_serial_protocol)
+Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
 /**
  * @brief Protocol constants for CH9329/CH32V208 serial communication

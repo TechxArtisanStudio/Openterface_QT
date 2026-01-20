@@ -128,6 +128,19 @@ void DiagnosticsManager::startTest(int testIndex)
     if (testIndex < 0 || testIndex >= m_testTitles.size())
         return;
 
+    // Ensure diagnostics creates a dedicated serial log file for this session
+    if (m_serialLogFilePath.isEmpty()) {
+        QString serialPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
+                             + "/serial_log_diagnostics_"
+                             + QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss")
+                             + ".txt";
+        SerialPortManager::getInstance().setSerialLogFilePath(serialPath);
+        // Enable debug logging for serial operations during diagnostics
+        SerialPortManager::enableDebugLogging(true);
+        m_serialLogFilePath = serialPath;
+        appendToLog(QString("Serial logs are being written to: %1").arg(serialPath));
+    }
+
     // Special-case: Overall Connection (index 0) -> perform immediate device presence checks
     if (testIndex == 0) {
         m_isTestingInProgress = true;
@@ -331,6 +344,16 @@ void DiagnosticsManager::resetAllTests()
     if (m_targetCheckTimer->isActive()) m_targetCheckTimer->stop();
     if (m_hostCheckTimer->isActive()) m_hostCheckTimer->stop();
     if (m_stressTestTimer && m_stressTestTimer->isActive()) m_stressTestTimer->stop();
+
+    // Restore serial logging to default location if diagnostics had created a special log
+    if (!m_serialLogFilePath.isEmpty()) {
+        QString defaultSerial = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/serial_log.txt";
+        SerialPortManager::getInstance().setSerialLogFilePath(defaultSerial);
+        // Disable debug logging for serial operations
+        SerialPortManager::enableDebugLogging(false);
+        m_serialLogFilePath.clear();
+        appendToLog("Serial logging restored to default serial_log.txt");
+    }
 
     appendToLog("=== DIAGNOSTICS RESTARTED ===");
     appendToLog("All test results have been reset.");

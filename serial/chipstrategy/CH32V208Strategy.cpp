@@ -25,7 +25,6 @@
 #include <QSerialPort>
 #include <QDebug>
 
-Q_LOGGING_CATEGORY(log_chip_ch32v208, "opf.chip.ch32v208")
 
 bool CH32V208Strategy::supportsBaudrate(int baudrate) const
 {
@@ -47,7 +46,7 @@ int CH32V208Strategy::determineInitialBaudrate(int storedBaudrate) const
 int CH32V208Strategy::validateBaudrate(int requestedBaudrate) const
 {
     if (requestedBaudrate != BAUDRATE_FIXED) {
-        qCWarning(log_chip_ch32v208) << "CH32V208: Only supports 115200 baudrate, ignoring requested:" 
+        qCWarning(log_core_serial) << "CH32V208: Only supports 115200 baudrate, ignoring requested:" 
                                      << requestedBaudrate;
     }
     return BAUDRATE_FIXED;
@@ -59,7 +58,7 @@ QByteArray CH32V208Strategy::buildReconfigurationCommand(int targetBaudrate, uin
     Q_UNUSED(mode)
     
     // CH32V208 does not support command-based configuration
-    qCDebug(log_chip_ch32v208) << "CH32V208: Command-based reconfiguration not supported";
+    qCDebug(log_core_serial) << "CH32V208: Command-based reconfiguration not supported";
     return QByteArray();
 }
 
@@ -77,18 +76,18 @@ bool CH32V208Strategy::performReset(
     Q_UNUSED(restartPort)
     
     if (!serialPort) {
-        qCWarning(log_chip_ch32v208) << "CH32V208: Serial port is null, cannot reset";
+        qCWarning(log_core_serial) << "CH32V208: Serial port is null, cannot reset";
         return false;
     }
     
     // CH32V208 only supports 115200
     if (targetBaudrate != BAUDRATE_FIXED) {
-        qCWarning(log_chip_ch32v208) << "CH32V208: Ignoring requested baudrate" << targetBaudrate 
+        qCWarning(log_core_serial) << "CH32V208: Ignoring requested baudrate" << targetBaudrate 
                                      << ", using 115200";
         targetBaudrate = BAUDRATE_FIXED;
     }
     
-    qCInfo(log_chip_ch32v208) << "CH32V208: Performing simple close/reopen reset";
+    qCInfo(log_core_serial) << "CH32V208: Performing simple close/reopen reset";
     
     QString portName = serialPort->portName();
     
@@ -101,9 +100,9 @@ bool CH32V208Strategy::performReset(
     bool success = openPort(portName, BAUDRATE_FIXED);
     
     if (success) {
-        qCInfo(log_chip_ch32v208) << "CH32V208: Reset completed successfully";
+        qCInfo(log_core_serial) << "CH32V208: Reset completed successfully";
     } else {
-        qCWarning(log_chip_ch32v208) << "CH32V208: Failed to reopen port after reset";
+        qCWarning(log_core_serial) << "CH32V208: Failed to reopen port after reset";
     }
     
     return success;
@@ -119,22 +118,22 @@ bool CH32V208Strategy::performFactoryReset(
     Q_UNUSED(getAlternateBaudrate)
     
     if (!serialPort) {
-        qCWarning(log_chip_ch32v208) << "CH32V208: Serial port is null, cannot factory reset";
+        qCWarning(log_core_serial) << "CH32V208: Serial port is null, cannot factory reset";
         return false;
     }
     
-    qCInfo(log_chip_ch32v208) << "CH32V208: Attempting factory reset at 115200";
+    qCInfo(log_core_serial) << "CH32V208: Attempting factory reset at 115200";
     
     // Try to send factory reset command - CH32V208 may or may not support this
     QByteArray response = sendSyncCommand(CMD_SET_DEFAULT_CFG, true);
     
     if (response.size() > 0) {
-        qCInfo(log_chip_ch32v208) << "CH32V208: Factory reset command successful";
+        qCInfo(log_core_serial) << "CH32V208: Factory reset command successful";
         return true;
     }
     
     // CH32V208 may not support factory reset command
-    qCWarning(log_chip_ch32v208) << "CH32V208: Factory reset command not supported or failed";
+    qCWarning(log_core_serial) << "CH32V208: Factory reset command not supported or failed";
     return false;
 }
 
@@ -155,34 +154,34 @@ ChipConfigResult CH32V208Strategy::attemptBaudrateDetection(
     ChipConfigResult result;
     
     if (!serialPort) {
-        qCWarning(log_chip_ch32v208) << "CH32V208: Serial port is null";
+        qCWarning(log_core_serial) << "CH32V208: Serial port is null";
         return result;
     }
     
     QString portName = serialPort->portName();
     
-    qCInfo(log_chip_ch32v208) << "CH32V208: Only supports 115200, retrying at fixed baudrate";
+    qCInfo(log_core_serial) << "CH32V208: Only supports 115200, retrying at fixed baudrate";
     
     closePort();
     openPort(portName, BAUDRATE_FIXED);
     
     QByteArray response = sendSyncCommand(CMD_GET_PARA_CFG, true);
-    qCDebug(log_chip_ch32v208) << "CH32V208: Response at 115200:" << response.toHex(' ');
+    qCDebug(log_core_serial) << "CH32V208: Response at 115200:" << response.toHex(' ');
     
     if (response.size() > 0) {
         CmdDataParamConfig config = CmdDataParamConfig::fromByteArray(response);
-        qCDebug(log_chip_ch32v208) << "CH32V208: Connected at 115200, mode:" 
+        qCDebug(log_core_serial) << "CH32V208: Connected at 115200, mode:" 
                                    << QString::number(config.mode, 16);
         
         // CH32V208 mode cannot be changed, just accept whatever mode it has
-        qCInfo(log_chip_ch32v208) << "CH32V208: Connection successful (mode cannot be changed on CH32V208)";
+        qCInfo(log_core_serial) << "CH32V208: Connection successful (mode cannot be changed on CH32V208)";
         
         result.success = true;
         result.workingBaudrate = BAUDRATE_FIXED;
         result.mode = config.mode;
         setBaudRate(BAUDRATE_FIXED);
     } else {
-        qCWarning(log_chip_ch32v208) << "CH32V208: No response at 115200 baudrate";
+        qCWarning(log_core_serial) << "CH32V208: No response at 115200 baudrate";
     }
     
     return result;

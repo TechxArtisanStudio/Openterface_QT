@@ -500,10 +500,19 @@ void DeviceDiagnosticsDialog::onOpenLogFileClicked()
         }
     }
 
-    // Open the log file with system default application
-    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(logPath))) {
+    // Open the log file directory with system default application
+    QString serialLog = m_manager->getSerialLogFilePath();
+    QFileInfo serialInfo(serialLog);
+    QString dirPath = QFileInfo(logPath).absolutePath();
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(dirPath))) {
         QMessageBox::warning(this, tr(Diagnostics::LOG_OPEN_ERROR_TITLE),
-                           tr(Diagnostics::LOG_OPEN_ERROR).arg(logPath));
+                           tr(Diagnostics::LOG_OPEN_ERROR).arg(dirPath));
+    } else {
+        QString infoMsg = tr("Please attach the diagnostics_log.txt file to your email.");
+        if (!serialLog.isEmpty() && serialInfo.exists()) {
+            infoMsg += tr("\nAlso attach the serial log file: %1").arg(serialInfo.fileName());
+        }
+        QMessageBox::information(this, tr("Log File"), infoMsg);
     }
 }
 
@@ -530,7 +539,8 @@ void DeviceDiagnosticsDialog::onDiagnosticsCompleted(bool allSuccessful)
 
         // Show support email dialog
         QString logFilePath = m_manager->getLogFilePath();
-        SupportEmailDialog* dialog = new SupportEmailDialog(failedTests, logFilePath, true, this);
+        QString serialLog = m_manager->getSerialLogFilePath();
+        SupportEmailDialog* dialog = new SupportEmailDialog(failedTests, logFilePath, serialLog, true, this);
         dialog->exec();
     } else {
         QString message = tr(Diagnostics::DIAGNOSTICS_COMPLETE_SUCCESS);
@@ -622,7 +632,8 @@ void DeviceDiagnosticsDialog::onSupportEmailClicked()
 
     // Show support email dialog
     QString logFilePath = m_manager->getLogFilePath();
-    SupportEmailDialog* dialog = new SupportEmailDialog(failedTests, logFilePath, m_diagnosticsCompleted, this);
+    QString serialLog = m_manager->getSerialLogFilePath();
+    SupportEmailDialog* dialog = new SupportEmailDialog(failedTests, logFilePath, serialLog, m_diagnosticsCompleted, this);
     dialog->exec();
 }
 

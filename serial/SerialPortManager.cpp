@@ -38,6 +38,8 @@
 #include <QElapsedTimer>
 #include <QSysInfo>
 #include <QStandardPaths>
+#include <QDir>
+#include <QFileInfo>
 
 
 Q_LOGGING_CATEGORY(log_core_serial, "opf.core.serial")
@@ -233,6 +235,7 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     
     // Initialize asynchronous logging
     QString logPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/serial_log.txt";
+    m_logFilePath = logPath;
     m_logThread = new QThread(this);
     m_logWriter = new LogWriter(logPath, this);
     m_logWriter->moveToThread(m_logThread);
@@ -486,9 +489,19 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
  */
 void SerialPortManager::onSerialPortConnected(const QString &portName){
     qCDebug(log_core_serial) << "Serial port connected: " << portName;
+    // Also explicitly log during diagnostics
+    if (!m_logFilePath.contains("serial_log.txt")) {
+        log(QString("Serial port connected: %1").arg(portName));
+    }
     
     // Detect chip type FIRST
     m_currentChipType = detectChipType(portName);
+    qCDebug(log_core_serial) << "Detected chip type:" << (m_currentChipType == ChipType::CH9329 ? "CH9329" : 
+                                               m_currentChipType == ChipType::CH32V208 ? "CH32V208" : "Unknown");
+    if (!m_logFilePath.contains("serial_log.txt")) {
+        log(QString("Detected chip type: %1").arg(m_currentChipType == ChipType::CH9329 ? "CH9329" : 
+                                                   m_currentChipType == ChipType::CH32V208 ? "CH32V208" : "Unknown"));
+    }
     
     // Update state manager with port and chip info
     if (m_stateManager) {
@@ -791,6 +804,11 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     m_lastSuccessfulCommand.restart();
 
     emit connectedPortChanged(portName, serialPort->baudRate());
+    qCDebug(log_core_serial) << "Serial port opened successfully:" << portName << "at" << serialPort->baudRate() << "baud";
+    // Also explicitly log during diagnostics
+    if (!m_logFilePath.contains("serial_log.txt")) {
+        log(QString("Serial port opened successfully: %1 at %2 baud").arg(portName).arg(serialPort->baudRate()));
+    }
 
     qCDebug(log_core_serial) << "Enable the switchable USB now...";
     // serialPort->setDataTerminalReady(false);
@@ -827,6 +845,11 @@ void SerialPortManager::setEventCallback(StatusEventCallback* callback) {
  */
 bool SerialPortManager::resetHipChip(int targetBaudrate){
     qCDebug(log_core_serial) << "Reset HID chip requested from thread:" << QThread::currentThread()->objectName();
+    qCDebug(log_core_serial) << "Resetting HID chip to baudrate:" << targetBaudrate;
+    // Also explicitly log during diagnostics
+    if (!m_logFilePath.contains("serial_log.txt")) {
+        log(QString("Resetting HID chip to baudrate: %1").arg(targetBaudrate));
+    }
     
     // If called from the worker thread, execute directly
     if (QThread::currentThread() == this->thread()) {
@@ -1438,6 +1461,11 @@ void SerialPortManager::readData() {
         qCDebug(log_core_serial).nospace().noquote() << "RX (" << serialPort->portName() << "@" 
             << (serialPort ? serialPort->baudRate() : 0) << "bps): " << packet.toHex(' ');
         
+        // Also explicitly log RX to file during diagnostics
+        if (!m_logFilePath.contains("serial_log.txt")) {
+            log(QString("RX (%1): %2").arg(serialPort ? serialPort->baudRate() : 0).arg(QString(packet.toHex(' '))));
+        }
+        
         latestUpdateTime = QDateTime::currentDateTime();
         ready = true;
         
@@ -1574,6 +1602,11 @@ bool SerialPortManager::writeData(const QByteArray &data) {
 
         qCDebug(log_core_serial).nospace().noquote() << "Data written (" << serialPort->portName()
                         << "@" << serialPort->baudRate() << "bps): " << data.toHex(' ');
+        
+        // Also explicitly log TX to file during diagnostics
+        if (!m_logFilePath.contains("serial_log.txt")) {
+            log(QString("TX (%1): %2").arg(serialPort->baudRate()).arg(QString(data.toHex(' '))));
+        }
             
         
         return true;
@@ -2437,3 +2470,39 @@ void SerialPortManager::log(const QString& message)
     QString logEntry = QString("[%1] %2").arg(timestamp, message);
     emit logMessage(logEntry);
 }
+
+QString SerialPortManager::getSerialLogFilePath() const {
+    return m_logFilePath;
+}
+
+void SerialPortManager::setSerialLogFilePath(const QString& path) {
+    if (path.isEmpty()) return;
+    m_logFilePath = path;
+    
+    // Ensure directory exists for the new log file
+    QFileInfo fileInfo(path);
+    QDir dir = fileInfo.absoluteDir();
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+    
+    if (m_logWriter) {
+        // Ask the writer (running in its thread) to change file path
+        QMetaObject::invokeMethod(m_logWriter, "setFilePath", Qt::QueuedConnection, Q_ARG(QString, path));
+    }
+    
+    // For diagnostics, we need to ensure the log file is created immediately
+    // Write an initial log entry to create the file
+    log("Serial logging started for diagnostics session");
+}
+
+void SerialPortManager::enableDebugLogging(bool enabled) {
+    if (enabled) {
+        // Enable debug logging for serial category
+        QLoggingCategory::setFilterRules("opf.core.serial.debug=true");
+        qCDebug(log_core_serial) << "Serial debug logging enabled for diagnostics";
+    } else {
+        // Disable debug logging for serial category
+        QLoggingCategory::setFilterRules("opf.core.serial.debug=false");
+    }
+} 

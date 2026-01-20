@@ -210,6 +210,11 @@ public:
     
     // Logging
     void log(const QString& message);
+    QString getSerialLogFilePath() const;
+    void setSerialLogFilePath(const QString& path);
+    
+    // Enable/disable debug logging for diagnostics
+    static void enableDebugLogging(bool enabled);
     
 signals:
     void dataReceived(const QByteArray &data);
@@ -428,6 +433,7 @@ private:
     // Logging
     QThread* m_logThread;
     LogWriter* m_logWriter;
+    QString m_logFilePath; // current serial log file path
 };
 
 #endif // SERIALPORTMANAGER_H

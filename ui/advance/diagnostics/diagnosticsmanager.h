@@ -92,6 +92,11 @@ private:
     // Logging
     QThread* m_logThread;
     LogWriter* m_logWriter;
+
+    // Diagnostics-specific serial log file created for the diagnostics session
+    QString m_serialLogFilePath;
+public:
+    QString getSerialLogFilePath() const { return m_serialLogFilePath; }
 };
 
 #endif // DIAGNOSTICSMANAGER_H
