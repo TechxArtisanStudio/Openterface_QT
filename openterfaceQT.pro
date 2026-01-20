@@ -65,6 +65,8 @@ SOURCES += main.cpp \
     target/MouseManager.cpp \
     target/mouseeventdto.cpp \
     video/videohid.cpp \
+    video/videohidchip.cpp \
+    video/platformhidadapter.cpp \
     video/firmwarewriter.cpp \
     video/firmwarereader.cpp \
     ui/TaskManager.cpp \
@@ -197,6 +199,9 @@ HEADERS  += \
     video/firmwarewriter.h \
     video/firmwarereader.h \
     video/ms2109.h \
+    video/ms2109s.h \
+    video/ms2130s.h \
+    video/platformhidadapter.h \
     ui/TaskManager.h \
     ui/globalsetting.h \
     ui/inputhandler.h \
