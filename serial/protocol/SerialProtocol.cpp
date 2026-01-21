@@ -159,6 +159,16 @@ ParsedPacket SerialProtocol::parsePacket(const QByteArray& data)
         }
     }
     
+    // Also explicitly log protocol parsing to file during diagnostics
+    if (SerialPortManager* manager = &SerialPortManager::getInstance()) {
+        if (manager->getSerialLogFilePath().contains("serial_log_diagnostics")) {
+            manager->log(QString("PROTOCOL PARSE: cmd=0x%1, len=%2, status=0x%3")
+                        .arg(result.commandCode, 2, 16, QChar('0'))
+                        .arg(result.payloadLength)
+                        .arg(result.status, 2, 16, QChar('0')));
+        }
+    }
+    
     return result;
 }
 
