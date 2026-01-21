@@ -203,6 +203,9 @@ public:
     ChipType getCurrentChipType() const { return m_currentChipType; }
     bool isChipTypeCH32V208() const { return m_currentChipType == ChipType::CH32V208; }
     bool isChipTypeCH9329() const { return m_currentChipType == ChipType::CH9329; }
+
+    // Query current target USB connection state (thread-safe via state manager)
+    bool getTargetUsbConnected() const;
     
     // New USB switch methods for CH32V208 serial port (firmware with new protocol)
     void switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)
@@ -215,7 +218,10 @@ public:
     
     // Enable/disable debug logging for diagnostics
     static void enableDebugLogging(bool enabled);
-    
+
+public slots:
+    void setDiagnosticsDialogActive(bool active);
+
 signals:
     void dataReceived(const QByteArray &data);
     void dataSent(const QByteArray &data);
@@ -350,6 +356,9 @@ private:
     QTimer* m_errorRecoveryTimer;
     QTimer* m_usbStatusCheckTimer;
     QTimer* m_getInfoTimer;  // Timer for periodic GET_INFO requests
+    // Flag to suppress periodic GET_INFO while diagnostics dialog is active
+    bool m_suppressGetInfo = false;
+    QMutex m_diagMutex;
     QMutex m_serialPortMutex;
     QQueue<QByteArray> m_commandQueue;
     QMutex m_commandQueueMutex;

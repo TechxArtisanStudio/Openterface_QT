@@ -13,6 +13,7 @@
 #include "diagnostics/diagnosticsmanager.h"
 #include "diagnostics/diagnostics_constants.h"
 #include "diagnostics/SupportEmailDialog.h"
+#include "../../serial/SerialPortManager.h"
 
 Q_LOGGING_CATEGORY(log_device_diagnostics, "opf.diagnostics")
 
@@ -153,11 +154,23 @@ DeviceDiagnosticsDialog::DeviceDiagnosticsDialog(QWidget *parent)
     connect(m_manager, &DiagnosticsManager::diagnosticsCompleted, this, [this](bool){ emit diagnosticsCompleted(); });
 
     qCDebug(log_device_diagnostics) << "Device Diagnostics Dialog created";
+
+    // Notify SerialPortManager to suppress periodic GET_INFO while diagnostics dialog is active
+    SerialPortManager* spm = &SerialPortManager::getInstance();
+    if (spm) {
+        QMetaObject::invokeMethod(spm, "setDiagnosticsDialogActive", Qt::QueuedConnection, Q_ARG(bool, true));
+    }
 }
 
 DeviceDiagnosticsDialog::~DeviceDiagnosticsDialog()
 {
     qCDebug(log_device_diagnostics) << "Device Diagnostics Dialog destroyed";
+
+    // Restore periodic GET_INFO polling in SerialPortManager
+    SerialPortManager* spm = &SerialPortManager::getInstance();
+    if (spm) {
+        QMetaObject::invokeMethod(spm, "setDiagnosticsDialogActive", Qt::QueuedConnection, Q_ARG(bool, false));
+    }
 }
 
 void DeviceDiagnosticsDialog::setupUI()
