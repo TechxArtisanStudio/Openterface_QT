@@ -92,6 +92,11 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     // Initialize connection watchdog (Phase 3 refactoring)
     m_watchdog = std::make_unique<ConnectionWatchdog>(nullptr);
     m_watchdog->setRecoveryHandler(this);  // SerialPortManager implements IRecoveryHandler
+    // Move watchdog to worker thread from the watchdog's (current) thread context
+    if (m_watchdog) {
+        m_watchdog->moveToThread(m_serialWorkerThread);
+        qCDebug(log_core_serial) << "ConnectionWatchdog moved to worker thread";
+    }
     
     // Configure watchdog
     WatchdogConfig watchdogConfig;
@@ -1453,13 +1458,21 @@ void SerialPortManager::closePortInternal() {
                     } else {
                         qCWarning(log_core_serial) << "Failed to close file descriptor:" << strerror(errno);
                     }
+                    
+                    // CRITICAL: Delete the object in a deferred way to avoid QSocketNotifier warnings
+                    // Schedule deletion for later so destructors don't run in wrong thread context immediately
+                    serialPort->deleteLater();
+                    qCDebug(log_core_serial) << "Scheduled QSerialPort deletion to avoid thread context issues";
+                } else {
+                    delete serialPort;
                 }
                 
-                // Now safely delete the QSerialPort object without calling its close()
-                // The object will be cleaned up, but without triggering QSocketNotifier operations
                 qCDebug(log_core_serial) << "Serial port closed successfully";
             } catch (...) {
                 qCWarning(log_core_serial) << "Exception during port closure";
+                if (serialPort) {
+                    delete serialPort;
+                }
             }
             #else
             // On Windows, use Qt's standard close to avoid compatibility issues
@@ -1467,7 +1480,6 @@ void SerialPortManager::closePortInternal() {
             qCDebug(log_core_serial) << "Serial port closed via Qt's close() (Windows compatibility)";
             #endif
         }
-        delete serialPort;
         serialPort = nullptr;
         
         // Reset error handler state when port is closed

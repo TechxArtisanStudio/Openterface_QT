@@ -23,21 +23,18 @@
 #include "ConnectionWatchdog.h"
 #include <QDebug>
 #include <QtMath>
+#include <QThread>
+#include <QMetaObject>
 
 
 ConnectionWatchdog::ConnectionWatchdog(QObject *parent)
     : QObject(parent)
 {
-    // Initialize timers
-    m_watchdogTimer = new QTimer(this);
-    m_watchdogTimer->setSingleShot(true);
-    connect(m_watchdogTimer, &QTimer::timeout, this, &ConnectionWatchdog::onWatchdogTimeout);
-    
-    m_recoveryTimer = new QTimer(this);
-    m_recoveryTimer->setSingleShot(true);
-    connect(m_recoveryTimer, &QTimer::timeout, this, &ConnectionWatchdog::executeRecovery);
-    
-    // Initialize elapsed timers
+    // Timers are created lazily in start() to ensure correct thread affinity
+    m_watchdogTimer = nullptr;
+    m_recoveryTimer = nullptr;
+
+    // Initialize elapsed timers (no thread affinity)
     m_lastSuccessfulCommand.start();
     m_uptimeTimer.start();
     m_errorRateTimer.start();
@@ -101,6 +98,19 @@ void ConnectionWatchdog::start()
     m_uptimeTimer.restart();
     m_lastSuccessfulCommand.restart();
     
+    // Ensure timers are created in this object's current thread (thread-safe)
+    if (!m_watchdogTimer) {
+        m_watchdogTimer = new QTimer(this);
+        m_watchdogTimer->setSingleShot(true);
+        connect(m_watchdogTimer, &QTimer::timeout, this, &ConnectionWatchdog::onWatchdogTimeout);
+    }
+    
+    if (!m_recoveryTimer) {
+        m_recoveryTimer = new QTimer(this);
+        m_recoveryTimer->setSingleShot(true);
+        connect(m_recoveryTimer, &QTimer::timeout, this, &ConnectionWatchdog::executeRecovery);
+    }
+
     // Start watchdog timer
     m_watchdogTimer->setInterval(m_config.watchdogIntervalMs);
     m_watchdogTimer->start();
@@ -116,6 +126,7 @@ void ConnectionWatchdog::stop()
     }
     
     m_isRunning = false;
+    m_isShuttingDown = true;  // Set shutdown flag immediately to block new operations
     
     // Stop timers safely
     if (m_watchdogTimer && m_watchdogTimer->isActive()) {
@@ -278,7 +289,7 @@ void ConnectionWatchdog::onWatchdogTimeout()
     }
     
     // Restart watchdog timer
-    if (m_isRunning && !m_isShuttingDown) {
+    if (m_isRunning && !m_isShuttingDown && m_watchdogTimer) {
         m_watchdogTimer->start();
     }
 }
@@ -355,15 +366,55 @@ void ConnectionWatchdog::scheduleRecovery()
         qCWarning(log_core_serial) << "Cannot schedule recovery - max attempts reached";
         return;
     }
-    
     int delay = calculateRetryDelay();
-    
+
+    // Avoid scheduling if a recovery is already scheduled
+    bool alreadyScheduled = false;
+    if (QThread::currentThread() == thread()) {
+        if (m_recoveryTimer && m_recoveryTimer->isActive()) {
+            alreadyScheduled = true;
+        }
+    } else {
+        // Query the watchdog thread for the timer status in a thread-safe way
+        QMetaObject::invokeMethod(this, "isRecoveryScheduled", Qt::BlockingQueuedConnection,
+                                  Q_RETURN_ARG(bool, alreadyScheduled));
+    }
+
+    if (alreadyScheduled) {
+        qCDebug(log_core_serial) << "Recovery already scheduled, skipping duplicate schedule";
+        return;
+    }
+
     qCInfo(log_core_serial) << "Scheduling recovery in" << delay << "ms"
                          << "(attempt" << (m_retryAttemptCount.load() + 1) << ")";
-    
-    m_recoveryTimer->stop();
-    m_recoveryTimer->setInterval(delay);
-    m_recoveryTimer->start();
+
+    // Use QMetaObject::invokeMethod to safely start the timer on this object's thread
+    QMetaObject::invokeMethod(this, [this, delay]() {
+        // Check shutdown and timer validity before accessing timer
+        if (m_isShuttingDown || !m_isRunning) {
+            return;
+        }
+
+        if (m_connectionState == ConnectionState::Recovering) {
+            return;
+        }
+
+        // Guard against null pointer and ensure timer exists
+        if (!m_recoveryTimer) {
+            qCWarning(log_core_serial) << "Recovery timer is null - cannot schedule recovery";
+            return;
+        }
+
+        if (m_recoveryTimer->isActive()) {
+            qCDebug(log_core_serial) << "(invoke) Recovery already scheduled, skipping";
+            return;
+        }
+
+        // Safe to access timer now
+        m_recoveryTimer->stop();
+        m_recoveryTimer->setInterval(delay);
+        m_recoveryTimer->start();
+    }, Qt::QueuedConnection);
 }
 
 int ConnectionWatchdog::calculateRetryDelay() const
@@ -381,4 +432,9 @@ void ConnectionWatchdog::updateErrorRate()
         m_errorsInWindow = 1;  // Count current error
         m_errorRateTimer.restart();
     }
+}
+
+bool ConnectionWatchdog::isRecoveryScheduled() const
+{
+    return m_recoveryTimer && m_recoveryTimer->isActive();
 }
