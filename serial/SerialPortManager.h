@@ -293,7 +293,11 @@ private:
     void handleChipSpecificLogic(const ConfigResult &config);
     void storeBaudrateIfNeeded(int workingBaudrate);
     
-    // Thread-safe reset internal implementations (run in worker thread)
+    // Thread-safe baudrate setting (must be called from worker thread to access serialPort)
+    bool setBaudRateInternal(int baudRate);
+    
+    // Thread-safe port closing (ensures QSocketNotifier operations happen in worker thread)
+    void closePortInternal();
     bool handleResetHidChipInternal(int targetBaudrate);
     bool handleFactoryResetInternal();
     bool handleFactoryResetV191Internal();

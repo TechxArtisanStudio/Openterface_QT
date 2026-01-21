@@ -40,6 +40,8 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QFileInfo>
+#include <unistd.h>
+#include <errno.h>
 
 
 Q_LOGGING_CATEGORY(log_core_serial, "opf.core.serial")
@@ -1340,28 +1342,58 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
  * Close the serial port
  */
 void SerialPortManager::closePort() {
+    // Ensure closePort is called in the worker thread to avoid QSocketNotifier issues
+    if (QThread::currentThread() != m_serialWorkerThread) {
+        qCDebug(log_core_serial) << "closePort called from different thread, routing through worker thread";
+        QEventLoop waitLoop;
+        QMetaObject::invokeMethod(this, [this, &waitLoop]() {
+            closePortInternal();
+            waitLoop.quit();
+        }, Qt::QueuedConnection);
+        waitLoop.exec();
+        return;
+    }
+    
+    // Already in worker thread, proceed directly
+    closePortInternal();
+}
+
+void SerialPortManager::closePortInternal() {
     qCDebug(log_core_serial) << "Close serial port";
     
     QMutexLocker locker(&m_serialPortMutex);
     
-        if (serialPort != nullptr) {
+    if (serialPort != nullptr) {
         if (serialPort->isOpen()) {
-            qCDebug(log_core_serial) << "Close serial port - current buffer sizes before flush/clear - bytesAvailable:" << serialPort->bytesAvailable()
-                                     << "bytesToWrite:" << serialPort->bytesToWrite();
-            // Disconnect all signals first
+            // Disconnect all signals first - CRITICAL: do this BEFORE any QSerialPort operations
             disconnect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
             disconnect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
             disconnect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
                       this, &SerialPortManager::handleSerialError);
             
-            // Attempt graceful flush and close
+            qCDebug(log_core_serial) << "Close serial port - current buffer sizes before close - bytesAvailable:" << serialPort->bytesAvailable()
+                                     << "bytesToWrite:" << serialPort->bytesToWrite();
+            
+            // IMPORTANT: After factory reset or physical device removal, QSerialPort's internal state can be corrupted.
+            // Calling flush(), clear(), or close() can trigger QSocketNotifier warnings from internal Qt code.
+            // To avoid crashes, we DIRECTLY close the underlying file descriptor without involving QSerialPort's signal/slot machinery.
             try {
-                serialPort->flush();
-                serialPort->clear();
-                qCDebug(log_core_serial) << "Close serial port - buffer sizes after flush/clear - bytesAvailable:" << serialPort->bytesAvailable()
-                                         << "bytesToWrite:" << serialPort->bytesToWrite();
-                serialPort->clearError();
-                serialPort->close();
+                // Get the native file descriptor BEFORE closing anything
+                int fd = serialPort->handle();
+                
+                // Directly close the file descriptor to bypass QSerialPort's QSocketNotifier manipulation
+                // This is critical after factory reset or device removal when internal state is corrupted
+                if (fd >= 0) {
+                    int closeResult = ::close(fd);
+                    if (closeResult == 0) {
+                        qCDebug(log_core_serial) << "File descriptor closed directly (bypassed QSerialPort close)";
+                    } else {
+                        qCWarning(log_core_serial) << "Failed to close file descriptor:" << strerror(errno);
+                    }
+                }
+                
+                // Now safely delete the QSerialPort object without calling its close()
+                // The object will be cleaned up, but without triggering QSocketNotifier operations
                 qCDebug(log_core_serial) << "Serial port closed successfully";
             } catch (...) {
                 qCWarning(log_core_serial) << "Exception during port closure";
@@ -1918,6 +1950,33 @@ void SerialPortManager::sendCommand(const QByteArray &command, bool waitForAck) 
 }
 
 bool SerialPortManager::setBaudRate(int baudRate) {
+    if (!serialPort) {
+        qCWarning(log_core_serial) << "Cannot set baud rate: serialPort is null";
+        return false;
+    }
+
+    // If called from a different thread, route through worker thread via queued connection
+    if (QThread::currentThread() != m_serialWorkerThread) {
+        qCDebug(log_core_serial) << "setBaudRate called from different thread, routing through worker thread";
+        bool result = false;
+        QEventLoop waitLoop;
+        
+        // Use BlockingQueuedConnection to wait for the operation to complete
+        QMetaObject::invokeMethod(this, [this, baudRate, &result, &waitLoop]() {
+            // Call the actual baudrate setting logic
+            result = setBaudRateInternal(baudRate);
+            waitLoop.quit();
+        }, Qt::QueuedConnection);
+        
+        waitLoop.exec();
+        return result;
+    }
+    
+    // Already in worker thread, proceed directly
+    return setBaudRateInternal(baudRate);
+}
+
+bool SerialPortManager::setBaudRateInternal(int baudRate) {
     if (!serialPort) {
         qCWarning(log_core_serial) << "Cannot set baud rate: serialPort is null";
         return false;
