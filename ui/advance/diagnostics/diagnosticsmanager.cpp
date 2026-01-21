@@ -47,8 +47,8 @@ DiagnosticsManager::DiagnosticsManager(QObject *parent)
         tr("Overall Connection"),
         tr("Target Plug & Play"),
         tr("Host Plug & Play"),
-        tr("Serial Connection"),
         tr("Factory Reset"),
+        tr("Serial Connection"),
         tr("High Baudrate"),
         tr("Low Baudrate"),
         tr("Stress Test")
@@ -252,15 +252,15 @@ void DiagnosticsManager::startTest(int testIndex)
         return;
     }
     
-    // Special-case: Serial Connection (index 3) -> perform serial port connection test
+    // Special-case: Factory Reset (index 3) -> perform factory reset test
     if (testIndex == 3) {
-        startSerialConnectionTest();
+        startFactoryResetTest();
         return;
     }
     
-    // Special-case: Factory Reset (index 4) -> perform factory reset test
+    // Special-case: Serial Connection (index 4) -> perform serial port connection test
     if (testIndex == 4) {
-        startFactoryResetTest();
+        startSerialConnectionTest();
         return;
     }
     
@@ -809,28 +809,28 @@ bool DiagnosticsManager::checkHostConnectionStatus()
 void DiagnosticsManager::startSerialConnectionTest()
 {
     m_isTestingInProgress = true;
-    m_runningTestIndex = 3; // Serial Connection test index
+    m_runningTestIndex = 4; // Serial Connection test index (moved to index 4)
     
-    m_statuses[3] = TestStatus::InProgress;
-    emit statusChanged(3, TestStatus::InProgress);
+    m_statuses[4] = TestStatus::InProgress;
+    emit statusChanged(4, TestStatus::InProgress);
     
     appendToLog("Started test: Serial Connection");
     appendToLog("Testing serial port connectivity by sending CMD_GET_INFO command...");
-    emit testStarted(3);
+    emit testStarted(4);
     
     // Perform serial connection test
     bool success = performSerialConnectionTest();
     
     if (success) {
-        m_statuses[3] = TestStatus::Completed;
+        m_statuses[4] = TestStatus::Completed;
         appendToLog("Serial Connection test: PASSED - Successfully received response from serial port");
     } else {
-        m_statuses[3] = TestStatus::Failed;
+        m_statuses[4] = TestStatus::Failed;
         appendToLog("Serial Connection test: FAILED - No response or invalid response from serial port");
     }
     
-    emit statusChanged(3, m_statuses[3]);
-    emit testCompleted(3, success);
+    emit statusChanged(4, m_statuses[4]);
+    emit testCompleted(4, success);
     
     m_isTestingInProgress = false;
     m_runningTestIndex = -1;
@@ -955,28 +955,28 @@ bool DiagnosticsManager::testSerialConnectionAtBaudrate(int baudrate)
 void DiagnosticsManager::startFactoryResetTest()
 {
     m_isTestingInProgress = true;
-    m_runningTestIndex = 4; // Factory Reset test index
+    m_runningTestIndex = 3; // Factory Reset test index (moved to index 3)
     
-    m_statuses[4] = TestStatus::InProgress;
-    emit statusChanged(4, TestStatus::InProgress);
+    m_statuses[3] = TestStatus::InProgress;
+    emit statusChanged(3, TestStatus::InProgress);
     
     appendToLog("Started test: Factory Reset");
     appendToLog("Performing factory reset operation on HID chip...");
-    emit testStarted(4);
+    emit testStarted(3);
     
     // Perform factory reset test
     bool success = performFactoryResetTest();
     
     if (success) {
-        m_statuses[4] = TestStatus::Completed;
+        m_statuses[3] = TestStatus::Completed;
         appendToLog("Factory Reset test: PASSED - Factory reset operation completed successfully");
     } else {
-        m_statuses[4] = TestStatus::Failed;
+        m_statuses[3] = TestStatus::Failed;
         appendToLog("Factory Reset test: FAILED - Factory reset operation failed");
     }
     
-    emit statusChanged(4, m_statuses[4]);
-    emit testCompleted(4, success);
+    emit statusChanged(3, m_statuses[3]);
+    emit testCompleted(3, success);
     
     m_isTestingInProgress = false;
     m_runningTestIndex = -1;
