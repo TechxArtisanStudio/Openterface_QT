@@ -65,6 +65,8 @@ SOURCES += main.cpp \
     target/MouseManager.cpp \
     target/mouseeventdto.cpp \
     video/videohid.cpp \
+    video/videohidchip.cpp \
+    video/platformhidadapter.cpp \
     video/firmwarewriter.cpp \
     video/firmwarereader.cpp \
     ui/TaskManager.cpp \
@@ -86,12 +88,14 @@ SOURCES += main.cpp \
     ui/advance/DeviceSelectorDialog.cpp \
     ui/advance/devicediagnosticsdialog.cpp \
     ui/advance/diagnostics/diagnosticsmanager.cpp \
+    ui/advance/diagnostics/LogWriter.cpp \
     ui/advance/envdialog.cpp \
     ui/advance/firmwareupdatedialog.cpp \
     ui/advance/firmwaremanagerdialog.cpp \
     ui/advance/renamedisplaydialog.cpp \
     ui/advance/updatedisplaysettingsdialog.cpp \
     ui/advance/recordingsettingsdialog.cpp \
+    ui/advance/diagnostics/SupportEmailDialog.cpp \
     ui/initializer/mainwindowinitializer.cpp \
     ui/statusbar/statusbarmanager.cpp \
     ui/statusbar/statuswidget.cpp \
@@ -195,6 +199,9 @@ HEADERS  += \
     video/firmwarewriter.h \
     video/firmwarereader.h \
     video/ms2109.h \
+    video/ms2109s.h \
+    video/ms2130s.h \
+    video/platformhidadapter.h \
     ui/TaskManager.h \
     ui/globalsetting.h \
     ui/inputhandler.h \
@@ -217,12 +224,14 @@ HEADERS  += \
     ui/advance/devicediagnosticsdialog.h \
     ui/advance/diagnostics/diagnosticsmanager.h \
     ui/advance/diagnostics/diagnostics_constants.h \
+    ui/advance/diagnostics/LogWriter.h \
     ui/advance/envdialog.h \
     ui/advance/firmwareupdatedialog.h \
     ui/advance/firmwaremanagerdialog.h \
     ui/advance/renamedisplaydialog.h \
     ui/advance/updatedisplaysettingsdialog.h \
     ui/advance/recordingsettingsdialog.h \
+    ui/advance/diagnostics/SupportEmailDialog.h \
     ui/initializer/mainwindowinitializer.h \
     ui/statusbar/statusbarmanager.h \
     ui/statusbar/statuswidget.h \

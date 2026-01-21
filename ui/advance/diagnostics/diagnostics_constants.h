@@ -27,6 +27,7 @@ inline const char* REMINDERS[] = {
     "Detecting serial port baud rate and connection status",
     "Resting serial configuration to factory default",
     "Changeing serial port baudrate to 115200",
+    "Testing serial port communication at low baudrate (9600)",
     "Running platform stress test for 30 seconds"
 };
 

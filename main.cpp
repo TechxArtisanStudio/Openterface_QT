@@ -71,101 +71,6 @@ QAtomicInteger<int> g_applicationShuttingDown(0);
 #include <unistd.h>
 #include <unistd.h>
 
-
-// void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
-// {
-//     Q_UNUSED(context)
-
-
-//     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
-//     QThread *currentThread = QThread::currentThread();
-//     QString threadName = currentThread->objectName().isEmpty() ? QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId())) : currentThread->objectName();
-//     QString txt = QString("[%1][%2] ").arg(timestamp).arg(threadName);
-    
-//     switch (type) {
-//         case QtDebugMsg:
-//             txt += QString("{Debug}: %1").arg(msg);
-//             break;
-//         case QtWarningMsg:
-//             // Skip logging the specific QWidget::paintEngine warning
-//             if (msg.contains("QWidget::paintEngine")) {
-//                 return;
-//             }
-//             txt += QString("{Warning}: %1").arg(msg);
-//             break;
-//         case QtCriticalMsg:
-//             txt += QString("{Critical}: %1").arg(msg);
-//             break;
-//         case QtFatalMsg:
-//             txt += QString("{Fatal}: %1").arg(msg);
-//             break;
-//         case QtInfoMsg:
-//             txt += QString("{Info}: %1").arg(msg);
-//             break;
-//     }
-
-//     // For Windows GUI applications, std::cout may not be available and can cause crashes
-//     // Use OutputDebugString instead for debug output
-//     // In static builds or Windows subsystem builds, stdout/stderr may not work
-// #ifdef Q_OS_WIN
-//     OutputDebugStringW(reinterpret_cast<const wchar_t*>(txt.utf16()));
-//     OutputDebugStringW(L"\n");
-// #else
-//     // Use fprintf to stderr instead of std::cout to avoid C++ stream issues
-//     fprintf(stderr, "%s\n", txt.toUtf8().constData());
-//     fflush(stderr);
-// #endif
-// }
-
-void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
-{
-    Q_UNUSED(context)
-
-
-    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
-    QThread *currentThread = QThread::currentThread();
-    QString threadName = currentThread->objectName().isEmpty() ? QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId())) : currentThread->objectName();
-    QString txt = QString("[%1][%2] ").arg(timestamp).arg(threadName);
-    
-    switch (type) {
-        case QtDebugMsg:
-            txt += QString("{Debug}: %1").arg(msg);
-            break;
-        case QtWarningMsg:
-            // Skip logging the specific QWidget::paintEngine warning
-            if (msg.contains("QWidget::paintEngine")) {
-                return;
-            }
-            txt += QString("{Warning}: %1").arg(msg);
-            break;
-        case QtCriticalMsg:
-            txt += QString("{Critical}: %1").arg(msg);
-            break;
-        case QtFatalMsg:
-            txt += QString("{Fatal}: %1").arg(msg);
-            break;
-        case QtInfoMsg:
-            txt += QString("{Info}: %1").arg(msg);
-            break;
-
-        default:
-            txt += QString("{Unknown}: %1").arg(msg);
-            break;
-    }
-
-    // For Windows GUI applications, std::cout may not be available and can cause crashes
-    // Use OutputDebugString instead for debug output
-    // In static builds or Windows subsystem builds, stdout/stderr may not work
-#ifdef Q_OS_WIN
-    OutputDebugStringW(reinterpret_cast<const wchar_t*>(txt.utf16()));
-    OutputDebugStringW(L"\n");
-#else
-    // Use fprintf to stderr instead of std::cout to avoid C++ stream issues
-    fprintf(stderr, "%s\n", txt.toUtf8().constData());
-    fflush(stderr);
-#endif
-}
-
 void writeLog(const QString &message){
     QFile logFile("startup_log.txt");
     if (logFile.open(QIODevice::Append | QIODevice::Text)) {
@@ -417,13 +322,8 @@ int main(int argc, char *argv[])
         GlobalSetting::instance().loadLogSettings();
         GlobalSetting::instance().loadVideoSettings();
         applyMediaBackendSetting();
-        
-        // Enable file logging if configured
-        QSettings settings("Techxartisan", "Openterface");
-        bool storeLog = settings.value("log/storeLog", false).toBool();
-        if (storeLog) {
-            LogHandler::instance().enableLogStore();
-        }
+
+        LogHandler::instance().enableLogStore();
     });
     
     QTimer::singleShot(800, [&app, splash]() {

@@ -6,6 +6,7 @@
 #include <QStringList>
 #include <QVector>
 #include <QThread>
+#include <functional>
 #include "diagnosticstypes.h" // for TestStatus
 #include "LogWriter.h"
 
@@ -38,12 +39,15 @@ signals:
 
 private slots:
     void onTimerTimeout();
+    void onTargetUsbStatusChanged(bool connected);
 
 private:
     void appendToLog(const QString &message);
     void startTargetPlugPlayTest();
-    void onTargetStatusCheckTimeout();
-    bool checkTargetConnectionStatus();
+    void testTargetConnectionStatus();
+    void testTargetAtBaudrate(int baudrate, std::function<void(bool)> callback);
+    void startPlugPlayDetection();
+    void failTargetPlugPlayTest(const QString& reason);
     void startHostPlugPlayTest();
     void onHostStatusCheckTimeout();
     bool checkHostConnectionStatus();
@@ -54,6 +58,8 @@ private:
     bool performFactoryResetTest();
     void startHighBaudrateTest();
     bool performHighBaudrateTest();
+    void startLowBaudrateTest();
+    bool performLowBaudrateTest();
     void startStressTest();
     void onStressTestTimeout();
     void finishStressTest();
@@ -64,10 +70,13 @@ private:
     QStringList m_testTitles;
     QVector<TestStatus> m_statuses;
     QTimer *m_testTimer;
-    QTimer *m_targetCheckTimer;
     QTimer *m_hostCheckTimer;
+    QTimer *m_targetCheckTimer;
     int m_runningTestIndex;
     bool m_isTestingInProgress;
+
+    // Connection to SerialPortManager targetUSBStatus signal
+    QMetaObject::Connection m_targetStatusConnection;
     
     // Target Plug & Play test state
     bool m_targetPreviouslyConnected;

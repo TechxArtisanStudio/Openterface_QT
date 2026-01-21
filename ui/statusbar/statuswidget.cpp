@@ -232,6 +232,7 @@ void StatusWidget::setStatusUpdate(const QString &status){
     update();
 }
 
+// Set keybord and mouse USB connection status
 void StatusWidget::setTargetUsbConnected(const bool isConnected){
     QString keyboardSvgPath = ":/images/keyboard.svg";
     QString mouseSvgPath = ":/images/mouse-default.svg";

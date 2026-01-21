@@ -40,6 +40,8 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QFileInfo>
+#include <unistd.h>
+#include <errno.h>
 
 
 Q_LOGGING_CATEGORY(log_core_serial, "opf.core.serial")
@@ -51,8 +53,13 @@ const int SerialPortManager::DEFAULT_BAUDRATE;
 const int SerialPortManager::SERIAL_TIMER_INTERVAL;
 
 SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialPort(nullptr), m_serialWorkerThread(new QThread(nullptr)), serialTimer(new QTimer(nullptr)),
-    m_connectionWatchdog(nullptr), m_errorRecoveryTimer(nullptr), m_usbStatusCheckTimer(nullptr){
+    m_connectionWatchdog(nullptr), m_errorRecoveryTimer(nullptr), m_usbStatusCheckTimer(nullptr), m_getInfoTimer(nullptr){
     qCDebug(log_core_serial) << "Initialize serial port.";
+
+    // Set object name for easier lookup and debugging
+    this->setObjectName("SerialPortManager");
+    // Initialize the suppression flag for GET_INFO polling
+    m_suppressGetInfo = false;
 
     // Set name for the serial worker thread for better logging
     m_serialWorkerThread->setObjectName("SerialWorkerThread");
@@ -146,15 +153,9 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     
     // Connect protocol layer signals to SerialPortManager
     connect(m_protocol.get(), &SerialProtocol::getInfoReceived, this, [this](bool targetConnected, uint8_t indicators) {
-        // Update state manager
-        if (m_stateManager) {
-            m_stateManager->setTargetUsbConnected(targetConnected);
-            m_stateManager->updateKeyStates(indicators);
-        } else {
             // Fallback - direct emission
             emit targetUSBStatus(targetConnected);
             updateSpecialKeyState(indicators);
-        }
     });
     connect(m_protocol.get(), &SerialProtocol::usbSwitchStatusReceived, this, &SerialPortManager::usbStatusChanged);
     connect(m_protocol.get(), &SerialProtocol::paramConfigReceived, this, [this](int baudrate, uint8_t mode) {
@@ -180,12 +181,15 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
         m_connectionWatchdog = new QTimer(this);
         m_errorRecoveryTimer = new QTimer(this);
         m_usbStatusCheckTimer = new QTimer(this);
+        m_getInfoTimer = new QTimer(this);
         
         m_connectionWatchdog->setSingleShot(true);
         m_errorRecoveryTimer->setSingleShot(true);
         m_usbStatusCheckTimer->setInterval(2000);  // Check every 2 seconds
+        m_getInfoTimer->setInterval(3000);  // Send GET_INFO every 3 seconds
         
         connect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
+        connect(m_getInfoTimer, &QTimer::timeout, this, &SerialPortManager::onGetInfoTimeout);
         
         setupConnectionWatchdog();
         
@@ -380,6 +384,11 @@ int SerialPortManager::getCurrentBaudrate() const
         return serialPort->baudRate();
     }
     return 9600;
+}
+
+bool SerialPortManager::getTargetUsbConnected() const
+{
+    return m_stateManager ? m_stateManager->isTargetUsbConnected() : false;
 }
 
 bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
@@ -830,11 +839,56 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
         qCDebug(log_core_serial) << "Started USB status check timer for CH32V208";
     }
 
+    // Start GET_INFO timer for periodic status updates (unless diagnostics dialog is active)
+    if (m_getInfoTimer) {
+        QMutexLocker locker(&m_diagMutex);
+        if (!m_suppressGetInfo) {
+            if (QThread::currentThread() == m_getInfoTimer->thread()) {
+                m_getInfoTimer->start();
+            } else {
+                QMetaObject::invokeMethod(m_getInfoTimer, "start", Qt::QueuedConnection);
+            }
+            qCDebug(log_core_serial) << "Started periodic GET_INFO timer";
+        } else {
+            qCDebug(log_core_serial) << "Periodic GET_INFO timer suppressed because diagnostics dialog is active";
+        }
+    }
+
     sendAsyncCommand(CMD_GET_INFO, true);
 }
 
 void SerialPortManager::setEventCallback(StatusEventCallback* callback) {
     eventCallback = callback;
+}
+
+void SerialPortManager::setDiagnosticsDialogActive(bool active)
+{
+    QMutexLocker locker(&m_diagMutex);
+    if (m_suppressGetInfo == active) {
+        return;
+    }
+    m_suppressGetInfo = active;
+    qCDebug(log_core_serial) << "Diagnostics dialog active set to:" << active;
+
+    if (m_getInfoTimer) {
+        if (active) {
+            if (QThread::currentThread() == m_getInfoTimer->thread()) {
+                m_getInfoTimer->stop();
+            } else {
+                QMetaObject::invokeMethod(m_getInfoTimer, "stop", Qt::QueuedConnection);
+            }
+            qCDebug(log_core_serial) << "GET_INFO timer stopped due to diagnostics dialog active";
+        } else {
+            if (serialPort && serialPort->isOpen()) {
+                if (QThread::currentThread() == m_getInfoTimer->thread()) {
+                    m_getInfoTimer->start();
+                } else {
+                    QMetaObject::invokeMethod(m_getInfoTimer, "start", Qt::QueuedConnection);
+                }
+                qCDebug(log_core_serial) << "GET_INFO timer restarted after diagnostics dialog closed";
+            }
+        }
+    }
 }
 
 /* 
@@ -974,6 +1028,23 @@ void SerialPortManager::onUsbStatusCheckTimeout() {
 
     sendAsyncCommand(CMD_CHECK_USB_STATUS, true);
     qCDebug(log_core_serial) << "Sent USB status check command asynchronously";
+}
+
+void SerialPortManager::onGetInfoTimeout() {
+    if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
+        return;  // Skip if shutting down or port not open
+    }
+
+    {
+        QMutexLocker locker(&m_diagMutex);
+        if (m_suppressGetInfo) {
+            qCDebug(log_core_serial) << "Suppressed periodic GET_INFO due to diagnostics dialog active";
+            return;
+        }
+    }
+
+    sendAsyncCommand(CMD_GET_INFO, true);
+    qCDebug(log_core_serial) << "Sent periodic GET_INFO command asynchronously";
 }
 
 /*
@@ -1271,32 +1342,68 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
  * Close the serial port
  */
 void SerialPortManager::closePort() {
+    // Ensure closePort is called in the worker thread to avoid QSocketNotifier issues
+    if (QThread::currentThread() != m_serialWorkerThread) {
+        qCDebug(log_core_serial) << "closePort called from different thread, routing through worker thread";
+        QEventLoop waitLoop;
+        QMetaObject::invokeMethod(this, [this, &waitLoop]() {
+            closePortInternal();
+            waitLoop.quit();
+        }, Qt::QueuedConnection);
+        waitLoop.exec();
+        return;
+    }
+    
+    // Already in worker thread, proceed directly
+    closePortInternal();
+}
+
+void SerialPortManager::closePortInternal() {
     qCDebug(log_core_serial) << "Close serial port";
     
     QMutexLocker locker(&m_serialPortMutex);
     
-        if (serialPort != nullptr) {
+    if (serialPort != nullptr) {
         if (serialPort->isOpen()) {
-            qCDebug(log_core_serial) << "Close serial port - current buffer sizes before flush/clear - bytesAvailable:" << serialPort->bytesAvailable()
-                                     << "bytesToWrite:" << serialPort->bytesToWrite();
-            // Disconnect all signals first
+            // Disconnect all signals first - CRITICAL: do this BEFORE any QSerialPort operations
             disconnect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
             disconnect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
             disconnect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
                       this, &SerialPortManager::handleSerialError);
             
-            // Attempt graceful flush and close
+            qCDebug(log_core_serial) << "Close serial port - current buffer sizes before close - bytesAvailable:" << serialPort->bytesAvailable()
+                                     << "bytesToWrite:" << serialPort->bytesToWrite();
+            
+            // IMPORTANT: After factory reset or physical device removal, QSerialPort's internal state can be corrupted.
+            // Calling flush(), clear(), or close() can trigger QSocketNotifier warnings from internal Qt code.
+            // To avoid crashes, we DIRECTLY close the underlying file descriptor without involving QSerialPort's signal/slot machinery.
+            #ifdef Q_OS_UNIX
             try {
-                serialPort->flush();
-                serialPort->clear();
-                qCDebug(log_core_serial) << "Close serial port - buffer sizes after flush/clear - bytesAvailable:" << serialPort->bytesAvailable()
-                                         << "bytesToWrite:" << serialPort->bytesToWrite();
-                serialPort->clearError();
-                serialPort->close();
+                // Get the native file descriptor BEFORE closing anything
+                int fd = serialPort->handle();
+                
+                // Directly close the file descriptor to bypass QSerialPort's QSocketNotifier manipulation
+                // This is critical after factory reset or device removal when internal state is corrupted
+                if (fd >= 0) {
+                    int closeResult = ::close(fd);
+                    if (closeResult == 0) {
+                        qCDebug(log_core_serial) << "File descriptor closed directly (bypassed QSerialPort close)";
+                    } else {
+                        qCWarning(log_core_serial) << "Failed to close file descriptor:" << strerror(errno);
+                    }
+                }
+                
+                // Now safely delete the QSerialPort object without calling its close()
+                // The object will be cleaned up, but without triggering QSocketNotifier operations
                 qCDebug(log_core_serial) << "Serial port closed successfully";
             } catch (...) {
                 qCWarning(log_core_serial) << "Exception during port closure";
             }
+            #else
+            // On Windows, use Qt's standard close to avoid compatibility issues
+            serialPort->close();
+            qCDebug(log_core_serial) << "Serial port closed via Qt's close() (Windows compatibility)";
+            #endif
         }
         delete serialPort;
         serialPort = nullptr;
@@ -1854,6 +1961,33 @@ bool SerialPortManager::setBaudRate(int baudRate) {
         return false;
     }
 
+    // If called from a different thread, route through worker thread via queued connection
+    if (QThread::currentThread() != m_serialWorkerThread) {
+        qCDebug(log_core_serial) << "setBaudRate called from different thread, routing through worker thread";
+        bool result = false;
+        QEventLoop waitLoop;
+        
+        // Use BlockingQueuedConnection to wait for the operation to complete
+        QMetaObject::invokeMethod(this, [this, baudRate, &result, &waitLoop]() {
+            // Call the actual baudrate setting logic
+            result = setBaudRateInternal(baudRate);
+            waitLoop.quit();
+        }, Qt::QueuedConnection);
+        
+        waitLoop.exec();
+        return result;
+    }
+    
+    // Already in worker thread, proceed directly
+    return setBaudRateInternal(baudRate);
+}
+
+bool SerialPortManager::setBaudRateInternal(int baudRate) {
+    if (!serialPort) {
+        qCWarning(log_core_serial) << "Cannot set baud rate: serialPort is null";
+        return false;
+    }
+
     if (serialPort->baudRate() == baudRate) {
         qCDebug(log_core_serial) << "Baud rate is already set to" << baudRate;
         // Keep state manager in sync
@@ -2260,6 +2394,13 @@ void SerialPortManager::stopConnectionWatchdog()
             m_usbStatusCheckTimer->stop();
         } else {
             QMetaObject::invokeMethod(m_usbStatusCheckTimer, "stop", Qt::QueuedConnection);
+        }
+    }
+    if (m_getInfoTimer) {
+        if (QThread::currentThread() == m_getInfoTimer->thread()) {
+            m_getInfoTimer->stop();
+        } else {
+            QMetaObject::invokeMethod(m_getInfoTimer, "stop", Qt::QueuedConnection);
         }
     }
 }
