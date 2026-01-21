@@ -41,19 +41,18 @@ LogHandler& LogHandler::instance()
 
 void LogHandler::enableLogStore()
 {
-    qDebug() << "Enable log store now ";
+    // Don't log here before handler is installed to avoid duplication
     static QSettings settings("Techxartisan", "Openterface");
     bool storeLog = settings.value("log/storeLog", false).toBool();
-    qDebug() << "Store log is " << storeLog;
+    
     if (storeLog)
     {
         qInstallMessageHandler(fileMessageHandler);
     }
     else
     {
-        qInstallMessageHandler(customMessageHandler);      // Reset to default handler
+        qInstallMessageHandler(customMessageHandler);      // Install custom handler for console output
     }
-    qDebug() << "Enable log store done";
 }
 
 void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -167,12 +166,8 @@ void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &
     OutputDebugStringW(reinterpret_cast<const wchar_t*>(txt.utf16()));
     OutputDebugStringW(L"\n");
 #else
-    // Use fprintf to stderr instead of std::cout to avoid C++ stream issues
+    // Use fprintf to stderr for single output
     fprintf(stderr, "%s\n", txt.toUtf8().constData());
     fflush(stderr);
-    
-    // Also write to stdout as a backup to ensure visibility
-    fprintf(stdout, "%s\n", txt.toUtf8().constData());
-    fflush(stdout);
 #endif
 }

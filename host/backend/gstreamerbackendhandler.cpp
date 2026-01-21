@@ -23,6 +23,9 @@
 #include "gstreamerbackendhandler.h"
     // Increment frame count logic remains unchanged
 #include "../../ui/globalsetting.h"
+#include "../../device/DeviceManager.h"
+#include "../../device/HotplugMonitor.h"
+#include "../../device/DeviceInfo.h"
 #include <QThread>
 #include <QApplication>
 #include <QDebug>
@@ -109,6 +112,7 @@ GstPadProbeReturn GStreamerBackendHandler::gstreamer_frame_probe_cb(GstPad* pad,
 GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
     : MultimediaBackendHandler(parent),
       m_pipeline(nullptr), m_source(nullptr), m_sink(nullptr), m_bus(nullptr),
+      m_hotplugMonitor(nullptr),
       m_recordingPipeline(nullptr), m_recordingTee(nullptr), m_recordingValve(nullptr),
       m_recordingSink(nullptr), m_recordingQueue(nullptr), m_recordingEncoder(nullptr),
       m_recordingVideoConvert(nullptr), m_recordingMuxer(nullptr), m_recordingFileSink(nullptr),
@@ -142,6 +146,9 @@ GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
     connect(m_recordingManager, &RecordingManager::recordingStarted, this, &GStreamerBackendHandler::recordingStarted);
     connect(m_recordingManager, &RecordingManager::recordingStopped, this, &GStreamerBackendHandler::recordingStopped);
     connect(m_recordingManager, &RecordingManager::recordingError, this, &GStreamerBackendHandler::recordingError);
+    
+    // Connect to hotplug monitor to handle device unplugging
+    connectToHotplugMonitor();
 }
 
 // incrementFrameCount is implemented under HAVE_GSTREAMER guard later in the file
@@ -329,7 +336,7 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
         return false;
     }
     
-    m_currentDevice = device;
+    m_currentDevicePath = device;
     m_currentResolution = resolution;
     m_currentFramerate = framerate;
     
@@ -448,12 +455,12 @@ QString GStreamerBackendHandler::generatePipelineString(const QString& device, c
 void GStreamerBackendHandler::startCamera()
 {
     qCDebug(log_gstreamer_backend) << "GStreamer startCamera called";
-    qCDebug(log_gstreamer_backend) << "Current device:" << m_currentDevice;
+    qCDebug(log_gstreamer_backend) << "Current device:" << m_currentDevicePath;
     qCDebug(log_gstreamer_backend) << "Current resolution:" << m_currentResolution;
     qCDebug(log_gstreamer_backend) << "Current framerate:" << m_currentFramerate;
 
     // Prefer direct pipeline when we have a configured device
-    if (!m_currentDevice.isEmpty()) {
+    if (!m_currentDevicePath.isEmpty()) {
 #else
     if (m_gstProcess && m_gstProcess->state() == QProcess::Running) {
         m_gstProcess->terminate();
@@ -475,14 +482,14 @@ void GStreamerBackendHandler::startCamera()
 
 bool GStreamerBackendHandler::startDirectPipeline()
 {
-    qCDebug(log_gstreamer_backend) << "GStreamer: attempting direct pipeline for device" << m_currentDevice;
+    qCDebug(log_gstreamer_backend) << "GStreamer: attempting direct pipeline for device" << m_currentDevicePath;
 
-    if (m_currentDevice.isEmpty()) {
+    if (m_currentDevicePath.isEmpty()) {
         qCWarning(log_gstreamer_backend) << "No device configured for direct pipeline";
         return false;
     }
 
-    if (!createGStreamerPipeline(m_currentDevice, m_currentResolution, m_currentFramerate)) {
+    if (!createGStreamerPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate)) {
         qCWarning(log_gstreamer_backend) << "createGStreamerPipeline failed";
         return false;
     }
@@ -519,7 +526,7 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
             cleanupGStreamer();
 
             QString createErr;
-            m_pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(m_currentDevice, m_currentResolution, m_currentFramerate, trySink, createErr);
+            m_pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate, trySink, createErr);
             if (!m_pipeline) {
                 qCWarning(log_gstreamer_backend) << "Failed to create pipeline with sink" << trySink << ":" << createErr;
                 lastErr = createErr;
@@ -587,7 +594,7 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
 
     bool started = false;
     for (const QString &trySink : Openterface::GStreamer::SinkSelector::candidateSinks(QGuiApplication::platformName())) {
-        QString candidatePipeline = generatePipelineString(m_currentDevice, m_currentResolution, m_currentFramerate, trySink);
+        QString candidatePipeline = generatePipelineString(m_currentDevicePath, m_currentResolution, m_currentFramerate, trySink);
         if (candidatePipeline.isEmpty()) continue;
 
         qCDebug(log_gstreamer_backend) << "Trying external runner with sink:" << trySink << "pipeline:" << candidatePipeline;
@@ -690,6 +697,43 @@ void GStreamerBackendHandler::onExternalRunnerFinished(int exitCode, QProcess::E
     qCWarning(log_gstreamer_backend) << "External GStreamer process finished with code:" << exitCode;
     m_pipelineRunning = false;
     emit backendWarning("External GStreamer process stopped unexpectedly");
+}
+
+void GStreamerBackendHandler::onDeviceUnplugged(const DeviceInfo& device)
+{
+    qCInfo(log_gstreamer_backend) << "GStreamerBackendHandler: Device unplugged event received";
+    qCInfo(log_gstreamer_backend) << "  Port Chain:" << device.portChain;
+    qCInfo(log_gstreamer_backend) << "  Current device port chain:" << m_currentDevicePortChain;
+    qCInfo(log_gstreamer_backend) << "  Current device path:" << m_currentDevicePath;
+    qCInfo(log_gstreamer_backend) << "  Pipeline running:" << m_pipelineRunning;
+    
+    // Match by port chain like the serial port manager and FFmpeg backend do
+    // This ensures we only stop the camera if the unplugged device is our current camera
+    if (!m_currentDevicePortChain.isEmpty() && 
+        m_currentDevicePortChain == device.portChain) {
+        qCInfo(log_gstreamer_backend) << "  → Our current camera device was unplugged, stopping GStreamer pipeline";
+        
+        // Stop the pipeline immediately to avoid segfault from accessing destroyed hardware
+        if (m_pipelineRunning) {
+            QTimer::singleShot(0, this, [this]() {
+                qCDebug(log_gstreamer_backend) << "Stopping GStreamer pipeline due to device unplug";
+                stopCamera();
+                m_currentDevicePortChain.clear();
+                m_currentDevicePath.clear();
+                emit backendWarning("Camera device was unplugged");
+            });
+        }
+    } else {
+        qCDebug(log_gstreamer_backend) << "  → Unplugged device is not our current camera, ignoring";
+    }
+}
+
+void GStreamerBackendHandler::onDevicePluggedIn(const DeviceInfo& device)
+{
+    qCDebug(log_gstreamer_backend) << "GStreamerBackendHandler: New device plugged in event received";
+    qCDebug(log_gstreamer_backend) << "  Port Chain:" << device.portChain;
+    qCDebug(log_gstreamer_backend) << "  Has Camera:" << device.hasCameraDevice();
+    // Note: We don't auto-restart the camera here - let the UI handle reconnection
 }
 
 void GStreamerBackendHandler::setVideoOutput(QWidget* widget)
@@ -1354,6 +1398,35 @@ WId GStreamerBackendHandler::getVideoWidgetWindowId() const
     return 0;
 }
 
+void GStreamerBackendHandler::connectToHotplugMonitor()
+{
+    qCDebug(log_gstreamer_backend) << "GStreamerBackendHandler: Connecting to hotplug monitor";
+    
+#ifdef HAVE_GSTREAMER
+    // Get HotplugMonitor from DeviceManager
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    if (HotplugMonitor* monitor = deviceManager.getHotplugMonitor()) {
+        m_hotplugMonitor = monitor;
+        
+        // Connect to device unplugging signal
+        connect(m_hotplugMonitor, &HotplugMonitor::deviceUnplugged,
+                this, &GStreamerBackendHandler::onDeviceUnplugged,
+                Qt::AutoConnection);
+        
+        // Connect to new device plugged in signal
+        connect(m_hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
+                this, &GStreamerBackendHandler::onDevicePluggedIn,
+                Qt::AutoConnection);
+        
+        qCDebug(log_gstreamer_backend) << "GStreamerBackendHandler successfully connected to hotplug monitor";
+    } else {
+        qCWarning(log_gstreamer_backend) << "Failed to get hotplug monitor from device manager";
+    }
+#else
+    qCDebug(log_gstreamer_backend) << "GStreamer not available - hotplug monitoring unavailable";
+#endif
+}
+
 void GStreamerBackendHandler::setCurrentDevicePortChain(const QString& portChain)
 {
     m_currentDevicePortChain = portChain;
@@ -1362,7 +1435,7 @@ void GStreamerBackendHandler::setCurrentDevicePortChain(const QString& portChain
 
 void GStreamerBackendHandler::setCurrentDevice(const QString& devicePath)
 {
-    m_currentDevice = devicePath;
+    m_currentDevicePath = devicePath;
     qCDebug(log_gstreamer_backend) << "GStreamer: current device set to" << devicePath;
 }
 
@@ -1539,10 +1612,25 @@ void GStreamerBackendHandler::updateVideoRenderRectangle(int x, int y, int width
     }
 
     if (overlaySink && GST_IS_VIDEO_OVERLAY(overlaySink)) {
-        gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(overlaySink), x, y, width, height);
+        // Get the device pixel ratio (DPI scaling) from the screen
+        // This handles OS-level display scaling (e.g., 150% scaling on Linux)
+        qreal dpiScale = 1.0;
+        if (QScreen* screen = QGuiApplication::primaryScreen()) {
+            dpiScale = screen->devicePixelRatio();
+            qCDebug(log_gstreamer_backend) << "DPI scale factor:" << dpiScale;
+        }
+        
+        // Scale render rectangle to account for OS display scaling
+        int scaledX = (int)(x * dpiScale);
+        int scaledY = (int)(y * dpiScale);
+        int scaledWidth = (int)(width * dpiScale);
+        int scaledHeight = (int)(height * dpiScale);
+        
+        gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(overlaySink), scaledX, scaledY, scaledWidth, scaledHeight);
         // Force sink to re-render if supported, improving responsiveness to rectangle updates
         gst_video_overlay_expose(GST_VIDEO_OVERLAY(overlaySink));
-        qCDebug(log_gstreamer_backend) << "Updated render rectangle to:" << x << y << width << height;
+        qCDebug(log_gstreamer_backend) << "Updated render rectangle to:" << scaledX << scaledY << scaledWidth << scaledHeight
+                                       << "(before scaling:" << x << y << width << height << ", DPI scale:" << dpiScale << ")";
         // If overlaySink is different from videoSink (child), unref both appropriately
         if (overlaySink != videoSink && overlaySink != m_currentOverlaySink) gst_object_unref(overlaySink);
         if (videoSink) gst_object_unref(videoSink);

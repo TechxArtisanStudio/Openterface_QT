@@ -145,9 +145,9 @@ ParsedPacket SerialProtocol::parsePacket(const QByteArray& data)
     result.valid = true;
     result.rawPacket = packetToVerify;
     
-    qCDebug(log_core_serial) << "Parsed packet: cmd=0x" << QString::number(result.commandCode, 16)
-                                 << "len=" << result.payloadLength
-                                 << "status=0x" << QString::number(result.status, 16);
+    // qCDebug(log_core_serial) << "Parsed packet: cmd=0x" << QString::number(result.commandCode, 16)
+    //                              << "len=" << result.payloadLength
+    //                              << "status=0x" << QString::number(result.status, 16);
     
     // Also explicitly log protocol parsing to file during diagnostics
     if (SerialPortManager* manager = &SerialPortManager::getInstance()) {
