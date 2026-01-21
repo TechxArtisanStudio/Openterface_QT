@@ -54,6 +54,11 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     m_connectionWatchdog(nullptr), m_errorRecoveryTimer(nullptr), m_usbStatusCheckTimer(nullptr), m_getInfoTimer(nullptr){
     qCDebug(log_core_serial) << "Initialize serial port.";
 
+    // Set object name for easier lookup and debugging
+    this->setObjectName("SerialPortManager");
+    // Initialize the suppression flag for GET_INFO polling
+    m_suppressGetInfo = false;
+
     // Set name for the serial worker thread for better logging
     m_serialWorkerThread->setObjectName("SerialWorkerThread");
 
@@ -377,6 +382,11 @@ int SerialPortManager::getCurrentBaudrate() const
         return serialPort->baudRate();
     }
     return 9600;
+}
+
+bool SerialPortManager::getTargetUsbConnected() const
+{
+    return m_stateManager ? m_stateManager->isTargetUsbConnected() : false;
 }
 
 bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
@@ -827,14 +837,19 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
         qCDebug(log_core_serial) << "Started USB status check timer for CH32V208";
     }
 
-    // Start GET_INFO timer for periodic status updates
+    // Start GET_INFO timer for periodic status updates (unless diagnostics dialog is active)
     if (m_getInfoTimer) {
-        if (QThread::currentThread() == m_getInfoTimer->thread()) {
-            m_getInfoTimer->start();
+        QMutexLocker locker(&m_diagMutex);
+        if (!m_suppressGetInfo) {
+            if (QThread::currentThread() == m_getInfoTimer->thread()) {
+                m_getInfoTimer->start();
+            } else {
+                QMetaObject::invokeMethod(m_getInfoTimer, "start", Qt::QueuedConnection);
+            }
+            qCDebug(log_core_serial) << "Started periodic GET_INFO timer";
         } else {
-            QMetaObject::invokeMethod(m_getInfoTimer, "start", Qt::QueuedConnection);
+            qCDebug(log_core_serial) << "Periodic GET_INFO timer suppressed because diagnostics dialog is active";
         }
-        qCDebug(log_core_serial) << "Started periodic GET_INFO timer";
     }
 
     sendAsyncCommand(CMD_GET_INFO, true);
@@ -842,6 +857,36 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
 
 void SerialPortManager::setEventCallback(StatusEventCallback* callback) {
     eventCallback = callback;
+}
+
+void SerialPortManager::setDiagnosticsDialogActive(bool active)
+{
+    QMutexLocker locker(&m_diagMutex);
+    if (m_suppressGetInfo == active) {
+        return;
+    }
+    m_suppressGetInfo = active;
+    qCDebug(log_core_serial) << "Diagnostics dialog active set to:" << active;
+
+    if (m_getInfoTimer) {
+        if (active) {
+            if (QThread::currentThread() == m_getInfoTimer->thread()) {
+                m_getInfoTimer->stop();
+            } else {
+                QMetaObject::invokeMethod(m_getInfoTimer, "stop", Qt::QueuedConnection);
+            }
+            qCDebug(log_core_serial) << "GET_INFO timer stopped due to diagnostics dialog active";
+        } else {
+            if (serialPort && serialPort->isOpen()) {
+                if (QThread::currentThread() == m_getInfoTimer->thread()) {
+                    m_getInfoTimer->start();
+                } else {
+                    QMetaObject::invokeMethod(m_getInfoTimer, "start", Qt::QueuedConnection);
+                }
+                qCDebug(log_core_serial) << "GET_INFO timer restarted after diagnostics dialog closed";
+            }
+        }
+    }
 }
 
 /* 
@@ -986,6 +1031,14 @@ void SerialPortManager::onUsbStatusCheckTimeout() {
 void SerialPortManager::onGetInfoTimeout() {
     if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
         return;  // Skip if shutting down or port not open
+    }
+
+    {
+        QMutexLocker locker(&m_diagMutex);
+        if (m_suppressGetInfo) {
+            qCDebug(log_core_serial) << "Suppressed periodic GET_INFO due to diagnostics dialog active";
+            return;
+        }
     }
 
     sendAsyncCommand(CMD_GET_INFO, true);
