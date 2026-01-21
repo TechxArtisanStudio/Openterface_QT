@@ -61,6 +61,18 @@ bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const Q
     
     QByteArray command = data;
     emit dataSent(data);
+
+    // Log TX using same format as RX: "TX (COM21@9600bps): <hex>"
+    {
+        QString portName = serialPort ? serialPort->portName() : QString();
+        int baudrate = serialPort ? serialPort->baudRate() : 0;
+        qCDebug(log_core_serial).nospace().noquote() << "TX (" << portName << "@" << baudrate << "bps): " << data.toHex(' ');
+        // Also log to diagnostics file if enabled
+        if (SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics")) {
+            SerialPortManager::getInstance().log(QString("TX (%1@%2bps): %3").arg(portName).arg(baudrate).arg(QString(data.toHex(' '))));
+        }
+    }
+
     command.append(calculateChecksum(command));
 
     // Statistics tracking
@@ -108,10 +120,15 @@ QByteArray SerialCommandCoordinator::sendSyncCommand(QSerialPort* serialPort, co
     
     const int commandCode = static_cast<unsigned char>(data[3]);
     
-    // Also explicitly log command send to file during diagnostics
-    if (SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics")) {
+    // Log TX using same format as RX: "TX (COM21@9600bps): <hex>"
+    {
+        QString portName = serialPort ? serialPort->portName() : QString();
         int baudrate = serialPort ? serialPort->baudRate() : 0;
-        SerialPortManager::getInstance().log(QString("TX (%1): %2").arg(baudrate).arg(QString(command.toHex(' '))));
+        qCDebug(log_core_serial).nospace().noquote() << "TX (" << portName << "@" << baudrate << "bps): " << command.toHex(' ');
+        // Also explicitly log command send to file during diagnostics
+        if (SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics")) {
+            SerialPortManager::getInstance().log(QString("TX (%1@%2bps): %3").arg(portName).arg(baudrate).arg(QString(command.toHex(' '))));
+        }
     }
 
     serialPort->readAll(); // Clear any existing data in the buffer before sending command
@@ -341,7 +358,6 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
             m_statsSent++;
         }
         
-        qCDebug(log_core_serial) << "Successfully wrote" << bytesWritten << "bytes to serial port";
         return true;
         
     } catch (...) {

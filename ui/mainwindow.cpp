@@ -1654,14 +1654,14 @@ void MainWindow::showHardwareDiagnostics() {
             case 2: // Host Plug & Play  
                 // Test host device plug & play
                 break;
-            case 3: // Serial Connection
+            case 3: // Factory Reset
+                // Trigger factory reset test (similar to existing factory reset)
+                break;
+            case 4: // Serial Connection
                 // Test serial communication
                 if (m_deviceCoordinator) {
                     // Use existing device coordination for serial testing
                 }
-                break;
-            case 4: // Factory Reset
-                // Trigger factory reset test (similar to existing factory reset)
                 break;
             case 5: // High Baudrate
                 // Test high baudrate communication

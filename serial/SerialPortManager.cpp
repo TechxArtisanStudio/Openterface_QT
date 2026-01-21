@@ -114,7 +114,9 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     connect(m_commandCoordinator.get(), &SerialCommandCoordinator::dataSent, this, &SerialPortManager::dataSent);
     connect(m_commandCoordinator.get(), &SerialCommandCoordinator::dataReceived, this, &SerialPortManager::dataReceived);
     connect(m_commandCoordinator.get(), &SerialCommandCoordinator::commandExecuted, this, [this](const QByteArray& cmd, bool success) {
-        qCDebug(log_core_serial) << "Tx: :" << cmd.toHex(' ') << "Success:" << success;
+        QString portName = serialPort ? serialPort->portName() : QString();
+        int baud = serialPort ? serialPort->baudRate() : 0;
+        qCDebug(log_core_serial).nospace().noquote() << "TX (" << portName << "@" << baud << "bps): " << cmd.toHex(' ') << " Success:" << (success ? "true" : "false");
     });
     
     // Connect state manager signals to SerialPortManager signals
@@ -1106,7 +1108,6 @@ void SerialPortManager::onGetInfoTimeout() {
     }
 
     sendAsyncCommand(CMD_GET_INFO, true);
-    qCDebug(log_core_serial) << "Sent periodic GET_INFO command asynchronously";
 }
 
 /*
@@ -1321,6 +1322,13 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     }
     
     QMutexLocker locker(&m_serialPortMutex);
+    
+    // If there is an existing QSerialPort instance that is not open, delete it to avoid stale internal state (e.g., stale file descriptor / notifiers)
+    if (serialPort != nullptr && !serialPort->isOpen()) {
+        qCDebug(log_core_serial) << "Existing closed QSerialPort instance found - deleting to ensure fresh instance before open.";
+        delete serialPort;
+        serialPort = nullptr;
+    }
     
     if (serialPort != nullptr && serialPort->isOpen()) {
         qCDebug(log_core_serial) << "Serial port is already opened.";
@@ -2241,18 +2249,47 @@ void SerialPortManager::connectToHotplugMonitor()
             this, [this](const DeviceInfo& device) {
                 qCDebug(log_core_serial) << "New device plugged in:" << device.portChain;
                 
-                // Check if we don't have an active serial port and if this device has a serial port
-                if ((!serialPort || !serialPort->isOpen()) && !device.serialPortPath.isEmpty()) {
-                    qCInfo(log_core_serial) << "Auto-connecting to new serial device:" << device.serialPortPath;
-                    
-                    // Try to switch to this new serial port
-                    bool switchSuccess = switchSerialPortByPortChain(device.portChain);
-                    if (switchSuccess) {
-                        qCInfo(log_core_serial) << "✓ Serial port auto-switched to new device at port:" << device.portChain;
-                        emit serialPortConnected(device.serialPortPath);
-                    } else {
-                        qCDebug(log_core_serial) << "Serial port auto-switch failed for port:" << device.portChain;
-                    }
+                // If we don't have an active serial port, attempt to switch using the port chain regardless of whether
+                // the DeviceInfo included a serial port path. Some hotplug events may report the port chain before the
+                // OS has exposed the actual serial device node; retrying on the port chain is more robust.
+                if ((!serialPort || !serialPort->isOpen())) {
+                    qCInfo(log_core_serial) << "Auto-connecting to new serial device (delayed attempt):" << device.portChain;
+
+                    // Try up to 2 delayed attempts to switch the serial port to allow the kernel/device node to settle
+                    const int initialDelayMs = 250;
+                    const int retryDelayMs = 750;
+
+                    QTimer::singleShot(initialDelayMs, this, [this, device, retryDelayMs]() {
+                        if (m_isShuttingDown) {
+                            qCDebug(log_core_serial) << "Skipping auto-connect due to shutdown.";
+                            return;
+                        }
+
+                        qCDebug(log_core_serial) << "Auto-connect attempt #1 for portChain:" << device.portChain;
+                        bool switchSuccess = switchSerialPortByPortChain(device.portChain);
+                        if (switchSuccess) {
+                            qCInfo(log_core_serial) << "✓ Serial port auto-switched to new device at portChain:" << device.portChain;
+                            return;
+                        }
+
+                        qCWarning(log_core_serial) << "Auto-connect attempt #1 failed for portChain:" << device.portChain << "- scheduling retry";
+
+                        // Second attempt after a longer delay
+                        QTimer::singleShot(retryDelayMs, this, [this, device]() {
+                            if (m_isShuttingDown) {
+                                qCDebug(log_core_serial) << "Skipping auto-connect due to shutdown.";
+                                return;
+                            }
+
+                            qCDebug(log_core_serial) << "Auto-connect attempt #2 for portChain:" << device.portChain;
+                            bool switchSuccess2 = switchSerialPortByPortChain(device.portChain);
+                            if (switchSuccess2) {
+                                qCInfo(log_core_serial) << "✓ Serial port auto-switched to new device at portChain:" << device.portChain;
+                            } else {
+                                qCWarning(log_core_serial) << "Auto-connect attempt #2 failed for portChain:" << device.portChain;
+                            }
+                        });
+                    });
                 }
             });
             
