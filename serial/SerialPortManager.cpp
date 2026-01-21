@@ -191,6 +191,12 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
         connect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
         connect(m_getInfoTimer, &QTimer::timeout, this, &SerialPortManager::onGetInfoTimeout);
         
+        // Move watchdog to worker thread to ensure timers operate in correct thread
+        if (m_watchdog) {
+            m_watchdog->moveToThread(m_serialWorkerThread);
+            qCDebug(log_core_serial) << "ConnectionWatchdog moved to worker thread";
+        }
+        
         setupConnectionWatchdog();
         
         qCDebug(log_core_serial) << "Timers created successfully in worker thread";

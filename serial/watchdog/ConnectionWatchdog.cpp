@@ -361,9 +361,17 @@ void ConnectionWatchdog::scheduleRecovery()
     qCInfo(log_core_serial) << "Scheduling recovery in" << delay << "ms"
                          << "(attempt" << (m_retryAttemptCount.load() + 1) << ")";
     
-    m_recoveryTimer->stop();
-    m_recoveryTimer->setInterval(delay);
-    m_recoveryTimer->start();
+    // Use QMetaObject::invokeMethod to safely schedule on this object's thread
+    // This avoids "Timers cannot be started from another thread" warnings
+    QMetaObject::invokeMethod(this, [this, delay]() {
+        if (m_isShuttingDown || m_connectionState == ConnectionState::Recovering) {
+            return;
+        }
+        
+        m_recoveryTimer->stop();
+        m_recoveryTimer->setInterval(delay);
+        m_recoveryTimer->start();
+    }, Qt::QueuedConnection);
 }
 
 int ConnectionWatchdog::calculateRetryDelay() const
