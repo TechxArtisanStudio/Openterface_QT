@@ -279,6 +279,7 @@ private:
     void scheduleRecovery();
     int calculateRetryDelay() const;
     void updateErrorRate();
+    Q_INVOKABLE bool isRecoveryScheduled() const;
     
     // Configuration
     WatchdogConfig m_config;

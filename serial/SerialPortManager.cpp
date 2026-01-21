@@ -92,6 +92,11 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     // Initialize connection watchdog (Phase 3 refactoring)
     m_watchdog = std::make_unique<ConnectionWatchdog>(nullptr);
     m_watchdog->setRecoveryHandler(this);  // SerialPortManager implements IRecoveryHandler
+    // Move watchdog to worker thread from the watchdog's (current) thread context
+    if (m_watchdog) {
+        m_watchdog->moveToThread(m_serialWorkerThread);
+        qCDebug(log_core_serial) << "ConnectionWatchdog moved to worker thread";
+    }
     
     // Configure watchdog
     WatchdogConfig watchdogConfig;
@@ -190,12 +195,6 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
         
         connect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
         connect(m_getInfoTimer, &QTimer::timeout, this, &SerialPortManager::onGetInfoTimeout);
-        
-        // Move watchdog to worker thread to ensure timers operate in correct thread
-        if (m_watchdog) {
-            m_watchdog->moveToThread(m_serialWorkerThread);
-            qCDebug(log_core_serial) << "ConnectionWatchdog moved to worker thread";
-        }
         
         setupConnectionWatchdog();
         
@@ -1413,6 +1412,11 @@ void SerialPortManager::closePortInternal() {
                     delete serialPort;
                 }
             }
+            #else
+            // On Windows, use Qt's standard close to avoid compatibility issues
+            serialPort->close();
+            qCDebug(log_core_serial) << "Serial port closed via Qt's close() (Windows compatibility)";
+            #endif
         } else {
             delete serialPort;
         }
