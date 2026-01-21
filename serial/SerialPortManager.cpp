@@ -1377,6 +1377,7 @@ void SerialPortManager::closePortInternal() {
             // IMPORTANT: After factory reset or physical device removal, QSerialPort's internal state can be corrupted.
             // Calling flush(), clear(), or close() can trigger QSocketNotifier warnings from internal Qt code.
             // To avoid crashes, we DIRECTLY close the underlying file descriptor without involving QSerialPort's signal/slot machinery.
+            #ifdef Q_OS_UNIX
             try {
                 // Get the native file descriptor BEFORE closing anything
                 int fd = serialPort->handle();
@@ -1398,6 +1399,11 @@ void SerialPortManager::closePortInternal() {
             } catch (...) {
                 qCWarning(log_core_serial) << "Exception during port closure";
             }
+            #else
+            // On Windows, use Qt's standard close to avoid compatibility issues
+            serialPort->close();
+            qCDebug(log_core_serial) << "Serial port closed via Qt's close() (Windows compatibility)";
+            #endif
         }
         delete serialPort;
         serialPort = nullptr;
