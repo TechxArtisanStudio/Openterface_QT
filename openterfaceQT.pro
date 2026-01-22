@@ -59,6 +59,7 @@ SOURCES += main.cpp \
     serial/chipstrategy/ChipStrategyFactory.cpp \
     serial/protocol/SerialProtocol.cpp \
     serial/watchdog/ConnectionWatchdog.cpp \
+    serial/serial_hotplug_handler.cpp \
     server/tcpServer.cpp \
     target/KeyboardLayouts.cpp \
     target/KeyboardManager.cpp \
@@ -188,6 +189,7 @@ HEADERS  += \
     serial/chipstrategy/ChipStrategyFactory.h \
     serial/protocol/SerialProtocol.h \
     serial/watchdog/ConnectionWatchdog.h \
+    serial/serial_hotplug_handler.h \
     server/tcpServer.h \
     target/KeyboardLayouts.h \
     target/KeyboardManager.h \

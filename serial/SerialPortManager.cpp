@@ -1524,40 +1524,21 @@ void SerialPortManager::closePortInternal() {
             qCDebug(log_core_serial) << "Close serial port - current buffer sizes before close - bytesAvailable:" << serialPort->bytesAvailable()
                                      << "bytesToWrite:" << serialPort->bytesToWrite();
             
-            // IMPORTANT: After factory reset or physical device removal, QSerialPort's internal state can be corrupted.
-            // Calling flush(), clear(), or close() can trigger QSocketNotifier warnings from internal Qt code.
-            // To avoid crashes, we DIRECTLY close the underlying file descriptor without involving QSerialPort's signal/slot machinery.
-            #ifdef Q_OS_UNIX
-            try {
-                // Get the native file descriptor BEFORE closing anything
-                int fd = serialPort->handle();
-                
-                // Directly close the file descriptor to bypass QSerialPort's QSocketNotifier manipulation
-                // This is critical after factory reset or device removal when internal state is corrupted
-                if (fd >= 0) {
-                    int closeResult = ::close(fd);
-                    if (closeResult == 0) {
-                        qCDebug(log_core_serial) << "File descriptor closed directly (bypassed QSerialPort close)";
-                    } else {
-                        qCWarning(log_core_serial) << "Failed to close file descriptor:" << strerror(errno);
-                    }
-                }
-                
-                // Now safely delete the QSerialPort object without calling its close()
-                // The object will be cleaned up, but without triggering QSocketNotifier operations
-                qCDebug(log_core_serial) << "Serial port closed successfully";
-            } catch (...) {
-                qCWarning(log_core_serial) << "Exception during port closure";
+            // Close the QSerialPort on its owning thread to avoid QSocketNotifier
+            // manipulations from other threads which can cause crashes.
+            QThread *ownerThread = serialPort->thread();
+            if (QThread::currentThread() != ownerThread) {
+                // Ensure close() runs on the owner's thread and wait until it's finished
+                QMetaObject::invokeMethod(serialPort, "close", Qt::BlockingQueuedConnection);
+                // Schedule deletion on the owner's thread
+                QMetaObject::invokeMethod(serialPort, "deleteLater", Qt::QueuedConnection);
+            } else {
+                serialPort->close();
+                serialPort->deleteLater();
             }
-            #else
-            // On Windows, use Qt's standard close to avoid compatibility issues
-            serialPort->close();
-            delete serialPort;
-            serialPort = nullptr;
-            qCDebug(log_core_serial) << "Serial port closed via Qt's close() (Windows compatibility)";
-            #endif
+            qCDebug(log_core_serial) << "Serial port closed via thread-safe invokeMethod";
         }
-        delete serialPort;
+        // Clear our local pointer immediately; the object will be deleted on its thread
         serialPort = nullptr;
         
         // Reset error handler state when port is closed

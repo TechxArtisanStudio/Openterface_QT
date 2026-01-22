@@ -30,6 +30,8 @@
 #include <QtMultimediaWidgets>
 #include <QDebug>
 #include <QTimer>
+#include <thread>
+#include <chrono>
 #include <cmath>
 
 Q_LOGGING_CATEGORY(log_ui_video, "opf.ui.video")
@@ -1100,10 +1102,23 @@ void VideoPane::setupForGStreamerOverlay()
         if (m_inputHandler) {
             m_inputHandler->updateEventFilterTarget();
         }
+
+        // Use a separate detached thread to wait 0.5s then request fitToWindow()
+        // The actual call is queued to the GUI thread using QMetaObject::invokeMethod
+        // to ensure all GUI operations run on the main thread.
+        // std::thread([this]() {
+        //     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        //     QMetaObject::invokeMethod(this, [this]() { this->fitToWindow(); }, Qt::QueuedConnection);
+        // }).detach();
     } else {
         qCDebug(log_ui_video) << "VideoPane: GStreamer overlay widget already exists, ensuring visibility";
         m_overlayWidget->show();
         m_overlayWidget->raise(); // Ensure it's on top
+        // // Schedule fitToWindow() after a short delay using a background thread
+        // std::thread([this]() {
+        //     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        //     QMetaObject::invokeMethod(this, [this]() { this->fitToWindow(); }, Qt::QueuedConnection);
+        // }).detach();
     }
 }
 
@@ -1362,6 +1377,14 @@ void VideoPane::onCameraActiveChanged(bool active)
         qWarning() << "VideoPane: Clearing video frame due to camera deactivation";
         clearVideoFrame();
         qWarning() << "VideoPane: Video frame cleared";
+    }else{
+        std::thread([this]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            QMetaObject::invokeMethod(this, [this]() { 
+                qCInfo(log_ui_video) << "VideoPane: Calling fitToWindow after camera activation";
+                this->fitToWindow(); 
+            }, Qt::QueuedConnection);
+        }).detach();
     }
 }
 
