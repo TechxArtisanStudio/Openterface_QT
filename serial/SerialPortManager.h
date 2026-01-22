@@ -202,8 +202,8 @@ public:
     // Chip type detection and management
     ChipType detectChipType(const QString &portName) const;
     ChipType getCurrentChipType() const { return m_currentChipType; }
-    bool isChipTypeCH32V208() const { return m_currentChipType == ChipType::CH32V208; }
-    bool isChipTypeCH9329() const { return m_currentChipType == ChipType::CH9329; }
+    inline bool isChipTypeCH32V208() const { return m_currentChipType == ChipType::CH32V208; }
+    inline bool isChipTypeCH9329() const { return m_currentChipType == ChipType::CH9329; }
 
     // Query current target USB connection state (thread-safe via state manager)
     bool getTargetUsbConnected() const;
@@ -290,7 +290,6 @@ private:
     int determineBaudrate() const;
     bool openPortWithRetries(const QString &portName, int tryBaudrate);
     ConfigResult sendAndProcessConfigCommand();
-    ConfigResult attemptBaudrateDetection();
     void handleChipSpecificLogic(const ConfigResult &config);
     void storeBaudrateIfNeeded(int workingBaudrate);
     
@@ -461,8 +460,6 @@ private:
     
     // Command-based baudrate change for CH9329 and unknown chips
     void applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix);
-    // Schedule configuration retry attempts asynchronously without blocking the UI
-    void scheduleConfigRetry(const QString &portName, int attempt, int maxAttempts, int delayMs);
     
     // Command tracking methods
     void checkCommandLossRate();
