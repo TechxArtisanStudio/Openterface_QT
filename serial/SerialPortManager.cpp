@@ -690,12 +690,17 @@ bool SerialPortManager::openPortWithRetries(const QString &portName, int tryBaud
                 qCWarning(log_core_serial) << "Failed to open serial port:" << portName << "at baud" << baud;
                 // small delay before next attempt
                 QEventLoop delayLoop;
-                QTimer::singleShot(200, &delayLoop, &QEventLoop::quit);
+                QTimer::singleShot(1000 * (cycle+1), &delayLoop, &QEventLoop::quit);
                 delayLoop.exec();
                 continue;
             }
 
             qCDebug(log_core_serial) << "Serial port opened, validating with synchronous CMD_GET_INFO:" << portName << "baud" << baud;
+
+            // Allow device to settle briefly after opening - some devices need a short moment before responding
+            QEventLoop settleLoop;
+            QTimer::singleShot(120, &settleLoop, &QEventLoop::quit);
+            settleLoop.exec();
 
             // Send a synchronous GET_INFO and validate response to ensure the device is actually talking
             QByteArray resp = sendSyncCommand(CMD_GET_INFO, true);
