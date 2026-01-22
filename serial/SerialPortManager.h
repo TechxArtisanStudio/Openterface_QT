@@ -53,6 +53,7 @@ class DeviceInfo;
 class SerialCommandCoordinator;
 class SerialStateManager;
 class SerialStatistics;
+class SerialHotplugHandler;
 
 // Chip type enumeration (kept for backward compatibility)
 // New code should use ChipTypeId from ChipStrategyFactory.h
@@ -351,6 +352,18 @@ private:
     
     // Enhanced stability members (some delegated to ConnectionWatchdog)
     std::atomic<bool> m_isShuttingDown = false;
+
+    // Indicates an open operation is currently in progress to prevent concurrent opens
+    std::atomic<bool> m_openInProgress{false};
+
+    // Indicates a baud-rate change is in progress; used to suppress transient errors
+    std::atomic<bool> m_baudChangeInProgress{false};
+
+    // Flag set to true when device is detected as unplugged, preventing port operations until cleared
+    // This prevents race conditions where open attempts occur while device is being removed
+    std::atomic<bool> m_deviceUnpluggedDetected{false};
+    std::atomic<bool> m_deviceUnplugCleanupInProgress{false};
+
     // Legacy error counters removed - handled by SerialStatistics and ConnectionWatchdog
     QTimer* m_connectionWatchdog;
     QTimer* m_errorRecoveryTimer;
@@ -391,6 +404,9 @@ private:
     // Factory reset manager (extracted for compatibility and testability)
     friend class FactoryResetManager;
     std::unique_ptr<FactoryResetManager> m_factoryResetManager;
+
+    // New: Serial hotplug handler (extracted from inline logic)
+    std::unique_ptr<SerialHotplugHandler> m_hotplugHandler;
     
     // Command tracking for auto-restart logic
     std::atomic<int> m_commandsSent = 0;
