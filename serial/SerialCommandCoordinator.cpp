@@ -318,8 +318,16 @@ QByteArray SerialCommandCoordinator::collectSyncResponse(QSerialPort* serialPort
         }
     }
 
-    qCDebug(log_core_serial) << "collectSyncResponse: Total response size after wait:" << responseData.size() 
-                               << "Data:" << responseData.toHex(' ');
+    if (!responseData.isEmpty()) {
+        QString portName = serialPort ? serialPort->portName() : QString();
+        int baudrate = serialPort ? serialPort->baudRate() : 0;
+        qCDebug(log_core_serial).nospace().noquote() << "RX (" << portName << "@" << baudrate << "bps): " << responseData.toHex(' ');
+        // Also write to diagnostics file if enabled
+        if (SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics")) {
+            SerialPortManager::getInstance().log(QString("RX (%1@%2bps): %3").arg(portName).arg(baudrate).arg(QString(responseData.toHex(' '))));
+        }
+    }
+    
     return responseData;
 }
 
