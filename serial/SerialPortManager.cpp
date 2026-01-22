@@ -298,6 +298,11 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     m_commandDelayMs = 0;  // Default no delay
     lastSerialPortCheckTime = QDateTime::currentDateTime().addMSecs(-SERIAL_TIMER_INTERVAL);  // Initialize check time in the past 
     
+    // Initialize async message statistics tracking
+    m_asyncMessagesSent = 0;
+    m_asyncMessagesReceived = 0;
+    m_asyncStatsTimer.start();  // Start the elapsed timer for statistics tracking
+    
     // Connect to hotplug monitor for automatic device management
     connectToHotplugMonitor();
     
@@ -1437,40 +1442,21 @@ void SerialPortManager::closePortInternal() {
             qCDebug(log_core_serial) << "Close serial port - current buffer sizes before close - bytesAvailable:" << serialPort->bytesAvailable()
                                      << "bytesToWrite:" << serialPort->bytesToWrite();
             
-            // IMPORTANT: After factory reset or physical device removal, QSerialPort's internal state can be corrupted.
-            // Calling flush(), clear(), or close() can trigger QSocketNotifier warnings from internal Qt code.
-            // To avoid crashes, we DIRECTLY close the underlying file descriptor without involving QSerialPort's signal/slot machinery.
-            #ifdef Q_OS_UNIX
-            try {
-                // Get the native file descriptor BEFORE closing anything
-                int fd = serialPort->handle();
-                
-                // Directly close the file descriptor to bypass QSerialPort's QSocketNotifier manipulation
-                // This is critical after factory reset or device removal when internal state is corrupted
-                if (fd >= 0) {
-                    int closeResult = ::close(fd);
-                    if (closeResult == 0) {
-                        qCDebug(log_core_serial) << "File descriptor closed directly (bypassed QSerialPort close)";
-                    } else {
-                        qCWarning(log_core_serial) << "Failed to close file descriptor:" << strerror(errno);
-                    }
-                }
-                
-                // Now safely delete the QSerialPort object without calling its close()
-                // The object will be cleaned up, but without triggering QSocketNotifier operations
-                qCDebug(log_core_serial) << "Serial port closed successfully";
-            } catch (...) {
-                qCWarning(log_core_serial) << "Exception during port closure";
+            // Close the QSerialPort on its owning thread to avoid QSocketNotifier
+            // manipulations from other threads which can cause crashes.
+            QThread *ownerThread = serialPort->thread();
+            if (QThread::currentThread() != ownerThread) {
+                // Ensure close() runs on the owner's thread and wait until it's finished
+                QMetaObject::invokeMethod(serialPort, "close", Qt::BlockingQueuedConnection);
+                // Schedule deletion on the owner's thread
+                QMetaObject::invokeMethod(serialPort, "deleteLater", Qt::QueuedConnection);
+            } else {
+                serialPort->close();
+                serialPort->deleteLater();
             }
-            #else
-            // On Windows, use Qt's standard close to avoid compatibility issues
-            serialPort->close();
-            delete serialPort;
-            serialPort = nullptr;
-            qCDebug(log_core_serial) << "Serial port closed via Qt's close() (Windows compatibility)";
-            #endif
+            qCDebug(log_core_serial) << "Serial port closed via thread-safe invokeMethod";
         }
-        delete serialPort;
+        // Clear our local pointer immediately; the object will be deleted on its thread
         serialPort = nullptr;
         
         // Reset error handler state when port is closed
@@ -1635,6 +1621,10 @@ void SerialPortManager::readData() {
             m_statistics->recordResponseReceived();
         }
         
+        // Track async message received
+        m_asyncMessagesReceived++;
+        logAsyncMessageStatistics();
+        
         // Additional chip-specific handling for 0x84 (absolute mouse) response
         if (parsed.responseCode == RESP_SEND_MOUSE_ABS && isChipTypeCH32V208()) {
             ready = true;
@@ -1783,6 +1773,10 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
     if (m_isShuttingDown || !m_commandCoordinator) {
         return false;
     }
+    
+    // Track async message sent
+    m_asyncMessagesSent++;
+    logAsyncMessageStatistics();
     
     // Update command coordinator ready state
     m_commandCoordinator->setReady(ready);
@@ -2726,5 +2720,29 @@ void SerialPortManager::enableDebugLogging(bool enabled) {
     } else {
         // Disable debug logging for serial category
         QLoggingCategory::setFilterRules("opf.core.serial.debug=false");
+    }
+}
+
+void SerialPortManager::logAsyncMessageStatistics()
+{
+    // Check if 1 second has elapsed since last report
+    if (m_asyncStatsTimer.elapsed() >= ASYNC_STATS_INTERVAL_MS) {
+        qint64 elapsedMs = m_asyncStatsTimer.elapsed();
+        
+        if (m_asyncMessagesSent > 0 || m_asyncMessagesReceived > 0) {
+            double sentRate = (m_asyncMessagesSent * 1000.0) / elapsedMs;
+            double receivedRate = (m_asyncMessagesReceived * 1000.0) / elapsedMs;
+            
+            qCInfo(log_core_serial) << "Async Message Statistics:"
+                                   << "Sent/sec:" << QString::number(sentRate, 'f', 2)
+                                   << "Received/sec:" << QString::number(receivedRate, 'f', 2)
+                                   << "Total sent:" << m_asyncMessagesSent
+                                   << "Total received:" << m_asyncMessagesReceived;
+        }
+        
+        // Reset counters and restart timer
+        m_asyncMessagesSent = 0;
+        m_asyncMessagesReceived = 0;
+        m_asyncStatsTimer.restart();
     }
 } 
