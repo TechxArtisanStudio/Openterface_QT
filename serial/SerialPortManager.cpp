@@ -540,19 +540,11 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     }
     
     ConfigResult config = sendAndProcessConfigCommand();
-    const int maxRetries = 2; // Keep same retry behavior as before
-    const int retryDelayMs = 1000; // 1 second delay between retries (non-blocking)
 
     if (config.success) {
         handleChipSpecificLogic(config);
         storeBaudrateIfNeeded(config.workingBaudrate);
         emit serialPortConnectionSuccess(portName);
-    } else {
-        qCWarning(log_core_serial) << "Configuration command failed, scheduling async retry attempts (maxRetries=" << maxRetries << ")";
-        // Schedule the first asynchronous retry (attempt #1)
-
-        QThread::msleep(retryDelayMs);
-        scheduleConfigRetry(portName, 1, maxRetries, retryDelayMs);
     }
 }
 
@@ -602,52 +594,25 @@ ConfigResult SerialPortManager::sendAndProcessConfigCommand() {
     QByteArray retByte = sendSyncCommand(CMD_GET_PARA_CFG, true);
     if (retByte.isEmpty()) return result;
     
-    qCDebug(log_core_serial) << "Data read from serial port: " << retByte.toHex(' ');
+    // qCDebug(log_core_serial) << "Data read from serial port: " << retByte.toHex(' ');
     CmdDataParamConfig config = CmdDataParamConfig::fromByteArray(retByte);
+
+    // Persist key parameters to GlobalSetting so UI and other modules can access device configuration
+    GlobalSetting::instance().setSerialPortBaudrate(static_cast<int>(config.baudrate));
+    GlobalSetting::instance().setVID(QString("%1").arg(config.vid, 4, 16, QChar('0')).toUpper());
+    GlobalSetting::instance().setPID(QString("%1").arg(config.pid, 4, 16, QChar('0')).toUpper());
+    // Store the custom USB descriptor flag (single byte) as hex string for compatibility with existing UI
+    GlobalSetting::instance().setUSBEnabelFlag(QString("%1").arg(config.custom_usb_desc, 2, 16, QChar('0')).toUpper());
+
+    qCDebug(log_core_serial) << "Stored device config to GlobalSetting: baudrate:" << config.baudrate
+                             << "VID:" << QString("%1").arg(config.vid, 4, 16, QChar('0')).toUpper()
+                             << "PID:" << QString("%1").arg(config.pid, 4, 16, QChar('0')).toUpper()
+                             << "custom_usb_desc:" << QString("0x%1").arg(config.custom_usb_desc, 2, 16, QChar('0'));
     
     static QSettings settings("Techxartisan", "Openterface");
     uint8_t hostConfigMode = (settings.value("hardware/operatingMode", 0x02).toUInt());
-    
-    if (config.mode == hostConfigMode) {
-        if (isChipTypeCH32V208() && serialPort->baudRate() != BAUDRATE_HIGHSPEED) {
-            qCWarning(log_core_serial) << "CH32V208 chip detected at wrong baudrate" << serialPort->baudRate() << "- switching to 115200";
-            closePort();
-            openPort(serialPort->portName(), BAUDRATE_HIGHSPEED);
-            QByteArray verifyByte = sendSyncCommand(CMD_GET_PARA_CFG, true);
-            if (verifyByte.size() > 0) {
-                result.success = true;
-                result.workingBaudrate = BAUDRATE_HIGHSPEED;
-                qCInfo(log_core_serial) << "CH32V208 chip successfully switched to 115200 baudrate";
-            } else {
-                qCWarning(log_core_serial) << "Failed to verify CH32V208 chip at 115200";
-            }
-        } else {
-            result.success = true;
-            result.workingBaudrate = serialPort->baudRate();
-            qCDebug(log_core_serial) << "Connect success with baudrate: " << serialPort->baudRate();
-            checkArmBaudratePerformance(serialPort->baudRate());
-        }
-    } else {
-        qCWarning(log_core_serial).nospace() << "The mode is incorrect, mode: 0x" << QString::number(config.mode, 16)
-                       << ", expected: 0x" << QString::number(hostConfigMode, 16);
-        if (isChipTypeCH32V208()) {
-            qCWarning(log_core_serial) << "CH32V208 chip does not support mode reconfiguration via commands";
-            result.success = true;  // Still successful, just mode is different
-            result.workingBaudrate = BAUDRATE_HIGHSPEED;
-        } else {
-            if (reconfigureHidChip(serialPort->baudRate())) {
-                qCDebug(log_core_serial) << "Reconfigured HID chip successfully, sending reset command";
-                if (sendResetCommand()) {
-                    result.success = true;
-                    result.workingBaudrate = serialPort->baudRate();
-                } else {
-                    qCWarning(log_core_serial) << "Failed to send reset command after reconfiguration";
-                }
-            } else {
-                qCWarning(log_core_serial) << "Failed to reconfigure HID chip with mode:" << hostConfigMode;
-            }
-        }
-    }
+    result.mode = config.mode;
+    result.success = true;
     return result;
 }
 
