@@ -401,6 +401,13 @@ private:
     static const int MAX_SERIAL_RESETS = 3;
     static constexpr double COMMAND_LOSS_THRESHOLD = 0.30; // 30% loss rate
     
+    // Async message send/receive statistics (simple tracking)
+    qint64 m_asyncMessagesSent = 0;
+    qint64 m_asyncMessagesReceived = 0;
+    QElapsedTimer m_asyncStatsTimer;
+    static const int ASYNC_STATS_INTERVAL_MS = 1000; // Report every 1 second
+    void logAsyncMessageStatistics();
+    
     // Legacy variables removed - functionality moved to specialized modules
     
     // Enhanced error handling

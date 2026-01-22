@@ -31,7 +31,9 @@ Q_LOGGING_CATEGORY(log_ui_input, "opf.ui.input")
 InputHandler::InputHandler(VideoPane *videoPane, QObject *parent)
     : QObject(parent), m_videoPane(videoPane), m_currentEventTarget(nullptr),
       m_mouseMoveTimer(nullptr), m_pendingMouseMoveEvent(nullptr),
-      m_mouseMoveInterval(16), m_droppedMouseEvents(0)
+      m_mouseMoveInterval(16), m_droppedMouseEvents(0),
+      m_lastStatisticsTime(QDateTime::currentMSecsSinceEpoch()), m_mouseEventCounter(0),
+      m_droppedEventsCounter(0)
 {
     if (m_videoPane) {
         m_videoPane->installEventFilter(this);
@@ -352,10 +354,15 @@ void InputHandler::handleMouseMoveEvent(QMouseEvent *event)
         return;
     }
     
+    // Track mouse event statistics
+    m_mouseEventCounter++;
+    logMouseEventStatistics();
+    
     // Store the latest mouse event (replaces any pending event)
     if (m_pendingMouseMoveEvent) {
         delete m_pendingMouseMoveEvent;
         m_droppedMouseEvents++;
+        m_droppedEventsCounter++;
     }
     
     // Clone the event for later processing
@@ -775,4 +782,28 @@ QWidget* InputHandler::getEffectiveVideoWidget() const
     }
     
     return m_videoPane.data();  // Get raw pointer from QPointer
+}
+
+void InputHandler::logMouseEventStatistics()
+{
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    qint64 elapsedTime = currentTime - m_lastStatisticsTime;
+    
+    // Log statistics every STATS_INTERVAL_MS milliseconds (1 second by default)
+    if (elapsedTime >= STATS_INTERVAL_MS) {
+        double eventsPerSecond = (m_mouseEventCounter * 1000.0) / elapsedTime;
+        double droppedPerSecond = (m_droppedEventsCounter * 1000.0) / elapsedTime;
+        double processedPerSecond = eventsPerSecond - droppedPerSecond;
+        
+        qCInfo(log_ui_input).noquote() << "Mouse Event Statistics:"
+                             << "Events/sec:" << QString::number(eventsPerSecond, 'f', 2)
+                             << "Processed/sec:" << QString::number(processedPerSecond, 'f', 2)
+                             << "Dropped/sec:" << QString::number(droppedPerSecond, 'f', 2)
+                             << "Interval (ms):" << m_mouseMoveInterval;
+        
+        // Reset counters for next interval
+        m_mouseEventCounter = 0;
+        m_droppedEventsCounter = 0;
+        m_lastStatisticsTime = currentTime;
+    }
 }

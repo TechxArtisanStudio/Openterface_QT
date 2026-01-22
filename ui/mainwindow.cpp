@@ -450,8 +450,10 @@ void MainWindow::onResolutionChange(const int& width, const int& height, const f
 
 void MainWindow::onGpio0StatusChanged(bool isToTarget)
 {
-    qCDebug(log_ui_mainwindow) << "GPIO0 status changed to:" << (isToTarget ? "target" : "host");
-    toggleSwitch->setChecked(isToTarget);
+    if (toggleSwitch->isChecked() != isToTarget) {
+        qCDebug(log_ui_mainwindow) << "GPIO0 status changed to:" << (isToTarget ? "target" : "host");
+        toggleSwitch->setChecked(isToTarget);
+    }
 }
 
 void MainWindow::onTargetUsbConnected(const bool isConnected)

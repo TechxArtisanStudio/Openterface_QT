@@ -692,7 +692,7 @@ QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
     } else if (m_videoItem && m_videoItem->isVisible()) {
         targetItem = m_videoItem;
         itemRect = m_videoItem->boundingRect();
-        qCDebug(log_ui_video) << "      [getTransformed] Using video item";
+        // qCDebug(log_ui_video) << "      [getTransformed] Using video item";
     } else if (m_directGStreamerMode) {
         // Special handling for GStreamer mode
         QRectF viewRect = viewport()->rect();
