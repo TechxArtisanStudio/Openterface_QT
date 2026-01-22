@@ -229,13 +229,13 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
 
     // Initialize FactoryResetManager and forward its signals for backward compatibility
     // Create without a QObject parent to avoid cross-thread parent/child creation warnings.
-    m_factoryResetManager = std::make_unique<FactoryResetManager>(nullptr);
+    m_factoryResetManager = std::make_unique<FactoryResetManager>(this);
     connect(m_factoryResetManager.get(), &FactoryResetManager::factoryReset, this, &SerialPortManager::factoryReset, Qt::QueuedConnection);
     connect(m_factoryResetManager.get(), &FactoryResetManager::factoryResetCompleted, this, &SerialPortManager::factoryResetCompleted, Qt::QueuedConnection);
 
     // Initialize and hook up the serial hotplug handler (abstracted from inline hotplug lambdas)
     // Create without a QObject parent to avoid cross-thread parent/child creation warnings.
-    m_hotplugHandler = std::make_unique<SerialHotplugHandler>(nullptr);
+    m_hotplugHandler = std::make_unique<SerialHotplugHandler>(this);
 
     // When the serial device matching our current port chain is unplugged, close and clear
     connect(m_hotplugHandler.get(), &SerialHotplugHandler::SerialPortUnplugged, this, [this](const QString& portChain) {
@@ -662,19 +662,40 @@ int SerialPortManager::determineBaudrate() const {
 }
 
 bool SerialPortManager::openPortWithRetries(const QString &portName, int tryBaudrate) {
-    const int maxRetries = 2; // number of retries after the initial attempt
-    int retryCount = 0;
+    // Desired behaviour: try both 9600 and 115200, on an opened port send CMD_GET_INFO
+    // if GET_INFO returns valid response -> success; otherwise switch baud and retry.
+    // Repeat two full cycles (i.e., up to 4 attempts). If none yield a valid GET_INFO -> failure.
 
-    while (true) {
-        bool opened = openPort(portName, tryBaudrate);
-        if (opened) {
-            qCDebug(log_core_serial) << "Serial port opened, validating with synchronous CMD_GET_INFO:" << portName;
+    const int cycles = 2; // number of full cycles (each cycle tries both baudrates)
+
+    // Build the baud order: prefer the provided tryBaudrate first if it matches known values
+    QList<int> baudOrder;
+    if (tryBaudrate == BAUDRATE_HIGHSPEED) {
+        baudOrder = {BAUDRATE_HIGHSPEED, BAUDRATE_LOWSPEED};
+    } else {
+        baudOrder = {BAUDRATE_LOWSPEED, BAUDRATE_HIGHSPEED};
+    }
+
+    for (int cycle = 0; cycle < cycles; ++cycle) {
+        for (int baud : baudOrder) {
+            qCDebug(log_core_serial) << "Attempting to open port" << portName << "at baud" << baud << "(cycle" << (cycle+1) << "of" << cycles << ")";
+
+            bool opened = openPort(portName, baud);
+            if (!opened) {
+                qCWarning(log_core_serial) << "Failed to open serial port:" << portName << "at baud" << baud;
+                // small delay before next attempt
+                QEventLoop delayLoop;
+                QTimer::singleShot(200, &delayLoop, &QEventLoop::quit);
+                delayLoop.exec();
+                continue;
+            }
+
+            qCDebug(log_core_serial) << "Serial port opened, validating with synchronous CMD_GET_INFO:" << portName << "baud" << baud;
 
             // Send a synchronous GET_INFO and validate response to ensure the device is actually talking
             QByteArray resp = sendSyncCommand(CMD_GET_INFO, true);
             bool valid = false;
             if (!resp.isEmpty() && resp.size() >= 4) {
-                // Validate packet signature similar to other places: 0x57 prefix and GET_INFO response code 0x81
                 unsigned char b0 = static_cast<unsigned char>(resp[0]);
                 unsigned char b3 = static_cast<unsigned char>(resp[3]);
                 if (b0 == 0x57 && b3 == 0x81) {
@@ -683,31 +704,23 @@ bool SerialPortManager::openPortWithRetries(const QString &portName, int tryBaud
             }
 
             if (valid) {
-                qCDebug(log_core_serial) << "Received valid CMD_GET_INFO response, open considered successful:" << portName;
+                qCDebug(log_core_serial) << "Received valid CMD_GET_INFO response, open considered successful:" << portName << "baud" << baud;
                 return true;
-            } else {
-                qCWarning(log_core_serial) << "No valid CMD_GET_INFO response received after opening port, closing and will retry if attempts remain:" << portName;
-                if (serialPort && serialPort->isOpen()) {
-                    closePort();
-                }
             }
-        } else {
-            qCWarning(log_core_serial) << "Failed to open serial port:" << portName;
-        }
 
-        if (retryCount >= maxRetries) {
-            qCWarning(log_core_serial) << "Retry failed to open and validate serial port:" << portName;
-            break;
-        }
+            qCWarning(log_core_serial) << "No valid CMD_GET_INFO response received after opening port" << portName << "at baud" << baud << "- closing and will try the next baud/attempt";
+            if (serialPort && serialPort->isOpen()) {
+                closePort();
+            }
 
-        // Wait before next retry (backoff)
-        QEventLoop loop;
-        QTimer::singleShot(500 * (retryCount + 1), &loop, &QEventLoop::quit);
-        loop.exec();
-        retryCount++;
-        qCDebug(log_core_serial) << "Retrying to open and validate serial port:" << portName << "baudrate:" << tryBaudrate << "attempt:" << retryCount;
+            // small delay to allow device to settle after close before changing baud/opening again
+            QEventLoop delayLoop;
+            QTimer::singleShot(300, &delayLoop, &QEventLoop::quit);
+            delayLoop.exec();
+        }
     }
 
+    qCWarning(log_core_serial) << "All attempts exhausted: failed to open and validate serial port:" << portName;
     return false;
 }
 
