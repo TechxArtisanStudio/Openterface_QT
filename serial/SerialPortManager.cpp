@@ -812,6 +812,14 @@ void SerialPortManager::onSerialPortDisconnected(const QString &portName){
         m_stateManager->setConnectionState(ConnectionState::Disconnected);
     }
     
+    // Stop USB status check timer when device is unplugged
+    if (m_usbStatusCheckTimer) {
+        if (m_usbStatusCheckTimer->isActive()) {
+            m_usbStatusCheckTimer->stop();
+            qCDebug(log_core_serial) << "USB status check timer stopped due to device unplug";
+        }
+    }
+    
     if (serialPort) {
         qCDebug(log_core_serial) << "Last error:" << serialPort->errorString();
         qCDebug(log_core_serial) << "Port state:" << (serialPort->isOpen() ? "Open" : "Closed");
