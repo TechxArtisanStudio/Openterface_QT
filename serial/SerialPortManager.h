@@ -379,6 +379,8 @@ private:
     int m_maxConsecutiveErrors = 10;
     QElapsedTimer m_lastSuccessfulCommand;
     QElapsedTimer m_errorTrackingTimer;
+    QElapsedTimer m_lastErrorLogTime;      // Throttle error logging to prevent spam
+    static constexpr int ERROR_LOG_THROTTLE_MS = 50;  // Min milliseconds between error processes
     bool m_errorHandlerDisconnected = false;
     static const int MAX_ERRORS_PER_SECOND = 10;
     

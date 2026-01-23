@@ -306,7 +306,7 @@ void VideoHid::start() {
     isHardSwitchOnTarget = getSpdifout();
     qCDebug(log_host_hid)  << "SPDIFOUT:" << isHardSwitchOnTarget;    //SPDIFOUT
     if(eventCallback){
-        eventCallback->onSwitchableUsbToggle(isHardSwitchOnTarget);
+        // eventCallback->onSwitchableUsbToggle(isHardSwitchOnTarget);
         setSpdifout(isHardSwitchOnTarget); //Follow the hard switch by default
     }
 
@@ -418,14 +418,14 @@ void VideoHid::switchToHost() {
     qCDebug(log_host_hid)  << "Switch to host";
     setSpdifout(false);
     GlobalVar::instance().setSwitchOnTarget(false);
-    if(eventCallback) eventCallback->onSwitchableUsbToggle(false);
+    // if(eventCallback) eventCallback->onSwitchableUsbToggle(false);
 }
 
 void VideoHid::switchToTarget() {
     qCDebug(log_host_hid)  << "Switch to target";
     setSpdifout(true);
     GlobalVar::instance().setSwitchOnTarget(true);
-    if(eventCallback) eventCallback->onSwitchableUsbToggle(true);
+    // if(eventCallback) eventCallback->onSwitchableUsbToggle(true);
 }
 
 /*
@@ -780,7 +780,7 @@ void VideoHid::handleSpdifToggle(bool currentSwitchOnTarget) {
 
 void VideoHid::dispatchSwitchableUsbToggle(bool isToTarget) {
     if (eventCallback) {
-        eventCallback->onSwitchableUsbToggle(isToTarget);
+        // eventCallback->onSwitchableUsbToggle(isToTarget);
     }
 }
 

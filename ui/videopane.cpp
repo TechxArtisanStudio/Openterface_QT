@@ -49,6 +49,7 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     m_maintainAspectRatio(true),
     m_directGStreamerMode(false),
     m_overlayWidget(nullptr),
+    m_lastGStreamerUpdateTime(0),
     m_directFFmpegMode(false),
     m_lastViewportSize(QSize()),
     m_frameIsViewportSized(false)
@@ -479,6 +480,25 @@ void VideoPane::resizeEvent(QResizeEvent *event)
 }
 
 // Helper methods
+void VideoPane::updateOverlayWidgetGeometry()
+{
+    if (!m_overlayWidget) {
+        return;
+    }
+
+    QRectF viewRect = viewport()->rect();
+    if (viewRect.width() > 0 && viewRect.height() > 0) {
+        m_overlayWidget->setGeometry(viewRect.toRect());
+    }
+
+    std::thread([this]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        QMetaObject::invokeMethod(this, [this]() { m_overlayWidget->setGeometry(viewport()->rect());}, Qt::QueuedConnection);
+    }).detach();
+    qCDebug(log_ui_video) << "VideoPane: Updated GStreamer overlay widget geometry to:" << m_overlayWidget->geometry();
+
+}
+
 void VideoPane::updateVideoItemTransform()
 {
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
@@ -492,17 +512,7 @@ void VideoPane::updateVideoItemTransform()
     } else if (m_directGStreamerMode) {
         // For GStreamer overlay mode, the Qt video item is not used; instead, ensure the overlay
         // widget matches the viewport geometry and skip detailed QGraphics transforms.
-        if (m_overlayWidget) {
-            QRectF viewRect = viewport()->rect();
-            if (viewRect.width() > 0 && viewRect.height() > 0) {
-                m_overlayWidget->setGeometry(viewRect.toRect());
-            }
-        }
-        std::thread([this]() {
-            std::this_thread::sleep_for(std::chrono::milliseconds(500));
-            QMetaObject::invokeMethod(this, [this]() { this->fitToWindow(); }, Qt::QueuedConnection);
-        }).detach();
-        qCDebug(log_ui_video) << "VideoPane: Updated GStreamer overlay widget geometry to:" << m_overlayWidget->geometry();
+        updateOverlayWidgetGeometry();
         // Nothing further to transform; overlay handles the rendered video
         return;
     } else if (m_videoItem) {
@@ -1382,11 +1392,17 @@ void VideoPane::onCameraActiveChanged(bool active)
         clearVideoFrame();
         qWarning() << "VideoPane: Video frame cleared";
     }else{
+        // Apply zoom
+        m_scaleFactor *= 1.02;
+        scale(1.02, 1.02);
+        // updateVideoItemTransform();
+        updateScrollBarsAndSceneRect();
+
         std::thread([this]() {
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             QMetaObject::invokeMethod(this, [this]() { 
                 qCInfo(log_ui_video) << "VideoPane: Calling fitToWindow after camera activation";
-                this->fitToWindow(); 
+                this->fitToWindow();
             }, Qt::QueuedConnection);
         }).detach();
     }
