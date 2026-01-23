@@ -12,6 +12,7 @@
 #include <QVideoFrameFormat>
 #include "host/multimediabackend.h"
 #include "../device/DeviceInfo.h"
+#include <QLoggingCategory>
 
 // Forward declarations
 class GStreamerBackendHandler;
@@ -190,5 +191,7 @@ private:
 private slots:
     void onVideoInputsChanged();
 };
+
+Q_DECLARE_LOGGING_CATEGORY(log_ui_camera)
 
 #endif // CAMERAMANAGER_H

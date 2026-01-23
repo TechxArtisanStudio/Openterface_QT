@@ -36,29 +36,73 @@
 #include <QWaitCondition>
 #include <QEventLoop>
 #include <atomic>
+#include <memory>
 
 #include "ch9329.h"
+#include "chipstrategy/IChipStrategy.h"
+#include "chipstrategy/ChipStrategyFactory.h"
+#include "protocol/SerialProtocol.h"
+#include "watchdog/ConnectionWatchdog.h"
+#include "FactoryResetManager.h"
+#include "../ui/advance/diagnostics/LogWriter.h"
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
-// Forward declaration
+// Forward declarations
 class DeviceInfo;
+class SerialCommandCoordinator;
+class SerialStateManager;
+class SerialStatistics;
+class SerialHotplugHandler;
 
-// Chip type enumeration
+// Chip type enumeration (kept for backward compatibility)
+// New code should use ChipTypeId from ChipStrategyFactory.h
 enum class ChipType : uint32_t {
     UNKNOWN = 0,
     CH9329 = 0x1A867523,     // 1A86:7523 - Supports both 9600 and 115200, requires commands for baudrate switching and reset
-    CH32V208 = 0x1A86FE0C        // 1A86:FE0C - Only supports 115200, uses simple close/reopen for baudrate changes
+    CH32V208 = 0x1A86FE0C    // 1A86:FE0C - Only supports 115200, uses simple close/reopen for baudrate changes
 };
 
-// Struct to hold configuration command results
+// Struct to hold configuration command results (kept for backward compatibility)
+// New code should use ChipConfigResult from IChipStrategy.h
 struct ConfigResult {
     bool success = false;
     int workingBaudrate = 9600;  // Use literal value instead of SerialPortManager::DEFAULT_BAUDRATE
     uint8_t mode = 0;
 };
 
-class SerialPortManager : public QObject
+/**
+ * @brief SerialPortManager - Core serial port management with modular architecture
+ * 
+ * REFACTORED ARCHITECTURE (Phase 4 Complete):
+ * This class has been significantly refactored to use a modular, component-based architecture:
+ * 
+ * Core Components:
+ * - SerialCommandCoordinator: Handles command queuing, execution, and response processing
+ * - SerialStateManager: Manages connection states, device info, and key states  
+ * - SerialStatistics: Performance monitoring, error tracking, and ARM optimization
+ * - ConnectionWatchdog: Auto-recovery and connection monitoring
+ * - SerialFacade: Simplified high-level interface for common operations
+ * 
+ * Legacy Compatibility:
+ * - Public interface maintained for backward compatibility
+ * - All methods delegate to appropriate specialized components
+ * - Deprecated functionality marked with LEGACY comments
+ * 
+ * Usage Patterns:
+ * - For simple operations: Use SerialFacade class for clean, high-level API
+ * - For advanced usage: Access SerialPortManager directly (maintains full compatibility)
+ * - For statistics: All tracking is automatic via SerialStatistics module
+ * - For recovery: Auto-recovery handled by ConnectionWatchdog component
+ * 
+ * Architecture Benefits:
+ * - Improved maintainability through separation of concerns
+ * - Better testability with isolated components  
+ * - Enhanced performance monitoring and diagnostics
+ * - Simplified interface through facade pattern
+ * - Retained backward compatibility for existing code
+ */
+class SerialPortManager : public QObject, public IRecoveryHandler
 {
     Q_OBJECT
 
@@ -74,8 +118,6 @@ public:
         return instance;
     }
     
-    
-
     SerialPortManager(SerialPortManager const&) = delete; // Don't Implement
     void operator=(SerialPortManager const&) = delete; // Don't implement
 
@@ -86,9 +128,9 @@ public:
     void closePort();
     bool restartPort();
 
-    bool getNumLockState(){return NumLockState;};
-    bool getCapsLockState(){return CapsLockState;};
-    bool getScrollLockState(){return ScrollLockState;};
+    bool getNumLockState();
+    bool getCapsLockState();
+    bool getScrollLockState();
 
     bool writeData(const QByteArray &data);
     bool sendAsyncCommand(const QByteArray &data, bool force);
@@ -99,6 +141,10 @@ public:
     bool reconfigureHidChip(int targetBaudrate = DEFAULT_BAUDRATE);
     bool factoryResetHipChipV191();
     bool factoryResetHipChip();
+    
+    // Synchronous factory reset methods for diagnostics
+    bool factoryResetHipChipSync(int timeoutMs = 10000);
+    bool factoryResetHipChipV191Sync(int timeoutMs = 5000);
     void restartSwitchableUSB();
     void setUSBconfiguration(int targetBaudrate = DEFAULT_BAUDRATE);
     void changeUSBDescriptor();
@@ -124,7 +170,7 @@ public:
     void connectToHotplugMonitor();
     void disconnectFromHotplugMonitor();
     
-    // Enhanced stability features
+    // Enhanced stability features (delegated to ConnectionWatchdog - Phase 3 refactoring)
     void enableAutoRecovery(bool enable = true);
     void setMaxRetryAttempts(int maxRetries);
     void setMaxConsecutiveErrors(int maxErrors);
@@ -133,20 +179,50 @@ public:
     int getConnectionRetryCount() const;
     void forceRecovery();
     
+    // IRecoveryHandler interface implementation (Phase 3 refactoring)
+    bool performRecovery(int attempt) override;
+    void onRecoveryFailed() override;
+    void onRecoverySuccess() override;
+    
+    // Factory reset helper - polls for ready state after reconnection
+    void startReadyStatePolling(const QString& portName);
+    
     // Get current baudrate
     int getCurrentBaudrate() const;
+    
+    // Statistics - delegated to SerialStatistics module
+    void startStats();
+    void stopStats();
+    void resetStats();
+    int getCommandsSent() const;
+    int getResponsesReceived() const;
+    double getResponseRate() const;
+    qint64 getStatsElapsedMs() const;
     
     // Chip type detection and management
     ChipType detectChipType(const QString &portName) const;
     ChipType getCurrentChipType() const { return m_currentChipType; }
-    bool isChipTypeCH32V208() const { return m_currentChipType == ChipType::CH32V208; }
-    bool isChipTypeCH9329() const { return m_currentChipType == ChipType::CH9329; }
+    inline bool isChipTypeCH32V208() const { return m_currentChipType == ChipType::CH32V208; }
+    inline bool isChipTypeCH9329() const { return m_currentChipType == ChipType::CH9329; }
+
+    // Query current target USB connection state (thread-safe via state manager)
+    bool getTargetUsbConnected() const;
     
     // New USB switch methods for CH32V208 serial port (firmware with new protocol)
     void switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)
     void switchUsbToTargetViaSerial();    // Switch USB to target via serial command (57 AB 00 17...)
-    int checkUsbStatusViaSerial();        // Check USB switch status (returns: 0=host, 1=target, -1=error)
     
+    // Logging
+    void log(const QString& message);
+    QString getSerialLogFilePath() const;
+    void setSerialLogFilePath(const QString& path);
+    
+    // Enable/disable debug logging for diagnostics
+    static void enableDebugLogging(bool enabled);
+
+public slots:
+    void setDiagnosticsDialogActive(bool active);
+
 signals:
     void dataReceived(const QByteArray &data);
     void dataSent(const QByteArray &data);
@@ -160,15 +236,35 @@ signals:
     void armBaudratePerformanceRecommendation(int currentBaudrate); // Signal for ARM performance recommendation
     void parameterConfigurationSuccess(); // Signal emitted when parameter configuration is successful and reset is needed
     void syncResponseReady();  // Emitted when m_syncCommandResponse is filled for sync commands
+    void usbStatusChanged(bool isToTarget);  // New signal: true = target, false = host
+    void targetUSBStatus(bool isTargetUSBConnected);
+    void keyStatesChanged(bool numLock, bool capsLock, bool scrollLock); // Key state updates (thread-safe)
+    void serialPortReset(bool isStarted); // Serial port reset started/ended
+    void statusUpdate(const QString &status); // General status update for UI
+    void factoryReset(bool isStarted); // Factory reset started/ended
+    
+    // Thread-safe reset operation signals (internal use)
+    void requestResetHidChip(int targetBaudrate);
+    void requestFactoryReset();
+    void requestFactoryResetV191();
+    
+    // Signals to notify completion of reset operations
+    void resetHidChipCompleted(bool success);
+    void factoryResetCompleted(bool success);
+    
+    void logMessage(const QString& msg);
     
 private slots:
     void observeSerialPortNotification();
     void readData();
     void bytesWritten(qint64 bytes);
-
-    static quint8 calculateChecksum(const QByteArray &data);
     
     void initializeSerialPortFromPortChain();
+    
+    // Thread-safe reset operation handlers (called via queued connection)
+    void handleResetHidChip(int targetBaudrate);
+    void handleFactoryReset();
+    void handleFactoryResetV191();
 
     // /*
     //  * Check if the USB switch status
@@ -180,6 +276,8 @@ private slots:
     void onSerialPortConnected(const QString &portName);
     void onSerialPortDisconnected(const QString &portName);
     void onSerialPortConnectionSuccess(const QString &portName);
+    void onUsbStatusCheckTimeout();  // New slot for USB status check timer
+    void onGetInfoTimeout();  // New slot for periodic GET_INFO requests
     
     
 private:
@@ -187,29 +285,39 @@ private:
     QSerialPort *serialPort;
 
     void sendCommand(const QByteArray &command, bool waitForAck);
-    QByteArray collectSyncResponse(int totalTimeoutMs = 1000, int waitStepMs = 100);
     
     // Refactored helper methods for onSerialPortConnected
     int determineBaudrate() const;
     bool openPortWithRetries(const QString &portName, int tryBaudrate);
     ConfigResult sendAndProcessConfigCommand();
-    ConfigResult attemptBaudrateDetection();
     void handleChipSpecificLogic(const ConfigResult &config);
     void storeBaudrateIfNeeded(int workingBaudrate);
+    
+    // Thread-safe baudrate setting (must be called from worker thread to access serialPort)
+    bool setBaudRateInternal(int baudRate);
+    
+    // Thread-safe port closing (ensures QSocketNotifier operations happen in worker thread)
+    void closePortInternal();
+    bool handleResetHidChipInternal(int targetBaudrate);
+    bool handleFactoryResetInternal();
+    bool handleFactoryResetV191Internal();
+    
+    // Synchronous reset internal implementations (run in worker thread)
+    bool handleFactoryResetSyncInternal(int timeoutMs);
+    bool handleFactoryResetV191SyncInternal(int timeoutMs);
+    
+    // Helper for blocking wait with timeout
+    bool waitForFactoryResetCompletion(int timeoutMs);
 
     QSet<QString> availablePorts;
     
-    QThread *serialThread;
+    QThread *m_serialWorkerThread;
     QTimer *serialTimer;
 
     QList<QSerialPortInfo> m_lastPortList;
     std::atomic<bool> ready = false;
     StatusEventCallback* eventCallback = nullptr;
-    bool isSwitchToHost = false;
-    bool isTargetUsbConnected = false;
-    bool NumLockState;
-    bool CapsLockState;
-    bool ScrollLockState;
+    // Legacy state variables moved to SerialStateManager
     void updateSpecialKeyState(uint8_t data);
     QDateTime lastSerialPortCheckTime;
     
@@ -223,12 +331,46 @@ private:
     QString m_currentSerialPortChain;
     ChipType m_currentChipType = ChipType::UNKNOWN;
     
-    // Enhanced stability members
+    // Chip strategy for chip-specific operations (Phase 1 refactoring)
+    std::unique_ptr<IChipStrategy> m_chipStrategy;
+    
+    // Protocol layer for packet building/parsing (Phase 2 refactoring)
+    std::unique_ptr<SerialProtocol> m_protocol;
+    
+    // Command coordinator for command handling (Phase 4 refactoring)
+    std::unique_ptr<SerialCommandCoordinator> m_commandCoordinator;
+    
+    // State manager for centralized state management (Phase 4 refactoring)
+    std::unique_ptr<SerialStateManager> m_stateManager;
+    
+    // Statistics module for performance monitoring (Phase 4 refactoring)
+    std::unique_ptr<SerialStatistics> m_statistics;
+    
+    // Connection watchdog for monitoring and recovery (Phase 3 refactoring)
+    std::unique_ptr<ConnectionWatchdog> m_watchdog;
+    
+    // Enhanced stability members (some delegated to ConnectionWatchdog)
     std::atomic<bool> m_isShuttingDown = false;
-    std::atomic<int> m_connectionRetryCount = 0;
-    std::atomic<int> m_consecutiveErrors = 0;
+
+    // Indicates an open operation is currently in progress to prevent concurrent opens
+    std::atomic<bool> m_openInProgress{false};
+
+    // Indicates a baud-rate change is in progress; used to suppress transient errors
+    std::atomic<bool> m_baudChangeInProgress{false};
+
+    // Flag set to true when device is detected as unplugged, preventing port operations until cleared
+    // This prevents race conditions where open attempts occur while device is being removed
+    std::atomic<bool> m_deviceUnpluggedDetected{false};
+    std::atomic<bool> m_deviceUnplugCleanupInProgress{false};
+
+    // Legacy error counters removed - handled by SerialStatistics and ConnectionWatchdog
     QTimer* m_connectionWatchdog;
     QTimer* m_errorRecoveryTimer;
+    QTimer* m_usbStatusCheckTimer;
+    QTimer* m_getInfoTimer;  // Timer for periodic GET_INFO requests
+    // Flag to suppress periodic GET_INFO while diagnostics dialog is active
+    bool m_suppressGetInfo = false;
+    QMutex m_diagMutex;
     QMutex m_serialPortMutex;
     QQueue<QByteArray> m_commandQueue;
     QMutex m_commandQueueMutex;
@@ -236,10 +378,9 @@ private:
     int m_maxRetryAttempts = 5;
     int m_maxConsecutiveErrors = 10;
     QElapsedTimer m_lastSuccessfulCommand;
-    
-    // Error frequency tracking for auto-disconnect mechanism
-    std::atomic<int> m_errorCount = 0;
     QElapsedTimer m_errorTrackingTimer;
+    QElapsedTimer m_lastErrorLogTime;      // Throttle error logging to prevent spam
+    static constexpr int ERROR_LOG_THROTTLE_MS = 50;  // Min milliseconds between error processes
     bool m_errorHandlerDisconnected = false;
     static const int MAX_ERRORS_PER_SECOND = 10;
     
@@ -255,14 +396,33 @@ private:
     QWaitCondition m_syncResponseCondition;
     unsigned char m_pendingSyncExpectedKey = 0;
     
-    // Command tracking for auto-restart logic
-    std::atomic<int> m_commandsSent = 0;
-    std::atomic<int> m_commandsReceived = 0;
-    std::atomic<int> m_serialResetCount = 0;
-    QTimer* m_commandTrackingTimer;
-    static const int COMMAND_TRACKING_INTERVAL = 5000; // 5 seconds
-    static const int MAX_SERIAL_RESETS = 3;
-    static constexpr double COMMAND_LOSS_THRESHOLD = 0.30; // 30% loss rate
+    // Internal state tracking for sync factory reset operations
+    std::atomic<bool> m_factoryResetInProgress = false;
+    std::atomic<bool> m_factoryResetResult = false;
+    QMutex m_factoryResetMutex;
+    QWaitCondition m_factoryResetCondition;
+
+    // Factory reset manager (extracted for compatibility and testability)
+    friend class FactoryResetManager;
+    std::unique_ptr<FactoryResetManager> m_factoryResetManager;
+
+    // New: Serial hotplug handler (extracted from inline logic)
+    std::unique_ptr<SerialHotplugHandler> m_hotplugHandler;
+    
+    // Async message send/receive statistics (simple tracking)
+    qint64 m_asyncMessagesSent = 0;
+    qint64 m_asyncMessagesReceived = 0;
+    QElapsedTimer m_asyncStatsTimer;
+    static const int ASYNC_STATS_INTERVAL_MS = 1000; // Report every 1 second
+    void checkAndLogAsyncMessageStatistics();
+    
+    // Async message imbalance detection (received >> sent)
+    static constexpr double ASYNC_IMBALANCE_THRESHOLD = 1.5; // 150% threshold
+    static const int ASYNC_IMBALANCE_TIMEOUT_MS = 3000; // 3 seconds tolerance
+    QElapsedTimer m_imbalanceDetectionTimer;
+    bool m_imbalanceDetected = false;
+    
+    // Legacy variables removed - functionality moved to specialized modules
     
     // Enhanced error handling
     void handleSerialError(QSerialPort::SerialPortError error);
@@ -299,12 +459,15 @@ private:
     
     // Command-based baudrate change for CH9329 and unknown chips
     void applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix);
-    // Schedule configuration retry attempts asynchronously without blocking the UI
-    void scheduleConfigRetry(const QString &portName, int attempt, int maxAttempts, int delayMs);
     
     // Command tracking methods
     void checkCommandLossRate();
     void resetCommandCounters();
+
+    // Logging
+    QThread* m_logThread;
+    LogWriter* m_logWriter;
+    QString m_logFilePath; // current serial log file path
 };
 
 #endif // SERIALPORTMANAGER_H

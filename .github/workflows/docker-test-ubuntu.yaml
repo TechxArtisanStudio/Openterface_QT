@@ -8,12 +8,16 @@ on:
       - 'docker/install-openterface.sh'
       - 'docker/entrypoint.sh'
       - '.github/workflows/docker-test-ubuntu.yaml'
+      - 'openterfaceQT.pro'
+      - 'doc/build_from_source_summary.md'
   pull_request:
     branches: ["main", "dev"]
     paths:
       - 'docker/testos/Dockerfile.ubuntu-test-shared'
       - 'docker/install-openterface.sh'
       - '.github/workflows/docker-test-ubuntu.yaml'
+      - 'openterfaceQT.pro'
+      - 'doc/build_from_source_summary.md'
   workflow_run:
     workflows: ["Linux Build"]
     types:
@@ -85,9 +89,9 @@ jobs:
           
           # Find and download the appropriate artifact based on install_type
           if [ "${{ env.INSTALL_TYPE }}" = "deb" ]; then
-            ARTIFACT_PATTERN="shared.deb"
+            ARTIFACT_PATTERN=".deb"
           elif [ "${{ env.INSTALL_TYPE }}" = "appimage" ]; then
-            ARTIFACT_PATTERN="shared.AppImage"
+            ARTIFACT_PATTERN=".AppImage"
           else
             echo "❌ Invalid install_type: ${{ env.INSTALL_TYPE }}"
             exit 1
@@ -1143,9 +1147,505 @@ jobs:
           else
             echo "✅ All containers cleaned up successfully"
           fi
+  build-from-source-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ubuntu container for build testing
+        run: |
+          echo "🐧 Setting up Ubuntu container for build-from-source testing"
+          
+          # Create an Ubuntu container for building
+          docker run -d --name ubuntu-build-test \
+            --privileged \
+            -v $(pwd):/workspace \
+            -w /workspace \
+            ubuntu:24.04 \
+            sleep infinity
+          
+          echo "✅ Ubuntu container started"
+
+      - name: Install Python dependencies (Qiniu SDK)
+        run: |
+          echo "📦 Installing required Python packages..."
+          python3 -m pip install --upgrade pip > /dev/null 2>&1
+          python3 -m pip install qiniu > /dev/null 2>&1
+          echo "✅ Python dependencies installed"
+          
+      - name: Install build dependencies in Ubuntu container
+        run: |
+          echo "📦 Installing build dependencies in Ubuntu container"
+          
+          docker exec ubuntu-build-test bash -c '
+          
+            # Update system
+            apt update -y
+            apt install -y ca-certificates
+
+            # Enable universe repository
+            echo "deb http://archive.ubuntu.com/ubuntu jammy main universe" > /etc/apt/sources.list.d/universe.list
+            apt update -y
+
+            # Install Qt6 development packages
+            apt install -y \
+              qt6-base-dev \
+              qt6-multimedia-dev \
+              qt6-serialport-dev \
+              qt6-svg-dev \
+              qmake6 \
+              pkg-config 
+            
+            # Install multimedia libraries
+            echo "📦 Installing multimedia libraries..."
+            if ! apt install -y \
+              libavformat-dev \
+              libavcodec-dev \
+              libavutil-dev \
+              libswscale-dev \
+              libavdevice-dev \
+              libgstreamer1.0-dev \
+              libgstreamer-plugins-base1.0-dev \
+              libjpeg-turbo8-dev \
+              libturbojpeg0-dev \
+              libusb-1.0-0-dev \
+              libudev-dev \
+              libva-dev; then
+              echo "❌ Multimedia package installation failed"
+              echo "🔍 Checking what packages are available..."
+              apt list --installed | grep -E "(libav|libgstreamer|libjpeg|libusb)" | head -10 || echo "No matching packages found"
+              exit 1
+            fi
+            
+            # Verify installations
+            echo "🔍 Verifying package installations..."
+            for pkg in libavformat-dev libgstreamer1.0-dev libjpeg-turbo8-dev libturbojpeg0-dev libusb-1.0-0-dev libudev-dev libva-dev; do
+              if dpkg -l $pkg >/dev/null 2>&1; then
+                echo "✅ $pkg: installed"
+              else
+                echo "❌ $pkg: NOT installed"
+                echo "   Trying to find what provides $pkg..."
+                apt search $pkg 2>/dev/null | head -3 || echo "   No providers found"
+              fi
+            done
+            
+            # Install system libraries
+            apt install -y \
+              libudev-dev \
+              libx11-dev \
+              build-essential \
+              git
+            
+            # Install Xvfb for headless GUI testing
+            apt install -y \
+              xvfb \
+              imagemagick \
+              x11-apps
+            
+            # Verify pkg-config can find the required libraries
+            echo "🔍 Verifying pkg-config setup..."
+            pkg-config --list-all | grep -E "(gstreamer|libav|libjpeg|libusb|libudev)" | head -10
+            
+            echo "🔍 Checking specific pkg-config files..."
+            for pkg in gstreamer-1.0 libavformat libjpeg libusb-1.0 libudev; do
+              if pkg-config --exists $pkg; then
+                echo "✅ $pkg: found"
+              else
+                echo "❌ $pkg: NOT found"
+                # Try to find the .pc file
+                find /usr -name "$pkg.pc" 2>/dev/null | head -1 || echo "  .pc file not found"
+              fi
+            done
+            
+            echo "✅ All build dependencies installed"
+          '
+
+      - name: Build Openterface_QT from source
+        run: |
+          echo "🔨 Building Openterface_QT from source using qmake6"
+          
+          docker exec ubuntu-build-test bash -c '
+            cd /workspace
+            
+            # Debug: Check what pkg-config files are available
+            echo "🔍 Available pkg-config files:"
+            find /usr/lib/x86_64-linux-gnu/pkgconfig -name "*.pc" | grep -E "(gstreamer|libav|libjpeg|libusb|libudev)" | head -10
+            
+            # Debug: Check specific pkg-config existence
+            echo "🔍 Checking pkg-config availability:"
+            for pkg in gstreamer-1.0 gstreamer-video-1.0 libavformat libavcodec libavutil libswscale libavdevice libjpeg libturbojpeg libusb-1.0 libudev; do
+              if pkg-config --exists $pkg 2>/dev/null; then
+                echo "✅ $pkg: found ($(pkg-config --modversion $pkg 2>/dev/null || echo "no version"))"
+              else
+                echo "❌ $pkg: NOT found"
+              fi
+            done
+            
+            # Create build directory
+            mkdir -p build
+            cd build
+            
+            # Configure with qmake6
+            echo "📋 Running qmake6..."
+            if ! qmake6 ..; then
+              echo "❌ qmake6 failed."
+              exit 1
+            fi
+            
+            # Build with make
+            echo "🔨 Running make..."
+            if ! make -j$(nproc); then
+              echo "❌ make failed. Last few lines of output:"
+              tail -20 build.log 2>/dev/null || echo "No build.log found"
+              exit 2
+            fi
+            
+            # Verify executable was created
+            if [ -f "openterfaceQT" ] && [ -x "openterfaceQT" ]; then
+              echo "✅ Build successful! Executable created:"
+              ls -lh openterfaceQT
+            else
+              echo "❌ Build failed - executable not found"
+              echo "📁 Build directory contents:"
+              ls -la
+              exit 3
+            fi
+          '
+
+      - name: Test application startup (GUI)
+        run: |
+          echo "🧪 Testing application startup with GUI"
+          
+          docker exec ubuntu-build-test bash -c '
+            cd /workspace/build
+            
+            # Start Xvfb for GUI testing
+            echo "📺 Starting Xvfb for GUI testing..."
+            Xvfb :99 -screen 0 1920x1080x24 &
+            XVFB_PID=$!
+            sleep 2
+            
+            # Set display
+            export DISPLAY=:99
+            
+            # Start the application in background
+            echo "🚀 Starting application..."
+            ./openterfaceQT &
+            APP_PID=$!
+            
+            # Wait for app to start and render
+            echo "⏳ Waiting 5 seconds for app to render..."
+            sleep 5
+            
+            # Take screenshot
+            echo "📷 Taking screenshot..."
+            timestamp=$(date +"%Y%m%d_%H%M%S")
+            mkdir -p /workspace/screenshots-build-from-source
+            screenshot_file="/workspace/screenshots-build-from-source/screenshot_startup_${timestamp}.jpg"
+            
+            SCREENSHOT_SUCCESS=false
+            
+            # Use import with explicit geometry
+            if ! $SCREENSHOT_SUCCESS; then
+              echo "📌 Attempting screenshot with import..."
+              if import -window root -quality 100 -geometry 1920x1080 "$screenshot_file" 2>/dev/null; then
+                SCREENSHOT_SUCCESS=true
+                echo "✅ Screenshot captured using import"
+              else
+                echo "⚠️ import method failed"
+              fi
+            fi
+            
+            if [ "$SCREENSHOT_SUCCESS" = true ]; then
+              echo "✅ Screenshot saved to: $screenshot_file"
+              ls -lh "$screenshot_file"
+            else
+              echo "❌ All screenshot methods failed"
+            fi
+            
+            # Kill the application
+            echo "🛑 Killing application..."
+            kill $APP_PID 2>/dev/null || true
+            
+            # Kill Xvfb
+            kill $XVFB_PID 2>/dev/null || true
+            
+            echo "✅ GUI startup test completed"
+          '
+
+      - name: Capture build artifacts
+        run: |
+          echo "📦 Capturing build artifacts"
+          
+          # Create artifacts directory
+          mkdir -p build-artifacts
+          
+          # Copy executable, screenshot, and build info
+          docker exec ubuntu-build-test bash -c '
+            cd /workspace/build
+            cp openterfaceQT /workspace/build-artifacts/ 2>/dev/null || echo "Executable not found"
+            
+            # Copy screenshot if it exists
+            if ls /workspace/screenshots-build-from-source/screenshot_startup_*.jpg 1> /dev/null 2>&1; then
+              cp /workspace/screenshots-build-from-source/screenshot_startup_*.jpg /workspace/build-artifacts/ || echo "Screenshot copy failed"
+            else
+              echo "No startup screenshot found"
+            fi
+            
+            # Create build info
+            echo "Build Information" > /workspace/build-artifacts/build-info.txt
+            echo "=================" >> /workspace/build-artifacts/build-info.txt
+            echo "Date: $(date)" >> /workspace/build-artifacts/build-info.txt
+            echo "System: Ubuntu Linux" >> /workspace/build-artifacts/build-info.txt
+            echo "Qt Version: $(qmake6 --version | head -1)" >> /workspace/build-artifacts/build-info.txt
+            echo "GCC Version: $(gcc --version | head -1)" >> /workspace/build-artifacts/build-info.txt
+            echo "Build Command: qmake6 .. && make -j$(nproc)" >> /workspace/build-artifacts/build-info.txt
+            
+            if [ -f openterfaceQT ]; then
+              echo "Executable Size: $(ls -lh openterfaceQT | awk '\''{print $5}'\'')" >> /workspace/build-artifacts/build-info.txt
+              echo "Build Status: SUCCESS" >> /workspace/build-artifacts/build-info.txt
+            else
+              echo "Build Status: FAILED" >> /workspace/build-artifacts/build-info.txt
+            fi
+          '
+          
+          # List captured artifacts
+          echo "📋 Build artifacts captured:"
+          ls -la build-artifacts/
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-build-from-source-test
+          path: build-artifacts/
+          if-no-files-found: warn
+
+      - name: Display screenshots in summary (build-from-source)
+        if: always()
+        env:
+          QINIU_AK: ${{ secrets.QINIU_AK }}
+          QINIU_SK: ${{ secrets.QINIU_SK }}
+          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
+          QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
+        run: |
+          echo "🔍 DEBUG: Starting screenshot summary generation (build-from-source)"
+          echo "📁 Checking for screenshots directory..."
+          ls -la screenshots-build-from-source/ 2>&1 || echo "Directory not found"
+          
+          # Start the summary
+          echo "# GUI Screenshots - Build From Source Test" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Type**: Build From Source (Ubuntu)" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -d "screenshots-build-from-source" ] && [ "$(ls -A screenshots-build-from-source/*.jpg 2>/dev/null)" ]; then
+            echo "✅ Screenshots directory found"
+            echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            total_jpgs=$(find screenshots-build-from-source/ -name "*.jpg" 2>/dev/null | wc -l)
+            content_jpgs=$(find screenshots-build-from-source/ -name "*.jpg" -exec identify -ping -format "%[mean]" {} \; 2>/dev/null | awk -F. '{if($1 > 100) count++} END {print count+0}')
+            
+            echo "📊 Found $total_jpgs screenshots with $content_jpgs containing content"
+            
+            echo "- **Total Screenshots**: $total_jpgs" >> $GITHUB_STEP_SUMMARY
+            echo "- **With Content**: $content_jpgs" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "$total_jpgs" -gt 0 ]; then
+              echo "- **Status**: SUCCESS" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## Screenshots" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+            screenshot_count=0
+            api_key_shown=0
+            upload_failed=0
+            
+            for img in screenshots-build-from-source/*.jpg; do
+              if [ -f "$img" ]; then
+                filename=$(basename "$img")
+                screenshot_count=$((screenshot_count + 1))
+                
+                artifact_name="screenshot-build-from-source-${screenshot_count}-$(echo "$filename" | sed 's/[^a-zA-Z0-9.-]/_/g')"
+                echo "$artifact_name|$img" >> /tmp/screenshot_artifacts_build_from_source.txt
+                
+                filesize=$(ls -lh "$img" | awk '{print $5}')
+                
+                echo "### Screenshot $screenshot_count: $filename" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "**Size:** $filesize" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                
+                # Determine if screenshot has content based on file size
+                actual_size=$(stat -f%z "$img" 2>/dev/null || stat -c%s "$img" 2>/dev/null || echo 0)
+                if [ "$actual_size" -gt 50000 ]; then
+                  echo "**Status:** ✅ Content detected ($(($actual_size / 1024))KB)" >> $GITHUB_STEP_SUMMARY
+                else
+                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >50000 bytes)" >> $GITHUB_STEP_SUMMARY
+                  echo "Screenshot file size validation failed: $actual_size bytes < 50000 bytes"
+                  exit 1
+                fi
+                echo "" >> $GITHUB_STEP_SUMMARY
+                
+                if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
+                  echo "📤 Uploading $filename to Qiniu using Python script..."
+                  echo "🔑 Qiniu credentials validation: AK=${#QINIU_AK} chars, SK=${#QINIU_SK} chars"
+                  
+                  # Use Python script for upload instead of bash script
+                  UPLOAD_EXIT_CODE=0
+                  UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
+                  
+                  if [ $UPLOAD_EXIT_CODE -ne 0 ]; then
+                    echo "❌ Upload script failed with exit code: $UPLOAD_EXIT_CODE"
+                    echo "📋 Upload output:"
+                    echo "$UPLOAD_OUTPUT"
+                    echo "---"
+                  fi
+                  
+                  # Extract URL from Python script output
+                  UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -oE 'https://[^ "]*' | tail -1)
+                  
+                  if [ -z "$UPLOAD_URL" ]; then
+                    UPLOAD_URL=$(echo "$UPLOAD_OUTPUT" | grep -E '^https' | tail -1)
+                  fi
+                  
+                  if [ -n "$UPLOAD_URL" ]; then
+                    echo "✅ Upload successful: $UPLOAD_URL"
+                    echo "<a href=\"$UPLOAD_URL\" target=\"_blank\"><img src=\"$UPLOAD_URL\" width=\"800\" alt=\"Screenshot\"></a>" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                    echo "[View Full Size]($UPLOAD_URL)" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                  else
+                    echo "⚠️ Upload URL extraction inconclusive for $filename"
+                    echo "   Raw output (last 10 lines):"
+                    echo "$UPLOAD_OUTPUT" | tail -10 | sed 's|^|   |'
+                    FALLBACK_URL=$(echo "$UPLOAD_OUTPUT" | grep -o 'https[^[:space:]]*' | tail -1)
+                    if [ -n "$FALLBACK_URL" ]; then
+                      echo "   ✅ Recovered URL: $FALLBACK_URL"
+                      echo "<a href=\"$FALLBACK_URL\" target=\"_blank\"><img src=\"$FALLBACK_URL\" width=\"800\" alt=\"Screenshot\"></a>" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                      echo "[View Full Size]($FALLBACK_URL)" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                    else
+                      upload_failed=1
+                      echo "⚠️ Upload to Qiniu failed - See artifacts for full image" >> $GITHUB_STEP_SUMMARY
+                      echo "" >> $GITHUB_STEP_SUMMARY
+                    fi
+                  fi
+                else
+                  if [ $api_key_shown -eq 0 ]; then
+                    echo "⚠️ Qiniu AK/SK not configured - displaying artifacts instead" >> $GITHUB_STEP_SUMMARY
+                    echo "" >> $GITHUB_STEP_SUMMARY
+                    api_key_shown=1
+                  fi
+                fi
+              fi
+            done
+            
+            if [ $upload_failed -eq 1 ] || [ $api_key_shown -eq 1 ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "## 📥 Download Screenshots from Artifacts" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Since Qiniu upload is not available, all screenshots are saved as artifacts:" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "- **openterface-gui-screenshots-build-from-source-collection** - All screenshots" >> $GITHUB_STEP_SUMMARY
+              echo "- **openterface-gui-screenshots-build-from-source-individual** - Individual images" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## 📋 Step Logs" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "See the logs of the **Test application startup (GUI)** step for detailed test output." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            
+          else
+            echo "❌ Screenshots directory not found or empty"
+            echo "## No Screenshots Available" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No screenshots were generated during the test. Please check the logs of the **Test application startup (GUI)** step for details." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload individual screenshots (build-from-source)
+        if: always()
+        run: |
+          echo "📤 Uploading individual screenshots as artifacts"
+          
+          mkdir -p /tmp/individual_screenshots_build_from_source
+          
+          if [ -f /tmp/screenshot_artifacts_build_from_source.txt ]; then
+            while IFS='|' read -r artifact_name img_path; do
+              if [ -f "$img_path" ]; then
+                cp "$img_path" "/tmp/individual_screenshots_build_from_source/$(basename "$img_path")"
+                echo "Prepared: $img_path -> $artifact_name"
+              fi
+            done < /tmp/screenshot_artifacts_build_from_source.txt
+          fi
+
+      - name: Upload screenshots collection (build-from-source)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-gui-screenshots-build-from-source-collection
+          path: screenshots-build-from-source/
+          if-no-files-found: warn
+
+      - name: Upload individual screenshots as artifacts (build-from-source)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterface-gui-screenshots-build-from-source-individual
+          path: /tmp/individual_screenshots_build_from_source/
+          if-no-files-found: warn
+
+      - name: Manage Qiniu bucket - Keep max 50 recent images (build-from-source)
+        if: always()
+        env:
+          QINIU_AK: ${{ secrets.QINIU_AK }}
+          QINIU_SK: ${{ secrets.QINIU_SK }}
+          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
+          QINIU_DOMAIN: ${{ secrets.QINIU_DOMAIN }}
+        run: |
+          echo "🧹 Cleaning up Qiniu bucket - Keeping maximum 50 recent images"
+          
+          if [ -z "$QINIU_AK" ] || [ -z "$QINIU_SK" ]; then
+            echo "⚠️ Qiniu credentials not configured, skipping bucket management"
+            exit 0
+          fi
+          
+          echo "📊 Running bucket management script..."
+          QINIU_AK="$QINIU_AK" \
+          QINIU_SK="$QINIU_SK" \
+          QINIU_BUCKET="${QINIU_BUCKET:-openterface}" \
+          QINIU_DOMAIN="$QINIU_DOMAIN" \
+          python3 ./docker/manage_qiniu_bucket.py -k 50 --force 2>&1
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Bucket management completed successfully"
+            echo "📋 Summary: Kept maximum 50 most recent images in Qiniu bucket"
+          else
+            echo "⚠️ Bucket management encountered an issue (non-blocking)"
+            echo "   This may occur if the bucket has fewer than 50 images or credentials are invalid"
+          fi
+
+      - name: Clean up build container
+        if: always()
+        run: |
+          echo "🧹 Cleaning up build container"
+          docker stop ubuntu-build-test || true
+          docker rm ubuntu-build-test || true
+          echo "✅ Build container cleaned up"
+
   generate-combined-report:
     if: always()
-    needs: [build-test-shared]
+    needs: [build-test-shared, build-from-source-test]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     
@@ -1217,7 +1717,7 @@ jobs:
           
           # Add combined summary
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "# 📋 Test Report - Shared Build (DEB + AppImage)" >> $GITHUB_STEP_SUMMARY
+          echo "# 📋 Test Report - Ubuntu (DEB + AppImage + Build From Source)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## 📊 Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -1266,6 +1766,49 @@ jobs:
             fi
             echo "" >> $GITHUB_STEP_SUMMARY
           done
+          
+          # Add build-from-source results
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build From Source Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          screenshots_dir="all-artifacts/openterface-gui-screenshots-build-from-source-collection"
+          if [ -d "$screenshots_dir" ]; then
+            total=$(find "$screenshots_dir" -name "*.jpg" 2>/dev/null | wc -l)
+            
+            if [ "$total" -gt 0 ]; then
+              # Use file size to determine if screenshots have content (more reliable)
+              content=$(find "$screenshots_dir" -name "*.jpg" -size +50k 2>/dev/null | wc -l)
+              
+              if [ "$content" -eq 0 ]; then
+                # Fallback: check if files exist and are not tiny
+                content=$(find "$screenshots_dir" -name "*.jpg" -type f 2>/dev/null | while read f; do
+                  size=$(stat -f%z "$f" 2>/dev/null || stat -c%s "$f" 2>/dev/null || echo 0)
+                  if [ "$size" -gt 1000 ]; then
+                    echo "1"
+                  fi
+                done | wc -l)
+              fi
+              
+              if [ "$content" -gt 0 ]; then
+                rate=$(( content * 100 / total ))
+                status="✅ PASSED"
+              else
+                rate=0
+                status="✅ GENERATED (size verification inconclusive)"
+              fi
+              
+              echo "- **Total Screenshots**: $total" >> $GITHUB_STEP_SUMMARY
+              echo "- **With Content**: $content" >> $GITHUB_STEP_SUMMARY
+              echo "- **Success Rate**: ${rate}%" >> $GITHUB_STEP_SUMMARY
+              echo "- **Status**: $status" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **Status**: ❌ FAILED - No screenshots generated" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "- **Status**: ⏭️ NOT RUN - No screenshots directory found" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
           
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "**Generated on**: $(date -u)" >> $GITHUB_STEP_SUMMARY

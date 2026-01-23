@@ -133,6 +133,7 @@ public:
     
     // Current state
     QList<DeviceInfo> getCurrentDevices() const;
+    QString getDeviceTree() const;
     DeviceInfo getCurrentSelectedDevice() const { return m_selectedDevice; }
     void setCurrentSelectedDevice(const DeviceInfo& device) { m_selectedDevice = device; }
     
@@ -162,6 +163,7 @@ private:
     void compareDeviceSnapshots(const QList<DeviceInfo>& current, 
                                const QList<DeviceInfo>& previous);
     DeviceInfo findDeviceByKey(const QList<DeviceInfo>& devices, const QString& key);
+    void updateMonitoringInterval(int deviceCount);
     
     AbstractPlatformDeviceManager* m_platformManager;
     QTimer* m_hotplugTimer;
@@ -173,6 +175,9 @@ private:
     bool m_monitoring;
     QString m_platformName;
     QSet<QString> m_lastSerialPorts; // track systemLocation() of last serial ports to avoid unnecessary discover
+    int m_normalInterval; // normal monitoring interval when devices are present
+    int m_noDeviceInterval; // faster monitoring interval when no devices are present
+    int m_currentInterval; // current active monitoring interval
 };
 
 #endif // DEVICEMANAGER_H

@@ -42,13 +42,15 @@
 #include "ui/advance/scripttool.h"
 #include "ui/advance/firmwaremanagerdialog.h"
 #include "ui/advance/updatedisplaysettingsdialog.h"
+#include "ui/advance/devicediagnosticsdialog.h"
 #include "ui/help/versioninfomanager.h"
 #include "ui/toolbar/toolbarmanager.h"
 #include "ui/TaskManager.h"
 #include "ui/languagemanager.h"
 #include "ui/statusbar/statusbarmanager.h"
 #include "host/cameramanager.h"
-#include "scripts/semanticAnalyzer.h"
+#include "scripts/scriptRunner.h"
+#include "scripts/scriptExecutor.h"
 #include "scripts/AST.h"
 #include "ui/screensavermanager.h"
 #include "ui/screenscale.h"
@@ -62,6 +64,7 @@
 
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
+#include "host/imagecapturer.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -211,6 +214,8 @@ private slots:
 
     void showUpdateDisplaySettingsDialog();
 
+    void showHardwareDiagnostics();
+
     void updateFirmware(); 
 
     void onRepeatingKeystrokeChanged(int index);
@@ -252,6 +257,7 @@ protected:
     void onToggleVirtualKeyboard();
 
     void onResolutionChange(const int& width, const int& height, const float& fps, const float& pixelClk);
+    void onGpio0StatusChanged(bool isToTarget);
 
     bool eventFilter(QObject *watched, QEvent *event) override;
 
@@ -326,7 +332,8 @@ private:
     // CameraAdjust *cameraAdjust;
     std::unique_ptr<MouseManager> mouseManager;
     std::unique_ptr<KeyboardMouse> keyboardMouse;
-    std::unique_ptr<SemanticAnalyzer> semanticAnalyzer;
+    std::unique_ptr<ScriptExecutor> scriptExecutor;
+    std::unique_ptr<ScriptRunner> scriptRunner;
     TaskManager* taskmanager;
     void showScriptTool();
 
@@ -342,6 +349,7 @@ private:
     ratioType currentRatioType = ratioType::EQUAL;
     void startServer();
     TcpServer *tcpServer;
+    ImageCapturer *m_imageCapturer;
 
 };
 #endif // MAINWINDOW_H

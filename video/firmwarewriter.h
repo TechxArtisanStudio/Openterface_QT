@@ -15,6 +15,7 @@ public:
     
 public slots:
     void process();
+    void onChunkWritten(int writtenBytes); // slot invoked when VideoHid reports chunk written
     
 signals:
     void progress(int percent);
@@ -24,6 +25,10 @@ private:
     VideoHid* m_videoHid;
     quint16 m_address;
     QByteArray m_firmware;
+
+    // Progress tracking state
+    int m_totalSize{0};
+    std::atomic_int m_lastPercent{0};
 };
 
 #endif // FIRMWAREWRITER_H

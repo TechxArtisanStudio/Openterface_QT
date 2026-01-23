@@ -115,6 +115,7 @@ void TcpServer::recvTCPCommandStatus(bool status){
     }else{
         actionStatus = Fail;
     }
+    correponseClientStauts();
 }
 
 void TcpServer::correponseClientStauts(){

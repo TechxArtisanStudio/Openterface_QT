@@ -463,7 +463,7 @@ else
 fi
 
 # Build the .deb
-DEB_NAME="openterfaceQT_${VERSION}_${UNAME_M}.deb"
+DEB_NAME="openterfaceQT_${VERSION}_${ARCH}.deb"
 echo "Building Debian package: ${DEB_NAME}"
 dpkg-deb --build "${PKG_ROOT}" "${PKG_OUT}/${DEB_NAME}"
 echo "Debian package created at ${PKG_OUT}/${DEB_NAME}"

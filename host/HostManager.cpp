@@ -46,12 +46,13 @@ void HostManager::setEventCallback(StatusEventCallback* callback)
 
 void HostManager::handleKeyPress(QKeyEvent *event)
 {
-    handleKeyboardAction(event->key(), event->modifiers(), true);
+    // forward nativeVirtualKey so KeyboardManager can detect left/right modifiers on Windows
+    handleKeyboardAction(event->key(), event->modifiers(), true, event->nativeVirtualKey());
 }
 
 void HostManager::handleKeyRelease(QKeyEvent *event)
 {
-    handleKeyboardAction(event->key(), event->modifiers(), false);
+    handleKeyboardAction(event->key(), event->modifiers(), false, event->nativeVirtualKey());
 }
 
 void HostManager::handleMousePress(MouseEventDTO *event)
@@ -147,13 +148,14 @@ void HostManager::handleFunctionKey(int keyCode, int modifiers)
     });
 }
 
-void HostManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown)
+void HostManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown, unsigned int nativeVirtualKey)
 {
     QString hexKeyCode = QString::number(keyCode, 16);
     int effectiveModifiers = keyboardManager.isModiferKeys(keyCode) ? modifiers : modifiers;
-    qCDebug(log_core_host) << (isKeyDown ? "Key press" : "Key release") << "event for qt key code:" << keyCode << "(" << hexKeyCode << "), modifiers:" << "0x" + QString::number(effectiveModifiers, 16);
+    qCDebug(log_core_host) << (isKeyDown ? "Key press" : "Key release") << "event for qt key code:" << keyCode << "(" << hexKeyCode << "), modifiers:" << "0x" + QString::number(effectiveModifiers, 16) << " nativeVK:" << QString::number(nativeVirtualKey, 16);
     
-    keyboardManager.handleKeyboardAction(keyCode, effectiveModifiers, isKeyDown);
+    // forward nativeVirtualKey to KeyboardManager
+    keyboardManager.handleKeyboardAction(keyCode, effectiveModifiers, isKeyDown, nativeVirtualKey);
     
     if (isKeyDown) {
         qCDebug(log_core_host) << "Key press event detected with keyCode:" << keyCode << " and modifiers:" << effectiveModifiers;

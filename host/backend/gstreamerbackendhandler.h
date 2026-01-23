@@ -37,6 +37,10 @@
 #include <QGraphicsView>
 #include <QGraphicsVideoItem>
 
+// Forward declarations
+class HotplugMonitor;
+struct DeviceInfo;
+
 // Forward declarations for GStreamer types - now properly defined via includes above
 // typedef struct _GstElement GstElement;
 // typedef struct _GstBus GstBus;
@@ -139,6 +143,9 @@ public:
     // Hotplug support: set current device and port chain for tracking
     void setCurrentDevicePortChain(const QString& portChain);
     void setCurrentDevice(const QString& devicePath);
+    
+    // Hotplug monitoring connection
+    void connectToHotplugMonitor();
 
     // Start a direct GStreamer pipeline using the current device/resolution/framerate
     // Returns true on successful create + start, false otherwise
@@ -151,6 +158,9 @@ private slots:
     void onExternalRunnerStarted();
     void onExternalRunnerFailed(const QString& error);
     void onExternalRunnerFinished(int exitCode, QProcess::ExitStatus status);
+    // Device hotplug handlers
+    void onDeviceUnplugged(const DeviceInfo& device);
+    void onDevicePluggedIn(const DeviceInfo& device);
     
     // Recording lifecycle events are handled by RecordingManager
 
@@ -160,6 +170,11 @@ private:
     GstElement* m_source;
     GstElement* m_sink;
     GstBus* m_bus;
+    
+    // Hotplug monitoring
+    HotplugMonitor* m_hotplugMonitor;
+    QString m_currentDevicePortChain;
+    QString m_currentDevicePath;
     
     // Recording pipeline components (kept for compatibility during refactor)
     GstElement* m_recordingPipeline;
@@ -183,11 +198,15 @@ private:
     QTimer* m_healthCheckTimer;
     QProcess* m_gstProcess;  // Fallback for process-based approach
     
+    // Track all objects with installed event filters for cleanup during destruction
+    QSet<QObject*> m_watchedObjects;
+    
+    // Destruction state - signals to event filter to exit early
+    std::atomic<bool> m_isDestructing{false};
+    
     // Pipeline state
     bool m_pipelineRunning;
     QString m_selectedSink; // textual name of the selected video sink element
-    QString m_currentDevice;
-    QString m_currentDevicePortChain; // Track port chain for hotplug support
     QSize m_currentResolution;
     int m_currentFramerate;
     

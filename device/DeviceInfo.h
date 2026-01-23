@@ -51,9 +51,9 @@ public:
     
     // Device type checking
     bool hasSerialPort() const { return !serialPortPath.isEmpty(); }
-    bool hasHidDevice() const { return !hidDevicePath.isEmpty(); }
+    bool hasHidDevice() const { return (!hidDevicePath.isEmpty() || !hidDeviceId.isEmpty()); }
     bool hasCameraDevice() const { return !cameraDevicePath.isEmpty(); }
-    bool hasAudioDevice() const { return !audioDevicePath.isEmpty(); }
+    bool hasAudioDevice() const { return (!audioDevicePath.isEmpty() || !audioDeviceId.isEmpty()); }
     
     // Complete device validation
     bool isCompleteDevice() const { return hasSerialPort() && hasHidDevice(); }

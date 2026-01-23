@@ -1,11 +1,13 @@
 #!/bin/bash
-# OpenterfaceQT Launcher - Fedora Qt Conflict Resolution
-# Uses LD_PRELOAD to force bundled Qt libraries to load instead of system Qt
+# OpenterfaceQT Launcher - Sets up bundled library paths
+# This script ensures bundled Qt6, FFmpeg, and GStreamer libraries are loaded with proper priority
 
 # ============================================
 # Error Handling & Logging
 # ============================================
 LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
+CLEANUP_HANDLER_RAN=0
+
 {
     echo "=== OpenterfaceQT Launcher Started at $(date) ==="
     echo "Script PID: $$"
@@ -14,7 +16,7 @@ LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
 
 # Trap errors and log them (but don't use set -e to allow graceful library lookups)
 # Only trap real errors, not expected return codes from find_library function
-trap 'if [ $? -ne 1 ]; then echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; fi' ERR
+trap 'if [ $? -ne 1 ] && [ $? -ne 143 ] && [ $? -ne 137 ]; then echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; fi' ERR
 
 # ============================================
 # Library Path Setup (CRITICAL for bundled libs)
@@ -82,10 +84,11 @@ QT6_CORE_LIBS=(
 
 # Qt6 module libraries - COMPREHENSIVE list including all possible Qt6 libraries
 # This ensures no system Qt libraries can sneak in through hidden dependencies
+# CRITICAL: Multimedia must come early to prevent system Multimedia from loading
 QT6_MODULE_LIBS=(
+    "libQt6Multimedia"       # CRITICAL: Must load bundled multimedia BEFORE other modules
+    "libQt6MultimediaWidgets"  # Must follow Multimedia
     "libQt6Widgets"
-    "libQt6Multimedia"
-    "libQt6MultimediaWidgets"
     "libQt6SerialPort"
     "libQt6Network"
     "libQt6OpenGL"
@@ -348,6 +351,11 @@ if [ ${#PRELOAD_LIBS[@]} -gt 0 ]; then
         export LD_PRELOAD="$PRELOAD_STR:$LD_PRELOAD"
     fi
     
+    # CRITICAL: Force removal of system Qt library paths from search
+    # This prevents the loader from finding system Qt libraries as fallback
+    # We do this by preloading the bundled Qt library which intercepts symbol lookups
+    unset LD_LIBRARY_PATH_APPEND
+    
     # Always log comprehensive preload info
     {
         echo "========================================"
@@ -383,6 +391,10 @@ if [ -z "$QT_PLUGIN_PATH" ]; then
     # Join with colons
     QT_PLUGIN_PATH=$(printf '%s:' "${QT_PLUGIN_PATHS[@]}" | sed 's/:$//')
     export QT_PLUGIN_PATH="${QT_PLUGIN_PATH}"
+    
+    # Export multimedia plugin path explicitly (CRITICAL FIX)
+    # This ensures Qt Multimedia backends can be found
+    export QT_MULTIMEDIA_PLUGINS="/usr/lib/openterfaceqt/qt6/plugins/multimedia"
 fi
 
 # ============================================
@@ -428,25 +440,21 @@ if [ -z "$QML2_IMPORT_PATH" ]; then
 fi
 
 # ============================================
-# GStreamer Plugin Path Setup
+# GStreamer Plugin Path Setup (CRITICAL FOR RPM)
 # ============================================
-if [ -z "$GST_PLUGIN_PATH" ]; then
-    GST_PLUGIN_PATHS=()
-    
-    # Bundled GStreamer plugins (PRIMARY)
-    if [ -d "/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0" ]; then
-        GST_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0")
-    fi
-    
-    # System GStreamer plugins (secondary)
-    if [ -d "/usr/lib/gstreamer-1.0" ]; then
-        GST_PLUGIN_PATHS+=("/usr/lib/gstreamer-1.0")
-    fi
-    
-    # Join with colons
-    GST_PLUGIN_PATH=$(printf '%s:' "${GST_PLUGIN_PATHS[@]}" | sed 's/:$//')
-    export GST_PLUGIN_PATH="${GST_PLUGIN_PATH}"
+# CRITICAL: Force bundled GStreamer plugins ONLY for RPM packages
+# System GStreamer plugins will conflict with bundled Qt Multimedia
+GST_PLUGIN_PATHS=()
+
+# Bundled GStreamer plugins (PRIMARY - MUST be first)
+if [ -d "/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0" ]; then
+    GST_PLUGIN_PATHS+=("/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0")
 fi
+
+# Join with colons (do NOT add system plugins - they cause version conflicts)
+GST_PLUGIN_PATH=$(printf '%s:' "${GST_PLUGIN_PATHS[@]}" | sed 's/:$//')
+export GST_PLUGIN_PATH="${GST_PLUGIN_PATH}"
+export GST_PLUGIN_SYSTEM_PATH="${GST_PLUGIN_PATH}"
 
 # ============================================
 # Qt Platform Hints - Fedora Optimized
@@ -488,12 +496,30 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
         fi
     else
         # ========================================
-        # FEDORA PRIORITY: Wayland > XCB > Auto-detect
+        # FEDORA PRIORITY: XCB > Wayland > Auto-detect
         # ========================================
         # On modern Fedora systems, Wayland is the default and preferred platform
         # Only fall back to XCB if explicitly needed or if Wayland is not available
         
-        if [ -n "$WAYLAND_DISPLAY" ]; then
+        if [ -n "$DISPLAY" ]; then
+            export QT_QPA_PLATFORM="xcb"
+            export OPENTERFACE_LAUNCHER_PLATFORM="xcb"
+            
+            if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
+                {
+                    echo ""
+                    echo "⚠️  Platform Detection: Using XCB (Wayland not detected by ANY method)"
+                    echo "   DISPLAY=$DISPLAY"
+                    echo "   XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown}"
+                    echo "   LD_PRELOAD contains libwayland-client: $(echo "$LD_PRELOAD" | grep -q "libwayland-client" && echo "YES" || echo "NO")"
+                    echo "   Setting QT_QPA_PLATFORM=xcb"
+                    echo ""
+                    echo "   To use Wayland instead, set:"
+                    echo "   export WAYLAND_DISPLAY=wayland-0"
+                    echo "   export QT_QPA_PLATFORM=wayland"
+                } | tee -a "$LAUNCHER_LOG"
+            fi
+        elif [ -n "$WAYLAND_DISPLAY" ]; then
             # Wayland is explicitly requested - use it (HIGHEST PRIORITY)
             export QT_QPA_PLATFORM="wayland"
             
@@ -503,140 +529,10 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
                     echo "   WAYLAND_DISPLAY=$WAYLAND_DISPLAY"
                 } | tee -a "$LAUNCHER_LOG"
             fi
-        elif [ -n "$DISPLAY" ]; then
-            # DISPLAY is set - prefer Wayland if available, otherwise use XCB
-            # Check if Wayland session is running (multiple detection methods)
-            WAYLAND_DETECTED=0
-            DETECTION_METHOD=""
-            
-            if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                echo "🔍 Platform Detection: Starting comprehensive Wayland detection..." | tee -a "$LAUNCHER_LOG"
-                echo "   DISPLAY=$DISPLAY" | tee -a "$LAUNCHER_LOG"
-                echo "   XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-not set}" | tee -a "$LAUNCHER_LOG"
-                echo "   LD_PRELOAD set: $([ -n "$LD_PRELOAD" ] && echo "YES ($(echo "$LD_PRELOAD" | tr ':' '\n' | wc -l) entries)" || echo "NO")" | tee -a "$LAUNCHER_LOG"
-            fi
-            
-            # Method 1: Check systemd wayland-session.target
-            if systemctl --user is-active --quiet wayland-session.target 2>/dev/null; then
-                WAYLAND_DETECTED=1
-                DETECTION_METHOD="systemd wayland-session.target"
-                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                    echo "  ✅ Method 1 (systemd): wayland-session.target is ACTIVE" | tee -a "$LAUNCHER_LOG"
-                fi
-            else
-                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                    echo "  ❌ Method 1 (systemd): wayland-session.target NOT active or systemctl unavailable" | tee -a "$LAUNCHER_LOG"
-                fi
-            fi
-            
-            # Method 2: Check systemd environment for QT_QPA_PLATFORM=wayland
-            if [ $WAYLAND_DETECTED -eq 0 ] && \
-               [ -n "$(systemctl --user show-environment 2>/dev/null | grep QT_QPA_PLATFORM=wayland)" ]; then
-                WAYLAND_DETECTED=1
-                DETECTION_METHOD="systemd QT_QPA_PLATFORM environment"
-                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                    echo "  ✅ Method 2 (systemd env): QT_QPA_PLATFORM=wayland FOUND" | tee -a "$LAUNCHER_LOG"
-                fi
-            else
-                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                    echo "  ❌ Method 2 (systemd env): QT_QPA_PLATFORM=wayland NOT found" | tee -a "$LAUNCHER_LOG"
-                fi
-            fi
-            
-            # Method 3: Check XDG_SESSION_TYPE environment variable
-            if [ $WAYLAND_DETECTED -eq 0 ] && \
-               echo "$XDG_SESSION_TYPE" | grep -q "wayland" 2>/dev/null; then
-                WAYLAND_DETECTED=1
-                DETECTION_METHOD="XDG_SESSION_TYPE environment"
-                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                    echo "  ✅ Method 3 (XDG): XDG_SESSION_TYPE contains 'wayland'" | tee -a "$LAUNCHER_LOG"
-                fi
-            else
-                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                    echo "  ❌ Method 3 (XDG): XDG_SESSION_TYPE='${XDG_SESSION_TYPE:-not set}' does NOT contain 'wayland'" | tee -a "$LAUNCHER_LOG"
-                fi
-            fi
-            
-            # Method 4: Check if Wayland libraries exist in filesystem (for standard Linux systems)
-            # If Wayland libraries are available (bundled or system),
-            # it's a strong indicator that this is a Wayland-capable system
-            if [ $WAYLAND_DETECTED -eq 0 ]; then
-                BUNDLED_WAYLAND=$(find /usr/lib/openterfaceqt -name "libwayland-client*" 2>/dev/null | head -1)
-                SYSTEM_WAYLAND=$(find /lib64 /usr/lib64 /usr/lib -name "libwayland-client*" 2>/dev/null | head -1)
-                
-                if [ -n "$BUNDLED_WAYLAND" ] || [ -n "$SYSTEM_WAYLAND" ]; then
-                    WAYLAND_DETECTED=1
-                    DETECTION_METHOD="filesystem library detection"
-                    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                        if [ -n "$BUNDLED_WAYLAND" ]; then
-                            echo "  ✅ Method 4a (bundled): Found $BUNDLED_WAYLAND" | tee -a "$LAUNCHER_LOG"
-                        fi
-                        if [ -n "$SYSTEM_WAYLAND" ]; then
-                            echo "  ✅ Method 4b (system): Found $SYSTEM_WAYLAND" | tee -a "$LAUNCHER_LOG"
-                        fi
-                    fi
-                else
-                    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                        echo "  ❌ Method 4 (filesystem): libwayland-client NOT found in system" | tee -a "$LAUNCHER_LOG"
-                    fi
-                fi
-            fi
-            
-            # Method 5: Check if Wayland libraries are already loaded in LD_PRELOAD
-            # This is CRITICAL for CI/CD environments (GitHub Actions, Docker) where
-            # systemd/XDG checks fail but Wayland libraries ARE actually preloaded
-            if [ $WAYLAND_DETECTED -eq 0 ] && [ -n "$LD_PRELOAD" ]; then
-                if echo "$LD_PRELOAD" | grep -q "libwayland-client"; then
-                    # Wayland libraries are already preloaded - use Wayland
-                    WAYLAND_DETECTED=1
-                    DETECTION_METHOD="LD_PRELOAD detection (CI/CD environment)"
-                    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                        echo "  ✅ Method 5 (LD_PRELOAD): Found libwayland-client in LD_PRELOAD" | tee -a "$LAUNCHER_LOG"
-                    fi
-                else
-                    if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                        echo "  ❌ Method 5 (LD_PRELOAD): libwayland-client NOT found in LD_PRELOAD" | tee -a "$LAUNCHER_LOG"
-                    fi
-                fi
-            fi
-            
-            if [ $WAYLAND_DETECTED -eq 1 ]; then
-                # Wayland is available - prefer it over XCB (Fedora modern default)
-                export QT_QPA_PLATFORM="wayland"
-                export OPENTERFACE_LAUNCHER_PLATFORM="wayland"
-                
-                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                    {
-                        echo ""
-                        echo "✅ Platform Detection: Using Wayland (auto-detected as primary)"
-                        echo "   Detection method: $DETECTION_METHOD"
-                        echo "   XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown}"
-                        echo "   Setting QT_QPA_PLATFORM=wayland"
-                    } | tee -a "$LAUNCHER_LOG"
-                fi
-            else
-                # Wayland not available - fall back to XCB
-                export QT_QPA_PLATFORM="xcb"
-                export OPENTERFACE_LAUNCHER_PLATFORM="xcb"
-                
-                if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-                    {
-                        echo ""
-                        echo "⚠️  Platform Detection: Using XCB (Wayland not detected by ANY method)"
-                        echo "   DISPLAY=$DISPLAY"
-                        echo "   XDG_SESSION_TYPE=${XDG_SESSION_TYPE:-unknown}"
-                        echo "   LD_PRELOAD contains libwayland-client: $(echo "$LD_PRELOAD" | grep -q "libwayland-client" && echo "YES" || echo "NO")"
-                        echo "   Setting QT_QPA_PLATFORM=xcb"
-                        echo ""
-                        echo "   To use Wayland instead, set:"
-                        echo "   export WAYLAND_DISPLAY=wayland-0"
-                        echo "   export QT_QPA_PLATFORM=wayland"
-                    } | tee -a "$LAUNCHER_LOG"
-                fi
-            fi
         fi
     fi
 fi
+
 
 # ============================================
 # Debug Mode
@@ -680,13 +576,86 @@ else
 fi
 
 # ============================================
-# Debug Output
+# Cleanup Handler - Force Kill on Exit
 # ============================================
+# This trap ensures that lingering binary processes are properly terminated
+cleanup_handler() {
+    # Prevent handler from running multiple times
+    if [ $CLEANUP_HANDLER_RAN -eq 1 ]; then
+        return
+    fi
+    CLEANUP_HANDLER_RAN=1
+    
+    local exit_code=$?
+    
+    {
+        echo ""
+        echo "=== Cleanup Handler Triggered ===" 
+        echo "App PID: $APP_PID"
+        echo "Exit Code: $exit_code"
+        echo "Time: $(date)"
+    } | tee -a "$LAUNCHER_LOG"
+    
+    # Kill the app if it's still running (gracefully first, then forcefully)
+    if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
+        {
+            echo "Application process still running (PID: $APP_PID). Attempting graceful termination..."
+        } | tee -a "$LAUNCHER_LOG"
+        
+        # Try graceful termination first (SIGTERM)
+        kill -TERM "$APP_PID" 2>/dev/null
+        
+        # Wait up to 3 seconds for graceful shutdown
+        local wait_count=0
+        while [ $wait_count -lt 30 ] && kill -0 "$APP_PID" 2>/dev/null; do
+            sleep 0.1
+            wait_count=$((wait_count + 1))
+        done
+        
+        # If still running, force kill (SIGKILL)
+        if kill -0 "$APP_PID" 2>/dev/null; then
+            {
+                echo "Process did not terminate gracefully. Force killing (SIGKILL)..."
+            } | tee -a "$LAUNCHER_LOG"
+            kill -KILL "$APP_PID" 2>/dev/null
+            sleep 0.5
+        fi
+    fi
+    
+    # Kill any remaining child processes of the launcher
+    local child_pids=$(pgrep -P $$ 2>/dev/null)
+    if [ -n "$child_pids" ]; then
+        {
+            echo "Killing remaining child processes: $child_pids"
+        } | tee -a "$LAUNCHER_LOG"
+        kill -KILL $child_pids 2>/dev/null
+    fi
+    
+    # Also try killing any openterfaceQT.bin processes that may have been orphaned
+    local orphaned_pids=$(pgrep -f "openterfaceQT\\.bin|openterfaceQT-bin" 2>/dev/null | grep -v "^$$")
+    if [ -n "$orphaned_pids" ]; then
+        {
+            echo "Killing orphaned openterface processes: $orphaned_pids"
+        } | tee -a "$LAUNCHER_LOG"
+        echo "$orphaned_pids" | xargs kill -KILL 2>/dev/null
+    fi
+    
+    {
+        echo "=== Cleanup Complete ===" 
+    } | tee -a "$LAUNCHER_LOG"
+    
+    # Exit with the captured exit code
+    exit $exit_code
+}
+
+# Set up cleanup trap for normal exit and signals
+trap cleanup_handler EXIT INT TERM
+
 # ============================================
 # Application Execution
 # ============================================
 # Locate and execute the OpenterfaceQT binary
-# NOTE: The binary is at /usr/local/bin/openterfaceQT.bin (with .bin extension)
+# NOTE: The binary is at /usr/bin/openterfaceQT-bin (with -bin extension for RPM)
 # This ensures LD_PRELOAD and environment variables are ALWAYS applied
 
 # Try multiple locations for the binary (with fallbacks)
@@ -813,6 +782,7 @@ fi
     echo "QT_QPA_PLATFORM: $QT_QPA_PLATFORM (🔑 Will use this platform)"
     echo "QML2_IMPORT_PATH: $QML2_IMPORT_PATH"
     echo "GST_PLUGIN_PATH: $GST_PLUGIN_PATH"
+    echo "QT_MULTIMEDIA_PLUGINS: $QT_MULTIMEDIA_PLUGINS"
     echo ""
     echo "Environment Detection:"
     echo "  DISPLAY: ${DISPLAY:-'(not set - headless)'}"
@@ -820,9 +790,6 @@ fi
     echo "  XDG_SESSION_TYPE: ${XDG_SESSION_TYPE:-'(not set)'}"
     echo ""
     
-    # ========================================
-    # PLATFORM-SPECIFIC DIAGNOSTICS (FEDORA)
-    # ========================================
     echo "🔍 PLATFORM DIAGNOSTICS:"
     echo "========================================"
     
@@ -928,6 +895,49 @@ fi
     
     echo "=================================================="
     echo ""
+    
+    # ========================================
+    # MULTIMEDIA BACKEND DIAGNOSTICS (CRITICAL FIX)
+    # ========================================
+    echo "🔍 MULTIMEDIA BACKEND DIAGNOSTICS:"
+    echo "=================================================="
+    echo ""
+    
+    echo "Qt Multimedia Library Versions:"
+    echo "  Bundled: $(find /usr/lib/openterfaceqt/qt6 -name "libQt6Multimedia.so*" -exec grep -o "6\.[0-9]\.[0-9]*" {} \; | head -1 || echo 'unknown')"
+    echo "  System:  $(find /lib64 /usr/lib64 -name "libQt6Multimedia.so*" -exec grep -o "6\.[0-9]\.[0-9]*" {} \; | head -1 || echo 'not found')"
+    echo ""
+    
+    echo "Multimedia Plugin Availability:"
+    if [ -d "/usr/lib/openterfaceqt/qt6/plugins/multimedia" ]; then
+        MM_PLUGINS=$(find /usr/lib/openterfaceqt/qt6/plugins/multimedia -name "*.so" 2>/dev/null | wc -l)
+        echo "  Bundled plugins: ✅ Found ($MM_PLUGINS backends)"
+        find /usr/lib/openterfaceqt/qt6/plugins/multimedia -name "*.so" 2>/dev/null | sed 's/^/    - /'
+    else
+        echo "  Bundled plugins: ❌ Directory not found"
+    fi
+    echo ""
+    
+    if [ -d "/usr/lib/qt6/plugins/multimedia" ]; then
+        SYSTEM_MM_PLUGINS=$(find /usr/lib/qt6/plugins/multimedia -name "*.so" 2>/dev/null | wc -l)
+        echo "  System plugins: ⚠️  Found ($SYSTEM_MM_PLUGINS backends - may conflict)"
+        find /usr/lib/qt6/plugins/multimedia -name "*.so" 2>/dev/null | head -3 | sed 's/^/    - /'
+    else
+        echo "  System plugins: ✅ Not found (no conflicts)"
+    fi
+    echo ""
+    
+    echo "Critical Check: libQt6Multimedia in LD_PRELOAD"
+    if echo "$LD_PRELOAD" | grep -q "libQt6Multimedia"; then
+        echo "  Status: ✅ YES (bundled multimedia should take priority)"
+    else
+        echo "  Status: ❌ NO (system multimedia may be loaded!)"
+        echo "  ERROR: libQt6Multimedia must be in LD_PRELOAD!"
+    fi
+    echo ""
+    
+    echo "=================================================="
+    echo ""
 } | tee -a "$LAUNCHER_LOG"
 
 # Capture binary output and error for debugging
@@ -974,7 +984,8 @@ APP_PID=$!
 } | tee -a "$LAUNCHER_LOG"
 
 # Wait for application to finish and capture exit code
-wait $APP_PID
+# Use wait with error suppression since the process might be killed by cleanup handler
+wait $APP_PID 2>/dev/null
 APP_EXIT_CODE=$?
 
 {
@@ -983,5 +994,3 @@ APP_EXIT_CODE=$?
     echo "Exit Code: $APP_EXIT_CODE"
     echo "Time: $(date)"
 } | tee -a "$LAUNCHER_LOG"
-
-exit $APP_EXIT_CODE

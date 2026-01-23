@@ -99,6 +99,26 @@ void HotplugMonitor::stop()
     qCInfo(log_hotplug_monitor) << "Hotplug monitoring stopped";
 }
 
+void HotplugMonitor::updateInterval(int newIntervalMs)
+{
+    if (newIntervalMs <= 0) {
+        qCWarning(log_hotplug_monitor) << "Invalid interval:" << newIntervalMs << "ms, ignoring";
+        return;
+    }
+    
+    if (m_pollInterval == newIntervalMs) {
+        return; // No change needed
+    }
+    
+    qCDebug(log_hotplug_monitor) << "Updating monitoring interval from" << m_pollInterval << "ms to" << newIntervalMs << "ms";
+    m_pollInterval = newIntervalMs;
+    
+    if (m_running && m_timer) {
+        m_timer->setInterval(m_pollInterval);
+        qCInfo(log_hotplug_monitor) << "Hotplug monitoring interval updated to" << m_pollInterval << "ms";
+    }
+}
+
 QList<DeviceInfo> HotplugMonitor::getLastSnapshot() const
 {
     QMutexLocker locker(&m_mutex);
@@ -139,15 +159,16 @@ void HotplugMonitor::checkForChanges()
         
         // Log details and emit specific signals
         for (const auto& device : event.addedDevices) {
-            qCDebug(log_hotplug_monitor) << "  + Added device:" << device.portChain;
+            qCDebug(log_hotplug_monitor) << "  + Added device:" << device.portChain << ", pid:" << device.pid << "vid:" << device.vid;
             emit newDevicePluggedIn(device);
+            break;
         }
         for (const auto& device : event.removedDevices) {
-            qCDebug(log_hotplug_monitor) << "  - Removed device:" << device.portChain;
+            qCDebug(log_hotplug_monitor) << "  - Removed device:" << device.portChain << ", pid:" << device.pid << "vid:" << device.vid;
             emit deviceUnplugged(device);
         }
         for (const auto& pair : event.modifiedDevices) {
-            qCDebug(log_hotplug_monitor) << "  * Modified device:" << pair.second.portChain;
+            qCDebug(log_hotplug_monitor) << "  * Modified device:" << pair.second.portChain << ", pid:" << pair.second.pid << "vid:" << pair.second.vid;
         }
         
         // Notify callbacks

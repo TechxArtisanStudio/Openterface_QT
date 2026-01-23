@@ -41,19 +41,18 @@ LogHandler& LogHandler::instance()
 
 void LogHandler::enableLogStore()
 {
-    qDebug() << "Enable log store now ";
+    // Don't log here before handler is installed to avoid duplication
     static QSettings settings("Techxartisan", "Openterface");
     bool storeLog = settings.value("log/storeLog", false).toBool();
-    qDebug() << "Store log is " << storeLog;
+    
     if (storeLog)
     {
         qInstallMessageHandler(fileMessageHandler);
     }
     else
     {
-        qInstallMessageHandler(customMessageHandler);      // Reset to default handler
+        qInstallMessageHandler(customMessageHandler);      // Install custom handler for console output
     }
-    qDebug() << "Enable log store done";
 }
 
 void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
@@ -76,28 +75,41 @@ void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &co
     const char* categoryName = context.category;
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
     QThread *currentThread = QThread::currentThread();
-    QString threadName = currentThread->objectName().isEmpty() ? QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId())) : currentThread->objectName();
+    QString threadName;
+    
+    // Get thread name: prefer objectName if set, otherwise try to identify main thread
+    if (!currentThread->objectName().isEmpty()) {
+        threadName = currentThread->objectName();
+    } else if (currentThread == QCoreApplication::instance()->thread()) {
+        threadName = "MainThread";
+    } else {
+        // Fall back to thread ID for unnamed worker threads
+        threadName = QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId()));
+    }
+    
     QString category = categoryName ? QString(categoryName) : "default";
-    QString txt = QString("[%1][%2] ").arg(timestamp).arg(threadName);
-
+    QString txt;
     switch (type)
     {
     case QtDebugMsg:
-        txt = QString("[D] %1").arg(msg);
+        txt = QString("[%1][D][%2] %3").arg(threadName).arg(category).arg(msg);
         break;
     case QtWarningMsg:
-        txt = QString("[W] %1").arg(msg);
+        txt = QString("[%1][W][%2] %3").arg(threadName).arg(category).arg(msg);
         break;
     case QtCriticalMsg:
-        txt = QString("[C] %1").arg(msg);
+        txt = QString("[%1][C][%2] %3").arg(threadName).arg(category).arg(msg);
         break;
     case QtFatalMsg:
-        txt = QString("[F] %1").arg(msg);
+        txt = QString("[%1][F][%2] %3").arg(threadName).arg(category).arg(msg);
+        break;
+    default:
+        txt = QString("[%1][U][%2] %3").arg(threadName).arg(category).arg(msg);
         break;
     }
 
     ts << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
-    ts << " [" << category << "] " << txt << " (" << context.file << ":" << context.line << ", " << context.function << ")\n";
+    ts << txt << "\n";
     ts.flush();
 }
 
@@ -106,11 +118,27 @@ void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &
 {
     // Q_UNUSED(context)
 
+    // Suppress specific Qt warnings that are not useful
+    if (msg.contains("QWidget::paintEngine")) {
+        return; // Skip logging this warning
+    }
+
     const char* categoryName = context.category;
     QString category = categoryName ? QString(categoryName) : "opf.default.msg";
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
     QThread *currentThread = QThread::currentThread();
-    QString threadName = currentThread->objectName().isEmpty() ? QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId())) : currentThread->objectName();
+    QString threadName;
+    
+    // Get thread name: prefer objectName if set, otherwise try to identify main thread
+    if (!currentThread->objectName().isEmpty()) {
+        threadName = currentThread->objectName();
+    } else if (currentThread == QCoreApplication::instance()->thread()) {
+        threadName = "MainThread";
+    } else {
+        // Fall back to thread ID for unnamed worker threads
+        threadName = QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId()));
+    }
+    
     QString txt = QString("[%1][%2] ").arg(timestamp).arg(threadName);
     
     switch (type) {
@@ -138,7 +166,7 @@ void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &
     OutputDebugStringW(reinterpret_cast<const wchar_t*>(txt.utf16()));
     OutputDebugStringW(L"\n");
 #else
-    // Use fprintf to stderr instead of std::cout to avoid C++ stream issues
+    // Use fprintf to stderr for single output
     fprintf(stderr, "%s\n", txt.toUtf8().constData());
     fflush(stderr);
 #endif

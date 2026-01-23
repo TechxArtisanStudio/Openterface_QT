@@ -9,13 +9,6 @@ class AbstractPlatformDeviceManager : public QObject
     Q_OBJECT
     
 public:
-    // Public getters for platform VID/PID constants; these expose protected static constants.
-    static QString getOpenterfaceVid() { return OPENTERFACE_VID; }
-    static QString getOpenterfacePid() { return OPENTERFACE_PID; }
-    static QString getOpenterfaceVidV2() { return OPENTERFACE_VID_V2; }
-    static QString getOpenterfacePidV2() { return OPENTERFACE_PID_V2; }
-    static QString getOpenterfaceVidV3() { return OPENTERFACE_VID_V3; }
-    static QString getOpenterfacePidV3() { return OPENTERFACE_PID_V3; }
     explicit AbstractPlatformDeviceManager(QObject *parent = nullptr);
     virtual ~AbstractPlatformDeviceManager() = default;
     
@@ -33,6 +26,10 @@ public:
     // USB 3.0 Companion PortChain support
     QList<DeviceInfo> getDevicesByAnyPortChain(const QString& targetPortChain);
     QList<DeviceInfo> getDevicesWithCompanionPortChain(const QString& companionPortChain);
+
+    // Device tree helpers (platform-specific detailed tree or generic formatter)
+    virtual QString getDeviceTreeDetailed() const { return QString(); }
+    QString formatDeviceTreeFromDevices(const QList<DeviceInfo>& devices) const; 
     
 protected:
     // Common VID/PID constants for all platforms - Original generation

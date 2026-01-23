@@ -6,6 +6,8 @@
 # Error Handling & Logging
 # ============================================
 LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
+CLEANUP_HANDLER_RAN=0
+
 {
     echo "=== OpenterfaceQT Launcher Started at $(date) ==="
     echo "Script PID: $$"
@@ -13,9 +15,8 @@ LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
 } | tee "$LAUNCHER_LOG"
 
 # Trap errors and log them (but don't use set -e to allow graceful library lookups)
-# Only trap real errors (exit code other than 0 and 1)
-# Exit code 1 is expected from find_library when library is not found
-trap 'if [ $? -gt 1 ]; then echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; fi' ERR
+# Only trap real errors, not expected return codes from find_library function
+trap 'if [ $? -ne 1 ] && [ $? -ne 143 ] && [ $? -ne 137 ]; then echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; fi' ERR
 
 # ============================================
 # Library Path Setup (CRITICAL for bundled libs)
@@ -30,6 +31,7 @@ BUNDLED_LIB_PATHS=(
     "/usr/lib/openterfaceqt/gstreamer"
     "/usr/lib/openterfaceqt"
 )
+
 
 # Build LD_LIBRARY_PATH with bundled libraries at the front
 LD_LIBRARY_PATH_NEW=""
@@ -68,9 +70,9 @@ QT6_CORE_LIBS=(
 
 # Qt6 module libraries
 QT6_MODULE_LIBS=(
+    "libQt6Multimedia"       # CRITICAL: Must load bundled multimedia BEFORE other modules
+    "libQt6MultimediaWidgets"  # Must follow Multimedia
     "libQt6Widgets"
-    "libQt6Multimedia"
-    "libQt6MultimediaWidgets"
     "libQt6SerialPort"
     "libQt6Network"
     "libQt6OpenGL"
@@ -136,6 +138,8 @@ GSTREAMER_LIBS=(
     "libgstcodecs-1.0"
     "libgstcodecparsers-1.0"
     "libgstpbutils-1.0"
+    "libgsttag-1.0"
+    "liborc-0.4"
 )
 
 # Load GStreamer libraries
@@ -182,6 +186,8 @@ COMMON_LIBS=(
     "libv4l1"
     "libv4l2"
     "libv4l2rds"
+    "libv4lconvert"
+    "libXv"
 )
 
 # Load common libraries
@@ -317,6 +323,7 @@ if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
         echo "LD_PRELOAD=$LD_PRELOAD" 
         echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 
         echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" 
+        echo "QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
         echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" 
         echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" 
         echo "========================================" 
@@ -332,6 +339,82 @@ else
         echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" 
     } >> "$LAUNCHER_LOG"
 fi
+
+# ============================================
+# Cleanup Handler - Force Kill on Exit
+# ============================================
+# This trap ensures that lingering binary processes are properly terminated
+cleanup_handler() {
+    # Prevent handler from running multiple times
+    if [ $CLEANUP_HANDLER_RAN -eq 1 ]; then
+        return
+    fi
+    CLEANUP_HANDLER_RAN=1
+    
+    local exit_code=$?
+    
+    {
+        echo ""
+        echo "=== Cleanup Handler Triggered ===" 
+        echo "App PID: $APP_PID"
+        echo "Exit Code: $exit_code"
+        echo "Time: $(date)"
+    } | tee -a "$LAUNCHER_LOG"
+    
+    # Kill the app if it's still running (gracefully first, then forcefully)
+    if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
+        {
+            echo "Application process still running (PID: $APP_PID). Attempting graceful termination..."
+        } | tee -a "$LAUNCHER_LOG"
+        
+        # Try graceful termination first (SIGTERM)
+        kill -TERM "$APP_PID" 2>/dev/null
+        
+        # Wait up to 3 seconds for graceful shutdown
+        local wait_count=0
+        while [ $wait_count -lt 30 ] && kill -0 "$APP_PID" 2>/dev/null; do
+            sleep 0.1
+            wait_count=$((wait_count + 1))
+        done
+        
+        # If still running, force kill (SIGKILL)
+        if kill -0 "$APP_PID" 2>/dev/null; then
+            {
+                echo "Process did not terminate gracefully. Force killing (SIGKILL)..."
+            } | tee -a "$LAUNCHER_LOG"
+            kill -KILL "$APP_PID" 2>/dev/null
+            sleep 0.5
+        fi
+    fi
+    
+    # Kill any remaining child processes of the launcher
+    local child_pids=$(pgrep -P $$ 2>/dev/null)
+    if [ -n "$child_pids" ]; then
+        {
+            echo "Killing remaining child processes: $child_pids"
+        } | tee -a "$LAUNCHER_LOG"
+        kill -KILL $child_pids 2>/dev/null
+    fi
+    
+    # Also try killing any openterfaceQT.bin processes that may have been orphaned
+    local orphaned_pids=$(pgrep -f "openterfaceQT\\.bin|openterfaceQT-bin" 2>/dev/null | grep -v "^$$")
+    if [ -n "$orphaned_pids" ]; then
+        {
+            echo "Killing orphaned openterface processes: $orphaned_pids"
+        } | tee -a "$LAUNCHER_LOG"
+        echo "$orphaned_pids" | xargs kill -KILL 2>/dev/null
+    fi
+    
+    {
+        echo "=== Cleanup Complete ===" 
+    } | tee -a "$LAUNCHER_LOG"
+    
+    # Exit with the captured exit code
+    exit $exit_code
+}
+
+# Set up cleanup trap for normal exit and signals
+trap cleanup_handler EXIT INT TERM
 
 # ============================================
 # Application Execution
@@ -411,7 +494,8 @@ APP_PID=$!
 } | tee -a "$LAUNCHER_LOG"
 
 # Wait for application to finish and capture exit code
-wait $APP_PID
+# Use wait with error suppression since the process might be killed by cleanup handler
+wait $APP_PID 2>/dev/null
 APP_EXIT_CODE=$?
 
 {
@@ -420,5 +504,3 @@ APP_EXIT_CODE=$?
     echo "Exit Code: $APP_EXIT_CODE"
     echo "Time: $(date)"
 } | tee -a "$LAUNCHER_LOG"
-
-exit $APP_EXIT_CODE

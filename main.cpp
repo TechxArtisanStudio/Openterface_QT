@@ -24,14 +24,22 @@
 #include "ui/loghandler.h"
 #include "ui/advance/envdialog.h"
 #include "ui/globalsetting.h"
+#include "ui/splashscreen.h"
 #include "global.h"
 #include "target/KeyboardLayouts.h"
 #include "ui/languagemanager.h"
 #include <QCoreApplication>
 #include <QtPlugin>
+#include <QPixmap>
+#include <QTime>
+#include <QEventLoop>
+#include <QThread>
+#include <QObject>
+
 
 #ifdef Q_OS_WIN
 #include <windows.h>
+#include <crtdbg.h>
 #endif
 
 // Import static Qt plugins only when building with static plugins
@@ -62,48 +70,6 @@ QAtomicInteger<int> g_applicationShuttingDown(0);
 
 #include <unistd.h>
 #include <unistd.h>
-
-
-void customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
-{
-    Q_UNUSED(context)
-
-
-    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss");
-    QThread *currentThread = QThread::currentThread();
-    QString threadName = currentThread->objectName().isEmpty() ? QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId())) : currentThread->objectName();
-    QString txt = QString("[%1][%2] ").arg(timestamp).arg(threadName);
-    
-    switch (type) {
-        case QtDebugMsg:
-            txt += QString("{Debug}: %1").arg(msg);
-            break;
-        case QtWarningMsg:
-            txt += QString("{Warning}: %1").arg(msg);
-            break;
-        case QtCriticalMsg:
-            txt += QString("{Critical}: %1").arg(msg);
-            break;
-        case QtFatalMsg:
-            txt += QString("{Fatal}: %1").arg(msg);
-            break;
-        case QtInfoMsg:
-            txt += QString("{Info}: %1").arg(msg);
-            break;
-    }
-
-    // For Windows GUI applications, std::cout may not be available and can cause crashes
-    // Use OutputDebugString instead for debug output
-    // In static builds or Windows subsystem builds, stdout/stderr may not work
-#ifdef Q_OS_WIN
-    OutputDebugStringW(reinterpret_cast<const wchar_t*>(txt.utf16()));
-    OutputDebugStringW(L"\n");
-#else
-    // Use fprintf to stderr instead of std::cout to avoid C++ stream issues
-    fprintf(stderr, "%s\n", txt.toUtf8().constData());
-    fflush(stderr);
-#endif
-}
 
 void writeLog(const QString &message){
     QFile logFile("startup_log.txt");
@@ -240,28 +206,17 @@ void applyMediaBackendSetting(){
         // Additional GStreamer environment variables for better video handling
         qputenv("GST_V4L2_USE_LIBV4L2", "1");
         
-        // Set GStreamer plugin paths - support AppImage bundled plugins
-        QString appDirPath = QCoreApplication::applicationDirPath();
-        QString bundledPluginPath = appDirPath + "/../lib/gstreamer-1.0";
+        // IMPORTANT: Do NOT override GST_PLUGIN_PATH here!
+        // The launcher script has already set it correctly for the package type:
+        // - RPM packages: /usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
+        // - AppImage packages: appDir/../lib/gstreamer-1.0
+        // Overriding it here causes version conflicts on Fedora
         
-        if (QDir(bundledPluginPath).exists()) {
-            // Use bundled plugins (AppImage)
-            qputenv("GST_PLUGIN_PATH", bundledPluginPath.toUtf8());
-            qputenv("GST_PLUGIN_SYSTEM_PATH", bundledPluginPath.toUtf8());
-            qDebug() << "Using bundled GStreamer plugins from:" << bundledPluginPath;
-            // Also set GST_PLUGIN_SCANNER to point to the bundled helper binary if present
-            QString bundledScannerPath = appDirPath + "/../libexec/gstreamer-1.0/gst-plugin-scanner";
-            if (QFile::exists(bundledScannerPath)) {
-                qputenv("GST_PLUGIN_SCANNER", bundledScannerPath.toUtf8());
-                qDebug() << "Using bundled gst-plugin-scanner at:" << bundledScannerPath;
-            } else {
-                qDebug() << "No bundled gst-plugin-scanner at:" << bundledScannerPath;
-            }
+        if (!qgetenv("GST_PLUGIN_PATH").isEmpty()) {
+            qDebug() << "✓ Using GStreamer plugins from launcher environment:";
+            qDebug() << "  GST_PLUGIN_PATH=" << qgetenv("GST_PLUGIN_PATH");
         } else {
-            // Fallback to system plugins
-            qputenv("GST_PLUGIN_PATH", "/usr/lib/gstreamer-1.0:/usr/lib/aarch64-linux-gnu/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0");
-            qputenv("GST_PLUGIN_SYSTEM_PATH", "/usr/lib/gstreamer-1.0:/usr/lib/aarch64-linux-gnu/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0");
-            qDebug() << "Using system GStreamer plugins";
+            qDebug() << "⚠ WARNING: GST_PLUGIN_PATH not set, GStreamer may use incorrect system plugins";
         }
         
         // Ensure video output works correctly
@@ -279,14 +234,17 @@ void applyMediaBackendSetting(){
 
 int main(int argc, char *argv[])
 {
-    qDebug() << "Start openterface...";
+    #ifdef Q_OS_WIN
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF);
+    #endif
+    qInfo() << "Start openterface...";
     
     // Parse command-line arguments early to check for --skip-env-check
     bool skipEnvironmentCheck = false;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--skip-env-check") == 0) {
             skipEnvironmentCheck = true;
-            qDebug() << "Skip environment check flag detected";
+            qWarning() << "Skip environment check flag detected";
         }
     }
     
@@ -308,7 +266,7 @@ int main(int argc, char *argv[])
     #endif
     
     setupEnv();
-    qDebug() << "Creating QApplication...";
+    qInfo() << "Creating QApplication...";
     QApplication app(argc, argv);
 
     // set style accroding to system palette
@@ -316,12 +274,10 @@ int main(int argc, char *argv[])
     app.setPalette(systemPalette);
     app.setStyle(QStyleFactory::create("Fusion"));
     
-    qInstallMessageHandler(customMessageHandler);
-
     QCoreApplication::setApplicationName("Openterface Mini-KVM");
     QCoreApplication::setOrganizationName("TechxArtisan");
     QCoreApplication::setApplicationVersion(APP_VERSION);
-    qDebug() << "Show window now";
+    qInfo() << "Show window now";
     app.setWindowIcon(QIcon("://images/icon_32.png"));
     
     // Check if the environment is properly set up
@@ -329,30 +285,75 @@ int main(int argc, char *argv[])
     bool shouldCheckEnvironment = !skipEnvironmentCheck && EnvironmentSetupDialog::autoEnvironmentCheck();
     if (shouldCheckEnvironment && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
         EnvironmentSetupDialog envDialog;
-        qDebug() << "Environment setup dialog opened";
+        qInfo() << "Environment setup dialog opened";
         if (envDialog.exec() == QDialog::Rejected) {
-            qDebug() << "Driver dialog rejected - continuing anyway";
+            qInfo() << "Driver dialog rejected - continuing anyway";
             // Continue running the application even if dialog is rejected
         }
     } 
-    
-    // load the settings
-    GlobalSetting::instance().loadLogSettings();
-    GlobalSetting::instance().loadVideoSettings();
-    // Apply media backend setting after settings are loaded
-    applyMediaBackendSetting();
-    // onVideoSettingsChanged(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
-    LogHandler::instance().enableLogStore();
 
-    // Load keyboard layouts from resource file
-    QString keyboardConfigPath = ":/config/keyboards";
-    KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
+    // Create splash screen after environment setup
+    // Create splash screen with SVG or fallback image
+    QPixmap pixmap(":/images/openterface-splash.svg");
+    if (pixmap.isNull()) {
+        // SVG failed to load, create a simple splash screen
+        qWarning() << "Failed to load splash screen image, using fallback";
+        pixmap = QPixmap(800, 600);
+        pixmap.fill(QColor(15, 9, 9)); // Dark background from Openterface branding
+    }
     
+    // Create and show the splash screen as a pointer so it persists
+    SplashScreen* splash = new SplashScreen(pixmap);
+    splash->show();
+    splash->raise();
+    splash->activateWindow();
     
-    LanguageManager languageManager(&app);
-    languageManager.initialize("en");
-    MainWindow window(&languageManager);
-    window.show();
+    qInfo() << "Splash screen shown, scheduling initialization";
+    
+    // Start the loading animation immediately after splash is shown
+    QTimer::singleShot(50, [splash]() {
+        splash->showLoadingMessage();
+        qInfo() << "Animation started";
+    });
+    
+    // Break up initialization into chunks to allow animation to run between them
+    QTimer::singleShot(200, [&app, splash]() {
+        qInfo() << "Loading settings...";
+        GlobalSetting::instance().loadLogSettings();
+        GlobalSetting::instance().loadVideoSettings();
+        applyMediaBackendSetting();
+
+        LogHandler::instance().enableLogStore();
+    });
+    
+    QTimer::singleShot(800, [&app, splash]() {
+        qInfo() << "Loading keyboard layouts...";
+        QString keyboardConfigPath = ":/config/keyboards";
+        KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
+    });
+    
+    QTimer::singleShot(1800, [&app, splash]() {
+        qInfo() << "Creating main window...";
+        
+        // Create main window and language manager
+        LanguageManager* languageManager = new LanguageManager(&app);
+        languageManager->initialize("en");
+        MainWindow* window = new MainWindow(languageManager);
+        
+        // Stop the splash animation and close it
+        splash->hideLoadingMessage();
+        
+        // Show the main window and bring it to top
+        window->show();
+        window->raise();
+        window->activateWindow();
+        splash->finish(window);
+        
+        // Clean up splash screen
+        splash->deleteLater();
+        
+        qInfo() << "Main window shown";
+    });
 
     int result = app.exec();
     
@@ -362,6 +363,5 @@ int main(int argc, char *argv[])
     qDebug() << "GStreamer deinitialized";
     #endif
     
-    
     return result;
-};
+}

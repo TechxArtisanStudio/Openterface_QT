@@ -67,7 +67,7 @@ jobs:
         with:
           workflow: windows-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.windows.amd64.installer
+          name: openterfaceQT_windows_amd64_installer
           path: artifacts/windows
 
       - name: Upload Windows installer artifact
@@ -98,7 +98,7 @@ jobs:
         with:
           workflow: windows-portable-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.windows.amd64.portable.exe
+          name: openterfaceQT-portable.exe
           path: artifacts/windows/portable
           
       - name: Upload Windows portable artifact
@@ -198,7 +198,7 @@ jobs:
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.linux.amd64.shared.deb
+          name: openterfaceQT_linux_amd64.deb
           path: artifacts/linux/amd64/deb
           
       - name: Download Linux AMD64 RPM artifact
@@ -206,7 +206,7 @@ jobs:
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.linux.amd64.shared.rpm
+          name: openterfaceQT_linux_amd64.rpm
           path: artifacts/linux/amd64/rpm
       
       - name: Download Linux shared AppImage artifact
@@ -214,7 +214,7 @@ jobs:
         with:
           workflow: linux-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.linux.amd64.shared.AppImage
+          name: openterfaceQT_linux_amd64.AppImage
           path: artifacts/linux/appimage
 
       - name: Download signed Windows installer artifact

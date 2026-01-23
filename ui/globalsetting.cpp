@@ -60,14 +60,15 @@ void GlobalSetting::getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool 
     HID = m_settings.value("filter/HID", true).toBool();
 }
 
-void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host, bool device, bool backend)
+void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host, bool device, bool backend, bool script)
 {
     m_settings.setValue("log/core", core);
     m_settings.setValue("log/serial", serial);
     m_settings.setValue("log/ui", ui);
     m_settings.setValue("log/host", host);
     m_settings.setValue("log/device", device);
-    m_settings.setValue("log/backend", backend); 
+    m_settings.setValue("log/backend", backend);
+    m_settings.setValue("log/script", script);
 }
 
 void GlobalSetting::loadLogSettings()
@@ -79,6 +80,7 @@ void GlobalSetting::loadLogSettings()
     logFilter += m_settings.value("log/serial", false).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
     logFilter += m_settings.value("log/device", false).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
     logFilter += m_settings.value("log/backend", false).toBool() ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
+    logFilter += m_settings.value("log/script", false).toBool() ? "opf.scripts.*=true\n" : "opf.scripts.*=false\n";
     QLoggingCategory::setFilterRules(logFilter);
     qDebug() << "Log filter rules set to:\n" << logFilter;
 }
@@ -118,7 +120,16 @@ void GlobalSetting::setHardwareAcceleration(const QString &hwAccel) {
 }
 
 QString GlobalSetting::getHardwareAcceleration() const {
-    return m_settings.value("video/hardwareAcceleration", "auto").toString();
+    return m_settings.value("video/hardwareAcceleration", "CPU").toString();
+}
+
+void GlobalSetting::setScalingQuality(const QString &quality) {
+    m_settings.setValue("video/scalingQuality", quality);
+    m_settings.sync();
+}
+
+QString GlobalSetting::getScalingQuality() const {
+    return m_settings.value("video/scalingQuality", "balanced").toString();
 }
 
 void GlobalSetting::setGStreamerPipelineTemplate(const QString &pipelineTemplate) {
@@ -136,6 +147,14 @@ QString GlobalSetting::getGStreamerPipelineTemplate() const {
                              "t. ! queue max-size-buffers=2 leaky=downstream ! xvimagesink name=videosink sync=true "
                              "t. ! valve name=recording-valve drop=true ! queue name=recording-queue ! identity name=recording-ready";
     return m_settings.value("video/gstreamerPipelineTemplate", defaultTemplate).toString();
+}
+
+void GlobalSetting::setGStreamerSinkPriority(const QStringList &priorityList) {
+    m_settings.setValue("video/gstreamerSinkPriority", priorityList);
+}
+
+QStringList GlobalSetting::getGStreamerSinkPriority() const {
+    return m_settings.value("video/gstreamerSinkPriority", QStringList() << "qt6videosink" << "qtvideosink" << "qtsink" << "xvimagesink" << "ximagesink" << "autovideosink").toStringList();
 }
 
 void GlobalSetting::setCameraDeviceSetting(QString deviceDescription){

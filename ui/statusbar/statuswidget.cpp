@@ -85,6 +85,21 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     QSvgRenderer plugRenderer(QString(":/images/usbplug.svg"));
     plugRenderer.render(&plugPainter, QRectF(0, 0, 16, 16));
 
+    #ifdef Q_OS_WIN
+        SYSTEM_INFO sysInfo;
+        GetSystemInfo(&sysInfo);
+        m_cpuCoreCount = static_cast<int>(sysInfo.dwNumberOfProcessors);
+    #elif defined(Q_OS_LINUX) || defined(Q_OS_UNIX)
+        long nprocs = sysconf(_SC_NPROCESSORS_ONLN);
+        m_cpuCoreCount = (nprocs > 0) ? static_cast<int>(nprocs) : 1;
+    #else
+        int ideal = QThread::idealThreadCount();
+        m_cpuCoreCount = (ideal > 0) ? ideal : 1;
+    #endif
+
+    qCDebug(log_ui_statuswidget) << "Detected CPU core count:" << m_cpuCoreCount;
+
+
     // Setup CPU monitoring timer
     cpuTimer = new QTimer(this);
     connect(cpuTimer, &QTimer::timeout, this, &StatusWidget::updateCpuUsage);
@@ -217,6 +232,7 @@ void StatusWidget::setStatusUpdate(const QString &status){
     update();
 }
 
+// Set keybord and mouse USB connection status
 void StatusWidget::setTargetUsbConnected(const bool isConnected){
     QString keyboardSvgPath = ":/images/keyboard.svg";
     QString mouseSvgPath = ":/images/mouse-default.svg";
@@ -452,118 +468,108 @@ QColor StatusWidget::getIconColorForCurrentTheme() const
 double StatusWidget::getCpuUsage()
 {
 #ifdef Q_OS_WIN
-    // Windows implementation using process-specific CPU usage
-    static FILETIME lastKernelTime = {0}, lastUserTime = {0};
-    static ULARGE_INTEGER lastSystemTime = {0};
-    static bool initialized = false;
-    
-    HANDLE process = GetCurrentProcess();
+    static FILETIME s_lastKernelTime = {0}, s_lastUserTime = {0};
+    static qint64 s_lastWallTimeNs = 0;
+    static bool s_initialized = false;
+
+    HANDLE hProcess = GetCurrentProcess();
     FILETIME creationTime, exitTime, kernelTime, userTime;
-    FILETIME systemTime;
-    GetSystemTimeAsFileTime(&systemTime);
-    
-    if (!GetProcessTimes(process, &creationTime, &exitTime, &kernelTime, &userTime)) {
+    if (!GetProcessTimes(hProcess, &creationTime, &exitTime, &kernelTime, &userTime)) {
         qCWarning(log_ui_statuswidget) << "Failed to get process times on Windows";
         return -1;
     }
-    
-    if (!initialized) {
-        lastKernelTime = kernelTime;
-        lastUserTime = userTime;
-        lastSystemTime.LowPart = systemTime.dwLowDateTime;
-        lastSystemTime.HighPart = systemTime.dwHighDateTime;
-        initialized = true;
-        return 0.0; // Return 0 for first measurement
-    }
-    
-    // Convert FILETIME to ULARGE_INTEGER for easier calculation
-    ULARGE_INTEGER currentKernel, currentUser, currentSystem;
-    currentKernel.LowPart = kernelTime.dwLowDateTime;
-    currentKernel.HighPart = kernelTime.dwHighDateTime;
-    currentUser.LowPart = userTime.dwLowDateTime;
-    currentUser.HighPart = userTime.dwHighDateTime;
-    currentSystem.LowPart = systemTime.dwLowDateTime;
-    currentSystem.HighPart = systemTime.dwHighDateTime;
-    
-    ULARGE_INTEGER prevKernel, prevUser;
-    prevKernel.LowPart = lastKernelTime.dwLowDateTime;
-    prevKernel.HighPart = lastKernelTime.dwHighDateTime;
-    prevUser.LowPart = lastUserTime.dwLowDateTime;
-    prevUser.HighPart = lastUserTime.dwHighDateTime;
-    
-    // Calculate deltas
-    ULONGLONG kernelDelta = currentKernel.QuadPart - prevKernel.QuadPart;
-    ULONGLONG userDelta = currentUser.QuadPart - prevUser.QuadPart;
-    ULONGLONG systemDelta = currentSystem.QuadPart - lastSystemTime.QuadPart;
-    
-    // Update last values
-    lastKernelTime = kernelTime;
-    lastUserTime = userTime;
-    lastSystemTime = currentSystem;
-    
-    if (systemDelta > 0) {
-        double cpuUsage = (double)(kernelDelta + userDelta) / systemDelta * 100.0;
-        return qMin(cpuUsage, 100.0); // Cap at 100%
-    }
-    
-    return 0.0;
-    
-#elif defined(Q_OS_LINUX) || defined(Q_OS_UNIX)
-    // Linux/Unix implementation using process-specific CPU usage
-    static clock_t lastProcessTime = 0;
-    static clock_t lastSystemTime = 0;
-    static bool initialized = false;
-    
-    // Get current process CPU time
-    struct tms processTime;
-    clock_t currentSystemTime = times(&processTime);
-    
-    if (currentSystemTime == (clock_t)-1) {
-        qWarning(log_ui_statuswidget) << "Failed to get process times on Linux";
+
+    LARGE_INTEGER freq, counter;
+    if (!QueryPerformanceFrequency(&freq) || !QueryPerformanceCounter(&counter)) {
+        qCWarning(log_ui_statuswidget) << "Failed to get high-resolution timer on Windows";
         return -1;
     }
-    
-    clock_t currentProcessTime = processTime.tms_utime + processTime.tms_stime;
-    
-    if (!initialized) {
-        lastProcessTime = currentProcessTime;
-        lastSystemTime = currentSystemTime;
-        initialized = true;
-        return 0.0; // Return 0 for first measurement
-    }
-    
-    // Calculate deltas
-    clock_t processDelta = currentProcessTime - lastProcessTime;
-    clock_t systemDelta = currentSystemTime - lastSystemTime;
-    
-    // Update last values
-    lastProcessTime = currentProcessTime;
-    lastSystemTime = currentSystemTime;
-    
-    if (systemDelta > 0) {
-        // Get number of CPU cores for proper scaling
-        long numCpus = sysconf(_SC_NPROCESSORS_ONLN);
-        if (numCpus <= 0) numCpus = 1;
-        
-        double cpuUsage = (double)processDelta / systemDelta * 100.0;
-        return qMin(cpuUsage, 100.0); // Cap at 100%
-    }
-    
-    return 0.0;
-    
-#else
-    // Unsupported platform - fallback using QProcess to get CPU usage
-    static QProcess *process = nullptr;
-    static bool initialized = false;
-    
-    if (!initialized) {
-        process = new QProcess();
-        initialized = true;
+    qint64 currentWallTimeNs = (counter.QuadPart * 1000000000LL) / freq.QuadPart;
+
+    if (!s_initialized) {
+        s_lastKernelTime = kernelTime;
+        s_lastUserTime = userTime;
+        s_lastWallTimeNs = currentWallTimeNs;
+        s_initialized = true;
         return 0.0;
     }
-    
-    // This is a basic fallback that may not work on all platforms
-    qCWarning(log_ui_statuswidget) << "CPU usage monitoring not fully supported on this platform";
+
+    auto to100ns = [](const FILETIME& ft) -> quint64 {
+        return (static_cast<quint64>(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+    };
+
+    quint64 currentKernel100ns = to100ns(kernelTime);
+    quint64 currentUser100ns   = to100ns(userTime);
+    quint64 lastKernel100ns    = to100ns(s_lastKernelTime);
+    quint64 lastUser100ns      = to100ns(s_lastUserTime);
+
+    quint64 processDelta100ns = (currentKernel100ns - lastKernel100ns) + (currentUser100ns - lastUser100ns);
+    qint64 wallDeltaNs = currentWallTimeNs - s_lastWallTimeNs;
+
+    s_lastKernelTime = kernelTime;
+    s_lastUserTime = userTime;
+    s_lastWallTimeNs = currentWallTimeNs;
+
+    if (wallDeltaNs <= 0) {
+        return 0.0;
+    }
+
+    quint64 processDeltaNs = processDelta100ns * 100ULL; // convert 100-ns to ns
+    double cpuUsagePercent = (static_cast<double>(processDeltaNs) / static_cast<double>(wallDeltaNs)) * 100.0;
+
+    // Normalize to 0~100% of total system CPU capacity
+    double normalizedCpuUsage = cpuUsagePercent / m_cpuCoreCount;
+    return qMax(0.0, qMin(normalizedCpuUsage, 100.0));
+
+#elif defined(Q_OS_LINUX) || defined(Q_OS_UNIX)
+    static struct timespec s_lastProcessTime = {0, 0};
+    static struct timespec s_lastWallTime = {0, 0};
+    static bool s_initialized = false;
+
+    struct timespec currentProcessTime, currentWallTime;
+
+    if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &currentProcessTime) != 0) {
+        qCWarning(log_ui_statuswidget) << "Failed to get process CPU time on Linux/Unix";
+        return -1;
+    }
+
+    if (clock_gettime(CLOCK_MONOTONIC, &currentWallTime) != 0) {
+        qCWarning(log_ui_statuswidget) << "Failed to get monotonic time on Linux/Unix";
+        return -1;
+    }
+
+    if (!s_initialized) {
+        s_lastProcessTime = currentProcessTime;
+        s_lastWallTime = currentWallTime;
+        s_initialized = true;
+        return 0.0;
+    }
+
+    auto toNanoseconds = [](const struct timespec& ts) -> quint64 {
+        return static_cast<quint64>(ts.tv_sec) * 1000000000ULL + static_cast<quint64>(ts.tv_nsec);
+    };
+
+    quint64 currentProcessNs = toNanoseconds(currentProcessTime);
+    quint64 lastProcessNs = toNanoseconds(s_lastProcessTime);
+    quint64 currentWallNs = toNanoseconds(currentWallTime);
+    quint64 lastWallNs = toNanoseconds(s_lastWallTime);
+
+    quint64 processDeltaNs = currentProcessNs - lastProcessNs;
+    quint64 wallDeltaNs = currentWallNs - lastWallNs;
+
+    s_lastProcessTime = currentProcessTime;
+    s_lastWallTime = currentWallTime;
+
+    if (wallDeltaNs == 0) {
+        return 0.0;
+    }
+
+    double cpuUsagePercent = (static_cast<double>(processDeltaNs) / static_cast<double>(wallDeltaNs)) * 100.0;
+    double normalizedCpuUsage = cpuUsagePercent / m_cpuCoreCount;
+    return qMax(0.0, qMin(normalizedCpuUsage, 100.0));
+
+#else
+    qCWarning(log_ui_statuswidget) << "CPU usage monitoring not supported on this platform";
     return -1;
 #endif
 }

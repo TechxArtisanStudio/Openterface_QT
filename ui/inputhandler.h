@@ -95,9 +95,16 @@ private:
     int m_doubleClickCachedY = 0;
     bool m_hasDoubleClickCache = false;
     qint64 m_doubleClickCacheTime = 0;
+    
+    // Mouse event statistics tracking
+    qint64 m_lastStatisticsTime = 0;
+    int m_mouseEventCounter = 0;
+    int m_droppedEventsCounter = 0;  // Count dropped events in current interval
+    static const int STATS_INTERVAL_MS = 1000;  // Log stats every 1 second
 
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);
+    void logMouseEventStatistics();
 
     QSize getScreenResolution();
 

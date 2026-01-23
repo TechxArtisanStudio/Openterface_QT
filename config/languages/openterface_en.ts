@@ -616,7 +616,7 @@ Please try again after restarting the application.</source>
     <name>MainWindow</name>
     <message>
         <location filename="../../ui/mainwindow.ui" line="12"/>
-        <source>Openterface Mini-KVM</source>
+        <source>Openterface KVM</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2077,7 +2077,7 @@ Do you want to continue?</source>
     </message>
     <message>
         <location filename="../../ui/help/versioninfomanager.cpp" line="213"/>
-        <source>Openterface Mini KVM</source>
+        <source>Openterface KVM</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

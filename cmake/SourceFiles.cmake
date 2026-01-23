@@ -23,7 +23,22 @@ set(DEVICE_SOURCES
     device/HotplugMonitor.cpp device/HotplugMonitor.h
     device/platform/AbstractPlatformDeviceManager.cpp device/platform/AbstractPlatformDeviceManager.h
     device/platform/DeviceFactory.cpp device/platform/DeviceFactory.h
+    device/platform/windows/WinDeviceEnumerator.h device/platform/windows/WinDeviceEnumerator.cpp
+    device/platform/windows/IDeviceEnumerator.h
 )
+
+if(WIN32)
+    list(APPEND DEVICE_SOURCES
+        device/platform/WindowsDeviceManager.cpp device/platform/WindowsDeviceManager.h
+        device/platform/windows/WinDeviceEnumerator.cpp device/platform/windows/WinDeviceEnumerator.h
+        device/platform/windows/IDeviceEnumerator.h
+        device/platform/windows/discoverers/IDeviceDiscoverer.h
+        device/platform/windows/discoverers/BaseDeviceDiscoverer.cpp device/platform/windows/discoverers/BaseDeviceDiscoverer.h
+        device/platform/windows/discoverers/BotherDeviceDiscoverer.cpp device/platform/windows/discoverers/BotherDeviceDiscoverer.h
+        device/platform/windows/discoverers/Generation3Discoverer.cpp device/platform/windows/discoverers/Generation3Discoverer.h
+        device/platform/windows/discoverers/DeviceDiscoveryManager.cpp device/platform/windows/discoverers/DeviceDiscoveryManager.h
+    )
+endif()
 
 # Host management
 set(HOST_SOURCES
@@ -33,9 +48,20 @@ set(HOST_SOURCES
     host/cameramanager.cpp host/cameramanager.h
     host/usbcontrol.cpp host/usbcontrol.h
     host/multimediabackend.cpp host/multimediabackend.h
+    host/imagecapturer.cpp host/imagecapturer.h
     host/backend/ffmpegbackendhandler.cpp host/backend/ffmpegbackendhandler.h
     host/backend/qtmultimediabackendhandler.cpp host/backend/qtmultimediabackendhandler.h
     host/backend/qtbackendhandler.cpp host/backend/qtbackendhandler.h
+    host/backend/ffmpeg/capturethread.cpp host/backend/ffmpeg/capturethread.h
+    host/backend/ffmpeg/ffmpeg_hardware_accelerator.cpp host/backend/ffmpeg/ffmpeg_hardware_accelerator.h
+    host/backend/ffmpeg/ffmpeg_device_manager.cpp host/backend/ffmpeg/ffmpeg_device_manager.h
+    host/backend/ffmpeg/ffmpeg_frame_processor.cpp host/backend/ffmpeg/ffmpeg_frame_processor.h
+    host/backend/ffmpeg/ffmpeg_recorder.cpp host/backend/ffmpeg/ffmpeg_recorder.h
+    host/backend/ffmpeg/ffmpeg_device_validator.cpp host/backend/ffmpeg/ffmpeg_device_validator.h
+    host/backend/ffmpeg/ffmpeg_hotplug_handler.cpp host/backend/ffmpeg/ffmpeg_hotplug_handler.h
+    host/backend/ffmpeg/ffmpeg_capture_manager.cpp host/backend/ffmpeg/ffmpeg_capture_manager.h
+    host/backend/ffmpeg/icapture_frame_reader.h
+    host/backend/ffmpeg/ffmpegutils.h
 )
 
 # Add GStreamer backend only on Linux
@@ -80,13 +106,27 @@ set(SCRIPT_SOURCES
     scripts/Lexer.cpp scripts/Lexer.h
     scripts/Parser.cpp scripts/Parser.h
     scripts/semanticAnalyzer.cpp scripts/semanticAnalyzer.h
+    scripts/scriptExecutor.cpp scripts/scriptExecutor.h
+    scripts/scriptRunner.cpp scripts/scriptRunner.h
     scripts/scriptEditor.cpp scripts/scriptEditor.h
 )
 
 # Serial sources
 set(SERIAL_SOURCES
     serial/SerialPortManager.cpp serial/SerialPortManager.h
+    serial/SerialCommandCoordinator.cpp serial/SerialCommandCoordinator.h
+    serial/SerialStateManager.cpp serial/SerialStateManager.h
+    serial/SerialStatistics.cpp serial/SerialStatistics.h
+    serial/SerialFacade.cpp serial/SerialFacade.h
+    serial/FactoryResetManager.cpp serial/FactoryResetManager.h
+    serial/serial_hotplug_handler.cpp serial/serial_hotplug_handler.h
     serial/ch9329.h
+    serial/chipstrategy/IChipStrategy.h
+    serial/chipstrategy/CH9329Strategy.cpp serial/chipstrategy/CH9329Strategy.h
+    serial/chipstrategy/CH32V208Strategy.cpp serial/chipstrategy/CH32V208Strategy.h
+    serial/chipstrategy/ChipStrategyFactory.cpp serial/chipstrategy/ChipStrategyFactory.h
+    serial/protocol/SerialProtocol.cpp serial/protocol/SerialProtocol.h
+    serial/watchdog/ConnectionWatchdog.cpp serial/watchdog/ConnectionWatchdog.h
 )
 
 # Server sources
@@ -106,9 +146,11 @@ set(TARGET_SOURCES
 # Video sources
 set(VIDEO_SOURCES
     video/videohid.cpp video/videohid.h
+    video/platformhidadapter.cpp video/platformhidadapter.h
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/firmwarereader.cpp video/firmwarereader.h
     video/ms2109.h
+    video/videohidchip.cpp video/videohidchip.h
 )
 
 # UI core sources
@@ -122,6 +164,7 @@ set(UI_CORE_SOURCES
     ui/languagemanager.cpp ui/languagemanager.h
     ui/screensavermanager.cpp ui/screensavermanager.h
     ui/screenscale.h ui/screenscale.cpp
+    ui/splashscreen.cpp ui/splashscreen.h
     ui/statusevents.h
 )
 
@@ -143,6 +186,8 @@ set(UI_ADVANCE_SOURCES
     ui/advance/scripttool.cpp ui/advance/scripttool.h
     ui/advance/serialportdebugdialog.cpp ui/advance/serialportdebugdialog.h
     ui/advance/DeviceSelectorDialog.cpp ui/advance/DeviceSelectorDialog.h
+    ui/advance/devicediagnosticsdialog.cpp ui/advance/devicediagnosticsdialog.h
+    ui/advance/diagnostics/diagnosticsmanager.cpp ui/advance/diagnostics/diagnosticsmanager.h ui/advance/diagnostics/diagnostics_constants.h ui/advance/diagnostics/LogWriter.cpp ui/advance/diagnostics/LogWriter.h ui/advance/diagnostics/SupportEmailDialog.cpp ui/advance/diagnostics/SupportEmailDialog.h
     ui/advance/envdialog.cpp ui/advance/envdialog.h ui/advance/envdialog.ui
     ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
     ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h

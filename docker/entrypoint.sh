@@ -57,9 +57,9 @@ if [ -z "$APPIMAGE" ]; then
             DETECTED_INSTALL_TYPE="system"
             echo "✅ Detected system installation (symlink to ELF binary)"
         fi
-    elif [ -f "/tmp/openterfaceQT.linux.amd64.shared.AppImage" ]; then
+    elif [ -f "/tmp/openterfaceQT_linux_amd64.AppImage" ]; then
         # Fallback: check standard AppImage location
-        export APPIMAGE="/tmp/openterfaceQT.linux.amd64.shared.AppImage"
+        export APPIMAGE="/tmp/openterfaceQT_linux_amd64.AppImage"
         DETECTED_INSTALL_TYPE="appimage"
         echo "✅ Found AppImage at standard location: APPIMAGE=$APPIMAGE"
     elif command -v rpm >/dev/null 2>&1 && rpm -q openterfaceqt >/dev/null 2>&1; then

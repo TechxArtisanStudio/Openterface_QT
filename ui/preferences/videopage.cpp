@@ -39,6 +39,9 @@
 #include <QMediaDevices>
 #include <QWidget>
 #include <QThread>
+#include <QApplication>
+#include <QEventLoop>
+#include <QTimer>
 
 
 VideoPage::VideoPage(CameraManager *cameraManager, QWidget *parent) : QWidget(parent)
@@ -147,18 +150,46 @@ void VideoPage::setupUI()
     QLabel *backendHintLabel = new QLabel(tr("Note: Changing media backend requires application restart to take effect."));
     backendHintLabel->setStyleSheet("color: #666666; font-style: italic;");
 
+    // GStreamer Sink Priority Setting
+    QLabel *gstSinkLabel = new QLabel(tr("GStreamer Sink Priority: "));
+    gstSinkLabel->setStyleSheet(smallLabelFontSize);
+    gstSinkLabel->setObjectName("gstSinkLabel");
+
+    QLineEdit *gstSinkEdit = new QLineEdit();
+    gstSinkEdit->setObjectName("gstSinkEdit");
+    gstSinkEdit->setPlaceholderText("e.g. qt6videosink, xvimagesink, autovideosink");
+    gstSinkEdit->setText(GlobalSetting::instance().getGStreamerSinkPriority().join(", "));
+    
+    QLabel *gstSinkHintLabel = new QLabel(tr("Comma-separated list of sinks to try in order."));
+    gstSinkHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    gstSinkHintLabel->setObjectName("gstSinkHintLabel");
+
     // Connect the media backend change signal
     connect(mediaBackendBox, &QComboBox::currentIndexChanged, this, &VideoPage::onMediaBackendChanged);
 
     // Hardware Acceleration Setting Section
     QLabel *hwAccelLabel = new QLabel(tr("Hardware Acceleration: "));
     hwAccelLabel->setStyleSheet(smallLabelFontSize);
+    hwAccelLabel->setObjectName("hwAccelLabel");
 
     QComboBox *hwAccelBox = new QComboBox();
     hwAccelBox->setObjectName("hwAccelBox");
 
     QLabel *hwAccelHintLabel = new QLabel(tr("Note: Hardware acceleration improves performance but may not be available on all systems. Changing this setting requires application restart to take effect."));
     hwAccelHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    hwAccelHintLabel->setObjectName("hwAccelHintLabel");
+
+    // Set initial visibility based on backend
+    bool isFFmpeg = (mediaBackendBox->currentData().toString() == "ffmpeg");
+    bool isGStreamer = (mediaBackendBox->currentData().toString() == "gstreamer");
+    
+    hwAccelLabel->setVisible(isFFmpeg);
+    hwAccelBox->setVisible(isFFmpeg);
+    hwAccelHintLabel->setVisible(isFFmpeg);
+
+    gstSinkLabel->setVisible(isGStreamer);
+    gstSinkEdit->setVisible(isGStreamer);
+    gstSinkHintLabel->setVisible(isGStreamer);
 
     // Populate hardware acceleration options
     if (m_cameraManager) {
@@ -191,6 +222,33 @@ void VideoPage::setupUI()
         }
     }
 
+    // Scaling Quality Setting Section
+    QLabel *scalingQualityLabel = new QLabel(tr("Image Quality: "));
+    scalingQualityLabel->setStyleSheet(smallLabelFontSize);
+
+    QComboBox *scalingQualityBox = new QComboBox();
+    scalingQualityBox->setObjectName("scalingQualityBox");
+    scalingQualityBox->addItem(tr("Fastest (Lower quality)"), "fast");
+    scalingQualityBox->addItem(tr("Balanced (Good quality)"), "balanced");
+    scalingQualityBox->addItem(tr("High Quality (Recommended)"), "quality");
+    scalingQualityBox->addItem(tr("Best Quality (Slower)"), "best");
+
+    // Set current scaling quality from settings
+    QString currentQuality = GlobalSetting::instance().getScalingQuality();
+    int qualityIndex = scalingQualityBox->findData(currentQuality);
+    if (qualityIndex != -1) {
+        scalingQualityBox->setCurrentIndex(qualityIndex);
+    } else {
+        // Default to "quality" (High Quality)
+        qualityIndex = scalingQualityBox->findData("quality");
+        if (qualityIndex != -1) {
+            scalingQualityBox->setCurrentIndex(qualityIndex);
+        }
+    }
+
+    QLabel *scalingQualityHintLabel = new QLabel(tr("Note: Higher quality settings provide sharper images but may use slightly more CPU."));
+    scalingQualityHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+
     // Add Capture Resolution elements to the layout
     videoLayout->addWidget(hintLabel);
     videoLayout->addWidget(resolutionsLabel);
@@ -199,10 +257,16 @@ void VideoPage::setupUI()
     videoLayout->addLayout(hBoxLayout);
     videoLayout->addWidget(formatLabel);
     videoLayout->addWidget(pixelFormatBox);
+    videoLayout->addWidget(scalingQualityLabel);
+    videoLayout->addWidget(scalingQualityBox);
+    videoLayout->addWidget(scalingQualityHintLabel);
     videoLayout->addWidget(separatorLine2);
     videoLayout->addWidget(backendLabel);
     videoLayout->addWidget(mediaBackendBox);
     videoLayout->addWidget(backendHintLabel);
+    videoLayout->addWidget(gstSinkLabel);
+    videoLayout->addWidget(gstSinkEdit);
+    videoLayout->addWidget(gstSinkHintLabel);
     videoLayout->addWidget(hwAccelLabel);
     videoLayout->addWidget(hwAccelBox);
     videoLayout->addWidget(hwAccelHintLabel);
@@ -412,11 +476,23 @@ void VideoPage::applyVideoSettings() {
         QString hwAccel = hwAccelBox->currentData().toString();
         GlobalSetting::instance().setHardwareAcceleration(hwAccel);
     }
+    
+    // Save scaling quality setting
+    QComboBox *scalingQualityBox = this->findChild<QComboBox*>("scalingQualityBox");
+    if (scalingQualityBox) {
+        QString quality = scalingQualityBox->currentData().toString();
+        GlobalSetting::instance().setScalingQuality(quality);
+    }
 
     if (!m_cameraManager) {
         qWarning() << "CameraManager is not valid!";
         return;
     }
+
+    // Save current device settings before stopping
+    // This prevents device path from being cleared during stop
+    QString savedPortChain = GlobalSetting::instance().getOpenterfacePortChain();
+    qDebug() << "Saving current device port chain before restart:" << savedPortChain;
 
     // Stop the camera if it is in an active status
     try {
@@ -427,6 +503,26 @@ void VideoPage::applyVideoSettings() {
         return;
     }
 
+    // CRITICAL FIX: Wait for capture thread to fully terminate
+    // This prevents crash when FFmpeg resources are accessed during cleanup
+    qDebug() << "Waiting for capture thread to terminate...";
+    
+    // Process events to ensure stop signal is handled
+    QApplication::processEvents();
+    
+    // Reduced wait time since capture manager now handles proper thread termination
+    // Wait 200ms for thread to gracefully exit
+    QEventLoop loop;
+    QTimer::singleShot(200, &loop, &QEventLoop::quit);
+    loop.exec();
+    
+    qDebug() << "Capture thread should be terminated, proceeding with restart";
+
+    // Restore device settings before starting camera again
+    if (!savedPortChain.isEmpty()) {
+        GlobalSetting::instance().setOpenterfacePortChain(savedPortChain);
+        qDebug() << "Restored device port chain:" << savedPortChain;
+    }
 
     // Store settings for FFmpeg backend
     handleResolutionSettings();
@@ -440,6 +536,7 @@ void VideoPage::applyVideoSettings() {
     // Start the camera with the new settings
     try{
         m_cameraManager->startCamera();
+        qDebug() << "Camera started successfully with new settings";
     } catch (const std::exception& e){
         qCritical() << "Error starting camera: " << e.what();
     }
@@ -499,9 +596,19 @@ void VideoPage::initVideoSettings() {
     QComboBox *hwAccelBox = this->findChild<QComboBox*>("hwAccelBox");
     if (hwAccelBox) {
         QString currentHwAccel = GlobalSetting::instance().getHardwareAcceleration();
-        int hwIndex = hwAccelBox->findData(currentHwAccel);
-        if (hwIndex != -1) {
-            hwAccelBox->setCurrentIndex(hwIndex);
+        int hwAccelIndex = hwAccelBox->findData(currentHwAccel);
+        if (hwAccelIndex != -1) {
+            hwAccelBox->setCurrentIndex(hwAccelIndex);
+        }
+    }
+    
+    // Set the scaling quality in the combo box
+    QComboBox *scalingQualityBox = this->findChild<QComboBox*>("scalingQualityBox");
+    if (scalingQualityBox) {
+        QString currentQuality = GlobalSetting::instance().getScalingQuality();
+        int qualityIndex = scalingQualityBox->findData(currentQuality);
+        if (qualityIndex != -1) {
+            scalingQualityBox->setCurrentIndex(qualityIndex);
         }
     }
 }
@@ -537,6 +644,27 @@ void VideoPage::onMediaBackendChanged() {
         QString selectedBackend = mediaBackendBox->currentData().toString();
         GlobalSetting::instance().setMediaBackend(selectedBackend);
         qDebug() << "Media backend changed to:" << selectedBackend;
+        
+        bool isFFmpeg = (selectedBackend == "ffmpeg");
+        bool isGStreamer = (selectedBackend == "gstreamer");
+        
+        // Find hardware acceleration widgets
+        QLabel *hwAccelLabel = this->findChild<QLabel*>("hwAccelLabel");
+        QComboBox *hwAccelBox = this->findChild<QComboBox*>("hwAccelBox");
+        QLabel *hwAccelHintLabel = this->findChild<QLabel*>("hwAccelHintLabel");
+        
+        if (hwAccelLabel) hwAccelLabel->setVisible(isFFmpeg);
+        if (hwAccelBox) hwAccelBox->setVisible(isFFmpeg);
+        if (hwAccelHintLabel) hwAccelHintLabel->setVisible(isFFmpeg);
+
+        // Find GStreamer sink widgets
+        QLabel *gstSinkLabel = this->findChild<QLabel*>("gstSinkLabel");
+        QLineEdit *gstSinkEdit = this->findChild<QLineEdit*>("gstSinkEdit");
+        QLabel *gstSinkHintLabel = this->findChild<QLabel*>("gstSinkHintLabel");
+
+        if (gstSinkLabel) gstSinkLabel->setVisible(isGStreamer);
+        if (gstSinkEdit) gstSinkEdit->setVisible(isGStreamer);
+        if (gstSinkHintLabel) gstSinkHintLabel->setVisible(isGStreamer);
         
         // Show/hide GStreamer options based on selected backend
         if (selectedBackend == "gstreamer") {

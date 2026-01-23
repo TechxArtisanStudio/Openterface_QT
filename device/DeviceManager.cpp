@@ -1,6 +1,7 @@
 #include "DeviceManager.h"
 #include "platform/DeviceFactory.h"
 #include "platform/AbstractPlatformDeviceManager.h"
+#include "device/platform/DeviceConstants.h"
 #ifdef __linux__
 #include "platform/LinuxDeviceManager.h"
 #endif
@@ -12,6 +13,7 @@
 #include <QMutexLocker>
 #include <QtConcurrent>
 #include <QtSerialPort/QSerialPortInfo>
+#include <algorithm>
 
 Q_LOGGING_CATEGORY(log_device_manager, "opf.device.manager")
 
@@ -21,6 +23,9 @@ DeviceManager::DeviceManager()
     , m_hotplugTimer(new QTimer(this))
     , m_hotplugMonitor(nullptr)
     , m_monitoring(false)
+    , m_normalInterval(3000)  // 3 seconds when devices are present
+    , m_noDeviceInterval(2000)  // 2 seconds when no devices are present
+    , m_currentInterval(3000)
 {
     initializePlatformManager();
     
@@ -335,7 +340,10 @@ void DeviceManager::startHotplugMonitoring(int intervalMs)
         return;
     }
     
-    qCDebug(log_device_manager) << "Starting hotplug monitoring with interval:" << intervalMs << "ms";
+    // Store the normal interval (when devices are present)
+    m_normalInterval = intervalMs;
+    
+    qCDebug(log_device_manager) << "Starting hotplug monitoring with normal interval:" << intervalMs << "ms, no-device interval:" << m_noDeviceInterval << "ms";
     
     // Take initial snapshot
     m_lastSnapshot = discoverDevices();
@@ -346,8 +354,11 @@ void DeviceManager::startHotplugMonitoring(int intervalMs)
         m_lastSerialPorts.insert(port.systemLocation());
     }
     
-    // Start monitoring
-    m_hotplugMonitor->start(intervalMs);
+    // Determine initial interval based on current device count
+    updateMonitoringInterval(m_lastSnapshot.size());
+    
+    // Start monitoring with determined interval
+    m_hotplugMonitor->start(m_currentInterval);
     m_monitoring = true;
     
     emit monitoringStarted();
@@ -373,6 +384,45 @@ QList<DeviceInfo> DeviceManager::getCurrentDevices() const
     return m_currentDevices;
 }
 
+QString DeviceManager::getDeviceTree() const
+{
+    QList<DeviceInfo> devicesCopy;
+    AbstractPlatformDeviceManager* pm = nullptr;
+    {
+        QMutexLocker locker(&m_mutex);
+        devicesCopy = m_currentDevices;
+        pm = m_platformManager;
+    }
+
+    if (pm) {
+        QString detailed = pm->getDeviceTreeDetailed();
+        if (!detailed.isEmpty()) return detailed;
+        return pm->formatDeviceTreeFromDevices(devicesCopy);
+    }
+
+    if (devicesCopy.isEmpty()) return QString("No devices found");
+
+    QStringList lines;
+    QList<DeviceInfo> sorted = devicesCopy;
+    std::sort(sorted.begin(), sorted.end(), [](const DeviceInfo& a, const DeviceInfo& b){
+        return a.portChain < b.portChain;
+    });
+
+    for (const DeviceInfo& d : sorted) {
+        lines << QString("%1").arg(d.portChain);
+        if (!d.vid.isEmpty() || !d.pid.isEmpty()) {
+            lines << QString("  VID: %1 PID: %2").arg(d.vid, d.pid);
+        }
+        if (!d.serialPortPath.isEmpty()) lines << QString("  Serial: %1").arg(d.serialPortPath);
+        if (!d.hidDevicePath.isEmpty()) lines << QString("  HID: %1").arg(d.hidDevicePath);
+        if (!d.cameraDevicePath.isEmpty()) lines << QString("  Camera: %1").arg(d.cameraDevicePath);
+        if (!d.audioDevicePath.isEmpty()) lines << QString("  Audio: %1").arg(d.audioDevicePath);
+        if (!d.deviceInstanceId.isEmpty()) lines << QString("  DeviceInstanceId: %1").arg(d.deviceInstanceId);
+    }
+
+    return lines.join("\n");
+} 
+
 void DeviceManager::onHotplugTimerTimeout()
 {
     qCDebug(log_device_manager) << "Hotplug timer timeout - checking for device changes";
@@ -381,8 +431,19 @@ void DeviceManager::onHotplugTimerTimeout()
     }
 
     QList<DeviceInfo> currentDevices = discoverDevices();
+    int previousDeviceCount = m_lastSnapshot.size();
+    int currentDeviceCount = currentDevices.size();
+    
     compareDeviceSnapshots(currentDevices, m_lastSnapshot);
     m_lastSnapshot = currentDevices;
+    
+    // Update monitoring interval if device count changed
+    if ((previousDeviceCount == 0) != (currentDeviceCount == 0)) {
+        updateMonitoringInterval(currentDeviceCount);
+        if (m_hotplugMonitor && m_monitoring) {
+            m_hotplugMonitor->updateInterval(m_currentInterval);
+        }
+    }
     
     emit devicesChanged(currentDevices);
 }
@@ -528,15 +589,15 @@ VideoChipType DeviceManager::getChipTypeForDevice(const DeviceInfo& device)
     if (!device.vid.isEmpty() && !device.pid.isEmpty()) {
         QString vid = device.vid.toUpper();
         QString pid = device.pid.toUpper();
-        if (vid == A::getOpenterfaceVid().toUpper() && pid == A::getOpenterfacePid().toUpper()) {
+        if (vid == OPENTERFACE_VID.toUpper() && pid == OPENTERFACE_PID.toUpper()) {
             return VideoChipType::MS2109;
         }
-        if (vid == A::getOpenterfaceVidV2().toUpper() && pid == A::getOpenterfacePidV2().toUpper()) {
+        if (vid == OPENTERFACE_VID_V2.toUpper() && pid == OPENTERFACE_PID_V2.toUpper()) {
             return VideoChipType::MS2130S;
         }
-        if (vid == A::getOpenterfaceVidV3().toUpper() && pid == A::getOpenterfacePidV3().toUpper()) {
-            // Treat V3 as MS2130S family by register mapping
-            return VideoChipType::MS2130S;
+        if (vid == OPENTERFACE_VID_V3.toUpper() && pid == OPENTERFACE_PID_V3.toUpper()) {
+            // V3 (345F:2109) uses MS2109S register mapping
+            return VideoChipType::MS2109S;
         }
     }
 
@@ -544,12 +605,12 @@ VideoChipType DeviceManager::getChipTypeForDevice(const DeviceInfo& device)
     auto matchPaths = [&](const QString& p) -> VideoChipType {
         if (p.isEmpty()) return VideoChipType::UNKNOWN;
         QString s = p.toUpper();
-    if (s.contains(A::getOpenterfaceVidV2().toUpper()) && s.contains(A::getOpenterfacePidV2().toUpper())) return VideoChipType::MS2130S;
-    if (s.contains(A::getOpenterfaceVid().toUpper()) && s.contains(A::getOpenterfacePid().toUpper())) return VideoChipType::MS2109;
-    if (s.contains(A::getOpenterfaceVidV3().toUpper()) && s.contains(A::getOpenterfacePidV3().toUpper())) return VideoChipType::MS2130S;
+    if (s.contains(OPENTERFACE_VID_V2.toUpper()) && s.contains(OPENTERFACE_PID_V2.toUpper())) return VideoChipType::MS2130S;
+    if (s.contains(OPENTERFACE_VID.toUpper()) && s.contains(OPENTERFACE_PID.toUpper())) return VideoChipType::MS2109;
+    if (s.contains(OPENTERFACE_VID_V3.toUpper()) && s.contains(OPENTERFACE_PID_V3.toUpper())) return VideoChipType::MS2109S;
         // Windows style variants
-    if (s.contains("VID_" + A::getOpenterfaceVidV2(), Qt::CaseInsensitive) && s.contains("PID_" + A::getOpenterfacePidV2(), Qt::CaseInsensitive)) return VideoChipType::MS2130S;
-    if (s.contains("VID_" + A::getOpenterfaceVid(), Qt::CaseInsensitive) && s.contains("PID_" + A::getOpenterfacePid(), Qt::CaseInsensitive)) return VideoChipType::MS2109;
+    if (s.contains("VID_" + OPENTERFACE_VID_V2, Qt::CaseInsensitive) && s.contains("PID_" + OPENTERFACE_PID_V2, Qt::CaseInsensitive)) return VideoChipType::MS2130S;
+    if (s.contains("VID_" + OPENTERFACE_VID, Qt::CaseInsensitive) && s.contains("PID_" + OPENTERFACE_PID, Qt::CaseInsensitive)) return VideoChipType::MS2109;
         return VideoChipType::UNKNOWN;
     };
 
@@ -594,4 +655,15 @@ bool DeviceManager::isMS2109(const DeviceInfo& device)
 bool DeviceManager::isMS2130S(const DeviceInfo& device)
 {
     return getChipTypeForDevice(device) == VideoChipType::MS2130S;
+}
+
+void DeviceManager::updateMonitoringInterval(int deviceCount)
+{
+    int newInterval = (deviceCount == 0) ? m_noDeviceInterval : m_normalInterval;
+    
+    if (newInterval != m_currentInterval) {
+        m_currentInterval = newInterval;
+        qCDebug(log_device_manager) << "Updated monitoring interval to" << m_currentInterval 
+                                   << "ms (device count:" << deviceCount << ")";
+    }
 }
