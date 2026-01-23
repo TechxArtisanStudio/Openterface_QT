@@ -99,24 +99,31 @@ void ConnectionWatchdog::start()
     m_lastSuccessfulCommand.restart();
     
     // Ensure timers are created in this object's current thread (thread-safe)
-    if (!m_watchdogTimer) {
-        m_watchdogTimer = new QTimer(this);
-        m_watchdogTimer->setSingleShot(true);
-        connect(m_watchdogTimer, &QTimer::timeout, this, &ConnectionWatchdog::onWatchdogTimeout);
-    }
-    
-    if (!m_recoveryTimer) {
-        m_recoveryTimer = new QTimer(this);
-        m_recoveryTimer->setSingleShot(true);
-        connect(m_recoveryTimer, &QTimer::timeout, this, &ConnectionWatchdog::executeRecovery);
-    }
+    // Use QMetaObject::invokeMethod to ensure timer creation in correct thread
+    QMetaObject::invokeMethod(this, [this]() {
+        if (m_isShuttingDown) {
+            return;
+        }
+        
+        if (!m_watchdogTimer) {
+            m_watchdogTimer = new QTimer(this);
+            m_watchdogTimer->setSingleShot(true);
+            connect(m_watchdogTimer, &QTimer::timeout, this, &ConnectionWatchdog::onWatchdogTimeout);
+        }
+        
+        if (!m_recoveryTimer) {
+            m_recoveryTimer = new QTimer(this);
+            m_recoveryTimer->setSingleShot(true);
+            connect(m_recoveryTimer, &QTimer::timeout, this, &ConnectionWatchdog::executeRecovery);
+        }
 
-    // Start watchdog timer
-    m_watchdogTimer->setInterval(m_config.watchdogIntervalMs);
-    m_watchdogTimer->start();
-    
-    setConnectionState(ConnectionState::Connected);
-    qCInfo(log_core_serial) << "Watchdog started with interval" << m_config.watchdogIntervalMs << "ms";
+        // Start watchdog timer
+        m_watchdogTimer->setInterval(m_config.watchdogIntervalMs);
+        m_watchdogTimer->start();
+        
+        setConnectionState(ConnectionState::Connected);
+        qCInfo(log_core_serial) << "Watchdog started with interval" << m_config.watchdogIntervalMs << "ms";
+    }, Qt::QueuedConnection);
 }
 
 void ConnectionWatchdog::stop()
@@ -198,12 +205,15 @@ void ConnectionWatchdog::recordError()
         setConnectionState(ConnectionState::Unstable);
     }
     
-    // Check if recovery is needed
-    if (isRecoveryNeeded()) {
-        emit errorThresholdReached(m_consecutiveErrors.load());
-        
-        if (m_config.autoRecoveryEnabled) {
-            scheduleRecovery();
+    // Check if recovery is needed - but DON'T if already recovering or a recovery is scheduled
+    if (isRecoveryNeeded() && m_connectionState != ConnectionState::Recovering) {
+        // Double-check: if recovery timer is already active, don't schedule another
+        if (!m_recoveryTimer || !m_recoveryTimer->isActive()) {
+            emit errorThresholdReached(m_consecutiveErrors.load());
+            
+            if (m_config.autoRecoveryEnabled) {
+                scheduleRecovery();
+            }
         }
     }
 }
