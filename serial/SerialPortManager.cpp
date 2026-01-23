@@ -2389,6 +2389,28 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
 
     qCWarning(log_core_serial) << "Serial port error occurred:" << errorString << "Error code:" << static_cast<int>(error);
     
+    // Check for device disconnection errors - if we detect the device is physically unplugged,
+    // stop the timers to prevent continuous failed command attempts
+    if (error == QSerialPort::UnknownError || 
+        errorString.contains("设备不识别此命令") || 
+        errorString.contains("拒绝访问") ||
+        errorString.contains("Access is denied")) {
+        
+        qCInfo(log_core_serial) << "Device disconnection error detected, stopping periodic timers";
+        
+        // Stop USB status check timer to prevent continuous CMD_CHECK_USB_STATUS commands
+        if (m_usbStatusCheckTimer && m_usbStatusCheckTimer->isActive()) {
+            m_usbStatusCheckTimer->stop();
+            qCDebug(log_core_serial) << "USB status check timer stopped due to device error";
+        }
+        
+        // Stop GET_INFO timer to prevent continuous CMD_GET_INFO commands
+        if (m_getInfoTimer && m_getInfoTimer->isActive()) {
+            m_getInfoTimer->stop();
+            qCDebug(log_core_serial) << "GET_INFO timer stopped due to device error";
+        }
+    }
+    
     // Record error in statistics module
     if (m_statistics) {
         m_statistics->recordConsecutiveError();
