@@ -1,4 +1,4 @@
-# Openterface Mini-KVM Resolution Guide
+# Openterface Mini-KVM Resolution Guide 
 
 ## **I. Introduction**
 
