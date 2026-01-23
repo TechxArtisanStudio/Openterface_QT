@@ -144,6 +144,7 @@ private:
     // Direct GStreamer mode support
     bool m_directGStreamerMode;
     QWidget* m_overlayWidget; // Widget for direct video overlay
+    qint64 m_lastGStreamerUpdateTime; // Debounce repeated geometry updates
     
     // Direct FFmpeg mode support
     bool m_directFFmpegMode;
@@ -156,6 +157,7 @@ private:
     
     void captureCurrentFrame();
     void updateVideoItemTransform();
+    void updateOverlayWidgetGeometry();
     void centerVideoItem();
     void setupScene();
     void updateScrollBarsAndSceneRect();

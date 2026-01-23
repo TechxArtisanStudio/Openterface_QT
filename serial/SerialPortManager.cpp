@@ -92,6 +92,7 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     
     // Initialize connection watchdog (Phase 3 refactoring)
     m_watchdog = std::make_unique<ConnectionWatchdog>(nullptr);
+    m_watchdog->moveToThread(m_serialWorkerThread);  // CRITICAL: Move to worker thread for thread safety
     m_watchdog->setRecoveryHandler(this);  // SerialPortManager implements IRecoveryHandler
     
     // Configure watchdog
@@ -2356,21 +2357,37 @@ void SerialPortManager::forceRecovery()
 void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
 {
     QString errorString = serialPort ? serialPort->errorString() : "Unknown error";
+    
     // If we're performing a controlled baud-rate change, suppress transient errors
     if (m_baudChangeInProgress.load()) {
         qCDebug(log_core_serial) << "Transient serial error during baud change suppressed:" << errorString << "Error code:" << static_cast<int>(error);
         return;
     }
 
+    // Ignore NoError
+    if (error == QSerialPort::NoError) {
+        return;
+    }
+
+    // Throttle error processing to prevent infinite loop - max one error processed per 50ms
+    if (!m_lastErrorLogTime.isValid()) {
+        m_lastErrorLogTime.start();
+    } else if (m_lastErrorLogTime.elapsed() < ERROR_LOG_THROTTLE_MS) {
+        // Silently drop errors that occur too frequently
+        qCDebug(log_core_serial) << "Error throttled:" << errorString << "Code:" << static_cast<int>(error);
+        return;
+    }
+    m_lastErrorLogTime.restart();
+
     qCWarning(log_core_serial) << "Serial port error occurred:" << errorString << "Error code:" << static_cast<int>(error);
     
     // Record error in statistics module
-    if (m_statistics && error != QSerialPort::NoError) {
+    if (m_statistics) {
         m_statistics->recordConsecutiveError();
     }
     
     // Report error to ConnectionWatchdog (Phase 3)
-    if (m_watchdog && error != QSerialPort::NoError) {
+    if (m_watchdog) {
         m_watchdog->recordError();
     }
 }
