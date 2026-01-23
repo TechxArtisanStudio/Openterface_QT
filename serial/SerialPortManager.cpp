@@ -642,7 +642,8 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
         storeBaudrateIfNeeded(BAUDRATE_HIGHSPEED);
         // CH32V208 only supports 115200; ensure the port is opened at 115200 before signalling success.
         if (openPort(portName, BAUDRATE_HIGHSPEED)) {
-            qCInfo(log_core_serial) << "Opened CH32V208 port at" << BAUDRATE_HIGHSPEED << "for" << portName;
+            QByteArray getInfoResp = sendSyncCommand(CMD_GET_INFO, true);
+            if (getInfoResp.isEmpty()) qCWarning(log_core_serial) << "No response to CMD_GET_INFO on CH32V208 port after open.";
             emit serialPortConnectionSuccess(portName);
         } else {
             qCWarning(log_core_serial) << "Failed to open CH32V208 port at" << BAUDRATE_HIGHSPEED << "for" << portName;
@@ -894,8 +895,8 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
         qCDebug(log_core_serial) << "Started USB status check timer for CH32V208";
     }
 
-    // Start GET_INFO timer for periodic status updates only for CH9329 (unless diagnostics dialog is active)
-    if (isChipTypeCH9329() && m_getInfoTimer) {
+    // Start GET_INFO timer for periodic status updates for CH9329 and CH32V208 (unless diagnostics dialog is active)
+    if (m_getInfoTimer) {
         QMutexLocker locker(&m_diagMutex);
         if (!m_suppressGetInfo) {
             if (QThread::currentThread() == m_getInfoTimer->thread()) {
@@ -903,15 +904,15 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
             } else {
                 QMetaObject::invokeMethod(m_getInfoTimer, "start", Qt::QueuedConnection);
             }
-            qCDebug(log_core_serial) << "Started periodic GET_INFO timer for CH9329";
+            qCDebug(log_core_serial) << "Started periodic GET_INFO timer for" << (isChipTypeCH9329() ? "CH9329" : "CH32V208");
         } else {
             qCDebug(log_core_serial) << "Periodic GET_INFO timer suppressed because diagnostics dialog is active";
         }
 
-        // Send an immediate GET_INFO to prime the connection only for CH9329
+        // Send an immediate GET_INFO to prime the connection
         sendAsyncCommand(CMD_GET_INFO, true);
     } else {
-        qCDebug(log_core_serial) << "Skipping periodic GET_INFO timer - not a CH9329 device";
+        qCDebug(log_core_serial) << "Skipping periodic GET_INFO timer - not a supported device for GET_INFO";
     }
 }
 
@@ -937,14 +938,14 @@ void SerialPortManager::setDiagnosticsDialogActive(bool active)
             }
             qCDebug(log_core_serial) << "GET_INFO timer stopped due to diagnostics dialog active";
         } else {
-            // Only restart for CH9329 devices
-            if (serialPort && serialPort->isOpen() && isChipTypeCH9329()) {
+            // Restart GET_INFO for supported devices (CH9329 and CH32V208)
+            if (serialPort && serialPort->isOpen() && (isChipTypeCH9329() || isChipTypeCH32V208())) {
                 if (QThread::currentThread() == m_getInfoTimer->thread()) {
                     m_getInfoTimer->start();
                 } else {
                     QMetaObject::invokeMethod(m_getInfoTimer, "start", Qt::QueuedConnection);
                 }
-                qCDebug(log_core_serial) << "GET_INFO timer restarted after diagnostics dialog closed (CH9329)";
+                qCDebug(log_core_serial) << "GET_INFO timer restarted after diagnostics dialog closed";
             }
         }
     }
@@ -1629,12 +1630,6 @@ void SerialPortManager::readData() {
         // Track async message received
         m_asyncMessagesReceived++;
         logAsyncMessageStatistics();
-        
-        // Additional chip-specific handling for 0x84 (absolute mouse) response
-        if (parsed.responseCode == RESP_SEND_MOUSE_ABS && isChipTypeCH32V208()) {
-            ready = true;
-            emit targetUSBStatus(true);
-        }
     }
     
     // Callback for processed packet
@@ -2111,11 +2106,17 @@ bool SerialPortManager::setBaudRateInternal(int baudRate) {
         }
 
         // Restart periodic timers if appropriate
-        if (m_getInfoTimer && serialPort && serialPort->isOpen() && isChipTypeCH9329()) {
-            if (QThread::currentThread() == m_getInfoTimer->thread()) {
-                m_getInfoTimer->start();
+        if (m_getInfoTimer && serialPort && serialPort->isOpen() && (isChipTypeCH9329() || isChipTypeCH32V208())) {
+            QMutexLocker locker(&m_diagMutex);
+            if (!m_suppressGetInfo) {
+                if (QThread::currentThread() == m_getInfoTimer->thread()) {
+                    m_getInfoTimer->start();
+                } else {
+                    QMetaObject::invokeMethod(m_getInfoTimer, "start", Qt::QueuedConnection);
+                }
+                qCDebug(log_core_serial) << "GET_INFO timer restarted after baud change";
             } else {
-                QMetaObject::invokeMethod(m_getInfoTimer, "start", Qt::QueuedConnection);
+                qCDebug(log_core_serial) << "GET_INFO timer suppressed due to diagnostics dialog active";
             }
         }
         if (m_usbStatusCheckTimer && isChipTypeCH32V208()) {
