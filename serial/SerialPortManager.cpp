@@ -699,7 +699,7 @@ bool SerialPortManager::openPortWithRetries(const QString &portName, int tryBaud
 
             // Allow device to settle briefly after opening - some devices need a short moment before responding
             QEventLoop settleLoop;
-            QTimer::singleShot(120, &settleLoop, &QEventLoop::quit);
+            QTimer::singleShot(300 * (cycle+1), &settleLoop, &QEventLoop::quit);
             settleLoop.exec();
 
             // Send a synchronous GET_INFO and validate response to ensure the device is actually talking
