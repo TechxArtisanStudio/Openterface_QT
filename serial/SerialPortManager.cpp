@@ -1575,6 +1575,7 @@ void SerialPortManager::readData() {
     
     if (data.isEmpty()) {
         qCDebug(log_core_serial) << "Received empty data from serial port";
+        checkAndLogAsyncMessageStatistics();
         return;
     }
 
@@ -1630,7 +1631,7 @@ void SerialPortManager::readData() {
         
         // Track async message received
         m_asyncMessagesReceived++;
-        logAsyncMessageStatistics();
+        checkAndLogAsyncMessageStatistics();
     }
     
     // Callback for processed packet
@@ -1777,7 +1778,7 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
     
     // Track async message sent
     m_asyncMessagesSent++;
-    logAsyncMessageStatistics();
+    checkAndLogAsyncMessageStatistics();
     
     // Update command coordinator ready state
     m_commandCoordinator->setReady(ready);
@@ -2746,24 +2747,102 @@ void SerialPortManager::enableDebugLogging(bool enabled) {
     }
 }
 
-void SerialPortManager::logAsyncMessageStatistics()
+void SerialPortManager::checkAndLogAsyncMessageStatistics()
 {
+    // ===== ASYNC MESSAGE STATISTICS AND IMBALANCE DETECTION =====
+    // This method monitors the ratio of received vs sent async messages every 1 second.
+    // Purpose: Detect communication issues where the device sends many responses without
+    // corresponding requests, indicating a potential queue backup or device malfunction.
+    //
+    // Detection Logic:
+    // 1. Every 1 second (ASYNC_STATS_INTERVAL_MS), calculate send/receive rates
+    // 2. If received > sent by more than 150% (threshold: 1.5x), flag as imbalance
+    // 3. Track how long the imbalance persists using m_imbalanceDetectionTimer
+    // 4. If imbalance continues for 3+ seconds, send a reset command to recover
+    // 5. After reset, clear the flag and restart detection from clean state
+    //
+    // State Transitions:
+    // - Normal -> Imbalance: When ratio > 1.5 for first time
+    // - Imbalance -> Timeout: When ratio > 1.5 for 3+ consecutive seconds
+    // - Imbalance/Timeout -> Normal: When ratio drops back to <= 1.5
+    
     // Check if 1 second has elapsed since last report
     if (m_asyncStatsTimer.elapsed() >= ASYNC_STATS_INTERVAL_MS) {
         qint64 elapsedMs = m_asyncStatsTimer.elapsed();
         
+        // Only process if there were any messages in this interval
         if (m_asyncMessagesSent > 0 || m_asyncMessagesReceived > 0) {
+            // Calculate rates in messages per second
             double sentRate = (m_asyncMessagesSent * 1000.0) / elapsedMs;
             double receivedRate = (m_asyncMessagesReceived * 1000.0) / elapsedMs;
             
+            // Log statistics for monitoring and debugging
             qCInfo(log_core_serial) << "Async Message Statistics:"
                                    << "Sent/sec:" << QString::number(sentRate, 'f', 2)
                                    << "Received/sec:" << QString::number(receivedRate, 'f', 2)
                                    << "Total sent:" << m_asyncMessagesSent
                                    << "Total received:" << m_asyncMessagesReceived;
+            
+            // ===== IMBALANCE DETECTION LOGIC =====
+            // Only check imbalance if we actually sent messages (avoid division issues)
+            if (m_asyncMessagesSent > 0) {
+                // Calculate ratio of received to sent messages
+                double imbalanceRatio = (double)m_asyncMessagesReceived / m_asyncMessagesSent;
+                
+                // ===== STATE 1: IMBALANCE THRESHOLD EXCEEDED (ratio > 1.5) =====
+                if (imbalanceRatio > ASYNC_IMBALANCE_THRESHOLD) {
+                    // State: Imbalance Detected
+                    if (!m_imbalanceDetected) {
+                        // First occurrence - start tracking duration
+                        // We restart the timer to measure from this point forward
+                        m_imbalanceDetectionTimer.restart();
+                        m_imbalanceDetected = true;
+                        
+                        // Log warning with diagnostic info
+                        qCWarning(log_core_serial) << "Async message imbalance detected!"
+                                                   << "Received/Sent ratio:" << QString::number(imbalanceRatio, 'f', 2)
+                                                   << "(threshold:" << ASYNC_IMBALANCE_THRESHOLD << ")";
+                    } else {
+                        // Imbalance continues - check if we've exceeded the 3-second tolerance window
+                        qint64 imbalanceDuration = m_imbalanceDetectionTimer.elapsed();
+                        qCWarning(log_core_serial) << "Async message imbalance persisting for" << imbalanceDuration << "ms"
+                                                   << "Received/Sent ratio:" << QString::number(imbalanceRatio, 'f', 2);
+                        
+                        // ===== STATE 2: TIMEOUT THRESHOLD EXCEEDED (3+ seconds) =====
+                        if (imbalanceDuration >= ASYNC_IMBALANCE_TIMEOUT_MS) {
+                            // Imbalance has persisted for 3+ seconds - device likely in bad state
+                            // Action: Send reset command to device to recover
+                            qCCritical(log_core_serial) << "Async message imbalance exceeded 3 seconds threshold!"
+                                                        << "Sending device reset command. Duration:" << imbalanceDuration << "ms";
+                            
+                            // Send reset command to device (synchronous, waits for response)
+                            sendResetCommand();
+                            
+                            // Reset detection state for next monitoring cycle
+                            // This prevents triggering multiple resets in rapid succession
+                            m_imbalanceDetected = false;
+                            m_imbalanceDetectionTimer.restart();
+                        }
+                    }
+                } else {
+                    // ===== STATE 3: IMBALANCE CLEARED (ratio <= 1.5) =====
+                    // Ratio is now healthy - no imbalance detected
+                    if (m_imbalanceDetected) {
+                        // Imbalance was previously detected but has now recovered
+                        // Log the recovery state
+                        qCInfo(log_core_serial) << "Async message imbalance cleared."
+                                               << "Received/Sent ratio:" << QString::number(imbalanceRatio, 'f', 2);
+                        
+                        // Clear imbalance flag and reset timer for next monitoring cycle
+                        m_imbalanceDetected = false;
+                        m_imbalanceDetectionTimer.restart();
+                    }
+                }
+            }
         }
         
-        // Reset counters and restart timer
+        // ===== RESET COUNTERS FOR NEXT INTERVAL =====
+        // Clear accumulated counts and restart timer for next 1-second interval
         m_asyncMessagesSent = 0;
         m_asyncMessagesReceived = 0;
         m_asyncStatsTimer.restart();

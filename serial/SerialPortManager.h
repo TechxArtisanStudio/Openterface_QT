@@ -409,21 +409,18 @@ private:
     // New: Serial hotplug handler (extracted from inline logic)
     std::unique_ptr<SerialHotplugHandler> m_hotplugHandler;
     
-    // Command tracking for auto-restart logic
-    std::atomic<int> m_commandsSent = 0;
-    std::atomic<int> m_commandsReceived = 0;
-    std::atomic<int> m_serialResetCount = 0;
-    QTimer* m_commandTrackingTimer;
-    static const int COMMAND_TRACKING_INTERVAL = 5000; // 5 seconds
-    static const int MAX_SERIAL_RESETS = 3;
-    static constexpr double COMMAND_LOSS_THRESHOLD = 0.30; // 30% loss rate
-    
     // Async message send/receive statistics (simple tracking)
     qint64 m_asyncMessagesSent = 0;
     qint64 m_asyncMessagesReceived = 0;
     QElapsedTimer m_asyncStatsTimer;
     static const int ASYNC_STATS_INTERVAL_MS = 1000; // Report every 1 second
-    void logAsyncMessageStatistics();
+    void checkAndLogAsyncMessageStatistics();
+    
+    // Async message imbalance detection (received >> sent)
+    static constexpr double ASYNC_IMBALANCE_THRESHOLD = 1.5; // 150% threshold
+    static const int ASYNC_IMBALANCE_TIMEOUT_MS = 3000; // 3 seconds tolerance
+    QElapsedTimer m_imbalanceDetectionTimer;
+    bool m_imbalanceDetected = false;
     
     // Legacy variables removed - functionality moved to specialized modules
     
