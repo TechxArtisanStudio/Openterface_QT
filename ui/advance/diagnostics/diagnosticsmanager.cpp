@@ -1430,6 +1430,8 @@ void DiagnosticsManager::startStressTest()
     
     appendToLog(QString("Using serial port: %1 for stress test").arg(currentPortPath));
     
+    serialManager.sendResetCommand();
+    QThread::msleep(100); // Short delay after reset
     // Start statistics tracking
     serialManager.startStats();
     
@@ -1585,6 +1587,8 @@ void DiagnosticsManager::finishStressTest()
     
     m_isTestingInProgress = false;
     m_runningTestIndex = -1;
+    
+    serialManager.sendResetCommand();
     
     // Check if all tests completed
     checkAllTestsCompletion();
