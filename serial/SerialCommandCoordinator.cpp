@@ -294,7 +294,7 @@ QByteArray SerialCommandCoordinator::collectSyncResponse(QSerialPort* serialPort
         QByteArray newData = serialPort->readAll();
         if (!newData.isEmpty()) {
             responseData.append(newData);
-            qCDebug(log_core_serial) << "Collected" << newData.size() << "bytes, total:" << responseData.size();
+            // qCDebug(log_core_serial) << "Collected" << newData.size() << "bytes, total:" << responseData.size();
             
             // If we have enough data to determine packet length, update expected length
             // Protocol header: [0]=0x57 [1]=0xAB [2]=addr [3]=cmd [4]=len
@@ -305,7 +305,7 @@ QByteArray SerialCommandCoordinator::collectSyncResponse(QSerialPort* serialPort
                 int total = lenField + 6;
                 if (total > MIN_PACKET_SIZE && total <= MAX_ACCEPTABLE_PACKET) {
                     expectedResponseLength = total;
-                    qCDebug(log_core_serial) << "Updated expected response length to:" << expectedResponseLength;
+                    // qCDebug(log_core_serial) << "Updated expected response length to:" << expectedResponseLength;
                 } else {
                     qCWarning(log_core_serial) << "Invalid packet length detected:" << total << "ignoring";
                 }
