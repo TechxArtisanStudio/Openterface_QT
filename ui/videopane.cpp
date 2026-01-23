@@ -498,6 +498,10 @@ void VideoPane::updateVideoItemTransform()
                 m_overlayWidget->setGeometry(viewRect.toRect());
             }
         }
+        std::thread([this]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+            QMetaObject::invokeMethod(this, [this]() { this->fitToWindow(); }, Qt::QueuedConnection);
+        }).detach();
         qCDebug(log_ui_video) << "VideoPane: Updated GStreamer overlay widget geometry to:" << m_overlayWidget->geometry();
         // Nothing further to transform; overlay handles the rendered video
         return;
