@@ -559,11 +559,28 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
         onSerialPortConnected(selectedDevice.serialPortPath);
         
         if (!ready) {
-            qCWarning(log_core_serial) << "Serial port initialization failed after switch";
-            // Revert to previous device info on failure
-            m_currentSerialPortPath = previousPortPath;
-            m_currentSerialPortChain = previousPortChain;
-            return false;
+            bool connectionSuccess = false;
+            QEventLoop waitLoop;
+            QMetaObject::Connection conn = connect(this, &SerialPortManager::serialPortConnectionSuccess, this,
+                [&](const QString &p) {
+                    if (p == selectedDevice.serialPortPath) {
+                        connectionSuccess = true;
+                        waitLoop.quit();
+                    }
+                }, Qt::QueuedConnection);
+
+            // Safety timeout (2s)
+            QTimer::singleShot(2000, &waitLoop, &QEventLoop::quit);
+            waitLoop.exec();
+            disconnect(conn);
+
+            if (!connectionSuccess && !ready) {
+                qCWarning(log_core_serial) << "Serial port initialization did not complete within timeout after switch";
+                // Revert to previous device info on failure
+                m_currentSerialPortPath = previousPortPath;
+                m_currentSerialPortChain = previousPortChain;
+                return false;
+            }
         }
 
         // Update global settings and device manager
