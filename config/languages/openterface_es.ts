@@ -245,12 +245,12 @@
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="133"/>
         <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
-        <translation >Los siguientes pasos te ayudan a instalar el contralador y la actualización de firmware de Openterface. Estado actual :&lt;br&gt</translation>
+        <translation>Los siguientes pasos te ayudan a instalar el controlador y la actualización de firmware de Openterface. Estado actual :&lt;br&gt;</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="167"/>
         <source>The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:&lt;br&gt;</source>
-        <translation>Los siguientes pasos te ayudan a instalar el contralador y los permisos del dispositivo y la actualización de firmware de Openterface. Estado actual :&lt;br&gt</translation>
+        <translation>Los siguientes pasos te ayudan a instalar el controlador y los permisos del dispositivo y la actualización de firmware de Openterface. Estado actual:&lt;br&gt;</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="136"/>
@@ -262,7 +262,7 @@
         <location filename="../../ui/advance/envdialog.cpp" line="137"/>
         <location filename="../../ui/advance/envdialog.cpp" line="172"/>
         <source>◆ Latest Firmware: </source>
-        <translation>◆ Último Firmware: </translation>
+        <translation>◆ Último firmware: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="169"/>
@@ -286,7 +286,7 @@
 After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.
 
 Please restart your computer after the driver installation.</source>
-        <translation>Falta el controlador. Por favor, instalar el controlador en: https://www.wch.cn/downloads/CH341SER.EXE.html  
+        <translation>Falta el controlador. Por favor, instala el controlador en: https://www.wch.cn/downloads/CH341SER.EXE.html  
 Después de instalar el controlador, es necesario un reinicio del sistema y desconectar y volver a conectar el dispositivo para que los cambios surjan efecto.
 
 Por favor, reinicia el ordenador tras la instalación del controlador.</translation>
@@ -294,7 +294,7 @@ Por favor, reinicia el ordenador tras la instalación del controlador.</translat
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="219"/>
         <source>Copy Link</source>
-        <translation>Copia el enlace</translation>
+        <translation>Copiar el enlace</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="235"/>
@@ -363,7 +363,7 @@ Would you like to restart your computer now?</source>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="311"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
-        <translation>Por favor, recuerda reiniciar el sistema y reconectar el dispositivo para que el controlador funcione adecuadamente</translation>
+        <translation>Por favor, recuerda reiniciar el sistema y reconectar el dispositivo para que el controlador funcione adecuadamente.</translation>
     </message>
 </context>
 <context>
@@ -388,7 +388,7 @@ Would you like to restart your computer now?</source>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
         <source>Failed to read firmware file: %1</source>
-        <translation>Error al leer el archivo de firmware: &1</translation>
+        <translation>Error al leer el archivo de firmware: %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="103"/>
@@ -401,7 +401,7 @@ Would you like to restart your computer now?</source>
 Please:
 1. Restart the application
 2. Disconnect and reconnect all cables</source>
-        <translation>El firmware se ha instalado correctamente en EEPROM. La aplicaicón se cerrará ahora.
+        <translation>El firmware se ha instalado correctamente en EEPROM. La aplicación se cerrará ahora.
     
 Por favor:
 1. Reinicia la aplicación.
@@ -440,7 +440,7 @@ Por favor, inténtalo de nuevo</translation>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="120"/>
         <source>Update</source>
-        <translation>Actualización</translation>
+        <translation>Actualizar</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="121"/>
@@ -461,7 +461,7 @@ Por favor, inténtalo de nuevo</translation>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
         <source>Latest firmware version: </source>
-        <translation>Última versión de firmware</translation>
+        <translation>Última versión de firmware:</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
@@ -499,7 +499,7 @@ Importante:
 • No interrumpas la alimentación durante la actualización
 • Reinicia la aplicación cuando se complete
 
-¿Quieres empezar el proceso de actualización?</translation>
+¿Quieres continuar con la actualización?</translation>
     </message>
 </context>
 <context>
@@ -592,12 +592,12 @@ Por favor, reinicia la aplicación e inténtalo de nuevo.</translation>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="54"/>
         <source>Device</source>
-        <translation type="unfinished"></translation>
+        <translation>Dispositivo</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="55"/>
         <source>Backend</source>
-        <translation>Dispositivo</translation>
+        <translation>Backend</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="56"/>
@@ -621,8 +621,8 @@ Por favor, reinicia la aplicación e inténtalo de nuevo.</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="90"/>
-        <source>Check the check box to see the corresponding log in the QT console.</source>
-        <translation>Marca la casilla para ver el registro correspondiente en la consola de QT.</translation>
+        <source>Check the check box to see the corresponding log in the Qt console.</source>
+        <translation>Marca la casilla para ver el registro correspondiente en la consola de Qt.</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="95"/>
@@ -724,7 +724,7 @@ Por favor, reinicia la aplicación e inténtalo de nuevo.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="169"/>
-        <source>AutoReszie</source>
+        <source>AutoResize</source>
         <translation>Redimensión automática</translation>
     </message>
     <message>
@@ -1021,7 +1021,7 @@ Posibles causas:
 - Espacio en disco insuficiente
 - Problemas de permisos con el directorio de salida
 - La cámara está ocupada o desconectada
-- Códec no adimitido en este sistema
+- Códec no admitido en este sistema
 
 Detalles técnicos: %1</translation>
     </message>
@@ -1067,7 +1067,8 @@ Detalles técnicos: %1</translation>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="387"/>
         <source>An error occurred with the recording:
 %1</source>
-        <translation>Ocurrió un error durante la grabación</translation>
+        <translation>Ocurrió un error durante la grabación 
+%1</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="397"/>
@@ -1112,7 +1113,7 @@ Detalles técnicos: %1</translation>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="476"/>
         <source>Copy to Clipboard</source>
-        <translation">Copiar al portapapeles</translation>
+        <translation>Copiar al portapapeles</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="477"/>
@@ -1145,7 +1146,7 @@ Detalles técnicos: %1</translation>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="232"/>
         <source>Recording Controls</source>
-        <translation type="unfinished"></translation>
+        <translation>Controles de grabación</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="236"/>
@@ -1180,12 +1181,12 @@ Detalles técnicos: %1</translation>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="247"/>
         <source>Duration: 00:00:00</source>
-        <translation>Duración: 00:00:00<</translation>
+        <translation>Duración: 00:00:00</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="271"/>
         <source>Video Settings</source>
-        <translation>Configuraciónd de video</translation>
+        <translation>Configuración de video</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="277"/>
@@ -1306,7 +1307,7 @@ Detalles técnicos: %1</translation>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="446"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="606"/>
         <source>Status: Recording to %1</source>
-        <translation>Estado: grabando hasta %1</translation>
+        <translation>Estado: grabando a %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="490"/>
@@ -1369,7 +1370,7 @@ Detalles técnicos: %1</translation>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="677"/>
         <source>Status: Recording error - %1</source>
-        <translation>Estado: error de grabación</translation>
+        <translation>Estado: error de grabación - %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="681"/>
@@ -1394,12 +1395,12 @@ Detalles técnicos: %1</translation>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="761"/>
         <source>Windows Qt backend codecs: MJPEG</source>
-        <translation>Códecs backend Windows QT: MJPEG</translation>
+        <translation>Códecs backend Windows Qt: MJPEG</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="765"/>
         <source>Windows Qt backend formats: MP4 (recommended), AVI (compatible), MOV (QuickTime)</source>
-        <translation>Formatos backend Windows QT: MP4 (recomendado), AVI (compatible), MOV (QuickTime) </translation>
+        <translation>Formatos backend Windows Qt: MP4 (recomendado), AVI (compatible), MOV (QuickTime) </translation>
     </message>
 </context>
 <context>
@@ -1979,17 +1980,17 @@ Do you want to continue?</source>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="603"/>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="616"/>
         <source>Failed to read firmware - enter serial number</source>
-        <translation>No se pudo leer el firmware - introducir el nnúmero de serie</translation>
+        <translation>No se pudo leer el firmware - introducir el número de serie</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="711"/>
         <source>Error reading firmware - enter display name</source>
-        <translation>Error al leer el firmware - introducir el nombre de pantalla<</translation>
+        <translation>Error al leer el firmware - introducir el nombre de pantalla</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="712"/>
         <source>Error reading firmware - enter serial number</source>
-        <translatio>Error al leer el firmware - introducir el número de serie<</translation>
+        <translation>Error al leer el firmware - introducir el número de serie</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="626"/>
@@ -2064,13 +2065,13 @@ Do you want to continue?</source>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1693"/>
         <source>Failed to read firmware size.</source>
-        <translation>Error al leer el tamaño de firmware./translation>
+        <translation>Error al leer el tamaño de firmware.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1722"/>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1815"/>
         <source>Read Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Error de lectura</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1722"/>
@@ -2104,13 +2105,13 @@ Do you want to continue?</source>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1785"/>
-        <source>¡Configuración de pantalla actualizada correctamente!\n\nPor favor, vuelve a conectar el dispositivo para ver los cambios.</source>
-        <translation type="unfinished"></translation>
+        <source>Display settings updated successfully!\n\nPlease reconnect the device to see the changes.</source>
+        <translation>¡Configuración de pantalla actualizada correctamente!\n\nPor favor, vuelve a conectar el dispositivo para ver los cambios.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1788"/>
         <source>Write Error</source>
-        <translation>Error de esritura</translation>
+        <translation>Error de escritura</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1788"/>
