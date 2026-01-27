@@ -888,7 +888,13 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
         result = m_chipImpl->read4Byte(u16_address);
     } else {
         // Fallback to legacy behavior
-        result = (m_chipType == VideoChipType::MS2130S) ? usbXdataRead4ByteMS2130S(u16_address) : usbXdataRead4ByteMS2109(u16_address);
+        if (m_chipType == VideoChipType::MS2130S) {
+            result = usbXdataRead4ByteMS2130S(u16_address);
+        } else if (m_chipType == VideoChipType::MS2109S) {
+            result = usbXdataRead4ByteMS2109S(u16_address);
+        } else {
+            result = usbXdataRead4ByteMS2109(u16_address);
+        }
     }
 
     // Normalize the result to have the data byte at position 0
@@ -1262,6 +1268,14 @@ bool VideoHid::usbXdataWrite4Byte(quint16 u16_address, QByteArray data) {
         ctrlData = QByteArray(9, 0); // Initialize with 9 bytes set to 0
         ctrlData[0] = 0x00; // Report ID - explicitly set to 0
         ctrlData[1] = MS2130S_CMD_XDATA_WRITE;
+        ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
+        ctrlData[3] = static_cast<char>(u16_address & 0xFF);
+        ctrlData.replace(4, 4, data);
+    } else if (m_chipImpl && m_chipImpl->type() == VideoChipType::MS2109S) {
+        // MS2109S uses an 11-byte structure matching its specialized read implementation
+        ctrlData = QByteArray(9, 0); 
+        ctrlData[0] = 0x00; // Report ID
+        ctrlData[1] = MS2109S_CMD_XDATA_WRITE;
         ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
         ctrlData[3] = static_cast<char>(u16_address & 0xFF);
         ctrlData.replace(4, 4, data);
