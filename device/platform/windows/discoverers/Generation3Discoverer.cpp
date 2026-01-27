@@ -315,6 +315,8 @@ void Generation3Discoverer::processIntegratedDeviceInterfaces(DeviceInfo& device
         // MI_00 = Camera, MI_02 = Audio (Gen3), MI_04 = HID
         if (!deviceInfo.hasHidDevice() && (childHardwareId.contains("HID") || childHardwareId.contains("MI_04"))) {
             deviceInfo.hidDeviceId = childDeviceId;
+            deviceInfo.hidVid = deviceInfo.vid;
+            deviceInfo.hidPid = deviceInfo.pid;
             qCDebug(log_device_discoverer) << "      ✓ Found HID device ID:" << childDeviceId;
         }
         else if (!deviceInfo.hasCameraDevice() && (childHardwareId.contains("MI_00"))) {
