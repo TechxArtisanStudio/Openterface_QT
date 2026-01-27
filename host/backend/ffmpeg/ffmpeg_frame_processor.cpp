@@ -44,7 +44,7 @@ FFmpegFrameProcessor::FFmpegFrameProcessor()
     , last_target_width_(-1)
     , last_target_height_(-1)
     , scaling_algorithm_(SWS_BILINEAR)
-    , frame_drop_threshold_display_(16)    // Restore: ~60fps capable (drop if >16ms processing)
+    , frame_drop_threshold_display_(17)    // allow ~16.66ms (60fps) intervals to pass reliably
     , frame_drop_threshold_recording_(33)  // Restore: ~30fps capable (drop if >33ms processing)
     , last_process_time_(0)
     , dropped_frames_(0)
@@ -69,6 +69,9 @@ FFmpegFrameProcessor::FFmpegFrameProcessor()
         qCDebug(log_ffmpeg_backend) << "TurboJPEG decompressor initialized successfully";
     }
 #endif
+
+    // Start high-resolution process timer used for frame pacing decisions
+    last_process_timer_.start();
 
     // Initialize startup frame skip from environment variable
     if (startup_frames_to_skip_ == -1) {
@@ -170,6 +173,7 @@ void FFmpegFrameProcessor::ResetFrameCount()
     frame_count_ = 0;
     dropped_frames_ = 0;
     last_process_time_ = 0;
+    last_process_timer_.restart();
 }
 
 QImage FFmpegFrameProcessor::GetLatestFrame() const
@@ -186,25 +190,26 @@ QImage FFmpegFrameProcessor::GetLatestOriginalFrame() const
 
 bool FFmpegFrameProcessor::ShouldDropFrame(bool is_recording)
 {
-    qint64 current_time = QDateTime::currentMSecsSinceEpoch();
-    
-    // Choose threshold based on whether we're recording
-    int threshold = is_recording ? frame_drop_threshold_recording_ : frame_drop_threshold_display_;
-    
-    if (current_time - last_process_time_ < threshold) {
-        dropped_frames_++;
+    // Use high-resolution elapsed time (microsecond precision) to avoid millisecond rounding errors.
+    qint64 elapsed_us = last_process_timer_.nsecsElapsed() / 1000; // microseconds since last restart
+    qint64 threshold_us = (is_recording ? frame_drop_threshold_recording_ : frame_drop_threshold_display_) * 1000LL;
+
+    if (elapsed_us < threshold_us) {
+        ++dropped_frames_;
         return true;
     }
-    
-    last_process_time_ = current_time;
-    
+
+    // Restart the timer to measure the next interval from the end of this processing step.
+    last_process_timer_.restart();
+    last_process_time_ = QDateTime::currentMSecsSinceEpoch();
+
     // Log dropped frames occasionally
     if (dropped_frames_ > 0 && frame_count_ % 1000 == 0) {
-        qCDebug(log_ffmpeg_backend) << "Dropped" << dropped_frames_ 
+        qCDebug(log_ffmpeg_backend) << "Dropped" << dropped_frames_
                                    << "frames for responsiveness (last 1000 frames)";
         dropped_frames_ = 0;
     }
-    
+
     return false;
 }
 
