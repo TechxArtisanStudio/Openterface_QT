@@ -14,6 +14,8 @@ QVariantMap DeviceInfo::toMap() const
     map["deviceInstanceId"] = deviceInstanceId;
     map["vid"] = vid;
     map["pid"] = pid;
+    map["hidVid"] = hidVid;
+    map["hidPid"] = hidPid;
     map["companionPortChain"] = companionPortChain;
     map["hasCompanionDevice"] = hasCompanionDevice;
     map["serialPortPath"] = serialPortPath;
@@ -35,6 +37,8 @@ void DeviceInfo::fromMap(const QVariantMap& map)
     deviceInstanceId = map.value("deviceInstanceId").toString();
     vid = map.value("vid").toString();
     pid = map.value("pid").toString();
+    hidVid = map.value("hidVid").toString();
+    hidPid = map.value("hidPid").toString();
     companionPortChain = map.value("companionPortChain").toString();
     hasCompanionDevice = map.value("hasCompanionDevice", false).toBool();
     serialPortPath = map.value("serialPortPath").toString();
@@ -70,6 +74,10 @@ bool DeviceInfo::operator==(const DeviceInfo& other) const
 {
     return portChain == other.portChain &&
            deviceInstanceId == other.deviceInstanceId &&
+           vid == other.vid &&
+           pid == other.pid &&
+           hidVid == other.hidVid &&
+           hidPid == other.hidPid &&
            companionPortChain == other.companionPortChain &&
            hasCompanionDevice == other.hasCompanionDevice &&
            serialPortPath == other.serialPortPath &&

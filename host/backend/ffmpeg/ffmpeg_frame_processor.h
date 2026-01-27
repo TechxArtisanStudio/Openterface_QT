@@ -26,6 +26,7 @@
 #include <QImage>
 #include <QMutex>
 #include <QDateTime>
+#include <QElapsedTimer>
 #include "ffmpegutils.h"
 
 #ifdef HAVE_FFMPEG
@@ -120,7 +121,8 @@ private:
     int frame_drop_threshold_recording_;
     qint64 last_process_time_;
     int dropped_frames_;
-    
+    QElapsedTimer last_process_timer_;   // high-resolution timer to avoid ms rounding issues
+
     // Statistics
     int frame_count_;
     int startup_frames_to_skip_;

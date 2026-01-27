@@ -559,11 +559,28 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
         onSerialPortConnected(selectedDevice.serialPortPath);
         
         if (!ready) {
-            qCWarning(log_core_serial) << "Serial port initialization failed after switch";
-            // Revert to previous device info on failure
-            m_currentSerialPortPath = previousPortPath;
-            m_currentSerialPortChain = previousPortChain;
-            return false;
+            bool connectionSuccess = false;
+            QEventLoop waitLoop;
+            QMetaObject::Connection conn = connect(this, &SerialPortManager::serialPortConnectionSuccess, this,
+                [&](const QString &p) {
+                    if (p == selectedDevice.serialPortPath) {
+                        connectionSuccess = true;
+                        waitLoop.quit();
+                    }
+                }, Qt::QueuedConnection);
+
+            // Safety timeout (2s)
+            QTimer::singleShot(2000, &waitLoop, &QEventLoop::quit);
+            waitLoop.exec();
+            disconnect(conn);
+
+            if (!connectionSuccess && !ready) {
+                qCWarning(log_core_serial) << "Serial port initialization did not complete within timeout after switch";
+                // Revert to previous device info on failure
+                m_currentSerialPortPath = previousPortPath;
+                m_currentSerialPortChain = previousPortChain;
+                return false;
+            }
         }
 
         // Update global settings and device manager
@@ -1329,9 +1346,24 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     // Check if device was just unplugged - if so, reject the open attempt to prevent "Access denied" errors
     // This is critical to avoid race conditions between device removal and port open operations
     if (m_deviceUnplugCleanupInProgress.load()) {
-        qCWarning(log_core_serial) << "Device unplugged cleanup in progress, rejecting open attempt for port:" << portName;
-        qCWarning(log_core_serial) << "This prevents race conditions that cause 'Access denied' errors during hotplug events";
-        return false;
+        // If the OS already reports the port as present, clear the transient cleanup guard and continue.
+        // This prevents a stuck flag from permanently blocking open attempts (observed in the field).
+        bool portPresent = false;
+        for (const QSerialPortInfo &pi : QSerialPortInfo::availablePorts()) {
+            if (pi.portName() == portName || portName.contains(pi.portName())) {
+                portPresent = true;
+                break;
+            }
+        }
+        if (portPresent) {
+            qCWarning(log_core_serial) << "Transient unplug-cleanup flag set but port is present -> clearing flag and continuing open:" << portName;
+            m_deviceUnplugCleanupInProgress.store(false);
+            m_deviceUnpluggedDetected.store(false);
+        } else {
+            qCWarning(log_core_serial) << "Device unplugged cleanup in progress, rejecting open attempt for port:" << portName;
+            qCWarning(log_core_serial) << "This prevents race conditions that cause 'Access denied' errors during hotplug events";
+            return false;
+        }
     }
     
     QMutexLocker locker(&m_serialPortMutex);
@@ -2796,6 +2828,12 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
     // - Imbalance -> Timeout: When ratio > 1.5 for 3+ consecutive seconds
     // - Imbalance/Timeout -> Normal: When ratio drops back to <= 1.5
     
+    // Add lightweight consecutive "no-response" detection and automatic escalation:
+    // - If we send requests but receive 0 responses for N consecutive 1-second intervals,
+    //   trigger recovery (prefer ConnectionWatchdog; fallback to close+reopen).
+    static int s_consecutiveNoResponseIntervals = 0;
+    const int NO_RESPONSE_ESCALATION_THRESHOLD = 3; // ~3 seconds of zero replies
+    
     // Check if 1 second has elapsed since last report
     if (m_asyncStatsTimer.elapsed() >= ASYNC_STATS_INTERVAL_MS) {
         qint64 elapsedMs = m_asyncStatsTimer.elapsed();
@@ -2869,6 +2907,9 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
                     }
                 }
             }
+        } else {
+            // No activity in this window; be conservative and reset counter
+            s_consecutiveNoResponseIntervals = 0;
         }
         
         // ===== RESET COUNTERS FOR NEXT INTERVAL =====
@@ -2877,4 +2918,4 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
         m_asyncMessagesReceived = 0;
         m_asyncStatsTimer.restart();
     }
-} 
+}
