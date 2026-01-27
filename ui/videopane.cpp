@@ -1152,10 +1152,10 @@ void VideoPane::updateVideoFrameFromImage(const QImage& image)
     QPixmap frame = QPixmap::fromImage(image);
     frame.setDevicePixelRatio(widgetDpr);
 
-    qCDebug(log_ui_video) << "updateVideoFrameFromImage: image.size()=" << image.size()
-                         << " image.dpr=" << image.devicePixelRatioF()
-                         << " widgetDpr=" << widgetDpr
-                         << " resulting pixmap.logicalSize=" << QSizeF(frame.width()/widgetDpr, frame.height()/widgetDpr);
+    // qCDebug(log_ui_video) << "updateVideoFrameFromImage: image.size()=" << image.size()
+    //                      << " image.dpr=" << image.devicePixelRatioF()
+    //                      << " widgetDpr=" << widgetDpr
+    //                      << " resulting pixmap.logicalSize=" << QSizeF(frame.width()/widgetDpr, frame.height()/widgetDpr);
 
     updateVideoFrame(frame);
     
@@ -1215,10 +1215,10 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
     QSizeF logicalFrameSizeF(local.width() / widgetDpr, local.height() / widgetDpr);
     QSize logicalFrameSize(qRound(logicalFrameSizeF.width()), qRound(logicalFrameSizeF.height()));
 
-    qCDebug(log_ui_video) << "updateVideoFrame: pixmap.physical=" << local.size()
-                         << " widgetDpr=" << widgetDpr
-                         << " logicalFrameSize=" << logicalFrameSizeF
-                         << " viewport=" << viewport()->rect().size();
+    // qCDebug(log_ui_video) << "updateVideoFrame: pixmap.physical=" << local.size()
+    //                      << " widgetDpr=" << widgetDpr
+    //                      << " logicalFrameSize=" << logicalFrameSizeF
+    //                      << " viewport=" << viewport()->rect().size();
 
     // Store original video logical size
     m_originalVideoSize = logicalFrameSize;
