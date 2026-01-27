@@ -569,12 +569,12 @@ QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs) {
         qCDebug(log_host_hid) << "Failed to create network reply";
         fireware_result = FirmwareResult::CheckFailed;
         return QString();
-    }else {
+    } else {
         fireware_result = FirmwareResult::Checking; // Set the initial state to checking
         qCDebug(log_host_hid) << "Network reply created successfully";
     }
 
-    qCDebug(log_host_hid) << "Fetching latest firmware file name from" << url;
+    qCDebug(log_host_hid) << "Fetching latest firmware index from" << url;
 
     QEventLoop loop;
     QTimer timer;
@@ -606,17 +606,97 @@ QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs) {
     }
 
     if (reply->error() == QNetworkReply::NoError) {
-        qCDebug(log_host_hid) << "Successfully fetched latest firmware";
-        QString result = QString::fromUtf8(reply->readAll());
+        qCDebug(log_host_hid) << "Successfully fetched latest firmware index";
+        QString indexContent = QString::fromUtf8(reply->readAll());
+        // Select filename matching our chip (handles CSV multi-line and legacy single-line formats)
+        QString fileName = pickFirmwareFileNameFromIndex(indexContent, m_chipType);
+        if (fileName.isEmpty()) {
+            qCWarning(log_host_hid) << "No firmware filename could be selected from index for chipType:" << (int)m_chipType;
+            fireware_result = FirmwareResult::CheckFailed;
+            reply->deleteLater();
+            return QString();
+        }
         fireware_result = FirmwareResult::CheckSuccess;
         reply->deleteLater();
-        return result;
+        return fileName;
     } else {
-        qCDebug(log_host_hid) << "Fail to get file name:" << reply->errorString();
+        qCDebug(log_host_hid) << "Fail to get firmware index:" << reply->errorString();
         fireware_result = FirmwareResult::CheckFailed;
         reply->deleteLater();
         return QString();
     }
+} 
+
+// Parse an index file and pick the appropriate firmware filename for the given chip.
+// Supports:
+//  - legacy single-line: "filename.bin"
+//  - CSV multi-line: "<version>,<filename>,<chipToken>" (one entry per line)
+QString VideoHid::pickFirmwareFileNameFromIndex(const QString &indexContent, VideoChipType chip) {
+    if (indexContent.trimmed().isEmpty()) return QString();
+
+    // split on '\n' and trim each line (trimmed() will remove '\r') — avoids QRegExp (deprecated/removed in some Qt6 builds)
+    QStringList lines = indexContent.split('\n', Qt::SkipEmptyParts);
+    struct Candidate { QString version; QString filename; QString chipToken; };
+    QVector<Candidate> candidates;
+
+    for (QString rawLine : lines) {
+        QString line = rawLine.trimmed();
+        if (line.isEmpty() || line.startsWith('#')) continue;
+        // CSV format: version,filename,chip
+        QStringList parts = line.split(',', Qt::KeepEmptyParts);
+        for (int i = 0; i < parts.size(); ++i) parts[i] = parts[i].trimmed();
+        if (parts.size() == 1) {
+            // legacy single-line containing filename only
+            if (!parts[0].isEmpty() && !parts[0].contains(',')) return parts[0];
+            continue;
+        }
+        if (parts.size() < 2) continue;
+        Candidate c; c.version = parts[0]; c.filename = parts[1]; c.chipToken = parts.size() > 2 ? parts[2].toLower() : QString();
+        candidates.append(c);
+    }
+
+    auto tokenMatchesChip = [](const QString &token, VideoChipType chipType) -> bool {
+        if (token.isEmpty()) return false;
+        QString t = token.toLower();
+        switch (chipType) {
+            case VideoChipType::MS2109:  return t.contains("2109") && !t.contains('s');
+            case VideoChipType::MS2109S: return t.contains("2109s") || (t.contains("2109") && t.contains('s'));
+            case VideoChipType::MS2130S: return t.contains("2130") || t.contains("2130s") || t.contains("2130_s");
+            default: return false;
+        }
+    };
+
+    QVector<Candidate> matched;
+    for (const Candidate &c : candidates) {
+        if (chip != VideoChipType::UNKNOWN && tokenMatchesChip(c.chipToken, chip)) matched.append(c);
+    }
+
+    if (matched.isEmpty()) {
+        // try to infer by filename if chip token didn't match or chip is UNKNOWN
+        for (const Candidate &c : candidates) {
+            QString fn = c.filename.toLower();
+            if (fn.contains("2130")) matched.append(c);
+            else if (fn.contains("2109s") || fn.contains("2109_s")) matched.append(c);
+            else if (fn.contains("2109")) matched.append(c);
+        }
+    }
+
+    if (matched.isEmpty()) matched = candidates; // fallback
+    if (matched.isEmpty()) return QString();
+
+    auto versionKey = [](const QString &v) -> qint64 {
+        bool ok = false; qint64 n = v.toLongLong(&ok); if (ok) return n;
+        QString digits; for (QChar ch : v) if (ch.isDigit()) digits.append(ch);
+        return digits.isEmpty() ? 0 : digits.toLongLong();
+    };
+
+    Candidate best = matched.first();
+    qint64 bestVer = versionKey(best.version);
+    for (const Candidate &c : matched) {
+        qint64 ver = versionKey(c.version);
+        if (ver > bestVer) { best = c; bestVer = ver; }
+    }
+    return best.filename;
 }
 
 /*
@@ -2675,7 +2755,10 @@ FirmwareResult VideoHid::isLatestFirmware() {
         return FirmwareResult::Timeout;
     }
     qCDebug(log_host_hid) << "After timeout checking: " << firmwareURL;
-    QString newURL = firmwareURL.replace("minikvm_latest_firmware.txt", firemwareFileName);
+    // Build binary URL by replacing the last path segment with the chosen filename (robust vs. index name)
+    QString newURL = firmwareURL;
+    int lastSlash = newURL.lastIndexOf('/');
+    if (lastSlash >= 0) newURL = newURL.left(lastSlash + 1) + firemwareFileName;
     fetchBinFileToString(newURL, 5000); // Add 5-second timeout
     m_currentfirmwareVersion = getFirmwareVersion();
     qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(m_currentfirmwareVersion);
