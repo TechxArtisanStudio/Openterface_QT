@@ -367,7 +367,7 @@ void AudioThread::run()
                     
                     // Log any successful reads
                     if (bytesRead > 0) {
-                        qCDebug(log_core_audio) << "Audio data: read" << bytesRead << "bytes from" << bytesAvailable << "available";
+                        // qCDebug(log_core_audio) << "Audio data: read" << bytesRead << "bytes from" << bytesAvailable << "available";
                         
                         // Double-check we haven't started cleanup between reads
                         m_mutex.lock();
@@ -379,7 +379,7 @@ void AudioThread::run()
                             qint64 bytesWritten = m_sinkIODevice->write(buffer, bytesRead);
                             
                             // Log successful audio write
-                            qCDebug(log_core_audio) << "Audio data written:" << bytesWritten << "bytes";
+                            // qCDebug(log_core_audio) << "Audio data written:" << bytesWritten << "bytes";
                             
                             if (bytesWritten != bytesRead) {
                                 qCDebug(log_core_audio) << "Audio write mismatch:" << bytesWritten << "vs" << bytesRead;
