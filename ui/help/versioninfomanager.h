@@ -39,7 +39,8 @@ public:
 
     void showVersionInfo();
     void showAbout();
-    void checkForUpdates();
+    // If force==true, ignore throttle and user 'never remind' setting
+    void checkForUpdates(bool force = false);
 
 private slots:
     void copyToClipboard();
