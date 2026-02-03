@@ -24,6 +24,7 @@
 #include "global.h"
 #include "ui_mainwindow.h"
 #include "globalsetting.h"
+#include <QTimer>
 #include "ui/statusbar/statusbarmanager.h"
 #include "host/HostManager.h"
 #include "host/cameramanager.h"
@@ -154,6 +155,17 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     VideoHid::getInstance().start();
     
     qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
+
+    // Perform a non-forced update check on startup (honors user settings and 30-day throttle).
+    // Schedule after the event loop starts so network/dialog code runs reliably.
+    QTimer::singleShot(0, this, [this]() {
+        if (GlobalSetting::instance().getUpdateNeverRemind()) {
+            qCDebug(log_ui_mainwindow) << "Startup update check skipped: 'never remind' is set";
+            return;
+        }
+        qCDebug(log_ui_mainwindow) << "Startup: invoking VersionInfoManager::checkForUpdates(false) (throttle applies)";
+        m_versionInfoManager->checkForUpdates(true);
+    });
 }
 
 void MainWindow::startServer(){
@@ -779,7 +791,8 @@ void MainWindow::officialLink(){
 
 void MainWindow::updateLink()
 {
-    m_versionInfoManager->checkForUpdates();
+    // Manual request should bypass throttle and 'never remind' setting
+    m_versionInfoManager->checkForUpdates(true);
 }
 
 void MainWindow::aboutLink(){
@@ -1566,17 +1579,73 @@ void MainWindow::updateFirmware() {
             qDebug() << "Firmware is upgradable.";
             proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
             if (proceed) {
-                // Stop video and HID operations before firmware update
-                VideoHid::getInstance().stop();
-                SerialPortManager::getInstance().stop();
-                stop();
+                qDebug() << "User accepted firmware update, proceeding...";
+                
+                // Declare success variable before try-catch block
+                bool success = false;
+                
+                try {
+                    // Stop services in proper order with robust error handling
+                    qDebug() << "Stopping main window operations first...";
+                    try {
+                        stop();
+                        qDebug() << "Main window operations stopped successfully";
+                    } catch (...) {
+                        qWarning() << "Exception while stopping main window operations - continuing anyway";
+                    }
+                    
+                    qDebug() << "Stopping video HID polling only...";
+                    try {
+                        VideoHid::getInstance().stopPollingOnly();
+                        qDebug() << "Video HID polling stopped successfully";
+                    } catch (...) {
+                        qWarning() << "Exception while stopping video HID polling - continuing anyway";
+                    }
+                    
+                    // Wait a bit for video HID to fully stop
+                    qDebug() << "Waiting for video HID to stop completely...";
+                    QThread::msleep(300);
+                    QCoreApplication::processEvents();
+                    
+                    qDebug() << "Stopping serial port manager...";
+                    try {
+                        // Close the serial port directly rather than using full stop() to avoid timer issues
+                        SerialPortManager::getInstance().closePort();
+                        qDebug() << "Serial port closed successfully";
+                        QThread::msleep(200); // Small delay for port closure
+                        QCoreApplication::processEvents();
+                        
+                        qDebug() << "Serial port manager stopped successfully";
+                    } catch (...) {
+                        qWarning() << "Exception while stopping SerialPortManager - continuing anyway";
+                    }
+                    
+                    // Final cleanup - process any remaining events
+                    qDebug() << "Processing remaining events...";
+                    QCoreApplication::processEvents();
+                    QThread::msleep(200);
+                    
+                    qDebug() << "Services stopped successfully, proceeding with firmware update...";
 
-                // Hide main window while update dialog runs to keep app alive and allow dialog to control shutdown
-                this->hide();
-                // Create and show firmware update dialog (capture result to restore main window on failure)
-                FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
-                bool success = updateDialog->startUpdate();
-                updateDialog->deleteLater();
+                    // Hide main window while update dialog runs to keep app alive and allow dialog to control shutdown
+                    this->hide();
+                    qDebug() << "Creating FirmwareUpdateDialog...";
+                    
+                    // Create and show firmware update dialog (capture result to restore main window on failure)
+                    FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
+                    qDebug() << "Calling updateDialog->startUpdate()...";
+                    success = updateDialog->startUpdate();
+                    qDebug() << "FirmwareUpdate completed with result:" << success;
+                    updateDialog->deleteLater();
+                } catch (const std::exception& e) {
+                    qCritical() << "Exception during firmware update process:" << e.what();
+                    this->show(); // Restore window if there was an error
+                    success = false; // Ensure success is false on exception
+                } catch (...) {
+                    qCritical() << "Unknown exception during firmware update process";
+                    this->show(); // Restore window if there was an error
+                    success = false; // Ensure success is false on exception
+                }
 
                 // If update failed, restore main window so user can retry
                 if (!success) {

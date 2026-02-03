@@ -51,10 +51,15 @@ public:
     // Show the dialog with version information and return user's choice
     bool showConfirmDialog(const std::string& currentVersion, const std::string& latestVersion);
 
+private slots:
+    void onOkClicked();
+    void onCancelClicked();
+
 private:
     QLabel *messageLabel;
     QPushButton *okButton;
     QPushButton *cancelButton;
+    bool m_accepted;
 };
 
 #endif // FIRMWAREUPDATEDIALOG_H

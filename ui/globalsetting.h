@@ -146,6 +146,15 @@ public:
     void setAudioMuted(bool muted);
     bool getAudioMuted() const;
 
+    // Update reminder settings
+    // Stores the epoch seconds of the last update check (used for 30-day throttle)
+    void setUpdateLastChecked(qint64 secsSinceEpoch);
+    qint64 getUpdateLastChecked() const;
+
+    // If true, the user opted to never be reminded about updates
+    void setUpdateNeverRemind(bool never);
+    bool getUpdateNeverRemind() const;
+
 private:
     QSettings m_settings;
 };
