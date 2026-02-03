@@ -316,7 +316,7 @@ void VersionInfoManager::handleUpdateCheckResponse(QNetworkReply *reply)
             dlgLayout->addWidget(linkRow, 0, Qt::AlignHCenter);
 
             // reminder controls
-            QCheckBox *remindCheck = new QCheckBox(tr("Remind me in 1 month"), &dlg);
+            QCheckBox *remindCheck = new QCheckBox(tr("Remind me in 1 month later"), &dlg);
             QCheckBox *neverCheck = new QCheckBox(tr("Never remind me"), &dlg);
             remindCheck->setStyleSheet(QString("color: %1;").arg(textColor.name()));
             neverCheck->setStyleSheet(QString("color: %1;").arg(textColor.name()));
@@ -374,7 +374,7 @@ void VersionInfoManager::handleUpdateCheckResponse(QNetworkReply *reply)
             label->setStyleSheet(QString("color: %1;").arg(textColor.name()));
             dlgLayout->addWidget(label, 0, Qt::AlignTop);
 
-            QCheckBox *remindCheck = new QCheckBox(tr("Remind me in 1 month"), &dlg);
+            QCheckBox *remindCheck = new QCheckBox(tr("Remind me in 1 month later"), &dlg);
             QCheckBox *neverCheck = new QCheckBox(tr("Never remind me"), &dlg);
             remindCheck->setStyleSheet(QString("color: %1;").arg(textColor.name()));
             neverCheck->setStyleSheet(QString("color: %1;").arg(textColor.name()));
