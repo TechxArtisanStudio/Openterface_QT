@@ -264,9 +264,11 @@ void VideoHid::detectChipType() {
     if (previousChipType != m_chipType) {
         qCDebug(log_host_hid) << "Chip type changed from" 
             << (previousChipType == VideoChipType::MS2109 ? "MS2109" :
+                previousChipType == VideoChipType::MS2109S ? "MS2109S" :
                 previousChipType == VideoChipType::MS2130S ? "MS2130S" : "Unknown") 
             << "to" 
             << (m_chipType == VideoChipType::MS2109 ? "MS2109" :
+                m_chipType == VideoChipType::MS2109S ? "MS2109S" :
                 m_chipType == VideoChipType::MS2130S ? "MS2130S" : "Unknown");
     }
 }
