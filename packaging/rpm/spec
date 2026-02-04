@@ -318,11 +318,28 @@ fi
 
 # Qt plugins and QML modules (from qt6 subdirectory structure)
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/plugins
+mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/plugins/multimedia
 mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/qml
 
 if [ -d "%{_sourcedir}/qt6/plugins" ]; then
     cp -r %{_sourcedir}/qt6/plugins/* %{buildroot}/usr/lib/openterfaceqt/qt6/plugins/ 2>/dev/null || true
     echo "Installed Qt6 plugins"
+fi
+
+# Ensure multimedia plugin directory exists and copy multimedia plugins
+mkdir -p %{buildroot}/usr/lib/openterfaceqt/qt6/plugins/multimedia
+
+if [ -d "%{_sourcedir}/qt6/plugins/multimedia" ]; then
+    # Copy multimedia plugins (FFmpeg and GStreamer backends)
+    MEDIA_PLUGINS=$(find %{_sourcedir}/qt6/plugins/multimedia -maxdepth 1 -name "*.so" -type f | wc -l)
+    if [ $MEDIA_PLUGINS -gt 0 ]; then
+        find %{_sourcedir}/qt6/plugins/multimedia -maxdepth 1 -name "*.so" -type f -exec cp {} %{buildroot}/usr/lib/openterfaceqt/qt6/plugins/multimedia/ \;
+        echo "✅ Installed $MEDIA_PLUGINS multimedia plugins (libffmpegmediaplugin.so, libgstreamermediaplugin.so, etc.)"
+    else
+        echo "⚠️  No multimedia plugins found in %{_sourcedir}/qt6/plugins/multimedia"
+    fi
+else
+    echo "⚠️  Multimedia plugins directory not found at %{_sourcedir}/qt6/plugins/multimedia"
 fi
 
 if [ -d "%{_sourcedir}/qt6/qml" ]; then
