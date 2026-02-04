@@ -541,7 +541,28 @@ def _open_write_read_tty(fd_path: str, baud: int, write_bytes: bytes, timeout: f
             pass
 
 
-# Serial summary printer (concise)
+def _determine_baud_sequence(vid: Optional[str], pid: Optional[str], args) -> List[int]:
+    """Return an ordered list of baud rates to try for a device.
+
+    Priority:
+      - If the user supplied --serial-baud, honor that single value.
+      - If VID:PID is 1a86:fe0c -> try [115200].
+      - If VID:PID is 1a86:7523 -> try [9600, 115200].
+      - Otherwise fall back to [115200].
+    """
+    # explicit override from user
+    if getattr(args, "serial_baud", None) is not None:
+        return [int(args.serial_baud)]
+    v = (str(vid or "").lower(), str(pid or "").lower())
+    if v == ("1a86", "fe0c"):
+        return [115200]
+    if v == ("1a86", "7523"):
+        return [9600, 115200]
+    # sensible default for unknown devices
+    return [115200]
+
+
+# Serial summary printer (concise) 
 def _print_serial_summary(report: Dict[str, object]) -> None:
     st = report.get("serial_test")
     if not st:
@@ -556,19 +577,23 @@ def _print_serial_summary(report: Dict[str, object]) -> None:
         shown = False
         for a in dev.get("attempts", []):
             if a.get("success"):
-                print(f"  response: {a.get('resp_hex')}")
+                b = a.get("baud")
+                prefix = f"[baud={b}] " if b else ""
+                print(f"  {prefix}response: {a.get('resp_hex')}")
                 shown = True
                 break
         if not shown:
             # show last attempt error or indicate no response
             if dev.get("attempts"):
                 last = dev.get("attempts")[-1]
+                lb = last.get("baud")
+                lprefix = f"[baud={lb}] " if lb else ""
                 if last.get("error"):
-                    print(f"  error: {last.get('error')}")
+                    print(f"  {lprefix}error: {last.get('error')}")
                 elif last.get("resp_hex"):
-                    print(f"  resp: {last.get('resp_hex')}")
+                    print(f"  {lprefix}resp: {last.get('resp_hex')}")
                 else:
-                    print("  no response")
+                    print(f"  {lprefix}no response")
             else:
                 print("  no attempts")
 
@@ -737,15 +762,17 @@ def render_human_report(report: Dict[str, object], args) -> str:
             lines.append(f" - {dev.get('tty')}  {dev.get('vid') or '?:?'}:{dev.get('pid') or '?:?'}  => {status}")
             for a in dev.get('attempts', []):
                 meth = a.get('method')
+                b = a.get('baud')
+                prefix = f"[baud={b}] " if b else ""
                 if a.get('success'):
-                    lines.append(f"     • {meth}: response={a.get('resp_hex')}")
+                    lines.append(f"     • {prefix}{meth}: response={a.get('resp_hex')}")
                 else:
                     if a.get('resp_hex'):
-                        lines.append(f"     • {meth}: no success, resp={a.get('resp_hex')}")
+                        lines.append(f"     • {prefix}{meth}: no success, resp={a.get('resp_hex')}")
                     elif a.get('error'):
-                        lines.append(f"     • {meth}: error={a.get('error')}")
+                        lines.append(f"     • {prefix}{meth}: error={a.get('error')}")
                     else:
-                        lines.append(f"     • {meth}: no response")
+                        lines.append(f"     • {prefix}{meth}: no response")
             for adv in dev.get('advice', []):
                 lines.append(f"     Advice: {adv}")
 
@@ -835,30 +862,42 @@ def execute_actions(args) -> None:
         probe_payload = bytes([0x57, 0xAB, 0x00, 0x01, 0x00])
         for dev in ttys:
             tty = dev.get("tty")
-            entry: Dict[str, object] = {"tty": tty, "vid": dev.get("vid"), "pid": dev.get("pid"), "attempts": []}
-            # try checksum = sum
-            cs = _checksum_sum(probe_payload)
-            msg = probe_payload + bytes([cs])
-            try:
-                resp = _open_write_read_tty(tty, args.serial_baud, msg, args.serial_timeout)
-                ok = bool(resp)
-                entry["attempts"].append({"method": "sum", "msg": msg.hex(), "resp_hex": resp.hex() if resp else "", "success": ok})
-            except Exception as e:
-                entry["attempts"].append({"method": "sum", "error": str(e), "success": False})
-                resp = b""
-                ok = False
+            vid = dev.get("vid")
+            pid = dev.get("pid")
+            entry: Dict[str, object] = {"tty": tty, "vid": vid, "pid": pid, "attempts": []}
 
-            # if no response, try XOR checksum as a fallback
-            if not ok:
+            # select baud sequence according to VID:PID (or honor explicit --serial-baud)
+            baud_seq = _determine_baud_sequence(vid, pid, args)
+            ok = False
+            for baud in baud_seq:
+                # try checksum = sum
+                cs = _checksum_sum(probe_payload)
+                msg = probe_payload + bytes([cs])
+                try:
+                    resp = _open_write_read_tty(tty, baud, msg, args.serial_timeout)
+                    ok = bool(resp)
+                    entry["attempts"].append({"baud": baud, "method": "sum", "msg": msg.hex(), "resp_hex": resp.hex() if resp else "", "success": ok})
+                except Exception as e:
+                    entry["attempts"].append({"baud": baud, "method": "sum", "error": str(e), "success": False})
+                    resp = b""
+                    ok = False
+
+                if ok:
+                    break
+
+                # if no response, try XOR checksum as a fallback
                 cs2 = _checksum_xor(probe_payload)
                 msg2 = probe_payload + bytes([cs2])
                 try:
-                    resp2 = _open_write_read_tty(tty, args.serial_baud, msg2, args.serial_timeout)
+                    resp2 = _open_write_read_tty(tty, baud, msg2, args.serial_timeout)
                     ok2 = bool(resp2)
-                    entry["attempts"].append({"method": "xor", "msg": msg2.hex(), "resp_hex": resp2.hex() if resp2 else "", "success": ok2})
+                    entry["attempts"].append({"baud": baud, "method": "xor", "msg": msg2.hex(), "resp_hex": resp2.hex() if resp2 else "", "success": ok2})
                     ok = ok2 or ok
                 except Exception as e:
-                    entry["attempts"].append({"method": "xor", "error": str(e), "success": False})
+                    entry["attempts"].append({"baud": baud, "method": "xor", "error": str(e), "success": False})
+
+                if ok:
+                    break
 
             entry["ok"] = ok
             if not ok:
@@ -1184,7 +1223,7 @@ def main() -> None:
     ap.add_argument("--serial-test", dest="serial_test", action="store_true", help="perform USB-serial test (search VID:PID, open tty, send probe and expect response)")
     ap.add_argument("--serial-vidpid", dest="serial_vidpid", metavar="VID:PID", help="comma-separated VID:PID list to look for (default: 1a86:fe0c,1a86:7523)")
     ap.add_argument("--serial-tty", dest="serial_tty", metavar="TTY", help="force a specific tty (e.g. /dev/ttyACM0) for the serial test")
-    ap.add_argument("--serial-baud", dest="serial_baud", type=int, default=115200, help="baud rate to use for serial probe")
+    ap.add_argument("--serial-baud", dest="serial_baud", type=int, default=None, help="baud rate to use for serial probe (optional). If omitted: 1a86:fe0c => 115200; 1a86:7523 => try 9600 then 115200. Explicit value overrides automatic selection.")
     ap.add_argument("--serial-timeout", dest="serial_timeout", type=float, default=1.5, help="seconds to wait for serial response")
     ap.add_argument("--report-full", dest="report_full", action="store_true",
                     help="generate combined report: option 1 (inspect) + serial-test; use --json/--output to save machine-readable report")
