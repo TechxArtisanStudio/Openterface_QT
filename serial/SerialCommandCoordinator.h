@@ -110,6 +110,14 @@ private:
     // Internal command execution
     bool executeCommand(QSerialPort* serialPort, const QByteArray &command);
     
+    // Consolidated helper methods to eliminate duplication
+    void logTransaction(const QString& direction, const QByteArray& data, QSerialPort* port, bool includeInDiagnostics = true);
+    bool shouldLogToDiagnostics() const;
+    bool validateCommandPreconditions(QSerialPort* port, bool force);
+    void applyCommandDelay();
+    QByteArray prepareCommand(const QByteArray& data);
+    void recordCommand(bool success);
+    
     // Command queue management
     QQueue<SerialCommand> m_commandQueue;
     mutable QMutex m_commandQueueMutex;

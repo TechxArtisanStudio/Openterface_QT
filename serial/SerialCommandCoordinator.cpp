@@ -31,6 +31,80 @@
 // Declare the unified serial logging category (defined in SerialPortManager.cpp)
 Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
+// Consolidated helper methods to eliminate duplication
+void SerialCommandCoordinator::logTransaction(const QString& direction, const QByteArray& data, 
+                                            QSerialPort* port, bool includeInDiagnostics) {
+    QString portName = port ? port->portName() : QString();
+    int baudrate = port ? port->baudRate() : 0;
+    
+    // Single debug log
+    qCDebug(log_core_serial).nospace().noquote() 
+        << direction << " (" << portName << "@" << baudrate << "bps): " 
+        << data.toHex(' ');
+        
+    // Single diagnostics file write if needed
+    if (includeInDiagnostics && shouldLogToDiagnostics()) {
+        SerialPortManager::getInstance().log(
+            QString("%1 (%2@%3bps): %4")
+            .arg(direction).arg(portName).arg(baudrate).arg(QString(data.toHex(' '))));
+    }
+}
+
+bool SerialCommandCoordinator::shouldLogToDiagnostics() const {
+    return SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics");
+}
+
+bool SerialCommandCoordinator::validateCommandPreconditions(QSerialPort* port, bool force) {
+    if (m_isShuttingDown) {
+        qCDebug(log_core_serial) << "Cannot send command: shutting down";
+        return false;
+    }
+    if (!port || !port->isOpen()) {
+        qCDebug(log_core_serial) << "Cannot send command: port not open";
+        return false;
+    }
+    if (!force && !m_ready) {
+        qCDebug(log_core_serial) << "Cannot send command: not ready";
+        return false;
+    }
+    return true;
+}
+
+void SerialCommandCoordinator::applyCommandDelay() {
+    if (m_lastCommandTime.isValid() && m_lastCommandTime.elapsed() < m_commandDelayMs) {
+        int remainingDelay = m_commandDelayMs - m_lastCommandTime.elapsed();
+        qCDebug(log_core_serial) << "Delaying command by" << remainingDelay << "ms";
+        
+        QEventLoop loop;
+        QTimer::singleShot(remainingDelay, &loop, &QEventLoop::quit);
+        loop.exec();
+    }
+}
+
+QByteArray SerialCommandCoordinator::prepareCommand(const QByteArray& data) {
+    QByteArray command = data;
+    command.append(calculateChecksum(command));
+    return command;
+}
+
+void SerialCommandCoordinator::recordCommand(bool success) {
+    // Unified statistics recording - avoid duplicate counters
+    if (m_statistics) {
+        m_statistics->recordCommandSent();
+        if (success) {
+            m_statistics->recordResponseReceived();
+        }
+    }
+    
+    // Legacy statistics for backward compatibility
+    if (m_isStatsEnabled) {
+        m_statsSent++;
+        if (success) {
+            m_statsReceived++;
+        }
+    }
+}
+
 SerialCommandCoordinator::SerialCommandCoordinator(QObject *parent)
     : QObject(parent)
     , m_commandDelayMs(0)
@@ -49,49 +123,26 @@ SerialCommandCoordinator::~SerialCommandCoordinator()
 
 bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const QByteArray &data, bool force)
 {
-    if (!force && !m_ready) {
-        qCDebug(log_core_serial) << "Cannot send async command: not ready";
+    if (!validateCommandPreconditions(serialPort, force)) {
         return false;
     }
     
-    if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
-        qCDebug(log_core_serial) << "Cannot send async command: shutting down or port not open";
-        return false;
-    }
-    
-    QByteArray command = data;
     emit dataSent(data);
-
-    // Log TX using same format as RX: "TX (COM21@9600bps): <hex>"
-    {
-        QString portName = serialPort ? serialPort->portName() : QString();
-        int baudrate = serialPort ? serialPort->baudRate() : 0;
-        qCDebug(log_core_serial).nospace().noquote() << "TX (" << portName << "@" << baudrate << "bps): " << data.toHex(' ');
-        // Also log to diagnostics file if enabled
-        if (SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics")) {
-            SerialPortManager::getInstance().log(QString("TX (%1@%2bps): %3").arg(portName).arg(baudrate).arg(QString(data.toHex(' '))));
-        }
-    }
-
-    command.append(calculateChecksum(command));
-
-    // Statistics tracking
-    if (m_isStatsEnabled) {
-        m_statsSent++;
-    }
-
-    // Check command delay
-    if (m_lastCommandTime.isValid() && m_lastCommandTime.elapsed() < m_commandDelayMs) {
-        int remainingDelay = m_commandDelayMs - m_lastCommandTime.elapsed();
-        qCDebug(log_core_serial) << "Delaying command by" << remainingDelay << "ms";
-        
-        QEventLoop loop;
-        QTimer::singleShot(remainingDelay, &loop, &QEventLoop::quit);
-        loop.exec();
-    }
-
+    
+    // Consolidated logging
+    logTransaction("TX", data, serialPort);
+    
+    // Apply command delay
+    applyCommandDelay();
+    
+    // Prepare command with checksum
+    QByteArray command = prepareCommand(data);
+    
     bool result = executeCommand(serialPort, command);
     m_lastCommandTime.start();
+    
+    // Record command statistics (unified)
+    recordCommand(result);
     
     emit commandExecuted(data, result);
     return result;
@@ -99,13 +150,7 @@ bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const Q
 
 QByteArray SerialCommandCoordinator::sendSyncCommand(QSerialPort* serialPort, const QByteArray &data, bool force, int timeoutMs)
 {
-    if (!force && !m_ready) {
-        qCDebug(log_core_serial) << "Cannot send sync command: not ready";
-        return QByteArray();
-    }
-    
-    if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
-        qCDebug(log_core_serial) << "Cannot send sync command: shutting down or port not open";
+    if (!validateCommandPreconditions(serialPort, force)) {
         return QByteArray();
     }
     
@@ -116,23 +161,13 @@ QByteArray SerialCommandCoordinator::sendSyncCommand(QSerialPort* serialPort, co
     }
     
     emit dataSent(data);
-    QByteArray command = data;
-    
     const int commandCode = static_cast<unsigned char>(data[3]);
     
-    // Log TX using same format as RX: "TX (COM21@9600bps): <hex>"
-    {
-        QString portName = serialPort ? serialPort->portName() : QString();
-        int baudrate = serialPort ? serialPort->baudRate() : 0;
-        qCDebug(log_core_serial).nospace().noquote() << "TX (" << portName << "@" << baudrate << "bps): " << command.toHex(' ');
-        // Also explicitly log command send to file during diagnostics
-        if (SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics")) {
-            SerialPortManager::getInstance().log(QString("TX (%1@%2bps): %3").arg(portName).arg(baudrate).arg(QString(command.toHex(' '))));
-        }
-    }
-
+    // Consolidated TX logging
+    logTransaction("TX", data, serialPort);
+    
     serialPort->readAll(); // Clear any existing data in the buffer before sending command
-    command.append(calculateChecksum(command));
+    QByteArray command = prepareCommand(data);
     
     if (!executeCommand(serialPort, command)) {
         qCWarning(log_core_serial) << "Failed to execute sync command";
@@ -143,6 +178,7 @@ QByteArray SerialCommandCoordinator::sendSyncCommand(QSerialPort* serialPort, co
     QByteArray responseData = collectSyncResponse(serialPort, timeoutMs, 100);
 
     // Verify response command code matches expected
+    bool validResponse = false;
     if (responseData.size() >= 4) {
         int responseCode = static_cast<unsigned char>(responseData[3]);
         int expectedResponseCode = commandCode | 0x80; // Response code is command code + 0x80
@@ -153,8 +189,8 @@ QByteArray SerialCommandCoordinator::sendSyncCommand(QSerialPort* serialPort, co
                                         << QString("0x%1").arg(responseCode, 2, 16, QChar('0'))
                                         << "expected:"
                                         << QString("0x%1").arg(expectedResponseCode, 2, 16, QChar('0'));
-            // Log actual error to file during diagnostics
-            if (SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics")) {
+            // Log error with consolidated logging
+            if (shouldLogToDiagnostics()) {
                 int baudrate = serialPort ? serialPort->baudRate() : 0;
                 SerialPortManager::getInstance().log(QString("RX (%1): %2 (ERROR: Code mismatch - expected 0x%3, received 0x%4)")
                                                       .arg(baudrate)
@@ -163,42 +199,19 @@ QByteArray SerialCommandCoordinator::sendSyncCommand(QSerialPort* serialPort, co
                                                       .arg(responseCode, 2, 16, QChar('0')));
             }
         } else {
+            validResponse = true;
             qCDebug(log_core_serial) << "Command code verified:" 
                                        << QString("0x%1").arg(commandCode, 2, 16, QChar('0'));
-            // Log successful response to file during diagnostics
-            if (SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics")) {
-                int baudrate = serialPort ? serialPort->baudRate() : 0;
-                SerialPortManager::getInstance().log(QString("RX (%1): %2").arg(baudrate).arg(QString(responseData.toHex(' '))));
-            }
-        }
-
-        
-        // Statistics tracking for successful responses
-        if (responseData.size() >= 4) {
-            // Record successful response in statistics
-            if (m_statistics) {
-                m_statistics->recordResponseReceived();
-            }
         }
         
-        // Legacy statistics tracking
-        if (m_isStatsEnabled) {
-            m_statsSent++;
-            m_statsReceived++;
-        }
+        // Consolidated RX logging
+        logTransaction("RX", responseData, serialPort);
     } else {
         qCWarning(log_core_serial) << "Invalid response size:" << responseData.size();
-        
-        // Record command loss in statistics
-        if (m_statistics) {
-            m_statistics->recordCommandLost();
-        }
-        
-        // Legacy statistics tracking
-        if (m_isStatsEnabled) {
-            m_statsSent++;  // Count failed commands too
-        }
     }
+    
+    // Unified statistics recording
+    recordCommand(validResponse);
 
     // Notify of received data
     if (!responseData.isEmpty()) {
@@ -356,15 +369,7 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
             return false;
         }
         
-        // Record command sent in statistics
-        if (m_statistics) {
-            m_statistics->recordCommandSent();
-        }
-        
-        // Legacy statistics tracking
-        if (m_isStatsEnabled) {
-            m_statsSent++;
-        }
+        // Statistics recording is now handled by the calling function to avoid duplication
         
         return true;
         

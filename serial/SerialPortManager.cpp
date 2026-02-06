@@ -54,7 +54,7 @@ const int SerialPortManager::DEFAULT_BAUDRATE;
 const int SerialPortManager::SERIAL_TIMER_INTERVAL;
 
 SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialPort(nullptr), m_serialWorkerThread(new QThread(nullptr)), serialTimer(new QTimer(nullptr)),
-    m_connectionWatchdog(nullptr), m_errorRecoveryTimer(nullptr), m_usbStatusCheckTimer(nullptr), m_getInfoTimer(nullptr){
+    m_connectionWatchdog(nullptr), m_errorRecoveryTimer(nullptr), m_usbStatusCheckTimer(nullptr), m_getInfoTimer(nullptr), m_isHandlingError(false){
     qCDebug(log_core_serial) << "Initialize serial port.";
 
     // Set object name for easier lookup and debugging
@@ -105,8 +105,8 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     // Connect watchdog signals
     connect(m_watchdog.get(), &ConnectionWatchdog::statusUpdate, this, &SerialPortManager::statusUpdate);
     connect(m_watchdog.get(), &ConnectionWatchdog::recoveryFailed, this, [this]() {
-        ready = false;
-        qCCritical(log_core_serial) << "Connection watchdog: recovery failed";
+        qCCritical(log_core_serial) << "Connection watchdog: recovery failed - setting ready=false";
+        setReadyState(false, "ConnectionWatchdog recovery failed");
     });
     connect(m_watchdog.get(), &ConnectionWatchdog::connectionStateChanged, this, [this](ConnectionState state) {
         qCDebug(log_core_serial) << "Connection state changed to:" << static_cast<int>(state);
@@ -115,11 +115,7 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     // Connect command coordinator signals to SerialPortManager
     connect(m_commandCoordinator.get(), &SerialCommandCoordinator::dataSent, this, &SerialPortManager::dataSent);
     connect(m_commandCoordinator.get(), &SerialCommandCoordinator::dataReceived, this, &SerialPortManager::dataReceived);
-    connect(m_commandCoordinator.get(), &SerialCommandCoordinator::commandExecuted, this, [this](const QByteArray& cmd, bool success) {
-        QString portName = serialPort ? serialPort->portName() : QString();
-        int baud = serialPort ? serialPort->baudRate() : 0;
-        qCDebug(log_core_serial).nospace().noquote() << "TX (" << portName << "@" << baud << "bps): " << cmd.toHex(' ') << " Success:" << (success ? "true" : "false");
-    });
+    // Note: TX logging removed from commandExecuted signal to avoid duplication - now handled by logTransaction()
     
     // Connect state manager signals to SerialPortManager signals
     connect(m_stateManager.get(), &SerialStateManager::keyStatesChanged, this, &SerialPortManager::keyStatesChanged);
@@ -157,9 +153,15 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     
     // Connect protocol layer signals to SerialPortManager
     connect(m_protocol.get(), &SerialProtocol::getInfoReceived, this, [this](bool targetConnected, uint8_t indicators) {
+        // Update state manager
+        if (m_stateManager) {
+            m_stateManager->setTargetUsbConnected(targetConnected);
+            m_stateManager->updateKeyStates(indicators);
+        } else {
             // Fallback - direct emission
             emit targetUSBStatus(targetConnected);
             updateSpecialKeyState(indicators);
+        }
     });
     connect(m_protocol.get(), &SerialProtocol::usbSwitchStatusReceived, this, &SerialPortManager::usbStatusChanged);
     connect(m_protocol.get(), &SerialProtocol::paramConfigReceived, this, [this](int baudrate, uint8_t mode) {
@@ -195,6 +197,21 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
         connect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
         connect(m_getInfoTimer, &QTimer::timeout, this, &SerialPortManager::onGetInfoTimeout);
         
+        // Create status monitoring timer for debugging communication stoppages
+        QTimer* statusMonitorTimer = new QTimer(this);
+        statusMonitorTimer->setInterval(10000); // Check every 10 seconds
+        connect(statusMonitorTimer, &QTimer::timeout, this, [this]() {
+            qCDebug(log_core_serial) << "=== Status Monitor ===" 
+                                     << "ready:" << ready
+                                     << "shutdown:" << m_isShuttingDown 
+                                     << "serialPort:" << (serialPort ? "exists" : "null")
+                                     << "isOpen:" << (serialPort ? serialPort->isOpen() : false)
+                                     << "suppressGetInfo:" << m_suppressGetInfo
+                                     << "usbTimer active:" << (m_usbStatusCheckTimer ? m_usbStatusCheckTimer->isActive() : false)
+                                     << "getInfoTimer active:" << (m_getInfoTimer ? m_getInfoTimer->isActive() : false);
+        });
+        statusMonitorTimer->start();
+        
         setupConnectionWatchdog();
         
         qCDebug(log_core_serial) << "Timers created successfully in worker thread";
@@ -221,12 +238,6 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
 
     // Connect to DeviceManager for device monitoring instead of running own timer
     DeviceManager& deviceManager = DeviceManager::getInstance();
-    // connect(&deviceManager, &DeviceManager::devicesChanged,
-    //         this, [this](const QList<DeviceInfo>& devices) {
-    //             qCDebug(log_core_serial) << "DeviceManager detected" << devices.size() << "devices";
-    //             // Check if we need to connect to a device
-    //             checkDeviceConnections(devices);
-    //         });
 
     // Initialize FactoryResetManager and forward its signals for backward compatibility
     // Create without a QObject parent to avoid cross-thread parent/child creation warnings.
@@ -298,11 +309,6 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     m_lastCommandTime.start();
     m_commandDelayMs = 0;  // Default no delay
     lastSerialPortCheckTime = QDateTime::currentDateTime().addMSecs(-SERIAL_TIMER_INTERVAL);  // Initialize check time in the past 
-    
-    // Initialize async message statistics tracking
-    m_asyncMessagesSent = 0;
-    m_asyncMessagesReceived = 0;
-    m_asyncStatsTimer.start();  // Start the elapsed timer for statistics tracking
     
     // Connect to hotplug monitor for automatic device management
     connectToHotplugMonitor();
@@ -1059,7 +1065,7 @@ bool SerialPortManager::handleResetHidChipInternal(int targetBaudrate) {
             }
         }else{
             qCWarning(log_core_serial) << "Set data config fail - reconfigureHidChip returned false";
-            ready = false;
+            setReadyState(false, "Data config failed in resetHidChip");
             qCDebug(log_core_serial) << "Target baudrate was: " << targetBaudrate << "Current baudrate: " << serialPort->baudRate();
         }
         emit resetHidChipCompleted(success);
@@ -1080,7 +1086,7 @@ bool SerialPortManager::handleResetHidChipInternal(int targetBaudrate) {
         }
     }else{
         qCWarning(log_core_serial) << "Set data config fail - reconfigureHidChip returned false";
-        ready = false;
+        setReadyState(false, "Data config failed in unknown chip type");
         qCDebug(log_core_serial) << "Target baudrate was: " << targetBaudrate << "Current baudrate: " << serialPort->baudRate();
     }
     emit resetHidChipCompleted(success);
@@ -1108,17 +1114,55 @@ bool SerialPortManager::sendResetCommand(){
 }
 
 void SerialPortManager::onUsbStatusCheckTimeout() {
-    if (m_isShuttingDown || !serialPort || !serialPort->isOpen() || !isChipTypeCH32V208()) {
-        return;  // Skip if shutting down, port not open, or not CH32V208
+    bool shouldSkip = false;
+    QString skipReason;
+    
+    if (m_isShuttingDown) {
+        shouldSkip = true;
+        skipReason = "shutting down";
+    } else if (!serialPort) {
+        shouldSkip = true;
+        skipReason = "serialPort is null";
+    } else if (!serialPort->isOpen()) {
+        shouldSkip = true;
+        skipReason = "serialPort not open";
+    } else if (!isChipTypeCH32V208()) {
+        shouldSkip = true;
+        skipReason = "not CH32V208 chip";
+    }
+    
+    if (shouldSkip) {
+        qCDebug(log_core_serial) << "USB status check skipped:" << skipReason 
+                                 << "ready=" << ready
+                                 << "timer active=" << (m_usbStatusCheckTimer ? m_usbStatusCheckTimer->isActive() : false);
+        return;
     }
 
+    qCDebug(log_core_serial) << "USB status check executing - ready=" << ready;
     sendAsyncCommand(CMD_CHECK_USB_STATUS, true);
     qCDebug(log_core_serial) << "Sent USB status check command asynchronously";
 }
 
 void SerialPortManager::onGetInfoTimeout() {
-    if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
-        return;  // Skip if shutting down or port not open
+    bool shouldSkip = false;
+    QString skipReason;
+    
+    if (m_isShuttingDown) {
+        shouldSkip = true;
+        skipReason = "shutting down";
+    } else if (!serialPort) {
+        shouldSkip = true;
+        skipReason = "serialPort is null";
+    } else if (!serialPort->isOpen()) {
+        shouldSkip = true;
+        skipReason = "serialPort not open";
+    }
+    
+    if (shouldSkip) {
+        qCDebug(log_core_serial) << "GET_INFO check skipped:" << skipReason 
+                                 << "ready=" << ready
+                                 << "timer active=" << (m_getInfoTimer ? m_getInfoTimer->isActive() : false);
+        return;
     }
 
     {
@@ -1129,6 +1173,7 @@ void SerialPortManager::onGetInfoTimeout() {
         }
     }
 
+    qCDebug(log_core_serial) << "GET_INFO executing - ready=" << ready;
     sendAsyncCommand(CMD_GET_INFO, true);
 }
 
@@ -1514,7 +1559,7 @@ void SerialPortManager::closePortInternal() {
         qCDebug(log_core_serial) << "Serial port is not opened.";
     }
     
-    ready = false;
+    setReadyState(false, "closePortInternal called");
 
     // Inform hotplug handler that serial is closed and cancel any pending auto-connect attempts
     if (m_hotplugHandler) {
@@ -1664,13 +1709,12 @@ void SerialPortManager::readData() {
         // Process response using protocol layer - signals are already connected
         m_protocol->processRawData(packet);
 
-        // Record response for statistics tracking (counts async responses)
+        // Record response for statistics tracking (handled by unified statistics module)
         if (m_statistics) {
             m_statistics->recordResponseReceived();
         }
         
-        // Track async message received
-        m_asyncMessagesReceived++;
+        // Check and log async message statistics
         checkAndLogAsyncMessageStatistics();
     }
     
@@ -1770,7 +1814,7 @@ bool SerialPortManager::writeData(const QByteArray &data) {
     
     if (!serialPort || !serialPort->isOpen()) {
         qCWarning(log_core_serial) << "Serial port not open, cannot write data";
-        ready = false;
+        setReadyState(false, "Serial port not open in writeData");
         // m_consecutiveErrors++;
         return false;
     }
@@ -1803,7 +1847,7 @@ bool SerialPortManager::writeData(const QByteArray &data) {
         
     } catch (...) {
         qCCritical(log_core_serial) << "Exception occurred while writing to serial port";
-        ready = false;
+        setReadyState(false, "Exception in writeData");
         return false;
     }
 }
@@ -1813,18 +1857,33 @@ bool SerialPortManager::writeData(const QByteArray &data) {
  */
 bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
     if (m_isShuttingDown || !m_commandCoordinator) {
+        qCDebug(log_core_serial) << "sendAsyncCommand rejected - shutdown:" << m_isShuttingDown 
+                                 << "coordinator:" << (m_commandCoordinator ? "exists" : "null");
         return false;
     }
     
-    // Track async message sent
-    m_asyncMessagesSent++;
-    checkAndLogAsyncMessageStatistics();
+    // Log current state before sending
+    qCDebug(log_core_serial) << "sendAsyncCommand - ready:" << ready 
+                             << "force:" << force 
+                             << "serialPort:" << (serialPort ? "exists" : "null")
+                             << "isOpen:" << (serialPort ? serialPort->isOpen() : false);
     
     // Update command coordinator ready state
     m_commandCoordinator->setReady(ready);
     
     // Delegate to command coordinator
-    return m_commandCoordinator->sendAsyncCommand(serialPort, data, force);
+    bool result = m_commandCoordinator->sendAsyncCommand(serialPort, data, force);
+    
+    qCDebug(log_core_serial) << "sendAsyncCommand result:" << result;
+    
+    // Check and log async message statistics after sending
+    if (result) {
+        checkAndLogAsyncMessageStatistics();
+    } else {
+        qCWarning(log_core_serial) << "sendAsyncCommand failed - command not sent";
+    }
+    
+    return result;
 }
 
  /*
@@ -2397,16 +2456,32 @@ void SerialPortManager::forceRecovery()
 
 void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
 {
+    // Prevent re-entrance to avoid infinite recursion
+    if (m_isHandlingError) {
+        qCWarning(log_core_serial) << "Already handling error, preventing recursion";
+        return;
+    }
+    
+    // Prevent frequent error handling (100ms throttle)
+    if (m_lastErrorTime.isValid() && m_lastErrorTime.elapsed() < 100) {
+        return;
+    }
+    
+    m_isHandlingError = true;
+    m_lastErrorTime.restart();
+    
     QString errorString = serialPort ? serialPort->errorString() : "Unknown error";
     
     // If we're performing a controlled baud-rate change, suppress transient errors
     if (m_baudChangeInProgress.load()) {
         qCDebug(log_core_serial) << "Transient serial error during baud change suppressed:" << errorString << "Error code:" << static_cast<int>(error);
+        m_isHandlingError = false;
         return;
     }
 
     // Ignore NoError
     if (error == QSerialPort::NoError) {
+        m_isHandlingError = false;
         return;
     }
 
@@ -2425,8 +2500,9 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
     // Check for device disconnection errors - if we detect the device is physically unplugged,
     // stop the timers to prevent continuous failed command attempts
     if (error == QSerialPort::UnknownError || 
-        errorString.contains("设备不识别此命令") || 
-        errorString.contains("拒绝访问") ||
+        errorString.contains("The device does not recognize this command") ||
+        errorString.contains("Device not recognized") ||
+        errorString.contains("Permission denied") ||
         errorString.contains("Access is denied")) {
         
         qCInfo(log_core_serial) << "Device disconnection error detected, stopping periodic timers";
@@ -2453,19 +2529,47 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
     if (m_watchdog) {
         m_watchdog->recordError();
     }
+    
+    // Reset re-entrance protection flag
+    m_isHandlingError = false;
 }
 
 void SerialPortManager::attemptRecovery()
 {
+    // Simple retry counter protection
+    static int recoveryAttempts = 0;
+    static QElapsedTimer lastRecoveryTime;
+    
     if (m_isShuttingDown || !m_autoRecoveryEnabled) {
         return;
     }
     
-    qCInfo(log_core_serial) << "attemptRecovery called - delegating to ConnectionWatchdog";
+    // Limit retry attempts
+    if (recoveryAttempts >= 3) {
+        qCWarning(log_core_serial) << "Max recovery attempts reached, stopping";
+        return;
+    }
+    
+    // Limit retry frequency (5 seconds minimum between attempts)
+    if (lastRecoveryTime.isValid() && lastRecoveryTime.elapsed() < 5000) {
+        qCDebug(log_core_serial) << "Recovery too frequent, skipping";
+        return;
+    }
+    
+    recoveryAttempts++;
+    lastRecoveryTime.restart();
+    
+    qCInfo(log_core_serial) << "attemptRecovery called - attempt" << recoveryAttempts << "/3 - delegating to ConnectionWatchdog";
     
     // Delegate to ConnectionWatchdog (Phase 3)
     if (m_watchdog) {
         m_watchdog->forceRecovery();
+        
+        // Reset counter on successful recovery attempt
+        QTimer::singleShot(2000, [&recoveryAttempts]() {
+            recoveryAttempts = 0;
+            qCInfo(log_core_serial) << "Recovery attempt completed, reset counter";
+        });
     }
 }
 
@@ -2626,7 +2730,7 @@ bool SerialPortManager::performRecovery(int attempt)
 void SerialPortManager::onRecoveryFailed()
 {
     qCCritical(log_core_serial) << "Recovery failed after all attempts";
-    ready = false;
+    setReadyState(false, "Recovery failed after all attempts");
     emit statusUpdate("Serial port recovery failed - max retries exceeded");
 }
 
@@ -2811,58 +2915,72 @@ void SerialPortManager::enableDebugLogging(bool enabled) {
 
 void SerialPortManager::checkAndLogAsyncMessageStatistics()
 {
-    // ===== ASYNC MESSAGE STATISTICS AND IMBALANCE DETECTION =====
-    // This method monitors the ratio of received vs sent async messages every 1 second.
-    // Purpose: Detect communication issues where the device sends many responses without
-    // corresponding requests, indicating a potential queue backup or device malfunction.
-    //
-    // Detection Logic:
-    // 1. Every 1 second (ASYNC_STATS_INTERVAL_MS), calculate send/receive rates
-    // 2. If received > sent by more than 150% (threshold: 1.5x), flag as imbalance
-    // 3. Track how long the imbalance persists using m_imbalanceDetectionTimer
-    // 4. If imbalance continues for 3+ seconds, send a reset command to recover
-    // 5. After reset, clear the flag and restart detection from clean state
-    //
-    // State Transitions:
-    // - Normal -> Imbalance: When ratio > 1.5 for first time
-    // - Imbalance -> Timeout: When ratio > 1.5 for 3+ consecutive seconds
-    // - Imbalance/Timeout -> Normal: When ratio drops back to <= 1.5
+    // This method monitors async message flow patterns using the unified SerialStatistics module
+    // to detect potential device communication issues and automatically recover.
+    if (!m_statistics) {
+        return;
+    }
     
-    // Add lightweight consecutive "no-response" detection and automatic escalation:
-    // - If we send requests but receive 0 responses for N consecutive 1-second intervals,
-    //   trigger recovery (prefer ConnectionWatchdog; fallback to close+reopen).
+    // Get current statistics from unified module
+    auto statsData = m_statistics->getCurrentData();
+    
+    // Static variables to track interval-based statistics
+    static QElapsedTimer s_intervalTimer;
+    static bool s_timerStarted = false;
+    static int s_lastSentCount = 0;
+    static int s_lastReceivedCount = 0;
+    
+    // Initialize timer on first call
+    if (!s_timerStarted) {
+        s_intervalTimer.start();
+        s_lastSentCount = statsData.commandsSent;
+        s_lastReceivedCount = statsData.responsesReceived;
+        s_timerStarted = true;
+        return;
+    }
+    
+    const int ASYNC_STATS_INTERVAL_MS = 1000; // Report every 1 second
+    const double ASYNC_IMBALANCE_THRESHOLD = 1.5; // 150% threshold
+    const int ASYNC_IMBALANCE_TIMEOUT_MS = 3000; // 3 seconds
+    const int NO_RESPONSE_ESCALATION_THRESHOLD = 3; // 3 seconds of zero replies
+    
     static int s_consecutiveNoResponseIntervals = 0;
-    const int NO_RESPONSE_ESCALATION_THRESHOLD = 3; // ~3 seconds of zero replies
     
     // Check if 1 second has elapsed since last report
-    if (m_asyncStatsTimer.elapsed() >= ASYNC_STATS_INTERVAL_MS) {
-        qint64 elapsedMs = m_asyncStatsTimer.elapsed();
+    if (s_intervalTimer.elapsed() >= ASYNC_STATS_INTERVAL_MS) {
+        qint64 elapsedMs = s_intervalTimer.elapsed();
+        
+        // Calculate interval counts
+        int currentSent = statsData.commandsSent;
+        int currentReceived = statsData.responsesReceived;
+        int intervalSent = currentSent - s_lastSentCount;
+        int intervalReceived = currentReceived - s_lastReceivedCount;
         
         // Only process if there were any messages in this interval
-        if (m_asyncMessagesSent > 0 || m_asyncMessagesReceived > 0) {
+        if (intervalSent > 0 || intervalReceived > 0) {
             // Calculate rates in messages per second
-            double sentRate = (m_asyncMessagesSent * 1000.0) / elapsedMs;
-            double receivedRate = (m_asyncMessagesReceived * 1000.0) / elapsedMs;
+            double sentRate = (intervalSent * 1000.0) / elapsedMs;
+            double receivedRate = (intervalReceived * 1000.0) / elapsedMs;
             
             // Log statistics for monitoring and debugging
             qCInfo(log_core_serial) << "Async Message Statistics:"
                                    << "Sent/sec:" << QString::number(sentRate, 'f', 2)
                                    << "Received/sec:" << QString::number(receivedRate, 'f', 2)
-                                   << "Total sent:" << m_asyncMessagesSent
-                                   << "Total received:" << m_asyncMessagesReceived;
+                                   << "Total sent:" << currentSent
+                                   << "Total received:" << currentReceived
+                                   << "Error rate:" << QString::number(statsData.errorRate(), 'f', 2) << "%";
             
             // ===== IMBALANCE DETECTION LOGIC =====
             // Only check imbalance if we actually sent messages (avoid division issues)
-            if (m_asyncMessagesSent > 0) {
+            if (intervalSent > 0) {
                 // Calculate ratio of received to sent messages
-                double imbalanceRatio = (double)m_asyncMessagesReceived / m_asyncMessagesSent;
+                double imbalanceRatio = (double)intervalReceived / intervalSent;
                 
                 // ===== STATE 1: IMBALANCE THRESHOLD EXCEEDED (ratio > 1.5) =====
                 if (imbalanceRatio > ASYNC_IMBALANCE_THRESHOLD) {
                     // State: Imbalance Detected
                     if (!m_imbalanceDetected) {
                         // First occurrence - start tracking duration
-                        // We restart the timer to measure from this point forward
                         m_imbalanceDetectionTimer.restart();
                         m_imbalanceDetected = true;
                         
@@ -2879,7 +2997,6 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
                         // ===== STATE 2: TIMEOUT THRESHOLD EXCEEDED (3+ seconds) =====
                         if (imbalanceDuration >= ASYNC_IMBALANCE_TIMEOUT_MS) {
                             // Imbalance has persisted for 3+ seconds - device likely in bad state
-                            // Action: Send reset command to device to recover
                             qCCritical(log_core_serial) << "Async message imbalance exceeded 3 seconds threshold!"
                                                         << "Sending device reset command. Duration:" << imbalanceDuration << "ms";
                             
@@ -2887,7 +3004,6 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
                             sendResetCommand();
                             
                             // Reset detection state for next monitoring cycle
-                            // This prevents triggering multiple resets in rapid succession
                             m_imbalanceDetected = false;
                             m_imbalanceDetectionTimer.restart();
                         }
@@ -2897,7 +3013,6 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
                     // Ratio is now healthy - no imbalance detected
                     if (m_imbalanceDetected) {
                         // Imbalance was previously detected but has now recovered
-                        // Log the recovery state
                         qCInfo(log_core_serial) << "Async message imbalance cleared."
                                                << "Received/Sent ratio:" << QString::number(imbalanceRatio, 'f', 2);
                         
@@ -2907,15 +3022,38 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
                     }
                 }
             }
+            
+            // Check for consecutive no-response intervals
+            if (intervalSent > 0 && intervalReceived == 0) {
+                s_consecutiveNoResponseIntervals++;
+                if (s_consecutiveNoResponseIntervals >= NO_RESPONSE_ESCALATION_THRESHOLD) {
+                    qCWarning(log_core_serial) << "No responses received for" << s_consecutiveNoResponseIntervals 
+                                               << "consecutive intervals - potential communication issue";
+                    // Could trigger recovery here if needed
+                    s_consecutiveNoResponseIntervals = 0; // Reset to avoid spam
+                }
+            } else {
+                s_consecutiveNoResponseIntervals = 0;
+            }
         } else {
-            // No activity in this window; be conservative and reset counter
+            // No activity in this window; reset no-response counter
             s_consecutiveNoResponseIntervals = 0;
         }
         
-        // ===== RESET COUNTERS FOR NEXT INTERVAL =====
-        // Clear accumulated counts and restart timer for next 1-second interval
-        m_asyncMessagesSent = 0;
-        m_asyncMessagesReceived = 0;
-        m_asyncStatsTimer.restart();
+        // ===== RESET FOR NEXT INTERVAL =====
+        // Update last counts and restart timer for next 1-second interval
+        s_lastSentCount = currentSent;
+        s_lastReceivedCount = currentReceived;
+        s_intervalTimer.restart();
+    }
+}
+
+void SerialPortManager::setReadyState(bool newReady, const QString& reason) {
+    if (ready != newReady) {
+        qCWarning(log_core_serial) << "Ready state changed from" << ready << "to" << newReady 
+                                   << "- Reason:" << reason
+                                   << "Timer states: USB=" << (m_usbStatusCheckTimer ? m_usbStatusCheckTimer->isActive() : false)
+                                   << "GetInfo=" << (m_getInfoTimer ? m_getInfoTimer->isActive() : false);
+        ready = newReady;
     }
 }

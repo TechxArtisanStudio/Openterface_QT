@@ -409,14 +409,10 @@ private:
     // New: Serial hotplug handler (extracted from inline logic)
     std::unique_ptr<SerialHotplugHandler> m_hotplugHandler;
     
-    // Async message send/receive statistics (simple tracking)
-    qint64 m_asyncMessagesSent = 0;
-    qint64 m_asyncMessagesReceived = 0;
-    QElapsedTimer m_asyncStatsTimer;
-    static const int ASYNC_STATS_INTERVAL_MS = 1000; // Report every 1 second
+    // Legacy method - deprecated in favor of unified statistics tracking
     void checkAndLogAsyncMessageStatistics();
     
-    // Async message imbalance detection (received >> sent)
+    // Async message imbalance detection (now handled by unified statistics module)
     static constexpr double ASYNC_IMBALANCE_THRESHOLD = 1.5; // 150% threshold
     static const int ASYNC_IMBALANCE_TIMEOUT_MS = 3000; // 3 seconds tolerance
     QElapsedTimer m_imbalanceDetectionTimer;
@@ -463,11 +459,18 @@ private:
     // Command tracking methods
     void checkCommandLossRate();
     void resetCommandCounters();
+    
+    // Ready state tracking for debugging communication stoppages
+    void setReadyState(bool newReady, const QString& reason);
 
     // Logging
     QThread* m_logThread;
     LogWriter* m_logWriter;
     QString m_logFilePath; // current serial log file path
+    
+    // Deadlock protection variables
+    bool m_isHandlingError = false;
+    QElapsedTimer m_lastErrorTime;
 };
 
 #endif // SERIALPORTMANAGER_H
