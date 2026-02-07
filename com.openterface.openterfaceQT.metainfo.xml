@@ -49,6 +49,16 @@
     </screenshots>
 
     <releases>
+        <release version="0.5.13" date="2025-01-15">
+            <description>
+                <p>Add the software update checking, and enhance the firmware update process for better stability and user experience.</p>
+            </description>
+        </release>
+        <release version="0.5.12" date="2025-01-15">
+            <description>
+                <p>Enhanced Reliability, Diagnostics, and Multi-Platform.</p>
+            </description>
+        </release>
         <release version="0.5.11" date="2025-01-15">
             <description>
                 <p>Hotfix hardware diagnostics issues.</p>

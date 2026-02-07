@@ -104,6 +104,7 @@ public:
 
     void start();
     void stop();
+    void stopPollingOnly(); // Stop polling but keep HID connection for firmware update
 
     // Get resolution
     QPair<int, int> getResolution();
