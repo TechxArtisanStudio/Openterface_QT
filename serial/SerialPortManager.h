@@ -270,6 +270,7 @@ private slots:
     // New async restart methods to replace blocking operations
     void restartPortInternalAsync(const QString &portName, qint32 baudRate);
     void stopAllTimers(bool disconnectSignals = true);
+    void reconnectTimerSignals();
     
     // Async helper methods for non-blocking port operations
     void continueInitializeWithBaudrates(const QString &portName, qint32 baud, int cycle, int cycles);
@@ -305,6 +306,9 @@ private:
     ConfigResult sendAndProcessConfigCommand();
     void handleChipSpecificLogic(const ConfigResult &config);
     void storeBaudrateIfNeeded(int workingBaudrate);
+    
+    // SerialPort validation helper with detailed diagnostics
+    bool isSerialPortValid() const;
     
     // Thread-safe baudrate setting (must be called from worker thread to access serialPort)
     bool setBaudRateInternal(int baudRate);

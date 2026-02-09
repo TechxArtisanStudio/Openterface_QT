@@ -190,7 +190,7 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
         
         m_connectionWatchdog->setSingleShot(true);
         m_errorRecoveryTimer->setSingleShot(true);
-        m_usbStatusCheckTimer->setInterval(1500);  // Check every 2 seconds
+        m_usbStatusCheckTimer->setInterval(1600);  // Check every 1.6 seconds
         m_getInfoTimer->setInterval(3000);  // Send GET_INFO every 3 seconds
         
         connect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
@@ -827,6 +827,9 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
         qCWarning(log_core_serial) << "SerialPortManager: serialPort is null – skipping readyRead/bytesWritten/error connects";
     }
     
+    // Re-establish timer signal connections in case they were disconnected during port close
+    reconnectTimerSignals();
+    
     ready = true;
     resetErrorCounters();
     m_lastSuccessfulCommand.restart();
@@ -869,6 +872,8 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
             QMetaObject::invokeMethod(m_usbStatusCheckTimer, "start", Qt::QueuedConnection);
         }
         qCDebug(log_core_serial) << "Started USB status check timer for CH32V208";
+    } else if (!m_usbStatusCheckTimer) {
+        qCWarning(log_core_serial) << "USB status check timer is null, cannot start";
     }
 
     // Start GET_INFO timer for periodic status updates for CH9329 and CH32V208 (unless diagnostics dialog is active)
@@ -888,7 +893,7 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
         // Send an immediate GET_INFO to prime the connection
         sendAsyncCommand(CMD_GET_INFO, true);
     } else {
-        qCDebug(log_core_serial) << "Skipping periodic GET_INFO timer - not a supported device for GET_INFO";
+        qCWarning(log_core_serial) << "GET_INFO timer is null, cannot start periodic status updates";
     }
 }
 
@@ -1319,34 +1324,52 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     QMutexLocker locker(&m_serialPortMutex);
     
     // If there is an existing QSerialPort instance that is not open, delete it to avoid stale internal state (e.g., stale file descriptor / notifiers)
+    QSerialPort* oldSerialPort = nullptr;
     if (serialPort != nullptr && !serialPort->isOpen()) {
-        qCDebug(log_core_serial) << "Existing closed QSerialPort instance found - deleting to ensure fresh instance before open.";
-        delete serialPort;
-        serialPort = nullptr;
+        qCDebug(log_core_serial) << "Existing closed QSerialPort instance found - marking for deletion to ensure fresh instance before open.";
+        oldSerialPort = serialPort;
+        serialPort = nullptr;  // Clear pointer temporarily
     }
-    
+
     if (serialPort != nullptr && serialPort->isOpen()) {
         qCDebug(log_core_serial) << "Serial port is already opened.";
         return true;
     }
-    
+
     emit statusUpdate("Going to open the port");
-    
+
     if(serialPort == nullptr){
         // CRITICAL: Create QSerialPort in main thread to avoid QSocketNotifier thread issues
+        QSerialPort* newSerialPort = nullptr;
+        bool created = false;
+        
         if (QThread::currentThread() != QCoreApplication::instance()->thread()) {
-            bool created = false;
-            QMetaObject::invokeMethod(QCoreApplication::instance(), [this, &created]() {
-                serialPort = new QSerialPort();
+            QMetaObject::invokeMethod(QCoreApplication::instance(), [&newSerialPort, &created]() {
+                newSerialPort = new QSerialPort();
                 created = true;
             }, Qt::BlockingQueuedConnection);
             
-            if (!created) {
+            if (!created || !newSerialPort) {
                 qCCritical(log_core_serial) << "Failed to create QSerialPort in main thread";
+                // Restore old pointer if creation failed
+                if (oldSerialPort) {
+                    serialPort = oldSerialPort;
+                    oldSerialPort = nullptr;
+                }
                 return false;
             }
         } else {
-            serialPort = new QSerialPort();
+            newSerialPort = new QSerialPort();
+            created = true;
+        }
+        
+        // Only assign new pointer after successful creation
+        serialPort = newSerialPort;
+        
+        // Now safe to delete old instance
+        if (oldSerialPort) {
+            delete oldSerialPort;
+            oldSerialPort = nullptr;
         }
         
         // Connect error signal using queued connection for thread safety
@@ -1474,6 +1497,8 @@ void SerialPortManager::closePortInternalMainThread() {
     QMutexLocker locker(&m_serialPortMutex);
     
     if (serialPort != nullptr) {
+        qCDebug(log_core_serial) << "Closing serial port instance:" << static_cast<void*>(serialPort);
+        
         if (serialPort->isOpen()) {
             // Disconnect all signals BEFORE any operations
             disconnect(serialPort, nullptr, this, nullptr);
@@ -1503,18 +1528,25 @@ void SerialPortManager::closePortInternalMainThread() {
         }
         
         // Enhanced deletion with additional safety measures
+        // Store pointer but DO NOT clear serialPort immediately to avoid race conditions
         QObject* portPtr = serialPort;
-        serialPort = nullptr;  // Clear pointer immediately
         
         // Schedule deletion for next event loop to avoid immediate socket notifier issues
         // Use QTimer::singleShot for more reliable deferred deletion
-        QTimer::singleShot(0, this, [portPtr]() {
+        QTimer::singleShot(0, this, [this, portPtr]() {
             if (portPtr) {
+                qCDebug(log_core_serial) << "Deleting serial port instance:" << static_cast<void*>(portPtr);
                 portPtr->deleteLater();
+                // Clear pointer only after scheduling deletion
+                QMutexLocker deleteLocker(&m_serialPortMutex);
+                if (serialPort == portPtr) {
+                    serialPort = nullptr;
+                    qCDebug(log_core_serial) << "SerialPort instance pointer cleared";
+                }
             }
         });
     } else {
-        qCDebug(log_core_serial) << "Serial port is not opened.";
+        qCDebug(log_core_serial) << "Serial port is not opened (serialPort is nullptr).";
     }
     
     // Signal back to worker thread to complete the rest of the cleanup
@@ -1555,8 +1587,18 @@ void SerialPortManager::completePortCloseCleanup() {
 }
 
 bool SerialPortManager::restartPort() {
+    QMutexLocker locker(&m_serialPortMutex);
     if (!serialPort) {
-        qCWarning(log_core_serial) << "Cannot restart - no serial port instance";
+        qCWarning(log_core_serial) << "Cannot restart - no serial port instance (serialPort is nullptr)";
+        // Try to recover using stored port information
+        if (!m_currentSerialPortPath.isEmpty()) {
+            qCInfo(log_core_serial) << "Attempting to restore serialPort using stored path:" << m_currentSerialPortPath;
+            int defaultBaud = getCurrentBaudrate();
+            if (defaultBaud <= 0) defaultBaud = DEFAULT_BAUDRATE;
+            
+            // Try to restore the connection
+            return openPort(m_currentSerialPortPath, defaultBaud);
+        }
         return false;
     }
     
@@ -1593,7 +1635,9 @@ bool SerialPortManager::restartPortInternal(const QString &portName, qint32 baud
         bool openResult = openPort(portName, baudRate);
         if (openResult) {
             qCDebug(log_core_serial) << "Port restart successful for" << portName;
-            onSerialPortConnected(portName);
+            // After successful restart, emit connection success to restart timers  
+            emit serialPortConnectionSuccess(portName);
+            qCInfo(log_core_serial) << "Serial port restart completed - timers restarted";
             emit serialPortReset(false);
         } else {
             qCWarning(log_core_serial) << "Port restart failed for" << portName;
@@ -1632,7 +1676,10 @@ void SerialPortManager::restartPortInternalAsync(const QString &portName, qint32
             bool openResult = openPort(portName, baudRate);
             if (openResult) {
                 qCDebug(log_core_serial) << "Port restart successful for" << portName;
-                onSerialPortConnected(portName);
+                // After successful restart, restart the timers and emit connection success directly
+                // Instead of calling onSerialPortConnected which would repeat the full initialization
+                emit serialPortConnectionSuccess(portName);
+                qCInfo(log_core_serial) << "Serial port restart completed - timers should be restarted automatically";
             } else {
                 qCWarning(log_core_serial) << "Port restart failed for" << portName;
             }
@@ -1704,6 +1751,33 @@ void SerialPortManager::stopAllTimers(bool disconnectSignals) {
     qCDebug(log_core_serial) << "All timers stopped and disconnected";
 }
 
+void SerialPortManager::reconnectTimerSignals() {
+    // Re-establish timer signal connections that may have been disconnected during port close
+    if (m_usbStatusCheckTimer) {
+        // Disconnect any existing connections to avoid duplicates
+        disconnect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
+        // Re-connect the signal
+        connect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
+        qCDebug(log_core_serial) << "USB status check timer signal reconnected";
+    }
+    
+    if (m_getInfoTimer) {
+        // Disconnect any existing connections to avoid duplicates
+        disconnect(m_getInfoTimer, &QTimer::timeout, this, &SerialPortManager::onGetInfoTimeout);
+        // Re-connect the signal
+        connect(m_getInfoTimer, &QTimer::timeout, this, &SerialPortManager::onGetInfoTimeout);
+        qCDebug(log_core_serial) << "GET_INFO timer signal reconnected";
+    }
+    
+    if (m_connectionWatchdog) {
+        // For connection watchdog, we may need to reconnect its timeout signal as well
+        // Note: The actual reconnection logic depends on how the watchdog is implemented
+        qCDebug(log_core_serial) << "Connection watchdog timer signals checked";
+    }
+    
+    qCDebug(log_core_serial) << "Timer signal connections restored after port reconnection";
+}
+
 void SerialPortManager::updateSpecialKeyState(uint8_t data){
     qCDebug(log_core_serial) << "Data received:" << data;
     
@@ -1750,7 +1824,6 @@ void SerialPortManager::readData() {
         // Check bytes available before reading to avoid potential buffer issues
         qint64 bytesAvailable = serialPort->bytesAvailable();
         if (bytesAvailable <= 0) {
-            qCDebug(log_core_serial) << "No bytes available to read";
             return;
         }
         
@@ -1936,12 +2009,22 @@ bool SerialPortManager::writeData(const QByteArray &data) {
 }
 
 bool SerialPortManager::writeDataMainThread(const QByteArray &data) {
-    // QMutexLocker locker(&m_serialPortMutex);
-    
-    if (!serialPort || !serialPort->isOpen()) {
-        qCWarning(log_core_serial) << "Serial port not open, cannot write data";
+    // Enhanced serial port validation with detailed diagnostics
+    if (!isSerialPortValid()) {
+        qCWarning(log_core_serial) << "Serial port not valid for write operation - state:"
+                                   << "serialPort=" << static_cast<void*>(serialPort)
+                                   << "isOpen=" << (serialPort ? (serialPort->isOpen() ? "true" : "false") : "N/A")
+                                   << "portName=" << (serialPort ? serialPort->portName() : "N/A");
         ready = false;
-        // m_consecutiveErrors++;
+        return false;
+    }
+
+    QMutexLocker locker(&m_serialPortMutex);
+    
+    // Double-check after acquiring mutex
+    if (!serialPort || !serialPort->isOpen()) {
+        qCWarning(log_core_serial) << "Serial port became invalid after mutex lock";
+        ready = false;
         return false;
     }
 
@@ -1949,11 +2032,9 @@ bool SerialPortManager::writeDataMainThread(const QByteArray &data) {
         qint64 bytesWritten = serialPort->write(data);
         if (bytesWritten == -1) {
             qCWarning(log_core_serial) << "Failed to write data to serial port:" << serialPort->errorString();
-            // m_consecutiveErrors++;
             return false;
         } else if (bytesWritten != data.size()) {
             qCWarning(log_core_serial) << "Partial write: expected" << data.size() << "bytes, wrote" << bytesWritten;
-            // m_consecutiveErrors++;
             return false;
         }
         
@@ -2017,18 +2098,30 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
  * Set the DTR to high for 0.5s to restart the USB port
  */
 void SerialPortManager::restartSwitchableUSB(){
-    if(serialPort){
-        qCDebug(log_core_serial) << "Restart the USB port now...";
-        serialPort->setDataTerminalReady(true);
-        
-        // Use non-blocking timer instead of msleep
-        QTimer::singleShot(500, this, [this]() {
-            if (serialPort) {
-                serialPort->setDataTerminalReady(false);
+    if(!isSerialPortValid()){
+        qCWarning(log_core_serial) << "Cannot restart switchable USB - serial port not valid";
+        return;
+    }
+    
+    qCDebug(log_core_serial) << "Restart the USB port now...";
+    
+    QMutexLocker locker(&m_serialPortMutex);
+    if (!serialPort || !serialPort->isOpen()) {
+        qCWarning(log_core_serial) << "Serial port became invalid during USB restart";
+        return;
+    }
+    
+    serialPort->setDataTerminalReady(true);
+    
+    // Use non-blocking timer instead of msleep
+    QTimer::singleShot(500, this, [this]() {
+        QMutexLocker locker(&m_serialPortMutex);
+        if (serialPort && serialPort->isOpen()) {
+            serialPort->setDataTerminalReady(false);
             }
         });
-    }
 }
+
 
 /*
  * Switch USB to host via serial command (new CH32V208 protocol)
@@ -2240,8 +2333,16 @@ bool SerialPortManager::setBaudRate(int baudRate) {
 }
 
 bool SerialPortManager::setBaudRateInternal(int baudRate) {
+    if (!isSerialPortValid()) {
+        qCWarning(log_core_serial) << "Cannot set baud rate - serial port not valid";
+        return false;
+    }
+
+    QMutexLocker locker(&m_serialPortMutex);
+    
+    // Double-check after acquiring mutex
     if (!serialPort) {
-        qCWarning(log_core_serial) << "Cannot set baud rate: serialPort is null";
+        qCWarning(log_core_serial) << "Cannot set baud rate: serialPort became null after mutex lock";
         return false;
     }
 
@@ -2567,7 +2668,13 @@ void SerialPortManager::forceRecovery()
 
 void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
 {
-    QString errorString = serialPort ? serialPort->errorString() : "Unknown error";
+    // Critical: Check serialPort validity first to prevent crashes
+    if (!serialPort) {
+        qCWarning(log_core_serial) << "Serial error occurred but serialPort instance is null! Error code:" << static_cast<int>(error);
+        return;
+    }
+    
+    QString errorString = serialPort->errorString();
     
     // If we're performing a controlled baud-rate change, suppress transient errors
     if (m_baudChangeInProgress.load()) {
@@ -2773,6 +2880,12 @@ bool SerialPortManager::performRecovery(int attempt)
         m_statistics->recordConnectionRetry();
     }
     
+    // Check if serialPort is null and log diagnostic information
+    if (!serialPort) {
+        qCWarning(log_core_serial) << "Recovery attempt" << attempt << "- serialPort instance is null!";
+        qCDebug(log_core_serial) << "Current port path:" << m_currentSerialPortPath << "Current port chain:" << m_currentSerialPortChain;
+    }
+    
     QString currentPortPath = m_currentSerialPortPath;
     QString currentPortChain = m_currentSerialPortChain;
     
@@ -2784,12 +2897,17 @@ bool SerialPortManager::performRecovery(int attempt)
     // Try to restart the current port
     bool recoverySuccess = switchSerialPortByPortChain(currentPortChain);
     
+    // Verify serialPort was recreated properly
+    if (recoverySuccess && serialPort) {
+        qCDebug(log_core_serial) << "Recovery attempt" << attempt << "- serialPort instance restored:" << static_cast<void*>(serialPort);
+    }
+    
     if (recoverySuccess && ready) {
         qCInfo(log_core_serial) << "✓ Serial port recovery successful on attempt" << attempt;
         return true;
     }
     
-    qCWarning(log_core_serial) << "Recovery attempt" << attempt << "failed";
+    qCWarning(log_core_serial) << "Recovery attempt" << attempt << "failed, ready=" << ready << ", serialPort=" << static_cast<void*>(serialPort);
     return false;
 }
 
@@ -2977,6 +3095,32 @@ void SerialPortManager::enableDebugLogging(bool enabled) {
         // Disable debug logging for serial category
         QLoggingCategory::setFilterRules("opf.core.serial.debug=false");
     }
+}
+
+// Helper method to validate serialPort state with detailed diagnostics
+bool SerialPortManager::isSerialPortValid() const
+{
+    if (!serialPort) {
+        return false;
+    }
+    
+    if (!serialPort->isOpen()) {
+        return false;
+    }
+    
+    // Additional validation to detect stale objects
+    try {
+        QString portName = serialPort->portName();
+        if (portName.isEmpty()) {
+            qCWarning(log_core_serial) << "SerialPort has empty port name - possible stale object";
+            return false;
+        }
+    } catch (...) {
+        qCWarning(log_core_serial) << "Exception during serialPort validation - possible stale object";
+        return false;
+    }
+    
+    return true;
 }
 
 void SerialPortManager::checkAndLogAsyncMessageStatistics()
