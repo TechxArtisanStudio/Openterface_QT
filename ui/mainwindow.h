@@ -198,8 +198,6 @@ private slots:
 
     void onSwitchableUsbToggle(const bool isToHost) override;
 
-    void onTargetUsbConnected(const bool isConnected) override;
-
     void onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock) override;
 
     void factoryReset(bool isStarted) override;

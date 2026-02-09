@@ -468,11 +468,6 @@ void MainWindow::onGpio0StatusChanged(bool isToTarget)
     }
 }
 
-void MainWindow::onTargetUsbConnected(const bool isConnected)
-{
-    m_statusBarManager->setTargetUsbConnected(isConnected);
-}
-
 void MainWindow::onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock)
 {
     qCDebug(log_ui_mainwindow) << "Key states changed - NumLock:" << numLock << "CapsLock:" << capsLock << "ScrollLock:" << scrollLock;
@@ -1136,7 +1131,6 @@ void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
         qCDebug(log_ui_mainwindow) << "Serial port connected:" << port << "at baudrate:" << baudrate;
     }else{
         m_statusBarManager->setConnectedPort(port, baudrate);
-        m_statusBarManager->setTargetUsbConnected(false);
     }
 }
 

@@ -218,6 +218,7 @@ QColor StatusBarManager::getContrastingColor(const QColor &color)
 
 void StatusBarManager::setTargetUsbConnected(bool isConnected)
 {
+    qCDebug(log_ui_statusbarmanager) << "StatusBarManager::setTargetUsbConnected - Target USB connection status:" << (isConnected ? "Connected" : "Disconnected");
     m_statusWidget->setTargetUsbConnected(isConnected);
 }
 

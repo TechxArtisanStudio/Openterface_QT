@@ -213,9 +213,6 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
             m_cornerWidgetManager, &CornerWidgetManager::updateUSBStatus);
 
-    // Thread-safe connections to MainWindow (use queued connection to ensure slots run on GUI thread)
-    connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
-            m_mainWindow, &MainWindow::onTargetUsbConnected, Qt::QueuedConnection);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::keyStatesChanged,
             m_mainWindow, &MainWindow::onKeyStatesChanged, Qt::QueuedConnection);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::serialPortReset,
