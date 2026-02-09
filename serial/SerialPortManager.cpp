@@ -33,6 +33,7 @@
 
 #include <QSerialPortInfo>
 #include <QTimer>
+#include <QThread>
 #include <QtConcurrent>
 #include <QFuture>
 #include <QtSerialPort>
@@ -220,7 +221,7 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     });
 
     // Connect to DeviceManager for device monitoring instead of running own timer
-    DeviceManager& deviceManager = DeviceManager::getInstance();
+    // DeviceManager& deviceManager = DeviceManager::getInstance();
     // connect(&deviceManager, &DeviceManager::devicesChanged,
     //         this, [this](const QList<DeviceInfo>& devices) {
     //             qCDebug(log_core_serial) << "DeviceManager detected" << devices.size() << "devices";
@@ -559,48 +560,23 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
         onSerialPortConnected(selectedDevice.serialPortPath);
         
         if (!ready) {
-            bool connectionSuccess = false;
-            QEventLoop waitLoop;
-            QMetaObject::Connection conn = connect(this, &SerialPortManager::serialPortConnectionSuccess, this,
-                [&](const QString &p) {
-                    if (p == selectedDevice.serialPortPath) {
-                        connectionSuccess = true;
-                        waitLoop.quit();
-                    }
-                }, Qt::QueuedConnection);
-
-            // Safety timeout (2s)
-            QTimer::singleShot(2000, &waitLoop, &QEventLoop::quit);
-            waitLoop.exec();
-            disconnect(conn);
-
-            if (!connectionSuccess && !ready) {
-                qCWarning(log_core_serial) << "Serial port initialization did not complete within timeout after switch";
-                // Revert to previous device info on failure
-                m_currentSerialPortPath = previousPortPath;
-                m_currentSerialPortChain = previousPortChain;
-                return false;
-            }
+            // Use async approach instead of blocking event loop
+            QTimer::singleShot(2000, this, [this, selectedDevice, previousPortPath, previousPortChain, portChain]() {
+                if (!ready) {
+                    qCWarning(log_core_serial) << "Serial port initialization did not complete within timeout after switch";
+                    // Revert to previous device info on failure
+                    m_currentSerialPortPath = previousPortPath;
+                    m_currentSerialPortChain = previousPortChain;
+                } else {
+                    // Success - finalize the switch
+                    completeSwitchSerialPort(selectedDevice, previousPortPath, previousPortChain, portChain);
+                }
+            });
+            return true; // Return immediately as this is async
         }
 
-        // Update global settings and device manager
-        GlobalSetting::instance().setOpenterfacePortChain(portChain);
-        deviceManager.setCurrentSelectedDevice(selectedDevice);
-        
-        // Emit signals for serial port switching
-        emit serialPortDeviceChanged(previousPortPath, selectedDevice.serialPortPath);
-        emit serialPortSwitched(previousPortChain, portChain);
-
-        // Inform hotplug handler about the new active port chain and cancel pending auto-connect attempts
-        if (m_hotplugHandler) {
-            m_hotplugHandler->SetCurrentSerialPortPortChain(portChain);
-            m_hotplugHandler->CancelAutoConnectAttempts();
-            m_hotplugHandler->SetSerialOpen(true);
-        }
-        
-        qCDebug(log_core_serial) << "Serial port switch successful to:" << selectedDevice.serialPortPath 
-                                << "Ready state:" << ready;
-        return true;
+        // If ready immediately, complete the switch synchronously
+        return completeSwitchSerialPort(selectedDevice, previousPortPath, previousPortChain, portChain);
 
     } catch (const std::exception& e) {
         qCritical() << "Exception in switchSerialPortByPortChain:" << e.what();
@@ -609,6 +585,28 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
         qCritical() << "Unknown exception in switchSerialPortByPortChain";
         return false;
     }
+}
+
+bool SerialPortManager::completeSwitchSerialPort(const DeviceInfo& selectedDevice, const QString& previousPortPath, const QString& previousPortChain, const QString& portChain) {
+    // Update global settings and device manager
+    GlobalSetting::instance().setOpenterfacePortChain(portChain);
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    deviceManager.setCurrentSelectedDevice(selectedDevice);
+    
+    // Emit signals for serial port switching
+    emit serialPortDeviceChanged(previousPortPath, selectedDevice.serialPortPath);
+    emit serialPortSwitched(previousPortChain, portChain);
+
+    // Inform hotplug handler about the new active port chain and cancel pending auto-connect attempts
+    if (m_hotplugHandler) {
+        m_hotplugHandler->SetCurrentSerialPortPortChain(portChain);
+        m_hotplugHandler->CancelAutoConnectAttempts();
+        m_hotplugHandler->SetSerialOpen(true);
+    }
+    
+    qCDebug(log_core_serial) << "Serial port switch successful to:" << selectedDevice.serialPortPath 
+                            << "Ready state:" << ready;
+    return true;
 }
 
 /*
@@ -700,57 +698,9 @@ bool SerialPortManager::openPortWithRetries(const QString &portName, int tryBaud
         baudOrder = {BAUDRATE_LOWSPEED, BAUDRATE_HIGHSPEED};
     }
 
-    for (int cycle = 0; cycle < cycles; ++cycle) {
-        for (int baud : baudOrder) {
-            qCDebug(log_core_serial) << "Attempting to open port" << portName << "at baud" << baud << "(cycle" << (cycle+1) << "of" << cycles << ")";
-
-            bool opened = openPort(portName, baud);
-            if (!opened) {
-                qCWarning(log_core_serial) << "Failed to open serial port:" << portName << "at baud" << baud;
-                // small delay before next attempt
-                QEventLoop delayLoop;
-                QTimer::singleShot(1000 * (cycle+1), &delayLoop, &QEventLoop::quit);
-                delayLoop.exec();
-                continue;
-            }
-
-            qCDebug(log_core_serial) << "Serial port opened, validating with synchronous CMD_GET_INFO:" << portName << "baud" << baud;
-
-            // Allow device to settle briefly after opening - some devices need a short moment before responding
-            QEventLoop settleLoop;
-            QTimer::singleShot(300 * (cycle+1), &settleLoop, &QEventLoop::quit);
-            settleLoop.exec();
-
-            // Send a synchronous GET_INFO and validate response to ensure the device is actually talking
-            QByteArray resp = sendSyncCommand(CMD_GET_INFO, true);
-            bool valid = false;
-            if (!resp.isEmpty() && resp.size() >= 4) {
-                unsigned char b0 = static_cast<unsigned char>(resp[0]);
-                unsigned char b3 = static_cast<unsigned char>(resp[3]);
-                if (b0 == 0x57 && b3 == 0x81) {
-                    valid = true;
-                }
-            }
-
-            if (valid) {
-                qCDebug(log_core_serial) << "Received valid CMD_GET_INFO response, open considered successful:" << portName << "baud" << baud;
-                return true;
-            }
-
-            qCWarning(log_core_serial) << "No valid CMD_GET_INFO response received after opening port" << portName << "at baud" << baud << "- closing and will try the next baud/attempt";
-            if (serialPort && serialPort->isOpen()) {
-                closePort();
-            }
-
-            // small delay to allow device to settle after close before changing baud/opening again
-            QEventLoop delayLoop;
-            QTimer::singleShot(300, &delayLoop, &QEventLoop::quit);
-            delayLoop.exec();
-        }
-    }
-
-    qCWarning(log_core_serial) << "All attempts exhausted: failed to open and validate serial port:" << portName;
-    return false;
+    // Start the async retry logic
+    startAsyncPortRetries(portName, baudOrder, 0, 0, cycles);
+    return true; // Always return true since this is now async
 }
 
 /*
@@ -777,7 +727,7 @@ ConfigResult SerialPortManager::sendAndProcessConfigCommand() {
                              << "custom_usb_desc:" << QString("0x%1").arg(config.custom_usb_desc, 2, 16, QChar('0'));
     
     static QSettings settings("Techxartisan", "Openterface");
-    uint8_t hostConfigMode = (settings.value("hardware/operatingMode", 0x02).toUInt());
+    Q_UNUSED(settings.value("hardware/operatingMode", 0x02).toUInt()); // hostConfigMode unused in this context
     result.mode = config.mode;
     result.success = true;
     return result;
@@ -1383,11 +1333,28 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     emit statusUpdate("Going to open the port");
     
     if(serialPort == nullptr){
-        serialPort = new QSerialPort();
+        // CRITICAL: Create QSerialPort in main thread to avoid QSocketNotifier thread issues
+        if (QThread::currentThread() != QCoreApplication::instance()->thread()) {
+            bool created = false;
+            QMetaObject::invokeMethod(QCoreApplication::instance(), [this, &created]() {
+                serialPort = new QSerialPort();
+                created = true;
+            }, Qt::BlockingQueuedConnection);
+            
+            if (!created) {
+                qCCritical(log_core_serial) << "Failed to create QSerialPort in main thread";
+                return false;
+            }
+        } else {
+            serialPort = new QSerialPort();
+        }
         
-        // Connect error signal for enhanced error handling
+        // Connect error signal using queued connection for thread safety
         connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
-                this, &SerialPortManager::handleSerialError);
+                this, &SerialPortManager::handleSerialError, Qt::QueuedConnection);
+        
+        // Connect readyRead signal using queued connection for thread safety
+        connect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData, Qt::QueuedConnection);
     }
     
     serialPort->setPortName(portName);
@@ -1397,29 +1364,17 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     bool openResult = false;
     QSerialPort::SerialPortError lastError = QSerialPort::NoError;
     
-    for (int attempt = 0; attempt < 3; ++attempt) {
-        openResult = serialPort->open(QIODevice::ReadWrite);
-        if (openResult) {
-            break;
-        }
-        
-        lastError = serialPort->error();
-        qCWarning(log_core_serial) << "Failed to open port on attempt" << (attempt + 1) 
-                                   << "Error:" << serialPort->errorString();
-        
-        // Wait progressively longer between attempts - use event loop
-        QEventLoop loop;
-        QTimer::singleShot(300 * (attempt + 1), &loop, &QEventLoop::quit);
-        loop.exec();
-        
-        // Clear error before retry
-        serialPort->clearError();
+    // CRITICAL: Delegate QSerialPort open operations to main thread
+    if (QThread::currentThread() != QCoreApplication::instance()->thread()) {
+        QMetaObject::invokeMethod(QCoreApplication::instance(), [this, &openResult, &lastError]() {
+            openSerialPortMainThread(openResult, lastError);
+        }, Qt::BlockingQueuedConnection);
+    } else {
+        openSerialPortMainThread(openResult, lastError);
     }
     
     if (openResult) {
-        // serialPort->setReadBufferSize(4096);  // Set a larger read buffer size
         qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate << "with read buffer size" << serialPort->readBufferSize();
-        // serialPort->setRequestToSend(false);
 
         // Show existing buffer sizes before clearing them (read and write sizes)
         qCDebug(log_core_serial) << "Serial buffer sizes before clear - bytesAvailable:" << serialPort->bytesAvailable()
@@ -1453,6 +1408,32 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     }
 }
 
+void SerialPortManager::openSerialPortMainThread(bool& openResult, QSerialPort::SerialPortError& lastError) {
+    // Enhanced port opening with better error handling
+    openResult = false;
+    lastError = QSerialPort::NoError;
+    const int maxRetries = 3;
+    
+    for (int attempt = 0; attempt < maxRetries; ++attempt) {
+        openResult = serialPort->open(QIODevice::ReadWrite);
+        if (openResult) {
+            break;
+        }
+        
+        lastError = serialPort->error();
+        qCWarning(log_core_serial) << "Failed to open port on attempt" << (attempt + 1) 
+                                   << "Error:" << serialPort->errorString();
+        
+        // Clear error before retry
+        serialPort->clearError();
+        
+        // Simple synchronous delay for retry (avoid async complexity here)  
+        if (attempt < maxRetries - 1) {
+            QThread::msleep(300 * (attempt + 1));
+        }
+    }
+}
+
 /*
  * Close the serial port
  */
@@ -1476,45 +1457,81 @@ void SerialPortManager::closePort() {
 void SerialPortManager::closePortInternal() {
     qCDebug(log_core_serial) << "Close serial port";
     
+    // CRITICAL: QSerialPort operations must happen in main thread to avoid QSocketNotifier crashes
+    if (QThread::currentThread() != QCoreApplication::instance()->thread()) {
+        QMetaObject::invokeMethod(QCoreApplication::instance(), [this]() {
+            closePortInternalMainThread();
+        }, Qt::QueuedConnection);
+        return;
+    }
+    
+    closePortInternalMainThread();
+}
+
+void SerialPortManager::closePortInternalMainThread() {
+    qCDebug(log_core_serial) << "Close serial port (main thread)";
+    
     QMutexLocker locker(&m_serialPortMutex);
     
     if (serialPort != nullptr) {
         if (serialPort->isOpen()) {
-            // Disconnect all signals first - CRITICAL: do this BEFORE any QSerialPort operations
-            disconnect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
-            disconnect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
-            disconnect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
-                      this, &SerialPortManager::handleSerialError);
+            // Disconnect all signals BEFORE any operations
+            disconnect(serialPort, nullptr, this, nullptr);
             
             qCDebug(log_core_serial) << "Close serial port - current buffer sizes before close - bytesAvailable:" << serialPort->bytesAvailable()
                                      << "bytesToWrite:" << serialPort->bytesToWrite();
             
-            // Close the QSerialPort on its owning thread to avoid QSocketNotifier
-            // manipulations from other threads which can cause crashes.
-            QThread *ownerThread = serialPort->thread();
-            if (QThread::currentThread() != ownerThread) {
-                // Ensure close() runs on the owner's thread and wait until it's finished
-                QMetaObject::invokeMethod(serialPort, "close", Qt::BlockingQueuedConnection);
-                // Schedule deletion on the owner's thread
-                QMetaObject::invokeMethod(serialPort, "deleteLater", Qt::QueuedConnection);
-            } else {
+            // Enhanced close procedure for better memory safety
+            try {
+                // Flush any pending writes before closing
+                if (serialPort->bytesToWrite() > 0) {
+                    serialPort->waitForBytesWritten(100); // Wait max 100ms
+                }
+                
+                // Clear the read buffer to prevent stale data issues
+                serialPort->clear();
+                
+                // Close synchronously since we're in main thread
                 serialPort->close();
-                serialPort->deleteLater();
+                qCDebug(log_core_serial) << "Serial port closed";
+                
+                // Force event processing to ensure Qt's socket notifiers are cleaned up
+                QCoreApplication::processEvents();
+            } catch (...) {
+                qCWarning(log_core_serial) << "Exception during serial port close";
             }
-            qCDebug(log_core_serial) << "Serial port closed via thread-safe invokeMethod";
         }
-        // Clear our local pointer immediately; the object will be deleted on its thread
-        serialPort = nullptr;
         
-        // Reset error handler state when port is closed
-        m_errorHandlerDisconnected = false;
-        // LEGACY: m_errorCount removed - error tracking handled by SerialStatistics
-        m_errorTrackingTimer.restart();
+        // Enhanced deletion with additional safety measures
+        QObject* portPtr = serialPort;
+        serialPort = nullptr;  // Clear pointer immediately
+        
+        // Schedule deletion for next event loop to avoid immediate socket notifier issues
+        // Use QTimer::singleShot for more reliable deferred deletion
+        QTimer::singleShot(0, this, [portPtr]() {
+            if (portPtr) {
+                portPtr->deleteLater();
+            }
+        });
     } else {
         qCDebug(log_core_serial) << "Serial port is not opened.";
     }
     
+    // Signal back to worker thread to complete the rest of the cleanup
+    QMetaObject::invokeMethod(this, [this]() {
+        completePortCloseCleanup();
+    }, Qt::QueuedConnection);
+}
+
+void SerialPortManager::completePortCloseCleanup() {
+    // Stop all timers first to prevent callbacks during close (disconnect signals for permanent close)
+    stopAllTimers(true);
+
     ready = false;
+
+    // Reset error handler state when port is closed
+    m_errorHandlerDisconnected = false;
+    m_errorTrackingTimer.restart();
 
     // Inform hotplug handler that serial is closed and cancel any pending auto-connect attempts
     if (m_hotplugHandler) {
@@ -1528,28 +1545,13 @@ void SerialPortManager::closePortInternal() {
     // Stop watchdog while port is closed (thread-safe)
     stopConnectionWatchdog();
     
-    // Stop USB status check timer (thread-safe)
-    if (m_usbStatusCheckTimer) {
-        if (QThread::currentThread() == m_usbStatusCheckTimer->thread()) {
-            m_usbStatusCheckTimer->stop();
-        } else {
-            QMetaObject::invokeMethod(m_usbStatusCheckTimer, "stop", Qt::QueuedConnection);
-        }
-        qCDebug(log_core_serial) << "Stopped USB status check timer";
-    }
-
-    // Stop GET_INFO timer if running (thread-safe) to prevent periodic activity while port closed
-    if (m_getInfoTimer) {
-        if (QThread::currentThread() == m_getInfoTimer->thread()) {
-            m_getInfoTimer->stop();
-        } else {
-            QMetaObject::invokeMethod(m_getInfoTimer, "stop", Qt::QueuedConnection);
-        }
-        qCDebug(log_core_serial) << "Stopped GET_INFO timer";
-    }
+    // Update state directly - the watchdog manages connection state internally
+    ready = false;
     
-    // Use non-blocking timer instead of msleep - removed delay as it's not critical
-    // Port closing should be immediate, any OS-level delays are handled internally
+    // Use the existing signal for port state changes
+    QMetaObject::invokeMethod(this, [this]() {
+        emit statusUpdate("Port disconnected");
+    }, Qt::QueuedConnection);
 }
 
 bool SerialPortManager::restartPort() {
@@ -1569,21 +1571,12 @@ bool SerialPortManager::restartPort() {
     
     emit serialPortReset(true);
     
-    // Ensure restart is performed in the worker thread to avoid thread issues
-    if (QThread::currentThread() != m_serialWorkerThread) {
-        qCDebug(log_core_serial) << "restartPort called from different thread, routing through worker thread";
-        bool result = false;
-        QEventLoop waitLoop;
-        QMetaObject::invokeMethod(this, [this, &waitLoop, &result, portName, baudRate]() {
-            result = restartPortInternal(portName, baudRate);
-            waitLoop.quit();
-        }, Qt::QueuedConnection);
-        waitLoop.exec();
-        return result;
-    }
+    // Always route through worker thread for consistency using async approach
+    QMetaObject::invokeMethod(this, [this, portName, baudRate]() {
+        restartPortInternalAsync(portName, baudRate);
+    }, Qt::QueuedConnection);
     
-    // Already in worker thread, proceed directly
-    return restartPortInternal(portName, baudRate);
+    return true;  // Return true since restart is now async
 }
 
 bool SerialPortManager::restartPortInternal(const QString &portName, qint32 baudRate) {
@@ -1592,25 +1585,123 @@ bool SerialPortManager::restartPortInternal(const QString &portName, qint32 baud
     // Close the port first
     closePortInternal();
     
-    // Wait a short time for the port to fully close (especially important on Windows)
-    QEventLoop delayLoop;
-    QTimer::singleShot(150, &delayLoop, &QEventLoop::quit);
-    delayLoop.exec();
+    // Use QTimer instead of blocking QEventLoop
+    QTimer::singleShot(150, this, [this, portName, baudRate]() {
+        qCDebug(log_core_serial) << "Reopening port after restart delay";
+        
+        // Attempt to reopen the port
+        bool openResult = openPort(portName, baudRate);
+        if (openResult) {
+            qCDebug(log_core_serial) << "Port restart successful for" << portName;
+            onSerialPortConnected(portName);
+            emit serialPortReset(false);
+        } else {
+            qCWarning(log_core_serial) << "Port restart failed for" << portName;
+            emit serialPortReset(false);
+        }
+    });
     
-    qCDebug(log_core_serial) << "Reopening port after restart delay";
+    return true;  // Return true since restart is now async
+}
+
+// New async implementation
+void SerialPortManager::restartPortInternalAsync(const QString &portName, qint32 baudRate) {
+    qCDebug(log_core_serial) << "Async restart for port" << portName << "at" << baudRate << "bps";
     
-    // Attempt to reopen the port
-    bool openResult = openPort(portName, baudRate);
-    if (openResult) {
-        qCDebug(log_core_serial) << "Port restart successful for" << portName;
-        onSerialPortConnected(portName);
-        emit serialPortReset(false);
-        return true;
-    } else {
-        qCWarning(log_core_serial) << "Port restart failed for" << portName;
-        emit serialPortReset(false);
-        return false;
+    // Ensure this runs in the worker thread
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this, portName, baudRate]() {
+            restartPortInternalAsync(portName, baudRate);
+        }, Qt::QueuedConnection);
+        return;
     }
+    
+    // Stop all timers first to prevent interference (keep signals connected for restart)
+    stopAllTimers(false);
+    
+    // Close the port
+    closePortInternal();
+    
+    // Schedule reopening after delay - use QueuedConnection for thread safety
+    QTimer::singleShot(500, this, [this, portName, baudRate]() {
+        // Process any pending events to ensure cleanup is complete
+        QCoreApplication::processEvents();
+        
+        // Ensure the open operation happens in the worker thread
+        QMetaObject::invokeMethod(this, [this, portName, baudRate]() {
+            bool openResult = openPort(portName, baudRate);
+            if (openResult) {
+                qCDebug(log_core_serial) << "Port restart successful for" << portName;
+                onSerialPortConnected(portName);
+            } else {
+                qCWarning(log_core_serial) << "Port restart failed for" << portName;
+            }
+            emit serialPortReset(false);
+        }, Qt::QueuedConnection);
+    });
+}
+
+// Helper method to stop all timers safely (must be called from worker thread)
+void SerialPortManager::stopAllTimers(bool disconnectSignals) {
+    // Enhanced thread safety - avoid blocking calls that can cause deadlocks
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this, disconnectSignals]() {
+            stopAllTimers(disconnectSignals);
+        }, Qt::QueuedConnection);
+        return;
+    }
+    
+    // Add shutdown flag check to prevent operations during shutdown
+    if (m_isShuttingDown) {
+        qCDebug(log_core_serial) << "stopAllTimers: Already shutting down, ensuring all timers stopped";
+    }
+    
+    // Stop timers with additional safety checks
+    if (m_getInfoTimer) {
+        if (m_getInfoTimer->isActive()) {
+            m_getInfoTimer->stop();
+        }
+        // Only disconnect signals during permanent shutdown
+        if (disconnectSignals) {
+            disconnect(m_getInfoTimer, nullptr, this, nullptr);
+        }
+    }
+
+    if (m_usbStatusCheckTimer) {
+        if (m_usbStatusCheckTimer->isActive()) {
+            m_usbStatusCheckTimer->stop();
+        }
+        // Only disconnect signals during permanent shutdown  
+        if (disconnectSignals) {
+            disconnect(m_usbStatusCheckTimer, nullptr, this, nullptr);
+        }
+    }
+
+    if (m_watchdog) {
+        m_watchdog->stop();
+    }
+
+    if (m_connectionWatchdog) {
+        if (m_connectionWatchdog->isActive()) {
+            m_connectionWatchdog->stop();
+        }
+        // Only disconnect signals during permanent shutdown
+        if (disconnectSignals) {
+            disconnect(m_connectionWatchdog, nullptr, this, nullptr);
+        }
+    }
+    
+    if (m_errorRecoveryTimer) {
+        if (m_errorRecoveryTimer->isActive()) {
+            m_errorRecoveryTimer->stop();
+        }
+        disconnect(m_errorRecoveryTimer, nullptr, this, nullptr);
+    }
+    
+    // Also call stopConnectionWatchdog for additional cleanup
+    stopConnectionWatchdog();
+    
+    qCDebug(log_core_serial) << "All timers stopped and disconnected";
 }
 
 void SerialPortManager::updateSpecialKeyState(uint8_t data){
@@ -1635,14 +1726,42 @@ void SerialPortManager::updateSpecialKeyState(uint8_t data){
  * Read the data from the serial port
  */
 void SerialPortManager::readData() {
+    // Enhanced thread and memory safety checks
     if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
         qCDebug(log_core_serial) << "readData: Ignored read - shutting down or port not open";
         return;
     }
     
+    // Additional safety: Ensure we're in the correct thread
+    if (QThread::currentThread() != this->thread()) {
+        qCWarning(log_core_serial) << "readData called from wrong thread, ignoring";
+        return;
+    }
+    
+    // Mutex protection for serial port access to prevent concurrent access
+    QMutexLocker locker(&m_serialPortMutex);
+    if (!serialPort || !serialPort->isOpen()) {
+        qCDebug(log_core_serial) << "Serial port became invalid during readData";
+        return;
+    }
+    
     QByteArray data;
     try {
-        data = serialPort->readAll();
+        // Check bytes available before reading to avoid potential buffer issues
+        qint64 bytesAvailable = serialPort->bytesAvailable();
+        if (bytesAvailable <= 0) {
+            qCDebug(log_core_serial) << "No bytes available to read";
+            return;
+        }
+        
+        // Limit read size to prevent excessive memory allocation
+        const qint64 MAX_READ_SIZE = 8192;  // 8KB limit
+        if (bytesAvailable > MAX_READ_SIZE) {
+            qCWarning(log_core_serial) << "Large amount of data available:" << bytesAvailable << "bytes, limiting read";
+            data = serialPort->read(MAX_READ_SIZE);
+        } else {
+            data = serialPort->readAll();
+        }
     } catch (...) {
         qCWarning(log_core_serial) << "Exception occurred while reading serial data";
         if (isRecoveryNeeded()) {
@@ -1804,6 +1923,19 @@ bool SerialPortManager::writeData(const QByteArray &data) {
         return false;
     }
     
+    // CRITICAL: Delegate all QSerialPort operations to main thread
+    if (QThread::currentThread() != QCoreApplication::instance()->thread()) {
+        bool result = false;
+        QMetaObject::invokeMethod(QCoreApplication::instance(), [this, data, &result]() {
+            result = writeDataMainThread(data);
+        }, Qt::BlockingQueuedConnection);
+        return result;
+    }
+    
+    return writeDataMainThread(data);
+}
+
+bool SerialPortManager::writeDataMainThread(const QByteArray &data) {
     // QMutexLocker locker(&m_serialPortMutex);
     
     if (!serialPort || !serialPort->isOpen()) {
@@ -2871,6 +3003,7 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
     //   trigger recovery (prefer ConnectionWatchdog; fallback to close+reopen).
     static int s_consecutiveNoResponseIntervals = 0;
     const int NO_RESPONSE_ESCALATION_THRESHOLD = 3; // ~3 seconds of zero replies
+    Q_UNUSED(NO_RESPONSE_ESCALATION_THRESHOLD);
     
     // Check if 1 second has elapsed since last report
     if (m_asyncStatsTimer.elapsed() >= ASYNC_STATS_INTERVAL_MS) {
@@ -2956,4 +3089,194 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
         m_asyncMessagesReceived = 0;
         m_asyncStatsTimer.restart();
     }
+}
+
+// Async helper methods for non-blocking port operations
+void SerialPortManager::continueInitializeWithBaudrates(const QString &portName, qint32 baud, int cycle, int cycles) {
+    qCDebug(log_core_serial) << "Continuing initialization cycle" << (cycle+1) << "of" << cycles;
+    
+    if (cycle >= cycles) {
+        qCWarning(log_core_serial) << "All attempts exhausted: failed to open and validate serial port:" << portName;
+        return;
+    }
+    
+    qCDebug(log_core_serial) << "Attempting to open port" << portName << "at baud" << baud << "(cycle" << (cycle+1) << "of" << cycles << ")";
+
+    bool opened = openPort(portName, baud);
+    if (!opened) {
+        qCWarning(log_core_serial) << "Failed to open serial port:" << portName << "at baud" << baud;
+        // Use async delay instead of blocking
+        QTimer::singleShot(1000 * (cycle+1), this, [this, portName, baud, cycle, cycles]() {
+            continueInitializeWithBaudrates(portName, baud, cycle + 1, cycles);
+        });
+        return;
+    }
+
+    qCDebug(log_core_serial) << "Serial port opened, validating with synchronous CMD_GET_INFO:" << portName << "baud" << baud;
+
+    // Allow device to settle briefly after opening - use async approach
+    QTimer::singleShot(300 * (cycle+1), this, [this, portName, baud, cycle, cycles]() {
+        validatePortAfterSettle(portName, baud, cycle, cycles);
+    });
+}
+
+void SerialPortManager::validatePortAfterSettle(const QString &portName, qint32 baud, int cycle, int cycles) {
+    // Send a synchronous GET_INFO and validate response to ensure the device is actually talking
+    QByteArray resp = sendSyncCommand(CMD_GET_INFO, true);
+    bool valid = false;
+    if (!resp.isEmpty() && resp.size() >= 4) {
+        unsigned char b0 = static_cast<unsigned char>(resp[0]);
+        unsigned char b3 = static_cast<unsigned char>(resp[3]);
+        if (b0 == 0x57 && b3 == 0x81) {
+            valid = true;
+            qCDebug(log_core_serial) << "Device validation successful at baud" << baud;
+        }
+    }
+
+    if (!valid) {
+        qCWarning(log_core_serial) << "No valid CMD_GET_INFO response received after opening port" << portName << "at baud" << baud << "- closing and will try the next baud/attempt";
+        if (serialPort && serialPort->isOpen()) {
+            closePort();
+        }
+
+        // Use async delay instead of blocking
+        QTimer::singleShot(300, this, [this, portName, baud, cycle, cycles]() {
+            continueInitializeWithBaudrates(portName, baud, cycle + 1, cycles);
+        });
+        return;
+    }
+
+    qCDebug(log_core_serial) << "Successfully initialized and validated port" << portName << "at baud" << baud;
+}
+
+void SerialPortManager::continueOpenPortRetry(const QString &portName, qint32 baudRate, int attempt, int maxRetries) {
+    if (attempt >= maxRetries) {
+        qCWarning(log_core_serial) << "Failed to open port after" << maxRetries << "attempts. Final error:" 
+                                   << (serialPort ? serialPort->errorString() : "No port instance");
+        return;
+    }
+
+    qCDebug(log_core_serial) << "Retry attempt" << (attempt + 1) << "for port" << portName;
+    
+    // Clear error before retry
+    if (serialPort) {
+        serialPort->clearError();
+    }
+    
+    // Try to open the port again
+    bool openResult = false;
+    if (serialPort) {
+        openResult = serialPort->open(QIODevice::ReadWrite);
+    }
+
+    if (openResult) {
+        // Success! Port opened
+        qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate << "with read buffer size" << serialPort->readBufferSize();
+        
+        // Show existing buffer sizes before clearing them
+        qCDebug(log_core_serial) << "Serial buffer sizes before clear - bytesAvailable:" << serialPort->bytesAvailable()
+                                 << "bytesToWrite:" << serialPort->bytesToWrite();
+
+        // Clear any stale data in the serial port buffers
+        qCDebug(log_core_serial) << "Clearing serial port buffers to remove stale data";
+        serialPort->clear();
+        return; // Success - exit
+    }
+
+    // Failed to open, log error and continue with next retry
+    qCWarning(log_core_serial) << "Failed to open port on attempt" << (attempt + 1) 
+                               << "Error:" << (serialPort ? serialPort->errorString() : "No port instance");
+    
+    // Use async delay for next retry
+    QTimer::singleShot(300 * (attempt + 1), this, [this, portName, baudRate, attempt, maxRetries]() {
+        continueOpenPortRetry(portName, baudRate, attempt + 1, maxRetries);
+    });
+}
+
+// Async state machine for port retries
+void SerialPortManager::startAsyncPortRetries(const QString &portName, const QList<int> &baudOrder, int baudIndex, int cycle, int maxCycles) {
+    // Enhanced safety: bail out early if shutting down
+    if (m_isShuttingDown) {
+        qCDebug(log_core_serial) << "Abandoning async port retries due to shutdown";
+        return;
+    }
+    
+    if (cycle >= maxCycles) {
+        qCWarning(log_core_serial) << "All attempts exhausted: failed to open and validate serial port:" << portName;
+        return;
+    }
+    
+    if (baudIndex >= baudOrder.size()) {
+        // Move to next cycle - simplified to avoid deep nesting
+        if (m_isShuttingDown) return;
+        QTimer::singleShot(500, this, [this, portName, baudOrder, cycle, maxCycles]() {
+            if (!m_isShuttingDown) {
+                startAsyncPortRetries(portName, baudOrder, 0, cycle + 1, maxCycles);
+            }
+        });
+        return;
+    }
+    
+    int baud = baudOrder[baudIndex];
+    qCDebug(log_core_serial) << "Attempting to open port" << portName << "at baud" << baud << "(cycle" << (cycle+1) << "of" << maxCycles << ")";
+
+    // Simplified async approach to prevent complex nested operations
+    bool opened = openPort(portName, baud);
+    if (!opened) {
+        qCWarning(log_core_serial) << "Failed to open serial port:" << portName << "at baud" << baud;
+        // Simple delay before next attempt
+        QTimer::singleShot(1000, this, [this, portName, baudOrder, baudIndex, cycle, maxCycles]() {
+            if (!m_isShuttingDown) {
+                startAsyncPortRetries(portName, baudOrder, baudIndex + 1, cycle, maxCycles);
+            }
+        });
+        return;
+    }
+
+    qCDebug(log_core_serial) << "Serial port opened, validating with synchronous CMD_GET_INFO:" << portName << "baud" << baud;
+
+    // Allow device to settle briefly after opening
+    QTimer::singleShot(300, this, [this, portName, baud, baudOrder, baudIndex, cycle, maxCycles]() {
+        if (!m_isShuttingDown) {
+            validateAsyncPortRetry(portName, baud, baudOrder, baudIndex, cycle, maxCycles);
+        }
+    });
+}
+
+void SerialPortManager::validateAsyncPortRetry(const QString &portName, int baud, const QList<int> &baudOrder, int baudIndex, int cycle, int maxCycles) {
+    // Enhanced safety checks
+    if (m_isShuttingDown || !serialPort) {
+        qCDebug(log_core_serial) << "Validation abandoned due to shutdown or null serial port";
+        return;
+    }
+    
+    // Send a synchronous GET_INFO and validate response
+    QByteArray resp = sendSyncCommand(CMD_GET_INFO, true);
+    bool valid = false;
+    if (!resp.isEmpty() && resp.size() >= 4) {
+        unsigned char b0 = static_cast<unsigned char>(resp[0]);
+        unsigned char b3 = static_cast<unsigned char>(resp[3]);
+        if (b0 == 0x57 && b3 == 0x81) {
+            valid = true;
+        }
+    }
+
+    if (valid) {
+        qCDebug(log_core_serial) << "Received valid CMD_GET_INFO response, open considered successful:" << portName << "baud" << baud;
+        return; // Success!
+    }
+
+    qCWarning(log_core_serial) << "No valid CMD_GET_INFO response received after opening port" << portName << "at baud" << baud << "- closing and will try the next baud/attempt";
+    
+    // Simplified close operation
+    if (serialPort && serialPort->isOpen()) {
+        closePort();
+    }
+
+    // Delay before next attempt - simplified to avoid complex nesting
+    QTimer::singleShot(300, this, [this, portName, baudOrder, baudIndex, cycle, maxCycles]() {
+        if (!m_isShuttingDown) {
+            startAsyncPortRetries(portName, baudOrder, baudIndex + 1, cycle, maxCycles);
+        }
+    });
 }

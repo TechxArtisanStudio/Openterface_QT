@@ -133,6 +133,7 @@ public:
     bool getScrollLockState();
 
     bool writeData(const QByteArray &data);
+    bool writeDataMainThread(const QByteArray &data);
     bool sendAsyncCommand(const QByteArray &data, bool force);
     bool sendResetCommand();
     QByteArray sendSyncCommand(const QByteArray &data, bool force);
@@ -265,6 +266,18 @@ private slots:
     void handleResetHidChip(int targetBaudrate);
     void handleFactoryReset();
     void handleFactoryResetV191();
+    
+    // New async restart methods to replace blocking operations
+    void restartPortInternalAsync(const QString &portName, qint32 baudRate);
+    void stopAllTimers(bool disconnectSignals = true);
+    
+    // Async helper methods for non-blocking port operations
+    void continueInitializeWithBaudrates(const QString &portName, qint32 baud, int cycle, int cycles);
+    void validatePortAfterSettle(const QString &portName, qint32 baud, int cycle, int cycles);
+    void continueOpenPortRetry(const QString &portName, qint32 baudRate, int attempt, int maxRetries);
+    bool completeSwitchSerialPort(const DeviceInfo& selectedDevice, const QString& previousPortPath, const QString& previousPortChain, const QString& portChain);
+    void startAsyncPortRetries(const QString &portName, const QList<int> &baudOrder, int baudIndex, int cycle, int maxCycles);
+    void validateAsyncPortRetry(const QString &portName, int baud, const QList<int> &baudOrder, int baudIndex, int cycle, int maxCycles);
 
     // /*
     //  * Check if the USB switch status
@@ -298,6 +311,9 @@ private:
     
     // Thread-safe port closing (ensures QSocketNotifier operations happen in worker thread)
     void closePortInternal();
+    void closePortInternalMainThread();
+    void completePortCloseCleanup();
+    void openSerialPortMainThread(bool& openResult, QSerialPort::SerialPortError& lastError);
     bool restartPortInternal(const QString &portName, qint32 baudRate);
     bool handleResetHidChipInternal(int targetBaudrate);
     bool handleFactoryResetInternal();
