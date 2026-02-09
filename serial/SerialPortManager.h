@@ -298,6 +298,7 @@ private:
     
     // Thread-safe port closing (ensures QSocketNotifier operations happen in worker thread)
     void closePortInternal();
+    bool restartPortInternal(const QString &portName, qint32 baudRate);
     bool handleResetHidChipInternal(int targetBaudrate);
     bool handleFactoryResetInternal();
     bool handleFactoryResetV191Internal();

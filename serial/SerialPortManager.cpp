@@ -1553,6 +1553,11 @@ void SerialPortManager::closePortInternal() {
 }
 
 bool SerialPortManager::restartPort() {
+    if (!serialPort) {
+        qCWarning(log_core_serial) << "Cannot restart - no serial port instance";
+        return false;
+    }
+    
     QString portName = serialPort->portName();
     qint32 baudRate = serialPort->baudRate();
     qCDebug(log_core_serial) << "Restart port" << portName << "baudrate:" << baudRate;
@@ -1563,16 +1568,49 @@ bool SerialPortManager::restartPort() {
     }
     
     emit serialPortReset(true);
-    closePort();
     
-    // Use non-blocking timer instead of msleep
-    QTimer::singleShot(100, this, [this, portName, baudRate]() {
-        openPort(portName, baudRate);
+    // Ensure restart is performed in the worker thread to avoid thread issues
+    if (QThread::currentThread() != m_serialWorkerThread) {
+        qCDebug(log_core_serial) << "restartPort called from different thread, routing through worker thread";
+        bool result = false;
+        QEventLoop waitLoop;
+        QMetaObject::invokeMethod(this, [this, &waitLoop, &result, portName, baudRate]() {
+            result = restartPortInternal(portName, baudRate);
+            waitLoop.quit();
+        }, Qt::QueuedConnection);
+        waitLoop.exec();
+        return result;
+    }
+    
+    // Already in worker thread, proceed directly
+    return restartPortInternal(portName, baudRate);
+}
+
+bool SerialPortManager::restartPortInternal(const QString &portName, qint32 baudRate) {
+    qCDebug(log_core_serial) << "Starting internal restart for port" << portName << "at" << baudRate << "bps";
+    
+    // Close the port first
+    closePortInternal();
+    
+    // Wait a short time for the port to fully close (especially important on Windows)
+    QEventLoop delayLoop;
+    QTimer::singleShot(150, &delayLoop, &QEventLoop::quit);
+    delayLoop.exec();
+    
+    qCDebug(log_core_serial) << "Reopening port after restart delay";
+    
+    // Attempt to reopen the port
+    bool openResult = openPort(portName, baudRate);
+    if (openResult) {
+        qCDebug(log_core_serial) << "Port restart successful for" << portName;
         onSerialPortConnected(portName);
         emit serialPortReset(false);
-    });
-    
-    return ready;
+        return true;
+    } else {
+        qCWarning(log_core_serial) << "Port restart failed for" << portName;
+        emit serialPortReset(false);
+        return false;
+    }
 }
 
 void SerialPortManager::updateSpecialKeyState(uint8_t data){
