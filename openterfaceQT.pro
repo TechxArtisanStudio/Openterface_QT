@@ -52,7 +52,6 @@ SOURCES += main.cpp \
     serial/SerialCommandCoordinator.cpp \
     serial/SerialStateManager.cpp \
     serial/SerialStatistics.cpp \
-    serial/SerialFacade.cpp \
     serial/FactoryResetManager.cpp \
     serial/chipstrategy/CH9329Strategy.cpp \
     serial/chipstrategy/CH32V208Strategy.cpp \
@@ -180,7 +179,6 @@ HEADERS  += \
     serial/SerialCommandCoordinator.h \
     serial/SerialStateManager.h \
     serial/SerialStatistics.h \
-    serial/SerialFacade.h \
     serial/FactoryResetManager.h \
     serial/ch9329.h \
     serial/chipstrategy/IChipStrategy.h \

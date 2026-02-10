@@ -71,37 +71,6 @@ struct ConfigResult {
     uint8_t mode = 0;
 };
 
-/**
- * @brief SerialPortManager - Core serial port management with modular architecture
- * 
- * REFACTORED ARCHITECTURE (Phase 4 Complete):
- * This class has been significantly refactored to use a modular, component-based architecture:
- * 
- * Core Components:
- * - SerialCommandCoordinator: Handles command queuing, execution, and response processing
- * - SerialStateManager: Manages connection states, device info, and key states  
- * - SerialStatistics: Performance monitoring, error tracking, and ARM optimization
- * - ConnectionWatchdog: Auto-recovery and connection monitoring
- * - SerialFacade: Simplified high-level interface for common operations
- * 
- * Legacy Compatibility:
- * - Public interface maintained for backward compatibility
- * - All methods delegate to appropriate specialized components
- * - Deprecated functionality marked with LEGACY comments
- * 
- * Usage Patterns:
- * - For simple operations: Use SerialFacade class for clean, high-level API
- * - For advanced usage: Access SerialPortManager directly (maintains full compatibility)
- * - For statistics: All tracking is automatic via SerialStatistics module
- * - For recovery: Auto-recovery handled by ConnectionWatchdog component
- * 
- * Architecture Benefits:
- * - Improved maintainability through separation of concerns
- * - Better testability with isolated components  
- * - Enhanced performance monitoring and diagnostics
- * - Simplified interface through facade pattern
- * - Retained backward compatibility for existing code
- */
 class SerialPortManager : public QObject, public IRecoveryHandler
 {
     Q_OBJECT
@@ -138,7 +107,6 @@ public:
     bool sendResetCommand();
     QByteArray sendSyncCommand(const QByteArray &data, bool force);
 
-    bool resetHipChip(int targetBaudrate = DEFAULT_BAUDRATE);
     bool reconfigureHidChip(int targetBaudrate = DEFAULT_BAUDRATE);
     bool factoryResetHipChipV191();
     bool factoryResetHipChip();
@@ -205,9 +173,6 @@ public:
     ChipType getCurrentChipType() const { return m_currentChipType; }
     inline bool isChipTypeCH32V208() const { return m_currentChipType == ChipType::CH32V208; }
     inline bool isChipTypeCH9329() const { return m_currentChipType == ChipType::CH9329; }
-
-    // Query current target USB connection state (thread-safe via state manager)
-    bool getTargetUsbConnected() const;
     
     // New USB switch methods for CH32V208 serial port (firmware with new protocol)
     void switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)
@@ -244,8 +209,6 @@ signals:
     void statusUpdate(const QString &status); // General status update for UI
     void factoryReset(bool isStarted); // Factory reset started/ended
     
-    // Thread-safe reset operation signals (internal use)
-    void requestResetHidChip(int targetBaudrate);
     void requestFactoryReset();
     void requestFactoryResetV191();
     
@@ -262,8 +225,6 @@ private slots:
     
     void initializeSerialPortFromPortChain();
     
-    // Thread-safe reset operation handlers (called via queued connection)
-    void handleResetHidChip(int targetBaudrate);
     void handleFactoryReset();
     void handleFactoryResetV191();
     
@@ -319,7 +280,6 @@ private:
     void completePortCloseCleanup();
     void openSerialPortMainThread(bool& openResult, QSerialPort::SerialPortError& lastError);
     bool restartPortInternal(const QString &portName, qint32 baudRate);
-    bool handleResetHidChipInternal(int targetBaudrate);
     bool handleFactoryResetInternal();
     bool handleFactoryResetV191Internal();
     

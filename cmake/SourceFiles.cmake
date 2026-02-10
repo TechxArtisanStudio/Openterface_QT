@@ -117,7 +117,6 @@ set(SERIAL_SOURCES
     serial/SerialCommandCoordinator.cpp serial/SerialCommandCoordinator.h
     serial/SerialStateManager.cpp serial/SerialStateManager.h
     serial/SerialStatistics.cpp serial/SerialStatistics.h
-    serial/SerialFacade.cpp serial/SerialFacade.h
     serial/FactoryResetManager.cpp serial/FactoryResetManager.h
     serial/serial_hotplug_handler.cpp serial/serial_hotplug_handler.h
     serial/ch9329.h

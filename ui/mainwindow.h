@@ -289,6 +289,7 @@ private:
     bool m_applicationExiting = false;
     bool m_doImageCapture = true;
     bool m_deviceAutoSelected = false; // Flag to prevent multiple auto-selections
+    bool m_closeEventHandled = false; // Flag to prevent closeEvent re-entrance
     int video_width = 1920;
     int video_height = 1080;
     QList<QCameraDevice> m_lastCameraList;

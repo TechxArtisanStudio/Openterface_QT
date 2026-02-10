@@ -60,7 +60,6 @@ public:
     void handleMouseMove(MouseEventDTO *event);
     void handleMouseScroll(MouseEventDTO *event);
     
-    void resetHid();
     void resetSerialPort();
     void setEventCallback(StatusEventCallback* callback);
     void restartApplication();
