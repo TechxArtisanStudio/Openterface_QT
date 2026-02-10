@@ -1013,6 +1013,15 @@ void MainWindow::closeEvent(QCloseEvent *event)
         
         qCDebug(log_ui_mainwindow) << "Calling QApplication::quit() to exit application";
         
+        // CRITICAL: Disconnect all event filters before quitting to prevent late GStreamer operations
+        // Remove all event filters to prevent any late overlay setup operations
+        const QWidgetList eventFilterWidgets = QApplication::allWidgets();
+        for (QWidget* widget : eventFilterWidgets) {
+            if (widget && widget != this) {
+                widget->removeEventFilter(this);
+            }
+        }
+        
         // Use QTimer with a minimal delay to ensure quit happens after closeEvent completes
         // This avoids issues with processEvents triggering queued operations
         QTimer::singleShot(0, qApp, []() {

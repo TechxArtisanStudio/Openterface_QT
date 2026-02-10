@@ -1104,6 +1104,16 @@ bool SerialPortManager::handleFactoryResetV191SyncInternal(int timeoutMs) {
 SerialPortManager::~SerialPortManager() {
     qCDebug(log_core_serial) << "Destroy serial port manager.";
     
+    // Fast exit if main shutdown already completed - avoid any risky operations 
+    if (m_isShuttingDown) {
+        qCDebug(log_core_serial) << "SerialPortManager: Main shutdown completed, skipping destructor cleanup";
+        qCDebug(log_core_serial) << "Serial port manager destroyed";
+        return;
+    }
+    
+    // Only do cleanup if we're in abnormal termination (m_isShuttingDown not set)
+    qCDebug(log_core_serial) << "SerialPortManager: Abnormal termination detected, performing emergency cleanup";
+    
     // Prevent further callback access during destruction
     eventCallback = nullptr;
     
@@ -1116,11 +1126,8 @@ SerialPortManager::~SerialPortManager() {
         m_watchdog->stop();
     }
         
-    // Properly stop the manager first
+    // Emergency cleanup only
     stop();
-    
-    // Disconnect from hotplug monitor
-    disconnectFromHotplugMonitor();
     
     // FIXED: Cleanup timers without blocking - thread is already stopped by stop()
     // Avoid BlockingQueuedConnection on stopped threads to prevent deadlock
@@ -1128,14 +1135,14 @@ SerialPortManager::~SerialPortManager() {
     if (m_connectionWatchdog) {
         // Thread is stopped, safe to call directly
         m_connectionWatchdog->stop();
-        m_connectionWatchdog->deleteLater();
+        delete m_connectionWatchdog;  // Direct delete - event loop already exited
         m_connectionWatchdog = nullptr;
     }
     
     if (m_errorRecoveryTimer) {
         // Thread is stopped, safe to call directly
         m_errorRecoveryTimer->stop();
-        m_errorRecoveryTimer->deleteLater();
+        delete m_errorRecoveryTimer;  // Direct delete - event loop already exited
         m_errorRecoveryTimer = nullptr;
     }
     
@@ -1143,7 +1150,7 @@ SerialPortManager::~SerialPortManager() {
     if (m_usbStatusCheckTimer) {
         // Thread is stopped, safe to call directly
         m_usbStatusCheckTimer->stop();
-        m_usbStatusCheckTimer->deleteLater();
+        delete m_usbStatusCheckTimer;  // Direct delete - event loop already exited
         m_usbStatusCheckTimer = nullptr;
     }
     
@@ -1156,7 +1163,11 @@ SerialPortManager::~SerialPortManager() {
     // Clean up logging thread
     if (m_logThread) {
         m_logThread->quit();
-        m_logThread->wait();
+        if (!m_logThread->wait(1000)) {  // Wait max 1 second
+            qCWarning(log_core_serial) << "Logging thread did not stop gracefully, forcing termination";
+            m_logThread->terminate();
+            m_logThread->wait(500);  // Give it a short time to terminate
+        }
         delete m_logThread;
         m_logThread = nullptr;
     }
