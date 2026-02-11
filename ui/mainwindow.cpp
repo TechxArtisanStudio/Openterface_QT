@@ -155,17 +155,6 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     VideoHid::getInstance().start();
     
     qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
-
-    // Perform a non-forced update check on startup (honors user settings and 30-day throttle).
-    // Schedule after the event loop starts so network/dialog code runs reliably.
-    QTimer::singleShot(0, this, [this]() {
-        if (GlobalSetting::instance().getUpdateNeverRemind()) {
-            qCDebug(log_ui_mainwindow) << "Startup update check skipped: 'never remind' is set";
-            return;
-        }
-        qCDebug(log_ui_mainwindow) << "Startup: invoking VersionInfoManager::checkForUpdates(false) (throttle applies)";
-        m_versionInfoManager->checkForUpdates(true);
-    });
 }
 
 void MainWindow::startServer(){
@@ -377,7 +366,6 @@ void MainWindow::onActionFactoryResetHIDTriggered()
     if (reply == QMessageBox::Yes) {
         qCDebug(log_ui_mainwindow) << "onActionFactoryResetHIDTriggered";
         SerialPortManager::getInstance().factoryResetHipChip();
-        // HostManager::getInstance().resetHid();
     } else {
         qCDebug(log_ui_mainwindow) << "Factory reset HID chip canceled by user.";
     }
@@ -466,11 +454,6 @@ void MainWindow::onGpio0StatusChanged(bool isToTarget)
         qCDebug(log_ui_mainwindow) << "GPIO0 status changed to:" << (isToTarget ? "target" : "host");
         toggleSwitch->setChecked(isToTarget);
     }
-}
-
-void MainWindow::onTargetUsbConnected(const bool isConnected)
-{
-    m_statusBarManager->setTargetUsbConnected(isConnected);
 }
 
 void MainWindow::onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock)
@@ -914,8 +897,10 @@ void MainWindow::stop(){
     qDebug() << "Stopping camera manager...";
     m_cameraManager->stopCamera();
 
-    qDebug() << "Closing serial port...";
-    SerialPortManager::getInstance().closePort();
+    // Don't call closePort() here because SerialPortManager::stop() will handle it
+    // Calling it here causes queued close operations that execute during processEvents
+    // qDebug() << "Closing serial port...";
+    // SerialPortManager::getInstance().closePort();
 
     qDebug() << "Camera stopped.";
 }
@@ -954,12 +939,20 @@ void MainWindow::imageSaved(int id, const QString &fileName)
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    // Prevent re-entrance
+    if (m_closeEventHandled) {
+        qCDebug(log_ui_mainwindow) << "MainWindow closeEvent - already handled, ignoring";
+        event->accept();
+        return;
+    }
+    
     if (m_isCapturingImage) {
         setEnabled(false);
         m_applicationExiting = true;
         event->ignore();
     } else {
         qCDebug(log_ui_mainwindow) << "MainWindow closeEvent - initiating shutdown";
+        m_closeEventHandled = true;  // Mark as handled immediately
         event->accept();
         
         // Set shutdown flag first to signal all threads to stop
@@ -1006,13 +999,37 @@ void MainWindow::closeEvent(QCloseEvent *event)
             qCWarning(log_ui_mainwindow) << "Exception while stopping AudioManager";
         }
         
-        qCDebug(log_ui_mainwindow) << "All threads stopped, processing pending events before quit";
+        qCDebug(log_ui_mainwindow) << "All threads stopped";
         
-        // Process any pending events to allow deleteLater() to work before quit
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+        // Close any remaining top-level windows (dialogs, etc.) without processing events
+        const QWidgetList allWidgets = QApplication::topLevelWidgets();
+        qCDebug(log_ui_mainwindow) << "Total top-level widgets remaining:" << allWidgets.size();
+        for (QWidget* widget : allWidgets) {
+            if (widget && widget != this && widget->isVisible()) {
+                qCDebug(log_ui_mainwindow) << "Closing top-level widget:" << widget->metaObject()->className();
+                widget->close();
+            }
+        }
         
-        // Trigger application quit
-        QTimer::singleShot(0, qApp, &QApplication::quit);
+        qCDebug(log_ui_mainwindow) << "Calling QApplication::quit() to exit application";
+        
+        // CRITICAL: Disconnect all event filters before quitting to prevent late GStreamer operations
+        // Remove all event filters to prevent any late overlay setup operations
+        const QWidgetList eventFilterWidgets = QApplication::allWidgets();
+        for (QWidget* widget : eventFilterWidgets) {
+            if (widget && widget != this) {
+                widget->removeEventFilter(this);
+            }
+        }
+        
+        // Use QTimer with a minimal delay to ensure quit happens after closeEvent completes
+        // This avoids issues with processEvents triggering queued operations
+        QTimer::singleShot(0, qApp, []() {
+            qCDebug(log_ui_mainwindow) << "QApplication::quit() executing now";
+            QApplication::quit();
+        });
+        
+        qCDebug(log_ui_mainwindow) << "CloseEvent handling complete, quit() scheduled";
     }
 }
 
@@ -1136,7 +1153,6 @@ void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
         qCDebug(log_ui_mainwindow) << "Serial port connected:" << port << "at baudrate:" << baudrate;
     }else{
         m_statusBarManager->setConnectedPort(port, baudrate);
-        m_statusBarManager->setTargetUsbConnected(false);
     }
 }
 

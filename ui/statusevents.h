@@ -38,7 +38,6 @@ public:
     virtual void onLastMouseLocation(const QPoint& location, const QString& mouseEvent) = 0;
     // virtual void onResolutionChange(const int& width, const int& height, const float& fps, const float& pixelClk) = 0;
     virtual void onSwitchableUsbToggle(const bool isToTarget) = 0;
-    virtual void onTargetUsbConnected(const bool isConnected) = 0;
     virtual void onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock) = 0;
     virtual void factoryReset(bool isStarted) = 0;
     virtual void serialPortReset(bool isStarted) = 0;

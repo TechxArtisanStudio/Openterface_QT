@@ -44,6 +44,7 @@ SerialCommandCoordinator::~SerialCommandCoordinator()
 {
     qCDebug(log_core_serial) << "SerialCommandCoordinator destroyed";
     m_isShuttingDown = true;
+    setReady(false);  // Ensure no more commands are accepted
     clearCommandQueue();
 }
 
