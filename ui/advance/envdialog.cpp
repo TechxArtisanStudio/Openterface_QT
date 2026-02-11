@@ -19,6 +19,7 @@
 #include <QMessageBox>
 #include <vector>
 #include <utility>
+#include <QMetaObject> // Include QMetaObject for invokeMethod
 #ifdef _WIN32 // Check if compiling on Windows
 #include <windows.h> // Include Windows API header
 #include <setupapi.h> // Include SetupAPI for device installation functions
@@ -627,12 +628,24 @@ bool EnvironmentSetupDialog::detectDevice(uint16_t vendorID, uint16_t productID)
 #endif
 
 bool EnvironmentSetupDialog::checkEnvironmentSetup() {
-    latestFirmware = VideoHid::getInstance().isLatestFirmware();
-    std::string version = VideoHid::getInstance().getCurrentFirmwareVersion();
-    std::string latestVersion = VideoHid::getInstance().getLatestFirmwareVersion();
-    qDebug() << "Driver detect: " << QString::fromStdString(version);
-    qDebug() << "Latest driver: " << QString::fromStdString(latestVersion);
-    qDebug() << "Driver is latest: " << (latestFirmware == FirmwareResult::Latest ? "yes" : "no" );
+    // Ensure HID device is properly detected and chip type is identified before firmware check
+    VideoHid& videoHid = VideoHid::getInstance();
+    
+    // Refresh HID device discovery to ensure we have the latest device information
+    videoHid.refreshHIDDevice();
+    
+    // Force chip type detection by calling it via meta-object system since it's Q_INVOKABLE
+    QMetaObject::invokeMethod(&videoHid, "detectChipType", Qt::DirectConnection);
+    
+    // Now proceed with firmware checking
+    latestFirmware = videoHid.isLatestFirmware();
+    std::string version = videoHid.getCurrentFirmwareVersion();
+    std::string latestVersion = videoHid.getLatestFirmwareVersion();
+    qDebug() << "Chip type detection and firmware check initiated";
+    qDebug() << "Current firmware version: " << QString::fromStdString(version);
+    qDebug() << "Latest firmware version: " << QString::fromStdString(latestVersion);
+    qDebug() << "Firmware is latest: " << (latestFirmware == FirmwareResult::Latest ? "yes" : "no");
+    
     latestFirewareDescription ="<br>Current version: " + QString::fromStdString(version) + 
     "<br>" + "Latest version: " + QString::fromStdString(latestVersion) +
     "<br>" + "Please update driver to latest version." + 
