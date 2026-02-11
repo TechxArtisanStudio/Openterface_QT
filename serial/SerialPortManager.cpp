@@ -107,6 +107,9 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     connect(m_watchdog.get(), &ConnectionWatchdog::statusUpdate, this, &SerialPortManager::statusUpdate);
     connect(m_watchdog.get(), &ConnectionWatchdog::recoveryFailed, this, [this]() {
         ready = false;
+        if (m_commandCoordinator) {
+            m_commandCoordinator->setReady(false);
+        }
         qCCritical(log_core_serial) << "Connection watchdog: recovery failed";
     });
     connect(m_watchdog.get(), &ConnectionWatchdog::connectionStateChanged, this, [this](ConnectionState state) {
@@ -128,7 +131,11 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     connect(m_stateManager.get(), &SerialStateManager::connectionStateChanged, this, [this](ConnectionState newState, ConnectionState oldState) {
         Q_UNUSED(oldState);
         // Update ready flag when connection state changes
-        ready = (newState == ConnectionState::Connected);
+        bool newReady = (newState == ConnectionState::Connected);
+        ready = newReady;
+        if (m_commandCoordinator) {
+            m_commandCoordinator->setReady(newReady);
+        }
         qCDebug(log_core_serial) << "Connection state changed, ready=" << ready;
     });
     connect(m_stateManager.get(), &SerialStateManager::serialPortInfoChanged, this, [this](const SerialPortInfo& newInfo, const SerialPortInfo& oldInfo) {
@@ -201,7 +208,7 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
         qCDebug(log_core_serial) << "Timers created successfully in worker thread";
     }, Qt::DirectConnection);  // DirectConnection ensures it runs in the worker thread
 
-    connect(this, &SerialPortManager::serialPortConnected, this, &SerialPortManager::onSerialPortConnected);
+    connect(this, &SerialPortManager::serialPortConnected, this, &SerialPortManager::onSerialPortConnected, Qt::QueuedConnection);
     connect(this, &SerialPortManager::serialPortDisconnected, this, &SerialPortManager::onSerialPortDisconnected);
     connect(this, &SerialPortManager::serialPortConnectionSuccess, this, &SerialPortManager::onSerialPortConnectionSuccess);
     
@@ -459,7 +466,7 @@ void SerialPortManager::initializeSerialPortFromPortChain() {
     }
     
     // Open the serial port using the serialPortPath from DeviceInfo
-    onSerialPortConnected(selectedDevice.serialPortPath);
+    emit serialPortConnected(selectedDevice.serialPortPath);
     // Optionally, set the selected device in DeviceManager
     deviceManager.setCurrentSelectedDevice(selectedDevice);
     m_currentSerialPortChain = usedPortChain;
@@ -573,10 +580,10 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
         m_currentSerialPortPath = selectedDevice.serialPortPath;
         m_currentSerialPortChain = portChain;
 
-        // Use onSerialPortConnected to properly initialize the HID chip
+        // Use serialPortConnected signal to properly initialize the HID chip in worker thread
         // This ensures the same initialization process as during normal connection
         qCDebug(log_core_serial) << "Initializing serial port with HID chip configuration";
-        onSerialPortConnected(selectedDevice.serialPortPath);
+        emit serialPortConnected(selectedDevice.serialPortPath);
         
         if (!ready) {
             // Use async approach instead of blocking event loop
@@ -630,6 +637,7 @@ bool SerialPortManager::completeSwitchSerialPort(const DeviceInfo& selectedDevic
 
 /*
  * Open the serial port and check the baudrate and mode
+ * This method now runs in the worker thread due to QueuedConnection
  */
 void SerialPortManager::onSerialPortConnected(const QString &portName){
     qCDebug(log_core_serial) << "Serial port connected: " << portName;
@@ -661,30 +669,15 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     qCInfo(log_core_serial) << "Using chip strategy:" << m_chipStrategy->chipName();
     
     if (m_currentChipType == ChipType::CH9329) {
+        // Start async initialization for CH9329
         int tryBaudrate = determineBaudrate();
-        if (!openPortWithRetries(portName, tryBaudrate)) {
-            qCWarning(log_core_serial) << "Failed to open port after retries";
-            return;
-        }
-        ConfigResult config = sendAndProcessConfigCommand();
-        if (config.success) {
-            handleChipSpecificLogic(config);
-            storeBaudrateIfNeeded(config.workingBaudrate);
-            emit serialPortConnectionSuccess(portName);
-        }
+        initializeCH9329Async(portName, tryBaudrate);
     } else {
-        qDebug(log_core_serial) << "Assuming CH32V208 behavior for serial port.";
-        storeBaudrateIfNeeded(BAUDRATE_HIGHSPEED);
-        // CH32V208 only supports 115200; ensure the port is opened at 115200 before signalling success.
-        if (openPort(portName, BAUDRATE_HIGHSPEED)) {
-            QByteArray getInfoResp = sendSyncCommand(CMD_GET_INFO, true);
-            if (getInfoResp.isEmpty()) qCWarning(log_core_serial) << "No response to CMD_GET_INFO on CH32V208 port after open.";
-            emit serialPortConnectionSuccess(portName);
-        } else {
-            qCWarning(log_core_serial) << "Failed to open CH32V208 port at" << BAUDRATE_HIGHSPEED << "for" << portName;
-        }
+        // Handle CH32V208 synchronously since it's simpler
+        initializeCH32V208Sync(portName);
     }
-    qCDebug(log_core_serial) << "Serial port connection process completed for port:" << portName;
+    
+    qCDebug(log_core_serial) << "Serial port connection process initiated for port:" << portName;
 }
 
 int SerialPortManager::determineBaudrate() const {
@@ -703,23 +696,10 @@ int SerialPortManager::determineBaudrate() const {
 }
 
 bool SerialPortManager::openPortWithRetries(const QString &portName, int tryBaudrate) {
-    // Desired behaviour: try both 9600 and 115200, on an opened port send CMD_GET_INFO
-    // if GET_INFO returns valid response -> success; otherwise switch baud and retry.
-    // Repeat two full cycles (i.e., up to 4 attempts). If none yield a valid GET_INFO -> failure.
-
-    const int cycles = 2; // number of full cycles (each cycle tries both baudrates)
-
-    // Build the baud order: prefer the provided tryBaudrate first if it matches known values
-    QList<int> baudOrder;
-    if (tryBaudrate == BAUDRATE_HIGHSPEED) {
-        baudOrder = {BAUDRATE_HIGHSPEED, BAUDRATE_LOWSPEED};
-    } else {
-        baudOrder = {BAUDRATE_LOWSPEED, BAUDRATE_HIGHSPEED};
-    }
-
-    // Start the async retry logic
-    startAsyncPortRetries(portName, baudOrder, 0, 0, cycles);
-    return true; // Always return true since this is now async
+    // This method is now deprecated in favor of the async initialization methods
+    // It should not be called in the new flow, but keeping it for backward compatibility
+    qCWarning(log_core_serial) << "openPortWithRetries called - this should not happen with new async initialization";
+    return false;
 }
 
 /*
@@ -787,6 +767,112 @@ void SerialPortManager::storeBaudrateIfNeeded(int workingBaudrate) {
 int SerialPortManager::anotherBaudrate(){
     return serialPort->baudRate() == SerialPortManager::BAUDRATE_HIGHSPEED ? SerialPortManager::BAUDRATE_LOWSPEED : SerialPortManager::BAUDRATE_HIGHSPEED;
 }
+
+// Helper method for CH9329 async initialization
+void SerialPortManager::initializeCH9329Async(const QString &portName, int tryBaudrate) {
+    // Build the baud order: prefer the provided tryBaudrate first if it matches known values
+    QList<int> baudOrder;
+    if (tryBaudrate == BAUDRATE_HIGHSPEED) {
+        baudOrder = {BAUDRATE_HIGHSPEED, BAUDRATE_LOWSPEED};
+    } else {
+        baudOrder = {BAUDRATE_LOWSPEED, BAUDRATE_HIGHSPEED};
+    }
+    
+    // Start with the first baudrate attempt
+    qCDebug(log_core_serial) << "Starting CH9329 initialization with baudrate order:" << baudOrder;
+    attemptCH9329Connection(portName, baudOrder, 0, 0, 2); // 2 cycles max
+}
+
+// Helper method for CH32V208 sync initialization  
+void SerialPortManager::initializeCH32V208Sync(const QString &portName) {
+    qCDebug(log_core_serial) << "Initializing CH32V208 behavior for serial port";
+    storeBaudrateIfNeeded(BAUDRATE_HIGHSPEED);
+    
+    // CH32V208 only supports 115200; ensure the port is opened at 115200 before signalling success
+    if (openPort(portName, BAUDRATE_HIGHSPEED)) {
+        // Give the port a moment to stabilize
+        QThread::msleep(100);
+        
+        QByteArray getInfoResp = sendSyncCommand(CMD_GET_INFO, true);
+        if (getInfoResp.isEmpty()) {
+            qCWarning(log_core_serial) << "No response to CMD_GET_INFO on CH32V208 port after open";
+        }
+        
+        // Set ready state and sync with command coordinator
+        ready = true;
+        if (m_commandCoordinator) {
+            m_commandCoordinator->setReady(true);
+        }
+        
+        emit serialPortConnectionSuccess(portName);
+        qCInfo(log_core_serial) << "CH32V208 initialization completed successfully";
+    } else {
+        qCWarning(log_core_serial) << "Failed to open CH32V208 port at" << BAUDRATE_HIGHSPEED << "for" << portName;
+        ready = false;
+        if (m_commandCoordinator) {
+            m_commandCoordinator->setReady(false);
+        }
+    }
+}
+
+// Improved async CH9329 connection attempt
+void SerialPortManager::attemptCH9329Connection(const QString &portName, const QList<int> &baudOrder, int baudIndex, int cycle, int maxCycles) {
+    if (cycle >= maxCycles) {
+        qCWarning(log_core_serial) << "CH9329 initialization failed after" << maxCycles << "cycles";
+        ready = false;
+        if (m_commandCoordinator) {
+            m_commandCoordinator->setReady(false);
+        }
+        return;
+    }
+    
+    if (baudIndex >= baudOrder.size()) {
+        // Move to next cycle
+        qCDebug(log_core_serial) << "Starting cycle" << (cycle + 1) << "of CH9329 initialization";
+        attemptCH9329Connection(portName, baudOrder, 0, cycle + 1, maxCycles);
+        return;
+    }
+    
+    int currentBaud = baudOrder[baudIndex];
+    qCDebug(log_core_serial) << "Attempting to open port" << portName << "at baud" << currentBaud << "(cycle" << (cycle + 1) << "of" << maxCycles << ")";
+    
+    if (openPort(portName, currentBaud)) {
+        // Give the port a moment to stabilize
+        QThread::msleep(50);
+        
+        qCDebug(log_core_serial) << "Serial port opened, validating with synchronous CMD_GET_INFO:" << portName << "baud" << currentBaud;
+        QByteArray getInfoResp = sendSyncCommand(CMD_GET_INFO, true);
+        
+         if (!getInfoResp.isEmpty() && getInfoResp.size() >= 4) {
+            // Valid response received - initialization successful
+            qCInfo(log_core_serial) << "CH9329 initialization successful at baudrate" << currentBaud;
+            
+            ConfigResult config = sendAndProcessConfigCommand();
+            if (config.success) {
+                handleChipSpecificLogic(config);
+                storeBaudrateIfNeeded(config.workingBaudrate);
+                
+                // Set ready state and sync with command coordinator
+                ready = true;
+                if (m_commandCoordinator) {
+                    m_commandCoordinator->setReady(true);
+                }
+                
+                emit serialPortConnectionSuccess(portName);
+                return;
+            }
+        }
+        
+        qCWarning(log_core_serial) << "No valid CMD_GET_INFO response received after opening port" << portName << "at baud" << currentBaud << "- closing and will try the next baud/attempt";
+        closePortInternal();
+        
+        // Small delay before next attempt
+        QThread::msleep(100);
+    }
+    
+    // Try next baudrate
+    attemptCH9329Connection(portName, baudOrder, baudIndex + 1, cycle, maxCycles);
+}
 /*
  * Close the serial port
  */
@@ -841,6 +927,10 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     reconnectTimerSignals();
     
     ready = true;
+    // Sync the command coordinator ready state
+    if (m_commandCoordinator) {
+        m_commandCoordinator->setReady(true);
+    }
     resetErrorCounters();
     m_lastSuccessfulCommand.restart();
 
@@ -1117,8 +1207,14 @@ SerialPortManager::~SerialPortManager() {
     // Prevent further callback access during destruction
     eventCallback = nullptr;
     
-    // Set shutdown flag
+    // Set shutdown flag and stop all command processing
     m_isShuttingDown = true;
+    ready = false;
+    
+    // Immediately stop command coordinator from accepting new commands
+    if (m_commandCoordinator) {
+        m_commandCoordinator->setReady(false);
+    }
     
     // Stop ConnectionWatchdog (Phase 3)
     if (m_watchdog) {
@@ -1230,38 +1326,8 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     emit statusUpdate("Going to open the port");
 
     if(serialPort == nullptr){
-        // CRITICAL: Create QSerialPort in main thread to avoid QSocketNotifier thread issues
-        QSerialPort* newSerialPort = nullptr;
-        bool created = false;
-        
-        if (QThread::currentThread() != QCoreApplication::instance()->thread()) {
-            QMetaObject::invokeMethod(QCoreApplication::instance(), [&newSerialPort, &created]() {
-                newSerialPort = new QSerialPort();
-                created = true;
-            }, Qt::BlockingQueuedConnection);
-            
-            if (!created || !newSerialPort) {
-                qCCritical(log_core_serial) << "Failed to create QSerialPort in main thread";
-                // Restore old pointer if creation failed
-                if (oldSerialPort) {
-                    serialPort = oldSerialPort;
-                    oldSerialPort = nullptr;
-                }
-                return false;
-            }
-        } else {
-            newSerialPort = new QSerialPort();
-            created = true;
-        }
-        
-        // Only assign new pointer after successful creation
-        serialPort = newSerialPort;
-        
-        // Now safe to delete old instance
-        if (oldSerialPort) {
-            delete oldSerialPort;
-            oldSerialPort = nullptr;
-        }
+        qCDebug(log_core_serial) << "Creating new QSerialPort in worker thread";
+        serialPort = new QSerialPort();
         
         // Connect error signal using queued connection for thread safety
         connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
@@ -1278,14 +1344,7 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     bool openResult = false;
     QSerialPort::SerialPortError lastError = QSerialPort::NoError;
     
-    // CRITICAL: Delegate QSerialPort open operations to main thread
-    if (QThread::currentThread() != QCoreApplication::instance()->thread()) {
-        QMetaObject::invokeMethod(QCoreApplication::instance(), [this, &openResult, &lastError]() {
-            openSerialPortMainThread(openResult, lastError);
-        }, Qt::BlockingQueuedConnection);
-    } else {
-        openSerialPortMainThread(openResult, lastError);
-    }
+    openSerialPortInThread(openResult, lastError);
     
     if (openResult) {
         qCDebug(log_core_serial) << "Open port" << portName + ", baudrate: " << baudRate << "with read buffer size" << serialPort->readBufferSize();
@@ -1322,7 +1381,7 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     }
 }
 
-void SerialPortManager::openSerialPortMainThread(bool& openResult, QSerialPort::SerialPortError& lastError) {
+void SerialPortManager::openSerialPortInThread(bool& openResult, QSerialPort::SerialPortError& lastError) {
     // Enhanced port opening with better error handling
     openResult = false;
     lastError = QSerialPort::NoError;
@@ -1370,20 +1429,6 @@ void SerialPortManager::closePort() {
 void SerialPortManager::closePortInternal() {
     qCDebug(log_core_serial) << "Close serial port";
     
-    // CRITICAL: QSerialPort operations must happen in main thread to avoid QSocketNotifier crashes
-    if (QThread::currentThread() != QCoreApplication::instance()->thread()) {
-        QMetaObject::invokeMethod(QCoreApplication::instance(), [this]() {
-            closePortInternalMainThread();
-        }, Qt::QueuedConnection);
-        return;
-    }
-    
-    closePortInternalMainThread();
-}
-
-void SerialPortManager::closePortInternalMainThread() {
-    qCDebug(log_core_serial) << "Close serial port (main thread)";
-    
     QMutexLocker locker(&m_serialPortMutex);
     
     if (serialPort != nullptr) {
@@ -1406,7 +1451,7 @@ void SerialPortManager::closePortInternalMainThread() {
                 // Clear the read buffer to prevent stale data issues
                 serialPort->clear();
                 
-                // Close synchronously since we're in main thread
+                // Close synchronously in worker thread
                 serialPort->close();
                 qCDebug(log_core_serial) << "Serial port closed";
                 
@@ -1449,7 +1494,11 @@ void SerialPortManager::completePortCloseCleanup() {
     // Stop all timers first to prevent callbacks during close (disconnect signals for permanent close)
     stopAllTimers(true);
 
+    // Set both ready states to false immediately to prevent further commands
     ready = false;
+    if (m_commandCoordinator) {
+        m_commandCoordinator->setReady(false);
+    }
 
     // Reset error handler state when port is closed
     m_errorHandlerDisconnected = false;
@@ -1466,9 +1515,6 @@ void SerialPortManager::completePortCloseCleanup() {
     
     // Stop watchdog while port is closed (thread-safe)
     stopConnectionWatchdog();
-    
-    // Update state directly - the watchdog manages connection state internally
-    ready = false;
     
     // Use the existing signal for port state changes
     QMetaObject::invokeMethod(this, [this]() {
@@ -1806,6 +1852,10 @@ void SerialPortManager::readData() {
         
         latestUpdateTime = QDateTime::currentDateTime();
         ready = true;
+        // Sync the command coordinator ready state
+        if (m_commandCoordinator) {
+            m_commandCoordinator->setReady(true);
+        }
         
         // Process response using protocol layer - signals are already connected
         m_protocol->processRawData(packet);
@@ -1912,19 +1962,11 @@ bool SerialPortManager::writeData(const QByteArray &data) {
         return false;
     }
     
-    // CRITICAL: Delegate all QSerialPort operations to main thread
-    if (QThread::currentThread() != QCoreApplication::instance()->thread()) {
-        bool result = false;
-        QMetaObject::invokeMethod(QCoreApplication::instance(), [this, data, &result]() {
-            result = writeDataMainThread(data);
-        }, Qt::BlockingQueuedConnection);
-        return result;
-    }
-    
-    return writeDataMainThread(data);
+    // Execute write operation directly in worker thread
+    return writeDataInThread(data);
 }
 
-bool SerialPortManager::writeDataMainThread(const QByteArray &data) {
+bool SerialPortManager::writeDataInThread(const QByteArray &data) {
     // Enhanced serial port validation with detailed diagnostics
     if (!isSerialPortValid()) {
         qCWarning(log_core_serial) << "Serial port not valid for write operation - state:"
@@ -1932,6 +1974,9 @@ bool SerialPortManager::writeDataMainThread(const QByteArray &data) {
                                    << "isOpen=" << (serialPort ? (serialPort->isOpen() ? "true" : "false") : "N/A")
                                    << "portName=" << (serialPort ? serialPort->portName() : "N/A");
         ready = false;
+        if (m_commandCoordinator) {
+            m_commandCoordinator->setReady(false);
+        }
         return false;
     }
 
@@ -1941,6 +1986,9 @@ bool SerialPortManager::writeDataMainThread(const QByteArray &data) {
     if (!serialPort || !serialPort->isOpen()) {
         qCWarning(log_core_serial) << "Serial port became invalid after mutex lock";
         ready = false;
+        if (m_commandCoordinator) {
+            m_commandCoordinator->setReady(false);
+        }
         return false;
     }
 
@@ -1971,6 +2019,9 @@ bool SerialPortManager::writeDataMainThread(const QByteArray &data) {
     } catch (...) {
         qCCritical(log_core_serial) << "Exception occurred while writing to serial port";
         ready = false;
+        if (m_commandCoordinator) {
+            m_commandCoordinator->setReady(false);
+        }
         return false;
     }
 }
@@ -1987,8 +2038,8 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
     m_asyncMessagesSent++;
     checkAndLogAsyncMessageStatistics();
     
-    // Update command coordinator ready state
-    m_commandCoordinator->setReady(ready);
+    // Update command coordinator ready state with our current ready state
+    m_commandCoordinator->setReady(ready.load());
     
     // Delegate to command coordinator
     return m_commandCoordinator->sendAsyncCommand(serialPort, data, force);
@@ -2002,8 +2053,8 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
         return QByteArray();
     }
     
-    // Update command coordinator ready state
-    m_commandCoordinator->setReady(ready);
+    // Update command coordinator ready state with our current ready state
+    m_commandCoordinator->setReady(ready.load());
     
     // Delegate to command coordinator
     return m_commandCoordinator->sendSyncCommand(serialPort, data, force);
@@ -2392,7 +2443,7 @@ void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
         QTimer::singleShot(100, this, [this, portName]() {
             if (openPort(portName, BAUDRATE_HIGHSPEED)) {
                 qCInfo(log_core_serial) << "CH32V208 chip successfully switched to 115200";
-                onSerialPortConnected(portName);
+                emit serialPortConnected(portName);
             } else {
                 qCWarning(log_core_serial) << "Failed to reopen CH32V208 chip";
             }
@@ -2827,6 +2878,10 @@ void SerialPortManager::onRecoveryFailed()
 {
     qCCritical(log_core_serial) << "Recovery failed after all attempts";
     ready = false;
+    // Sync the command coordinator ready state
+    if (m_commandCoordinator) {
+        m_commandCoordinator->setReady(false);
+    }
     emit statusUpdate("Serial port recovery failed - max retries exceeded");
 }
 

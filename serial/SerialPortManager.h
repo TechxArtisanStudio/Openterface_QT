@@ -102,7 +102,7 @@ public:
     bool getScrollLockState();
 
     bool writeData(const QByteArray &data);
-    bool writeDataMainThread(const QByteArray &data);
+    bool writeDataInThread(const QByteArray &data);
     bool sendAsyncCommand(const QByteArray &data, bool force);
     bool sendResetCommand();
     QByteArray sendSyncCommand(const QByteArray &data, bool force);
@@ -278,7 +278,7 @@ private:
     void closePortInternal();
     void closePortInternalMainThread();
     void completePortCloseCleanup();
-    void openSerialPortMainThread(bool& openResult, QSerialPort::SerialPortError& lastError);
+    void openSerialPortInThread(bool& openResult, QSerialPort::SerialPortError& lastError);
     bool restartPortInternal(const QString &portName, qint32 baudRate);
     bool handleFactoryResetInternal();
     bool handleFactoryResetV191Internal();
@@ -417,6 +417,12 @@ private:
     void setupConnectionWatchdog();
     void stopConnectionWatchdog();
     int anotherBaudrate();
+    
+    // Helper methods for async initialization to fix race conditions
+    void initializeCH9329Async(const QString &portName, int tryBaudrate);
+    void initializeCH32V208Sync(const QString &portName);
+    void attemptCH9329Connection(const QString &portName, const QList<int> &baudOrder, int baudIndex, int cycle, int maxCycles);
+    
     QString statusCodeToString(uint8_t status) {
         switch (status) {
             case 0x00:
