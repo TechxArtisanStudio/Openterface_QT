@@ -110,7 +110,7 @@ sudo apt install -y \
     libavutil58 \
     libavformat60 \
     libavdevice60 \
-    libjpeg62 \
+    libturbojpeg0 \
     libgstreamer1.0-0 \
     libgstreamer-plugins-base1.0-0 \
     va-driver-all \
@@ -206,7 +206,7 @@ sudo apt-get install -y \
     libfreetype6-dev \
     libfontconfig1-dev \
     libbz2-dev \
-    libjpeg-dev \
+    libturbojpeg0-dev \
     libavformat-dev \
     libavcodec-dev \
     libavdevice-dev \
