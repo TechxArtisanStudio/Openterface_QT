@@ -16,6 +16,8 @@ public:
 
     void setMouseManager(MouseManager* mm) { mouseManager = mm; }
     void setKeyboardMouse(KeyboardMouse* km) { keyboardMouse = km; }
+    MouseManager* getMouseManager() const { return mouseManager; }
+    KeyboardMouse* getKeyboardMouse() const { return keyboardMouse; }
 
 signals:
     void captureImg(const QString& path = "");

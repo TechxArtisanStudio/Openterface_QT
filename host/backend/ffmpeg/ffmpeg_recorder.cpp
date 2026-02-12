@@ -329,7 +329,7 @@ void FFmpegRecorder::TakeImage(const QString& file_path, const QImage& image)
         return;
     }
     
-    if (image.save(file_path)) {
+    if (image.save(file_path, "JPG", 90)) {
         qCDebug(log_ffmpeg_backend) << "Image saved to:" << file_path;
     } else {
         qCWarning(log_ffmpeg_backend) << "Failed to save image to:" << file_path;
@@ -344,7 +344,7 @@ void FFmpegRecorder::TakeAreaImage(const QString& file_path, const QImage& image
     }
     
     QImage cropped = image.copy(capture_area);
-    if (cropped.save(file_path)) {
+    if (cropped.save(file_path, "JPG", 85)) {
         qCDebug(log_ffmpeg_backend) << "Cropped image saved to:" << file_path;
     } else {
         qCWarning(log_ffmpeg_backend) << "Failed to save cropped image to:" << file_path;

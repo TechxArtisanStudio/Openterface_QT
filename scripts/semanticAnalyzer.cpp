@@ -378,6 +378,12 @@ void SemanticAnalyzer::analyzeClickStatement(const CommandStatementNode* node) {
         qDebug(log_script) << "No coordinates provided for Click command";
         return;
     }
+    
+    if (!mouseManager) {
+        qDebug(log_script) << "Error: MouseManager is not initialized, cannot process Click command";
+        return;
+    }
+    
     // for(const auto& token : options){
         
     // }

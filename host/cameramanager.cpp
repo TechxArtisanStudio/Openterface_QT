@@ -347,10 +347,10 @@ void CameraManager::onImageCaptured(int id, const QImage& img){
         }
     }
     
-    QString saveName = customFolderPath + "/" + timestamp + ".png";
+    QString saveName = customFolderPath + "/" + timestamp + ".jpg";
 
     QImage coayImage = img.copy(copyRect);
-    if(coayImage.save(saveName)){
+    if(coayImage.save(saveName, "JPG", 90)){
         qCDebug(log_ui_camera) << "succefully save img to : " << saveName;
         emit lastImagePath(saveName);
     }else{
@@ -361,7 +361,13 @@ void CameraManager::onImageCaptured(int id, const QImage& img){
 
 void CameraManager::takeImage(const QString& file)
 {
-    if (m_backendHandler && isFFmpegBackend()) {
+    if (!m_backendHandler) {
+        qCWarning(log_ui_camera) << "Backend handler not initialized";
+        return;
+    }
+    
+    // Support both FFmpeg and GStreamer backends
+    if (isFFmpegBackend()) {
         FFmpegBackendHandler* ffmpeg = getFFmpegBackend();
         if (ffmpeg) {
             QString actualFile = file;
@@ -380,9 +386,33 @@ void CameraManager::takeImage(const QString& file)
                     qCWarning(log_ui_camera) << "Failed to create directory:" << customFolderPath;
                     return;
                 }
-                actualFile = customFolderPath + "/" + timestamp + ".png";
+                actualFile = customFolderPath + "/" + timestamp + ".jpg";
             }
             ffmpeg->takeImage(actualFile);
+            emit lastImagePath(actualFile);
+        }
+    } else if (isGStreamerBackend()) {
+        GStreamerBackendHandler* gstreamer = dynamic_cast<GStreamerBackendHandler*>(m_backendHandler.get());
+        if (gstreamer) {
+            QString actualFile = file;
+            if (actualFile.isEmpty()) {
+                // Generate path like original Qt backend
+                QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+                QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+                QString customFolderPath;
+                if (picturesPath.isEmpty()) {
+                    customFolderPath = QDir::homePath() + "/Pictures";
+                } else {
+                    customFolderPath = picturesPath + "/openterface";
+                }
+                QDir dir(customFolderPath);
+                if (!dir.exists() && !dir.mkpath(customFolderPath)) {
+                    qCWarning(log_ui_camera) << "Failed to create directory:" << customFolderPath;
+                    return;
+                }
+                actualFile = customFolderPath + "/" + timestamp + ".jpg";
+            }
+            gstreamer->takeImage(actualFile);
             emit lastImagePath(actualFile);
         }
     } else {
@@ -392,7 +422,13 @@ void CameraManager::takeImage(const QString& file)
 
 void CameraManager::takeAreaImage(const QString& file, const QRect& captureArea)
 {
-    if (m_backendHandler && isFFmpegBackend()) {
+    if (!m_backendHandler) {
+        qCWarning(log_ui_camera) << "Backend handler not initialized";
+        return;
+    }
+    
+    // Support both FFmpeg and GStreamer backends
+    if (isFFmpegBackend()) {
         FFmpegBackendHandler* ffmpeg = getFFmpegBackend();
         if (ffmpeg) {
             QString actualFile = file;
@@ -411,9 +447,33 @@ void CameraManager::takeAreaImage(const QString& file, const QRect& captureArea)
                     qCWarning(log_ui_camera) << "Failed to create directory:" << customFolderPath;
                     return;
                 }
-                actualFile = customFolderPath + "/" + timestamp + ".png";
+                actualFile = customFolderPath + "/" + timestamp + ".jpg";
             }
             ffmpeg->takeAreaImage(actualFile, captureArea);
+            emit lastImagePath(actualFile);
+        }
+    } else if (isGStreamerBackend()) {
+        GStreamerBackendHandler* gstreamer = dynamic_cast<GStreamerBackendHandler*>(m_backendHandler.get());
+        if (gstreamer) {
+            QString actualFile = file;
+            if (actualFile.isEmpty()) {
+                // Generate path like original Qt backend
+                QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
+                QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+                QString customFolderPath;
+                if (picturesPath.isEmpty()) {
+                    customFolderPath = QDir::homePath() + "/Pictures";
+                } else {
+                    customFolderPath = picturesPath + "/openterface";
+                }
+                QDir dir(customFolderPath);
+                if (!dir.exists() && !dir.mkpath(customFolderPath)) {
+                    qCWarning(log_ui_camera) << "Failed to create directory:" << customFolderPath;
+                    return;
+                }
+                actualFile = customFolderPath + "/" + timestamp + ".jpg";
+            }
+            gstreamer->takeAreaImage(actualFile, captureArea);
             emit lastImagePath(actualFile);
         }
     } else {

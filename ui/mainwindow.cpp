@@ -158,6 +158,13 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
 }
 
 void MainWindow::startServer(){
+    // Check if server is already running
+    if (m_tcpServerRunning && tcpServer) {
+        // Server is running, stop it instead
+        stopServer();
+        return;
+    }
+    
     // 1. create and start TCP server
     tcpServer = new TcpServer(this);
     tcpServer->startServer(SERVER_PORT);
@@ -176,7 +183,52 @@ void MainWindow::startServer(){
     connect(tcpServer, &TcpServer::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     connect(this, &MainWindow::emitTCPCommandStatus, tcpServer, &TcpServer::recvTCPCommandStatus);
     
-    qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345 with auto image capture";
+    // 6. Mark server as running and update status indicator
+    m_tcpServerRunning = true;
+    if (m_statusBarManager) {
+        m_statusBarManager->setStatusUpdate(QString("TCP Server running on port %1").arg(SERVER_PORT));
+    }
+    
+    // 7. Update menu action to show server is running
+    if (ui->actionTCPServer) {
+        ui->actionTCPServer->setChecked(true);
+    }
+    
+    qCDebug(log_ui_mainwindow) << "TCP Server started at port 12345 with auto image capture";
+}
+
+void MainWindow::stopServer(){
+    if (!m_tcpServerRunning || !tcpServer) {
+        qCDebug(log_ui_mainwindow) << "TCP Server is not running";
+        return;
+    }
+    
+    // Stop the TCP server
+    if (tcpServer) {
+        tcpServer->close();
+        tcpServer->deleteLater();
+        tcpServer = nullptr;
+    }
+    
+    // Stop image capturer
+    if (m_imageCapturer) {
+        m_imageCapturer->stopCapturing();
+        m_imageCapturer->deleteLater();
+        m_imageCapturer = nullptr;
+    }
+    
+    // Mark server as stopped and update status indicator
+    m_tcpServerRunning = false;
+    if (m_statusBarManager) {
+        m_statusBarManager->setStatusUpdate(QString("TCP Server stopped"));
+    }
+    
+    // Update menu action to show server is stopped
+    if (ui->actionTCPServer) {
+        ui->actionTCPServer->setChecked(false);
+    }
+    
+    qCDebug(log_ui_mainwindow) << "TCP Server stopped";
 }
 
 
@@ -962,6 +1014,10 @@ void MainWindow::closeEvent(QCloseEvent *event)
         qCDebug(log_ui_mainwindow) << "Calling stop() to clean up resources";
         stop();
         
+        // Stop TCP Server if running
+        qCDebug(log_ui_mainwindow) << "Stopping TCP Server";
+        stopServer();
+        
         // Stop threads in safe order
         qCDebug(log_ui_mainwindow) << "Stopping background threads";
         
@@ -1457,14 +1513,27 @@ MainWindow::~MainWindow()
     }
     
     // Clean up image capturer
-    // if (m_imageCapturer) {
-    //     m_imageCapturer->stopCapturing();
-    //     delete m_imageCapturer;
-    //     m_imageCapturer = nullptr;
-    //     qCDebug(log_ui_mainwindow) << "m_imageCapturer destroyed successfully";
-    // }else{
-    //     qCDebug(log_ui_mainwindow) << "m_imageCapturer was already null in destructor";
-    // }
+    if (m_imageCapturer) {
+        m_imageCapturer->stopCapturing();
+        m_imageCapturer->deleteLater();
+        m_imageCapturer = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_imageCapturer destroyed successfully";
+    }
+
+    // Clean up TCP Server and Image Capturer
+    if (tcpServer) {
+        tcpServer->close();
+        tcpServer->deleteLater();
+        tcpServer = nullptr;
+        qCDebug(log_ui_mainwindow) << "tcpServer destroyed successfully";
+    }
+    
+    if (m_imageCapturer) {
+        m_imageCapturer->stopCapturing();
+        m_imageCapturer->deleteLater();
+        m_imageCapturer = nullptr;
+        qCDebug(log_ui_mainwindow) << "m_imageCapturer destroyed successfully";
+    }
     
     if (m_audioManager) {
         // AudioManager is now a singleton, and we already disconnected it above
