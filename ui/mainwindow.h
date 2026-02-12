@@ -347,8 +347,10 @@ private:
     
     ratioType currentRatioType = ratioType::EQUAL;
     void startServer();
+    void stopServer();
     TcpServer *tcpServer;
     ImageCapturer *m_imageCapturer;
+    bool m_tcpServerRunning = false;
 
 };
 #endif // MAINWINDOW_H

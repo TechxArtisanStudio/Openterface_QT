@@ -18,8 +18,24 @@ void ScriptRunner::runTree(std::shared_ptr<ASTNode> tree, QObject* originSender)
         return;
     }
 
+    // Verify that executor and its managers are properly initialized
+    if (!m_executor) {
+        qWarning() << "Error: ScriptExecutor is not initialized";
+        emit analysisFinished(originSender, false);
+        return;
+    }
+    
+    MouseManager* mouseManager = m_executor->getMouseManager();
+    KeyboardMouse* keyboardMouse = m_executor->getKeyboardMouse();
+    
+    if (!mouseManager || !keyboardMouse) {
+        qWarning() << "Error: MouseManager or KeyboardMouse not initialized in ScriptExecutor";
+        emit analysisFinished(originSender, false);
+        return;
+    }
+
     QThread* workerThread = new QThread;
-    SemanticAnalyzer* workerAnalyzer = new SemanticAnalyzer(nullptr, nullptr);
+    SemanticAnalyzer* workerAnalyzer = new SemanticAnalyzer(mouseManager, keyboardMouse);
     workerAnalyzer->moveToThread(workerThread);
 
     // Route capture signals to executor so UI can respond
