@@ -96,6 +96,7 @@ QT6_MODULE_LIBS=(
     "libQt6Concurrent"
     "libQt6DBus"
     "libQt6Svg"
+    "libQt6SvgWidgets"      # CRITICAL: Must be preloaded to prevent system version from loading
     "libQt6Quick"
     "libQt6Qml"
     "libQt6QuickWidgets"
@@ -432,6 +433,10 @@ if [ -z "$QML2_IMPORT_PATH" ]; then
     # Add system locations as fallback
     if [ -d "/usr/lib/qt6/qml" ]; then
         QML_IMPORT_PATHS+=("/usr/lib/qt6/qml")
+    fi
+    
+    if [ -d "/usr/lib64/qt6/qml" ]; then
+        QML_IMPORT_PATHS+=("/usr/lib64/qt6/qml")
     fi
     
     # Join with colons

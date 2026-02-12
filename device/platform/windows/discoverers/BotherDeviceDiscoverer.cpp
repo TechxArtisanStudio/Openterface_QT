@@ -171,6 +171,8 @@ void BotherDeviceDiscoverer::processGeneration1MediaInterfaces(DeviceInfo& devic
         // Store device IDs (paths will be resolved in matchDevicePathsToRealPaths)
         if (!deviceInfo.hasHidDevice() && (childHardwareId.contains("HID") || childHardwareId.contains("MI_04"))) {
             deviceInfo.hidDeviceId = childDeviceId;
+            deviceInfo.hidVid = deviceInfo.vid;
+            deviceInfo.hidPid = deviceInfo.pid;
             qCDebug(log_device_discoverer) << "      ✓ Found HID device ID:" << childDeviceId;
         }
         else if (!deviceInfo.hasCameraDevice() && (childHardwareId.contains("MI_00"))) {

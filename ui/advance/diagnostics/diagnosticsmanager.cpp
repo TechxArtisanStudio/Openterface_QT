@@ -13,6 +13,7 @@
 #include <QThread>
 
 #include "LogWriter.h"
+#include "resources/version.h"
 
 #include "device/DeviceManager.h" // for device presence checks
 #include "device/DeviceInfo.h"
@@ -130,6 +131,9 @@ void DiagnosticsManager::startTest(int testIndex)
 
     // Ensure diagnostics creates a dedicated serial log file for this session
     if (m_serialLogFilePath.isEmpty()) {
+        // Log software version at the beginning of the diagnostic session
+        appendToLog(QString("Openterface QT Software Version: %1").arg(APP_VERSION));
+        
         QString serialPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
                              + "/serial_log_diagnostics_"
                              + QDateTime::currentDateTime().toString("yyyyMMdd_hhmmss")

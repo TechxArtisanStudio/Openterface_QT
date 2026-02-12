@@ -382,7 +382,7 @@ QString LinuxDeviceManager::extractPortChainFromSyspath(const QString& syspath)
     // Example: /sys/devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2.1 -> "1-2" (not "1-2.1")
     //          /sys/devices/pci0000:00/0000:00:14.0/usb1/1-2/1-2.2 -> "1-2" (not "1-2.2")
     
-    qCDebug(log_device_linux) << "Extracting port chain from syspath:" << syspath;
+    // qCDebug(log_device_linux) << "Extracting port chain from syspath:" << syspath;
     
     // Pattern to find USB device port in the path
     // This matches the actual USB device location, not interface sub-paths
@@ -807,13 +807,16 @@ QList<DeviceInfo> LinuxDeviceManager::processDeviceMap(const QList<UdevDeviceDat
                     if (isMatchingHid) {
                         QString devicePortChain = extractPortChainFromSyspath(QString(udev_device_get_syspath(usb_device)));
                         QString hubPort = extractHubPortFromDevicePort(devicePortChain);
-                        
+
                         if (!hubPort.isEmpty() && deviceMap.contains(hubPort)) {
                             QString devNode = hidrawDevice.properties.value("DEVNAME").toString();
                             if (!devNode.isEmpty()) {
+                                // store device node + normalize and persist HID VID/PID for simpler chip detection later
                                 deviceMap[hubPort].hidDevicePath = devNode;
                                 deviceMap[hubPort].hidDeviceId = hidrawDevice.syspath;
-                                qCDebug(log_device_linux) << "Found" << generation << "HID device:" << devNode << "at device port:" << devicePortChain << "for hub port:" << hubPort;
+                                deviceMap[hubPort].hidVid = deviceVidStr.remove("0x", Qt::CaseInsensitive).toUpper();
+                                deviceMap[hubPort].hidPid = devicePidStr.remove("0x", Qt::CaseInsensitive).toUpper();
+                                qCDebug(log_device_linux) << "Found" << generation << "HID device:" << devNode << "(VID:PID" << deviceMap[hubPort].hidVid << ":" << deviceMap[hubPort].hidPid << ") at device port:" << devicePortChain << "for hub port:" << hubPort;
                             }
                         }
                     }
@@ -1021,7 +1024,9 @@ void LinuxDeviceManager::findAndAssociateInterfaceDevicesLinux(DeviceInfo& devic
                             if (!devNode.isEmpty()) {
                                 deviceInfo.hidDevicePath = devNode;
                                 deviceInfo.hidDeviceId = hidrawDevice.syspath;
-                                qCDebug(log_device_linux) << QString("Found HID device (VID:PID %1:%2):").arg(deviceVidStr, devicePidStr) << devNode << "for companion device";
+                                deviceInfo.hidVid = deviceVidStr.remove("0x", Qt::CaseInsensitive).toUpper();
+                                deviceInfo.hidPid = devicePidStr.remove("0x", Qt::CaseInsensitive).toUpper();
+                                qCDebug(log_device_linux) << QString("Found HID device (VID:PID %1:%2):").arg(deviceInfo.hidVid, deviceInfo.hidPid) << devNode << "for companion device";
                             }
                         }
                     } else {
@@ -1032,7 +1037,9 @@ void LinuxDeviceManager::findAndAssociateInterfaceDevicesLinux(DeviceInfo& devic
                             if (!devNode.isEmpty() && deviceInfo.hidDevicePath.isEmpty()) {
                                 deviceInfo.hidDevicePath = devNode;
                                 deviceInfo.hidDeviceId = hidrawDevice.syspath;
-                                qCDebug(log_device_linux) << "Found HID device by port match (fallback):" << devNode << "for companion device";
+                                deviceInfo.hidVid = deviceVidStr.remove("0x", Qt::CaseInsensitive).toUpper();
+                                deviceInfo.hidPid = devicePidStr.remove("0x", Qt::CaseInsensitive).toUpper();
+                                qCDebug(log_device_linux) << "Found HID device by port match (fallback):" << devNode << "(VID:PID" << deviceInfo.hidVid << ":" << deviceInfo.hidPid << ") for companion device";
                             }
                         }
                     }

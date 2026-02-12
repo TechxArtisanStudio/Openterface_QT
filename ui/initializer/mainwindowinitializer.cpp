@@ -213,9 +213,6 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
             m_cornerWidgetManager, &CornerWidgetManager::updateUSBStatus);
 
-    // Thread-safe connections to MainWindow (use queued connection to ensure slots run on GUI thread)
-    connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
-            m_mainWindow, &MainWindow::onTargetUsbConnected, Qt::QueuedConnection);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::keyStatesChanged,
             m_mainWindow, &MainWindow::onKeyStatesChanged, Qt::QueuedConnection);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::serialPortReset,
@@ -541,5 +538,17 @@ void MainWindowInitializer::finalize()
     GlobalVar::instance().setMouseAutoHide(GlobalSetting::instance().getMouseAutoHideEnable());
     m_mainWindow->initializeKeyboardLayouts();
     
+    // Perform a non-forced update check after initialization completes.
+    // Delay execution to ensure any waiting/splash window has closed.
+    QTimer::singleShot(500, m_mainWindow, [this]() {
+        if (GlobalSetting::instance().getUpdateNeverRemind()) {
+            qCDebug(log_ui_mainwindowinitializer) << "Startup update check skipped: 'never remind' is set";
+            return;
+        }
+        qCDebug(log_ui_mainwindowinitializer) << "Startup: invoking VersionInfoManager::checkForUpdates after initialization";
+        m_mainWindow->m_versionInfoManager->checkForUpdates(true);
+    });
+    
+    qCDebug(log_ui_mainwindowinitializer) << "Finalization complete";
 }
 

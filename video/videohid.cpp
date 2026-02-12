@@ -44,7 +44,7 @@ extern "C"
 #include <linux/hidraw.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_host_hid, "opf.host.hid");
+Q_LOGGING_CATEGORY(log_host_hid, "opf.core.hid");
 
 VideoHid::VideoHid(QObject *parent) : QObject(parent), m_inTransaction(false) {
     // Initialize current device tracking
@@ -64,6 +64,11 @@ VideoHid::VideoHid(QObject *parent) : QObject(parent), m_inTransaction(false) {
 }
 
 VideoHid::~VideoHid() {
+    // Fast exit if already cleaned up to prevent redundant work
+    if (!m_pollingThread && !m_inTransaction) {
+        return;
+    }
+    
     // Ensure we disconnect from hotplug monitor prior to stopping to avoid callbacks into a destroyed object
     disconnectFromHotplugMonitor();
     // Ensure we stop polling and close any open device before destruction
@@ -84,7 +89,14 @@ public:
                     qCWarning(log_host_hid) << "Exception in PollingThread while calling pollDeviceStatus";
                 }
             }
-            QThread::msleep(m_intervalMs);
+            // Use interruptible sleep for faster shutdown response
+            int remainingSleep = m_intervalMs;
+            const int sleepChunk = 100; // 100ms chunks
+            while (m_running && remainingSleep > 0) {
+                int actualSleep = qMin(sleepChunk, remainingSleep);
+                QThread::msleep(actualSleep);
+                remainingSleep -= actualSleep;
+            }
         }
         qCDebug(log_host_hid) << "PollingThread stopping";
     }
@@ -264,9 +276,11 @@ void VideoHid::detectChipType() {
     if (previousChipType != m_chipType) {
         qCDebug(log_host_hid) << "Chip type changed from" 
             << (previousChipType == VideoChipType::MS2109 ? "MS2109" :
+                previousChipType == VideoChipType::MS2109S ? "MS2109S" :
                 previousChipType == VideoChipType::MS2130S ? "MS2130S" : "Unknown") 
             << "to" 
             << (m_chipType == VideoChipType::MS2109 ? "MS2109" :
+                m_chipType == VideoChipType::MS2109S ? "MS2109S" :
                 m_chipType == VideoChipType::MS2130S ? "MS2130S" : "Unknown");
     }
 }
@@ -333,7 +347,9 @@ void VideoHid::stop() {
         m_pollingThread->stop();
         m_pollingThread->quit();
         if (!m_pollingThread->wait(2000)) {
-            qCWarning(log_host_hid) << "Polling thread did not stop within 2 seconds";
+            qCWarning(log_host_hid) << "Polling thread did not stop within 2 seconds, forcing termination";
+            m_pollingThread->terminate();
+            m_pollingThread->wait(1000);
         }
         delete m_pollingThread;
         m_pollingThread = nullptr;
@@ -345,6 +361,34 @@ void VideoHid::stop() {
     m_chipImpl.reset();
     m_chipType = VideoChipType::UNKNOWN;
     qCDebug(log_host_hid)  << "VideoHid stopped successfully and chip state cleared.";
+}
+
+void VideoHid::stopPollingOnly() {
+    qCDebug(log_host_hid)  << "Stopping VideoHid polling thread but keeping HID connection for firmware update.";
+    if (m_pollingThread) {
+        qCDebug(log_host_hid) << "Signaling polling thread to stop...";
+        m_pollingThread->stop();
+        
+        qCDebug(log_host_hid) << "Quitting polling thread...";
+        m_pollingThread->quit();
+        
+        qCDebug(log_host_hid) << "Waiting for polling thread to finish...";
+        if (!m_pollingThread->wait(3000)) {
+            qCWarning(log_host_hid) << "Polling thread did not stop within 3 seconds, forcing termination";
+            m_pollingThread->terminate();
+            m_pollingThread->wait(1000);
+        }
+        
+        qCDebug(log_host_hid) << "Deleting polling thread...";
+        delete m_pollingThread;
+        m_pollingThread = nullptr;
+        qCDebug(log_host_hid) << "Polling thread deleted successfully";
+    } else {
+        qCDebug(log_host_hid) << "No polling thread to stop";
+    }
+    // Keep HID connection open for firmware update
+    // Do NOT call endTransaction() or reset chip state
+    qCDebug(log_host_hid)  << "VideoHid polling stopped, HID connection maintained for firmware update.";
 }
 
 /*
@@ -569,12 +613,12 @@ QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs) {
         qCDebug(log_host_hid) << "Failed to create network reply";
         fireware_result = FirmwareResult::CheckFailed;
         return QString();
-    }else {
+    } else {
         fireware_result = FirmwareResult::Checking; // Set the initial state to checking
         qCDebug(log_host_hid) << "Network reply created successfully";
     }
 
-    qCDebug(log_host_hid) << "Fetching latest firmware file name from" << url;
+    qCDebug(log_host_hid) << "Fetching latest firmware index from" << url;
 
     QEventLoop loop;
     QTimer timer;
@@ -606,17 +650,97 @@ QString VideoHid::getLatestFirmwareFilenName(QString &url, int timeoutMs) {
     }
 
     if (reply->error() == QNetworkReply::NoError) {
-        qCDebug(log_host_hid) << "Successfully fetched latest firmware";
-        QString result = QString::fromUtf8(reply->readAll());
+        qCDebug(log_host_hid) << "Successfully fetched latest firmware index";
+        QString indexContent = QString::fromUtf8(reply->readAll());
+        // Select filename matching our chip (handles CSV multi-line and legacy single-line formats)
+        QString fileName = pickFirmwareFileNameFromIndex(indexContent, m_chipType);
+        if (fileName.isEmpty()) {
+            qCWarning(log_host_hid) << "No firmware filename could be selected from index for chipType:" << (int)m_chipType;
+            fireware_result = FirmwareResult::CheckFailed;
+            reply->deleteLater();
+            return QString();
+        }
         fireware_result = FirmwareResult::CheckSuccess;
         reply->deleteLater();
-        return result;
+        return fileName;
     } else {
-        qCDebug(log_host_hid) << "Fail to get file name:" << reply->errorString();
+        qCDebug(log_host_hid) << "Fail to get firmware index:" << reply->errorString();
         fireware_result = FirmwareResult::CheckFailed;
         reply->deleteLater();
         return QString();
     }
+} 
+
+// Parse an index file and pick the appropriate firmware filename for the given chip.
+// Supports:
+//  - legacy single-line: "filename.bin"
+//  - CSV multi-line: "<version>,<filename>,<chipToken>" (one entry per line)
+QString VideoHid::pickFirmwareFileNameFromIndex(const QString &indexContent, VideoChipType chip) {
+    if (indexContent.trimmed().isEmpty()) return QString();
+
+    // split on '\n' and trim each line (trimmed() will remove '\r') — avoids QRegExp (deprecated/removed in some Qt6 builds)
+    QStringList lines = indexContent.split('\n', Qt::SkipEmptyParts);
+    struct Candidate { QString version; QString filename; QString chipToken; };
+    QVector<Candidate> candidates;
+
+    for (QString rawLine : lines) {
+        QString line = rawLine.trimmed();
+        if (line.isEmpty() || line.startsWith('#')) continue;
+        // CSV format: version,filename,chip
+        QStringList parts = line.split(',', Qt::KeepEmptyParts);
+        for (int i = 0; i < parts.size(); ++i) parts[i] = parts[i].trimmed();
+        if (parts.size() == 1) {
+            // legacy single-line containing filename only
+            if (!parts[0].isEmpty() && !parts[0].contains(',')) return parts[0];
+            continue;
+        }
+        if (parts.size() < 2) continue;
+        Candidate c; c.version = parts[0]; c.filename = parts[1]; c.chipToken = parts.size() > 2 ? parts[2].toLower() : QString();
+        candidates.append(c);
+    }
+
+    auto tokenMatchesChip = [](const QString &token, VideoChipType chipType) -> bool {
+        if (token.isEmpty()) return false;
+        QString t = token.toLower();
+        switch (chipType) {
+            case VideoChipType::MS2109:  return t.contains("2109") && !t.contains('s');
+            case VideoChipType::MS2109S: return t.contains("2109s") || (t.contains("2109") && t.contains('s'));
+            case VideoChipType::MS2130S: return t.contains("2130") || t.contains("2130s") || t.contains("2130_s");
+            default: return false;
+        }
+    };
+
+    QVector<Candidate> matched;
+    for (const Candidate &c : candidates) {
+        if (chip != VideoChipType::UNKNOWN && tokenMatchesChip(c.chipToken, chip)) matched.append(c);
+    }
+
+    if (matched.isEmpty()) {
+        // try to infer by filename if chip token didn't match or chip is UNKNOWN
+        for (const Candidate &c : candidates) {
+            QString fn = c.filename.toLower();
+            if (fn.contains("2130")) matched.append(c);
+            else if (fn.contains("2109s") || fn.contains("2109_s")) matched.append(c);
+            else if (fn.contains("2109")) matched.append(c);
+        }
+    }
+
+    if (matched.isEmpty()) matched = candidates; // fallback
+    if (matched.isEmpty()) return QString();
+
+    auto versionKey = [](const QString &v) -> qint64 {
+        bool ok = false; qint64 n = v.toLongLong(&ok); if (ok) return n;
+        QString digits; for (QChar ch : v) if (ch.isDigit()) digits.append(ch);
+        return digits.isEmpty() ? 0 : digits.toLongLong();
+    };
+
+    Candidate best = matched.first();
+    qint64 bestVer = versionKey(best.version);
+    for (const Candidate &c : matched) {
+        qint64 ver = versionKey(c.version);
+        if (ver > bestVer) { best = c; bestVer = ver; }
+    }
+    return best.filename;
 }
 
 /*
@@ -682,8 +806,8 @@ quint8 VideoHid::readRegisterSafe(quint16 addr, quint8 defaultValue, const QStri
     }
     quint8 value = static_cast<quint8>(result.first.at(0));
     if (!tag.isEmpty()) {
-        qCDebug(log_host_hid) << "HID READ SUCCESS (tag:" << tag << ") from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
-                              << "value:" << QString("0x%1").arg(value, 2, 16, QChar('0')) << "(" << value << ")";
+        // qCDebug(log_host_hid) << "HID READ SUCCESS (tag:" << tag << ") from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+        //                       << "value:" << QString("0x%1").arg(value, 2, 16, QChar('0')) << "(" << value << ")";
     }
     return value;
 }
@@ -700,8 +824,8 @@ bool VideoHid::writeRegisterSafe(quint16 addr, const QByteArray &data, const QSt
         }
     } else {
         if (!tag.isEmpty()) {
-            qCDebug(log_host_hid) << "HID WRITE SUCCESS (tag:" << tag << ") to address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
-                                  << "data:" << data.toHex(' ').toUpper();
+            // qCDebug(log_host_hid) << "HID WRITE SUCCESS (tag:" << tag << ") to address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+            //                       << "data:" << data.toHex(' ').toUpper();
         }
     }
     return result;
@@ -888,7 +1012,13 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
         result = m_chipImpl->read4Byte(u16_address);
     } else {
         // Fallback to legacy behavior
-        result = (m_chipType == VideoChipType::MS2130S) ? usbXdataRead4ByteMS2130S(u16_address) : usbXdataRead4ByteMS2109(u16_address);
+        if (m_chipType == VideoChipType::MS2130S) {
+            result = usbXdataRead4ByteMS2130S(u16_address);
+        } else if (m_chipType == VideoChipType::MS2109S) {
+            result = usbXdataRead4ByteMS2109S(u16_address);
+        } else {
+            result = usbXdataRead4ByteMS2109(u16_address);
+        }
     }
 
     // Normalize the result to have the data byte at position 0
@@ -1111,7 +1241,7 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4ByteMS2109S(quint16 u16_address) 
     bool success = false;
     QString valueHex;
 
-    qCDebug(log_host_hid) << "MS2109S reading from address:" << QString("0x%1").arg(u16_address, 4, 16, QChar('0'));
+    // qCDebug(log_host_hid) << "MS2109S reading from address:" << QString("0x%1").arg(u16_address, 4, 16, QChar('0'));
 
     // Strategy 1: Standard buffer (11 bytes) with report ID 0
     if (!success) {
@@ -1137,9 +1267,9 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4ByteMS2109S(quint16 u16_address) 
                 if (getFeatureReportWindows(buffer, 11)) {
                     readResult[0] = buffer[4];
                     valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
-                    qCDebug(log_host_hid) << "MS2109S direct Windows read success from address:" 
-                                         << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
-                                         << "value:" << valueHex;
+                    // qCDebug(log_host_hid) << "MS2109S direct Windows read success from address:" 
+                    //                      << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
+                    //                      << "value:" << valueHex;
                     success = true;
                 }
             }
@@ -1262,6 +1392,14 @@ bool VideoHid::usbXdataWrite4Byte(quint16 u16_address, QByteArray data) {
         ctrlData = QByteArray(9, 0); // Initialize with 9 bytes set to 0
         ctrlData[0] = 0x00; // Report ID - explicitly set to 0
         ctrlData[1] = MS2130S_CMD_XDATA_WRITE;
+        ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
+        ctrlData[3] = static_cast<char>(u16_address & 0xFF);
+        ctrlData.replace(4, 4, data);
+    } else if (m_chipImpl && m_chipImpl->type() == VideoChipType::MS2109S) {
+        // MS2109S uses an 11-byte structure matching its specialized read implementation
+        ctrlData = QByteArray(9, 0); 
+        ctrlData[0] = 0x00; // Report ID
+        ctrlData[1] = MS2109S_CMD_XDATA_WRITE;
         ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
         ctrlData[3] = static_cast<char>(u16_address & 0xFF);
         ctrlData.replace(4, 4, data);
@@ -2171,8 +2309,8 @@ bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
             }
             // For normal cases, warn about size mismatch
             else if (bufferSize != caps.FeatureReportByteLength && caps.FeatureReportByteLength > 0) {
-                qCDebug(log_host_hid) << "Warning: Feature report size mismatch. Using:" << bufferSize
-                                     << "Device expects:" << caps.FeatureReportByteLength;
+                // qCDebug(log_host_hid) << "Warning: Feature report size mismatch. Using:" << bufferSize
+                //                      << "Device expects:" << caps.FeatureReportByteLength;
             }
         }
         HidD_FreePreparsedData(preparsedData);
@@ -2319,9 +2457,9 @@ bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
     for (DWORD i = 0; i < 4 && i < bufferSize; i++) { // First few bytes for debugging
         hexData += QString("%1 ").arg(reportBuffer[i], 2, 16, QChar('0')).toUpper();
     }
-    qCDebug(log_host_hid) << "Getting feature report with size:" << bufferSize 
-                         << "report ID:" << (int)reportBuffer[0]
-                         << "first bytes:" << hexData;
+    // qCDebug(log_host_hid) << "Getting feature report with size:" << bufferSize 
+    //                      << "report ID:" << (int)reportBuffer[0]
+    //                      << "first bytes:" << hexData;
     
     // Get device capabilities to better understand what's supported
     PHIDP_PREPARSED_DATA preparsedData = nullptr;
@@ -2602,20 +2740,27 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
 }
 
 void VideoHid::loadFirmwareToEeprom() {
+    qCDebug(log_host_hid) << "loadFirmwareToEeprom() called";
+    
     // Create firmware data
     if (networkFirmware.empty()){
-        qCDebug(log_host_hid) << "No firmware data available to write";
+        qCDebug(log_host_hid) << "No firmware data available to write - networkFirmware is empty";
         emit firmwareWriteComplete(false);
         return;
     }
+    
+    qCDebug(log_host_hid) << "networkFirmware size:" << networkFirmware.size() << "bytes";
 
     QByteArray firmware(reinterpret_cast<const char*>(networkFirmware.data()), networkFirmware.size());
+    qCDebug(log_host_hid) << "Created QByteArray firmware with size:" << firmware.size() << "bytes";
     
     // Create a worker thread to handle firmware writing
     QThread* thread = new QThread();
     thread->setObjectName("FirmwareWriterThread");
     FirmwareWriter* worker = new FirmwareWriter(this, ADDR_EEPROM, firmware);
     worker->moveToThread(thread);
+    
+    qCDebug(log_host_hid) << "Created FirmwareWriter worker thread";
     
     // Connect signals/slots
     connect(thread, &QThread::started, worker, &FirmwareWriter::process);
@@ -2642,8 +2787,12 @@ void VideoHid::loadFirmwareToEeprom() {
         }
     });
     
+    qCDebug(log_host_hid) << "Signals connected, starting FirmwareWriter thread...";
+    
     // Start the thread
     thread->start();
+    
+    qCDebug(log_host_hid) << "FirmwareWriter thread started successfully";
 }
 
 FirmwareResult VideoHid::isLatestFirmware() {
@@ -2661,7 +2810,10 @@ FirmwareResult VideoHid::isLatestFirmware() {
         return FirmwareResult::Timeout;
     }
     qCDebug(log_host_hid) << "After timeout checking: " << firmwareURL;
-    QString newURL = firmwareURL.replace("minikvm_latest_firmware.txt", firemwareFileName);
+    // Build binary URL by replacing the last path segment with the chosen filename (robust vs. index name)
+    QString newURL = firmwareURL;
+    int lastSlash = newURL.lastIndexOf('/');
+    if (lastSlash >= 0) newURL = newURL.left(lastSlash + 1) + firemwareFileName;
     fetchBinFileToString(newURL, 5000); // Add 5-second timeout
     m_currentfirmwareVersion = getFirmwareVersion();
     qCDebug(log_host_hid)  << "Firmware version:" << QString::fromStdString(m_currentfirmwareVersion);

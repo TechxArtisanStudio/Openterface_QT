@@ -24,6 +24,7 @@
 #include "global.h"
 #include "ui_mainwindow.h"
 #include "globalsetting.h"
+#include <QTimer>
 #include "ui/statusbar/statusbarmanager.h"
 #include "host/HostManager.h"
 #include "host/cameramanager.h"
@@ -365,7 +366,6 @@ void MainWindow::onActionFactoryResetHIDTriggered()
     if (reply == QMessageBox::Yes) {
         qCDebug(log_ui_mainwindow) << "onActionFactoryResetHIDTriggered";
         SerialPortManager::getInstance().factoryResetHipChip();
-        // HostManager::getInstance().resetHid();
     } else {
         qCDebug(log_ui_mainwindow) << "Factory reset HID chip canceled by user.";
     }
@@ -454,11 +454,6 @@ void MainWindow::onGpio0StatusChanged(bool isToTarget)
         qCDebug(log_ui_mainwindow) << "GPIO0 status changed to:" << (isToTarget ? "target" : "host");
         toggleSwitch->setChecked(isToTarget);
     }
-}
-
-void MainWindow::onTargetUsbConnected(const bool isConnected)
-{
-    m_statusBarManager->setTargetUsbConnected(isConnected);
 }
 
 void MainWindow::onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock)
@@ -779,7 +774,8 @@ void MainWindow::officialLink(){
 
 void MainWindow::updateLink()
 {
-    m_versionInfoManager->checkForUpdates();
+    // Manual request should bypass throttle and 'never remind' setting
+    m_versionInfoManager->checkForUpdates(true);
 }
 
 void MainWindow::aboutLink(){
@@ -901,8 +897,10 @@ void MainWindow::stop(){
     qDebug() << "Stopping camera manager...";
     m_cameraManager->stopCamera();
 
-    qDebug() << "Closing serial port...";
-    SerialPortManager::getInstance().closePort();
+    // Don't call closePort() here because SerialPortManager::stop() will handle it
+    // Calling it here causes queued close operations that execute during processEvents
+    // qDebug() << "Closing serial port...";
+    // SerialPortManager::getInstance().closePort();
 
     qDebug() << "Camera stopped.";
 }
@@ -941,12 +939,20 @@ void MainWindow::imageSaved(int id, const QString &fileName)
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    // Prevent re-entrance
+    if (m_closeEventHandled) {
+        qCDebug(log_ui_mainwindow) << "MainWindow closeEvent - already handled, ignoring";
+        event->accept();
+        return;
+    }
+    
     if (m_isCapturingImage) {
         setEnabled(false);
         m_applicationExiting = true;
         event->ignore();
     } else {
         qCDebug(log_ui_mainwindow) << "MainWindow closeEvent - initiating shutdown";
+        m_closeEventHandled = true;  // Mark as handled immediately
         event->accept();
         
         // Set shutdown flag first to signal all threads to stop
@@ -993,13 +999,37 @@ void MainWindow::closeEvent(QCloseEvent *event)
             qCWarning(log_ui_mainwindow) << "Exception while stopping AudioManager";
         }
         
-        qCDebug(log_ui_mainwindow) << "All threads stopped, processing pending events before quit";
+        qCDebug(log_ui_mainwindow) << "All threads stopped";
         
-        // Process any pending events to allow deleteLater() to work before quit
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+        // Close any remaining top-level windows (dialogs, etc.) without processing events
+        const QWidgetList allWidgets = QApplication::topLevelWidgets();
+        qCDebug(log_ui_mainwindow) << "Total top-level widgets remaining:" << allWidgets.size();
+        for (QWidget* widget : allWidgets) {
+            if (widget && widget != this && widget->isVisible()) {
+                qCDebug(log_ui_mainwindow) << "Closing top-level widget:" << widget->metaObject()->className();
+                widget->close();
+            }
+        }
         
-        // Trigger application quit
-        QTimer::singleShot(0, qApp, &QApplication::quit);
+        qCDebug(log_ui_mainwindow) << "Calling QApplication::quit() to exit application";
+        
+        // CRITICAL: Disconnect all event filters before quitting to prevent late GStreamer operations
+        // Remove all event filters to prevent any late overlay setup operations
+        const QWidgetList eventFilterWidgets = QApplication::allWidgets();
+        for (QWidget* widget : eventFilterWidgets) {
+            if (widget && widget != this) {
+                widget->removeEventFilter(this);
+            }
+        }
+        
+        // Use QTimer with a minimal delay to ensure quit happens after closeEvent completes
+        // This avoids issues with processEvents triggering queued operations
+        QTimer::singleShot(0, qApp, []() {
+            qCDebug(log_ui_mainwindow) << "QApplication::quit() executing now";
+            QApplication::quit();
+        });
+        
+        qCDebug(log_ui_mainwindow) << "CloseEvent handling complete, quit() scheduled";
     }
 }
 
@@ -1123,7 +1153,6 @@ void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
         qCDebug(log_ui_mainwindow) << "Serial port connected:" << port << "at baudrate:" << baudrate;
     }else{
         m_statusBarManager->setConnectedPort(port, baudrate);
-        m_statusBarManager->setTargetUsbConnected(false);
     }
 }
 
@@ -1566,17 +1595,73 @@ void MainWindow::updateFirmware() {
             qDebug() << "Firmware is upgradable.";
             proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
             if (proceed) {
-                // Stop video and HID operations before firmware update
-                VideoHid::getInstance().stop();
-                SerialPortManager::getInstance().stop();
-                stop();
+                qDebug() << "User accepted firmware update, proceeding...";
+                
+                // Declare success variable before try-catch block
+                bool success = false;
+                
+                try {
+                    // Stop services in proper order with robust error handling
+                    qDebug() << "Stopping main window operations first...";
+                    try {
+                        stop();
+                        qDebug() << "Main window operations stopped successfully";
+                    } catch (...) {
+                        qWarning() << "Exception while stopping main window operations - continuing anyway";
+                    }
+                    
+                    qDebug() << "Stopping video HID polling only...";
+                    try {
+                        VideoHid::getInstance().stopPollingOnly();
+                        qDebug() << "Video HID polling stopped successfully";
+                    } catch (...) {
+                        qWarning() << "Exception while stopping video HID polling - continuing anyway";
+                    }
+                    
+                    // Wait a bit for video HID to fully stop
+                    qDebug() << "Waiting for video HID to stop completely...";
+                    QThread::msleep(300);
+                    QCoreApplication::processEvents();
+                    
+                    qDebug() << "Stopping serial port manager...";
+                    try {
+                        // Close the serial port directly rather than using full stop() to avoid timer issues
+                        SerialPortManager::getInstance().closePort();
+                        qDebug() << "Serial port closed successfully";
+                        QThread::msleep(200); // Small delay for port closure
+                        QCoreApplication::processEvents();
+                        
+                        qDebug() << "Serial port manager stopped successfully";
+                    } catch (...) {
+                        qWarning() << "Exception while stopping SerialPortManager - continuing anyway";
+                    }
+                    
+                    // Final cleanup - process any remaining events
+                    qDebug() << "Processing remaining events...";
+                    QCoreApplication::processEvents();
+                    QThread::msleep(200);
+                    
+                    qDebug() << "Services stopped successfully, proceeding with firmware update...";
 
-                // Hide main window while update dialog runs to keep app alive and allow dialog to control shutdown
-                this->hide();
-                // Create and show firmware update dialog (capture result to restore main window on failure)
-                FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
-                bool success = updateDialog->startUpdate();
-                updateDialog->deleteLater();
+                    // Hide main window while update dialog runs to keep app alive and allow dialog to control shutdown
+                    this->hide();
+                    qDebug() << "Creating FirmwareUpdateDialog...";
+                    
+                    // Create and show firmware update dialog (capture result to restore main window on failure)
+                    FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
+                    qDebug() << "Calling updateDialog->startUpdate()...";
+                    success = updateDialog->startUpdate();
+                    qDebug() << "FirmwareUpdate completed with result:" << success;
+                    updateDialog->deleteLater();
+                } catch (const std::exception& e) {
+                    qCritical() << "Exception during firmware update process:" << e.what();
+                    this->show(); // Restore window if there was an error
+                    success = false; // Ensure success is false on exception
+                } catch (...) {
+                    qCritical() << "Unknown exception during firmware update process";
+                    this->show(); // Restore window if there was an error
+                    success = false; // Ensure success is false on exception
+                }
 
                 // If update failed, restore main window so user can retry
                 if (!success) {

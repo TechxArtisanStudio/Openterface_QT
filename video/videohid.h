@@ -104,6 +104,7 @@ public:
 
     void start();
     void stop();
+    void stopPollingOnly(); // Stop polling but keep HID connection for firmware update
 
     // Get resolution
     QPair<int, int> getResolution();
@@ -234,7 +235,16 @@ private:
     friend class PollingThread; // allow the nested polling thread to access private members
     PollingThread *m_pollingThread{nullptr};
     int m_pollIntervalMs{1000};
-    QString firmwareURL = "https://assets.openterface.com/openterface/firmware/minikvm_latest_firmware.txt";
+    // Default index file (v2 supports CSV lines: version,filename,chip)
+    QString firmwareURL = "https://assets.openterface.com/openterface/firmware/minikvm_latest_firmware2.txt";
+
+    // Helper used to pick the correct firmware filename from an index file.
+    // Format supported:
+    //  - legacy single-line: "Openterface_Firmware_xxx.bin"
+    //  - CSV multi-line: "<version>,<filename>,<chipToken>" (one per line)
+    // Public for testing.
+    static QString pickFirmwareFileNameFromIndex(const QString &indexContent, VideoChipType chip = VideoChipType::UNKNOWN);
+
     QString extractPortNumberFromPath(const QString& path);
     QPair<QByteArray, bool> usbXdataRead4Byte(quint16 u16_address);
     bool usbXdataWrite4Byte(quint16 u16_address, QByteArray data);

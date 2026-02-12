@@ -583,12 +583,14 @@ bool DeviceManager::switchSerialPortByPortChain(const QString& portChain)
 // This function intentionally does not consult VideoHid runtime detection.
 VideoChipType DeviceManager::getChipTypeForDevice(const DeviceInfo& device)
 {
-    using A = AbstractPlatformDeviceManager;
+    // Use stored HID VID/PID if available, otherwise fall back to main device VID/PID
+    QString vid = device.hidVid.isEmpty() ? device.vid : device.hidVid;
+    QString pid = device.hidPid.isEmpty() ? device.pid : device.hidPid;
 
-    // Check explicit VID/PID fields first
-    if (!device.vid.isEmpty() && !device.pid.isEmpty()) {
-        QString vid = device.vid.toUpper();
-        QString pid = device.pid.toUpper();
+    if (!vid.isEmpty() && !pid.isEmpty()) {
+        vid = vid.toUpper().remove("0X");
+        pid = pid.toUpper().remove("0X");
+
         if (vid == OPENTERFACE_VID.toUpper() && pid == OPENTERFACE_PID.toUpper()) {
             return VideoChipType::MS2109;
         }
@@ -600,28 +602,6 @@ VideoChipType DeviceManager::getChipTypeForDevice(const DeviceInfo& device)
             return VideoChipType::MS2109S;
         }
     }
-
-    // Inspect device paths and IDs for VID/PID hints
-    auto matchPaths = [&](const QString& p) -> VideoChipType {
-        if (p.isEmpty()) return VideoChipType::UNKNOWN;
-        QString s = p.toUpper();
-    if (s.contains(OPENTERFACE_VID_V2.toUpper()) && s.contains(OPENTERFACE_PID_V2.toUpper())) return VideoChipType::MS2130S;
-    if (s.contains(OPENTERFACE_VID.toUpper()) && s.contains(OPENTERFACE_PID.toUpper())) return VideoChipType::MS2109;
-    if (s.contains(OPENTERFACE_VID_V3.toUpper()) && s.contains(OPENTERFACE_PID_V3.toUpper())) return VideoChipType::MS2109S;
-        // Windows style variants
-    if (s.contains("VID_" + OPENTERFACE_VID_V2, Qt::CaseInsensitive) && s.contains("PID_" + OPENTERFACE_PID_V2, Qt::CaseInsensitive)) return VideoChipType::MS2130S;
-    if (s.contains("VID_" + OPENTERFACE_VID, Qt::CaseInsensitive) && s.contains("PID_" + OPENTERFACE_PID, Qt::CaseInsensitive)) return VideoChipType::MS2109;
-        return VideoChipType::UNKNOWN;
-    };
-
-    VideoChipType t = matchPaths(device.hidDevicePath);
-    if (t != VideoChipType::UNKNOWN) return t;
-    t = matchPaths(device.deviceInstanceId);
-    if (t != VideoChipType::UNKNOWN) return t;
-    t = matchPaths(device.cameraDevicePath);
-    if (t != VideoChipType::UNKNOWN) return t;
-    t = matchPaths(device.serialPortPath);
-    if (t != VideoChipType::UNKNOWN) return t;
 
     return VideoChipType::UNKNOWN;
 }

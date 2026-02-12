@@ -23,6 +23,7 @@
 #include "gstreamerbackendhandler.h"
     // Increment frame count logic remains unchanged
 #include "../../ui/globalsetting.h"
+#include "../../global.h"
 #include "../../device/DeviceManager.h"
 #include "../../device/HotplugMonitor.h"
 #include "../../device/DeviceInfo.h"
@@ -1061,9 +1062,9 @@ void GStreamerBackendHandler::uninstallGraphicsViewEventFilter(QGraphicsView* vi
 
 bool GStreamerBackendHandler::eventFilter(QObject *watched, QEvent *event)
 {
-    // CRITICAL: If handler is destructing, exit early to avoid accessing destroyed members
-    // This prevents crashes when Qt calls event filters during shutdown sequence
-    if (m_isDestructing) {
+    // CRITICAL: If handler is destructing OR application is shutting down, exit early
+    // This prevents crashes and unnecessary operations during shutdown sequence
+    if (m_isDestructing || g_applicationShuttingDown.loadAcquire() == 1) {
         return QObject::eventFilter(watched, event);
     }
 

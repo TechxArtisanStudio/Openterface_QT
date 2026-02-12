@@ -12,6 +12,7 @@ set(TS_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/config/languages/openterface_ja.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/config/languages/openterface_se.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/config/languages/openterface_zh.ts
+    ${CMAKE_CURRENT_SOURCE_DIR}/config/languages/openterface_es.ts
 )
 
 # Function to setup translations for a target (to be called after target creation)

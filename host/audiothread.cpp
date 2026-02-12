@@ -41,18 +41,8 @@ AudioThread::~AudioThread()
         m_cleanupStarted = true;
         requestInterruption();
         
-        // Nullify Qt Multimedia pointers immediately without calling their methods
-        m_sinkIODevice = nullptr;
-        m_audioIODevice = nullptr;
-        
-        // Don't call any Qt Multimedia cleanup methods during shutdown
-        if (m_audioSink) {
-            // Don't call stop() or any methods - just reset the pointer
-            m_audioSink.reset(); // Reset the pointer and let it clean up properly
-        }
-        m_audioSource = nullptr; // Don't delete, just nullify
-        
         // Force terminate the thread during shutdown - don't wait long
+        // Do this BEFORE touching any Qt Multimedia objects
         if (isRunning()) {
             if (!wait(10)) {  // Very short wait - 10ms
                 qCDebug(log_core_audio) << "AudioThread: Terminating thread forcefully during shutdown";
@@ -60,6 +50,17 @@ AudioThread::~AudioThread()
                 wait(10);  // Short wait after terminate
             }
         }
+        
+        // After thread is stopped, nullify pointers without calling any cleanup methods
+        // This prevents cross-thread timer warnings
+        m_sinkIODevice = nullptr;
+        m_audioIODevice = nullptr;
+        
+        // Don't call reset() or delete - Qt Multimedia objects may have internal timers
+        // that would cause "cannot be stopped from another thread" warnings
+        // Just leak these objects during shutdown - the OS will clean up
+        (void)m_audioSink.take(); // Take ownership without calling destructor, then leak it
+        m_audioSource = nullptr; // Just nullify, don't delete
         
         qCDebug(log_core_audio) << "AudioThread destructor: Thread forcefully stopped during shutdown";
         return;
@@ -76,6 +77,9 @@ AudioThread::~AudioThread()
         terminate();
         wait(1000);
     }
+    
+    // After thread is properly stopped, it's safe to clean up Qt Multimedia objects
+    // because their run() method has already cleaned them up in the correct thread
 }
 
 void AudioThread::stop()
@@ -367,7 +371,7 @@ void AudioThread::run()
                     
                     // Log any successful reads
                     if (bytesRead > 0) {
-                        qCDebug(log_core_audio) << "Audio data: read" << bytesRead << "bytes from" << bytesAvailable << "available";
+                        // qCDebug(log_core_audio) << "Audio data: read" << bytesRead << "bytes from" << bytesAvailable << "available";
                         
                         // Double-check we haven't started cleanup between reads
                         m_mutex.lock();
@@ -379,7 +383,7 @@ void AudioThread::run()
                             qint64 bytesWritten = m_sinkIODevice->write(buffer, bytesRead);
                             
                             // Log successful audio write
-                            qCDebug(log_core_audio) << "Audio data written:" << bytesWritten << "bytes";
+                            // qCDebug(log_core_audio) << "Audio data written:" << bytesWritten << "bytes";
                             
                             if (bytesWritten != bytesRead) {
                                 qCDebug(log_core_audio) << "Audio write mismatch:" << bytesWritten << "vs" << bytesRead;

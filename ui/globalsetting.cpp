@@ -240,6 +240,30 @@ double GlobalSetting::getScreenRatio() const {
     return m_settings.value("screen/ratio", 1.7778).toDouble();
 }
 
+// Persist the time (seconds since epoch) when update was last checked.
+void GlobalSetting::setUpdateLastChecked(qint64 secsSinceEpoch)
+{
+    m_settings.setValue("update/lastChecked", secsSinceEpoch);
+    m_settings.sync();
+}
+
+qint64 GlobalSetting::getUpdateLastChecked() const
+{
+    return m_settings.value("update/lastChecked", 0).toLongLong();
+}
+
+// Persist the user's "never remind" choice for updates.
+void GlobalSetting::setUpdateNeverRemind(bool never)
+{
+    m_settings.setValue("update/neverRemind", never);
+    m_settings.sync();
+}
+
+bool GlobalSetting::getUpdateNeverRemind() const
+{
+    return m_settings.value("update/neverRemind", false).toBool();
+}
+
 // Port chain management for Openterface devices
 void GlobalSetting::setOpenterfacePortChain(const QString& portChain) {
     qDebug() << "Logging Openterface port chain:" << portChain;
