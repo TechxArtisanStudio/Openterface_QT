@@ -111,11 +111,10 @@ sudo apt install -y \
     libavformat60 \
     libavdevice60 \
     libturbojpeg0 \
+    libva1 \
+    libva-drm2 \
+    libva-x11-2 \
     libgstreamer1.0-0 \
-    libgstreamer-plugins-base1.0-0 \
-    va-driver-all \
-    vainfo \
-    libva-dev
  ```
 
 ```bash
@@ -207,6 +206,7 @@ sudo apt-get install -y \
     libfontconfig1-dev \
     libbz2-dev \
     libturbojpeg0-dev \
+    libva-dev \
     libavformat-dev \
     libavcodec-dev \
     libavdevice-dev \
