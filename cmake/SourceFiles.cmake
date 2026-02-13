@@ -131,6 +131,7 @@ set(SERIAL_SOURCES
 # Server sources
 set(SERVER_SOURCES
     server/tcpServer.cpp server/tcpServer.h
+    server/tcpResponse.cpp server/tcpResponse.h
 )
 
 # Target sources

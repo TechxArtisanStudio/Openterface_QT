@@ -5,6 +5,9 @@
 #include <QThread>
 #include <QMetaObject>
 #include <QDebug>
+#include <QLoggingCategory>
+
+Q_LOGGING_CATEGORY(log_script_runner, "opf.scripts.scriptrunner")
 
 ScriptRunner::ScriptRunner(ScriptTool* tool, ScriptExecutor* executor, QObject* parent)
     : QObject(parent), m_tool(tool), m_executor(executor)
@@ -13,6 +16,7 @@ ScriptRunner::ScriptRunner(ScriptTool* tool, ScriptExecutor* executor, QObject* 
 
 void ScriptRunner::runTree(std::shared_ptr<ASTNode> tree, QObject* originSender)
 {
+    qCDebug(log_script_runner) << "ScriptRunner::runTree called with tree:" << (tree ? "valid" : "null") << "from sender:" << originSender;
     if (!tree) {
         emit analysisFinished(originSender, false);
         return;
@@ -40,9 +44,13 @@ void ScriptRunner::runTree(std::shared_ptr<ASTNode> tree, QObject* originSender)
 
     // Route capture signals to executor so UI can respond
     if (m_executor) {
+        qWarning(log_script_runner) << "Connecting signals to ScriptExecutor";
         connect(workerAnalyzer, &SemanticAnalyzer::captureImg, m_executor, &ScriptExecutor::captureImg, Qt::QueuedConnection);
         connect(workerAnalyzer, &SemanticAnalyzer::captureAreaImg, m_executor, &ScriptExecutor::captureAreaImg, Qt::QueuedConnection);
-        connect(workerAnalyzer, &SemanticAnalyzer::commandData, m_executor, &ScriptExecutor::executeCommand, Qt::QueuedConnection);
+        bool connected = connect(workerAnalyzer, &SemanticAnalyzer::commandData, m_executor, &ScriptExecutor::onCommandData, Qt::QueuedConnection);
+        qWarning(log_script_runner) << "commandData connection result:" << connected;
+    } else {
+        qWarning(log_script_runner) << "ERROR: m_executor is null!";
     }
 
     // Connect command increase to the script tool UI
