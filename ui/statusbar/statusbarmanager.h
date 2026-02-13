@@ -37,6 +37,7 @@ public:
     void showSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate);
     void setRecordingTime(const QString& time);
     void showRecordingIndicator(bool show);
+    void onTcpServerKeyHandled(const QString& key);
 
 
 private:
@@ -46,6 +47,7 @@ private:
     QLabel *mouseLocationLabel;
     QLabel *keyPressedLabel;
     QLabel *keyLabel;
+    QLabel *tcpKeyLabel;
     QColor iconColor;
     QLabel *statusMessageLabel;
     

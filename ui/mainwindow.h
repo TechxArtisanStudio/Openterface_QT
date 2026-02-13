@@ -64,7 +64,6 @@
 
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
-#include "host/imagecapturer.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -349,7 +348,6 @@ private:
     void startServer();
     void stopServer();
     TcpServer *tcpServer;
-    ImageCapturer *m_imageCapturer;
     bool m_tcpServerRunning = false;
 
 };

@@ -168,17 +168,8 @@ void MainWindow::startServer(){
     // 1. create and start TCP server
     tcpServer = new TcpServer(this);
     tcpServer->startServer(SERVER_PORT);
+    tcpServer->setCameraManager(m_cameraManager);
     
-    // 2. create and initialize ImageCapturer
-    m_imageCapturer = new ImageCapturer(this);
-    
-    // 3. set default save path
-    QString savePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/openterface";
-    
-    // 4. start periodic auto capture (once per second)
-    m_imageCapturer->startCapturingAuto(m_cameraManager, tcpServer, savePath, 1);
-    
-    // 5. establish signal-slot connections
     connect(m_cameraManager, &CameraManager::lastImagePath, tcpServer, &TcpServer::handleImgPath);
     connect(tcpServer, &TcpServer::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     connect(this, &MainWindow::emitTCPCommandStatus, tcpServer, &TcpServer::recvTCPCommandStatus);
@@ -209,14 +200,7 @@ void MainWindow::stopServer(){
         tcpServer->deleteLater();
         tcpServer = nullptr;
     }
-    
-    // Stop image capturer
-    if (m_imageCapturer) {
-        m_imageCapturer->stopCapturing();
-        m_imageCapturer->deleteLater();
-        m_imageCapturer = nullptr;
-    }
-    
+
     // Mark server as stopped and update status indicator
     m_tcpServerRunning = false;
     if (m_statusBarManager) {
@@ -1511,14 +1495,6 @@ MainWindow::~MainWindow()
         toggleSwitch = nullptr;
         qCDebug(log_ui_mainwindow) << "toggleSwitch destroyed successfully";
     }
-    
-    // Clean up image capturer
-    if (m_imageCapturer) {
-        m_imageCapturer->stopCapturing();
-        m_imageCapturer->deleteLater();
-        m_imageCapturer = nullptr;
-        qCDebug(log_ui_mainwindow) << "m_imageCapturer destroyed successfully";
-    }
 
     // Clean up TCP Server and Image Capturer
     if (tcpServer) {
@@ -1526,13 +1502,6 @@ MainWindow::~MainWindow()
         tcpServer->deleteLater();
         tcpServer = nullptr;
         qCDebug(log_ui_mainwindow) << "tcpServer destroyed successfully";
-    }
-    
-    if (m_imageCapturer) {
-        m_imageCapturer->stopCapturing();
-        m_imageCapturer->deleteLater();
-        m_imageCapturer = nullptr;
-        qCDebug(log_ui_mainwindow) << "m_imageCapturer destroyed successfully";
     }
     
     if (m_audioManager) {

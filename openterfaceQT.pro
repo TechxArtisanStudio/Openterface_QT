@@ -60,6 +60,7 @@ SOURCES += main.cpp \
     serial/watchdog/ConnectionWatchdog.cpp \
     serial/serial_hotplug_handler.cpp \
     server/tcpServer.cpp \
+    server/tcpResponse.cpp \
     target/KeyboardLayouts.cpp \
     target/KeyboardManager.cpp \
     target/MouseManager.cpp \
@@ -189,6 +190,7 @@ HEADERS  += \
     serial/watchdog/ConnectionWatchdog.h \
     serial/serial_hotplug_handler.h \
     server/tcpServer.h \
+    server/tcpResponse.h \
     target/KeyboardLayouts.h \
     target/KeyboardManager.h \
     target/MouseManager.h \
