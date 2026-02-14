@@ -391,6 +391,7 @@ void CameraManager::takeImage(const QString& file)
             ffmpeg->takeImage(actualFile);
             emit lastImagePath(actualFile);
         }
+#ifndef Q_OS_WIN
     } else if (isGStreamerBackend()) {
         GStreamerBackendHandler* gstreamer = dynamic_cast<GStreamerBackendHandler*>(m_backendHandler.get());
         if (gstreamer) {
@@ -415,6 +416,7 @@ void CameraManager::takeImage(const QString& file)
             gstreamer->takeImage(actualFile);
             emit lastImagePath(actualFile);
         }
+#endif
     } else {
         qCWarning(log_ui_camera) << "Image capture not supported for current backend";
     }
@@ -452,6 +454,7 @@ void CameraManager::takeAreaImage(const QString& file, const QRect& captureArea)
             ffmpeg->takeAreaImage(actualFile, captureArea);
             emit lastImagePath(actualFile);
         }
+#ifndef Q_OS_WIN
     } else if (isGStreamerBackend()) {
         GStreamerBackendHandler* gstreamer = dynamic_cast<GStreamerBackendHandler*>(m_backendHandler.get());
         if (gstreamer) {
@@ -476,6 +479,7 @@ void CameraManager::takeAreaImage(const QString& file, const QRect& captureArea)
             gstreamer->takeAreaImage(actualFile, captureArea);
             emit lastImagePath(actualFile);
         }
+#endif
     } else {
         qCWarning(log_ui_camera) << "Area image capture not supported for current backend";
     }
