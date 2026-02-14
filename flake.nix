@@ -49,25 +49,46 @@
   in
     {
       # NixOS module available for all systems
+      #
+      # Usage in your flake.nix:
+      #
+      #   inputs.openterface.url = "github:TechxArtisanStudio/Openterface_QT";
+      #
+      #   nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      #     modules = [
+      #       openterface.nixosModules.openterface
+      #       { services.openterface.enable = true; }
+      #     ];
+      #   };
+      #
+      # This installs the application, sets up udev rules for device
+      # access, and adds users to the dialout group for serial ports.
+      #
+      # To just build or run without NixOS:
+      #
+      #   nix build github:TechxArtisanStudio/Openterface_QT
+      #   nix run github:TechxArtisanStudio/Openterface_QT
+      #
       nixosModules.openterface = nixosModule;
     }
     // flake-utils.lib.eachDefaultSystem (system: let
       pkgs = nixpkgs.legacyPackages.${system};
 
-      openterface-qt = pkgs.stdenv.mkDerivation rec {
-        pname = "openterface-qt";
-        version = "0.5.10";
+      # Merge ffmpeg dev (headers + .so symlinks) and lib (shared libraries)
+      # into a single prefix so CMake's FFmpeg detection finds both
+      ffmpegMerged = pkgs.symlinkJoin {
+        name = "ffmpeg-merged";
+        paths = [pkgs.ffmpeg.dev pkgs.ffmpeg.lib];
+      };
 
-        src = pkgs.fetchFromGitHub {
-          owner = "TechxArtisanStudio";
-          repo = "Openterface_QT";
-          rev = version;
-          sha256 = "sha256-Kzg8Jj2OKP/MjrLQQpdAxuKyOp/paZkOXAmtocM8hvA=";
-        };
+      openterface-qt = pkgs.stdenv.mkDerivation {
+        pname = "openterface-qt";
+        version = "0.5.14";
+
+        src = self;
 
         nativeBuildInputs = with pkgs; [
           cmake
-          libcap
           pkg-config
           qt6.wrapQtAppsHook
           qt6.qttools
@@ -80,12 +101,13 @@
           qt6.qtsvg
           libusb1
           openssl
-          ffmpeg.lib # Use the lib output for libraries
-          ffmpeg.dev # Include development headers
+          ffmpegMerged
           xorg.libX11
           xorg.libXrandr
           xorg.libXrender
           xorg.libXv
+          xorg.libXi
+          xorg.libXext
           expat
           freetype
           fontconfig
@@ -93,120 +115,64 @@
           systemd # for libudev
           libgudev
           v4l-utils # Provides libv4l2
+          libGL
+          glib
+          gst_all_1.gstreamer
+          gst_all_1.gst-plugins-base
+          libcap
+          orc
         ];
 
-        # Set UTF-8 locale for Qt and compiler flags to treat warnings as non-fatal
+        # Set UTF-8 locale and compiler flags
         env.LANG = "C.UTF-8";
         env.LC_ALL = "C.UTF-8";
-
-        # Allow deprecated Qt APIs and disable warnings as errors, enable FFmpeg support
         env.NIX_CFLAGS_COMPILE = "-Wno-deprecated-declarations -Wno-error -DHAVE_FFMPEG";
 
-        # Pre-build phase to generate language files
-        preBuild = ''
-          # Check if .pro file exists and generate Qt language files if present
-          if [ -f "openterfaceQT.pro" ]; then
-            echo "Generating Qt language files..."
-            ${pkgs.qt6.qttools}/bin/lrelease openterfaceQT.pro
-          else
-            echo "No .pro file found, skipping language file generation"
-            # Look for .ts files in common locations and process them
-            find . -name "*.ts" -exec ${pkgs.qt6.qttools}/bin/lrelease {} \; || true
-          fi
+        postPatch = ''
+          # Remove hardcoded -include /usr/include/time.h
+          # This path doesn't exist on Nix; the underlying FFmpeg/system time.h
+          # conflict is not an issue with Nix's isolated include paths
+          substituteInPlace CMakeLists.txt \
+            --replace-fail '-include /usr/include/time.h' ""
+
+          # Remove FORCE overrides that hardcode Qt6 paths to /opt/Qt6
+          # Nix's cmake hooks already set CMAKE_PREFIX_PATH correctly
+          substituteInPlace cmake/Configuration.cmake \
+            --replace-fail 'set(Qt6_DIR "''${QT_BUILD_PATH}/lib/cmake/Qt6" CACHE PATH "Qt6 installation directory" FORCE)' \
+              '# Qt6_DIR: detected automatically via CMAKE_PREFIX_PATH (Nix)' \
+            --replace-fail 'set(Qt6Core_DIR "''${QT_BUILD_PATH}/lib/cmake/Qt6Core" CACHE PATH "Qt6Core directory" FORCE)' \
+              '# Qt6Core_DIR: detected automatically (Nix)' \
+            --replace-fail 'set(Qt6Gui_DIR "''${QT_BUILD_PATH}/lib/cmake/Qt6Gui" CACHE PATH "Qt6Gui directory" FORCE)' \
+              '# Qt6Gui_DIR: detected automatically (Nix)' \
+            --replace-fail 'set(Qt6Widgets_DIR "''${QT_BUILD_PATH}/lib/cmake/Qt6Widgets" CACHE PATH "Qt6Widgets directory" FORCE)' \
+              '# Qt6Widgets_DIR: detected automatically (Nix)'
+
+          # Remove hardcoded include_directories block and implicit include stripping
+          # These override Nix's correct Qt6 header paths with /opt/Qt6 paths
+          sed -i '/# Prioritize static Qt6 include directories/,/Prioritized static Qt6 include directories/d' \
+            cmake/Configuration.cmake
         '';
 
         cmakeFlags = [
           "-DCMAKE_BUILD_TYPE=Release"
-          "-DCMAKE_CXX_FLAGS=-Wno-deprecated-declarations -Wno-error"
-          "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--wrap,dlopen"
-          # Let CMake find FFmpeg libraries automatically
-          "-DPKG_CONFIG_USE_CMAKE_PREFIX_PATH=ON"
-          # Explicitly set FFmpeg paths
-          "-DFFMPEG_FOUND=TRUE"
-          "-DFFMPEG_INCLUDE_DIRS=${pkgs.ffmpeg.dev}/include"
-          "-DFFMPEG_LIBRARIES=${pkgs.ffmpeg.lib}/lib/libavdevice${pkgs.stdenv.hostPlatform.extensions.sharedLibrary};${pkgs.ffmpeg.lib}/lib/libavformat${pkgs.stdenv.hostPlatform.extensions.sharedLibrary};${pkgs.ffmpeg.lib}/lib/libavcodec${pkgs.stdenv.hostPlatform.extensions.sharedLibrary};${pkgs.ffmpeg.lib}/lib/libavutil${pkgs.stdenv.hostPlatform.extensions.sharedLibrary};${pkgs.ffmpeg.lib}/lib/libswresample${pkgs.stdenv.hostPlatform.extensions.sharedLibrary};${pkgs.ffmpeg.lib}/lib/libswscale${pkgs.stdenv.hostPlatform.extensions.sharedLibrary}"
-          # Disable Qt6's automatic deployment which causes issues in Nix
+          "-DOPENTERFACE_BUILD_STATIC=OFF"
+          "-DUSE_SHARED_FFMPEG=ON"
+          "-DFFMPEG_PREFIX=${ffmpegMerged}"
+          "-DUSE_GSTREAMER=ON"
+          "-DUSE_HWACCEL=OFF"
+          "-DENABLE_QT_DEPLOY=OFF"
           "-DQT_NO_DEPLOY_RUNTIME_DEPENDENCIES=ON"
         ];
 
-        # Patch CMakeLists.txt to fix hardcoded paths and disable Qt deployment
-        postPatch = ''
-          # Fix any hardcoded FFmpeg paths in CMake files
-          find . -name "*.cmake" -o -name "CMakeLists.txt" | xargs sed -i \
-            -e 's|/usr/local/lib|${pkgs.ffmpeg.lib}/lib|g' \
-            -e 's|/var/empty/local/lib|${pkgs.ffmpeg.lib}/lib|g' \
-            -e 's|\.a|${pkgs.stdenv.hostPlatform.extensions.sharedLibrary}|g'
-
-          # Also check for any .pro files that might have hardcoded paths
-          find . -name "*.pro" | xargs sed -i \
-            -e 's|/usr/local/lib|${pkgs.ffmpeg.lib}/lib|g' \
-            -e 's|/var/empty/local/lib|${pkgs.ffmpeg.lib}/lib|g' \
-            -e 's|\.a|${pkgs.stdenv.hostPlatform.extensions.sharedLibrary}|g' || true
-
-          # More targeted approach: just remove deployment lines
-          find . -name "CMakeLists.txt" | xargs sed -i \
-            -e '/qt6_deploy_runtime_dependencies/d' \
-            -e '/qt_deploy_runtime_dependencies/d' \
-            -e 's|-include /usr/include/time.h||g'
-
-          # Replace link_ffmpeg_libraries() with direct target_link_libraries call
-          sed -i 's/^link_ffmpeg_libraries()/target_link_libraries(openterfaceQT PRIVATE ''${FFMPEG_LIBRARIES})/g' CMakeLists.txt || true
-
-          # Disable Qt deployment in Resources.cmake by setting ENABLE_QT_DEPLOY to OFF
-          find . -name "Resources.cmake" -exec sed -i \
-            '1i set(ENABLE_QT_DEPLOY OFF)' {} \;
-        '';
-
-        # Override the install target to skip Qt deployment
-        buildPhase = ''
-          runHook preBuild
-          make -j$NIX_BUILD_CORES
-          runHook postBuild
-        '';
-
-        # Don't use make install - it triggers Qt deployment
-        dontUseInstall = true;
-
-        # Custom install phase to avoid Qt deployment issues
-        installPhase = ''
-          runHook preInstall
-
-          # Create output directories
-          mkdir -p $out/bin
-          mkdir -p $out/share/applications
-          mkdir -p $out/lib/udev/rules.d
-
-          # Install the main executable
-          cp openterfaceQT $out/bin/
-
+        postInstall = ''
           # Install udev rules for device permissions
+          mkdir -p $out/lib/udev/rules.d
           cat > $out/lib/udev/rules.d/51-openterface.rules << EOF
           SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
           SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
           SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
           SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
           EOF
-
-          # Create desktop entry
-          cat > $out/share/applications/openterface-qt.desktop << EOF
-          [Desktop Entry]
-          Version=1.0
-          Type=Application
-          Name=Openterface Mini-KVM
-          Comment=KVM control application for Openterface hardware
-          Exec=$out/bin/openterfaceQT
-          Icon=openterface
-          Terminal=false
-          Categories=System;Hardware;
-          EOF
-
-          # Install icon if it exists in the source
-          if [ -f "../resources/icon.png" ]; then
-            mkdir -p $out/share/pixmaps
-            cp ../resources/icon.png $out/share/pixmaps/openterface.png
-          fi
-
-          runHook postInstall
         '';
 
         meta = with pkgs.lib; {
@@ -233,29 +199,14 @@
 
       # Development shell with all build dependencies
       devShells.default = pkgs.mkShell {
-        buildInputs = with pkgs; [
-          cmake
-          pkg-config
-          qt6.qtbase
-          qt6.qtmultimedia
-          qt6.qtserialport
-          qt6.qtsvg
-          qt6.qttools
-          qt6.qtcreator
-          libusb1
-          openssl
-          ffmpeg
-          xorg.libX11
-          xorg.libXrandr
-          xorg.libXrender
-          expat
-          freetype
-          fontconfig
-          bzip2
-          systemd
-          gdb
-          valgrind
-        ];
+        buildInputs = with pkgs;
+          openterface-qt.buildInputs
+          ++ openterface-qt.nativeBuildInputs
+          ++ [
+            qt6.qtcreator
+            gdb
+            valgrind
+          ];
 
         shellHook = ''
           echo "Openterface Mini-KVM QT Development Environment"
@@ -263,7 +214,7 @@
           echo ""
           echo "To build the project:"
           echo "  mkdir build && cd build"
-          echo "  cmake .. -DCMAKE_BUILD_TYPE=Release"
+          echo "  cmake .. -DCMAKE_BUILD_TYPE=Release -DOPENTERFACE_BUILD_STATIC=OFF -DUSE_SHARED_FFMPEG=ON -DUSE_GSTREAMER=OFF"
           echo "  make -j\$(nproc)"
           echo ""
           echo "To run Qt Creator:"
