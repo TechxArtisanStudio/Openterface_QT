@@ -126,6 +126,10 @@ public:
     QString getCurrentRecordingPath() const override;
     qint64 getRecordingDuration() const override;
     
+    // Image capture methods
+    void takeImage(const QString& filePath);
+    void takeAreaImage(const QString& filePath, const QRect& captureArea);
+    
     // Advanced recording methods
     bool isPipelineReady() const;
     bool supportsAdvancedRecording() const;
@@ -188,6 +192,9 @@ private:
     GstElement* m_recordingFileSink;
     GstElement* m_recordingAppSink;  // For frame capture
     GstPad* m_recordingTeeSrcPad;
+    // Image capture pipeline elements
+    GstElement* m_captureAppSink;    // For image capture from main pipeline
+    GstElement* m_captureQueue;      // Queue for capture branch
     // Recording manager (encapsulates recording branch logic)
     class RecordingManager* m_recordingManager;
     
@@ -245,6 +252,12 @@ private:
     bool embedVideoInVideoPane(VideoPane* videoPane);
     void handleGStreamerMessage(GstMessage* message);
     void completePendingOverlaySetup();
+    
+    // Helper methods for image capture
+    GstSample* getLatestSampleFromPipeline();
+    QImage gstSampleToQImage(GstSample* sample);
+    bool createCaptureAppSink();
+    void destroyCaptureAppSink();
 
 protected:
     // Override to track video widget/view lifecycle events and respond to winId/show/resize

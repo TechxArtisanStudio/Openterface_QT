@@ -64,6 +64,11 @@ VideoHid::VideoHid(QObject *parent) : QObject(parent), m_inTransaction(false) {
 }
 
 VideoHid::~VideoHid() {
+    // Fast exit if already cleaned up to prevent redundant work
+    if (!m_pollingThread && !m_inTransaction) {
+        return;
+    }
+    
     // Ensure we disconnect from hotplug monitor prior to stopping to avoid callbacks into a destroyed object
     disconnectFromHotplugMonitor();
     // Ensure we stop polling and close any open device before destruction
@@ -84,7 +89,14 @@ public:
                     qCWarning(log_host_hid) << "Exception in PollingThread while calling pollDeviceStatus";
                 }
             }
-            QThread::msleep(m_intervalMs);
+            // Use interruptible sleep for faster shutdown response
+            int remainingSleep = m_intervalMs;
+            const int sleepChunk = 100; // 100ms chunks
+            while (m_running && remainingSleep > 0) {
+                int actualSleep = qMin(sleepChunk, remainingSleep);
+                QThread::msleep(actualSleep);
+                remainingSleep -= actualSleep;
+            }
         }
         qCDebug(log_host_hid) << "PollingThread stopping";
     }
@@ -335,7 +347,9 @@ void VideoHid::stop() {
         m_pollingThread->stop();
         m_pollingThread->quit();
         if (!m_pollingThread->wait(2000)) {
-            qCWarning(log_host_hid) << "Polling thread did not stop within 2 seconds";
+            qCWarning(log_host_hid) << "Polling thread did not stop within 2 seconds, forcing termination";
+            m_pollingThread->terminate();
+            m_pollingThread->wait(1000);
         }
         delete m_pollingThread;
         m_pollingThread = nullptr;

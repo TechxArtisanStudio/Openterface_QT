@@ -28,7 +28,6 @@
 #include "../statusbar/statusbarmanager.h"
 #include "../../host/HostManager.h"
 #include "../../host/cameramanager.h"
-#include "../../host/imagecapturer.h"
 #include "../recording/recordingcontroller.h"
 #include "../../serial/SerialPortManager.h"
 #include "../../device/DeviceManager.h"
@@ -213,9 +212,6 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
             m_cornerWidgetManager, &CornerWidgetManager::updateUSBStatus);
 
-    // Thread-safe connections to MainWindow (use queued connection to ensure slots run on GUI thread)
-    connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
-            m_mainWindow, &MainWindow::onTargetUsbConnected, Qt::QueuedConnection);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::keyStatesChanged,
             m_mainWindow, &MainWindow::onKeyStatesChanged, Qt::QueuedConnection);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::serialPortReset,
@@ -311,6 +307,11 @@ void MainWindowInitializer::connectActionSignals()
     connect(m_ui->actionTo_Host, &QAction::triggered, m_mainWindow, &MainWindow::onActionSwitchToHostTriggered);
     connect(m_ui->actionTo_Target, &QAction::triggered, m_mainWindow, &MainWindow::onActionSwitchToTargetTriggered);
     connect(m_ui->actionPaste, &QAction::triggered, m_mainWindow, &MainWindow::onActionPasteToTarget);
+    
+    // Make TCP Server action checkable to show running state
+    m_ui->actionTCPServer->setCheckable(true);
+    m_ui->actionTCPServer->setChecked(false);
+    
     connect(m_ui->actionTCPServer, &QAction::triggered, m_mainWindow, &MainWindow::startServer);
     connect(m_ui->actionScriptTool, &QAction::triggered, m_mainWindow, &MainWindow::showScriptTool);
     connect(m_ui->actionRecordingSettings, &QAction::triggered, m_mainWindow, &MainWindow::showRecordingSettings);
@@ -541,5 +542,17 @@ void MainWindowInitializer::finalize()
     GlobalVar::instance().setMouseAutoHide(GlobalSetting::instance().getMouseAutoHideEnable());
     m_mainWindow->initializeKeyboardLayouts();
     
+    // Perform a non-forced update check after initialization completes.
+    // Delay execution to ensure any waiting/splash window has closed.
+    QTimer::singleShot(500, m_mainWindow, [this]() {
+        if (GlobalSetting::instance().getUpdateNeverRemind()) {
+            qCDebug(log_ui_mainwindowinitializer) << "Startup update check skipped: 'never remind' is set";
+            return;
+        }
+        qCDebug(log_ui_mainwindowinitializer) << "Startup: invoking VersionInfoManager::checkForUpdates after initialization";
+        m_mainWindow->m_versionInfoManager->checkForUpdates(true);
+    });
+    
+    qCDebug(log_ui_mainwindowinitializer) << "Finalization complete";
 }
 

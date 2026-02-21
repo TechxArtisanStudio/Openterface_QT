@@ -355,7 +355,11 @@ int main(int argc, char *argv[])
         qInfo() << "Main window shown";
     });
 
+    qInfo() << "Entering application event loop (app.exec())";
     int result = app.exec();
+    
+    qInfo() << "Application event loop exited with code:" << result;
+    qInfo() << "Beginning final cleanup...";
     
     // Clean up GStreamer
     #ifdef HAVE_GSTREAMER
@@ -363,5 +367,6 @@ int main(int argc, char *argv[])
     qDebug() << "GStreamer deinitialized";
     #endif
     
+    qInfo() << "Application cleanup complete, returning" << result;
     return result;
 }

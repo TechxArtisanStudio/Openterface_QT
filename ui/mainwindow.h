@@ -64,7 +64,6 @@
 
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
-#include "host/imagecapturer.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -198,8 +197,6 @@ private slots:
 
     void onSwitchableUsbToggle(const bool isToHost) override;
 
-    void onTargetUsbConnected(const bool isConnected) override;
-
     void onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock) override;
 
     void factoryReset(bool isStarted) override;
@@ -291,6 +288,7 @@ private:
     bool m_applicationExiting = false;
     bool m_doImageCapture = true;
     bool m_deviceAutoSelected = false; // Flag to prevent multiple auto-selections
+    bool m_closeEventHandled = false; // Flag to prevent closeEvent re-entrance
     int video_width = 1920;
     int video_height = 1080;
     QList<QCameraDevice> m_lastCameraList;
@@ -348,8 +346,9 @@ private:
     
     ratioType currentRatioType = ratioType::EQUAL;
     void startServer();
+    void stopServer();
     TcpServer *tcpServer;
-    ImageCapturer *m_imageCapturer;
+    bool m_tcpServerRunning = false;
 
 };
 #endif // MAINWINDOW_H

@@ -57,11 +57,17 @@ void SerialHotplugHandler::ConnectToHotplugMonitor()
 void SerialHotplugHandler::DisconnectFromHotplugMonitor()
 {
     qCDebug(log_core_serial) << "SerialHotplugHandler: Disconnecting from hotplug monitor";
-    if (hotplug_monitor_) {
+    
+    // Skip disconnecting during shutdown to prevent hangs from accessing destroyed singletons
+    if (shutting_down_) {
+        qCDebug(log_core_serial) << "SerialHotplugHandler: Skipping disconnect during shutdown to prevent hang";
+        hotplug_monitor_ = nullptr;  // Just clear the pointer
+    } else if (hotplug_monitor_) {
         disconnect(hotplug_monitor_, nullptr, this, nullptr);
         hotplug_monitor_ = nullptr;
         qCDebug(log_core_serial) << "SerialHotplugHandler disconnected from hotplug monitor";
     }
+    
     CancelAutoConnectAttempts();
     pending_auto_connect_ = false;
     pending_port_chain_.clear();

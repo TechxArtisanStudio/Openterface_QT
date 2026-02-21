@@ -52,6 +52,13 @@ void StatusBarManager::initStatusBar()
     keyLayout->addWidget(keyLabel);
     m_statusBar->addWidget(keyContainer);
 
+    // TCP Server keys display
+    tcpKeyLabel = new QLabel(m_statusBar);
+    tcpKeyLabel->setFixedWidth(150);
+    tcpKeyLabel->setText("TCP: -");
+    tcpKeyLabel->setStyleSheet("color: #0066cc;");
+    m_statusBar->addWidget(tcpKeyLabel);
+
     QWidget *statusMessageContainer = new QWidget(m_statusBar);
     QHBoxLayout *statusMessageLayout = new QHBoxLayout(statusMessageContainer);
     statusMessageLabel = new QLabel(m_statusBar);
@@ -141,6 +148,17 @@ void StatusBarManager::onLastKeyPressed(const QString& key)
     keyLabel->setText(key);
 }
 
+void StatusBarManager::onTcpServerKeyHandled(const QString& key)
+{
+    if (!key.isEmpty()) {
+        tcpKeyLabel->setText(QString("TCP: %1").arg(key));
+        tcpKeyLabel->setStyleSheet("color: #0066cc; font-weight: bold;");
+    } else {
+        tcpKeyLabel->setText("TCP: -");
+        tcpKeyLabel->setStyleSheet("color: #0066cc;");
+    }
+}
+
 void StatusBarManager::onLastMouseLocation(const QPoint& location, const QString& mouseEvent)
 {
     QString svgPath;
@@ -218,6 +236,7 @@ QColor StatusBarManager::getContrastingColor(const QColor &color)
 
 void StatusBarManager::setTargetUsbConnected(bool isConnected)
 {
+    qCDebug(log_ui_statusbarmanager) << "StatusBarManager::setTargetUsbConnected - Target USB connection status:" << (isConnected ? "Connected" : "Disconnected");
     m_statusWidget->setTargetUsbConnected(isConnected);
 }
 

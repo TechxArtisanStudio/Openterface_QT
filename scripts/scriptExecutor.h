@@ -16,15 +16,19 @@ public:
 
     void setMouseManager(MouseManager* mm) { mouseManager = mm; }
     void setKeyboardMouse(KeyboardMouse* km) { keyboardMouse = km; }
+    MouseManager* getMouseManager() const { return mouseManager; }
+    KeyboardMouse* getKeyboardMouse() const { return keyboardMouse; }
 
 signals:
     void captureImg(const QString& path = "");
     void captureAreaImg(const QString& path = "", const QRect& captureArea = QRect());
+    void keySent(const QString& keyDisplay);
 
 public slots:
-    bool executeCommand(const ASTNode* node);
+    void onCommandData(const QString& commandName, const QStringList& options);
 
 private:
+    bool executeCommand(const QString& commandName, const QStringList& options);
     MouseManager* mouseManager = nullptr;
     KeyboardMouse* keyboardMouse = nullptr;
     RegularExpression& regex = RegularExpression::instance();

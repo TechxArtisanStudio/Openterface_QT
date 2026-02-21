@@ -155,39 +155,64 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     VideoHid::getInstance().start();
     
     qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
-
-    // Perform a non-forced update check on startup (honors user settings and 30-day throttle).
-    // Schedule after the event loop starts so network/dialog code runs reliably.
-    QTimer::singleShot(0, this, [this]() {
-        if (GlobalSetting::instance().getUpdateNeverRemind()) {
-            qCDebug(log_ui_mainwindow) << "Startup update check skipped: 'never remind' is set";
-            return;
-        }
-        qCDebug(log_ui_mainwindow) << "Startup: invoking VersionInfoManager::checkForUpdates(false) (throttle applies)";
-        m_versionInfoManager->checkForUpdates(true);
-    });
 }
 
 void MainWindow::startServer(){
+    // Check if server is already running
+    if (m_tcpServerRunning && tcpServer) {
+        // Server is running, stop it instead
+        stopServer();
+        return;
+    }
+    
     // 1. create and start TCP server
     tcpServer = new TcpServer(this);
     tcpServer->startServer(SERVER_PORT);
+    tcpServer->setCameraManager(m_cameraManager);
     
-    // 2. create and initialize ImageCapturer
-    m_imageCapturer = new ImageCapturer(this);
-    
-    // 3. set default save path
-    QString savePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/openterface";
-    
-    // 4. start periodic auto capture (once per second)
-    m_imageCapturer->startCapturingAuto(m_cameraManager, tcpServer, savePath, 1);
-    
-    // 5. establish signal-slot connections
     connect(m_cameraManager, &CameraManager::lastImagePath, tcpServer, &TcpServer::handleImgPath);
     connect(tcpServer, &TcpServer::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     connect(this, &MainWindow::emitTCPCommandStatus, tcpServer, &TcpServer::recvTCPCommandStatus);
     
-    qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345 with auto image capture";
+    // 6. Mark server as running and update status indicator
+    m_tcpServerRunning = true;
+    if (m_statusBarManager) {
+        m_statusBarManager->setStatusUpdate(QString("TCP Server running on port %1").arg(SERVER_PORT));
+    }
+    
+    // 7. Update menu action to show server is running
+    if (ui->actionTCPServer) {
+        ui->actionTCPServer->setChecked(true);
+    }
+    
+    qCDebug(log_ui_mainwindow) << "TCP Server started at port 12345 with auto image capture";
+}
+
+void MainWindow::stopServer(){
+    if (!m_tcpServerRunning || !tcpServer) {
+        qCDebug(log_ui_mainwindow) << "TCP Server is not running";
+        return;
+    }
+    
+    // Stop the TCP server
+    if (tcpServer) {
+        tcpServer->close();
+        tcpServer->deleteLater();
+        tcpServer = nullptr;
+    }
+
+    // Mark server as stopped and update status indicator
+    m_tcpServerRunning = false;
+    if (m_statusBarManager) {
+        m_statusBarManager->setStatusUpdate(QString("TCP Server stopped"));
+    }
+    
+    // Update menu action to show server is stopped
+    if (ui->actionTCPServer) {
+        ui->actionTCPServer->setChecked(false);
+    }
+    
+    qCDebug(log_ui_mainwindow) << "TCP Server stopped";
 }
 
 
@@ -377,7 +402,6 @@ void MainWindow::onActionFactoryResetHIDTriggered()
     if (reply == QMessageBox::Yes) {
         qCDebug(log_ui_mainwindow) << "onActionFactoryResetHIDTriggered";
         SerialPortManager::getInstance().factoryResetHipChip();
-        // HostManager::getInstance().resetHid();
     } else {
         qCDebug(log_ui_mainwindow) << "Factory reset HID chip canceled by user.";
     }
@@ -466,11 +490,6 @@ void MainWindow::onGpio0StatusChanged(bool isToTarget)
         qCDebug(log_ui_mainwindow) << "GPIO0 status changed to:" << (isToTarget ? "target" : "host");
         toggleSwitch->setChecked(isToTarget);
     }
-}
-
-void MainWindow::onTargetUsbConnected(const bool isConnected)
-{
-    m_statusBarManager->setTargetUsbConnected(isConnected);
 }
 
 void MainWindow::onKeyStatesChanged(bool numLock, bool capsLock, bool scrollLock)
@@ -914,8 +933,10 @@ void MainWindow::stop(){
     qDebug() << "Stopping camera manager...";
     m_cameraManager->stopCamera();
 
-    qDebug() << "Closing serial port...";
-    SerialPortManager::getInstance().closePort();
+    // Don't call closePort() here because SerialPortManager::stop() will handle it
+    // Calling it here causes queued close operations that execute during processEvents
+    // qDebug() << "Closing serial port...";
+    // SerialPortManager::getInstance().closePort();
 
     qDebug() << "Camera stopped.";
 }
@@ -954,12 +975,20 @@ void MainWindow::imageSaved(int id, const QString &fileName)
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    // Prevent re-entrance
+    if (m_closeEventHandled) {
+        qCDebug(log_ui_mainwindow) << "MainWindow closeEvent - already handled, ignoring";
+        event->accept();
+        return;
+    }
+    
     if (m_isCapturingImage) {
         setEnabled(false);
         m_applicationExiting = true;
         event->ignore();
     } else {
         qCDebug(log_ui_mainwindow) << "MainWindow closeEvent - initiating shutdown";
+        m_closeEventHandled = true;  // Mark as handled immediately
         event->accept();
         
         // Set shutdown flag first to signal all threads to stop
@@ -968,6 +997,10 @@ void MainWindow::closeEvent(QCloseEvent *event)
         // Call stop() to properly clean up camera, audio, and serial port
         qCDebug(log_ui_mainwindow) << "Calling stop() to clean up resources";
         stop();
+        
+        // Stop TCP Server if running
+        qCDebug(log_ui_mainwindow) << "Stopping TCP Server";
+        stopServer();
         
         // Stop threads in safe order
         qCDebug(log_ui_mainwindow) << "Stopping background threads";
@@ -1006,13 +1039,37 @@ void MainWindow::closeEvent(QCloseEvent *event)
             qCWarning(log_ui_mainwindow) << "Exception while stopping AudioManager";
         }
         
-        qCDebug(log_ui_mainwindow) << "All threads stopped, processing pending events before quit";
+        qCDebug(log_ui_mainwindow) << "All threads stopped";
         
-        // Process any pending events to allow deleteLater() to work before quit
-        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+        // Close any remaining top-level windows (dialogs, etc.) without processing events
+        const QWidgetList allWidgets = QApplication::topLevelWidgets();
+        qCDebug(log_ui_mainwindow) << "Total top-level widgets remaining:" << allWidgets.size();
+        for (QWidget* widget : allWidgets) {
+            if (widget && widget != this && widget->isVisible()) {
+                qCDebug(log_ui_mainwindow) << "Closing top-level widget:" << widget->metaObject()->className();
+                widget->close();
+            }
+        }
         
-        // Trigger application quit
-        QTimer::singleShot(0, qApp, &QApplication::quit);
+        qCDebug(log_ui_mainwindow) << "Calling QApplication::quit() to exit application";
+        
+        // CRITICAL: Disconnect all event filters before quitting to prevent late GStreamer operations
+        // Remove all event filters to prevent any late overlay setup operations
+        const QWidgetList eventFilterWidgets = QApplication::allWidgets();
+        for (QWidget* widget : eventFilterWidgets) {
+            if (widget && widget != this) {
+                widget->removeEventFilter(this);
+            }
+        }
+        
+        // Use QTimer with a minimal delay to ensure quit happens after closeEvent completes
+        // This avoids issues with processEvents triggering queued operations
+        QTimer::singleShot(0, qApp, []() {
+            qCDebug(log_ui_mainwindow) << "QApplication::quit() executing now";
+            QApplication::quit();
+        });
+        
+        qCDebug(log_ui_mainwindow) << "CloseEvent handling complete, quit() scheduled";
     }
 }
 
@@ -1136,7 +1193,6 @@ void MainWindow::onPortConnected(const QString& port, const int& baudrate) {
         qCDebug(log_ui_mainwindow) << "Serial port connected:" << port << "at baudrate:" << baudrate;
     }else{
         m_statusBarManager->setConnectedPort(port, baudrate);
-        m_statusBarManager->setTargetUsbConnected(false);
     }
 }
 
@@ -1439,16 +1495,14 @@ MainWindow::~MainWindow()
         toggleSwitch = nullptr;
         qCDebug(log_ui_mainwindow) << "toggleSwitch destroyed successfully";
     }
-    
-    // Clean up image capturer
-    // if (m_imageCapturer) {
-    //     m_imageCapturer->stopCapturing();
-    //     delete m_imageCapturer;
-    //     m_imageCapturer = nullptr;
-    //     qCDebug(log_ui_mainwindow) << "m_imageCapturer destroyed successfully";
-    // }else{
-    //     qCDebug(log_ui_mainwindow) << "m_imageCapturer was already null in destructor";
-    // }
+
+    // Clean up TCP Server and Image Capturer
+    if (tcpServer) {
+        tcpServer->close();
+        tcpServer->deleteLater();
+        tcpServer = nullptr;
+        qCDebug(log_ui_mainwindow) << "tcpServer destroyed successfully";
+    }
     
     if (m_audioManager) {
         // AudioManager is now a singleton, and we already disconnected it above

@@ -111,11 +111,6 @@ void ImageCapturer::captureImage()
         // Use the CameraManager to take the image
         m_cameraManager->takeImage(fullPath);
         
-        // update TCP server if available
-        if (m_tcpServer) {
-            m_tcpServer->handleImgPath(fullPath);
-        }
-        
         // update capture count and timestamp
         m_captureCount++;
         m_lastCaptureTime = QDateTime::currentDateTime();

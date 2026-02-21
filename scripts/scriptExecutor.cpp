@@ -8,40 +8,40 @@ ScriptExecutor::ScriptExecutor(QObject* parent)
 {
 }
 
-bool ScriptExecutor::executeCommand(const ASTNode* node) {
-    if (!node) {
-        qCDebug(log_scriptexec) << "executeCommand: null node";
-        return false;
-    }
-    if (node->getType() != ASTNodeType::CommandStatement) {
-        qCDebug(log_scriptexec) << "executeCommand: not a command node";
-        return true;
-    }
+void ScriptExecutor::onCommandData(const QString& commandName, const QStringList& options) {
+    qWarning(log_scriptexec) << "onCommandData CALLED for command:" << commandName << "with options:" << options;
+    bool result = executeCommand(commandName, options);
+    qWarning(log_scriptexec) << "executeCommand returned:" << result;
+}
 
-    const CommandStatementNode* cmdNode = static_cast<const CommandStatementNode*>(node);
-    QString commandName = cmdNode->getCommandName();
-    const auto& options = cmdNode->getOptions();
+bool ScriptExecutor::executeCommand(const QString& commandName, const QStringList& options) {
+    qWarning(log_scriptexec) << "executeCommand CALLED for command:" << commandName;
 
-    qCDebug(log_scriptexec) << "executeCommand on main thread for command:" << commandName;
+    // Convert QStringList to std::vector<std::string> for compatibility with rest of code
+    std::vector<std::string> stdOptions;
+    for (const QString& opt : options) {
+        stdOptions.push_back(opt.toStdString());
+    }
 
     auto parseCoordinates = [&](const std::vector<std::string>& opts) -> QPoint {
         int x = 0, y = 0;
-        bool foundComma = false;
-        bool beforeComma = true;
         bool okX = false, okY = false;
+        int coordCount = 0;
+        
         for (const auto& token : opts) {
-            if (token == ",") {
-                foundComma = true;
-                beforeComma = false;
-                continue;
-            }
+            if (token == ",") continue; // Skip commas
+            
             bool ok = false;
             int value = QString::fromStdString(token).toInt(&ok);
-            if (ok) {
-                if (beforeComma) { x = value; okX = true; } else { y = value; okY = true; }
+            if (ok && coordCount < 2) {
+                if (coordCount == 0) { x = value; okX = true; }
+                else if (coordCount == 1) { y = value; okY = true; }
+                coordCount++;
             }
         }
-        if (!foundComma || (!okX && !okY)) {
+        
+        // Require both coordinates to be parsed
+        if (!okX || !okY) {
             return QPoint(0, 0);
         }
         return QPoint(x, y);
@@ -57,9 +57,25 @@ bool ScriptExecutor::executeCommand(const ASTNode* node) {
         return mouseButton;
     };
 
+    if (commandName == "MouseMove") {
+        QPoint coords = parseCoordinates(stdOptions);
+        qCDebug(log_scriptexec) << "Executing mouse move to:" << coords.x() << coords.y();
+        try {
+            if (mouseManager) mouseManager->handleAbsoluteMouseAction(coords.x(), coords.y(), 0, 0);
+            else qCDebug(log_scriptexec) << "No mouseManager available";
+            return true;
+        } catch (const std::exception& e) {
+            qCDebug(log_scriptexec) << "Exception in handleAbsoluteMouseAction:" << e.what();
+            return false;
+        } catch (...) {
+            qCDebug(log_scriptexec) << "Unknown exception in handleAbsoluteMouseAction";
+            return false;
+        }
+    }
+
     if (commandName == "Click") {
-        QPoint coords = parseCoordinates(options);
-        int mouseButton = parseMouseButton(options);
+        QPoint coords = parseCoordinates(stdOptions);
+        int mouseButton = parseMouseButton(stdOptions);
         qCDebug(log_scriptexec) << "Executing click at:" << coords.x() << coords.y() << "button:" << mouseButton;
         try {
             if (mouseManager) mouseManager->handleAbsoluteMouseAction(coords.x(), coords.y(), mouseButton, 0);
@@ -77,12 +93,12 @@ bool ScriptExecutor::executeCommand(const ASTNode* node) {
     if (commandName == "FullScreenCapture") {
         QString path;
         QString tmpTxt;
-        if (options.empty()) {
+        if (stdOptions.empty()) {
             qCDebug(log_scriptexec) << "No path given for FullScreenCapture";
             emit captureImg("");
             return true;
         }
-        for (const auto& token : options) if (token != "\"") tmpTxt.append(QString::fromStdString(token));
+        for (const auto& token : stdOptions) if (token != "\"") tmpTxt.append(QString::fromStdString(token));
         QRegularExpression regexPath(R"(([a-zA-Z]:[\\/][^\s]+|\/[^\s]+))");
         QRegularExpressionMatch m = regexPath.match(tmpTxt);
         if (m.hasMatch()) {
@@ -98,7 +114,7 @@ bool ScriptExecutor::executeCommand(const ASTNode* node) {
         QString path;
         QString tmpTxt;
         QStringList nums;
-        for (const auto& token : options) if (token != "\"") tmpTxt.append(QString::fromStdString(token));
+        for (const auto& token : stdOptions) if (token != "\"") tmpTxt.append(QString::fromStdString(token));
         QRegularExpression numRe(R"((-?\d+))");
         QRegularExpressionMatchIterator it = numRe.globalMatch(tmpTxt);
         while (it.hasNext()) nums.append(it.next().captured(0));
@@ -114,7 +130,7 @@ bool ScriptExecutor::executeCommand(const ASTNode* node) {
     if (commandName == "SetCapsLockState" || commandName == "SetNumLockState" || commandName == "SetScrollLockState") {
         QString keyName = (commandName == "SetCapsLockState") ? "CapsLock" : (commandName == "SetNumLockState" ? "NumLock" : "ScrollLcok");
         QString tmpKeys;
-        for (const auto& token : options) if (token != "\"") tmpKeys.append(QString::fromStdString(token));
+        for (const auto& token : stdOptions) if (token != "\"") tmpKeys.append(QString::fromStdString(token));
         tmpKeys.remove(' ');
         if (regex.onRegex.match(tmpKeys).hasMatch()) {
             if (keyboardMouse) {
@@ -148,17 +164,37 @@ bool ScriptExecutor::executeCommand(const ASTNode* node) {
     }
 
     if (commandName == "Send") {
+        qWarning(log_scriptexec) << "Send command options count:" << stdOptions.size();
+        for (size_t i = 0; i < stdOptions.size(); i++) {
+            qWarning(log_scriptexec) << "  Option" << i << ":" << QString::fromStdString(stdOptions[i]);
+        }
+        
         QString tmpKeys;
         bool append = false;
-        for (const auto& token : options) {
+        for (const auto& token : stdOptions) {
             if (token == "\"") append = true;
             if (append) tmpKeys.append(QString::fromStdString(token));
         }
         tmpKeys.replace(QRegularExpression("^\"|\"$"), "");
-        qCDebug(log_scriptexec) << "Processing keys:" << tmpKeys;
+        qWarning(log_scriptexec) << "Processing keys:" << tmpKeys << "length:" << tmpKeys.length();
+        qWarning(log_scriptexec) << "tmpKeys hex dump:";
+        for (int i = 0; i < tmpKeys.length(); i++) {
+            qWarning(log_scriptexec) << "  [" << i << "]:" << tmpKeys[i] << "code:" << (int)tmpKeys[i].unicode();
+        }
+
+        if (!keyboardMouse) {
+            qCDebug(log_scriptexec) << "Send: keyboardMouse is null";
+            return false;
+        }
 
         int pos = 0;
-        while (pos < tmpKeys.length()) {
+        int packetCount = 0;
+        const int MAX_PACKETS = 50;  // Reasonable limit to prevent buffer overflow
+        
+        qWarning(log_scriptexec) << "Starting packet generation loop, tmpKeys length:" << tmpKeys.length();
+        
+        while (pos < tmpKeys.length() && packetCount < MAX_PACKETS) {
+            qWarning(log_scriptexec) << "--- Loop iteration: pos=" << pos << "packetCount=" << packetCount;
             std::array<uint8_t, 6> general = {0x00,0x00,0x00,0x00,0x00,0x00};
             uint8_t control = 0x00;
 
@@ -166,14 +202,30 @@ bool ScriptExecutor::executeCommand(const ASTNode* node) {
             QRegularExpressionMatch braceMatch = regex.braceKeyRegex.match(tmpKeys, pos);
             if (braceMatch.hasMatch() && braceMatch.capturedStart() == pos) {
                 QString keyName = braceMatch.captured(1);
+                qWarning(log_scriptexec) << "Found brace key:" << keyName;
+                // Normalize key name: capitalize first letter for proper keydata lookup
+                if (!keyName.isEmpty()) {
+                    keyName = keyName.at(0).toUpper() + keyName.mid(1).toLower();
+                }
                 if (keydata.contains(keyName)) {
                     general[0] = keydata.value(keyName);
                     keyPacket pack(general, control);
-                    if (keyboardMouse) keyboardMouse->addKeyPacket(pack);
+                    keyboardMouse->addKeyPacket(pack);
+                    packetCount++;
+                    qWarning(log_scriptexec) << "Added brace key press packet:" << keyName << "code:" << (int)general[0];
+                    
+                    // Send key release
+                    std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
+                    keyPacket releasePack(release, 0x00);
+                    keyboardMouse->addKeyPacket(releasePack);
+                    packetCount++;
+                    qWarning(log_scriptexec) << "Added brace key release packet";
                 } else {
-                    qCDebug(log_scriptexec) << "Send: unsupported brace key:" << keyName;
+                    qWarning(log_scriptexec) << "Send: unsupported brace key:" << keyName;
+                    return false;
                 }
                 pos = braceMatch.capturedEnd();
+                qWarning(log_scriptexec) << "After brace key: pos=" << pos;
                 continue;
             }
 
@@ -181,16 +233,36 @@ bool ScriptExecutor::executeCommand(const ASTNode* node) {
             QChar ch = tmpKeys[pos];
             if (ch.isUpper()) control = 0x02;
             QString chStr(ch);
+            qWarning(log_scriptexec) << "Processing simple char at pos" << pos <<  ":" << ch << "keydata contains?" << keydata.contains(chStr);
+            
+            // Check if character is in keydata before using it
             if (keydata.contains(chStr)) {
                 general[0] = keydata.value(chStr);
                 keyPacket pack(general, control);
-                if (keyboardMouse) keyboardMouse->addKeyPacket(pack);
+                keyboardMouse->addKeyPacket(pack);
+                packetCount++;
+                qWarning(log_scriptexec) << "Added char press packet:" << ch << "keycode:" << (int)general[0];
+                
+                // Send key release
+                std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
+                keyPacket releasePack(release, 0x00);
+                keyboardMouse->addKeyPacket(releasePack);
+                packetCount++;
+                qWarning(log_scriptexec) << "Added char release packet";
             } else {
-                qCDebug(log_scriptexec) << "Send: unsupported char:" << ch;
+                qWarning(log_scriptexec) << "Send: unsupported char:" << ch;
+                return false;  // Return error for unsupported character
             }
             pos++;
         }
-        if (keyboardMouse) keyboardMouse->dataSend();
+        
+        if (packetCount >= MAX_PACKETS) {
+            qWarning(log_scriptexec) << "Send: packet count exceeded limit";
+            return false;
+        }
+
+        qWarning(log_scriptexec) << "Send: sending" << packetCount << "packets";
+        keyboardMouse->dataSend();
         return true;
     }
 

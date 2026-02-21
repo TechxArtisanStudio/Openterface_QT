@@ -52,7 +52,6 @@ SOURCES += main.cpp \
     serial/SerialCommandCoordinator.cpp \
     serial/SerialStateManager.cpp \
     serial/SerialStatistics.cpp \
-    serial/SerialFacade.cpp \
     serial/FactoryResetManager.cpp \
     serial/chipstrategy/CH9329Strategy.cpp \
     serial/chipstrategy/CH32V208Strategy.cpp \
@@ -61,6 +60,7 @@ SOURCES += main.cpp \
     serial/watchdog/ConnectionWatchdog.cpp \
     serial/serial_hotplug_handler.cpp \
     server/tcpServer.cpp \
+    server/tcpResponse.cpp \
     target/KeyboardLayouts.cpp \
     target/KeyboardManager.cpp \
     target/MouseManager.cpp \
@@ -180,7 +180,6 @@ HEADERS  += \
     serial/SerialCommandCoordinator.h \
     serial/SerialStateManager.h \
     serial/SerialStatistics.h \
-    serial/SerialFacade.h \
     serial/FactoryResetManager.h \
     serial/ch9329.h \
     serial/chipstrategy/IChipStrategy.h \
@@ -191,6 +190,7 @@ HEADERS  += \
     serial/watchdog/ConnectionWatchdog.h \
     serial/serial_hotplug_handler.h \
     server/tcpServer.h \
+    server/tcpResponse.h \
     target/KeyboardLayouts.h \
     target/KeyboardManager.h \
     target/MouseManager.h \
@@ -330,13 +330,15 @@ unix {
     HEADERS += device/platform/LinuxDeviceManager.h
 
     INCLUDEPATH += /usr/include
-    LIBS += -lusb-1.0 -lX11 -lgstapp-1.0 -lva -lturbojpeg
+    LIBS += -lusb-1.0 -lX11 -lgstapp-1.0 -lturbojpeg
 
     # On non-mac Unix systems enable pkg-config based dependencies
     unix:!macx {
         CONFIG += link_pkgconfig
         PKGCONFIG += libudev gstreamer-1.0 gstreamer-video-1.0 libavformat libavcodec libavutil libswscale libavdevice libjpeg libusb-1.0
         DEFINES += HAVE_LIBUDEV HAVE_GSTREAMER HAVE_FFMPEG HAVE_LIBJPEG_TURBO HAVE_LIBUSB
+        # Add VA-API libraries AFTER FFmpeg pkg-config libraries to ensure proper linking order
+        LIBS += -lva -lva-drm -lva-x11
     }
 
     RESOURCES += driver/linux/drivers.qrc

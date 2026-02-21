@@ -110,9 +110,11 @@ sudo apt install -y \
     libavutil58 \
     libavformat60 \
     libavdevice60 \
-    va-driver-all \
-    vainfo \
-    libva-dev
+    libturbojpeg0 \
+    libva1 \
+    libva-drm2 \
+    libva-x11-2 \
+    libgstreamer1.0-0 \
  ```
 
 ```bash
@@ -193,6 +195,8 @@ sudo apt-get install -y \
     libusb-1.0-0-dev \
     qt6-tools-dev \
     libudev-dev \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
     pkg-config \
     libx11-dev \
     libxrandr-dev \
@@ -201,8 +205,11 @@ sudo apt-get install -y \
     libfreetype6-dev \
     libfontconfig1-dev \
     libbz2-dev \
+    libturbojpeg0-dev \
+    libva-dev \
     libavformat-dev \
     libavcodec-dev \
+    libavdevice-dev \
     libavutil-dev \
     libswresample-dev \
     libswscale-dev \
