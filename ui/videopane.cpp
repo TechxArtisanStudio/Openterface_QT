@@ -75,13 +75,19 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     
     // ============ OPTIMIZED RENDERING FOR VIDEO STREAMING ============
-    setRenderHint(QPainter::Antialiasing, true);
-    setRenderHint(QPainter::SmoothPixmapTransform, true); 
-    setRenderHint(QPainter::TextAntialiasing, true);  // Critical for text clarity
+    // Enable full antialiasing for better text and edge clarity in video frames.
+    // This adds some performance overhead but significantly improves readability
+    // of text content within the decoded video stream.
+    setRenderHint(QPainter::Antialiasing, true);  // enable for smoother edges
+    setRenderHint(QPainter::SmoothPixmapTransform, true);
+    setRenderHint(QPainter::TextAntialiasing, true);  // enable for clearer text
     
-    
-    // DO NOT use DontAdjustForAntialiasing - it degrades quality for performance
-    // setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, true);  // REMOVED
+    // record default quality state
+    m_highQualityRendering = true;
+
+    // IMPORTANT: Do NOT use DontAdjustForAntialiasing as it degrades quality
+    // We keep antialiasing adjustments enabled for better text rendering
+    setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, false);
     
     // CRITICAL FIX: Use MinimalViewportUpdate for better video streaming performance
     // FullViewportUpdate can cause update batching that leads to freezing
@@ -158,6 +164,22 @@ VideoPane::~VideoPane()
 */
 bool VideoPane::focusNextPrevChild(bool next) {
     return false;
+}
+
+void VideoPane::setRenderQuality(bool highQuality)
+{
+    if (m_highQualityRendering == highQuality)
+        return;
+    m_highQualityRendering = highQuality;
+
+    // toggle antialiasing hints for both general shapes and text
+    setRenderHint(QPainter::Antialiasing, highQuality);
+    setRenderHint(QPainter::TextAntialiasing, highQuality);
+    setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, !highQuality);
+
+    // changing quality may require a full repaint
+    viewport()->update();
+    qCDebug(log_ui_video) << "VideoPane: render quality set to" << (highQuality ? "high" : "low");
 }
 
 void VideoPane::moveMouseToCenter()
@@ -287,9 +309,13 @@ void VideoPane::paintEvent(QPaintEvent *event)
         if (!m_pixmapItem) {
             m_pixmapItem = m_scene->addPixmap(m_lastFrame);
             m_pixmapItem->setZValue(1); // Above video item
+            m_pixmapItem->setTransformationMode(m_highQualityRendering ? Qt::SmoothTransformation
+                                                                         : Qt::FastTransformation);
         } else {
             m_pixmapItem->setPixmap(m_lastFrame);
             m_pixmapItem->setVisible(true);
+            m_pixmapItem->setTransformationMode(m_highQualityRendering ? Qt::SmoothTransformation
+                                                                         : Qt::FastTransformation);
         }
         
         if (m_videoItem) {
@@ -1235,7 +1261,8 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
         QSize targetPhysicalSize(qRound(viewportLogical.width() * widgetDpr), qRound(viewportLogical.height() * widgetDpr));
         if (local.size() != targetPhysicalSize) {
             qCDebug(log_ui_video) << "Treating near-match as viewport-sized; pre-scaling pixmap to exact viewport (physical):" << targetPhysicalSize;
-            QPixmap scaled = local.scaled(targetPhysicalSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            QPixmap scaled = local.scaled(targetPhysicalSize, Qt::IgnoreAspectRatio,
+                                           m_highQualityRendering ? Qt::SmoothTransformation : Qt::FastTransformation);
             scaled.setDevicePixelRatio(widgetDpr);
             local = scaled;
         }
@@ -1243,10 +1270,13 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
         if (!m_pixmapItem) {
             m_pixmapItem = m_scene->addPixmap(local);
             m_pixmapItem->setZValue(2);
-            m_pixmapItem->setTransformationMode(Qt::SmoothTransformation);
+            m_pixmapItem->setTransformationMode(m_highQualityRendering ? Qt::SmoothTransformation
+                                                                         : Qt::FastTransformation);
             m_pixmapItem->setCacheMode(QGraphicsItem::NoCache);
         } else {
             m_pixmapItem->setPixmap(local);
+            m_pixmapItem->setTransformationMode(m_highQualityRendering ? Qt::SmoothTransformation
+                                                                         : Qt::FastTransformation);
         }
 
         m_pixmapItem->setTransform(QTransform());
@@ -1274,10 +1304,13 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
         m_pixmapItem = m_scene->addPixmap(local);
         m_pixmapItem->setZValue(2);
         m_pixmapItem->setVisible(true);
-        m_pixmapItem->setTransformationMode(Qt::SmoothTransformation);
+        m_pixmapItem->setTransformationMode(m_highQualityRendering ? Qt::SmoothTransformation
+                                                                     : Qt::FastTransformation);
         m_pixmapItem->setCacheMode(QGraphicsItem::NoCache);
     } else {
         m_pixmapItem->setPixmap(local);
+        m_pixmapItem->setTransformationMode(m_highQualityRendering ? Qt::SmoothTransformation
+                                                                     : Qt::FastTransformation);
     }
     if (m_videoItem) m_videoItem->setVisible(false);
 
