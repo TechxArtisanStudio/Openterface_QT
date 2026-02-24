@@ -24,6 +24,7 @@
 #include "host/HostManager.h"
 #include "inputhandler.h"
 #include "../global.h"
+#include "globalsetting.h"
 
 #include <QtWidgets>
 #include <QtMultimedia>
@@ -75,15 +76,23 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     
     // ============ OPTIMIZED RENDERING FOR VIDEO STREAMING ============
-    // Enable full antialiasing for better text and edge clarity in video frames.
-    // This adds some performance overhead but significantly improves readability
-    // of text content within the decoded video stream.
-    setRenderHint(QPainter::Antialiasing, true);  // enable for smoother edges
-    setRenderHint(QPainter::SmoothPixmapTransform, true);
-    setRenderHint(QPainter::TextAntialiasing, true);  // enable for clearer text
+    // Load rendering quality settings from user preferences
+    // These settings control video display quality and can be configured in Settings > Video
+    bool enableAntialiasing = GlobalSetting::instance().getVideoAntialiasing();
+    bool enableTextAntialiasing = GlobalSetting::instance().getVideoTextAntialiasing();
+    bool enableSmoothTransform = GlobalSetting::instance().getVideoSmoothTransform();
+    
+    setRenderHint(QPainter::Antialiasing, enableAntialiasing);
+    setRenderHint(QPainter::SmoothPixmapTransform, enableSmoothTransform);
+    setRenderHint(QPainter::TextAntialiasing, enableTextAntialiasing);
+    
+    qDebug(log_ui_video) << "VideoPane rendering settings:"
+                         << "Antialiasing =" << enableAntialiasing
+                         << "TextAntialiasing =" << enableTextAntialiasing
+                         << "SmoothTransform =" << enableSmoothTransform;
     
     // record default quality state
-    m_highQualityRendering = true;
+    m_highQualityRendering = enableAntialiasing && enableTextAntialiasing;
 
     // IMPORTANT: Do NOT use DontAdjustForAntialiasing as it degrades quality
     // We keep antialiasing adjustments enabled for better text rendering
