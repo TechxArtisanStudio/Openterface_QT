@@ -151,10 +151,25 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     m_initializer = new MainWindowInitializer(this);
     m_initializer->initialize();
     
-    // Start VideoHid
-    VideoHid::getInstance().start();
+    // Defer VideoHid start to avoid 500ms blocking sleep during startup
+    // This will be started after the window is shown
+    qCDebug(log_ui_mainwindow) << "VideoHid will be started after window is shown";
     
     qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
+}
+
+void MainWindow::deferredSetupCoordinators()
+{
+    if (m_initializer) {
+        m_initializer->deferredSetupCoordinators();
+    }
+}
+
+void MainWindow::deferredInitializeCamera()
+{
+    if (m_initializer) {
+        m_initializer->deferredInitializeCamera();
+    }
 }
 
 void MainWindow::startServer(){

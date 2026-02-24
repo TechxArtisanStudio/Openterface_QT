@@ -129,6 +129,10 @@ public:
     void stop();
     // Add this line to declare the destructor
     ~MainWindow() override;
+    
+    // Deferred initialization methods (called after window is shown)
+    void deferredSetupCoordinators();
+    void deferredInitializeCamera();
 
 signals:
     void emitTCPCommandStatus(bool status);
