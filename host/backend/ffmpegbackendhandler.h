@@ -298,6 +298,18 @@ private:
     QTimer* m_performanceTimer;
     int m_frameCount;
     qint64 m_lastFrameTime;
+    
+    // Frame rate control and timestamp synchronization
+    double m_targetFrameIntervalMs;     // Target interval between frames in milliseconds
+    qint64 m_lastFrameDisplayTime;      // Timestamp of last displayed frame (system time)
+    qint64 m_firstFrameSystemTime;      // System time when first frame was captured
+    qint64 m_firstFramePts;             // PTS value of first frame
+    qint64 m_lastPacketPts;             // PTS of last packet for actual FPS detection
+    double m_streamTimeBase;            // Stream time base for PTS conversion (seconds)
+    bool m_timeSyncInitialized;         // Whether time sync has been initialized
+    double m_detectedFrameIntervalMs;   // Detected actual frame interval from stream PTS
+    int m_ptsFrameCount;                // Count frames for FPS detection
+    qint64 m_lastForceDisplayTime;      // Last time a frame was force-displayed (safety fallback)
 };
 
 #endif // FFMPEGBACKENDHANDLER_H
