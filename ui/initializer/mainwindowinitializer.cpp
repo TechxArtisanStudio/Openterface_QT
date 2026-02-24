@@ -28,7 +28,6 @@
 #include "../statusbar/statusbarmanager.h"
 #include "../../host/HostManager.h"
 #include "../../host/cameramanager.h"
-#include "../../host/imagecapturer.h"
 #include "../recording/recordingcontroller.h"
 #include "../../serial/SerialPortManager.h"
 #include "../../device/DeviceManager.h"
@@ -308,6 +307,11 @@ void MainWindowInitializer::connectActionSignals()
     connect(m_ui->actionTo_Host, &QAction::triggered, m_mainWindow, &MainWindow::onActionSwitchToHostTriggered);
     connect(m_ui->actionTo_Target, &QAction::triggered, m_mainWindow, &MainWindow::onActionSwitchToTargetTriggered);
     connect(m_ui->actionPaste, &QAction::triggered, m_mainWindow, &MainWindow::onActionPasteToTarget);
+    
+    // Make TCP Server action checkable to show running state
+    m_ui->actionTCPServer->setCheckable(true);
+    m_ui->actionTCPServer->setChecked(false);
+    
     connect(m_ui->actionTCPServer, &QAction::triggered, m_mainWindow, &MainWindow::startServer);
     connect(m_ui->actionScriptTool, &QAction::triggered, m_mainWindow, &MainWindow::showScriptTool);
     connect(m_ui->actionRecordingSettings, &QAction::triggered, m_mainWindow, &MainWindow::showRecordingSettings);

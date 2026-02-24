@@ -135,6 +135,9 @@ public:
     bool getScrollLockState_();
     void setMouseSpeed(int speed);
     int getMouseSpeed();
+    
+    // Testing/debugging helpers
+    int getKeyDataSize() const { return keyData.size(); }
 
 
 private:
@@ -235,8 +238,19 @@ const QMap<QString, uint8_t> keydata = {
     {"Apostrophe", 0x34}, // '
     {"QuoteLeft", 0x35}, // `
     {"Comma", 0x36}, // ,
+    {",", 0x36}, // comma character
     {"Period", 0x37}, // .
+    {".", 0x37}, // period character
     {"Slash", 0x38}, // /
+    {"/", 0x38}, // slash character
+    {";", 0x33}, // semicolon character
+    {"'", 0x34}, // apostrophe character
+    {"`", 0x35}, // backtick character
+    {"-", 0x2D}, // minus/dash character
+    {"=", 0x2E}, // equals character
+    {"[", 0x2F}, // left bracket character
+    {"]", 0x30}, // right bracket character
+    {"\\", 0x31}, // backslash character
     {"CapsLock", 0x39}, // caps lock
     {"F1", 0x3A}, // f1
     {"F2", 0x3B}, // f2
