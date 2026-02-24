@@ -348,24 +348,21 @@ int main(int argc, char *argv[])
         qInfo() << "Camera and audio initialization started";
     });
     
-    // Initialize GStreamer after window is shown to improve startup time
+    // Initialize GStreamer before Qt application
     #ifdef HAVE_GSTREAMER
-    QTimer::singleShot(100, []() {
-        qInfo() << "Initializing GStreamer...";
-        GError* gst_error = nullptr;
-        if (!gst_init_check(nullptr, nullptr, &gst_error)) {
-            if (gst_error) {
-                qCritical() << "Failed to initialize GStreamer:" << gst_error->message;
-                g_error_free(gst_error);
-            } else {
-                qCritical() << "Failed to initialize GStreamer: Unknown error";
-            }
+    GError* gst_error = nullptr;
+    if (!gst_init_check(&argc, &argv, &gst_error)) {
+        if (gst_error) {
+            qCritical() << "Failed to initialize GStreamer:" << gst_error->message;
+            g_error_free(gst_error);
         } else {
-            // Install custom GLib log handler to suppress non-critical messages
-            g_log_set_default_handler(suppressGLibMessages, nullptr);
-            qInfo() << "GStreamer initialized successfully";
+            qCritical() << "Failed to initialize GStreamer: Unknown error";
         }
-    });
+        return -1;
+    }
+    
+    // Install custom GLib log handler to suppress non-critical messages
+    g_log_set_default_handler(suppressGLibMessages, nullptr);
     #endif
     
     // Defer environment check to after window is shown (improves startup time)
