@@ -25,6 +25,7 @@
 #include <stdexcept>
 #include <QLoggingCategory>
 #include <QString>
+#include <QThread>
 #include "KeyboardMouse.h"
 #include "global.h"
 
@@ -71,22 +72,11 @@ bool SemanticAnalyzer::analyze(const ASTNode* node) {
         case ASTNodeType::CommandStatement:
             qCDebug(log_script) << "Analyzing command statement.";
             emit commandIncrease();
-            // Handle Sleep locally in worker thread, others via main thread
+            // Execute all commands directly in SemanticAnalyzer
             {
                 const CommandStatementNode* cmd = static_cast<const CommandStatementNode*>(node);
-                QString commandName = cmd->getCommandName();
-                qCDebug(log_script) << "Command name:" << commandName;
-                if (commandName == "Sleep") {
-                    analyzeSleepStatement(cmd);
-                } else {
-                    qCDebug(log_script) << "Emitting commandData signal for:" << commandName;
-                    // Convert std::vector<std::string> to QStringList for Qt signal marshaling
-                    QStringList optionsList;
-                    for (const auto& opt : cmd->getOptions()) {
-                        optionsList << QString::fromStdString(opt);
-                    }
-                    emit commandData(commandName, optionsList);
-                }
+                qCDebug(log_script) << "Command name:" << cmd->getCommandName();
+                analyzeCommandStatement(cmd);
             }
             break;
             
@@ -267,8 +257,6 @@ void SemanticAnalyzer::analyzeSleepStatement(const CommandStatementNode* node){
 }
 
 void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
-    // Note: Send command execution is handled by ScriptExecutor listening to commandData signal.
-    // This method just validates and emits the signal for execution.
     const auto& options = node->getOptions();
     
     if (options.empty()) {
@@ -276,7 +264,118 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
         return;
     }
 
-    qCDebug(log_script) << "Send statement analyzed, execution delegated to ScriptExecutor";
+    if (!keyboardMouse) {
+        qCDebug(log_script) << "Send: keyboardMouse is null";
+        return;
+    }
+
+    // Build the key string from options
+    QString tmpKeys;
+    bool append = false;
+    for (const auto& token : options) {
+        if (token == "\"") append = true;
+        if (append) tmpKeys.append(QString::fromStdString(token));
+    }
+    tmpKeys.replace(QRegularExpression("^\"|\"$"), "");
+    qCDebug(log_script) << "Processing keys:" << tmpKeys;
+
+    int pos = 0;
+    int packetCount = 0;
+    const int MAX_PACKETS = 50;
+    
+    while (pos < tmpKeys.length() && packetCount < MAX_PACKETS) {
+        std::array<uint8_t, 6> general = {0x00,0x00,0x00,0x00,0x00,0x00};
+        uint8_t control = 0x00;
+
+        // Check brace key first (e.g., {Enter}, {Tab})
+        QRegularExpressionMatch braceMatch = regex.braceKeyRegex.match(tmpKeys, pos);
+        if (braceMatch.hasMatch() && braceMatch.capturedStart() == pos) {
+            QString keyName = braceMatch.captured(1);
+            
+            // Check if this is a Click command
+            if (keyName.startsWith("Click", Qt::CaseInsensitive)) {
+                // Extract coordinates from "Click x, y"
+                QRegularExpression clickRegex(R"(Click\s+(\d+)\s*,\s*(\d+))", QRegularExpression::CaseInsensitiveOption);
+                QRegularExpressionMatch clickMatch = clickRegex.match(keyName);
+                
+                if (clickMatch.hasMatch() && mouseManager) {
+                    int x = clickMatch.captured(1).toInt();
+                    int y = clickMatch.captured(2).toInt();
+                    qCDebug(log_script) << "Send: executing click at:" << x << "," << y;
+                    
+                    // Send any pending keyboard packets first
+                    if (packetCount > 0) {
+                        qCDebug(log_script) << "Send: sending" << packetCount << "packets before click";
+                        keyboardMouse->dataSend();
+                        packetCount = 0;
+                    }
+                    
+                    // Perform mouse click: press, wait, release
+                    mouseManager->handleAbsoluteMouseAction(x, y, Qt::LeftButton, 0);  // Press
+                    QThread::msleep(5);  // Wait 5ms
+                    mouseManager->handleAbsoluteMouseAction(x, y, 0, 0);  // Release
+                } else {
+                    qCDebug(log_script) << "Send: invalid Click format or mouseManager null:" << keyName;
+                }
+                pos = braceMatch.capturedEnd();
+                continue;
+            }
+            
+            // Normalize key name: capitalize first letter
+            if (!keyName.isEmpty()) {
+                keyName = keyName.at(0).toUpper() + keyName.mid(1).toLower();
+            }
+            if (keydata.contains(keyName)) {
+                general[0] = keydata.value(keyName);
+                keyPacket pack(general, control);
+                keyboardMouse->addKeyPacket(pack);
+                packetCount++;
+                qCDebug(log_script) << "Added brace key press:" << keyName;
+                
+                // Send key release
+                std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
+                keyPacket releasePack(release, 0x00);
+                keyboardMouse->addKeyPacket(releasePack);
+                packetCount++;
+            } else {
+                qCDebug(log_script) << "Send: unsupported brace key:" << keyName;
+                return;
+            }
+            pos = braceMatch.capturedEnd();
+            continue;
+        }
+
+        // Handle simple character
+        QChar ch = tmpKeys[pos];
+        if (ch.isUpper()) control = 0x02;  // Shift modifier
+        QString chStr(ch);
+        
+        if (keydata.contains(chStr)) {
+            general[0] = keydata.value(chStr);
+            keyPacket pack(general, control);
+            keyboardMouse->addKeyPacket(pack);
+            packetCount++;
+            qCDebug(log_script) << "Added char press:" << ch;
+            
+            // Send key release
+            std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
+            keyPacket releasePack(release, 0x00);
+            keyboardMouse->addKeyPacket(releasePack);
+            packetCount++;
+        } else {
+            qCDebug(log_script) << "Send: unsupported char:" << ch;
+            return;
+        }
+        pos++;
+    }
+    
+    if (packetCount >= MAX_PACKETS) {
+        qCDebug(log_script) << "Send: packet count exceeded limit";
+        return;
+    }
+
+    qCDebug(log_script) << "Send: sending" << packetCount << "packets";
+    keyboardMouse->dataSend();
 }
 
 void SemanticAnalyzer::analyzeClickStatement(const CommandStatementNode* node) {
@@ -302,7 +401,10 @@ void SemanticAnalyzer::analyzeClickStatement(const CommandStatementNode* node) {
              << "with button:" << mouseButton;
 
     try {
-        mouseManager->handleAbsoluteMouseAction(coords.x(), coords.y(), mouseButton, 0);
+        // Perform mouse click: press, wait, release
+        mouseManager->handleAbsoluteMouseAction(coords.x(), coords.y(), mouseButton, 0);  // Press
+        QThread::msleep(50);  // Wait 50ms
+        mouseManager->handleAbsoluteMouseAction(coords.x(), coords.y(), 0, 0);  // Release
     } catch (const std::exception& e) {
         qCDebug(log_script) << "Exception caught in handleAbsoluteMouseAction:" << e.what();
     } catch (...) {

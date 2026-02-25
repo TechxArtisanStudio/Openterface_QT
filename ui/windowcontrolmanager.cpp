@@ -307,15 +307,7 @@ void WindowControlManager::onWindowMaximized()
     m_isMaximized = true;
     m_isFullScreen = false;
     
-    // NOTE: Auto-hide is ONLY enabled in fullscreen mode, not in maximized mode
-    // In maximized mode, toolbar should always be visible
-    qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowMaximized() - Maximized mode: toolbar stays visible (auto-hide only in fullscreen)";
-    
-    // Ensure toolbar is visible in maximized mode
-    if (m_toolbar && !m_toolbar->isVisible()) {
-        qCDebug(log_ui_windowcontrolmanager) << "WindowControlManager::onWindowMaximized() - Showing toolbar for maximized mode";
-        showToolbar();
-    }
+
     
     // Stop any auto-hide behavior from fullscreen mode
     stopAutoHideTimer();

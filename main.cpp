@@ -248,24 +248,8 @@ int main(int argc, char *argv[])
         }
     }
     
-    // Initialize GStreamer before Qt application
-    #ifdef HAVE_GSTREAMER
-    GError* gst_error = nullptr;
-    if (!gst_init_check(&argc, &argv, &gst_error)) {
-        if (gst_error) {
-            qCritical() << "Failed to initialize GStreamer:" << gst_error->message;
-            g_error_free(gst_error);
-        } else {
-            qCritical() << "Failed to initialize GStreamer: Unknown error";
-        }
-        return -1;
-    }
-    
-    // Install custom GLib log handler to suppress non-critical messages
-    g_log_set_default_handler(suppressGLibMessages, nullptr);
-    #endif
-    
     setupEnv();
+    
     qInfo() << "Creating QApplication...";
     QApplication app(argc, argv);
 
@@ -279,18 +263,6 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationVersion(APP_VERSION);
     qInfo() << "Show window now";
     app.setWindowIcon(QIcon("://images/icon_32.png"));
-    
-    // Check if the environment is properly set up
-    // If --skip-env-check is passed, skip the check
-    bool shouldCheckEnvironment = !skipEnvironmentCheck && EnvironmentSetupDialog::autoEnvironmentCheck();
-    if (shouldCheckEnvironment && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
-        EnvironmentSetupDialog envDialog;
-        qInfo() << "Environment setup dialog opened";
-        if (envDialog.exec() == QDialog::Rejected) {
-            qInfo() << "Driver dialog rejected - continuing anyway";
-            // Continue running the application even if dialog is rejected
-        }
-    } 
 
     // Create splash screen after environment setup
     // Create splash screen with SVG or fallback image
@@ -308,52 +280,108 @@ int main(int argc, char *argv[])
     splash->raise();
     splash->activateWindow();
     
-    qInfo() << "Splash screen shown, scheduling initialization";
+    qInfo() << "Splash screen shown, starting initialization";
     
-    // Start the loading animation immediately after splash is shown
-    QTimer::singleShot(50, [splash]() {
-        splash->showLoadingMessage();
-        qInfo() << "Animation started";
+    // Start the loading animation
+    splash->showLoadingMessage();
+    qInfo() << "Animation started";
+    
+    // Process events to show splash screen
+    app.processEvents();
+    
+    // Load settings immediately (fast operation)
+    qInfo() << "Loading settings...";
+    GlobalSetting::instance().loadLogSettings();
+    GlobalSetting::instance().loadVideoSettings();
+    applyMediaBackendSetting();
+    LogHandler::instance().enableLogStore();
+    
+    // Load keyboard layouts immediately - required for keyboard functionality
+    qInfo() << "Loading keyboard layouts...";
+    QString keyboardConfigPath = ":/config/keyboards";
+    KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
+    
+    // Process events to keep UI responsive
+    app.processEvents();
+    
+    qInfo() << "Creating main window...";
+    
+    // Create main window and language manager
+    LanguageManager* languageManager = new LanguageManager(&app);
+    languageManager->initialize("en");
+    MainWindow* window = new MainWindow(languageManager);
+    
+    // Stop the splash animation and close it
+    splash->hideLoadingMessage();
+    
+    // Show the main window and bring it to top
+    window->show();
+    window->raise();
+    window->activateWindow();
+    splash->finish(window);
+    
+    // Clean up splash screen
+    splash->deleteLater();
+    
+    qInfo() << "Main window shown";
+    
+    // Defer device menu setup (device enumeration) - improves startup time
+    // Hotplug monitor is already connected, so new devices will be detected
+    QTimer::singleShot(5, window, [window]() {
+        qInfo() << "Setting up device menu...";
+        window->deferredSetupCoordinators();
+        qInfo() << "Device menu setup complete";
     });
     
-    // Break up initialization into chunks to allow animation to run between them
-    QTimer::singleShot(200, [&app, splash]() {
-        qInfo() << "Loading settings...";
-        GlobalSetting::instance().loadLogSettings();
-        GlobalSetting::instance().loadVideoSettings();
-        applyMediaBackendSetting();
-
-        LogHandler::instance().enableLogStore();
+    // Start VideoHid immediately after window is shown (has 500ms sleep, so defer it)
+    QTimer::singleShot(10, []() {
+        qInfo() << "Starting VideoHid...";
+        VideoHid::getInstance().start();
+        qInfo() << "VideoHid started";
     });
     
-    QTimer::singleShot(800, [&app, splash]() {
-        qInfo() << "Loading keyboard layouts...";
-        QString keyboardConfigPath = ":/config/keyboards";
-        KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
+    // Defer camera and audio initialization (improves startup time)
+    // This was blocking startup for ~500ms
+    QTimer::singleShot(150, window, [window]() {
+        qInfo() << "Initializing camera and audio...";
+        window->deferredInitializeCamera();
+        qInfo() << "Camera and audio initialization started";
     });
     
-    QTimer::singleShot(1800, [&app, splash]() {
-        qInfo() << "Creating main window...";
-        
-        // Create main window and language manager
-        LanguageManager* languageManager = new LanguageManager(&app);
-        languageManager->initialize("en");
-        MainWindow* window = new MainWindow(languageManager);
-        
-        // Stop the splash animation and close it
-        splash->hideLoadingMessage();
-        
-        // Show the main window and bring it to top
-        window->show();
-        window->raise();
-        window->activateWindow();
-        splash->finish(window);
-        
-        // Clean up splash screen
-        splash->deleteLater();
-        
-        qInfo() << "Main window shown";
-    });
+    // Initialize GStreamer before Qt application
+    #ifdef HAVE_GSTREAMER
+    GError* gst_error = nullptr;
+    if (!gst_init_check(&argc, &argv, &gst_error)) {
+        if (gst_error) {
+            qCritical() << "Failed to initialize GStreamer:" << gst_error->message;
+            g_error_free(gst_error);
+        } else {
+            qCritical() << "Failed to initialize GStreamer: Unknown error";
+        }
+        return -1;
+    }
+    
+    // Install custom GLib log handler to suppress non-critical messages
+    g_log_set_default_handler(suppressGLibMessages, nullptr);
+    #endif
+    
+    // Defer environment check to after window is shown (improves startup time)
+    // Run environment check in background after a short delay
+    if (!skipEnvironmentCheck && EnvironmentSetupDialog::autoEnvironmentCheck()) {
+        QTimer::singleShot(500, [&app]() {
+            qInfo() << "Running deferred environment check...";
+            if (!EnvironmentSetupDialog::checkEnvironmentSetup()) {
+                // Show environment dialog on main thread
+                QMetaObject::invokeMethod(&app, []() {
+                    EnvironmentSetupDialog envDialog;
+                    qInfo() << "Environment setup dialog opened";
+                    if (envDialog.exec() == QDialog::Rejected) {
+                        qInfo() << "Driver dialog rejected - continuing anyway";
+                    }
+                }, Qt::QueuedConnection);
+            }
+        });
+    }
 
     qInfo() << "Entering application event loop (app.exec())";
     int result = app.exec();

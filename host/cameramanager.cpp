@@ -1425,8 +1425,18 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
 
                 // Get device path and configuration via helper
                 QString devicePath;
-                QSize resolution(0, 0); // Auto-detect maximum resolution
-                int framerate = 0; // Auto-detect maximum framerate
+                QSize resolution(0, 0); // Auto-detect maximum resolution  
+                int framerate = 0; // Default to auto-detect
+                
+                // Try to get user-configured framerate from GlobalVar (set via videopage)
+                int configuredFps = GlobalVar::instance().getCaptureFps();
+                if (configuredFps > 0) {
+                    framerate = configuredFps;
+                    qCDebug(log_ui_camera) << "Using user-configured framerate:" << framerate << "fps";
+                } else {
+                    qCDebug(log_ui_camera) << "Using auto-detect framerate";
+                }
+                
                 QString detectedPortChain;
                 bool deviceOk = false;
                 devicePath = determineDirectCaptureDevicePath(detectedPortChain, deviceOk);

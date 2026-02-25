@@ -41,6 +41,14 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
     // stop auto move if it is running
     stopAutoMoveMouse();
 
+    // Update current mouse button state
+    // If wheelMovement is provided and mouse_event is 0, preserve current button state
+    if (wheelMovement != 0 && mouse_event == 0) {
+        mouse_event = currentMouseButton;
+    } else {
+        currentMouseButton = mouse_event;
+    }
+
     QByteArray data;
     uint8_t mappedWheelMovement = mapScrollWheel(wheelMovement);
     if(mappedWheelMovement>0){    qCDebug(log_core_mouse) << "mappedWheelMovement:" << mappedWheelMovement; }
@@ -71,6 +79,15 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
 
 void MouseManager::handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement) {
     qCDebug(log_core_mouse) << "handleRelativeMouseAction";
+    
+    // Update current mouse button state
+    // If wheelMovement is provided and mouse_event is 0, preserve current button state
+    if (wheelMovement != 0 && mouse_event == 0) {
+        mouse_event = currentMouseButton;
+    } else {
+        currentMouseButton = mouse_event;
+    }
+    
     QByteArray data;
     uint8_t mappedWheelMovement = mapScrollWheel(wheelMovement);
     if(mappedWheelMovement>0){    qCDebug(log_core_mouse) << "mappedWheelMovement:" << mappedWheelMovement; }

@@ -47,9 +47,9 @@ FirmwareResult EnvironmentSetupDialog::latestFirmware = FirmwareResult::Checking
 // Define the static commands
 static const uint16_t openterfaceVID = 0x534d;
 static const uint16_t openterfacePID = 0x2109;
-static const uint16_t openterfaceV2VID = 0x534F;
+static const uint16_t openterfaceV2VID = 0x345f;
 static const uint16_t openterfaceV2PID = 0x2109;
-static const uint16_t openterfaceV3VID = 0x534F;
+static const uint16_t openterfaceV3VID = 0x345f;
 static const uint16_t openterfaceV3PID = 0x2132;
 static const uint16_t ch341VID = 0x1a86;
 static const uint16_t ch341PID = 0x7523;
@@ -59,8 +59,8 @@ libusb_context *context = nullptr;
 
 std::vector<std::pair<uint16_t, uint16_t>> openterfaceDevices = {
     {0x534D, 0x2109},
-    {0x534F, 0x2109},
-    {0x534F, 0x2132}
+    {0x345f, 0x2109},
+    {0x345f, 0x2132}
 };
 
 std::vector<std::pair<uint16_t, uint16_t>> serialDevices = {
@@ -74,10 +74,10 @@ const QString EnvironmentSetupDialog::udevCommands =
     "#Add udev rules for Openterface Mini-KVM\n"
     "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"534d\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
     "echo 'SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"534d\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
-    "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"534f\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
-    "echo 'SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"534f\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
-    "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"534f\", ATTRS{idProduct}==\"2132\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
-    "echo 'SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"534f\", ATTRS{idProduct}==\"2132\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"345f\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"345f\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"345f\", ATTRS{idProduct}==\"2132\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"345f\", ATTRS{idProduct}==\"2132\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "echo 'SUBSYSTEM==\"ttyUSB\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"7523\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"7523\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "echo 'SUBSYSTEM==\"ttyACM\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"fe0c\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
@@ -715,8 +715,8 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
         if (SetupDiGetDeviceRegistryPropertyW(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL,
             (PBYTE)hwIdBuffer, sizeof(hwIdBuffer), NULL)) {
             if (wcsstr(hwIdBuffer, L"USB\\VID_534D&PID_2109") != NULL ||
-                wcsstr(hwIdBuffer, L"USB\\VID_534F&PID_2109") != NULL ||
-                wcsstr(hwIdBuffer, L"USB\\VID_534F&PID_2132") != NULL) {
+                wcsstr(hwIdBuffer, L"USB\\VID_345F&PID_2109") != NULL ||
+                wcsstr(hwIdBuffer, L"USB\\VID_345F&PID_2132") != NULL) {
                 captureCardFound = true;
             }
             if (wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_7523") != NULL ||

@@ -145,6 +145,14 @@ public:
     // Audio mute setting
     void setAudioMuted(bool muted);
     bool getAudioMuted() const;
+    
+    // Video rendering quality settings
+    void setVideoAntialiasing(bool enabled);
+    bool getVideoAntialiasing() const;
+    void setVideoTextAntialiasing(bool enabled);
+    bool getVideoTextAntialiasing() const;
+    void setVideoSmoothTransform(bool enabled);
+    bool getVideoSmoothTransform() const;
 
     // Update reminder settings
     // Stores the epoch seconds of the last update check (used for 30-day throttle)

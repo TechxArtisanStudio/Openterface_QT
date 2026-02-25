@@ -54,7 +54,6 @@ signals:
     void captureImg(const QString& path = "");
     void captureAreaImg(const QString& path = "", const QRect& captureArea = QRect());
     void commandIncrease();
-    void commandData(const QString& commandName, const QStringList& options);
     void analysisFinished(bool success);
 
 private:

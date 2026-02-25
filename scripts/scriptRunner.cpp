@@ -42,15 +42,13 @@ void ScriptRunner::runTree(std::shared_ptr<ASTNode> tree, QObject* originSender)
     SemanticAnalyzer* workerAnalyzer = new SemanticAnalyzer(mouseManager, keyboardMouse);
     workerAnalyzer->moveToThread(workerThread);
 
-    // Route capture signals to executor so UI can respond
+    // Route capture signals directly from SemanticAnalyzer to ScriptExecutor for UI forwarding
     if (m_executor) {
-        qWarning(log_script_runner) << "Connecting signals to ScriptExecutor";
+        qCDebug(log_script_runner) << "Connecting capture signals from SemanticAnalyzer to ScriptExecutor";
         connect(workerAnalyzer, &SemanticAnalyzer::captureImg, m_executor, &ScriptExecutor::captureImg, Qt::QueuedConnection);
         connect(workerAnalyzer, &SemanticAnalyzer::captureAreaImg, m_executor, &ScriptExecutor::captureAreaImg, Qt::QueuedConnection);
-        bool connected = connect(workerAnalyzer, &SemanticAnalyzer::commandData, m_executor, &ScriptExecutor::onCommandData, Qt::QueuedConnection);
-        qWarning(log_script_runner) << "commandData connection result:" << connected;
     } else {
-        qWarning(log_script_runner) << "ERROR: m_executor is null!";
+        qCDebug(log_script_runner) << "WARNING: m_executor is null, capture signals won't be forwarded";
     }
 
     // Connect command increase to the script tool UI

@@ -94,6 +94,10 @@ public:
     // Set coordinate correction for zoom mode
     void setZoomOffsetCorrection(int x, int y) { m_zoomOffsetCorrectionX = x; m_zoomOffsetCorrectionY = y; }
 
+    // rendering quality control (toggle antialiasing hints)
+    void setRenderQuality(bool highQuality);
+    bool renderQualityHigh() const { return m_highQualityRendering; }
+
 signals:
     void mouseMoved(const QPoint& position, const QString& event);
     void videoPaneResized(const QSize& newSize);  // Signal for video pane resize events
@@ -150,6 +154,9 @@ private:
     bool m_directFFmpegMode;
     QSize m_lastViewportSize;
     bool m_frameIsViewportSized;
+
+    // rendering quality hint flag (true=antialiasing enabled)
+    bool m_highQualityRendering;
     
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);

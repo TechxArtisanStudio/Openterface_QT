@@ -510,3 +510,34 @@ bool GlobalSetting::getAudioMuted() const
 {
     return m_settings.value("audio/muted", true).toBool();
 }
+
+// Video rendering quality settings implementation
+void GlobalSetting::setVideoAntialiasing(bool enabled)
+{
+    m_settings.setValue("video/antialiasing", enabled);
+}
+
+bool GlobalSetting::getVideoAntialiasing() const
+{
+    return m_settings.value("video/antialiasing", true).toBool();
+}
+
+void GlobalSetting::setVideoTextAntialiasing(bool enabled)
+{
+    m_settings.setValue("video/textAntialiasing", enabled);
+}
+
+bool GlobalSetting::getVideoTextAntialiasing() const
+{
+    return m_settings.value("video/textAntialiasing", true).toBool();
+}
+
+void GlobalSetting::setVideoSmoothTransform(bool enabled)
+{
+    m_settings.setValue("video/smoothTransform", enabled);
+}
+
+bool GlobalSetting::getVideoSmoothTransform() const
+{
+    return m_settings.value("video/smoothTransform", true).toBool();
+}

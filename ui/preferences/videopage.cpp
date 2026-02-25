@@ -270,6 +270,38 @@ void VideoPage::setupUI()
     videoLayout->addWidget(hwAccelLabel);
     videoLayout->addWidget(hwAccelBox);
     videoLayout->addWidget(hwAccelHintLabel);
+    
+    // Add another separator
+    QFrame *separatorLine3 = new QFrame();
+    separatorLine3->setFrameShape(QFrame::HLine);
+    separatorLine3->setFrameShadow(QFrame::Sunken);
+    videoLayout->addWidget(separatorLine3);
+    
+    // Rendering Quality Settings Section
+    QLabel *renderingQualityLabel = new QLabel(tr("Video Rendering Quality:"));
+    renderingQualityLabel->setStyleSheet(smallLabelFontSize);
+    
+    QCheckBox *antialiasingCheckBox = new QCheckBox(tr("Enable Antialiasing (smoother edges)"));
+    antialiasingCheckBox->setObjectName("antialiasingCheckBox");
+    antialiasingCheckBox->setChecked(GlobalSetting::instance().getVideoAntialiasing());
+    
+    QCheckBox *textAntialiasingCheckBox = new QCheckBox(tr("Enable Text Antialiasing (clearer text)"));
+    textAntialiasingCheckBox->setObjectName("textAntialiasingCheckBox");
+    textAntialiasingCheckBox->setChecked(GlobalSetting::instance().getVideoTextAntialiasing());
+    
+    QCheckBox *smoothTransformCheckBox = new QCheckBox(tr("Enable Smooth Transform (better scaling)"));
+    smoothTransformCheckBox->setObjectName("smoothTransformCheckBox");
+    smoothTransformCheckBox->setChecked(GlobalSetting::instance().getVideoSmoothTransform());
+    
+    QLabel *renderingQualityHintLabel = new QLabel(tr("Note: These settings control video display quality. Disabling may improve performance on slower systems."));
+    renderingQualityHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    
+    videoLayout->addWidget(renderingQualityLabel);
+    videoLayout->addWidget(antialiasingCheckBox);
+    videoLayout->addWidget(textAntialiasingCheckBox);
+    videoLayout->addWidget(smoothTransformCheckBox);
+    videoLayout->addWidget(renderingQualityHintLabel);
+    
     videoLayout->addStretch();
 
     // Connect the checkbox state change to the slot
@@ -547,6 +579,23 @@ void VideoPage::applyVideoSettings() {
     updatePixelFormats();
 
     GlobalSetting::instance().setVideoSettings(m_currentResolution.width(), m_currentResolution.height(), fps);
+    
+    // Save rendering quality settings
+    QCheckBox *antialiasingCheckBox = this->findChild<QCheckBox*>("antialiasingCheckBox");
+    if (antialiasingCheckBox) {
+        GlobalSetting::instance().setVideoAntialiasing(antialiasingCheckBox->isChecked());
+    }
+    
+    QCheckBox *textAntialiasingCheckBox = this->findChild<QCheckBox*>("textAntialiasingCheckBox");
+    if (textAntialiasingCheckBox) {
+        GlobalSetting::instance().setVideoTextAntialiasing(textAntialiasingCheckBox->isChecked());
+    }
+    
+    QCheckBox *smoothTransformCheckBox = this->findChild<QCheckBox*>("smoothTransformCheckBox");
+    if (smoothTransformCheckBox) {
+        GlobalSetting::instance().setVideoSmoothTransform(smoothTransformCheckBox->isChecked());
+    }
+    
     // Emit the signal with the new width and height
     emit videoSettingsChanged();
 }

@@ -89,20 +89,20 @@ void MainWindowInitializer::initialize()
     qCDebug(log_ui_mainwindowinitializer) << "Starting initialization sequence...";
     
     setupCentralWidget();
-    setupCoordinators();
+    setupCoordinators();  // Create coordinators (lightweight)
     connectCornerWidgetSignals();
     connectDeviceManagerSignals();
     connectActionSignals();
     setupToolbar();
     connectCameraSignals();
     connectVideoHidSignals();
-    initializeCamera();
+    // Defer initializeCamera (blocks startup) - will be called after window shown
     setupScriptComponents();
     setupEventCallbacks();
     setupKeyboardShortcuts();
     finalize();
     
-    qCDebug(log_ui_mainwindowinitializer) << "Initialization sequence complete";
+    qCDebug(log_ui_mainwindowinitializer) << "Initialization sequence complete - deferred operations scheduled";
 }
 
 void MainWindowInitializer::setupCentralWidget()
@@ -138,12 +138,13 @@ void MainWindowInitializer::setupCoordinators()
         m_windowLayoutCoordinator->checkInitSize();
     }
     
+    // Setup hotplug monitor connection immediately (lightweight, needed for device detection)
     DeviceManager& deviceManager = DeviceManager::getInstance();
     HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
 
     if (m_deviceCoordinator) {
         m_deviceCoordinator->connectHotplugMonitor(hotplugMonitor);
-        m_deviceCoordinator->setupDeviceMenu();
+        // Device menu setup is deferred - call deferredSetupCoordinators() after window shown
     }
     
     if (m_menuCoordinator) {
@@ -157,6 +158,18 @@ void MainWindowInitializer::setupCoordinators()
             }
         });
     }
+}
+
+void MainWindowInitializer::deferredSetupCoordinators()
+{
+    qCDebug(log_ui_mainwindowinitializer) << "Deferred: Setting up device menu (device enumeration)...";
+    
+    // This is the heavy operation - enumerate and populate device menu
+    if (m_deviceCoordinator) {
+        m_deviceCoordinator->setupDeviceMenu();
+    }
+    
+    qCDebug(log_ui_mainwindowinitializer) << "Deferred: Device menu setup complete";
 }
 
 void MainWindowInitializer::connectCornerWidgetSignals()
@@ -414,7 +427,13 @@ void MainWindowInitializer::setupRecordingController()
 
 void MainWindowInitializer::initializeCamera()
 {
-    qCDebug(log_ui_mainwindowinitializer) << "Initializing camera...";
+    qCDebug(log_ui_mainwindowinitializer) << "Camera initialization deferred to after window shown";
+    // This function is now a no-op, actual initialization happens in deferredInitializeCamera()
+}
+
+void MainWindowInitializer::deferredInitializeCamera()
+{
+    qCDebug(log_ui_mainwindowinitializer) << "Deferred: Initializing camera...";
     m_mainWindow->initCamera();
     
     // Set up VideoPane with FFmpeg backend BEFORE device auto-selection

@@ -151,10 +151,25 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     m_initializer = new MainWindowInitializer(this);
     m_initializer->initialize();
     
-    // Start VideoHid
-    VideoHid::getInstance().start();
+    // Defer VideoHid start to avoid 500ms blocking sleep during startup
+    // This will be started after the window is shown
+    qCDebug(log_ui_mainwindow) << "VideoHid will be started after window is shown";
     
     qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
+}
+
+void MainWindow::deferredSetupCoordinators()
+{
+    if (m_initializer) {
+        m_initializer->deferredSetupCoordinators();
+    }
+}
+
+void MainWindow::deferredInitializeCamera()
+{
+    if (m_initializer) {
+        m_initializer->deferredInitializeCamera();
+    }
 }
 
 void MainWindow::startServer(){
@@ -1548,7 +1563,19 @@ void MainWindow::onToolbarVisibilityChanged(bool visible) {
     QString iconPath = isVisible ? ":/images/keyboard-down.svg" : ":/images/keyboard-up.svg";
     // ui->virtualKeyboardButton->setIcon(QIcon(iconPath));  // Create QIcon from the path
 
-    
+    // Safety mechanism: Ensure updates are re-enabled after a timeout to prevent permanent blocking
+    QTimer::singleShot(500, this, [this]() {
+        if (!this->updatesEnabled()) {
+            qCWarning(log_ui_mainwindow) << "Force re-enabling updates after timeout - animation may have failed";
+            this->setUpdatesEnabled(true);
+            this->blockSignals(false);
+            this->update();
+            if (videoPane) {
+                videoPane->update();
+                videoPane->updateGeometry();
+            }
+        }
+    });
 
     // Use QTimer to delay the video pane repositioning
     // Safety check: Don't schedule animation if window is being destroyed
@@ -1558,6 +1585,10 @@ void MainWindow::onToolbarVisibilityChanged(bool visible) {
                 m_windowLayoutCoordinator->animateVideoPane();
             }
         });
+    } else {
+        // If coordinators not ready, immediately re-enable updates
+        setUpdatesEnabled(true);
+        blockSignals(false);
     }
     
 }
