@@ -715,8 +715,8 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
         if (SetupDiGetDeviceRegistryPropertyW(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL,
             (PBYTE)hwIdBuffer, sizeof(hwIdBuffer), NULL)) {
             if (wcsstr(hwIdBuffer, L"USB\\VID_534D&PID_2109") != NULL ||
-                wcsstr(hwIdBuffer, L"USB\\VID_534F&PID_2109") != NULL ||
-                wcsstr(hwIdBuffer, L"USB\\VID_534F&PID_2132") != NULL) {
+                wcsstr(hwIdBuffer, L"USB\\VID_345F&PID_2109") != NULL ||
+                wcsstr(hwIdBuffer, L"USB\\VID_345F&PID_2132") != NULL) {
                 captureCardFound = true;
             }
             if (wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_7523") != NULL ||
