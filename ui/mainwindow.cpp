@@ -1563,7 +1563,19 @@ void MainWindow::onToolbarVisibilityChanged(bool visible) {
     QString iconPath = isVisible ? ":/images/keyboard-down.svg" : ":/images/keyboard-up.svg";
     // ui->virtualKeyboardButton->setIcon(QIcon(iconPath));  // Create QIcon from the path
 
-    
+    // Safety mechanism: Ensure updates are re-enabled after a timeout to prevent permanent blocking
+    QTimer::singleShot(500, this, [this]() {
+        if (!this->updatesEnabled()) {
+            qCWarning(log_ui_mainwindow) << "Force re-enabling updates after timeout - animation may have failed";
+            this->setUpdatesEnabled(true);
+            this->blockSignals(false);
+            this->update();
+            if (videoPane) {
+                videoPane->update();
+                videoPane->updateGeometry();
+            }
+        }
+    });
 
     // Use QTimer to delay the video pane repositioning
     // Safety check: Don't schedule animation if window is being destroyed
@@ -1573,6 +1585,10 @@ void MainWindow::onToolbarVisibilityChanged(bool visible) {
                 m_windowLayoutCoordinator->animateVideoPane();
             }
         });
+    } else {
+        // If coordinators not ready, immediately re-enable updates
+        setUpdatesEnabled(true);
+        blockSignals(false);
     }
     
 }
