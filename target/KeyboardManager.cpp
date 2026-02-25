@@ -260,10 +260,10 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             mappedKeyCode = 0x58;
         }
     }else {
-        if(currentModifiers!=0 && mappedKeyCode == 0){
-            qCDebug(log_keyboard) << "Send release command :" << keyData.toHex(' ');
-            emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
-            currentModifiers = 0;
+        // Don't send a release command for unmapped keys - just skip them
+        // This prevents clearing the state of other pressed keys
+        if(mappedKeyCode == 0){
+            qCDebug(log_keyboard) << "Key not mapped, skipping without affecting other keys";
             return;
         }
 

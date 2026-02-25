@@ -135,15 +135,21 @@ public:
     void reset() {
         // Reset any internal state
         // For example, clear any stored coordinates or button states
+        currentMouseButton = 0;
         qDebug() << "Mouse manager reset";
     }
 
 private:
     bool isDragging = false; 
     StatusEventCallback* statusEventCallback = nullptr;
+    int currentMouseButton = 0;  // Track current mouse button state
 
     uint8_t mapScrollWheel(int delta);
     MouseMoverThread* mouseMoverThread = nullptr;
+
+public:
+    // Get current mouse button state
+    int getCurrentMouseButton() const { return currentMouseButton; }
 };
 
 #endif // MOUSEMANAGER_H
