@@ -569,7 +569,7 @@ void MainWindowInitializer::finalize()
             return;
         }
         qCDebug(log_ui_mainwindowinitializer) << "Startup: invoking VersionInfoManager::checkForUpdates after initialization";
-        m_mainWindow->m_versionInfoManager->checkForUpdates(true);
+        m_mainWindow->m_versionInfoManager->checkForUpdates(false);
     });
     
     qCDebug(log_ui_mainwindowinitializer) << "Finalization complete";

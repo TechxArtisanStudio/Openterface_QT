@@ -351,18 +351,15 @@ void VersionInfoManager::handleUpdateCheckResponse(QNetworkReply *reply)
                     gs.setUpdateNeverRemind(true);
                 } else {
                     gs.setUpdateNeverRemind(false);
-                    if (remindCheck->isChecked()) {
-                        gs.setUpdateLastChecked(now); // remind in 30 days
-                    } else {
-                        gs.setUpdateLastChecked(now); // record check time
-                    }
+                    // Always record check time to prevent spamming on every startup
+                    gs.setUpdateLastChecked(now);
                 }
 
                 if (updateRequested) {
                     openGitHubReleasePage(htmlUrl);
                 }
             } else {
-                // user canceled: record check time to avoid immediate re-prompt
+                // user canceled: still record check time to avoid immediate re-prompt
                 gs.setUpdateLastChecked(now);
             }
         } else {
@@ -394,16 +391,14 @@ void VersionInfoManager::handleUpdateCheckResponse(QNetworkReply *reply)
             connect(buttonBox, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
             dlgLayout->addWidget(buttonBox);
 
-            // record check time now (throttle) and apply preference only if user confirms
+            // Always record check time first to prevent immediate re-prompts
             gs.setUpdateLastChecked(now);
+            // Then apply preference only if user confirms
             if (dlg.exec() == QDialog::Accepted) {
                 if (neverCheck->isChecked()) {
                     gs.setUpdateNeverRemind(true);
                 } else {
                     gs.setUpdateNeverRemind(false);
-                    if (remindCheck->isChecked()) {
-                        gs.setUpdateLastChecked(now); // remind in 30 days
-                    }
                 }
             }
         }
