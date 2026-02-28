@@ -659,145 +659,23 @@ void FFmpegBackendHandler::processFrame()
         return;
     }
     
-    // TIMESTAMP SYNCHRONIZATION: Calculate expected display time based on packet PTS
+    // For real-time KVM capture every arriving packet represents the latest frame the
+    // camera has produced.  av_read_frame in the capture thread naturally throttles at
+    // the camera fps (it blocks until the camera delivers a new frame).  All PTS-based
+    // "display rate" synchronisation is therefore counter-productive:
+    //
+    //   • It was designed for VOD playback where the demuxer *pre-buffers* frames.
+    //   • For live capture it misidentifies freshly-decoded frames as "too early" and
+    //     skips them, making the display appear to time-step and building up lag.
+    //   • The force-display timer (kMaxFrameSkipTimeMs=100 ms) then fires every 100 ms
+    //     and shows a stale frame, giving a ~10 fps stuttering appearance during
+    //     catch-up while the ring buffer is being consumed.
+    //
+    // The ShouldDropFrame() gate inside ProcessPacketToImage() already provides correct
+    // rate-limiting (drops a frame if < 17 ms since the last one was shown, ≈60 fps
+    // cap).  That is all the rate control we need for a real-time KVM stream.
     qint64 currentSystemTime = QDateTime::currentMSecsSinceEpoch();
-    bool shouldDisplayFrame = true;
-    bool frameSkippedByRateControl = false;
-    
-    // SAFETY FALLBACK: Force display if no frame shown in last 100ms to prevent freeze
-    const qint64 kMaxFrameSkipTimeMs = 100;
-    bool forceDisplay = (m_lastForceDisplayTime == 0 || 
-                        (currentSystemTime - m_lastForceDisplayTime) >= kMaxFrameSkipTimeMs);
-    
-    if (m_targetFrameIntervalMs > 0 && packet->pts != AV_NOPTS_VALUE && !forceDisplay) {
-        int streamIndex = m_captureManager->GetVideoStreamIndex();
-        
-        // Initialize time synchronization on first valid frame
-        if (!m_timeSyncInitialized && streamIndex >= 0 && streamIndex < formatContext->nb_streams) {
-            AVStream* stream = formatContext->streams[streamIndex];
-            m_streamTimeBase = av_q2d(stream->time_base) * 1000.0; // Convert to milliseconds
-            m_firstFramePts = packet->pts;
-            m_lastPacketPts = packet->pts;
-            m_firstFrameSystemTime = currentSystemTime;
-            m_lastFrameDisplayTime = currentSystemTime;
-            m_ptsFrameCount = 0;
-            m_timeSyncInitialized = true;
-            
-            qCDebug(log_ffmpeg_backend) << "Time sync initialized - timebase:" << m_streamTimeBase 
-                                        << "ms, first PTS:" << m_firstFramePts
-                                        << "target interval:" << m_targetFrameIntervalMs << "ms";
-        }
-        
-        // Detect actual stream frame rate from PTS differences
-        if (m_timeSyncInitialized && m_streamTimeBase > 0 && 
-            m_lastPacketPts != AV_NOPTS_VALUE && packet->pts > m_lastPacketPts) {
-            
-            qint64 ptsDiff = packet->pts - m_lastPacketPts;
-            double frameIntervalMs = ptsDiff * m_streamTimeBase;
-            
-            // Update detected frame interval (smooth average over first 30 frames)
-            if (m_ptsFrameCount < 30 && frameIntervalMs > 5 && frameIntervalMs < 200) {
-                if (m_detectedFrameIntervalMs == 0) {
-                    m_detectedFrameIntervalMs = frameIntervalMs;
-                } else {
-                    // Exponential moving average
-                    m_detectedFrameIntervalMs = m_detectedFrameIntervalMs * 0.9 + frameIntervalMs * 0.1;
-                }
-                m_ptsFrameCount++;
-                
-                if (m_ptsFrameCount == 30) {
-                    double detectedFps = 1000.0 / m_detectedFrameIntervalMs;
-                    qCInfo(log_ffmpeg_backend) << "Detected actual stream FPS:" << detectedFps 
-                                               << "(" << m_detectedFrameIntervalMs << "ms interval)"
-                                               << "Target FPS:" << (m_targetFrameIntervalMs > 0 ? 1000.0/m_targetFrameIntervalMs : 0);
-                    
-                    // If detected FPS is significantly different from target, warn user
-                    if (m_targetFrameIntervalMs > 0) {
-                        double targetFps = 1000.0 / m_targetFrameIntervalMs;
-                        if (std::abs(detectedFps - targetFps) > targetFps * 0.15) {
-                            qCWarning(log_ffmpeg_backend) << "WARNING: Detected stream FPS (" << detectedFps 
-                                                          << ") differs from target (" << targetFps 
-                                                          << ") - device may not support requested framerate";
-                        }
-                    }
-                }
-            }
-            
-            m_lastPacketPts = packet->pts;
-        }
-        
-        // Calculate expected frame time based on stream timestamp
-        if (m_timeSyncInitialized && m_streamTimeBase > 0) {
-            // Calculate elapsed time in stream based on PTS difference
-            qint64 ptsDelta = packet->pts - m_firstFramePts;
-            double streamElapsedMs = ptsDelta * m_streamTimeBase;
-            
-            // Validate PTS is sane (detect timestamp jumps/resets)
-            if (ptsDelta < 0 || streamElapsedMs > 60000) { // More than 1 minute jump
-                qCWarning(log_ffmpeg_backend) << "Abnormal PTS detected (delta:" << ptsDelta 
-                                               << "ms:" << streamElapsedMs << ") - resetting sync";
-                m_timeSyncInitialized = false;
-                m_firstFramePts = packet->pts;
-                m_lastPacketPts = packet->pts;
-                m_firstFrameSystemTime = currentSystemTime;
-                m_ptsFrameCount = 0;
-                m_detectedFrameIntervalMs = 0;
-                streamElapsedMs = 0;
-            }
-            
-            // Calculate expected system time for this frame
-            qint64 expectedSystemTime = m_firstFrameSystemTime + static_cast<qint64>(streamElapsedMs);
-            
-            // Check if we're ahead of schedule (frame came too early)
-            qint64 timeDiff = currentSystemTime - expectedSystemTime;
-            
-            // Use detected frame interval if available, otherwise use target
-            double effectiveFrameInterval = (m_detectedFrameIntervalMs > 0) ? 
-                                            m_detectedFrameIntervalMs : m_targetFrameIntervalMs;
-            
-            // More relaxed threshold: only skip if significantly early (more than half frame interval)
-            if (timeDiff < -(effectiveFrameInterval * 0.5)) {
-                // Frame is early - consider skipping
-                // But check if we've recently displayed a frame
-                if (m_lastFrameDisplayTime > 0) {
-                    qint64 timeSinceLastFrame = currentSystemTime - m_lastFrameDisplayTime;
-                    // Only skip if we just displayed a frame very recently (less than 60% of interval)
-                    if (timeSinceLastFrame < effectiveFrameInterval * 0.6) {
-                        shouldDisplayFrame = false;
-                        frameSkippedByRateControl = true;
-                        
-                        if (m_frameCount % 200 == 0) {
-                            qCDebug(log_ffmpeg_backend) << "Frame skipped: early by" << -timeDiff 
-                                                        << "ms, last frame" << timeSinceLastFrame << "ms ago"
-                                                        << "(interval:" << effectiveFrameInterval << "ms)";
-                        }
-                    }
-                }
-            } else if (timeDiff > effectiveFrameInterval * 3) {
-                // Frame is significantly late - we're falling behind
-                // Reset sync to current time to catch up
-                if (m_frameCount % 100 == 0) {
-                    qCDebug(log_ffmpeg_backend) << "Frame timing drift: behind by" << timeDiff 
-                                                 << "ms - adjusting sync (interval:" << effectiveFrameInterval << "ms)";
-                }
-                m_firstFrameSystemTime = currentSystemTime - static_cast<qint64>(streamElapsedMs);
-            }
-        }
-    } else if (forceDisplay) {
-        // Force display to prevent freeze
-        shouldDisplayFrame = true;
-        if (m_frameCount % 100 == 0) {
-            qCDebug(log_ffmpeg_backend) << "Force displaying frame to prevent freeze (last display:" 
-                                        << (currentSystemTime - m_lastForceDisplayTime) << "ms ago)";
-        }
-    }
-    
-    // If frame should not be displayed, clean up and return
-    if (!shouldDisplayFrame) {
-        av_packet_unref(packet);
-        return;
-    }
-    
+
     // Check if recording is active
     bool isRecording = m_recorder && m_recorder->IsRecording() && !m_recorder->IsPaused();
     

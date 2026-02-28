@@ -79,6 +79,8 @@ private:
     bool InitializeInputStream(const QString& device_path, const QSize& resolution, int framerate);
     bool FindVideoStream();
     bool SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator);
+    void WarmUpHardwareDecoder();
+    void DrainBufferedPackets(bool using_hw_decoder);
     
     AVFormatContext* format_context_;
     AVCodecContext* codec_context_;
