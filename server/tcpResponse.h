@@ -27,7 +27,7 @@ public:
     // Factory methods for creating responses
     static QByteArray createSuccessResponse(ResponseType type, const QString& message = "");
     static QByteArray createErrorResponse(const QString& errorMessage);
-    static QByteArray createImageResponse(const QByteArray& imageData, const QString& format = "raw");
+    static QByteArray createImageResponse(const QByteArray& imageData, const QString& format = "raw", const QString& captureTime = "", const QString& filePath = "");
     static QByteArray createScreenResponse(const QByteArray& base64Data, int width, int height);
     static QByteArray createStatusResponse(const QString& status, const QString& message = "");
     

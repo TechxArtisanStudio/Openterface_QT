@@ -1163,6 +1163,14 @@ qint64 FFmpegBackendHandler::getRecordingFileSize() const
     return m_recorder ? m_recorder->GetRecordingFileSize() : 0;
 }
 
+QImage FFmpegBackendHandler::getLatestOriginalFrame() const
+{
+    if (!m_frameProcessor) {
+        return QImage();
+    }
+    return m_frameProcessor->GetLatestOriginalFrame();
+}
+
 void FFmpegBackendHandler::takeImage(const QString& filePath)
 {
     if (!m_frameProcessor || !m_recorder) {

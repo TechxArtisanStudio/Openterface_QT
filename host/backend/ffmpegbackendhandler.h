@@ -159,6 +159,9 @@ public:
     void takeImage(const QString& filePath);
     void takeAreaImage(const QString& filePath, const QRect& captureArea);
 
+    // Returns the latest frame at the camera's native resolution (before any display scaling).
+    QImage getLatestOriginalFrame() const;
+
     // Update preferred hardware acceleration from settings
     void updatePreferredHardwareAcceleration();
 
