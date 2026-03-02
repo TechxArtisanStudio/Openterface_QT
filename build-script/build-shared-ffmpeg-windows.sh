@@ -205,9 +205,16 @@ if [ "${ENABLE_LIBMFX:-0}" = "1" ]; then
         
     if pkg-config --exists libmfx; then
         echo "✓ libmfx pkg-config found; compiling with full QSV support"
+        EXTRA_CFLAGS="${EXTRA_CFLAGS} $(pkg-config --cflags libmfx 2>/dev/null || true)"
+        EXTRA_LDFLAGS="${EXTRA_LDFLAGS} $(pkg-config --libs libmfx 2>/dev/null || true)"
     else
-        echo "⚠ libmfx pkg-config not found; building with dynamic load."
-        echo "   Ensure that the Intel Media SDK/driver is present on the target machine."
+        echo "ERROR: ENABLE_LIBMFX=1 but libmfx pkg-config not found."
+        echo "       QSV decoders (mjpeg_qsv etc.) require libmfx at compile time."
+        echo "       Install the package: pacman -S mingw-w64-x86_64-libmfx"
+        echo "       Then ensure PKG_CONFIG_PATH includes /mingw64/lib/pkgconfig"
+        echo "       Current PKG_CONFIG_PATH: ${PKG_CONFIG_PATH:-<empty>}"
+        pkg-config --list-all 2>/dev/null | grep -i mfx || echo "(no mfx packages visible to pkg-config)"
+        exit 1
     fi
 else
     echo "libmfx not enabled; QSV support will be attempted at runtime if available via drivers/SDK (dynamic loading by ffmpeg)."

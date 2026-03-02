@@ -174,10 +174,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\ffmpeg-shared
-          # include hardware flags in the key so toggling them invalidates the cache
-          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v1-${{ runner.os }}-nvenc${{ env.ENABLE_NVENC || '0' }}-nvdec${{ env.ENABLE_NVDEC || '0' }}-libmfx${{ env.ENABLE_LIBMFX || '0' }}
-          restore-keys: |
-            ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v1-
+          # Key encodes all hardware flags so ANY change forces a full rebuild.
+          # restore-keys is intentionally omitted: a partial key match would restore an
+          # old FFmpeg built without libmfx/QSV support, causing mjpeg_qsv to be missing
+          # at runtime even though ENABLE_LIBMFX=1 is set.
+          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v2-${{ runner.os }}-nvenc${{ env.ENABLE_NVENC || '0' }}-nvdec${{ env.ENABLE_NVDEC || '0' }}-libmfx${{ env.ENABLE_LIBMFX || '0' }}
 
       - name: Check Build Scripts Available
         shell: cmd
@@ -532,6 +533,7 @@ jobs:
           cp /mingw64/bin/libwinpthread-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libwinpthread-1.dll not found"
           cp /mingw64/bin/libgcc_s_seh-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libgcc_s_seh-1.dll not found"
           cp /mingw64/bin/libstdc++-6.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libstdc++-6.dll not found"
+          cp /mingw64/bin/libmfx-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libmfx-1.dll not found"
           echo "Copying translation & keyboard layouts files..."
           cp "${SOURCE_DIR_MSYS}/config/keyboards/"*.json ${{ env.PACKAGE_DIR }}/config/keyboards/
           cp "${SOURCE_DIR_MSYS}/config/languages/"*.qm ${{ env.PACKAGE_DIR }}/config/languages/
