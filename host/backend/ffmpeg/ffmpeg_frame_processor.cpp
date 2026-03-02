@@ -282,7 +282,7 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
                     latest_original_frame_ = originalResult.copy();
                 }
                 
-                return result.copy();
+                return result;
             }
         }
         qCDebug(log_ffmpeg_backend) << "TurboJPEG failed, falling back to CPU decode";
@@ -355,9 +355,12 @@ QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodec
     QImage originalResult;
     
     if (needOriginal) {
-        // Need both original and scaled versions
-        originalResult = ConvertFrameToImage(frame_to_convert, QSize());
-        result = ConvertFrameToImage(frame_to_convert, targetSize);
+        // OPTIMIZATION: Convert NV12→RGB once at full resolution, then use Qt's
+        // fast RGB rescaler for the display-size copy.  This avoids running the
+        // comparatively expensive sws_scale (YUV→RGB) twice on the same frame.
+        originalResult = ConvertFrameToImage(frame_to_convert, QSize());  // full-res RGB
+        result = originalResult.scaled(targetSize, Qt::IgnoreAspectRatio, // pure RGB resize
+                                       Qt::SmoothTransformation);
     } else {
         // Only need one version (either scaled or original)
         result = ConvertFrameToImage(frame_to_convert, targetSize.isValid() ? targetSize : QSize());
@@ -377,15 +380,17 @@ QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodec
             return QImage();
         }
         
-        // Store frames
+        // Store frames.  QImage uses Qt's COW (copy-on-write) ref-counting which is
+        // thread-safe for shared ownership, so no redundant deep copy is needed here.
+        // The mutex protects the assignment of the pointer/ref-count itself.
         {
             QMutexLocker locker(&mutex_);
-            latest_frame_ = result.copy();  // Frame for display
-            latest_original_frame_ = originalResult.copy();  // Original frame for screenshots
+            latest_frame_ = result;          // Frame for display (COW shared, deep copy on first write)
+            latest_original_frame_ = originalResult;  // Original frame for screenshots
         }
     }
     
-    return result.copy();  // Deep copy for thread safety
+    return result;  // result is a freshly-allocated QImage; no extra deep copy needed
 }
 
 QImage FFmpegFrameProcessor::ConvertFrameToImage(AVFrame* frame, const QSize& targetSize)
@@ -489,7 +494,11 @@ QImage FFmpegFrameProcessor::ConvertWithScalingToImage(AVFrame* frame, const QSi
     UpdateScalingContext(width, height, format, QSize(targetWidth, targetHeight));
     
     // CRITICAL FIX: Allocate image BEFORE locking mutex to reduce lock time
-    QImage image(targetWidth, targetHeight, QImage::Format_RGB888);
+    // OPTIMIZATION: Use ARGB32 (32-bit aligned, 4 bytes/pixel) instead of RGB888
+    // (24-bit unaligned, 3 bytes/pixel).  sws_scale writes BGRA which maps directly
+    // to QImage::Format_ARGB32 on little-endian platforms (BGRA bytes = 0xAARRGGBB).
+    // 32-bit alignment lets SIMD gather/scatter operate on natural word boundaries.
+    QImage image(targetWidth, targetHeight, QImage::Format_ARGB32);
     if (image.isNull()) {
         return QImage();
     }
@@ -519,7 +528,7 @@ QImage FFmpegFrameProcessor::ConvertWithScalingToImage(AVFrame* frame, const QSi
         return QImage();
     }
     
-    return image.copy();  // Ensure thread-safe copy
+    return image;  // image was constructed fresh above with its own storage; no copy needed
 }
 
 #ifdef HAVE_LIBJPEG_TURBO
@@ -634,26 +643,34 @@ void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFo
                                << width << "x" << height 
                                << "to" << targetWidth << "x" << targetHeight
                                << "from format" << format << "(" << (format_name ? format_name : "unknown") << ")"
-                               << "to RGB24 (24-bit RGB)"
+                               << "to BGRA (32-bit aligned, AV_PIX_FMT_BGRA → QImage::Format_ARGB32)"
                                << "with algorithm" << algorithm_name;
     
     // OPTIMIZATION: Choose scaling algorithm based on performance needs
     int scaling_flags;
     
-    if (targetSize.isValid() && (targetSize.width() == width && targetSize.height() == height)) {
-        // No scaling needed - use fastest point sampling
+    // Select the fastest algorithm that is correct for the operation:
+    //  - Format-only conversion with no geometry change (common NV12→BGRA path):
+    //    SWS_POINT — nearest-neighbour at 1:1 is identical in quality to any other
+    //    filter and avoids the multi-tap coefficient arithmetic entirely.
+    //  - Actual spatial downscale/upscale:
+    //    SWS_BILINEAR — visually indistinguishable from bicubic for ≤2× ratio
+    //    changes typical on a KVM display widget, and ~3× faster.
+    bool sameSize = (!targetSize.isValid() ||
+                    (targetSize.width() == width && targetSize.height() == height));
+    if (sameSize) {
         scaling_flags = SWS_POINT;
-        qCDebug(log_ffmpeg_backend) << "Using point sampling (no scaling needed)";
+        qCDebug(log_ffmpeg_backend) << "Using point sampling (format-only conversion, no resize)";
     } else {
-        // Real scaling needed - use fast bilinear for low latency
-        scaling_flags = SWS_BICUBIC;
-        qCDebug(log_ffmpeg_backend) << "Using bicubic scaling for better quality";
+        scaling_flags = SWS_BILINEAR;
+        qCDebug(log_ffmpeg_backend) << "Using bilinear scaling (resize to"
+                                   << targetWidth << "x" << targetHeight << ")";
     }
     
     sws_context_ = sws_getContext(
         width, height, format,
-        targetWidth, targetHeight, AV_PIX_FMT_RGB24,
-        scaling_flags,  // Optimized for performance
+        targetWidth, targetHeight, AV_PIX_FMT_BGRA,  // 32-bit aligned; faster SIMD than RGB24
+        scaling_flags,
         nullptr, nullptr, nullptr
     );
     

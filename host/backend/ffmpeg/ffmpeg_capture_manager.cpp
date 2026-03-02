@@ -125,6 +125,22 @@ bool FFmpegCaptureManager::StartCapture(const QString& devicePath, const QSize& 
                                 << "resolution=" << actualResolution
                                 << "framerate=" << actualFramerate;
     
+    // CRITICAL: Initialize hardware acceleration BEFORE opening device
+    // This ensures hardware decoders are available when setting up the device
+    if (hardware_accelerator_ && !hardware_accelerator_->IsHardwareAccelEnabled()) {
+        QString preferredHwAccel = GlobalSetting::instance().getHardwareAcceleration();
+        qCInfo(log_ffmpeg_backend) << "Initializing hardware acceleration with preferred:" << preferredHwAccel;
+        if (hardware_accelerator_->Initialize(preferredHwAccel)) {
+            qCInfo(log_ffmpeg_backend) << "✓ Hardware acceleration initialized successfully";
+        } else {
+            qCInfo(log_ffmpeg_backend) << "Hardware acceleration initialization returned false (may use software decoding)";
+        }
+    } else if (hardware_accelerator_ && hardware_accelerator_->IsHardwareAccelEnabled()) {
+        qCDebug(log_ffmpeg_backend) << "Hardware acceleration already enabled";
+    } else {
+        qCDebug(log_ffmpeg_backend) << "No hardware accelerator available";
+    }
+    
     // Open input device
     if (!OpenInputDevice(devicePath, actualResolution, actualFramerate)) {
         qCWarning(log_ffmpeg_backend) << "Failed to open input device";
@@ -139,6 +155,8 @@ bool FFmpegCaptureManager::StartCapture(const QString& devicePath, const QSize& 
     }
     
     capture_running_ = true;
+    
+    qCInfo(log_ffmpeg_backend) << "✓✓✓ ZERO LATENCY MODE ACTIVE - capture thread will discard stale frames ✓✓✓";
     
     // Start performance monitoring if available
     if (performance_timer_) {
@@ -200,65 +218,116 @@ bool FFmpegCaptureManager::ReadFrame()
     AVFormatContext* formatContext = device_manager_ ? device_manager_->GetFormatContext() : nullptr;
     if (!formatContext || video_stream_index_ == -1) {
         static int noContextWarnings = 0;
-        if (noContextWarnings < 5) { // Limit warnings to avoid spam
+        if (noContextWarnings < 5) {
             qCWarning(log_ffmpeg_backend) << "readFrame called with invalid context or stream index";
             noContextWarnings++;
         }
         return false;
     }
-    
-    // Read packet from input with timeout handling
-    int ret = av_read_frame(formatContext, AV_PACKET_RAW(packet_));
-    if (ret < 0) {
-        if (ret == AVERROR(EAGAIN)) {
-            return false; // Try again later
-        } else if (ret == AVERROR_EOF) {
-            qCWarning(log_ffmpeg_backend) << "End of stream reached";
-            return false;
-        } else if (ret == AVERROR(EIO)) {
-            qCWarning(log_ffmpeg_backend) << "I/O error while reading frame - device may be disconnected";
-            return false;
-        } else if (ret == AVERROR(ENODEV)) {
-            qCWarning(log_ffmpeg_backend) << "No such device error - device disconnected";
-            return false;
-        } else if (ret == AVERROR(ENXIO)) {
-            qCWarning(log_ffmpeg_backend) << "Device not configured or disconnected";
-            return false;
-        } else {
-            char errbuf[AV_ERROR_MAX_STRING_SIZE];
-            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
-            static int errorCount = 0;
-            if (errorCount < 10) { // Limit error spam
-                qCWarning(log_ffmpeg_backend) << "Error reading frame:" << QString::fromUtf8(errbuf) << "error code:" << ret;
-                errorCount++;
-                
-                // Check for device-related errors in error message
-                QString errorMsg = QString::fromUtf8(errbuf).toLower();
-                if (errorMsg.contains("no such device") || 
-                    errorMsg.contains("device") ||
-                    errorMsg.contains("vidioc") ||
-                    ret == -19) { // ENODEV
-                    qCWarning(log_ffmpeg_backend) << "Device error detected, likely disconnection";
-                }
-            }
+
+    // ── LIVE-EDGE SEEKING ─────────────────────────────────────────────────────
+    //
+    // Problem: when the decoder (especially QSV) is slower than the camera frame
+    // rate, frames pile up in the DirectShow ring buffer.  Each ReadFrame call
+    // then returns the *oldest* waiting packet, so the display always lags by
+    // however many frames are queued.  With QSV at 60fps this can accumulate to
+    // 1-2 seconds of steady-state lag (CPU/TurboJPEG never has this issue because
+    // it decodes faster than the frame interval).
+    //
+    // Solution: loop until av_read_frame "blocks" (takes ≥ kLiveEdgeMs to return),
+    // which means the ring buffer is empty and we had to wait for the camera itself.
+    // All fast-returning (buffered/stale) packets are discarded without decoding.
+    // This guarantees that the packet we hand to the decoder is the most recently
+    // produced frame, regardless of how long decoding takes.
+    //
+    // Thresholds:
+    //   kLiveEdgeMs = 5 ms  – a DirectShow ring-buffer read (simple memcpy + mutex)
+    //                         takes ≤ 2 ms even on slow systems.  5 ms comfortably
+    //                         separates "got from buffer" (<2 ms) from "waited for
+    //                         camera" (≥ 1000/fps ms, e.g. 8 ms at 120fps).
+    //
+    //   kMaxDiscard = 300   – safety cap; at 120fps the ring buffer (8MB) holds
+    //                         ≈ 40 frames, so 300 is a very generous upper bound.
+    //
+    // Note: this loop does NOT introduce extra latency on a CPU decoder (TurboJPEG)
+    // because CPU decode is faster than the frame interval – the first read always
+    // blocks and the loop executes exactly once.
+
+    static constexpr qint64 kLiveEdgeMs = 5;
+    static constexpr int    kMaxDiscard = 300;
+
+    int discarded = 0;
+
+    for (int attempt = 0; attempt <= kMaxDiscard; ++attempt) {
+        if (interrupt_requested_ || QThread::currentThread()->isInterruptionRequested()) {
             return false;
         }
-    }
-    
-    // Check if this is our video stream
-    if (AV_PACKET_RAW(packet_)->stream_index != video_stream_index_) {
+
+        // Clear previous packet data before each read
         av_packet_unref(AV_PACKET_RAW(packet_));
-        return false;
+
+        QElapsedTimer readTimer;
+        readTimer.start();
+
+        int ret = av_read_frame(formatContext, AV_PACKET_RAW(packet_));
+
+        qint64 readMs = readTimer.elapsed();
+
+        if (ret < 0) {
+            if (ret == AVERROR(EAGAIN)) {
+                return false;
+            } else if (ret == AVERROR_EOF) {
+                qCWarning(log_ffmpeg_backend) << "End of stream reached";
+                return false;
+            } else if (ret == AVERROR(EIO)) {
+                qCWarning(log_ffmpeg_backend) << "I/O error - device may be disconnected";
+                return false;
+            } else if (ret == AVERROR(ENODEV) || ret == AVERROR(ENXIO)) {
+                qCWarning(log_ffmpeg_backend) << "Device not found / disconnected";
+                return false;
+            } else {
+                char errbuf[AV_ERROR_MAX_STRING_SIZE];
+                av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+                static int errorCount = 0;
+                if (errorCount < 10) {
+                    qCWarning(log_ffmpeg_backend) << "Error reading frame:" << QString::fromUtf8(errbuf);
+                    errorCount++;
+                }
+                return false;
+            }
+        }
+
+        // Skip non-video packets (audio, subtitle …)
+        if (AV_PACKET_RAW(packet_)->stream_index != video_stream_index_) {
+            continue;
+        }
+
+        // ── Live-edge check ──────────────────────────────────────────────────
+        // If av_read_frame returned quickly the frame was already sitting in the
+        // ring buffer (stale). Discard it and loop to get a fresher one.
+        // If it blocked for ≥ kLiveEdgeMs we had to wait for the camera: this IS
+        // the latest frame. Return it immediately.
+        if (readMs >= kLiveEdgeMs || attempt == kMaxDiscard) {
+            // Live-edge (or fallback) frame – use it.
+            if (discarded > 0) {
+                qCDebug(log_ffmpeg_backend) << "Live-edge seek: discarded" << discarded
+                                            << "stale buffered frames (read took" << readMs << "ms)";
+            }
+            break;  // packet_ now holds the live (or last-resort) frame
+        }
+
+        // Fast read = stale frame. Discard and continue.
+        discarded++;
     }
-    
-    // Debug: Log first few successful reads
+
+    // Log first few successful reads
     static int readCount = 0;
     if (++readCount <= 5) {
-        qCDebug(log_ffmpeg_backend) << "ReadFrame SUCCESS #" << readCount 
+        qCDebug(log_ffmpeg_backend) << "ReadFrame SUCCESS #" << readCount
                                     << "packet size:" << AV_PACKET_RAW(packet_)->size
                                     << "stream:" << AV_PACKET_RAW(packet_)->stream_index;
     }
-    
+
     return true;
 }
 

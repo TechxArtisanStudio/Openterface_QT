@@ -23,7 +23,7 @@ QByteArray TcpResponse::createErrorResponse(const QString& errorMessage) {
     return doc.toJson(QJsonDocument::Compact);
 }
 
-QByteArray TcpResponse::createImageResponse(const QByteArray& imageData, const QString& format) {
+QByteArray TcpResponse::createImageResponse(const QByteArray& imageData, const QString& format, const QString& captureTime, const QString& filePath) {
     QJsonObject response = buildBaseResponse(TypeImage, Success);
     
     QByteArray base64Data = imageData.toBase64();
@@ -31,10 +31,17 @@ QByteArray TcpResponse::createImageResponse(const QByteArray& imageData, const Q
     data["size"] = static_cast<int>(base64Data.size());
     data["format"] = format;
     data["content"] = QString::fromLatin1(base64Data);
+    if (!captureTime.isEmpty()) {
+        data["captureTime"] = captureTime;
+    }
+    if (!filePath.isEmpty()) {
+        data["filePath"] = filePath;
+    }
     
     response["data"] = data;
     
-    qCDebug(log_tcp_response) << "Image response created, size:" << base64Data.size() << "bytes";
+    qCDebug(log_tcp_response) << "Image response created, size:" << base64Data.size() << "bytes"
+                              << (captureTime.isEmpty() ? "" : ", captureTime: " + captureTime);
     
     QJsonDocument doc(response);
     return doc.toJson(QJsonDocument::Compact);

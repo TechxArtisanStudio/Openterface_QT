@@ -6,6 +6,10 @@
 #include <QMutexLocker>
 #include <QStandardPaths>
 #include <QFile>
+#include <QDir>
+#include <QFileInfo>
+#include <QFileInfoList>
+#include <QDateTime>
 #include "../host/cameramanager.h"
 
 #ifndef Q_OS_WIN
@@ -124,20 +128,66 @@ ActionCommand TcpServer::parseCommand(const QByteArray& data){
     }
 }
 
+// Returns the path of the newest image file in the openterface pictures folder,
+// or an empty string if the folder does not exist or contains no images.
+static QString findLatestImageInPicturesDir()
+{
+    QString picturesPath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    if (picturesPath.isEmpty())
+        picturesPath = QDir::homePath() + "/Pictures";
+    QString folderPath = picturesPath + "/openterface";
+
+    QDir dir(folderPath);
+    if (!dir.exists())
+        return QString();
+
+    // Sort by last-modified time descending – first entry is the newest file
+    QFileInfoList files = dir.entryInfoList(
+        QStringList() << "*.jpg" << "*.jpeg" << "*.png",
+        QDir::Files,
+        QDir::Time   // newest first
+    );
+
+    if (files.isEmpty())
+        return QString();
+
+    return files.first().absoluteFilePath();
+}
+
 void TcpServer::sendImageToClient(){
     try {
+        // If no image was captured in this session, fall back to the newest
+        // file already saved on disk in the openterface pictures folder.
         if (lastImgPath.isEmpty()) {
-            QByteArray responseData = TcpResponse::createErrorResponse("No image available. Please capture an image first.");
+            lastImgPath = findLatestImageInPicturesDir();
+            if (lastImgPath.isEmpty()) {
+                QByteArray responseData = TcpResponse::createErrorResponse(
+                    "No image available. Please capture an image first.");
+                if (currentClient && currentClient->state() == QAbstractSocket::ConnectedState) {
+                    currentClient->write(responseData);
+                    currentClient->flush();
+                }
+                return;
+            }
+            qCDebug(log_server_tcp) << "lastImgPath was empty; resolved to latest on-disk image:" << lastImgPath;
+        }
+        
+        QFileInfo fileInfo(lastImgPath);
+        if (!fileInfo.exists()) {
+            QByteArray responseData = TcpResponse::createErrorResponse(
+                "Image file no longer exists: " + lastImgPath);
             if (currentClient && currentClient->state() == QAbstractSocket::ConnectedState) {
                 currentClient->write(responseData);
                 currentClient->flush();
             }
+            lastImgPath.clear();
             return;
         }
-        
+
         QFile imageFile(lastImgPath);
         if (!imageFile.open(QIODevice::ReadOnly)) {
-            QByteArray responseData = TcpResponse::createErrorResponse("Could not open image file: " + lastImgPath);
+            QByteArray responseData = TcpResponse::createErrorResponse(
+                "Could not open image file: " + lastImgPath);
             if (currentClient && currentClient->state() == QAbstractSocket::ConnectedState) {
                 currentClient->write(responseData);
                 currentClient->flush();
@@ -148,15 +198,30 @@ void TcpServer::sendImageToClient(){
         
         QByteArray imageData = imageFile.readAll();
         imageFile.close();
-        
-        QByteArray responseData = TcpResponse::createImageResponse(imageData, "raw");
+
+        // Determine capture time: prefer the timestamp embedded in the filename
+        // (format yyyyMMdd_HHmmss), fall back to file last-modified time.
+        QString captureTime;
+        QString baseName = fileInfo.completeBaseName(); // e.g. "20260228_164500"
+        QDateTime dtFromName = QDateTime::fromString(baseName, "yyyyMMdd_HHmmss");
+        if (dtFromName.isValid()) {
+            captureTime = dtFromName.toString(Qt::ISODate);
+        } else {
+            captureTime = fileInfo.lastModified().toString(Qt::ISODate);
+        }
+
+        QByteArray responseData = TcpResponse::createImageResponse(
+            imageData, "jpeg", captureTime, lastImgPath);
         if (currentClient && currentClient->state() == QAbstractSocket::ConnectedState) {
             currentClient->write(responseData);
-            qCDebug(log_server_tcp) << "Sending image to client, size:" << imageData.size() << "bytes";
+            qCDebug(log_server_tcp) << "Sending image to client, size:" << imageData.size()
+                                   << "bytes, captureTime:" << captureTime
+                                   << ", path:" << lastImgPath;
             currentClient->flush();
         }
     } catch (const std::exception &e) {
-        QByteArray responseData = TcpResponse::createErrorResponse(QString("Exception occurred: %1").arg(e.what()));
+        QByteArray responseData = TcpResponse::createErrorResponse(
+            QString("Exception occurred: %1").arg(e.what()));
         if (currentClient && currentClient->state() == QAbstractSocket::ConnectedState) {
             currentClient->write(responseData);
             currentClient->flush();
@@ -180,8 +245,9 @@ void TcpServer::sendScreenToClient(){
         }
         
         if (m_cameraManager->isFFmpegBackend()) {
-            // FFmpeg backend - get frame from stored image
-            frameToSend = getCurrentFrameFromCamera();
+            // FFmpeg backend - use the native-resolution original frame so that the
+            // client receives the true camera resolution, not the display-scaled copy.
+            frameToSend = m_cameraManager->getLatestOriginalFrame();
             if (frameToSend.isNull()) {
                 QByteArray responseData = TcpResponse::createErrorResponse("No frame available from FFmpeg backend. Camera may not be running or no frames captured yet.");
                 qCDebug(log_server_tcp) << "Error: No frame captured yet from FFmpeg backend";

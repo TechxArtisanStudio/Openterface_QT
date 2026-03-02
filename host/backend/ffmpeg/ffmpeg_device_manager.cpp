@@ -29,10 +29,13 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QThread>
+#include <QElapsedTimer>
 #include <thread>
 
 extern "C" {
 #include <libavdevice/avdevice.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/frame.h>
 #include <libavutil/opt.h>
 #include <libavutil/pixdesc.h>
 #include <libswscale/swscale.h>
@@ -77,6 +80,29 @@ bool FFmpegDeviceManager::OpenDevice(const QString& device_path, const QSize& re
         qCWarning(log_ffmpeg_backend) << "Failed to setup decoder";
         return false;
     }
+    
+    bool usingHw = (hw_accelerator != nullptr && hw_accelerator->IsHardwareAccelEnabled());
+    
+    // WARM-UP: Force hardware codec (QSV/CUDA) to complete its deferred session
+    // initialisation NOW, before we drain the ring buffer.
+    //
+    // Background: mjpeg_qsv (and mjpeg_cuvid) create their internal GPU/MFX session
+    // lazily – only when avcodec_send_packet() is first called.  Session creation takes
+    // 200–800 ms.  Without warm-up:
+    //   1. DrainBufferedPackets finishes (buffer is now live)
+    //   2. Capture thread calls avcodec_send_packet on its first real frame
+    //   3. QSV session init blocks for 200–800 ms inside that call
+    //   4. Camera fills the ring buffer again with stale frames during that pause
+    //   5. User sees 200–800 ms of additional latency on every session start
+    //
+    // With warm-up the GPU session is ready before DrainBufferedPackets, so the
+    // drain really does put us at the live edge of the stream.
+    if (usingHw) {
+        WarmUpHardwareDecoder();
+    }
+    
+    // Now drain packets that accumulated during codec init + warm-up.
+    DrainBufferedPackets(usingHw);
     
     // Reset operation timer - device opened successfully
     operation_start_time_ = 0;
@@ -188,8 +214,11 @@ bool FFmpegDeviceManager::InitializeInputStream(const QString& device_path, cons
     
     // ============ MJPEG QUALITY OPTIMIZATIONS ============
     
-    // 1. Increase buffer for MJPEG quality (larger buffer = fewer dropped frames)
-    av_dict_set(&options, "rtbufsize", "256M", 0);  // Increased from 100M to 256M for 60fps MJPEG
+    // 1. Small ring buffer for low latency (KVM use case prioritizes freshness over smoothness)
+    // 256M was causing 2-3s latency with QSV: during HW init frames pile up and are replayed stale.
+    // At 1080p MJPEG ~500KB/frame: 8M ≈ 16 frames ≈ 530ms max buffer. DirectShow drops oldest
+    // frames when full, so we always get near-live frames once the buffer is saturated.
+    av_dict_set(&options, "rtbufsize", "8M", 0);
     
     // 2. Disable frame dropping at input to preserve quality
     av_dict_set(&options, "fflags", "discardcorrupt", 0);
@@ -232,7 +261,7 @@ bool FFmpegDeviceManager::InitializeInputStream(const QString& device_path, cons
         AVDictionary* fallbackOptions = nullptr;
         av_dict_set(&fallbackOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
         av_dict_set(&fallbackOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
-        av_dict_set(&fallbackOptions, "rtbufsize", "100M", 0);
+        av_dict_set(&fallbackOptions, "rtbufsize", "8M", 0);  // Keep low-latency buffer for KVM
         
         ret = avformat_open_input(&format_context_, device_path.toUtf8().constData(), inputFormat, &fallbackOptions);
         av_dict_free(&fallbackOptions);
@@ -412,13 +441,19 @@ bool FFmpegDeviceManager::InitializeInputStream(const QString& device_path, cons
     qCDebug(log_ffmpeg_backend) << "Successfully opened device" << device_path;
 #endif // Q_OS_WIN
     
-    // CRITICAL FIX: Set strict timeout for stream info to prevent blocking on device reconnection
-    // This prevents the app from hanging when a device is unplugged and replugged
-    format_context_->max_analyze_duration = 1000000; // 1 second max (in microseconds)
-    format_context_->probesize = 5000000; // 5MB max probe size
+    // LOW-LATENCY: Disable internal demuxer buffering right after open so av_read_frame
+    // always returns the freshest packet rather than buffering ahead.
+    format_context_->flags |= AVFMT_FLAG_NOBUFFER;
     
-    // Find stream info with timeout protection
-    qCDebug(log_ffmpeg_backend) << "Finding stream info (max 1 second)...";
+    // MINIMAL PROBE: For a live DirectShow/V4L2 MJPEG camera the codec parameters are
+    // fully declared in the first packet.  Restrict find_stream_info to reading at most
+    // one frame's worth of data so it does not consume real live frames (any frame read
+    // by find_stream_info is buffered internally and replayed later → stale display).
+    format_context_->probesize        = 1024 * 32;  // 32 KB – enough for one MJPEG frame header
+    format_context_->max_analyze_duration = 0;       // No time-based analysis delay
+    
+    // Find stream info with minimal probe to avoid consuming live frames
+    qCDebug(log_ffmpeg_backend) << "Finding stream info (minimal probe)...";
     int stream_ret = avformat_find_stream_info(format_context_, nullptr);
     if (stream_ret < 0) {
         char errbuf[AV_ERROR_MAX_STRING_SIZE];
@@ -427,10 +462,6 @@ bool FFmpegDeviceManager::InitializeInputStream(const QString& device_path, cons
         return false;
     }
     qCDebug(log_ffmpeg_backend) << "Stream info found successfully";
-    
-    // Set real-time flags to prevent buffer overflow
-    format_context_->max_analyze_duration = 50000; // 0.05 seconds
-    format_context_->probesize = 1000000; // 1MB
     
     return true;
 }
@@ -512,6 +543,16 @@ bool FFmpegDeviceManager::SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator
     int optimal_threads = std::min(8, std::max(2, QThread::idealThreadCount()));
     codec_context_->thread_count = optimal_threads;
     codec_context_->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;  // Enable both frame and slice threading
+    
+    // LATENCY FIX: Hardware decoders (QSV, CUDA) manage their own internal parallelism.
+    // Setting FF_THREAD_FRAME at the FFmpeg host level forces it to buffer thread_count frames
+    // before yielding the first decoded frame — that is thread_count/fps seconds of added latency.
+    // Disable frame-level threading for hardware decoders to eliminate this buffering.
+    if (usingHwDecoder) {
+        codec_context_->thread_count = 1;
+        codec_context_->thread_type = 0;  // No host-side frame threading for hardware decoders
+        qCInfo(log_ffmpeg_backend) << "Hardware decoder: thread_count set to 1 (no frame-level host threading) to eliminate codec pipeline latency";
+    }
     
     // Request full-range YUV output (better quality than limited range)
     codec_context_->pix_fmt = AV_PIX_FMT_YUVJ420P;
@@ -599,6 +640,15 @@ bool FFmpegDeviceManager::SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator
         av_dict_set(&codecOptions, "rgb_mode", "1", 0);  // Output RGB directly from GPU
         
         qCInfo(log_ffmpeg_backend) << "Setting CUDA/NVDEC decoder options: gpu=0, surfaces=1, low_latency=1, delay=0, rgb_mode=1";
+    }
+    
+    if (usingHwDecoder && hw_device_type == AV_HWDEVICE_TYPE_QSV) {
+        // QSV (Intel Quick Sync) specific options for minimal latency.
+        // async_depth=1 puts MFX into synchronous mode: only 1 frame is ever inside the
+        // MFX async pipeline at a time.  The default async_depth is 4 which adds ~4/fps
+        // seconds of internal pipeline latency (≈133ms at 30fps, worse at lower fps).
+        av_dict_set(&codecOptions, "async_depth", "1", 0);
+        qCInfo(log_ffmpeg_backend) << "Setting QSV decoder options: async_depth=1 (synchronous low-latency mode)";
     }
     
     // Open codec
@@ -695,4 +745,183 @@ bool FFmpegDeviceManager::SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator
                                 << "pixel_format=" << codecpar->format;
     
     return true;
+}
+
+void FFmpegDeviceManager::WarmUpHardwareDecoder()
+{
+    // Read and decode one real frame to force the hardware codec (QSV/CUDA) to create
+    // its internal GPU session synchronously here, inside OpenDevice, rather than lazily
+    // on the first call from the capture thread.
+    //
+    // Without this, mjpeg_qsv allocates its MFX session on the very first
+    // avcodec_send_packet call in the capture thread (~200-800 ms), during which the
+    // camera fills the ring buffer again — exactly the stale-frame latency bug we fixed
+    // with DrainBufferedPackets.  By forcing init here, DrainBufferedPackets runs
+    // AFTER the session is ready and its drain truly reaches the live edge.
+
+    if (!format_context_ || !codec_context_ || video_stream_index_ < 0) {
+        return;
+    }
+
+    qCInfo(log_ffmpeg_backend) << "Warm-up: forcing hardware codec session init...";
+    QElapsedTimer warmUpTimer;
+    warmUpTimer.start();
+
+    // Use a per-read timeout identical to DrainBufferedPackets.
+    static constexpr qint64 kWarmUpReadTimeoutMs = 120;
+    qint64 savedStart = operation_start_time_;
+    bool savedInterrupt = interrupt_requested_;
+
+    AVPacket* pkt   = av_packet_alloc();
+    AVFrame*  frame = av_frame_alloc();
+
+    if (!pkt || !frame) {
+        av_packet_free(&pkt);
+        av_frame_free(&frame);
+        operation_start_time_  = savedStart;
+        interrupt_requested_   = savedInterrupt;
+        return;
+    }
+
+    bool sent = false;
+    const int maxAttempts = 30; // limit read attempts (~1 sec at 30fps)
+    for (int attempt = 0; attempt < maxAttempts && !sent; ++attempt) {
+        operation_start_time_ = QDateTime::currentMSecsSinceEpoch()
+                                 - (kOperationTimeoutMs - kWarmUpReadTimeoutMs);
+        interrupt_requested_  = false;
+
+        int ret = av_read_frame(format_context_, pkt);
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EXIT) {
+            continue;
+        }
+        if (ret < 0) {
+            break;
+        }
+
+        if (pkt->stream_index != video_stream_index_) {
+            av_packet_unref(pkt);
+            continue;
+        }
+
+        // Send packet — this is the call that triggers QSV session creation
+        ret = avcodec_send_packet(codec_context_, pkt);
+        av_packet_unref(pkt);
+
+        if (ret == 0 || ret == AVERROR(EAGAIN)) {
+            sent = true;
+            // Drain the decoded frame so the codec is in a clean state
+            avcodec_receive_frame(codec_context_, frame);
+        }
+    }
+
+    // Flush any partial decode state
+    avcodec_flush_buffers(codec_context_);
+
+    av_frame_free(&frame);
+    av_packet_free(&pkt);
+
+    operation_start_time_ = savedStart;
+    interrupt_requested_  = savedInterrupt;
+
+    qCInfo(log_ffmpeg_backend) << "Warm-up complete in" << warmUpTimer.elapsed() << "ms"
+                               << "(sent:" << sent << ")";
+}
+
+void FFmpegDeviceManager::DrainBufferedPackets(bool using_hw_decoder)
+{
+    // Discard packets that accumulated in the DirectShow ring buffer while the codec
+    // (especially QSV/CUDA) was initialising.  Without this the capture thread would
+    // replay those stale frames, producing the 2-3 second display lag.
+    //
+    // Key insight about timing each av_read_frame call:
+    //
+    //   • Buffered (stale) packet — DirectShow ring buffer has data ready:
+    //       av_read_frame returns in < 2 ms (simple ring buffer memcpy, no camera wait).
+    //
+    //   • Live packet — ring buffer empty, must wait for next camera frame:
+    //       av_read_frame blocks for ≥ 1/fps seconds:
+    //         30 fps → ~33 ms,  60 fps → ~16 ms,  120 fps → ~8 ms.
+    //
+    // The previous threshold was kDrainReadTimeoutMs/2 = 60 ms.  At 60 fps a LIVE
+    // frame takes only ~16 ms → 16 < 60 → drain never terminates on the live edge
+    // and instead consumes the full totalBudgetMs (600 ms) worth of real live frames,
+    // introducing ≈600 ms of startup latency.
+    //
+    // New threshold: 8 ms.  A buffered memcpy is ≤1-2 ms.  The slowest plausible
+    // camera (120 fps) delivers a live frame every ~8 ms.  Using 8 ms as the cutpoint
+    // correctly stops the drain the moment the ring buffer is empty at any frame rate
+    // up to 120 fps, without being fooled by OS jitter on buffered reads.
+
+    if (!format_context_) {
+        return;
+    }
+
+    // Safety cap: if codec took an unusually long time to init (e.g. slow QSV driver
+    // probe), allow up to 10 s of draining.  With the 8 ms threshold we will stop
+    // naturally at the live edge long before this budget is exhausted.
+    const qint64 totalBudgetMs = 10000;
+    const int    maxPackets    = 5000;
+
+    // Live-edge threshold: stop draining when any single av_read_frame takes ≥ 8 ms
+    // (means it had to wait for the camera = we are at the live edge).
+    static constexpr qint64 kLiveEdgeThresholdMs = 8;
+
+    // Use a generous per-read interrupt timeout so the InterruptCallback does not
+    // fire during a normal ~33 ms camera wait at the live edge.
+    static constexpr qint64 kDrainInterruptTimeoutMs = 200;
+
+    qint64 savedOperationStartTime = operation_start_time_;
+    bool   savedInterruptRequested = interrupt_requested_;
+
+    AVPacket* pkt = av_packet_alloc();
+    if (!pkt) {
+        return;
+    }
+
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+    int drained = 0;
+
+    while (drained < maxPackets && totalTimer.elapsed() < totalBudgetMs) {
+        // Back-date start time so InterruptCallback fires after kDrainInterruptTimeoutMs.
+        operation_start_time_ = QDateTime::currentMSecsSinceEpoch()
+                                 - (kOperationTimeoutMs - kDrainInterruptTimeoutMs);
+        interrupt_requested_  = false;
+
+        QElapsedTimer readTimer;
+        readTimer.start();
+
+        int ret = av_read_frame(format_context_, pkt);
+
+        qint64 readMs = readTimer.elapsed();
+
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EXIT || ret < 0) {
+            // EAGAIN / error — DirectShow says "no data yet".  We are at live edge.
+            break;
+        }
+
+        av_packet_unref(pkt);
+        drained++;
+
+        // If this read took >= kLiveEdgeThresholdMs the ring buffer was empty and
+        // we had to wait for the camera → we are now at the live edge.  Stop here.
+        if (readMs >= kLiveEdgeThresholdMs) {
+            qCDebug(log_ffmpeg_backend) << "Drain: read blocked for" << readMs
+                                        << "ms — reached live edge after draining" << drained << "packets";
+            break;
+        }
+    }
+
+    av_packet_free(&pkt);
+
+    // Restore interrupt state for normal operation.
+    operation_start_time_ = savedOperationStartTime;
+    interrupt_requested_  = savedInterruptRequested;
+
+    if (drained > 0) {
+        qCInfo(log_ffmpeg_backend) << "Drained" << drained
+                                   << "stale buffered packets after codec init ("
+                                   << totalTimer.elapsed() << "ms,"
+                                   << "hw_decoder:" << using_hw_decoder << ")";
+    }
 }

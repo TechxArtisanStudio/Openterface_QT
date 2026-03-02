@@ -70,6 +70,9 @@ public:
     FFmpegBackendHandler* getFFmpegBackend() const;
     GStreamerBackendHandler* getGStreamerBackend() const;
     MultimediaBackendHandler* getBackendHandler() const;
+
+    // Returns the latest camera frame at native (unscaled) resolution.
+    QImage getLatestOriginalFrame() const;
     
     // Video output management
     void setVideoOutput(QGraphicsVideoItem* videoOutput);

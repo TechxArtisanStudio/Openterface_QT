@@ -16,8 +16,10 @@ set "SCRIPT_DIR=%~dp0"
 
 REM Optional environment variables:
 REM   EXTERNAL_MINGW=C:\msys64\mingw64  -> Path to MinGW toolchain (default MSYS2)
-REM   ENABLE_NVENC=1              -> Enable NVENC support
+REM   ENABLE_NVENC=1              -> Enable NVENC support (default: 1)
+REM   ENABLE_LIBMFX=1             -> Enable Intel QSV support (default: 1)
 REM   NVENC_SDK_PATH=...          -> Path to NVENC SDK (optional)
+REM   AUTO_INSTALL_FFNV=1         -> Auto-install nv-codec-headers (default: 1 when ENABLE_NVENC=1)
 
 echo ============================================================================
 echo FFmpeg Shared Build Script for Windows
@@ -97,6 +99,17 @@ echo Using MinGW: !MINGW_PATH!
 REM Set environment for the build
 set "EXTERNAL_MINGW_MSYS=!MINGW_PATH!"
 set "SKIP_MSYS_MINGW=1"
+
+REM Enable GPU acceleration by default (can be overridden by environment)
+if not defined ENABLE_LIBMFX set "ENABLE_LIBMFX=1"
+if not defined ENABLE_NVENC set "ENABLE_NVENC=1"
+if not defined AUTO_INSTALL_FFNV set "AUTO_INSTALL_FFNV=1"
+
+echo GPU Acceleration Settings:
+echo   Intel QSV (ENABLE_LIBMFX): !ENABLE_LIBMFX!
+echo   NVIDIA NVENC: !ENABLE_NVENC!
+echo   Auto-install NVENC headers: !AUTO_INSTALL_FFNV!
+echo.
 
 REM Update PATH to include MinGW bin
 set "PATH=!MINGW_PATH!\bin;%PATH%"
