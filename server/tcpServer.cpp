@@ -32,10 +32,9 @@ void TcpServer::startServer(quint16 port) {
 void TcpServer::setCameraManager(CameraManager* cameraManager) {
     m_cameraManager = cameraManager;
     if (m_cameraManager) {
-        // Connect to camera image capture signal to store the latest frame
-        connect(m_cameraManager, QOverload<int, const QImage&>::of(&CameraManager::imageCaptured),
-                this, &TcpServer::onImageCaptured, Qt::DirectConnection);
         qCDebug(log_server_tcp) << "CameraManager connected to TcpServer";
+        // Note: frames are read on-demand via m_cameraManager->getLatestOriginalFrame()
+        // inside sendScreenToClient(). There is no need to subscribe to every live frame.
     }
 }
 

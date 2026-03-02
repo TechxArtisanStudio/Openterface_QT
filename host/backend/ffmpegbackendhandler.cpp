@@ -100,6 +100,9 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
     m_ptsFrameCount(0),
     m_lastForceDisplayTime(0)
 {
+    // Initialize backpressure counter (shared with lambda captures in QueuedConnection slots)
+    m_pendingFrameCount = std::make_shared<std::atomic<int>>(0);
+    // m_videoOutputConnection is default-constructed (invalid/disconnected)
     m_config = getDefaultConfig();
     m_preferredHwAccel = GlobalSetting::instance().getHardwareAcceleration();
     
@@ -706,12 +709,23 @@ void FFmpegBackendHandler::processFrame()
             qCDebug(log_ffmpeg_backend) << "Processed frame" << m_frameCount << "size:" << image.size();
         }
         
-        // Emit QImage to UI (QueuedConnection ensures thread safety)
+        // Emit QImage to UI (QueuedConnection ensures thread safety).
+        // BACKPRESSURE: Only queue a new frame when fewer than 2 frames are already
+        // waiting in the GUI event loop.  Without this limit each unconsumed frame
+        // holds its own ~8 MB buffer in the queue, rapidly exhausting RAM and
+        // triggering "QImage: out of memory" warnings at high frame rates.
         if (m_captureRunning) {
             if (m_frameCount <= 5) {
                 qCDebug(log_ffmpeg_backend) << "Emitting frameReadyImage signal for frame" << m_frameCount;
             }
-            emit frameReadyImage(image);
+            // Atomically increment; if the previous value was < 2 we may emit,
+            // otherwise the GUI is still catching up - drop this frame.
+            if (m_pendingFrameCount->fetch_add(1, std::memory_order_acq_rel) < 2) {
+                emit frameReadyImage(image);
+            } else {
+                // GUI thread is backlogged – undo the increment and drop the frame
+                m_pendingFrameCount->fetch_sub(1, std::memory_order_release);
+            }
         }
         
         // Write frame to recording file if recording is active
@@ -754,9 +768,15 @@ void FFmpegBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
 {
     QMutexLocker locker(&m_mutex);
     
-    // Disconnect previous connections
-    disconnect(this, &FFmpegBackendHandler::frameReady, this, nullptr);
-    disconnect(this, &FFmpegBackendHandler::frameReadyImage, this, nullptr);
+    // Disconnect only the previously-stored video-output connection so that
+    // other observers of frameReadyImage (e.g. CameraManager bridge) are
+    // left intact.
+    disconnect(m_videoOutputConnection);
+    m_videoOutputConnection = QMetaObject::Connection{};
+    
+    // Reset backpressure counter: any in-flight queued events from the old
+    // connection will never decrement now, so start fresh.
+    m_pendingFrameCount->store(0, std::memory_order_release);
     
     m_graphicsVideoItem = videoItem;
     m_videoPane = nullptr;
@@ -777,18 +797,14 @@ void FFmpegBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
         
         if (parentVideoPane) {
             qCDebug(log_ffmpeg_backend) << "Found parent VideoPane, connecting frameReadyImage";
-            // Connect frameReadyImage to VideoPane's method that handles QGraphicsVideoItem
-            connect(this, &FFmpegBackendHandler::frameReadyImage,
-                    parentVideoPane, [parentVideoPane, videoItem](const QImage& image) {
-                        if (parentVideoPane && videoItem) {
-                            parentVideoPane->updateGraphicsVideoItemFromImage(videoItem, image);
-                        }
-                    }, Qt::QueuedConnection);
+            // QPointer guards ensure the lambda is safe if either object is destroyed
+            // while a frame is still queued in the event loop.
             QPointer<VideoPane> parentPtr(parentVideoPane);
             QPointer<QGraphicsVideoItem> itemPtr(videoItem);
-            connect(this, &FFmpegBackendHandler::frameReadyImage,
-                    parentVideoPane, [parentPtr, itemPtr](const QImage& image) {
-                        // Guard: skip if either object was destroyed while the frame was queued
+            auto pendingCount = m_pendingFrameCount;
+            m_videoOutputConnection = connect(this, &FFmpegBackendHandler::frameReadyImage,
+                    parentVideoPane, [pendingCount, parentPtr, itemPtr](const QImage& image) {
+                        pendingCount->fetch_sub(1, std::memory_order_release);
                         if (!parentPtr) return;
                         QGraphicsVideoItem* item = itemPtr.data();
                         if (!item) return;
@@ -805,9 +821,15 @@ void FFmpegBackendHandler::setVideoOutput(VideoPane* videoPane)
 {
     QMutexLocker locker(&m_mutex);
     
-    // Disconnect previous connections
-    disconnect(this, &FFmpegBackendHandler::frameReady, this, nullptr);
-    disconnect(this, &FFmpegBackendHandler::frameReadyImage, this, nullptr);
+    // Disconnect only the previously-stored video-output connection so that
+    // other observers of frameReadyImage (e.g. CameraManager bridge) are
+    // left intact.
+    disconnect(m_videoOutputConnection);
+    m_videoOutputConnection = QMetaObject::Connection{};
+    
+    // Reset backpressure counter: any in-flight queued events from the old
+    // connection will never decrement now, so start fresh.
+    m_pendingFrameCount->store(0, std::memory_order_release);
     
     m_videoPane = videoPane;
     m_graphicsVideoItem = nullptr;
@@ -815,11 +837,17 @@ void FFmpegBackendHandler::setVideoOutput(VideoPane* videoPane)
     if (videoPane) {
         qCDebug(log_ffmpeg_backend) << "VideoPane set for FFmpeg direct rendering";
         
-        // OPTIMIZATION: Connect frameReadyImage signal to receive QImage
-        // Use QueuedConnection to ensure thread safety and prevent blocking capture thread
-        connect(this, &FFmpegBackendHandler::frameReadyImage,
-                videoPane, &VideoPane::updateVideoFrameFromImage,
-                Qt::QueuedConnection);
+        // Connect with a QPointer-guarded lambda so the slot is safe if VideoPane
+        // is destroyed while a frame is still queued.  The lambda also releases
+        // one backpressure slot so the capture thread can emit the next frame.
+        QPointer<VideoPane> panePtr(videoPane);
+        auto pendingCount = m_pendingFrameCount;
+        m_videoOutputConnection = connect(this, &FFmpegBackendHandler::frameReadyImage,
+                videoPane, [pendingCount, panePtr](const QImage& image) {
+                    pendingCount->fetch_sub(1, std::memory_order_release);
+                    if (!panePtr) return;
+                    panePtr->updateVideoFrameFromImage(image);
+                }, Qt::QueuedConnection);
         
         // Connect viewport size changes to update frame scaling
         connect(videoPane, &VideoPane::viewportSizeChanged,

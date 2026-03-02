@@ -32,6 +32,7 @@ Q_DECLARE_LOGGING_CATEGORY(log_ffmpeg_backend)
 #include <QMutex>
 #include <QWaitCondition>
 #include <memory>
+#include <atomic>
 
 // Forward declarations for Qt types
 class QGraphicsVideoItem;
@@ -288,10 +289,19 @@ private:
     // Output management
     QGraphicsVideoItem* m_graphicsVideoItem;
     VideoPane* m_videoPane;
+    // Stored connection handle for the active video-output frameReadyImage slot.
+    // Disconnecting via handle targets only this specific lambda, leaving other
+    // observers (e.g. CameraManager bridge) untouched.
+    QMetaObject::Connection m_videoOutputConnection;
     
     // Error tracking
     QString m_lastError;
     
+
+    // Frame backpressure: limits the number of QImage copies queued in the GUI event
+    // loop via QueuedConnection, preventing unbounded memory growth and OOM conditions
+    // when the capture thread produces frames faster than the GUI thread consumes them.
+    std::shared_ptr<std::atomic<int>> m_pendingFrameCount;
 
     // Thread safety
     mutable QMutex m_mutex;
