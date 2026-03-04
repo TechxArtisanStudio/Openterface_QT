@@ -829,6 +829,59 @@ if [ -d /usr/lib/openterfaceqt ]; then
         fi
     fi
     
+    # VA-API X11 extension
+    if ls /usr/lib/openterfaceqt/libva-x11.so.* >/dev/null 2>&1; then
+        base_vax11=$(ls -1 /usr/lib/openterfaceqt/libva-x11.so.* 2>/dev/null | head -1)
+        if [ -n "$base_vax11" ] && [ ! -L /usr/lib/openterfaceqt/libva-x11.so.2 ]; then
+            ln -sf "$(basename "$base_vax11")" /usr/lib/openterfaceqt/libva-x11.so.2 2>/dev/null || true
+            echo "  ✅ Created symlink: libva-x11.so.2 -> $(basename "$base_vax11")"
+        fi
+    fi
+    
+    # VA-API DRM extension
+    if ls /usr/lib/openterfaceqt/libva-drm.so.* >/dev/null 2>&1; then
+        base_vadrm=$(ls -1 /usr/lib/openterfaceqt/libva-drm.so.* 2>/dev/null | head -1)
+        if [ -n "$base_vadrm" ] && [ ! -L /usr/lib/openterfaceqt/libva-drm.so.2 ]; then
+            ln -sf "$(basename "$base_vadrm")" /usr/lib/openterfaceqt/libva-drm.so.2 2>/dev/null || true
+            echo "  ✅ Created symlink: libva-drm.so.2 -> $(basename "$base_vadrm")"
+        fi
+    fi
+    
+    # USB device access
+    if ls /usr/lib/openterfaceqt/libusb-1.0.so.* >/dev/null 2>&1; then
+        base_usb=$(ls -1 /usr/lib/openterfaceqt/libusb-1.0.so.* 2>/dev/null | head -1)
+        if [ -n "$base_usb" ] && [ ! -L /usr/lib/openterfaceqt/libusb-1.0.so.0 ]; then
+            ln -sf "$(basename "$base_usb")" /usr/lib/openterfaceqt/libusb-1.0.so.0 2>/dev/null || true
+            echo "  ✅ Created symlink: libusb-1.0.so.0 -> $(basename "$base_usb")"
+        fi
+    fi
+    
+    # JPEG libraries
+    if ls /usr/lib/openterfaceqt/libturbojpeg.so.* >/dev/null 2>&1; then
+        base_tjpeg=$(ls -1 /usr/lib/openterfaceqt/libturbojpeg.so.* 2>/dev/null | head -1)
+        if [ -n "$base_tjpeg" ] && [ ! -L /usr/lib/openterfaceqt/libturbojpeg.so.0 ]; then
+            ln -sf "$(basename "$base_tjpeg")" /usr/lib/openterfaceqt/libturbojpeg.so.0 2>/dev/null || true
+            echo "  ✅ Created symlink: libturbojpeg.so.0 -> $(basename "$base_tjpeg")"
+        fi
+    fi
+    
+    if ls /usr/lib/openterfaceqt/libjpeg.so.* >/dev/null 2>&1; then
+        base_jpeg=$(ls -1 /usr/lib/openterfaceqt/libjpeg.so.* 2>/dev/null | head -1)
+        if [ -n "$base_jpeg" ] && [ ! -L /usr/lib/openterfaceqt/libjpeg.so.8 ]; then
+            ln -sf "$(basename "$base_jpeg")" /usr/lib/openterfaceqt/libjpeg.so.8 2>/dev/null || true
+            echo "  ✅ Created symlink: libjpeg.so.8 -> $(basename "$base_jpeg")"
+        fi
+    fi
+    
+    # Compression libraries (bzip2)
+    if ls /usr/lib/openterfaceqt/libbz2.so.* >/dev/null 2>&1; then
+        base_bz=$(ls -1 /usr/lib/openterfaceqt/libbz2.so.* 2>/dev/null | head -1)
+        if [ -n "$base_bz" ] && [ ! -L /usr/lib/openterfaceqt/libbz2.so.1.0 ]; then
+            ln -sf "$(basename "$base_bz")" /usr/lib/openterfaceqt/libbz2.so.1.0 2>/dev/null || true
+            echo "  ✅ Created symlink: libbz2.so.1.0 -> $(basename "$base_bz")"
+        fi
+    fi
+    
     echo "✅ Bundled library symlinks created"
 fi
 
