@@ -585,16 +585,61 @@ print_category() {
     echo "  📦 $category:"
 }
 
-# Helper function to check if RPM package is installed
-is_rpm_installed() {
+# Helper function to check if RPM package is installed OR if the required library soname exists
+# This handles Fedora package name variations (e.g., libglvnd-gles vs mesa-libGLES, zlib-ng-compat vs zlib)
+is_installed_or_lib() {
     local pkg=$1
-    rpm -q "$pkg" >/dev/null 2>&1
+
+    # Quick RPM check first
+    if rpm -q "$pkg" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    # Map package names to their library sonames for Fedora compatibility
+    case "$pkg" in
+        mesa-libGLES|libglvnd-gles)
+            # Check for OpenGL ES support (Fedora uses libglvnd-gles)
+            if ldconfig -p 2>/dev/null | grep -q "libGLESv2.so"; then return 0; fi
+            if ldconfig -p 2>/dev/null | grep -q "libEGL.so"; then return 0; fi
+            if ls /usr/lib*/libGLESv2.so* >/dev/null 2>&1; then return 0; fi
+            if ls /usr/lib*/libEGL.so* >/dev/null 2>&1; then return 0; fi
+            ;;
+        mesa-libglapi|mesa-dri-drivers)
+            # Check for OpenGL API (Fedora uses mesa-dri-drivers)
+            if ldconfig -p 2>/dev/null | grep -q "libglapi.so"; then return 0; fi
+            if ldconfig -p 2>/dev/null | grep -q "libGL.so"; then return 0; fi
+            if ls /usr/lib*/libglapi.so* >/dev/null 2>&1; then return 0; fi
+            if ls /usr/lib*/libGL.so* >/dev/null 2>&1; then return 0; fi
+            ;;
+        zlib|zlib-ng-compat)
+            # Check for zlib compression (Fedora uses zlib-ng-compat)
+            if ldconfig -p 2>/dev/null | grep -q "libz.so.1"; then return 0; fi
+            if ls /usr/lib*/libz.so.1* >/dev/null 2>&1; then return 0; fi
+            if ls /usr/lib*/libz.so* >/dev/null 2>&1; then return 0; fi
+            ;;
+        libvdpau)
+            # Check for VDPAU hardware acceleration
+            if ldconfig -p 2>/dev/null | grep -q "libvdpau.so.1"; then return 0; fi
+            if ls /usr/lib*/libvdpau.so.1* >/dev/null 2>&1; then return 0; fi
+            ;;
+        libva)
+            # Check for VA-API hardware acceleration
+            if ldconfig -p 2>/dev/null | grep -q "libva.so.2\|libva.so"; then return 0; fi
+            if ls /usr/lib*/libva.so* >/dev/null 2>&1; then return 0; fi
+            ;;
+        *)
+            # Unknown package, just use RPM check result
+            return 1
+            ;;
+    esac
+
+    return 1
 }
 
 # Check Graphics dependencies
 print_category "Graphics Libraries"
 for pkg in "${GRAPHICS_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -607,7 +652,7 @@ echo ""
 # Check Audio dependencies
 print_category "Audio Libraries"
 for pkg in "${AUDIO_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -620,7 +665,7 @@ echo ""
 # Check Video dependencies
 print_category "Video Libraries"
 for pkg in "${VIDEO_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -633,7 +678,7 @@ echo ""
 # Check Display dependencies
 print_category "X11/Display Server Libraries"
 for pkg in "${DISPLAY_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -646,7 +691,7 @@ echo ""
 # Check OpenGL dependencies
 print_category "OpenGL Libraries"
 for pkg in "${OPENGL_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -659,7 +704,7 @@ echo ""
 # Check Hardware Acceleration dependencies (optional)
 print_category "Hardware Acceleration Libraries (VA-API, VDPAU)"
 for pkg in "${HWACCEL_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -671,7 +716,7 @@ echo ""
 # Check Compression dependencies
 print_category "Compression Libraries"
 for pkg in "${COMPRESSION_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -684,7 +729,7 @@ echo ""
 # Check Debug dependencies
 print_category "Debug Libraries"
 for pkg in "${DEBUG_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -744,8 +789,50 @@ else
 fi
 
 %post
+# =============================================================================
+# Post-Installation: Register bundled libraries and create symlinks
+# =============================================================================
+# Create symlinks for bundled libraries to handle soname variations and suppress ldconfig warnings
+mkdir -p /etc/ld.so.conf.d
+
+echo "Setting up OpenterfaceQT bundled libraries..."
+
+# Create symlinks for bundled libraries to match expected sonames
+# This eliminates ldconfig warnings about libraries not being symlinks
+if [ -d /usr/lib/openterfaceqt ]; then
+    echo "Creating symlinks for bundled core libraries..."
+    
+    # Compression libraries (zlib variants)
+    if ls /usr/lib/openterfaceqt/libz.so.* >/dev/null 2>&1; then
+        base_z=$(ls -1 /usr/lib/openterfaceqt/libz.so.* 2>/dev/null | head -1)
+        if [ -n "$base_z" ] && [ ! -L /usr/lib/openterfaceqt/libz.so.1 ]; then
+            ln -sf "$(basename "$base_z")" /usr/lib/openterfaceqt/libz.so.1 2>/dev/null || true
+            echo "  ✅ Created symlink: libz.so.1 -> $(basename "$base_z")"
+        fi
+    fi
+    
+    # Hardware acceleration libraries (VA-API)
+    if ls /usr/lib/openterfaceqt/libva.so.* >/dev/null 2>&1; then
+        base_va=$(ls -1 /usr/lib/openterfaceqt/libva.so.* 2>/dev/null | head -1)
+        if [ -n "$base_va" ] && [ ! -L /usr/lib/openterfaceqt/libva.so.2 ]; then
+            ln -sf "$(basename "$base_va")" /usr/lib/openterfaceqt/libva.so.2 2>/dev/null || true
+            echo "  ✅ Created symlink: libva.so.2 -> $(basename "$base_va")"
+        fi
+    fi
+    
+    # Hardware acceleration libraries (VDPAU)
+    if ls /usr/lib/openterfaceqt/libvdpau.so.* >/dev/null 2>&1; then
+        base_vdpau=$(ls -1 /usr/lib/openterfaceqt/libvdpau.so.* 2>/dev/null | head -1)
+        if [ -n "$base_vdpau" ] && [ ! -L /usr/lib/openterfaceqt/libvdpau.so.1 ]; then
+            ln -sf "$(basename "$base_vdpau")" /usr/lib/openterfaceqt/libvdpau.so.1 2>/dev/null || true
+            echo "  ✅ Created symlink: libvdpau.so.1 -> $(basename "$base_vdpau")"
+        fi
+    fi
+    
+    echo "✅ Bundled library symlinks created"
+fi
+
 # Register bundled libraries with system linker during installation
-# Library symlinks are already properly set up by the build process
 mkdir -p /etc/ld.so.conf.d
 
 cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
@@ -757,6 +844,7 @@ EOF
 # Rebuild the dynamic linker cache to register bundled libraries
 # Filter out ldconfig warnings that are expected for bundled scenarios
 # Note: Bundled libraries in /usr/lib/openterfaceqt/ are actual files, not symlinks (harmless)
+echo "Registering bundled libraries with system linker..."
 ldconfig 2>&1 | grep -v "is not a symbolic link" | grep -v "^$" || true
 
 # Verify libraries are registered
@@ -769,6 +857,8 @@ mkdir -p /usr/local/bin
 if [ ! -L /usr/local/bin/openterfaceQT ]; then
     ln -sf /usr/bin/openterfaceQT /usr/local/bin/openterfaceQT 2>/dev/null || true
 fi
+
+echo "✅ OpenterfaceQT post-installation setup complete"
 
 %postun
 # Remove ldconfig configuration on uninstall to clean up bundled library paths
