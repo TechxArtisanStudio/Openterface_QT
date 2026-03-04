@@ -482,7 +482,7 @@ find %{buildroot} -type f -o -type l | sed 's|%{buildroot}||' > %{_builddir}/../
 # 3. Graceful handling when AutoReqProv is disabled
 #
 # Required system dependencies (most are bundled, these are NOT):
-#   - Graphics: mesa-libEGL, mesa-libGLES
+#   - Graphics: mesa-libEGL, libglvnd-gles
 #   - Audio: pulseaudio-libs
 #   - Video: libv4l
 #   - X11/Display: libxkbcommon, wayland-client, libxcb, libX11
@@ -527,7 +527,7 @@ echo ""
 # Define RPM package names (different from DEB)
 GRAPHICS_DEPS=(
     "mesa-libEGL"
-    "mesa-libGLES"
+    "libglvnd-gles"
 )
 
 AUDIO_DEPS=(
@@ -547,7 +547,7 @@ DISPLAY_DEPS=(
 
 OPENGL_DEPS=(
     "mesa-libGL"
-    "mesa-libglapi"
+    "mesa-dri-drivers"
     "mesa-libGLU"
 )
 
@@ -561,7 +561,7 @@ HWACCEL_DEPS=(
 )
 
 COMPRESSION_DEPS=(
-    "zlib"
+    "zlib-ng-compat"
     "bzip2-libs"
 )
 
@@ -756,6 +756,7 @@ EOF
 
 # Rebuild the dynamic linker cache to register bundled libraries
 # Filter out ldconfig warnings that are expected for bundled scenarios
+# Note: Bundled libraries in /usr/lib/openterfaceqt/ are actual files, not symlinks (harmless)
 ldconfig 2>&1 | grep -v "is not a symbolic link" | grep -v "^$" || true
 
 # Verify libraries are registered
