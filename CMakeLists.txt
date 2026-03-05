@@ -344,3 +344,51 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 # Qt components already found above
+# =============================================================================
+# Installation Targets (Linux only)
+# =============================================================================
+if(UNIX AND NOT APPLE)
+    # Install the main binary
+    install(TARGETS openterfaceQT
+        BUNDLE DESTINATION .
+        RUNTIME DESTINATION bin
+    )
+    
+    # Install desktop entry file for system menu integration
+    if(EXISTS "${CMAKE_SOURCE_DIR}/packaging/com.openterface.openterfaceQT.desktop")
+        install(FILES "${CMAKE_SOURCE_DIR}/packaging/com.openterface.openterfaceQT.desktop"
+            DESTINATION share/applications
+        )
+        message(STATUS "Desktop entry will be installed to: share/applications/com.openterface.openterfaceQT.desktop")
+    endif()
+    
+    # Install application icon if it exists
+    if(EXISTS "${CMAKE_SOURCE_DIR}/packaging/com.openterface.openterfaceQT.png")
+        install(FILES "${CMAKE_SOURCE_DIR}/packaging/com.openterface.openterfaceQT.png"
+            DESTINATION share/icons/hicolor/256x256/apps
+            RENAME com.openterface.openterfaceQT.png
+        )
+        message(STATUS "Application icon will be installed to: share/icons/hicolor/256x256/apps/")
+    elseif(EXISTS "${CMAKE_SOURCE_DIR}/resources/app_icon.png")
+        install(FILES "${CMAKE_SOURCE_DIR}/resources/app_icon.png"
+            DESTINATION share/icons/hicolor/256x256/apps
+            RENAME com.openterface.openterfaceQT.png
+        )
+        message(STATUS "Application icon will be installed from resources/")
+    else()
+        message(WARNING "Application icon not found - desktop entry will use default icon")
+    endif()
+    
+    # Print installation summary
+    message(STATUS "")
+    message(STATUS "=== Installation Summary ===")
+    message(STATUS "After running 'sudo make install':")
+    message(STATUS "  Binary:      /usr/local/bin/openterfaceQT")
+    message(STATUS "  Desktop:     /usr/share/applications/com.openterface.openterfaceQT.desktop")
+    message(STATUS "  Icon:        /usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png")
+    message(STATUS "")
+    message(STATUS "To update desktop database (optional):")
+    message(STATUS "  sudo update-desktop-database")
+    message(STATUS "============================")
+    message(STATUS "")
+endif()

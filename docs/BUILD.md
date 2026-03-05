@@ -302,11 +302,21 @@ make -j$(nproc)
 #### Step 6: Install System-Wide
 
 ```bash
-# Install the application
+# Install the application, desktop entry, and icon
 sudo make install
 ```
 
-#### Step 7: Create Qt Environment Wrapper (Recommended)
+> **✅ What gets installed:**
+> - Binary: `/usr/local/bin/openterfaceQT`
+> - Desktop entry: `/usr/share/applications/com.openterface.openterfaceQT.desktop` (appears in application menu)
+> - Icon: `/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png`
+>
+> **Optional:** Update desktop database for immediate menu appearance:
+> ```bash
+> sudo update-desktop-database
+> ```
+
+#### Step 7: Create Qt Environment Wrapper (If Needed)
 
 This prevents "Qt platform plugin" errors:
 
@@ -339,7 +349,9 @@ EOF
 fi
 ```
 
-#### Step 8: Create Desktop Integration
+#### Step 8: Create Desktop Integration (Optional)
+
+> **Note:** Desktop integration is now handled automatically by `sudo make install` (Step 6). Only follow this step if you need custom desktop entry configuration or if the automatic installation failed.
 
 ```bash
 # Copy application icon
