@@ -138,16 +138,31 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         constexpr unsigned int VK_OEM_AUTO = 0xF3;    // 243
         constexpr unsigned int VK_OEM_ENLW = 0xF4;    // 244
 
+        uint8_t imeKeyCode = 0;
         if (nativeVirtualKey == VK_NONCONVERT) {
-            mappedKeyCode = currentLayout.keyMap.value(Qt::Key_Muhenkan, 0);
-            qCDebug(log_keyboard) << "Muhenkan key detected: VK=" << nativeVirtualKey << "isKeyDown:" << isKeyDown;
+            imeKeyCode = currentLayout.keyMap.value(Qt::Key_Muhenkan, 0);
+            qCDebug(log_keyboard) << "Muhenkan key detected: VK=" << nativeVirtualKey
+                                  << "scancode=0x" << QString::number(imeKeyCode, 16)
+                                  << "isKeyDown:" << isKeyDown;
         } else if (nativeVirtualKey == VK_CONVERT) {
-            mappedKeyCode = currentLayout.keyMap.value(Qt::Key_Henkan, 0);
-            qCDebug(log_keyboard) << "Henkan key detected: VK=" << nativeVirtualKey << "isKeyDown:" << isKeyDown;
+            imeKeyCode = currentLayout.keyMap.value(Qt::Key_Henkan, 0);
+            qCDebug(log_keyboard) << "Henkan key detected: VK=" << nativeVirtualKey
+                                  << "scancode=0x" << QString::number(imeKeyCode, 16)
+                                  << "isKeyDown:" << isKeyDown;
         } else if (nativeVirtualKey == VK_OEM_AUTO || nativeVirtualKey == VK_OEM_ENLW) {
-            // TODO: Implement Zenkaku/Hankaku key mapping when keyMap supports it
-            // mappedKeyCode = currentLayout.keyMap.value(Qt::Key_Zenkaku_Hankaku, 0);
-            qCDebug(log_keyboard) << "ZenkakuHankaku key detected: VK=" << nativeVirtualKey << "isKeyDown:" << isKeyDown;
+            imeKeyCode = currentLayout.keyMap.value(Qt::Key_Zenkaku_Hankaku, 0);
+            qCDebug(log_keyboard) << "ZenkakuHankaku key detected: VK=" << nativeVirtualKey
+                                  << "scancode=0x" << QString::number(imeKeyCode, 16)
+                                  << "isKeyDown:" << isKeyDown;
+        }
+
+        if (imeKeyCode != 0) {
+            // IME keys: Windows consumes key-down, only key-up reaches Qt.
+            // Send press+release directly without modifying currentMappedKeyCodes.
+            sendKeyToTarget(imeKeyCode, true);
+            sendKeyToTarget(imeKeyCode, false);
+            qCDebug(log_keyboard) << "IME key sent: press+release 0x" << QString::number(imeKeyCode, 16);
+            return;
         }
     }
 #endif
@@ -301,6 +316,11 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
 
 
     if (mappedKeyCode != 0) {
+        // Phantom release: Windows IME consumed the key-down, only key-up arrived.
+        if (!isKeyDown && !currentMappedKeyCodes.contains(mappedKeyCode)) {
+            sendKeyToTarget(mappedKeyCode, true);
+        }
+
         // Update currentMappedKeyCodes: add on press, remove on release
         if (isKeyDown) {
             if (!currentMappedKeyCodes.contains(mappedKeyCode) && currentMappedKeyCodes.size() < 6) {
