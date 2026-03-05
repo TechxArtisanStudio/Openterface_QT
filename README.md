@@ -90,7 +90,7 @@ chmod +x install-linux.sh
 
 1. Download the package from GitHub release page, and find the latest version to download according to your OS and CPU architecture.
 2. Install the dependency
-3. Setup dialout for Serial permissions and the hidraw permission for Switchable USB device
+3. Setup dialout and video groups for Serial and camera device access, and the hidraw permission for Switchable USB device
 4. Install the package.
 
  ```bash
@@ -118,8 +118,8 @@ sudo apt install -y \
  ```
 
 ```bash
-# Setup the dialout permission for Serial port
-sudo usermod -a -G dialout $USER
+# Setup the dialout permission for Serial port and video group for camera access
+sudo usermod -a -G dialout,video $USER
 # On some distros (e.g. Arch Linux) this might be called uucp
 sudo usermod -a -G uucp $USER
 ```
@@ -218,8 +218,8 @@ sudo apt-get install -y \
 ```
 
 ```bash
-# Setup the dialout permission for Serial port
-sudo usermod -a -G dialout $USER
+# Setup the dialout permission for Serial port and video group for camera access
+sudo usermod -a -G dialout,video $USER
 # On some distros (e.g. Arch Linux) this might be called uucp
 sudo usermod -a -G uucp $USER
 
@@ -275,8 +275,8 @@ ls /dev/ttyUSB*
 # if you can list the usb the serial port correctly recognized
 # Then we need give the permissions to user for control serial port you can do this:
 sudo ./openterfaceQT
-# or (dialout/uucp)
-sudo usermod -a -G dialout $USER
+# or (dialout,video/uucp)
+sudo usermod -a -G dialout,video $USER
 sudo reboot
 # back to the build floder
 ./openterfaceQT

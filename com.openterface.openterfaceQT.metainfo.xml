@@ -49,22 +49,27 @@
     </screenshots>
 
     <releases>
-        <release version="0.5.13" date="2025-01-15">
+        <release version="0.5.17" date="2026-03-03">
             <description>
                 <p>Add the software update checking, and enhance the firmware update process for better stability and user experience.</p>
             </description>
         </release>
-        <release version="0.5.12" date="2025-01-15">
+        <release version="0.5.13" date="2026-02-10">
+            <description>
+                <p>Add the software update checking, and enhance the firmware update process for better stability and user experience.</p>
+            </description>
+        </release>
+        <release version="0.5.12" date="2026-02-03">
             <description>
                 <p>Enhanced Reliability, Diagnostics, and Multi-Platform.</p>
             </description>
         </release>
-        <release version="0.5.11" date="2025-01-15">
+        <release version="0.5.11" date="2026-01-15">
             <description>
                 <p>Hotfix hardware diagnostics issues.</p>
             </description>
         </release>
-        <release version="0.5.10" date="2025-01-12">
+        <release version="0.5.10" date="2026-01-12">
             <description>
                 <p>Add the hardware diagnostics feature.</p>
             </description>

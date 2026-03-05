@@ -230,7 +230,7 @@ sudo apt-get install -y --allow-unauthenticated \
     ffmpeg
 
 echo "👥 Setting up user permissions..."
-sudo usermod -a -G dialout $USER
+sudo usermod -a -G dialout,video $USER
 sudo usermod -a -G uucp $USER
 
 echo "🔐 Setting up device permissions..."

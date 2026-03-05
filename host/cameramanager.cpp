@@ -200,16 +200,6 @@ void CameraManager::initializeBackendHandler()
                             emit cameraError("FFmpeg: " + error);
                         });
 
-                // Bridge FFmpeg frames into the generic imageCaptured signal so that
-                // consumers (e.g. TcpServer) that subscribe to CameraManager::imageCaptured
-                // receive live frames without depending on a backend-specific type.
-                // QueuedConnection is mandatory here because frameReadyImage is emitted
-                // from the FFmpeg worker thread while CameraManager lives in the main thread.
-                connect(ffmpegHandler, &FFmpegBackendHandler::frameReadyImage,
-                        this, [this](const QImage& image) {
-                            emit imageCaptured(0, image);
-                        }, Qt::QueuedConnection);
-
                 qCDebug(log_ui_camera) << "FFmpeg backend signal connections established";
             }
             

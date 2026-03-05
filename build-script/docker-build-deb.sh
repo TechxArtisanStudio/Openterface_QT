@@ -360,6 +360,41 @@ if [ -d "${QT_QML_DIR}" ]; then
     cp -ra "${QT_QML_DIR}"/* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/qml/" 2>/dev/null || true
 fi
 
+# ============================================================
+# VERIFY: Qt6 Multimedia Plugins (CRITICAL for multimedia support)
+# ============================================================
+# The multimedia plugins are copied as part of the Qt plugins copy operation above.
+# However, we verify they exist and warn if missing.
+echo "📋 DEB: Verifying Qt6 Multimedia plugin availability..."
+
+if [ -d "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/multimedia" ]; then
+    MEDIA_PLUGIN_COUNT=$(find "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/multimedia" -maxdepth 1 -name "*.so" -type f 2>/dev/null | wc -l)
+    
+    if [ "$MEDIA_PLUGIN_COUNT" -gt 0 ]; then
+        echo "   ✅ Multimedia plugins found ($MEDIA_PLUGIN_COUNT backends):"
+        find "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/multimedia" -maxdepth 1 -name "*.so" -type f | sed 's/^/      /'
+    else
+        echo "   ⚠️  Warning: Multimedia plugins directory exists but is empty"
+    fi
+else
+    echo "   ⚠️  Warning: Multimedia plugins directory not found"
+    echo "      Expected: ${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/multimedia"
+    echo "      This will cause multimedia features to fail at runtime!"
+    
+    # Try to create it and copy from source if possible
+    if [ -d "/opt/Qt6/plugins/multimedia" ]; then
+        echo "      Attempting to copy from /opt/Qt6/plugins/multimedia..."
+        mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/multimedia"
+        cp -ra "/opt/Qt6/plugins/multimedia"/* "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/multimedia/" 2>/dev/null || true
+        
+        if [ -f "$(find "${PKG_ROOT}/usr/lib/openterfaceqt/qt6/plugins/multimedia" -maxdepth 1 -name "*.so" -type f | head -1)" ]; then
+            echo "      ✅ Multimedia plugins copied successfully"
+        else
+            echo "      ❌ Failed to copy multimedia plugins"
+        fi
+    fi
+fi
+
 # Copy desktop file (ensure Exec uses wrapper script for proper environment setup)
 
 # Update the binary's rpath to point to bundled libraries

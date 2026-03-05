@@ -69,7 +69,7 @@ std::vector<std::pair<uint16_t, uint16_t>> serialDevices = {
 };
 
 const QString EnvironmentSetupDialog::driverCommands = "# Build and install the driver\n make ; sudo make install\n\n";
-const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout group\n sudo usermod -a -G dialout $USER\n\n";
+const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout group for serial access, and video group for camera access\n sudo usermod -a -G dialout,video $USER\n\n";
 const QString EnvironmentSetupDialog::udevCommands =
     "#Add udev rules for Openterface Mini-KVM\n"
     "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"534d\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee /etc/udev/rules.d/51-openterface.rules\n"
@@ -91,6 +91,7 @@ const QString EnvironmentSetupDialog::brlttyCommands =
 
 bool EnvironmentSetupDialog::isSerialPermission = false;
 bool EnvironmentSetupDialog::isHidPermission = false;
+bool EnvironmentSetupDialog::isVideoPermission = false;
 bool EnvironmentSetupDialog::isBrlttyRunning = false;
 bool EnvironmentSetupDialog::isDevicePlugged = false;
 #endif
@@ -169,6 +170,7 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     statusSummary += tr("◆ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ In Serial Port Permission: ") + QString(isSerialPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
+    statusSummary += tr("◆ Video Permission: ") + QString(isVideoPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)")) + "<br>";
     statusSummary += tr("◆ Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestFirewareDescription);
     ui->descriptionLabel->setText(statusSummary);
@@ -325,10 +327,10 @@ QString EnvironmentSetupDialog::buildCommands(){
     if (!isDriverInstalled) {
         commands += driverCommands;
     }
-    if (!isSerialPermission) {
+    if (!isSerialPermission || !isVideoPermission) {
         commands += groupCommands;
     }
-    if (!isHidPermission || !isSerialPermission) {
+    if (!isHidPermission || !isSerialPermission || !isVideoPermission) {
         commands += udevCommands;
     }
     if (isBrlttyRunning) {
@@ -416,6 +418,85 @@ bool EnvironmentSetupDialog::checkHidPermission() {
     
     isHidPermission = hasPermission;
     qDebug() << "HID permissions check result: " << (hasPermission ? "Yes" : "No");
+    return hasPermission;
+}
+
+bool EnvironmentSetupDialog::checkVideoPermission() {
+    qDebug() << "Checking video device permissions...";
+    
+    // First try to list all video devices
+    QDir devDir("/dev");
+    QStringList devices = devDir.entryList(QStringList() << "video*", QDir::System);
+    
+    // Check if devices exist at all
+    if (devices.isEmpty()) {
+        // No devices found - but this could be normal if no video devices are connected
+        qDebug() << "No video devices found. If device is connected, may need udev rules.";
+        
+        // Also check if the udev rules are properly set up
+        QProcess udevProcess;
+        udevProcess.start("grep", QStringList() << "-q" << "video" << "/etc/udev/rules.d/*openterface*.rules");
+        udevProcess.waitForFinished();
+        
+        if (udevProcess.exitCode() == 0) {
+            // Rules exist, which is good for future devices
+            qDebug() << "Openterface udev rules found. Video permissions will be correct when device is connected.";
+            isVideoPermission = true;
+            return true;
+        }
+        
+        isVideoPermission = false;
+        return false;
+    }
+    
+    // Devices exist - check permissions
+    // Check if any device has proper permissions
+    bool hasPermission = false;
+    for (const QString& device : devices) {
+        qDebug() << "Checking device:" << device;
+        // Check file permissions using QFileInfo
+        QFileInfo fileInfo("/dev/" + device);
+        if (!fileInfo.exists()) continue;
+        
+        if (fileInfo.isReadable() && fileInfo.isWritable()) {
+            hasPermission = true;
+            qDebug() << "Found device with RW access: " << device;
+            break;
+        }
+        
+        // Get detailed permissions with stat command
+        QProcess statProcess;
+        statProcess.start("stat", QStringList() << "-c" << "%a %G" << "/dev/" + device);
+        statProcess.waitForFinished();
+        QString statOutput = statProcess.readAllStandardOutput().trimmed();
+        qDebug() << "Device " << device << " permissions: " << statOutput;
+        
+        // Check for 666 permissions (rw for all) or 664 permissions (rw for group)
+        QString permString = statOutput.split(' ').first();
+        if (permString == "666") {
+            hasPermission = true;
+            qDebug() << "Device has 666 permissions (rw for everyone)";
+            break;
+        } else if (permString == "664" || permString == "660") {
+            // Need to check if user belongs to the device group
+            QString groupName = statOutput.split(' ').last();
+            
+            QProcess groupsProcess;
+            groupsProcess.start("groups");
+            groupsProcess.waitForFinished();
+            QString groupsOutput = groupsProcess.readAllStandardOutput();
+            
+            if (groupsOutput.contains(groupName)) {
+                hasPermission = true;
+                qDebug() << "User is in group " << groupName 
+                          << " with access to " << device;
+                break;
+            }
+        }
+    }
+    
+    isVideoPermission = hasPermission;
+    qDebug() << "Video permissions check result: " << (hasPermission ? "Yes" : "No");
     return hasPermission;
 }
 
@@ -688,6 +769,7 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     }
     
     checkBrlttyRunning(); // No need to return value here
+    checkVideoPermission(); // Check video device permissions
     bool checkPermission = checkPermissions(openterfaceDevices, false);
     qDebug() << "Check permission result: " << checkPermission;
     return (checkDriverInstalled() && checkSerialPermission && checkPermission && (latestFirmware == FirmwareResult::Latest) && !isBrlttyRunning) || skipCheck;

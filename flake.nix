@@ -35,8 +35,9 @@
         # Install udev rules
         services.udev.packages = [config.services.openterface.package];
 
-        # Add users to dialout group for serial port access
+        # Add users to dialout and video groups for serial port and camera access
         users.groups.dialout = {};
+        users.groups.video = {};
 
         # Reload udev rules
         services.udev.extraRules = ''
@@ -269,7 +270,7 @@
           echo "To run Qt Creator:"
           echo "  qtcreator"
           echo ""
-          echo "Note: You may need to add your user to the 'dialout' group"
+          echo "Note: You may need to add your user to the 'dialout' and 'video' groups"
           echo "and install the udev rules for proper device access."
         '';
       };
