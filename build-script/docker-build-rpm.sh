@@ -433,6 +433,38 @@ else
 	exit 1
 fi
 
+# ============================================================
+# CRITICAL: Copy Qt6 Multimedia Plugins (REQUIRED FIX)
+# ============================================================
+# The multimedia plugins must be copied from /opt/Qt6/plugins/multimedia
+# This ensures Qt6 Multimedia backend engines (FFmpeg, GStreamer) are available
+echo "📋 RPM: Copying Qt6 Multimedia plugins..."
+
+# Create multimedia plugin directory in SOURCES
+mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/multimedia"
+
+# Copy multimedia plugins from Qt6 build directory
+if [ -d "/opt/Qt6/plugins/multimedia" ]; then
+    MEDIA_PLUGIN_COUNT=$(find /opt/Qt6/plugins/multimedia -maxdepth 1 -name "*.so" -type f 2>/dev/null | wc -l)
+    
+    if [ "$MEDIA_PLUGIN_COUNT" -gt 0 ]; then
+        echo "   Found $MEDIA_PLUGIN_COUNT multimedia plugins in /opt/Qt6/plugins/multimedia"
+        find /opt/Qt6/plugins/multimedia -maxdepth 1 -name "*.so" -type f -exec cp {} "${RPMTOP}/SOURCES/qt6/plugins/multimedia/" \;
+        
+        # List copied plugins for verification
+        echo "   ✅ Multimedia plugins copied:"
+        ls -1 "${RPMTOP}/SOURCES/qt6/plugins/multimedia/" | sed 's/^/      /'
+    else
+        echo "   ⚠️  Warning: No multimedia plugins found in /opt/Qt6/plugins/multimedia"
+        echo "      Available plugin directories in /opt/Qt6/plugins/:"
+        ls -1 /opt/Qt6/plugins/ | sed 's/^/        /'
+    fi
+else
+    echo "   ⚠️  Qt6 plugins multimedia directory not found at /opt/Qt6/plugins/multimedia"
+    echo "      This will cause multimedia features to fail at runtime!"
+    echo "      Checked: /opt/Qt6/plugins/multimedia"
+fi
+
 # Copy icon files (both PNG and SVG) if available
 # These will be installed to /usr/share/icons/hicolor/ in the spec file
 echo "📋 RPM: Copying icon files..."
