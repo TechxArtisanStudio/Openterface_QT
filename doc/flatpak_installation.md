@@ -7,7 +7,7 @@ The OpenterfaceQT app requires access to serial and HID devices. This setup is m
    - Open a terminal and run the following commands:
 
      ```bash
-     sudo usermod -aG dialout $USER
+     sudo usermod -aG dialout,video $USER
      sudo usermod -aG plugdev $USER
      ```
 
