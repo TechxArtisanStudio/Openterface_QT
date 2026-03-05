@@ -183,15 +183,9 @@ BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/Techx
 
 If you prefer to build manually or need to customize the build process:
 
-> **⚠️ Before You Build - Important Prerequisites:**
+> **💡 Tips Before Building:**
 > 
-> **1. Remove brltty conflict (Common Issue!)**
-> The `brltty` service can conflict with the Openterface device. Remove it before building:
-> ```bash
-> sudo apt remove brltty
-> ```
-> 
-> **2. Find your lrelease path**
+> **Find your lrelease path**
 > The lrelease tool path varies by distribution. Find yours:
 > ```bash
 > which lrelease
@@ -201,7 +195,7 @@ If you prefer to build manually or need to customize the build process:
 > - Fedora/RHEL: `/usr/lib64/qt6/bin/lrelease`
 > - openSUSE: `/usr/lib64/qt6/bin/lrelease`
 > 
-> **3. Check for existing installations**
+> **Check for existing installations**
 > If you have a previous installation, remove it to avoid conflicts:
 > ```bash
 > sudo rm -f /usr/local/bin/openterfaceQT
@@ -388,19 +382,23 @@ echo "✅ Desktop integration completed"
 
 ``` bash
 # Troubleshooting: Mouse/Keyboard not responding
-# If you haven't removed brltty yet, do it now:
+
+## Common Issue: brltty Service Conflict (Runtime)
+# The brltty service can claim the serial port, preventing Openterface from accessing it.
+# This is a RUNTIME issue (not a build issue) - only remove if you experience problems:
 sudo apt remove brltty
 
-# Unplug and replug the Openterface device
-# Verify serial port is recognized:
+# After removing brltty, unplug and replug the Openterface device
+# Verify the serial port is now recognized:
 ls /dev/ttyUSB*
 
-# If still having issues, try running with sudo once:
+## Permission Issues
+# If still having issues, try running with sudo once to test:
 sudo openterfaceQT
 
-# Or ensure user permissions are set correctly:
+# For permanent fix, ensure user has correct group permissions:
 sudo usermod -a -G dialout,video $USER
-sudo reboot
+# Log out and log back in (or reboot) for group changes to take effect
 ```
 
 ## FAQ
