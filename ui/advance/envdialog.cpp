@@ -318,6 +318,9 @@ void EnvironmentSetupDialog::accept()
     // Call the base class accept method to close the dialog
 
     QDialog::accept();
+    close();
+}
+
 #ifdef __linux__
 QString EnvironmentSetupDialog::buildCommands(){
     QString commands = "";
