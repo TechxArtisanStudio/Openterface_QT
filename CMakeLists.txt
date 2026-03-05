@@ -299,6 +299,12 @@ endif()
 # Add DBus on Unix systems (excluding macOS)
 if(UNIX AND NOT APPLE)
     target_link_libraries(openterfaceQT PRIVATE Qt6::DBus)
+    
+    # Link hardware acceleration libraries if enabled
+    if(USE_HWACCEL AND HWACCEL_LIBRARIES)
+        target_link_libraries(openterfaceQT PRIVATE ${HWACCEL_LIBRARIES})
+        message(STATUS "Linked HWACCEL libraries: ${HWACCEL_LIBRARIES}")
+    endif()
 endif()
 
 # Resources:
