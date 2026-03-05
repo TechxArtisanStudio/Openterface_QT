@@ -182,6 +182,32 @@ BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/Techx
 #### Option 2: Manual Build Process
 
 If you prefer to build manually or need to customize the build process:
+
+> **⚠️ Before You Build - Important Prerequisites:**
+> 
+> **1. Remove brltty conflict (Common Issue!)**
+> The `brltty` service can conflict with the Openterface device. Remove it before building:
+> ```bash
+> sudo apt remove brltty
+> ```
+> 
+> **2. Find your lrelease path**
+> The lrelease tool path varies by distribution. Find yours:
+> ```bash
+> which lrelease
+> ```
+> Common paths:
+> - Ubuntu/Debian: `/usr/lib/qt6/bin/lrelease`
+> - Fedora/RHEL: `/usr/lib64/qt6/bin/lrelease`
+> - openSUSE: `/usr/lib64/qt6/bin/lrelease`
+> 
+> **3. Check for existing installations**
+> If you have a previous installation, remove it to avoid conflicts:
+> ```bash
+> sudo rm -f /usr/local/bin/openterfaceQT
+> sudo rm -f /usr/share/applications/openterfaceQT.desktop
+> ```
+
 ``` bash
 # Build environment preparation   
 sudo apt-get update -y
@@ -238,49 +264,143 @@ sudo udevadm trigger
 git clone https://github.com/TechxArtisanStudio/Openterface_QT.git
 cd Openterface_QT
 
-# Generate language files (The lrelease path may vary depending on your system)
-/usr/lib/qt6/bin/lrelease openterfaceQT.pro
+# Generate language files (find correct lrelease path for your system)
+LRELEASE_PATH=$(which lrelease)
+if [ -z "$LRELEASE_PATH" ]; then
+    echo "lrelease not found in PATH, trying common locations..."
+    if [ -x "/usr/lib/qt6/bin/lrelease" ]; then
+        LRELEASE_PATH="/usr/lib/qt6/bin/lrelease"
+    elif [ -x "/usr/lib64/qt6/bin/lrelease" ]; then
+        LRELEASE_PATH="/usr/lib64/qt6/bin/lrelease"
+    else
+        echo "Warning: lrelease not found. You may need to install qt6-tools-dev"
+    fi
+fi
+if [ -n "$LRELEASE_PATH" ]; then
+    $LRELEASE_PATH openterfaceQT.pro
+fi
 
 # Build the project with CMake
 mkdir build
 cd build
 
-# For ARM64/aarch64 systems (like Raspberry Pi), use:
-# cmake .. \
-#     -DCMAKE_BUILD_TYPE=Release \
-#     -DCMAKE_PREFIX_PATH=/usr/lib/aarch64-linux-gnu/cmake/Qt6 \
-#     -DFFMPEG_LIBRARIES="/usr/lib/aarch64-linux-gnu/libavformat.a;/usr/lib/aarch64-linux-gnu/libavcodec.a;/usr/lib/aarch64-linux-gnu/libavutil.a;/usr/lib/aarch64-linux-gnu/libswresample.a;/usr/lib/aarch64-linux-gnu/libswscale.a"
+# Auto-detect FFmpeg static library paths (more robust than hardcoded paths)
+echo "Auto-detecting FFmpeg libraries..."
+LIBAVFORMAT=$(find /usr/lib /usr/lib64 -name "libavformat.a" 2>/dev/null | head -1)
+LIBAVCODEC=$(find /usr/lib /usr/lib64 -name "libavcodec.a" 2>/dev/null | head -1)
+LIBAVUTIL=$(find /usr/lib /usr/lib64 -name "libavutil.a" 2>/dev/null | head -1)
+LIBSWRESAMPLE=$(find /usr/lib /usr/lib64 -name "libswresample.a" 2>/dev/null | head -1)
+LIBSWSCALE=$(find /usr/lib /usr/lib64 -name "libswscale.a" 2>/dev/null | head -1)
 
-# For x86_64 systems, use:
-cmake .. \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6 \
-    -DFFMPEG_LIBRARIES="/usr/lib/x86_64-linux-gnu/libavformat.a;/usr/lib/x86_64-linux-gnu/libavcodec.a;/usr/lib/x86_64-linux-gnu/libavutil.a;/usr/lib/x86_64-linux-gnu/libswresample.a;/usr/lib/x86_64-linux-gnu/libswscale.a"
+# Detect architecture and set appropriate Qt6 cmake path
+ARCH=$(uname -m)
+if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+    QT_CMAKE_PATH="/usr/lib/aarch64-linux-gnu/cmake/Qt6"
+    echo "Building for ARM64 architecture"
+else
+    QT_CMAKE_PATH="/usr/lib/x86_64-linux-gnu/cmake/Qt6"
+    echo "Building for x86_64 architecture"
+fi
+
+# Build with auto-detected paths (or fallback to defaults)
+if [ -n "$LIBAVFORMAT" ] && [ -n "$LIBAVCODEC" ] && [ -n "$LIBAVUTIL" ] && [ -n "$LIBSWRESAMPLE" ] && [ -n "$LIBSWSCALE" ]; then
+    FFMPEG_LIBRARIES="$LIBAVFORMAT;$LIBAVCODEC;$LIBAVUTIL;$LIBSWRESAMPLE;$LIBSWSCALE"
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_PREFIX_PATH="$QT_CMAKE_PATH" \
+        -DFFMPEG_LIBRARIES="$FFMPEG_LIBRARIES"
+else
+    echo "Warning: Some FFmpeg static libraries not found, using default paths"
+    cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_PREFIX_PATH="$QT_CMAKE_PATH"
+fi
 
 make -j$(nproc)
 ```
 
 ``` bash
-# Run
-./openterfaceQT
+# Install system-wide (recommended)
+sudo make install
+
+# Create Qt environment wrapper script (prevents "Qt platform plugin" errors)
+QT_PLUGIN_PATH=""
+if [ -d "/usr/lib/x86_64-linux-gnu/qt6/plugins" ]; then
+    QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins"
+elif [ -d "/usr/lib/aarch64-linux-gnu/qt6/plugins" ]; then
+    QT_PLUGIN_PATH="/usr/lib/aarch64-linux-gnu/qt6/plugins"
+elif [ -d "/usr/lib/qt6/plugins" ]; then
+    QT_PLUGIN_PATH="/usr/lib/qt6/plugins"
+fi
+
+if [ -n "$QT_PLUGIN_PATH" ]; then
+    # Move the actual binary
+    sudo mv /usr/local/bin/openterfaceQT /usr/local/bin/openterfaceQT-bin
+    
+    # Create wrapper script
+    sudo tee /usr/local/bin/openterfaceQT > /dev/null << EOF
+#!/bin/bash
+export QT_PLUGIN_PATH="$QT_PLUGIN_PATH"
+export QT_QPA_PLATFORM_PLUGIN_PATH="$QT_PLUGIN_PATH/platforms"
+export QT_QPA_PLATFORM="xcb"
+export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/lib/aarch64-linux-gnu:/usr/lib:\$LD_LIBRARY_PATH"
+exec /usr/local/bin/openterfaceQT-bin "\$@"
+EOF
+    sudo chmod +x /usr/local/bin/openterfaceQT
+    echo "✅ Qt environment wrapper created"
+fi
+
+# Create desktop entry (for application menu integration)
+ICON_FILE="/usr/share/pixmaps/openterfaceQT.png"
+if [ -f "images/icon_256.png" ]; then
+    sudo cp images/icon_256.png "$ICON_FILE"
+elif [ -f "images/icon_128.png" ]; then
+    sudo cp images/icon_128.png "$ICON_FILE"
+fi
+
+sudo tee /usr/share/applications/openterfaceQT.desktop > /dev/null << EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Openterface QT
+Comment=KVM over USB for seamless computer control
+Exec=/usr/local/bin/openterfaceQT
+Icon=$ICON_FILE
+Terminal=false
+Categories=System;Utility;Network;RemoteAccess;
+Keywords=KVM;USB;remote;control;openterface;
+StartupNotify=true
+StartupWMClass=openterfaceQT
+EOF
+
+sudo chmod 644 /usr/share/applications/openterfaceQT.desktop
+if command -v update-desktop-database &> /dev/null; then
+    sudo update-desktop-database /usr/share/applications/
+fi
+echo "✅ Desktop integration completed"
+
+# Run from build directory (without system installation)
+# ./openterfaceQT
+
+# Run from system installation (after sudo make install)
+# openterfaceQT
 ```
 
 ``` bash
-# If you can't control the mouse and keyboard (with high probability that did not correctly recognize the serial port)
-
-# solution
+# Troubleshooting: Mouse/Keyboard not responding
+# If you haven't removed brltty yet, do it now:
 sudo apt remove brltty
-# after run this plug out the openterface and plug in again
+
+# Unplug and replug the Openterface device
+# Verify serial port is recognized:
 ls /dev/ttyUSB*
-# if you can list the usb the serial port correctly recognized
-# Then we need give the permissions to user for control serial port you can do this:
-sudo ./openterfaceQT
-# or (dialout,video/uucp)
+
+# If still having issues, try running with sudo once:
+sudo openterfaceQT
+
+# Or ensure user permissions are set correctly:
 sudo usermod -a -G dialout,video $USER
 sudo reboot
-# back to the build floder
-./openterfaceQT
-
 ```
 
 ## FAQ
