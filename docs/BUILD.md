@@ -163,7 +163,7 @@ sudo dnf install -y \
     libX11-devel \
     libXrandr-devel \
     libXrender-devel \
-    libex-devel \
+    libexpat-devel \
     freetype-devel \
     fontconfig-devel \
     bzip2-devel \
@@ -198,6 +198,7 @@ sudo zypper install -y \
     libX11-devel \
     libXrandr-devel \
     libXrender-devel \
+    libexpat-devel \
     freetype2-devel \
     fontconfig-devel \
     libbz2-devel \
