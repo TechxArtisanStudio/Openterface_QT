@@ -38,7 +38,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-VERSION="${VERSION:-}"
+RELEASE_VERSION="${RELEASE_VERSION:-}"
 INSTALL_DIR="/usr/local"
 BIN_DIR="${INSTALL_DIR}/bin"
 APP_DIR="${INSTALL_DIR}/share/openterfaceQT"
@@ -86,7 +86,11 @@ detect_system() {
     
     # Detect OS
     if [ -f /etc/os-release ]; then
+        # Save our RELEASE_VERSION before sourcing (os-release sets VERSION)
+        _OUR_VERSION="$RELEASE_VERSION"
         . /etc/os-release
+        RELEASE_VERSION="$_OUR_VERSION"
+        unset _OUR_VERSION
         OS_ID="$ID"
         OS_VERSION="$VERSION_ID"
         
@@ -123,16 +127,15 @@ detect_system() {
 
 # Get latest release version from GitHub API
 get_latest_version() {
-    log_info "Fetching latest release information..."
+    local version
+    version=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
     
-    LATEST_VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-    
-    if [ -z "$LATEST_VERSION" ]; then
+    if [ -z "$version" ]; then
         log_error "Failed to fetch latest version from GitHub"
         exit 1
     fi
     
-    echo "$LATEST_VERSION"
+    echo "$version"
 }
 
 # Get release asset URL
@@ -141,8 +144,6 @@ get_asset_url() {
     local arch="$2"
     local os_type="$3"
     local pkg_manager="$4"
-    
-    log_info "Finding release asset for $version ($arch)..."
     
     # Fetch release info
     local release_info
@@ -450,11 +451,12 @@ main() {
     echo ""
     
     # Determine version
-    if [ -z "$VERSION" ]; then
-        VERSION=$(get_latest_version)
-        log_success "Using latest release: $VERSION"
+    if [ -z "$RELEASE_VERSION" ]; then
+        log_info "Fetching latest release information..."
+        RELEASE_VERSION=$(get_latest_version)
+        log_success "Using latest release: $RELEASE_VERSION"
     else
-        log_info "Using specified version: $VERSION"
+        log_info "Using specified version: $RELEASE_VERSION"
     fi
     echo ""
     
@@ -463,7 +465,8 @@ main() {
     echo ""
     
     # Get asset URL
-    ASSET_URL=$(get_asset_url "$VERSION" "$ARCH_NAME" "$OS_TYPE" "$PKG_MANAGER")
+    log_info "Finding release asset for $RELEASE_VERSION ($ARCH_NAME)..."
+    ASSET_URL=$(get_asset_url "$RELEASE_VERSION" "$ARCH_NAME" "$OS_TYPE" "$PKG_MANAGER")
     echo ""
     
     # Install dependencies
@@ -492,7 +495,7 @@ main() {
     echo "  ✅ Installation Complete!"
     echo "=================================================="
     echo ""
-    echo "Version: $VERSION"
+    echo "Version: $RELEASE_VERSION"
     echo "Architecture: $ARCH_NAME"
     echo "Distribution: $OS_ID $OS_VERSION"
     echo ""
@@ -506,7 +509,7 @@ main() {
     echo "  • If mouse/keyboard don't work: sudo apt remove brltty"
     echo "  • Desktop menu may require refresh or relogin"
     echo ""
-    echo "🔗 Release: https://github.com/${REPO}/releases/tag/${VERSION}"
+    echo "🔗 Release: https://github.com/${REPO}/releases/tag/${RELEASE_VERSION}"
     echo ""
 }
 
