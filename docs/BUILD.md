@@ -2,13 +2,14 @@
 
 This guide provides detailed instructions for building Openterface QT from source code on Windows and Linux.
 
-> **💡 Recommendation:** For most users, we recommend using the automated installation script (Linux) or pre-built binaries. Only build from source if you need to customize the build or contribute to development.
+> **💡 Quick Start (Linux):** For most users, we recommend the **one-liner release installer** (installs pre-built binary in seconds). Only build from source if you need to customize the build or contribute to development.
 
 ## Table of Contents
 - [Windows](#windows)
 - [Linux](#linux)
-  - [Option 1: Automated Build Script (Recommended)](#option-1-automated-build-script-recommended)
-  - [Option 2: Manual Build Process](#option-2-manual-build-process)
+  - [Option 1: One-Liner Release Installer (Fastest)](#option-1-one-liner-release-installer-fastest)
+  - [Option 2: Automated Build Script](#option-2-automated-build-script)
+  - [Option 3: Manual Build Process](#option-3-manual-build-process)
 - [CMake Configuration Options](#cmake-configuration-options)
 - [Troubleshooting](#troubleshooting)
 
@@ -38,9 +39,41 @@ This guide provides detailed instructions for building Openterface QT from sourc
 
 ## Linux
 
-### Option 1: Automated Build Script (Recommended)
+### Option 1: One-Liner Release Installer (Fastest) ⚡
 
-Use our automated installation script that handles the entire build process. It takes 5 - 30 minutes (Raspberry Pi takes longer) to complete.
+**Install the latest release in seconds** (no compilation required):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh | bash
+```
+
+**Install a specific version:**
+```bash
+VERSION="v0.5.17" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh)
+```
+
+**What it does:**
+- ✅ Downloads pre-built binary for your architecture (x86_64 or ARM64)
+- ✅ Installs runtime dependencies (Qt6, FFmpeg, USB libraries)
+- ✅ Configures device permissions (udev rules, user groups)
+- ✅ Creates desktop menu integration
+- ✅ Sets up Qt environment wrapper
+
+**Supported Distributions:**
+- Ubuntu/Debian (apt)
+- Fedora/RHEL (dnf)
+- openSUSE (zypper)
+- Arch Linux (pacman)
+
+**Installation Time:** ~30 seconds (vs 5-30 minutes for building from source)
+
+> **💡 Recommendation:** Use this for production deployments and regular usage. Only build from source if you need custom modifications or are contributing to development.
+
+---
+
+### Option 2: Automated Build Script
+
+Use our automated build script that compiles from source. Takes 5 - 30 minutes depending on hardware (Raspberry Pi takes longer).
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh | bash
@@ -65,7 +98,7 @@ BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/Techx
 
 ---
 
-### Option 2: Manual Build Process
+### Option 3: Manual Build Process
 
 If you prefer to build manually or need to customize the build process, follow these steps:
 
@@ -616,4 +649,5 @@ error: 'QElapsedTimer' was not declared in this scope
 
 - [Installation Guide (Raspberry Pi)](rpi_installation.md)
 - [Features Documentation](feature.md)
-- [Automated Install Script](../build-script/install-linux.sh)
+- [Release Installer Script](../build-script/install-release.sh) - One-liner install from pre-built releases
+- [Automated Build Script](../build-script/install-linux.sh) - Build from source

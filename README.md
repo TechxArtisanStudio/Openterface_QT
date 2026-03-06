@@ -44,30 +44,46 @@
 
 ### For Linux users
 
-#### Option 1: One-Line Installation Script (Recommended)
+#### Option 1: One-Liner Release Installer (Fastest ⚡)
 
-For a quick and automated installation, run this single command:
+**Install the latest pre-built release in ~30 seconds** (no compilation):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh | bash
+```
+
+**Install a specific version:**
+```bash
+VERSION="v0.5.17" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh)
+```
+
+**What it does:**
+- ✅ Downloads pre-built binary for your architecture (x86_64 or ARM64)
+- ✅ Installs runtime dependencies (Qt6, FFmpeg, USB libraries)
+- ✅ Configures device permissions (udev rules, user groups)
+- ✅ Creates desktop menu integration
+- ✅ Sets up Qt environment wrapper
+
+**Supported Distributions:** Ubuntu/Debian, Fedora/RHEL, openSUSE, Arch Linux
+
+> **💡 Recommendation:** Use this for fastest installation. Only build from source if you need custom modifications.
+
+#### Option 2: Build from Source (Automated Script)
+
+For building from source with automated dependency handling:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh | bash
 ```
 
-> **Note**: By default, this script automatically builds the **stable version** (currently v0.3.19) defined in the source code. If you want to try the latest development version with the newest features, replace `main` with `dev_20250804_add_oneline_buildscript` in the URL above.
+> **Note**: By default, this script automatically builds the **stable version** (currently v0.5.17) defined in the source code. Takes 5-30 minutes depending on hardware.
 
-This script will automatically:
-- Install all required dependencies (Qt6, FFmpeg, build tools)
-- Set up user permissions for hardware access
-- Configure device permissions (udev rules)
-- Clone and build the stable version of the source code
-- Install the application system-wide with desktop integration
-- Create proper Qt environment wrappers to avoid plugin issues
-
-**To install a specific version:**
+**To build a specific version:**
 ```bash
-# Install a specific version/tag
+# Build a specific version/tag
 BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh)
 
-# Install latest development version
+# Build latest development version
 BUILD_VERSION="main" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh)
 ```
 
@@ -81,7 +97,7 @@ chmod +x install-linux.sh
 ./install-linux.sh
 ```
 
-#### Option 2: Manual Installation from Release Package
+#### Option 3: Manual Installation from Release Package
 
 1. Download the package from GitHub release page, and find the latest version to download according to your OS and CPU architecture.
 2. Install the dependency
