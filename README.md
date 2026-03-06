@@ -7,18 +7,13 @@
 - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Supported OS](#supported-os)
-  - [Download \& installing](#download--installing)
-    - [For Windows users](#for-windows-users)
-    - [For Linux users](#for-linux-users)
-  - [Build from source](#build-from-source)
-    - [For Windows](#for-windows)
-    - [For Linux](#for-linux)
+  - [Download \& Installing](#download--installing)
+    - [For Windows Users](#for-windows-users)
+    - [For Linux Users](#for-linux-users)
+  - [Build from Source](#build-from-source)
   - [FAQ](#faq)
-  - [Asking questions and reporting issues](#asking-questions-and-reporting-issues)
+  - [Asking Questions and Reporting Issues](#asking-questions-and-reporting-issues)
   - [License Information](#license-information)
-    - [Third-Party Libraries and Their Licenses](#third-party-libraries-and-their-licenses)
-    - [Static Linking](#static-linking)
-    - [License Compliance Details](#license-compliance-details)
 
 ## Features
 - [x] Basic KVM operations
@@ -49,30 +44,46 @@
 
 ### For Linux users
 
-#### Option 1: One-Line Installation Script (Recommended)
+#### Option 1: One-Liner Release Installer (Fastest ⚡)
 
-For a quick and automated installation, run this single command:
+**Install the latest pre-built release in ~30 seconds** (no compilation):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh | bash
+```
+
+**Install a specific version:**
+```bash
+VERSION="v0.5.17" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh)
+```
+
+**What it does:**
+- ✅ Downloads pre-built binary for your architecture (x86_64 or ARM64)
+- ✅ Installs runtime dependencies (Qt6, FFmpeg, USB libraries)
+- ✅ Configures device permissions (udev rules, user groups)
+- ✅ Creates desktop menu integration
+- ✅ Sets up Qt environment wrapper
+
+**Supported Distributions:** Ubuntu/Debian, Fedora/RHEL, openSUSE, Arch Linux
+
+> **💡 Recommendation:** Use this for fastest installation. Only build from source if you need custom modifications.
+
+#### Option 2: Build from Source (Automated Script)
+
+For building from source with automated dependency handling:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh | bash
 ```
 
-> **Note**: By default, this script automatically builds the **stable version** (currently v0.3.19) defined in the source code. If you want to try the latest development version with the newest features, replace `main` with `dev_20250804_add_oneline_buildscript` in the URL above.
+> **Note**: By default, this script automatically builds the **stable version** (currently v0.5.17) defined in the source code. Takes 5-30 minutes depending on hardware.
 
-This script will automatically:
-- Install all required dependencies (Qt6, FFmpeg, build tools)
-- Set up user permissions for hardware access
-- Configure device permissions (udev rules)
-- Clone and build the stable version of the source code
-- Install the application system-wide with desktop integration
-- Create proper Qt environment wrappers to avoid plugin issues
-
-**To install a specific version:**
+**To build a specific version:**
 ```bash
-# Install a specific version/tag
+# Build a specific version/tag
 BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh)
 
-# Install latest development version
+# Build latest development version
 BUILD_VERSION="main" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh)
 ```
 
@@ -86,11 +97,11 @@ chmod +x install-linux.sh
 ./install-linux.sh
 ```
 
-#### Option 2: Manual Installation from Release Package
+#### Option 3: Manual Installation from Release Package
 
 1. Download the package from GitHub release page, and find the latest version to download according to your OS and CPU architecture.
 2. Install the dependency
-3. Setup dialout for Serial permissions and the hidraw permission for Switchable USB device
+3. Setup dialout and video groups for Serial and camera device access, and the hidraw permission for Switchable USB device
 4. Install the package.
 
  ```bash
@@ -118,8 +129,8 @@ sudo apt install -y \
  ```
 
 ```bash
-# Setup the dialout permission for Serial port
-sudo usermod -a -G dialout $USER
+# Setup the dialout permission for Serial port and video group for camera access
+sudo usermod -a -G dialout,video $USER
 # On some distros (e.g. Arch Linux) this might be called uucp
 sudo usermod -a -G uucp $USER
 ```
@@ -146,142 +157,16 @@ sudo dpkg -i openterfaceQT.deb
 openterfaceQT
  ```
 
-## Build from source
-### For Windows
-- Using QT Creator
-  1. Install [QT for opensource](https://www.qt.io/download-qt-installer-oss), recommended version 6.4.3
-  2. Use Qt Maintenance Tool to add following components
-     - [QtMultiMedia](https://doc.qt.io/qt-6/qtmultimedia-index.html)
-     - [QtSerialPort](https://doc.qt.io/qt-6/qtserialport-index.html)
-  3. Download the source and import the project
-  4. Now you can run the project
+## Build from Source
 
-### For Linux
+For detailed build instructions, see **[docs/BUILD.md](docs/BUILD.md)**.
 
-#### Option 1: Automated Build Script (Recommended)
-
-Use our automated installation script that handles the entire build process. It takes 5 - 30 minutes (Raspberry PI take longer) to complete the whole process.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh | bash
-```
-
-> **Note**: By default, the script builds the **stable version** (currently v0.3.19) automatically detected from the source code. To build the latest development version instead, use: `BUILD_VERSION="main"` before the command.
-
-This script automatically handles dependency installation, environment setup, building, and system integration.
-
-**To build a specific version:**
-```bash
-# Build latest development version
-BUILD_VERSION="main" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh)
-
-# Build a specific tag/version
-BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh)
-```
-
-#### Option 2: Manual Build Process
-
-If you prefer to build manually or need to customize the build process:
-``` bash
-# Build environment preparation   
-sudo apt-get update -y
-sudo apt-get install -y \
-    build-essential \
-    cmake \
-    qt6-base-dev \
-    qt6-multimedia-dev \
-    qt6-serialport-dev \
-    qt6-svg-dev \
-    libusb-1.0-0-dev \
-    qt6-tools-dev \
-    libudev-dev \
-    libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev \
-    pkg-config \
-    libx11-dev \
-    libxrandr-dev \
-    libxrender-dev \
-    libexpat1-dev \
-    libfreetype6-dev \
-    libfontconfig1-dev \
-    libbz2-dev \
-    libturbojpeg0-dev \
-    libva-dev \
-    libavformat-dev \
-    libavcodec-dev \
-    libavdevice-dev \
-    libavutil-dev \
-    libswresample-dev \
-    libswscale-dev \
-    ffmpeg \
-    libssl-dev
-```
-
-```bash
-# Setup the dialout permission for Serial port
-sudo usermod -a -G dialout $USER
-# On some distros (e.g. Arch Linux) this might be called uucp
-sudo usermod -a -G uucp $USER
-
-# Setup the hidraw and serial port permissions
-echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
-SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
-SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
-SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
-' | sudo tee /etc/udev/rules.d/51-openterface.rules 
-sudo udevadm control --reload-rules
-sudo udevadm trigger
-```
-
-``` bash
-# Get the source
-git clone https://github.com/TechxArtisanStudio/Openterface_QT.git
-cd Openterface_QT
-
-# Generate language files (The lrelease path may vary depending on your system)
-/usr/lib/qt6/bin/lrelease openterfaceQT.pro
-
-# Build the project with CMake
-mkdir build
-cd build
-
-# For ARM64/aarch64 systems (like Raspberry Pi), use:
-# cmake .. \
-#     -DCMAKE_BUILD_TYPE=Release \
-#     -DCMAKE_PREFIX_PATH=/usr/lib/aarch64-linux-gnu/cmake/Qt6 \
-#     -DFFMPEG_LIBRARIES="/usr/lib/aarch64-linux-gnu/libavformat.a;/usr/lib/aarch64-linux-gnu/libavcodec.a;/usr/lib/aarch64-linux-gnu/libavutil.a;/usr/lib/aarch64-linux-gnu/libswresample.a;/usr/lib/aarch64-linux-gnu/libswscale.a"
-
-# For x86_64 systems, use:
-cmake .. \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6 \
-    -DFFMPEG_LIBRARIES="/usr/lib/x86_64-linux-gnu/libavformat.a;/usr/lib/x86_64-linux-gnu/libavcodec.a;/usr/lib/x86_64-linux-gnu/libavutil.a;/usr/lib/x86_64-linux-gnu/libswresample.a;/usr/lib/x86_64-linux-gnu/libswscale.a"
-
-make -j$(nproc)
-```
-
-``` bash
-# Run
-./openterfaceQT
-```
-
-``` bash
-# If you can't control the mouse and keyboard (with high probability that did not correctly recognize the serial port)
-
-# solution
-sudo apt remove brltty
-# after run this plug out the openterface and plug in again
-ls /dev/ttyUSB*
-# if you can list the usb the serial port correctly recognized
-# Then we need give the permissions to user for control serial port you can do this:
-sudo ./openterfaceQT
-# or (dialout/uucp)
-sudo usermod -a -G dialout $USER
-sudo reboot
-# back to the build floder
-./openterfaceQT
-
-```
+**Quick links:**
+- 🪟 [Windows Build Guide](docs/BUILD.md#windows)
+- 🐧 [Linux Build Guide](docs/BUILD.md#linux)
+  - [Automated Script (Recommended)](docs/BUILD.md#option-1-automated-build-script-recommended)
+  - [Manual Build Process](docs/BUILD.md#option-2-manual-build-process)
+- 🔧 [Troubleshooting](docs/BUILD.md#troubleshooting)
 
 ## FAQ
  - Keyboard and Mouse not responding in Windows
