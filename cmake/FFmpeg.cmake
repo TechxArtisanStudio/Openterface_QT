@@ -102,47 +102,106 @@ else()
     message(STATUS "libjpeg-turbo not found - JPEG acceleration disabled")
 endif()
 
-# Set FFmpeg include and library directories (prefer local prefix, then system)
-if(WIN32)
-    set(FFMPEG_SEARCH_PATHS 
-        ${FFMPEG_PREFIX}
-        "C:/ffmpeg-static"
-        "C:/ffmpeg"
-    )
-else()
-    set(FFMPEG_SEARCH_PATHS 
-        ${FFMPEG_PREFIX}
-        "/usr/local"
-        "/usr"
-    )
-endif()
-if(WIN32)
-    set(FFMPEG_SEARCH_PATHS 
-        ${FFMPEG_PREFIX}
-        "C:/ffmpeg-static"
-        "C:/ffmpeg"
-    )
-else()
-    set(FFMPEG_SEARCH_PATHS 
-        ${FFMPEG_PREFIX}
-        "/usr/local"
-        "/usr"
-    )
+# Try pkg-config first for shared FFmpeg (most reliable for system packages)
+if(USE_SHARED_FFMPEG AND NOT WIN32)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(FFMPEG_PKGCONF IMPORTED_TARGET libavcodec libavformat libavutil)
+        if(FFMPEG_PKGCONF_FOUND)
+            message(STATUS "Found FFmpeg via pkg-config")
+            message(STATUS "FFmpeg pkg-config include dirs: ${FFMPEG_PKGCONF_INCLUDE_DIRS}")
+            set(FFMPEG_INCLUDE_DIRS ${FFMPEG_PKGCONF_INCLUDE_DIRS})
+            set(FFMPEG_FOUND TRUE)
+            set(FFMPEG_LIB_EXT ".so")
+            # Get the first library dir (pkg-config may return multiple)
+            list(GET FFMPEG_PKGCONF_LIBRARY_DIRS 0 FFMPEG_LIB_DIR)
+            # Build complete list of FFmpeg libraries with full paths
+            set(FFMPEG_LIBRARIES "")
+            foreach(_libname avdevice avfilter avformat avcodec swresample swscale avutil)
+                set(_libpath "${FFMPEG_LIB_DIR}/lib${_libname}.so")
+                if(EXISTS "${_libpath}")
+                    list(APPEND FFMPEG_LIBRARIES "${_libpath}")
+                endif()
+            endforeach()
+            if(FFMPEG_LIBRARIES)
+                message(STATUS "FFmpeg library dir: ${FFMPEG_LIB_DIR}")
+                message(STATUS "FFmpeg libraries: ${FFMPEG_LIBRARIES}")
+            else()
+                message(WARNING "FFmpeg pkg-config found but libraries missing in ${FFMPEG_LIB_DIR}")
+            endif()
+        endif()
+    endif()
 endif()
 
-# Attempt to locate FFmpeg libraries (prefer static)
-# Prefer FFmpeg shipped inside the configured prefix if it actually exists there.
-set(_qt_lib_dir "${FFMPEG_PREFIX}/lib")
-if(EXISTS "${_qt_lib_dir}/libavformat.a" AND EXISTS "${FFMPEG_PREFIX}/include/libavformat/avformat.h")
-    set(FFMPEG_LIB_DIR ${_qt_lib_dir})
-    set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
-    message(STATUS "Found FFmpeg static libraries in prefix: ${FFMPEG_LIB_DIR}")
-    set(FFMPEG_FOUND TRUE)
+# Set FFmpeg search paths (only if not found via pkg-config)
+if(NOT FFMPEG_FOUND)
+    if(WIN32)
+        set(FFMPEG_SEARCH_PATHS 
+            ${FFMPEG_PREFIX}
+            "C:/ffmpeg-static"
+            "C:/ffmpeg"
+        )
+    else()
+        set(FFMPEG_SEARCH_PATHS 
+            ${FFMPEG_PREFIX}
+            "/usr/local"
+            "/usr"
+        )
+    endif()
 else()
-    # Keep the previous behavior as a fallback (directory may be validated later)
-    set(FFMPEG_LIB_DIR ${_qt_lib_dir})
-    set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
-    message(STATUS "FFmpeg static libs not found at ${_qt_lib_dir} - will try other search methods")
+    # Already found via pkg-config, skip manual search
+    message(STATUS "FFmpeg already configured via pkg-config, skipping manual search")
+    set(FFMPEG_SEARCH_PATHS "")
+endif()
+
+# Attempt to locate FFmpeg libraries (only if not already found via pkg-config)
+if(NOT FFMPEG_FOUND)
+    # Try multiple library directory patterns to support different distributions
+    set(_possible_lib_dirs 
+        "${FFMPEG_PREFIX}/lib"
+        "${FFMPEG_PREFIX}/lib/x86_64-linux-gnu"
+        "${FFMPEG_PREFIX}/lib/aarch64-linux-gnu"
+        "${FFMPEG_PREFIX}"  # For systems where libs are directly in prefix (e.g., /usr/lib64)
+    )
+
+    # Check for static libraries first (original behavior)
+    foreach(_lib_dir ${_possible_lib_dirs})
+        if(NOT FFMPEG_FOUND)
+            if(EXISTS "${_lib_dir}/libavformat.a")
+                set(FFMPEG_LIB_DIR ${_lib_dir})
+                set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
+                message(STATUS "Found FFmpeg static libraries in: ${FFMPEG_LIB_DIR}")
+                set(FFMPEG_FOUND TRUE)
+            endif()
+        endif()
+    endforeach()
+
+    # If not found, check for shared libraries
+    if(NOT FFMPEG_FOUND)
+        foreach(_lib_dir ${_possible_lib_dirs})
+            if(NOT FFMPEG_FOUND)
+                if(EXISTS "${_lib_dir}/libavformat.so")
+                    set(FFMPEG_LIB_DIR ${_lib_dir})
+                    set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
+                    message(STATUS "Found FFmpeg shared libraries in: ${FFMPEG_LIB_DIR}")
+                    set(FFMPEG_FOUND TRUE)
+                endif()
+            endif()
+        endforeach()
+    endif()
+
+    # Fallback: use first lib dir and let later checks handle it
+    if(NOT FFMPEG_FOUND)
+        set(FFMPEG_LIB_DIR "${FFMPEG_PREFIX}/lib")
+        # Check for Fedora-style include path (ffmpeg/libavcodec) vs standard (libavcodec)
+        if(EXISTS "${FFMPEG_PREFIX}/include/ffmpeg/libavcodec/avcodec.h")
+            set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include/ffmpeg")
+            message(STATUS "Using Fedora-style FFmpeg include path: ${FFMPEG_INCLUDE_DIRS}")
+        else()
+            set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREFIX}/include")
+        endif()
+        message(STATUS "FFmpeg libraries not found at ${FFMPEG_PREFIX} - will try system paths")
+    endif()
 endif()
 
 # If pkg-config didn't find FFmpeg (or we're using static linking), fall back to path search
@@ -168,7 +227,19 @@ if(NOT FFMPEG_FOUND)
             else()
                 set(LIB_EXTENSIONS ".a")
             endif()
-            set(LIB_PATHS "${SEARCH_PATH}/lib/x86_64-linux-gnu" "${SEARCH_PATH}/lib/aarch64-linux-gnu" "${SEARCH_PATH}/lib")
+            # Include multiple library path patterns for different distributions:
+            # - /usr/lib/x86_64-linux-gnu (Debian/Ubuntu)
+            # - /usr/lib/aarch64-linux-gnu (ARM Debian/Ubuntu)
+            # - /usr/lib (generic)
+            # - /usr/lib64 (Fedora/RHEL/openSUSE - when SEARCH_PATH is /usr)
+            # - /usr (direct, for systems with libs in prefix root)
+            set(LIB_PATHS 
+                "${SEARCH_PATH}/lib/x86_64-linux-gnu" 
+                "${SEARCH_PATH}/lib/aarch64-linux-gnu" 
+                "${SEARCH_PATH}/lib"
+                "${SEARCH_PATH}/lib64"
+                "${SEARCH_PATH}"
+            )
         endif()
 
         # Check each potential library path with each extension
@@ -177,12 +248,22 @@ if(NOT FFMPEG_FOUND)
                 set(LIB_NAME "libavformat${LIB_EXT}")
                 message(STATUS "Checking for FFmpeg in: ${LIB_PATH}/${LIB_NAME}")
 
-                if(EXISTS "${LIB_PATH}/${LIB_NAME}" AND EXISTS "${SEARCH_PATH}/include/libavformat/avformat.h")
+                # Check for FFmpeg libraries and headers (try both standard and Fedora-style paths)
+                set(_header_found FALSE)
+                set(_try_include_paths "${SEARCH_PATH}/include" "${SEARCH_PATH}/include/ffmpeg")
+                foreach(_inc_path ${_try_include_paths})
+                    if(EXISTS "${_inc_path}/libavformat/avformat.h")
+                        set(FFMPEG_INCLUDE_DIRS "${_inc_path}")
+                        set(_header_found TRUE)
+                        break()
+                    endif()
+                endforeach()
+                
+                if(EXISTS "${LIB_PATH}/${LIB_NAME}" AND _header_found)
                     set(FFMPEG_LIB_DIR "${LIB_PATH}")
                     set(FFMPEG_LIB_EXT "${LIB_EXT}")
-                    # Ensure include directory is captured for compilation
-                    set(FFMPEG_INCLUDE_DIRS "${SEARCH_PATH}/include")
                     message(STATUS "FFmpeg libraries found in: ${FFMPEG_LIB_DIR}")
+                    message(STATUS "FFmpeg headers in: ${FFMPEG_INCLUDE_DIRS}")
                     message(STATUS "Using ${LIB_EXT} libraries")
                     set(FFMPEG_FOUND TRUE)
                     break()
