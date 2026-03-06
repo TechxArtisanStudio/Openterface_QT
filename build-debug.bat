@@ -1,6 +1,8 @@
 @echo off
 REM ============================================================================
 REM Windows CMake Build - choose Static or Shared FFmpeg
+REM Usage: build-debug.bat [static|shared]
+REM        default is static if no argument provided
 REM ============================================================================
 
 setlocal
@@ -23,8 +25,9 @@ if "%USE_SHARED%"=="1" (
 )
 
 REM Set MinGW path (adjust if Qt is installed elsewhere)
-set MINGW_PATH=E:\Qt\Tools\mingw1120_64
-set CMAKE_PATH=E:\Qt\Tools\CMake_64\bin
+REM If the environment variable is already defined, keep it; otherwise use default
+if not defined MINGW_PATH set MINGW_PATH=E:\Qt\Tools\mingw1120_64
+if not defined CMAKE_PATH set CMAKE_PATH=E:\Qt\Tools\CMake_64\bin
 
 REM Add MinGW and CMake to PATH
 set PATH=%MINGW_PATH%\bin;%CMAKE_PATH%;%PATH%
@@ -40,7 +43,7 @@ set OUTPUT_DIR=build/Debug
 if "%USE_SHARED%"=="1" (
     echo ============================================================================
     echo Building Openterface_QT with SHARED FFmpeg
-    echo ============================================================================
+    echo ============================================================================ 
 ) else (
     echo ============================================================================
     echo Building Openterface_QT with STATIC FFmpeg
