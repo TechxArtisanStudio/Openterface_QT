@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=openterfaceQT
-Exec=openterfaceQT
-Icon=com.openterface.openterfaceQT
-Comment=A software for control openterface-KVM.
-Categories=Utility;Accessories;
-Terminal=false
-Keywords=openterface;open-source;

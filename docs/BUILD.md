@@ -46,7 +46,7 @@ Use our automated installation script that handles the entire build process. It 
 curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh | bash
 ```
 
-> **Note**: By default, the script builds the **stable version** (currently v0.3.19) automatically detected from the source code. To build the latest development version instead, use: `BUILD_VERSION="main"` before the command.
+> **Note**: By default, the script builds the **latest stable version** (currently v0.5.17) automatically detected from the source code. To build an older version or the latest development version instead, use: `BUILD_VERSION="v0.3.19"` or `BUILD_VERSION="main"` before the command.
 
 This script automatically handles:
 - Dependency installation
@@ -281,8 +281,10 @@ cmake .. \
     -DCMAKE_PREFIX_PATH=/usr/lib64/cmake/Qt6 \
     -DOPENTERFACE_BUILD_STATIC=OFF \
     -DUSE_SHARED_FFMPEG=ON \
-    -DFFMPEG_PREFIX=/usr/lib64
+    -DFFMPEG_PREFIX=/usr
 ```
+
+> **Note:** On Fedora, FFmpeg headers are at `/usr/include/ffmpeg/` and libraries at `/usr/lib64/`. Use `-DFFMPEG_PREFIX=/usr` (not `/usr/lib64`) to correctly locate both.
 
 **For ARM64 (Raspberry Pi, etc.):**
 ```bash
@@ -312,10 +314,14 @@ sudo make install
 > - Desktop entry: `/usr/share/applications/com.openterface.openterfaceQT.desktop` (appears in application menu)
 > - Icon: `/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png`
 >
-> **Optional:** Update desktop database for immediate menu appearance:
+> **⚠️ Required:** Update desktop database for menu appearance (may need logout/login otherwise):
 > ```bash
-> sudo update-desktop-database
+> sudo update-desktop-database /usr/local/share/applications/ 2>/dev/null || true
+> sudo update-desktop-database /usr/share/applications/ 2>/dev/null || true
+> sudo gtk-update-icon-cache -f /usr/local/share/icons/hicolor 2>/dev/null || true
 > ```
+>
+> **💡 Fedora GNOME Tip:** GNOME uses search-based app launcher. Press **Super** (Windows key) and type "OpenterfaceQT" or "KVM" to find it quickly.
 
 #### Step 7: Create Qt Environment Wrapper (If Needed)
 
@@ -364,17 +370,17 @@ elif [ -f "images/icon_128.png" ]; then
 fi
 
 # Create desktop entry
-sudo tee /usr/share/applications/openterfaceQT.desktop > /dev/null << EOF
+sudo tee /usr/share/applications/com.openterface.openterfaceQT.desktop > /dev/null << EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Openterface QT
+Name=OpenterfaceQT
 Comment=KVM over USB for seamless computer control
 Exec=/usr/local/bin/openterfaceQT
 Icon=$ICON_FILE
 Terminal=false
-Categories=System;Utility;Network;RemoteAccess;
-Keywords=KVM;USB;remote;control;openterface;
+Categories=Utility;Accessory;
+Keywords=KVM;USB;remote;control;openterface;server;management;hardware;accessory;
 StartupNotify=true
 StartupWMClass=openterfaceQT
 EOF
@@ -438,8 +444,10 @@ cmake .. \
     -DCMAKE_PREFIX_PATH=/usr/lib64/cmake/Qt6 \
     -DOPENTERFACE_BUILD_STATIC=OFF \
     -DUSE_SHARED_FFMPEG=ON \
-    -DFFMPEG_PREFIX=/usr/lib64
+    -DFFMPEG_PREFIX=/usr
 ```
+
+> **Note:** Fedora uses `/usr/include/ffmpeg/` for headers and `/usr/lib64/` for libraries. Use `-DFFMPEG_PREFIX=/usr` to correctly locate both.
 
 **openSUSE (shared FFmpeg):**
 ```bash
@@ -554,6 +562,53 @@ If you get architecture errors (like "x86_64-binfmt-P" or "cannot execute binary
 1. Make sure you're building on the same architecture you plan to run on
 2. Clean the build directory: `rm -rf build && mkdir build`
 3. Re-run the build process
+
+---
+
+### CMake Errors Building v0.5.17+ on Fedora
+
+**Error 1: FFmpeg libraries not found**
+```
+✗ Missing: /opt/ffmpeg/lib/libavdevice.a
+CMake Error at cmake/FFmpeg.cmake:322
+```
+
+**Solution:** Fedora uses `/usr/lib64` (not `/usr/lib`) and `/usr/include/ffmpeg/` (not `/usr/include/libavformat/`).
+
+**Required fixes in `cmake/FFmpeg.cmake`:**
+```cmake
+# Add lib64 to search paths
+set(LIB_PATHS "${SEARCH_PATH}/lib/x86_64-linux-gnu" "${SEARCH_PATH}/lib/aarch64-linux-gnu" "${SEARCH_PATH}/lib64" "${SEARCH_PATH}/lib")
+
+# Add Fedora-style header detection
+set(_ffmpeg_header_standard "${SEARCH_PATH}/include/libavformat/avformat.h")
+set(_ffmpeg_header_fedora "${SEARCH_PATH}/include/ffmpeg/libavformat/avformat.h")
+```
+
+**Error 2: qt_generate_deploy_app_script not found**
+```
+CMake Error at cmake/Resources.cmake:XX
+Unknown CMake command "qt_generate_deploy_app_script"
+```
+
+**Solution:** This is macOS-only. Wrap in conditional in `cmake/Resources.cmake`:
+```cmake
+if(APPLE AND COMMAND qt_generate_deploy_app_script)
+    # Only run on macOS
+endif()
+```
+
+**Error 3: QElapsedTimer not declared**
+```
+error: 'QElapsedTimer' was not declared in this scope
+```
+
+**Solution:** Add include in `host/backend/ffmpeg/ffmpeg_capture_manager.cpp`:
+```cpp
+#include <QElapsedTimer>
+```
+
+> **Note:** These fixes are already applied in the latest source. If building v0.5.17 or later, they should be present.
 
 ---
 
