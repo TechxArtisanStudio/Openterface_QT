@@ -3,7 +3,7 @@
 **Control your target computer remotely with keyboard, video, and mouse over a single USB connection.**
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Latest Release](https://img.shields.io/github/v/release/TechxArtisanStudio/Openterface_QT)](https://github.com/TechxArtisanStudio/Openterface_QT/releases)
+[![Latest Release](https://img.shields.io/github/release/TechxArtisanStudio/Openterface_QT)](https://github.com/TechxArtisanStudio/Openterface_QT/releases)
 [![Discord Community](https://img.shields.io/discord/1126137258053894215?label=Discord&logo=discord)](https://discord.gg/sFTJD6a3R8)
 
 ## What is This?
@@ -73,7 +73,7 @@ openterfaceQT
 
 | OS | Version | Status |
 |---|---|---|
-| 🪟 **Windows** | 10, 11 | ✅ Supported |
+| 🪟 **Windows** | 10, 11 (x86 only) | ✅ Supported |
 | 🐧 **Ubuntu** | 22.04+ | ✅ Supported |
 | **Linux Mint** | 21.3+ | ✅ Supported (Qt 6.4+ required) |
 | **openSUSE** | Tumbleweed | ✅ Supported (community-built) |
@@ -86,7 +86,7 @@ openterfaceQT
 
 ### Windows Installation
 
-1. Download the latest installer from [GitHub Releases](https://github.com/TechxArtisanStudio/Openterface_QT/releases) (select your CPU architecture)
+1. Download the latest installer from [GitHub Releases](https://github.com/TechxArtisanStudio/Openterface_QT/releases) (x86 architecture)
 2. Run the installer — it will automatically install drivers and the application
 3. Launch **Openterface Mini-KVM** from your Start Menu or application folder
 4. Connect your Mini-KVM device via USB
