@@ -106,6 +106,11 @@ public:
     bool sendAsyncCommand(const QByteArray &data, bool force);
     bool sendResetCommand();
     QByteArray sendSyncCommand(const QByteArray &data, bool force);
+    
+    // Lock key toggle commands (high-level interface)
+    bool toggleNumLock();        // Send NumLock toggle command to device
+    bool toggleCapsLock();       // Send CapsLock toggle command to device
+    bool toggleScrollLock();     // Send ScrollLock toggle command to device
 
     bool reconfigureHidChip(int targetBaudrate = DEFAULT_BAUDRATE);
     bool factoryResetHipChipV191();

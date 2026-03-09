@@ -26,9 +26,11 @@
 #include <QWidget>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QTimer>
 #include <QPixmap>
 #include <QPalette>
+#include <QPushButton>
 
 class StatusWidget : public QWidget {
     Q_OBJECT
@@ -56,6 +58,9 @@ protected:
 private slots:
     void updateCpuUsage();
     void refreshAllIcons();
+    void onNumLockClicked();
+    void onCapsLockClicked();
+    void onScrollLockClicked();
 
 public slots:
     void setBaudrate(int baudrate);
@@ -65,7 +70,10 @@ private:
     QLabel *cpuUsageLabel;
     QLabel *fpsLabel;
     QLabel *keyboardIndicatorsLabel;
-    QLabel *keyStatesLabel;
+    QPushButton *numLockBtn;
+    QPushButton *capsLockBtn;
+    QPushButton *scrollLockBtn;
+    QWidget *keyStatesContainer;
     QLabel *resolutionLabel;
     QLabel *inputResolutionLabel;
     QLabel *connectedPortLabel;
