@@ -31,6 +31,7 @@
 #include <QHBoxLayout>
 #include <QProcess>
 #include <QEvent>
+#include "serial/SerialPortManager.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -45,8 +46,62 @@ Q_LOGGING_CATEGORY(log_ui_statuswidget, "opf.ui.statuswidget")
 
 StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0), m_captureHeight(0), m_captureFramerate(0.0) {
     keyboardIndicatorsLabel = new QLabel("", this);
-    keyStatesLabel = new QLabel("", this);
     statusLabel = new QLabel("", this);
+    
+    // Create Lock state buttons instead of label
+    numLockBtn = new QPushButton("NUM", this);
+    capsLockBtn = new QPushButton("CAPS", this);
+    scrollLockBtn = new QPushButton("SCROLL", this);
+    
+    // Configure button properties and styles
+    QString buttonStyleSheet = R"(
+        QPushButton {
+            background-color: #f0f0f0;
+            border: 1px solid #cccccc;
+            border-radius: 3px;
+            padding: 2px 4px;
+            color: #333333;
+            font-weight: bold;
+            font-size: 10px;ound-color: #e0e0e0;
+            border: 1px solid #999999;
+        }
+        QPushButton:pressed {
+            background-color: #d0d0d0;
+        }
+        QPushButton:checked {
+            background-color: #4CAF50;
+            color: white;
+            border: 1px solid #45a049;
+        }
+        QPushButton:checked:hover {
+            background-color: #45a049;
+        }
+    )";
+    
+    for (auto btn : {numLockBtn, capsLockBtn, scrollLockBtn}) {
+        btn->setCheckable(true);
+        btn->setChecked(false);
+        btn->setMaximumWidth(65);
+        btn->setMaximumHeight(24);
+        btn->setFocusPolicy(Qt::NoFocus);
+        btn->setFlat(false);
+        btn->setStyleSheet(buttonStyleSheet);
+    }
+    
+    // Create container and layout for Lock buttons
+    keyStatesContainer = new QWidget(this);
+    QHBoxLayout *keyStatesLayout = new QHBoxLayout(keyStatesContainer);
+    keyStatesLayout->setContentsMargins(0, 0, 0, 0);
+    keyStatesLayout->setSpacing(2);
+    keyStatesLayout->addWidget(numLockBtn);
+    keyStatesLayout->addWidget(capsLockBtn);
+    keyStatesLayout->addWidget(scrollLockBtn);
+    keyStatesContainer->setLayout(keyStatesLayout);
+    
+    // Connect button click signals
+    connect(numLockBtn, &QPushButton::clicked, this, &StatusWidget::onNumLockClicked);
+    connect(capsLockBtn, &QPushButton::clicked, this, &StatusWidget::onCapsLockClicked);
+    connect(scrollLockBtn, &QPushButton::clicked, this, &StatusWidget::onScrollLockClicked);
     
     // Create labels with SVG icons
     cpuUsageLabel = new QLabel(this);
@@ -117,7 +172,7 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     layout->addWidget(new QLabel("| ", this));
     layout->addWidget(keyboardIndicatorsLabel);
     layout->addWidget(new QLabel("|", this));
-    layout->addWidget(keyStatesLabel);
+    layout->addWidget(keyStatesContainer);
     layout->addWidget(new QLabel("|", this));
     layout->addWidget(connectedPortLabel);
     layout->addWidget(new QLabel("|", this));
@@ -275,38 +330,15 @@ void StatusWidget::setBaudrate(int baudrate)
 
 void StatusWidget::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
 {
-    if (!keyStatesLabel) {
-        qCCritical(log_ui_statuswidget) << "CRITICAL: StatusWidget::setKeyStates - keyStatesLabel is null!";
+    if (!numLockBtn || !capsLockBtn || !scrollLockBtn) {
+        qCCritical(log_ui_statuswidget) << "CRITICAL: StatusWidget::setKeyStates - Lock buttons are null!";
         return;
     }
     
-    QString keyStatesText;
-    QStringList activeKeys;
-    
-    if (numLock) {
-        activeKeys << "NUM";
-    }
-    if (capsLock) {
-        activeKeys << "CAPS";
-    }
-    if (scrollLock) {
-        activeKeys << "SCROLL";
-    }
-    
-    if (activeKeys.isEmpty()) {
-        keyStatesText = "---";
-    } else {
-        keyStatesText = activeKeys.join("|");
-    }
-    
-    QPixmap pixmap = createIconTextLabel(":/images/keyboard.svg", keyStatesText);
-    
-    if (pixmap.isNull()) {
-        qCCritical(log_ui_statuswidget) << "CRITICAL: StatusWidget::setKeyStates - createIconTextLabel returned null pixmap!";
-        return;
-    }
-    
-    keyStatesLabel->setPixmap(pixmap);
+    // Update button states
+    numLockBtn->setChecked(numLock);
+    capsLockBtn->setChecked(capsLock);
+    scrollLockBtn->setChecked(scrollLock);
     
     // Set tooltip with detailed information
     QString tooltip = QString("Keyboard Lock States:\nNum Lock: %1\nCaps Lock: %2\nScroll Lock: %3")
@@ -314,7 +346,11 @@ void StatusWidget::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
                      .arg(capsLock ? "ON" : "OFF")
                      .arg(scrollLock ? "ON" : "OFF");
     
-    keyStatesLabel->setToolTip(tooltip);
+    keyStatesContainer->setToolTip(tooltip);
+    numLockBtn->setToolTip(QString("NumLock: %1").arg(numLock ? "ON" : "OFF"));
+    capsLockBtn->setToolTip(QString("CapsLock: %1").arg(capsLock ? "ON" : "OFF"));
+    scrollLockBtn->setToolTip(QString("ScrollLock: %1").arg(scrollLock ? "ON" : "OFF"));
+    
     update();
 }
 
@@ -572,4 +608,76 @@ double StatusWidget::getCpuUsage()
     qCWarning(log_ui_statuswidget) << "CPU usage monitoring not supported on this platform";
     return -1;
 #endif
+}
+
+/**
+ * @brief Slot called when NumLock button is clicked
+ * Sends NumLock toggle command to device
+ */
+void StatusWidget::onNumLockClicked()
+{
+    bool isChecked = numLockBtn->isChecked();
+    
+    // Send toggle command to device via SerialPortManager
+    bool success = SerialPortManager::getInstance().toggleNumLock();
+    
+    if (success) {
+        qCDebug(log_ui_statuswidget) 
+            << "✓ NumLock button toggled. Expected state:" 
+            << (isChecked ? "ON" : "OFF");
+        numLockBtn->setToolTip(QString("NumLock: %1\n(Click to toggle)")
+                                .arg(isChecked ? "ON" : "OFF"));
+    } else {
+        qCWarning(log_ui_statuswidget) << "✗ Failed to send NumLock command";
+        // Revert button state if command failed
+        numLockBtn->setChecked(!isChecked);
+    }
+}
+
+/**
+ * @brief Slot called when CapsLock button is clicked
+ * Sends CapsLock toggle command to device
+ */
+void StatusWidget::onCapsLockClicked()
+{
+    bool isChecked = capsLockBtn->isChecked();
+    
+    // Send toggle command to device via SerialPortManager
+    bool success = SerialPortManager::getInstance().toggleCapsLock();
+    
+    if (success) {
+        qCDebug(log_ui_statuswidget) 
+            << "✓ CapsLock button toggled. Expected state:" 
+            << (isChecked ? "ON" : "OFF");
+        capsLockBtn->setToolTip(QString("CapsLock: %1\n(Click to toggle)")
+                                 .arg(isChecked ? "ON" : "OFF"));
+    } else {
+        qCWarning(log_ui_statuswidget) << "✗ Failed to send CapsLock command";
+        // Revert button state if command failed
+        capsLockBtn->setChecked(!isChecked);
+    }
+}
+
+/**
+ * @brief Slot called when ScrollLock button is clicked
+ * Sends ScrollLock toggle command to device
+ */
+void StatusWidget::onScrollLockClicked()
+{
+    bool isChecked = scrollLockBtn->isChecked();
+    
+    // Send toggle command to device via SerialPortManager
+    bool success = SerialPortManager::getInstance().toggleScrollLock();
+    
+    if (success) {
+        qCDebug(log_ui_statuswidget) 
+            << "✓ ScrollLock button toggled. Expected state:" 
+            << (isChecked ? "ON" : "OFF");
+        scrollLockBtn->setToolTip(QString("ScrollLock: %1\n(Click to toggle)")
+                                   .arg(isChecked ? "ON" : "OFF"));
+    } else {
+        qCWarning(log_ui_statuswidget) << "✗ Failed to send ScrollLock command";
+        // Revert button state if command failed
+        scrollLockBtn->setChecked(!isChecked);
+    }
 }

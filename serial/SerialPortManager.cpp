@@ -3391,3 +3391,75 @@ void SerialPortManager::validateAsyncPortRetry(const QString &portName, int baud
         }
     });
 }
+
+/**
+ * @brief Send NumLock toggle command to device
+ * @return true if command was sent successfully, false otherwise
+ */
+bool SerialPortManager::toggleNumLock()
+{
+    // Build NumLock HID command
+    // Format: Header(0x57 0xAB) | Address(0x00) | Cmd(0x02 = Send KB) | Length(0x08) | 
+    //         Modifier(0x00) | Reserved(0x00) | KeyCode(0x53 = NumLock) | Padding...
+    QByteArray lockCmd = QByteArray::fromHex(
+        "57 AB 00 02 08 00 00 53 00 00 00 00 00"
+    );
+    
+    bool success = sendAsyncCommand(lockCmd, false);
+    
+    if (success) {
+        qCDebug(log_core_serial) << "✓ NumLock toggle command sent to device";
+    } else {
+        qCWarning(log_core_serial) << "✗ Failed to send NumLock toggle command";
+    }
+    
+    return success;
+}
+
+/**
+ * @brief Send CapsLock toggle command to device
+ * @return true if command was sent successfully, false otherwise
+ */
+bool SerialPortManager::toggleCapsLock()
+{
+    // Build CapsLock HID command
+    // Format: Header(0x57 0xAB) | Address(0x00) | Cmd(0x02 = Send KB) | Length(0x08) | 
+    //         Modifier(0x00) | Reserved(0x00) | KeyCode(0x39 = CapsLock on US QWERTY) | Padding...
+    QByteArray lockCmd = QByteArray::fromHex(
+        "57 AB 00 02 08 00 00 39 00 00 00 00 00"
+    );
+    
+    bool success = sendAsyncCommand(lockCmd, false);
+    
+    if (success) {
+        qCDebug(log_core_serial) << "✓ CapsLock toggle command sent to device";
+    } else {
+        qCWarning(log_core_serial) << "✗ Failed to send CapsLock toggle command";
+    }
+    
+    return success;
+}
+
+/**
+ * @brief Send ScrollLock toggle command to device
+ * @return true if command was sent successfully, false otherwise
+ */
+bool SerialPortManager::toggleScrollLock()
+{
+    // Build ScrollLock HID command
+    // Format: Header(0x57 0xAB) | Address(0x00) | Cmd(0x02 = Send KB) | Length(0x08) | 
+    //         Modifier(0x00) | Reserved(0x00) | KeyCode(0x47 = ScrollLock) | Padding...
+    QByteArray lockCmd = QByteArray::fromHex(
+        "57 AB 00 02 08 00 00 47 00 00 00 00 00"
+    );
+    
+    bool success = sendAsyncCommand(lockCmd, false);
+    
+    if (success) {
+        qCDebug(log_core_serial) << "✓ ScrollLock toggle command sent to device";
+    } else {
+        qCWarning(log_core_serial) << "✗ Failed to send ScrollLock toggle command";
+    }
+    
+    return success;
+}
