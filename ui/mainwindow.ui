@@ -121,7 +121,7 @@
    </widget>
    <widget class="QMenu" name="menuAdvance">
     <property name="title">
-     <string>Advance</string>
+     <string>Advanced</string>
     </property>
     <addaction name="actionEnvironmentSetup"/>
     <addaction name="actionResetSerialPort"/>

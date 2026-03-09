@@ -87,28 +87,31 @@ jobs:
       - name: Pull pre-built shared Qt Docker Image
         run: |
           echo "Pulling pre-built shared Qt Docker image for amd64..."
-          
+
           IMAGE_TAG="ubuntu-${{ github.event.inputs.ubuntu_version || '22.04' }}-amd64"
-          echo "Checking for image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
-          
-          
+          IMG="ghcr.io/techxartisanstudio/shared-qtbuild-complete"
+          echo "Checking for image: ${IMG}:$IMAGE_TAG"
+
           # Check if image exists in registry
-          if docker manifest inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG > /dev/null 2>&1; then
+          if docker manifest inspect ${IMG}:$IMAGE_TAG > /dev/null 2>&1; then
             echo "Pre-built image found, pulling..."
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG
+            docker pull ${IMG}:$IMAGE_TAG
 
             echo "Successfully pulled pre-built shared Qt Docker image for amd64"
           else
             echo "Error: Pre-built shared Qt Docker image not found in registry for amd64"
-            echo "Looking for: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG"
+            echo "Looking for: ${IMG}:$IMAGE_TAG"
             echo "Please run the 'Build Qt Environments' workflow first to build the required Docker images"
             echo "Workflow URL: https://github.com/${{ github.repository }}/actions/workflows/build-qt-environments.yml"
             exit 1
           fi
-          
+
           # Tag the architecture-specific image as latest for local use
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest
-          
+          docker tag ${IMG}:$IMAGE_TAG ${IMG}:latest
+
+          # Also tag to the original expected name if later steps reference it
+          docker tag ${IMG}:$IMAGE_TAG ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}-complete:latest || true
+
           # Verify the image was pulled successfully
           docker images | grep qtbuild-complete || {
             echo "Error: Failed to verify shared Qt Docker image"
