@@ -30,9 +30,13 @@
 #include "../host/cameramanager.h"
 #include "../device/DeviceManager.h"
 #include "../device/HotplugMonitor.h"
-// Protocol and key mapping constants
+// Protocol constants
 #include "ch9329.h"
-#include "../target/Keymapping.h"
+
+// Local scancode constants for lock keys (used to build HID report)
+static constexpr uint8_t SCANCODE_NUMLOCK = 0x53;
+static constexpr uint8_t SCANCODE_CAPSLOCK = 0x39;
+static constexpr uint8_t SCANCODE_SCROLLLOCK = 0x47;
 
 #include <QSerialPortInfo>
 #include <QTimer>
@@ -3439,10 +3443,7 @@ bool SerialPortManager::toggleNumLock()
     //         Modifier(0x00) | Reserved(0x00) | KeyCode(0x53 = NumLock) | Padding...
     // Use protocol template and key mapping rather than hard-coded hex string
     QByteArray lockCmd = CMD_SEND_KB_GENERAL_DATA;
-    uint8_t scancode = 0x53; // fallback
-    if (KeyboardManager::keyMap.contains(Qt::Key_NumLock)) {
-        scancode = KeyboardManager::keyMap.value(Qt::Key_NumLock);
-    }
+    uint8_t scancode = SCANCODE_NUMLOCK;
     if (lockCmd.size() >= 8) {
         lockCmd[5] = static_cast<char>(0x00); // modifier
         lockCmd[6] = static_cast<char>(0x00); // reserved
@@ -3471,10 +3472,7 @@ bool SerialPortManager::toggleCapsLock()
     //         Modifier(0x00) | Reserved(0x00) | KeyCode(0x39 = CapsLock on US QWERTY) | Padding...
     // Use protocol template and key mapping rather than hard-coded hex string
     QByteArray lockCmd = CMD_SEND_KB_GENERAL_DATA;
-    uint8_t scancode = 0x39; // fallback
-    if (KeyboardManager::keyMap.contains(Qt::Key_CapsLock)) {
-        scancode = KeyboardManager::keyMap.value(Qt::Key_CapsLock);
-    }
+    uint8_t scancode = SCANCODE_CAPSLOCK;
     if (lockCmd.size() >= 8) {
         lockCmd[5] = static_cast<char>(0x00); // modifier
         lockCmd[6] = static_cast<char>(0x00); // reserved
@@ -3503,10 +3501,7 @@ bool SerialPortManager::toggleScrollLock()
     //         Modifier(0x00) | Reserved(0x00) | KeyCode(0x47 = ScrollLock) | Padding...
     // Use protocol template and key mapping rather than hard-coded hex string
     QByteArray lockCmd = CMD_SEND_KB_GENERAL_DATA;
-    uint8_t scancode = 0x47; // fallback
-    if (KeyboardManager::keyMap.contains(Qt::Key_ScrollLock)) {
-        scancode = KeyboardManager::keyMap.value(Qt::Key_ScrollLock);
-    }
+    uint8_t scancode = SCANCODE_SCROLLLOCK;
     if (lockCmd.size() >= 8) {
         lockCmd[5] = static_cast<char>(0x00); // modifier
         lockCmd[6] = static_cast<char>(0x00); // reserved
