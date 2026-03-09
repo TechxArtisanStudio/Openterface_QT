@@ -341,9 +341,14 @@ install(FILES ${CMAKE_SOURCE_DIR}/packaging/com.openterface.openterfaceQT.deskto
 )
 
 # Install metainfo file (for AppStream)
-install(FILES ${CMAKE_SOURCE_DIR}/com.openterface.openterfaceQT.metainfo.xml
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
-)
+set(OPENTERFACE_METAINFO_FILE "${CMAKE_SOURCE_DIR}/packaging/com.openterface.openterfaceQT.metainfo.xml")
+if(EXISTS "${OPENTERFACE_METAINFO_FILE}")
+    install(FILES "${OPENTERFACE_METAINFO_FILE}"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
+    )
+else()
+    message(WARNING "Metainfo file not found: ${OPENTERFACE_METAINFO_FILE}")
+endif()
 
 # Guard deploy script generation for Qt < 6.3 on Ubuntu 22.04
 if(COMMAND qt_generate_deploy_app_script)
