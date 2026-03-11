@@ -7,10 +7,21 @@ HERE="$(dirname "$(readlink -f "${0}")")"
 
 # CRITICAL: Ensure HERE points to AppImage root, not a subdirectory
 # Remove /usr/bin or /bin if appended (can happen in some Docker/mount scenarios)
+# These patterns intentionally only strip a single trailing component.  If the
+# script happens to live directly in /usr/bin or /bin, the trimming rules would
+# reduce HERE to an empty string which later results in invoking "/usr/bin/..."
+# (the system path) and can cause the launcher to exec itself repeatedly.  This
+# can manifest as a dead‑loop when the AppImage is symlinked/installed under
+# /usr/{bin,}/openterfaceQT.
 HERE="${HERE%/usr/bin}"
 HERE="${HERE%/usr/bin/}"
 HERE="${HERE%/bin}"
 HERE="${HERE%/bin/}"
+
+# if trimming produced an empty value, fall back to the original dirname output
+if [ -z "$HERE" ]; then
+    HERE="$(dirname "$(readlink -f "${0}")")"
+fi
 
 echo "HERE=${HERE}"
 
@@ -83,4 +94,16 @@ echo "QT_PLUGIN_PATH=${QT_PLUGIN_PATH}"
 
 # Run the application
 # Use .bin suffix to avoid calling symlinks at /usr/local/bin/openterfaceQT
-exec "${HERE}/usr/bin/openterfaceQT.bin" "$@"
+
+# guard against recursive execution: the target binary must not be the
+# launcher script itself.  If someone accidentally installs the AppImage or
+# creates a symlink that causes ${HERE}/usr/bin/openterfaceQT.bin to resolve to
+# this script, we'll abort instead of looping forever.
+TARGET_BIN="${HERE}/usr/bin/openterfaceQT.bin"
+if [ "$(readlink -f "$TARGET_BIN")" = "$(readlink -f "$0")" ]; then
+    echo "ERROR: binary path points to launcher itself (\"$TARGET_BIN\")." >&2
+    echo "This would cause an infinite loop, aborting." >&2
+    exit 1
+fi
+
+exec "$TARGET_BIN" "$@"
