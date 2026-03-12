@@ -893,6 +893,17 @@ rm -rf "${APPDIR}/usr/libexec/coreutils/" 2>/dev/null || true
 rm -rf "${APPDIR}/libexec/coreutils/" 2>/dev/null || true
 echo "  ✓ GLIBC and coreutils libraries removed - will use host system versions"
 
+# Safeguard: linuxdeploy (or its Qt plugin) can replace openterfaceQT.bin with a symlink
+# pointing back to AppRun for desktop integration. That would cause AppRun to exec itself
+# in a loop. Restore the real ELF if that happened.
+if [ -L "${APPDIR}/usr/bin/openterfaceQT.bin" ]; then
+	echo "⚠️  openterfaceQT.bin was replaced with a symlink by linuxdeploy; restoring real binary"
+	rm -f "${APPDIR}/usr/bin/openterfaceQT.bin"
+	cp "${BUILD}/openterfaceQT" "${APPDIR}/usr/bin/openterfaceQT.bin"
+	chmod +x "${APPDIR}/usr/bin/openterfaceQT.bin"
+	echo "✓ Restored openterfaceQT.bin as real ELF binary"
+fi
+
 # Copy AppRun script from packaging directory with proper environment setup
 cp "${SRC}/packaging/appimage/AppRun" "${APPDIR}/AppRun"
 chmod +x "${APPDIR}/AppRun"
