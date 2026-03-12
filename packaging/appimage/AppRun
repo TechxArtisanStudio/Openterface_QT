@@ -25,13 +25,27 @@ fi
 
 echo "HERE=${HERE}"
 
+# Guard against recursive invocation.  When the app or any subprocess finds
+# openterfaceQT via PATH (which includes ${HERE}/usr/bin), this AppRun can be
+# triggered again, causing GST_PLUGIN_PATH / LD_LIBRARY_PATH to grow on every
+# re-entry and the application to never actually start.
+# If we are already inside AppRun, jump straight to the binary.
+if [ -n "$APPRUN_RUNNING" ]; then
+    exec "${HERE}/usr/bin/openterfaceQT.bin" "$@"
+    exit 1
+fi
+export APPRUN_RUNNING=1
+
 # CRITICAL: Set library path to use AppImage bundled libraries FIRST
 # This prevents loading incompatible system libraries with different GLIBC versions
 # However, we DON'T include system GLIBC libraries (they're removed for compatibility)
 # The order is:
 # 1. AppImage's own libraries (non-GLIBC, like plugins and Qt)
 # 2. System libraries (GLIBC, Qt, etc. - provided by host)
-export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/gstreamer-1.0:${HERE}/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib:${LD_LIBRARY_PATH}"
+case ":${LD_LIBRARY_PATH}:" in
+    *":${HERE}/usr/lib:"*) ;;
+    *) export LD_LIBRARY_PATH="${HERE}/usr/lib:${HERE}/usr/lib/gstreamer-1.0:${HERE}/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:/usr/lib:/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" ;;
+esac
 
 # CRITICAL: Ensure system PATH for utilities and GLIBC
 # Allows fallback to host system utilities with compatible GLIBC
@@ -51,22 +65,34 @@ fi
 # This is critical for glibc compatibility
 if [ -f "${HERE}/usr/lib/ld-linux-x86-64.so.2" ]; then
     # Some systems may respect this, though not all
-    export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+    case ":${LD_LIBRARY_PATH}:" in
+        *":${HERE}/usr/lib:"*) ;;
+        *) export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}" ;;
+    esac
 fi
 
-# Set GStreamer plugin path to our bundled plugins
-export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0:${GST_PLUGIN_PATH}"
+# Set GStreamer plugin path to our bundled plugins (guard against duplicate prepend)
+case ":${GST_PLUGIN_PATH}:" in
+    *":${HERE}/usr/lib/gstreamer-1.0:"*) ;;
+    *) export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0${GST_PLUGIN_PATH:+:${GST_PLUGIN_PATH}}" ;;
+esac
 # If we have a bundled gst-plugin-scanner, make sure GStreamer uses it
 if [ -x "${HERE}/usr/libexec/gstreamer-1.0/gst-plugin-scanner" ]; then
     export GST_PLUGIN_SCANNER="${HERE}/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
     echo "GST_PLUGIN_SCANNER set to ${GST_PLUGIN_SCANNER}"
 fi
 
-# Set Qt plugin path and Wayland support
-export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${HERE}/usr/plugins:${QT_PLUGIN_PATH}:/usr/lib64"
+# Set Qt plugin path and Wayland support (guard against duplicate prepend)
+case ":${QT_PLUGIN_PATH}:" in
+    *":${HERE}/usr/lib/plugins:"*) ;;
+    *) export QT_PLUGIN_PATH="${HERE}/usr/lib/plugins:${HERE}/usr/plugins${QT_PLUGIN_PATH:+:${QT_PLUGIN_PATH}}:/usr/lib64" ;;
+esac
 
 # Add Wayland shell integration plugins path - point to the platforms directory where the plugins are
-export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins/platforms:${QT_QPA_PLATFORM_PLUGIN_PATH}"
+case ":${QT_QPA_PLATFORM_PLUGIN_PATH}:" in
+    *":${HERE}/usr/lib/plugins/platforms:"*) ;;
+    *) export QT_QPA_PLATFORM_PLUGIN_PATH="${HERE}/usr/lib/plugins/platforms${QT_QPA_PLATFORM_PLUGIN_PATH:+:${QT_QPA_PLATFORM_PLUGIN_PATH}}" ;;
+esac
 
 # Set XDG_RUNTIME_DIR for Wayland support (required for Wayland)
 # If not already set, use /run/user/$(id -u) which is the standard location
