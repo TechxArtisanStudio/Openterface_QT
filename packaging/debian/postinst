@@ -36,6 +36,14 @@ EOF
         echo "✓ uucp group created"
     fi
     
+    # Add video group for camera/video device access
+    if getent group video > /dev/null; then
+        echo "✓ video group found"
+    else
+        groupadd video 2>/dev/null || true
+        echo "✓ video group created"
+    fi
+    
     # Setup udev rules for hardware permissions
     # This allows non-root users to access the Openterface device
     cat > /etc/udev/rules.d/51-openterface.rules <<'EOF'

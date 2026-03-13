@@ -30,9 +30,11 @@
 
 #include <QThread>
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QDebug>
 #include <QLoggingCategory>
 #include <QTimer>
+#include <QElapsedTimer>
 
 extern "C" {
 #include <libavformat/avformat.h>
