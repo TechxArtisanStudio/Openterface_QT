@@ -658,8 +658,8 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     // qCDebug(log_ui_mainwindowinitializer) << "Paste shortcut enabled:" << pasteShortcut->isEnabled();
     // qCDebug(log_ui_mainwindowinitializer) << "Find shortcut context:" << findShortcut->context();
     // qCDebug(log_ui_mainwindowinitializer) << "Find shortcut enabled:" << findShortcut->isEnabled();
-    // qCDebug(log_ui_mainwindowinitializer) << "Print shortcut context:" << printShortcut->context();
-    // qCDebug(log_ui_mainwindowinitializer) << "Print shortcut enabled:" << printShortcut->isEnabled();
+    qCDebug(log_ui_mainwindowinitializer) << "Print shortcut context:" << printShortcut->context();
+    qCDebug(log_ui_mainwindowinitializer) << "Print shortcut enabled:" << printShortcut->isEnabled();
     // qCDebug(log_ui_mainwindowinitializer) << "Quit shortcut context:" << quitShortcut->context();
     // qCDebug(log_ui_mainwindowinitializer) << "Quit shortcut enabled:" << quitShortcut->isEnabled();
 }
