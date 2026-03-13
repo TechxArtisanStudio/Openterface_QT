@@ -54,6 +54,7 @@ private:
 
 #ifdef __linux__
     static bool checkHidPermission();
+    static bool checkVideoPermission();
     static bool checkBrlttyRunning();
     static bool detectDevices(const std::vector<std::pair<uint16_t, uint16_t>>& devices);
     static bool checkPermissions(const std::vector<std::pair<uint16_t, uint16_t>>& devices, bool isSerial);
@@ -65,6 +66,7 @@ private:
 
     static bool isInRightUserGroup;
     static bool isHidPermission;
+    static bool isVideoPermission;
     static bool isSerialPermission;
     static bool isBrlttyRunning;
 
