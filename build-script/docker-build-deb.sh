@@ -48,14 +48,24 @@ fi
 # Copy Qt libraries to bundle them in the deb
 # CRITICAL: Must use a proper Qt6 build, NOT system libraries
 # System Qt6 libraries have version dependencies that won't work at runtime
+# Qt installation location.  Historically we bundled a custom build under
+# /opt/Qt6, but on distributions such as Ubuntu 22.04 the stock Qt6 packages
+# live under /usr/lib/<arch>-linux-gnu/qt6.  We try /opt first and fall back
+# to the system path if it exists.
 QT_LIB_DIR="/opt/Qt6/lib"
 
 if [ ! -d "${QT_LIB_DIR}" ]; then
-    echo "❌ ERROR: Qt6 custom build not found at /opt/Qt6/lib"
-    echo "   The DEB package requires a properly compiled Qt6 build."
-    echo "   System Qt6 libraries cannot be used as they have version dependencies."
-    echo "   Please ensure Qt6 is built and installed at /opt/Qt6/ before packaging."
-    exit 1
+    # try common system location for Debian/Ubuntu
+    if [ -d "/usr/lib/${UNAME_M}-linux-gnu/qt6/lib" ]; then
+        QT_LIB_DIR="/usr/lib/${UNAME_M}-linux-gnu/qt6/lib"
+        echo "⚠️  Using system Qt6 libraries at ${QT_LIB_DIR} (no /opt/Qt6 present)"
+    else
+        echo "❌ ERROR: Qt6 build not found at /opt/Qt6/lib or system directories"
+        echo "   The DEB packaging script expects a Qt6 build."
+        echo "   On Debian/Ubuntu you can install the distribution's Qt6 packages" \
+             "(e.g. libqt6core6, libqt6gui6, etc.) or place a custom build under /opt/Qt6."
+        exit 1
+    fi
 fi
 
 mkdir -p "${PKG_ROOT}/usr/lib/openterfaceqt/qt6"
