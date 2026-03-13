@@ -411,7 +411,9 @@ cp "${BUILD}/openterfaceQT" "${APPDIR}/usr/bin/openterfaceQT.bin"
 chmod +x "${APPDIR}/usr/bin/openterfaceQT.bin"
 
 # Create desktop file for comprehensive AppImage
-cp "${SRC}/packaging/com.openterface.openterfaceQT.desktop" "${APPDIR}/usr/share/applications/openterfaceqt.desktop"
+# Modify Exec to use the .bin binary name (AppImage uses .bin suffix for the actual executable)
+sed -e 's|^Exec=.*$|Exec=openterfaceQT.bin|g' \
+	"${SRC}/packaging/com.openterface.openterfaceQT.desktop" > "${APPDIR}/usr/share/applications/openterfaceqt.desktop"
 
 # For AppImage, keep the proper FreeDesktop icon name (com.openterface.openterfaceQT)
 # This ensures the icon is found by standard icon theme lookups on all platforms

@@ -483,10 +483,21 @@ APP_LOG="/tmp/openterfaceqt-app-$(date +%s).log"
     echo "=== Application Output ===" 
 } > "$APP_LOG" 2>&1
 
-# Execute the binary with all passed arguments
+# Execute the binary with all passed arguments; use env to inject the
+# modified library path only for the child process.
 # Redirect output to both log file and console for monitoring
-"$OPENTERFACE_BIN" "$@" 2>&1 | tee -a "$APP_LOG" &
+env LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
+    LD_PRELOAD="$LD_PRELOAD" \
+    QT_PLUGIN_PATH="$QT_PLUGIN_PATH" \
+    QT_QPA_PLATFORM_PLUGIN_PATH="$QT_QPA_PLATFORM_PLUGIN_PATH" \
+    QML2_IMPORT_PATH="$QML2_IMPORT_PATH" \
+    GST_PLUGIN_PATH="$GST_PLUGIN_PATH" \
+    "$OPENTERFACE_BIN" "$@" 2>&1 | tee -a "$APP_LOG" &
 APP_PID=$!
+
+# if this script was sourced by accident, remove the temporary variable to
+# avoid leaving LD_LIBRARY_PATH set in the caller's environment
+unset LD_LIBRARY_PATH
 
 {
     echo "Application started with PID: $APP_PID"

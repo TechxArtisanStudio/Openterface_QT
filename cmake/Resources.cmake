@@ -341,9 +341,14 @@ install(FILES ${CMAKE_SOURCE_DIR}/packaging/com.openterface.openterfaceQT.deskto
 )
 
 # Install metainfo file (for AppStream)
-install(FILES ${CMAKE_SOURCE_DIR}/com.openterface.openterfaceQT.metainfo.xml
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
-)
+set(OPENTERFACE_METAINFO_FILE "${CMAKE_SOURCE_DIR}/packaging/com.openterface.openterfaceQT.metainfo.xml")
+if(EXISTS "${OPENTERFACE_METAINFO_FILE}")
+    install(FILES "${OPENTERFACE_METAINFO_FILE}"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
+    )
+else()
+    message(WARNING "Metainfo file not found: ${OPENTERFACE_METAINFO_FILE}")
+endif()
 
 # Guard deploy script generation for Qt < 6.3 on Ubuntu 22.04
 if(COMMAND qt_generate_deploy_app_script)
@@ -352,12 +357,21 @@ if(COMMAND qt_generate_deploy_app_script)
         set(ENABLE_QT_DEPLOY ON)
     endif()
     if(ENABLE_QT_DEPLOY)
-        qt_generate_deploy_app_script(
-            TARGET openterfaceQT
-            FILENAME_VARIABLE deploy_script    
-            NO_UNSUPPORTED_PLATFORM_ERROR
-        )
-        install(SCRIPT ${deploy_script})
+        # Try new syntax first (Qt 6.5+), fall back to old syntax
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")
+            qt_generate_deploy_app_script(
+                TARGET openterfaceQT
+                OUTPUT_SCRIPT deploy_script    
+                NO_UNSUPPORTED_PLATFORM_ERROR
+            )
+            install(SCRIPT ${deploy_script})
+        else()
+            # Older CMake versions don't support OUTPUT_SCRIPT
+            qt_generate_deploy_app_script(
+                TARGET openterfaceQT
+                NO_UNSUPPORTED_PLATFORM_ERROR
+            )
+        endif()
     else()
         message(STATUS "Qt deploy disabled (ENABLE_QT_DEPLOY=OFF); skipping deploy script generation")
     endif()
