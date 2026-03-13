@@ -6,6 +6,6 @@
 // Please refer to build-script/update_version.py
 
 #define APP_VERSION "0.5.18.068"
-#define STABLE_APP_VERSION "0.5.17"
+#define STABLE_APP_VERSION "0.3.19"
 
 #endif // VERSION_H
