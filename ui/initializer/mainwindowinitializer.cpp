@@ -528,9 +528,9 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     QKeySequence printSeq(Qt::CTRL | Qt::Key_P);
     QShortcut *printShortcut = new QShortcut(printSeq, m_mainWindow);
     
-    // // Ctrl+Q: Quit application
-    // QKeySequence quitSeq(Qt::CTRL | Qt::Key_Q);
-    // QShortcut *quitShortcut = new QShortcut(quitSeq, m_mainWindow);
+    // Ctrl+Q: Quit application
+    QKeySequence quitSeq(Qt::CTRL | Qt::Key_Q);
+    QShortcut *quitShortcut = new QShortcut(quitSeq, m_mainWindow);
     
     // // Ctrl+Alt+A: Activate absolute mouse mode
     // QKeySequence ctrlAltASeq(Qt::CTRL | Qt::ALT | Qt::Key_A);
@@ -573,8 +573,8 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     // Connect Ctrl+P shortcut to preferences dialog
     QObject::connect(printShortcut, &QShortcut::activated, mainWindow, &MainWindow::configureSettings);
 
-    // // Connect Ctrl+Q shortcut to quit application
-    // QObject::connect(quitShortcut, &QShortcut::activated, mainWindow, &MainWindow::close);
+    // Connect Ctrl+Q shortcut to quit application
+    QObject::connect(quitShortcut, &QShortcut::activated, mainWindow, &MainWindow::close);
     
     // // Connect Ctrl+Alt+A shortcut to switch to absolute mouse mode and send an absolute mouse event
     // QObject::connect(ctrlAltAShortcut, &QShortcut::activated, [mainWindow]() {
@@ -616,9 +616,9 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     // qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+V shortcut for paste to target";
     // qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+F shortcut for find/search";
     qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+P shortcut for capture/print";
-    // qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Q shortcut for quit application";
-    // qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut context:" << fullscreenShortcut->context();
-    // qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut enabled:" << fullscreenShortcut->isEnabled();
+    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Q shortcut for quit application";
+    qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut context:" << fullscreenShortcut->context();
+    qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut enabled:" << fullscreenShortcut->isEnabled();
     // qCDebug(log_ui_mainwindowinitializer) << "Paste shortcut context:" << pasteShortcut->context();
     // qCDebug(log_ui_mainwindowinitializer) << "Paste shortcut enabled:" << pasteShortcut->isEnabled();
     // qCDebug(log_ui_mainwindowinitializer) << "Find shortcut context:" << findShortcut->context();
