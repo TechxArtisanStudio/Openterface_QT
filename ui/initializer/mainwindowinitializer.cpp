@@ -551,6 +551,34 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     // QShortcut *findShortcut = new QShortcut(findSeq, m_mainWindow);
     
     
+    // // Ctrl+V: Paste to target
+    // QKeySequence pasteSeq(Qt::CTRL | Qt::Key_V);
+    // QShortcut *pasteShortcut = new QShortcut(pasteSeq, m_mainWindow);
+    
+    // // Ctrl+F: Find/Search or Fullscreen toggle
+    // QKeySequence findSeq(Qt::CTRL | Qt::Key_F);
+    // QShortcut *findShortcut = new QShortcut(findSeq, m_mainWindow);
+    
+    // Ctrl+P: Print/Capture or other primary action
+    QKeySequence printSeq(Qt::CTRL | Qt::Key_P);
+    QShortcut *printShortcut = new QShortcut(printSeq, m_mainWindow);
+    
+    // // Ctrl+Q: Quit application
+    // QKeySequence quitSeq(Qt::CTRL | Qt::Key_Q);
+    // QShortcut *quitShortcut = new QShortcut(quitSeq, m_mainWindow);
+    
+    // // Ctrl+Alt+A: Activate absolute mouse mode
+    // QKeySequence ctrlAltASeq(Qt::CTRL | Qt::ALT | Qt::Key_A);
+    // QShortcut *ctrlAltAShortcut = new QShortcut(ctrlAltASeq, m_mainWindow);
+    
+    // // Ctrl+Alt+R: Activate relative mouse mode
+    // QKeySequence ctrlAltRSeq(Qt::CTRL | Qt::Key_T);
+    // QShortcut *ctrlAltRShortcut = new QShortcut(ctrlAltRSeq, m_mainWindow);
+    
+    // // F1: Open help menu
+    // QKeySequence f1Seq(Qt::Key_F1);
+    // QShortcut *f1Shortcut = new QShortcut(f1Seq, m_mainWindow);
+    
     // CRITICAL FIX: Capture specific pointers instead of 'this' to avoid dangling reference
     // MainWindowInitializer is destroyed after constructor completes, so capturing 'this' causes crash
     MainWindow* mainWindow = m_mainWindow;
@@ -571,47 +599,69 @@ void MainWindowInitializer::setupKeyboardShortcuts()
         coordinator->fullScreen();
     });
 
-    // Connect Ctrl+Shift+A shortcut to open screen aspect ratio dialog
-    QObject::connect(aspectRatioShortcut, &QShortcut::activated, mainWindow, &MainWindow::configScreenScale);
-    
-    // Connect zoom shortcuts to corresponding functions
-    QObject::connect(zoomInShortcut, &QShortcut::activated, mainWindow, &MainWindow::zoomIn);
-    QObject::connect(zoomOutShortcut, &QShortcut::activated, mainWindow, &MainWindow::zoomOut);
-    QObject::connect(actualSizeShortcut, &QShortcut::activated, mainWindow, &MainWindow::actualSize);
-    
-    // Connect screenshot shortcut to takeImageDefault function
-    QObject::connect(screenshotShortcut, &QShortcut::activated, mainWindow, &MainWindow::takeImageDefault);
-    
-    // Connect paste shortcut to paste to target function
-    QObject::connect(pasteShortcut, &QShortcut::activated, mainWindow, &MainWindow::onActionPasteToTarget);
-
-    // Connect Ctrl+Shift+M shortcut to toggle mouse dance
-    QObject::connect(mouseDanceShortcut, &QShortcut::activated, mainWindow, &MainWindow::onActionScreensaver);
-
-    // Connect Ctrl+Shift+F11 shortcut to toggle recording
-    QObject::connect(recordingShortcut, &QShortcut::activated, mainWindow, &MainWindow::toggleRecording);
-
-    // Connect Ctrl+Shift+F9 shortcut to toggle mute audio
-    QObject::connect(muteShortcut, &QShortcut::activated, mainWindow, &MainWindow::toggleMute);
-
-    // Connect Ctrl+Shift+K shortcut to toggle function key and composite key toolbar
-    QObject::connect(virtualKeyboardShortcut, &QShortcut::activated, mainWindow, &MainWindow::onToggleVirtualKeyboard);
-    
+    // // Connect Ctrl+V shortcut to paste to target function
+    // QObject::connect(pasteShortcut, &QShortcut::activated, mainWindow, &MainWindow::onActionPasteToTarget);
     
     // // Connect Ctrl+F shortcut to activate file menu
     // QObject::connect(findShortcut, &QShortcut::activated, mainWindow, &MainWindow::activateFileMenu);
 
+    // Connect Ctrl+P shortcut to preferences dialog
+    QObject::connect(printShortcut, &QShortcut::activated, mainWindow, &MainWindow::configureSettings);
 
+    // // Connect Ctrl+Q shortcut to quit application
+    // QObject::connect(quitShortcut, &QShortcut::activated, mainWindow, &MainWindow::close);
+    
+    // // Connect Ctrl+Alt+A shortcut to switch to absolute mouse mode and send an absolute mouse event
+    // QObject::connect(ctrlAltAShortcut, &QShortcut::activated, [mainWindow]() {
+    //     // Switch to absolute mouse mode
+    //     GlobalVar::instance().setAbsoluteMouseMode(true);
+    //     mainWindow->videoPane->hideHostMouse();
+    //     mainWindow->popupMessage("Switched to Absolute Mouse Mode");
+        
+    //     // Create a MouseEventDTO to represent moving to center of screen in absolute mode
+    //     MouseEventDTO event(2048, 2048, true, 0, 0);  // x=2048, y=2048, absolute=true, no mouse button, no wheel
+    //     // Use HostManager to handle the mouse event consistently with other mouse events
+    //     HostManager::getInstance().handleMouseMove(&event);
+    // });
+    
+    // // Connect Ctrl+Alt+R shortcut to switch to relative mouse mode
+    // QObject::connect(ctrlAltRShortcut, &QShortcut::activated, [mainWindow]() {
+    //     // Switch to relative mouse mode
+    //     GlobalVar::instance().setAbsoluteMouseMode(false);
+    //     mainWindow->videoPane->hideHostMouse();
+    //     mainWindow->popupMessage("Switched to Relative Mouse Mode");
+        
+    //     // Center the host cursor in the video pane
+    //     QPoint globalPosition = mainWindow->videoPane->mapToGlobal(QPoint(0, 0));
+    //     QRect globalGeometry = QRect(globalPosition, mainWindow->videoPane->geometry().size());
+    //     QPoint center = globalGeometry.center();
+    //     QCursor::setPos(center);
+    // });
+    
+    // // Connect F1 shortcut to open help menu
+    // QObject::connect(f1Shortcut, &QShortcut::activated, [mainWindow]() {
+    //     // Switch to the help pane in the stacked layout
+    //     int helpPaneIndex = mainWindow->stackedLayout->indexOf(mainWindow->findChild<HelpPane*>());
+    //     if (helpPaneIndex != -1) {
+    //         mainWindow->stackedLayout->setCurrentIndex(helpPaneIndex);
+    //     }
+    // });
+    
     qCDebug(log_ui_mainwindowinitializer) << "Registered Alt+F11 shortcut for fullscreen toggle";
-    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+A shortcut for screen aspect ratio";
+    // qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+V shortcut for paste to target";
     // qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+F shortcut for find/search";
-    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+P shortcut for preferences";
-    qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut context:" << fullscreenShortcut->context();
-    qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut enabled:" << fullscreenShortcut->isEnabled();
-    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+F10 shortcut for mouse dance toggle";
-    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+F11 shortcut for toggle recording";
-    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+F9 shortcut for toggle mute audio";
-    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+K shortcut for toggle virtual keyboard toolbar";
+    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+P shortcut for capture/print";
+    // qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Q shortcut for quit application";
+    // qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut context:" << fullscreenShortcut->context();
+    // qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut enabled:" << fullscreenShortcut->isEnabled();
+    // qCDebug(log_ui_mainwindowinitializer) << "Paste shortcut context:" << pasteShortcut->context();
+    // qCDebug(log_ui_mainwindowinitializer) << "Paste shortcut enabled:" << pasteShortcut->isEnabled();
+    // qCDebug(log_ui_mainwindowinitializer) << "Find shortcut context:" << findShortcut->context();
+    // qCDebug(log_ui_mainwindowinitializer) << "Find shortcut enabled:" << findShortcut->isEnabled();
+    // qCDebug(log_ui_mainwindowinitializer) << "Print shortcut context:" << printShortcut->context();
+    // qCDebug(log_ui_mainwindowinitializer) << "Print shortcut enabled:" << printShortcut->isEnabled();
+    // qCDebug(log_ui_mainwindowinitializer) << "Quit shortcut context:" << quitShortcut->context();
+    // qCDebug(log_ui_mainwindowinitializer) << "Quit shortcut enabled:" << quitShortcut->isEnabled();
 }
 
 void MainWindowInitializer::finalize()
