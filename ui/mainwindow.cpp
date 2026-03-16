@@ -388,23 +388,39 @@ void MainWindow::onActionRelativeTriggered()
     videoPane->hideHostMouse();
 
     this->popupMessage("Long press ESC to exit.");
+
+    // Update menu item state to reflect the change
+    ui->actionRelative->setChecked(true);
+    ui->actionAbsolute->setChecked(false);
 }
 
 void MainWindow::onActionAbsoluteTriggered()
 {
     GlobalVar::instance().setAbsoluteMouseMode(true);
+
+    // Update menu item state to reflect the change
+    ui->actionAbsolute->setChecked(true);
+    ui->actionRelative->setChecked(false);
 }
 
 void MainWindow::onActionMouseAutoHideTriggered()
 {
     GlobalVar::instance().setMouseAutoHide(true);
     GlobalSetting::instance().setMouseAutoHideEnable(true);
+    
+    // Update menu item state to reflect the change
+    ui->actionMouseAutoHide->setChecked(true);
+    ui->actionMouseAlwaysShow->setChecked(false);
 }
 
 void MainWindow::onActionMouseAlwaysShowTriggered()
 {
     GlobalVar::instance().setMouseAutoHide(false);
     GlobalSetting::instance().setMouseAutoHideEnable(false);
+    
+    // Update menu item state to reflect the change
+    ui->actionMouseAlwaysShow->setChecked(true);
+    ui->actionMouseAutoHide->setChecked(false);
 }
 
 void MainWindow::onActionFactoryResetHIDTriggered()
@@ -842,6 +858,44 @@ void MainWindow::onCtrlAltDelPressed()
 {
     HostManager::getInstance().sendCtrlAltDel();
 }
+
+// void MainWindow::onCtrlVPressed()
+// {
+//     HostManager::getInstance().sendCtrlV();
+// }
+
+// void MainWindow::onCtrlQPressed()
+// {
+//     HostManager::getInstance().sendCtrlQ();
+// }
+
+// void MainWindow::onCtrlAltAPressed()
+// {
+//     // Switch to absolute mouse mode
+//     GlobalVar::instance().setAbsoluteMouseMode(true);
+//     videoPane->hideHostMouse();
+//     this->popupMessage("Switched to Absolute Mouse Mode");
+//     HostManager::getInstance().sendCtrlAltA();
+// }
+
+// void MainWindow::onCtrlAltRPressed()
+// {
+//     // Switch to relative mouse mode
+//     GlobalVar::instance().setAbsoluteMouseMode(false);
+//     videoPane->hideHostMouse();
+//     this->popupMessage("Switched to Relative Mouse Mode");
+//     QPoint globalPosition = videoPane->mapToGlobal(QPoint(0, 0));
+//     QRect globalGeometry = QRect(globalPosition, videoPane->geometry().size());
+//     // move the mouse to window center
+//     QPoint center = globalGeometry.center();
+//     QCursor::setPos(center);
+//     HostManager::getInstance().sendCtrlAltR();
+// }
+
+// void MainWindow::onCtrlShiftSPressed()
+// {
+//     HostManager::getInstance().sendCtrlShiftS();
+// }
 
 void MainWindow::onRepeatingKeystrokeChanged(int interval)
 {
@@ -1843,3 +1897,20 @@ void MainWindow::showHardwareDiagnostics() {
     
     diagnosticsDialog->show();
 }
+
+// void MainWindow::activateFileMenu()
+// {
+//     if (ui->menuFile) {
+//         QList<QAction*> actions = ui->menubar->actions();
+//         for (QAction* action : actions) {
+//             if (action->menu() == ui->menuFile) {
+//                 QRect actionRect = ui->menubar->actionGeometry(action);
+//                 QPoint globalPos = ui->menubar->mapToGlobal(actionRect.bottomLeft());
+//                 ui->menuFile->popup(globalPos);
+//                 break;
+//             }
+//         }
+//     }
+// }
+
+
