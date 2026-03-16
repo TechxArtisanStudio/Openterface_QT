@@ -152,6 +152,9 @@
    <property name="shortcut">
     <string>Ctrl+Q</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+Q</string>
+   </property>
   </action>
   <action name="actionSettings">
    <property name="text">
@@ -185,6 +188,9 @@
    <property name="shortcut">
     <string>Ctrl+P</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+P</string>
+   </property>
   </action>
   <action name="actionOfficeWeb">
    <property name="text">
@@ -208,6 +214,9 @@
    <property name="shortcut">
     <string>Ctrl+U</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+U</string>
+   </property>
   </action>
   <action name="actionEnvironment">
    <property name="text">
@@ -216,10 +225,16 @@
    <property name="shortcut">
     <string>Ctrl+E</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+E</string>
+   </property>
   </action>
   <action name="actionAbout">
    <property name="text">
     <string>About</string>
+   </property>
+   <property name="shortcut">
+    <string>F1</string>
    </property>
    <property name="shortcut">
     <string>F1</string>
@@ -249,13 +264,16 @@
    <property name="shortcut">
     <string>Ctrl+V</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+V</string>
+   </property>
   </action>
   <action name="actionScriptTool">
    <property name="text">
     <string>Script Tool</string>
    </property>
    <property name="shortcut">
-    <string>Ctrl+Shift+L</string>
+    <string>Ctrl+Shift+S</string>
    </property>
   </action>
   <action name="actionRecordingSettings">
@@ -264,6 +282,9 @@
    </property>
    <property name="toolTip">
     <string>Configure video recording settings and start/stop recording</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+R</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+R</string>
@@ -279,10 +300,16 @@
    <property name="shortcut">
     <string>Ctrl+Shift+D</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+D</string>
+   </property>
   </action>
   <action name="actionTCPServer">
    <property name="text">
     <string>TCP Server</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+C</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+C</string>
@@ -295,10 +322,16 @@
    <property name="shortcut">
     <string>Ctrl+Shift+E</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+E</string>
+   </property>
   </action>
   <action name="actionFirmwareManager">
    <property name="text">
     <string>Firmware Manager</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+F</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+F</string>
@@ -319,6 +352,9 @@
    <property name="shortcut">
     <string>Ctrl+Shift+I</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+I</string>
+   </property>
   </action>
   <action name="actionRenameDisplay">
    <property name="text">
@@ -326,6 +362,9 @@
    </property>
    <property name="toolTip">
     <string>Update display name and serial number in EDID</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+U</string>
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+U</string>
@@ -361,12 +400,26 @@
     <string>Ctrl+Shift+H</string>
    </property>
   </action>
+  <action name="actionTo_Host">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>To Host</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+H</string>
+   </property>
+  </action>
    <action name="actionTo_Target">
     <property name="checkable">
      <bool>true</bool>
     </property>
     <property name="text">
      <string>To Target</string>
+    </property>
+    <property name="shortcut">
+     <string>Ctrl+Shift+T</string>
     </property>
     <property name="shortcut">
      <string>Ctrl+Shift+T</string>
@@ -387,6 +440,9 @@
     <property name="shortcut">
      <string>Ctrl+Alt+A</string>
     </property>
+    <property name="shortcut">
+     <string>Ctrl+Alt+A</string>
+    </property>
    </action>
    <action name="actionRelative">
     <property name="checkable">
@@ -398,9 +454,29 @@
     <property name="shortcut">
      <string>Ctrl+T</string>
     </property>
+    <property name="shortcut">
+     <string>Ctrl+T</string>
+    </property>
    </action>
   </actiongroup>
   <actiongroup name="actionMouseVisibilityGroup">
+  <action name="actionMouseAutoHide">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Auto Hide</string>
+   </property>
+   <property name="toolTip">
+    <string>Auto hide mouse cursor</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Alt+H</string>
+   </property>
+  </action>
   <action name="actionMouseAutoHide">
    <property name="checkable">
     <bool>true</bool>
@@ -427,6 +503,9 @@
     </property>
     <property name="toolTip">
      <string>Always show mouse cursor</string>
+    </property>
+    <property name="shortcut">
+     <string>Ctrl+Alt+S</string>
     </property>
     <property name="shortcut">
      <string>Ctrl+Alt+S</string>
