@@ -388,23 +388,39 @@ void MainWindow::onActionRelativeTriggered()
     videoPane->hideHostMouse();
 
     this->popupMessage("Long press ESC to exit.");
+
+    // Update menu item state to reflect the change
+    ui->actionRelative->setChecked(true);
+    ui->actionAbsolute->setChecked(false);
 }
 
 void MainWindow::onActionAbsoluteTriggered()
 {
     GlobalVar::instance().setAbsoluteMouseMode(true);
+
+    // Update menu item state to reflect the change
+    ui->actionAbsolute->setChecked(true);
+    ui->actionRelative->setChecked(false);
 }
 
 void MainWindow::onActionMouseAutoHideTriggered()
 {
     GlobalVar::instance().setMouseAutoHide(true);
     GlobalSetting::instance().setMouseAutoHideEnable(true);
+    
+    // Update menu item state to reflect the change
+    ui->actionMouseAutoHide->setChecked(true);
+    ui->actionMouseAlwaysShow->setChecked(false);
 }
 
 void MainWindow::onActionMouseAlwaysShowTriggered()
 {
     GlobalVar::instance().setMouseAutoHide(false);
     GlobalSetting::instance().setMouseAutoHideEnable(false);
+    
+    // Update menu item state to reflect the change
+    ui->actionMouseAlwaysShow->setChecked(true);
+    ui->actionMouseAutoHide->setChecked(false);
 }
 
 void MainWindow::onActionFactoryResetHIDTriggered()
@@ -523,6 +539,10 @@ void MainWindow::onActionScreensaver()
     static bool isScreensaverActive = false;
     isScreensaverActive = !isScreensaverActive;
 
+    qCDebug(log_ui_mainwindow) << "[Screensaver] triggered, active:" << isScreensaverActive;
+
+    // Block signals to prevent screensaverButton::toggled from re-invoking this slot
+    m_cornerWidgetManager->screensaverButton->blockSignals(true);
     if (isScreensaverActive) {
         HostManager::getInstance().startAutoMoveMouse();
         m_cornerWidgetManager->screensaverButton->setChecked(true);
@@ -532,6 +552,10 @@ void MainWindow::onActionScreensaver()
         m_cornerWidgetManager->screensaverButton->setChecked(false);
         this->popupMessage("Screensaver deactivated");
     }
+    m_cornerWidgetManager->screensaverButton->blockSignals(false);
+
+    qCDebug(log_ui_mainwindow) << "[Screensaver] done, isActiveWindow:" << this->isActiveWindow()
+                               << "videoPane hasFocus:" << videoPane->hasFocus();
 }
 
 void MainWindow::onToggleVirtualKeyboard()
@@ -573,7 +597,18 @@ void MainWindow::popupMessage(QString message)
 
     // Auto hide in 3 seconds
     QTimer::singleShot(3000, &dialog, &QDialog::accept);
+    qCDebug(log_ui_mainwindow) << "[popupMessage] before exec, MainWindow isActiveWindow:" << this->isActiveWindow()
+                               << "hasFocus:" << this->hasFocus();
     dialog.exec();
+    qCDebug(log_ui_mainwindow) << "[popupMessage] after exec, MainWindow isActiveWindow:" << this->isActiveWindow()
+                               << "hasFocus:" << this->hasFocus();
+
+    // Restore focus to videoPane (mouse capture widget) so target mouse control is not lost
+    this->activateWindow();
+    this->raise();
+    videoPane->setFocus();
+    qCDebug(log_ui_mainwindow) << "[popupMessage] after focus restore, isActiveWindow:" << this->isActiveWindow()
+                               << "videoPane hasFocus:" << videoPane->hasFocus();
 }
 
 void MainWindow::updateCameraActive(bool active) {
@@ -730,20 +765,23 @@ void MainWindow::toggleMute() {
     // Get the AudioManager singleton
     AudioManager& audioManager = AudioManager::getInstance();
     
-    // Get current volume
-    qreal currentVolume = audioManager.getVolume();
+    // Use the persisted mute state rather than getVolume() == 0.0,
+    // because getVolume() returns 0.0 when no audio thread exists,
+    // which would cause the icon to never switch to the muted state.
+    bool currentlyMuted = GlobalSetting::instance().getAudioMuted();
     
-    // Check if currently muted (volume is 0)
-    if (currentVolume == 0.0) {
+    if (currentlyMuted) {
         // Unmute - restore to default volume (1.0)
         audioManager.setVolume(1.0);
         GlobalSetting::instance().setAudioMuted(false);
         qDebug() << "Audio unmuted - volume set to 1.0";
+        if (m_cornerWidgetManager) m_cornerWidgetManager->updateMuteState(false);
     } else {
         // Mute - set volume to 0
         audioManager.setVolume(0.0);
         GlobalSetting::instance().setAudioMuted(true);
         qDebug() << "Audio muted - volume set to 0.0";
+        if (m_cornerWidgetManager) m_cornerWidgetManager->updateMuteState(true);
     }
 }
 
@@ -842,6 +880,44 @@ void MainWindow::onCtrlAltDelPressed()
 {
     HostManager::getInstance().sendCtrlAltDel();
 }
+
+// void MainWindow::onCtrlVPressed()
+// {
+//     HostManager::getInstance().sendCtrlV();
+// }
+
+// void MainWindow::onCtrlQPressed()
+// {
+//     HostManager::getInstance().sendCtrlQ();
+// }
+
+// void MainWindow::onCtrlAltAPressed()
+// {
+//     // Switch to absolute mouse mode
+//     GlobalVar::instance().setAbsoluteMouseMode(true);
+//     videoPane->hideHostMouse();
+//     this->popupMessage("Switched to Absolute Mouse Mode");
+//     HostManager::getInstance().sendCtrlAltA();
+// }
+
+// void MainWindow::onCtrlAltRPressed()
+// {
+//     // Switch to relative mouse mode
+//     GlobalVar::instance().setAbsoluteMouseMode(false);
+//     videoPane->hideHostMouse();
+//     this->popupMessage("Switched to Relative Mouse Mode");
+//     QPoint globalPosition = videoPane->mapToGlobal(QPoint(0, 0));
+//     QRect globalGeometry = QRect(globalPosition, videoPane->geometry().size());
+//     // move the mouse to window center
+//     QPoint center = globalGeometry.center();
+//     QCursor::setPos(center);
+//     HostManager::getInstance().sendCtrlAltR();
+// }
+
+// void MainWindow::onCtrlShiftSPressed()
+// {
+//     HostManager::getInstance().sendCtrlShiftS();
+// }
 
 void MainWindow::onRepeatingKeystrokeChanged(int interval)
 {
@@ -1354,6 +1430,41 @@ void MainWindow::onInputResolutionChanged()
     
 }
 
+void MainWindow::zoomIn()
+{
+    if (videoPane) {
+        videoPane->zoomIn();
+    }
+}
+
+void MainWindow::zoomOut()
+{
+    if (videoPane) {
+        videoPane->zoomOut();
+    }
+}
+
+void MainWindow::resetZoom()
+{
+    if (videoPane) {
+        videoPane->resetZoom();
+    }
+}
+
+void MainWindow::fitToWindow()
+{
+    if (videoPane) {
+        videoPane->fitToWindow();
+    }
+}
+
+void MainWindow::actualSize()
+{
+    if (videoPane) {
+        videoPane->actualSize();
+    }
+}
+
 void MainWindow::showScriptTool()
 {
     qDebug() << "showScriptTool called";  // Add debug output
@@ -1843,3 +1954,20 @@ void MainWindow::showHardwareDiagnostics() {
     
     diagnosticsDialog->show();
 }
+
+// void MainWindow::activateFileMenu()
+// {
+//     if (ui->menuFile) {
+//         QList<QAction*> actions = ui->menubar->actions();
+//         for (QAction* action : actions) {
+//             if (action->menu() == ui->menuFile) {
+//                 QRect actionRect = ui->menubar->actionGeometry(action);
+//                 QPoint globalPos = ui->menubar->mapToGlobal(actionRect.bottomLeft());
+//                 ui->menuFile->popup(globalPos);
+//                 break;
+//             }
+//         }
+//     }
+// }
+
+
