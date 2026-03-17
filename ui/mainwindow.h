@@ -133,6 +133,13 @@ public:
     // Deferred initialization methods (called after window is shown)
     void deferredSetupCoordinators();
     void deferredInitializeCamera();
+    
+    // Zoom functionality
+    void zoomIn();
+    void zoomOut();
+    void resetZoom();
+    void fitToWindow();
+    void actualSize();
 
 signals:
     void emitTCPCommandStatus(bool status);
