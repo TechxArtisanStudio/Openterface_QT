@@ -534,11 +534,17 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     // Paste to target shortcut
     QShortcut *pasteShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_V), m_mainWindow);
 
-    // Ctrl+Shift+F11: Toggle mouse dance (screensaver)
-    QShortcut *mouseDanceShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F11), m_mainWindow);
+    // Ctrl+Shift+F10: Toggle mouse dance (screensaver)
+    QShortcut *mouseDanceShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F10), m_mainWindow);
 
-    // Ctrl+Shift+R: Toggle recording
-    QShortcut *recordingShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R), m_mainWindow);
+    // Ctrl+Shift+F11: Toggle recording
+    QShortcut *recordingShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F11), m_mainWindow);
+
+    // Ctrl+Shift+F9: Toggle mute audio
+    QShortcut *muteShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F9), m_mainWindow);
+
+    // Ctrl+Shift+K: Toggle function key and composite key toolbar
+    QShortcut *virtualKeyboardShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_K), m_mainWindow);
     
     // // Ctrl+F: Find/Search or Fullscreen toggle
     // QKeySequence findSeq(Qt::CTRL | Qt::Key_F);
@@ -582,8 +588,14 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     // Connect Ctrl+Shift+M shortcut to toggle mouse dance
     QObject::connect(mouseDanceShortcut, &QShortcut::activated, mainWindow, &MainWindow::onActionScreensaver);
 
-    // Connect Ctrl+Shift+R shortcut to toggle recording
+    // Connect Ctrl+Shift+F11 shortcut to toggle recording
     QObject::connect(recordingShortcut, &QShortcut::activated, mainWindow, &MainWindow::toggleRecording);
+
+    // Connect Ctrl+Shift+F9 shortcut to toggle mute audio
+    QObject::connect(muteShortcut, &QShortcut::activated, mainWindow, &MainWindow::toggleMute);
+
+    // Connect Ctrl+Shift+K shortcut to toggle function key and composite key toolbar
+    QObject::connect(virtualKeyboardShortcut, &QShortcut::activated, mainWindow, &MainWindow::onToggleVirtualKeyboard);
     
     
     // // Connect Ctrl+F shortcut to activate file menu
@@ -596,8 +608,10 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+P shortcut for preferences";
     qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut context:" << fullscreenShortcut->context();
     qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut enabled:" << fullscreenShortcut->isEnabled();
-    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+F11 shortcut for mouse dance toggle";
-    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+R shortcut for toggle recording";
+    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+F10 shortcut for mouse dance toggle";
+    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+F11 shortcut for toggle recording";
+    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+F9 shortcut for toggle mute audio";
+    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+K shortcut for toggle virtual keyboard toolbar";
 }
 
 void MainWindowInitializer::finalize()
