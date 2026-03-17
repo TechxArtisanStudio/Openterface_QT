@@ -516,18 +516,30 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     // Alt+F11: Toggle fullscreen
     QShortcut *fullscreenShortcut = new QShortcut(QKeySequence(Qt::ALT | Qt::Key_F11), m_mainWindow);
     
+    // Ctrl+Shift+A: Open Screen Aspect Ratio dialog
+    QShortcut *aspectRatioShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A), m_mainWindow);
+    
+    // Zoom shortcuts
+    QShortcut *zoomInShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Plus), m_mainWindow);
+    QShortcut *zoomOutShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Minus), m_mainWindow);
+    QShortcut *actualSizeShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_0), m_mainWindow);
+    
+    // Screenshot shortcut
+    QShortcut *screenshotShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), m_mainWindow);
+    
+    // Paste to target shortcut
+    QShortcut *pasteShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_V), m_mainWindow);
+
+    // Ctrl+Shift+F11: Toggle mouse dance (screensaver)
+    QShortcut *mouseDanceShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F11), m_mainWindow);
+
+    // Ctrl+Shift+R: Toggle recording
+    QShortcut *recordingShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R), m_mainWindow);
     
     // // Ctrl+F: Find/Search or Fullscreen toggle
     // QKeySequence findSeq(Qt::CTRL | Qt::Key_F);
     // QShortcut *findShortcut = new QShortcut(findSeq, m_mainWindow);
     
-    
-    
-    
-    
-    // // F1: Open help menu
-    // QKeySequence f1Seq(Qt::Key_F1);
-    // QShortcut *f1Shortcut = new QShortcut(f1Seq, m_mainWindow);
     
     // CRITICAL FIX: Capture specific pointers instead of 'this' to avoid dangling reference
     // MainWindowInitializer is destroyed after constructor completes, so capturing 'this' causes crash
@@ -549,28 +561,39 @@ void MainWindowInitializer::setupKeyboardShortcuts()
         coordinator->fullScreen();
     });
 
+    // Connect Ctrl+Shift+A shortcut to open screen aspect ratio dialog
+    QObject::connect(aspectRatioShortcut, &QShortcut::activated, mainWindow, &MainWindow::configScreenScale);
+    
+    // Connect zoom shortcuts to corresponding functions
+    QObject::connect(zoomInShortcut, &QShortcut::activated, mainWindow, &MainWindow::zoomIn);
+    QObject::connect(zoomOutShortcut, &QShortcut::activated, mainWindow, &MainWindow::zoomOut);
+    QObject::connect(actualSizeShortcut, &QShortcut::activated, mainWindow, &MainWindow::actualSize);
+    
+    // Connect screenshot shortcut to takeImageDefault function
+    QObject::connect(screenshotShortcut, &QShortcut::activated, mainWindow, &MainWindow::takeImageDefault);
+    
+    // Connect paste shortcut to paste to target function
+    QObject::connect(pasteShortcut, &QShortcut::activated, mainWindow, &MainWindow::onActionPasteToTarget);
+
+    // Connect Ctrl+Shift+M shortcut to toggle mouse dance
+    QObject::connect(mouseDanceShortcut, &QShortcut::activated, mainWindow, &MainWindow::onActionScreensaver);
+
+    // Connect Ctrl+Shift+R shortcut to toggle recording
+    QObject::connect(recordingShortcut, &QShortcut::activated, mainWindow, &MainWindow::toggleRecording);
+    
     
     // // Connect Ctrl+F shortcut to activate file menu
     // QObject::connect(findShortcut, &QShortcut::activated, mainWindow, &MainWindow::activateFileMenu);
 
 
-    
-    
-    
-    // // Connect F1 shortcut to open help menu
-    // QObject::connect(f1Shortcut, &QShortcut::activated, [mainWindow]() {
-    //     // Switch to the help pane in the stacked layout
-    //     int helpPaneIndex = mainWindow->stackedLayout->indexOf(mainWindow->findChild<HelpPane*>());
-    //     if (helpPaneIndex != -1) {
-    //         mainWindow->stackedLayout->setCurrentIndex(helpPaneIndex);
-    //     }
-    // });
-    
     qCDebug(log_ui_mainwindowinitializer) << "Registered Alt+F11 shortcut for fullscreen toggle";
+    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+A shortcut for screen aspect ratio";
     // qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+F shortcut for find/search";
     qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+P shortcut for preferences";
     qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut context:" << fullscreenShortcut->context();
     qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut enabled:" << fullscreenShortcut->isEnabled();
+    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+F11 shortcut for mouse dance toggle";
+    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+R shortcut for toggle recording";
 }
 
 void MainWindowInitializer::finalize()

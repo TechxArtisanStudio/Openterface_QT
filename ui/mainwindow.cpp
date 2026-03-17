@@ -539,6 +539,10 @@ void MainWindow::onActionScreensaver()
     static bool isScreensaverActive = false;
     isScreensaverActive = !isScreensaverActive;
 
+    qCDebug(log_ui_mainwindow) << "[Screensaver] triggered, active:" << isScreensaverActive;
+
+    // Block signals to prevent screensaverButton::toggled from re-invoking this slot
+    m_cornerWidgetManager->screensaverButton->blockSignals(true);
     if (isScreensaverActive) {
         HostManager::getInstance().startAutoMoveMouse();
         m_cornerWidgetManager->screensaverButton->setChecked(true);
@@ -548,6 +552,10 @@ void MainWindow::onActionScreensaver()
         m_cornerWidgetManager->screensaverButton->setChecked(false);
         this->popupMessage("Screensaver deactivated");
     }
+    m_cornerWidgetManager->screensaverButton->blockSignals(false);
+
+    qCDebug(log_ui_mainwindow) << "[Screensaver] done, isActiveWindow:" << this->isActiveWindow()
+                               << "videoPane hasFocus:" << videoPane->hasFocus();
 }
 
 void MainWindow::onToggleVirtualKeyboard()
@@ -589,7 +597,18 @@ void MainWindow::popupMessage(QString message)
 
     // Auto hide in 3 seconds
     QTimer::singleShot(3000, &dialog, &QDialog::accept);
+    qCDebug(log_ui_mainwindow) << "[popupMessage] before exec, MainWindow isActiveWindow:" << this->isActiveWindow()
+                               << "hasFocus:" << this->hasFocus();
     dialog.exec();
+    qCDebug(log_ui_mainwindow) << "[popupMessage] after exec, MainWindow isActiveWindow:" << this->isActiveWindow()
+                               << "hasFocus:" << this->hasFocus();
+
+    // Restore focus to videoPane (mouse capture widget) so target mouse control is not lost
+    this->activateWindow();
+    this->raise();
+    videoPane->setFocus();
+    qCDebug(log_ui_mainwindow) << "[popupMessage] after focus restore, isActiveWindow:" << this->isActiveWindow()
+                               << "videoPane hasFocus:" << videoPane->hasFocus();
 }
 
 void MainWindow::updateCameraActive(bool active) {
@@ -1406,6 +1425,41 @@ void MainWindow::onInputResolutionChanged()
     // videoPane->setMinimumSize(videoPane->width(), contentHeight);
     videoPane->resize(videoPane->width(), contentHeight);
     
+}
+
+void MainWindow::zoomIn()
+{
+    if (videoPane) {
+        videoPane->zoomIn();
+    }
+}
+
+void MainWindow::zoomOut()
+{
+    if (videoPane) {
+        videoPane->zoomOut();
+    }
+}
+
+void MainWindow::resetZoom()
+{
+    if (videoPane) {
+        videoPane->resetZoom();
+    }
+}
+
+void MainWindow::fitToWindow()
+{
+    if (videoPane) {
+        videoPane->fitToWindow();
+    }
+}
+
+void MainWindow::actualSize()
+{
+    if (videoPane) {
+        videoPane->actualSize();
+    }
 }
 
 void MainWindow::showScriptTool()
