@@ -273,7 +273,7 @@
     <string>Script Tool</string>
    </property>
    <property name="shortcut">
-    <string>Ctrl+Shift+S</string>
+    <string>Ctrl+Shift+L</string>
    </property>
   </action>
   <action name="actionRecordingSettings">
