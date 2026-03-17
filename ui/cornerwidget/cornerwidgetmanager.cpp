@@ -84,7 +84,7 @@ void CornerWidgetManager::createWidgets()
         {&zoomInButton, "ZoomInButton", ":/images/zoom_in.svg", "Zoom in"},
         {&zoomOutButton, "ZoomOutButton", ":/images/zoom_out.svg", "Zoom out"},
         {&zoomReductionButton, "ZoomReductionButton", ":/images/zoom_fit.svg", "Restore original size"},
-        {&virtualKeyboardButton, "virtualKeyboardButton", ":/images/keyboard.svg", "Function key and composite key"},
+        {&virtualKeyboardButton, "virtualKeyboardButton", ":/images/keyboard.svg", "Function key and composite key (Ctrl+Shift+K)"},
         {&captureButton, "captureButton", ":/images/capture.svg", "Full screen capture"},
         {&fullScreenButton, "fullScreenButton", ":/images/full_screen.svg", "Full screen mode"},
         {&pasteButton, "pasteButton", ":/images/paste.svg", "Paste text to target"},
@@ -170,17 +170,11 @@ void CornerWidgetManager::setupConnections()
     
     // Connect recording button click to toggle recording state and emit signal
     connect(recordingButton, &QPushButton::clicked, this, [this]() {
-        isRecording = !isRecording;
-        setButtonIcon(recordingButton, isRecording ? ":/images/stopRecord.svg" : ":/images/startRecord.svg");
-        recordingButton->setToolTip(isRecording ? tr("Stop Recording") : tr("Start Recording"));
         emit recordingToggled();
     });
     
     // Connect mute button click to toggle mute state and emit signal
     connect(muteButton, &QPushButton::clicked, this, [this]() {
-        isMuted = !isMuted;
-        setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
-        muteButton->setToolTip(isMuted ? tr("Unmute Audio") : tr("Mute Audio"));
         emit muteToggled();
     });
 }
@@ -251,5 +245,23 @@ void CornerWidgetManager::updateUSBStatus(bool isToTarget)
         m_updatingFromStatus = true;  // Set flag before update
         toggleSwitch->setChecked(isToTarget);
         m_updatingFromStatus = false;  // Clear flag after update
+    }
+}
+
+void CornerWidgetManager::updateRecordingState(bool recording)
+{
+    isRecording = recording;
+    if (recordingButton) {
+        setButtonIcon(recordingButton, isRecording ? ":/images/stopRecord.svg" : ":/images/startRecord.svg");
+        recordingButton->setToolTip(isRecording ? tr("Stop Recording") : tr("Start Recording"));
+    }
+}
+
+void CornerWidgetManager::updateMuteState(bool muted)
+{
+    isMuted = muted;
+    if (muteButton) {
+        setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
+        muteButton->setToolTip(isMuted ? tr("Unmute Audio") : tr("Mute Audio"));
     }
 }

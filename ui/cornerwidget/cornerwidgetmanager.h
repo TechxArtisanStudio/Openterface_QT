@@ -23,6 +23,8 @@ public:
     void initializeKeyboardLayouts(const QStringList &layouts, const QString &defaultLayout);
     void restoreMuteState(bool muted);
     void updateUSBStatus(bool isToTarget);
+    void updateRecordingState(bool recording);
+    void updateMuteState(bool muted);
     bool isUpdatingFromStatus() const { return m_updatingFromStatus; }  // New getter
     QPushButton *screensaverButton;
     QPushButton *recordingButton;

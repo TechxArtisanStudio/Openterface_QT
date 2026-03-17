@@ -765,20 +765,23 @@ void MainWindow::toggleMute() {
     // Get the AudioManager singleton
     AudioManager& audioManager = AudioManager::getInstance();
     
-    // Get current volume
-    qreal currentVolume = audioManager.getVolume();
+    // Use the persisted mute state rather than getVolume() == 0.0,
+    // because getVolume() returns 0.0 when no audio thread exists,
+    // which would cause the icon to never switch to the muted state.
+    bool currentlyMuted = GlobalSetting::instance().getAudioMuted();
     
-    // Check if currently muted (volume is 0)
-    if (currentVolume == 0.0) {
+    if (currentlyMuted) {
         // Unmute - restore to default volume (1.0)
         audioManager.setVolume(1.0);
         GlobalSetting::instance().setAudioMuted(false);
         qDebug() << "Audio unmuted - volume set to 1.0";
+        if (m_cornerWidgetManager) m_cornerWidgetManager->updateMuteState(false);
     } else {
         // Mute - set volume to 0
         audioManager.setVolume(0.0);
         GlobalSetting::instance().setAudioMuted(true);
         qDebug() << "Audio muted - volume set to 0.0";
+        if (m_cornerWidgetManager) m_cornerWidgetManager->updateMuteState(true);
     }
 }
 

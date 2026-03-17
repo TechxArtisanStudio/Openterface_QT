@@ -69,6 +69,13 @@ public:
      * @return bool True if recording is paused
      */
     bool isPaused() const;
+
+signals:
+    /**
+     * @brief Emitted when recording state changes
+     * @param isRecording True if recording started, false if stopped
+     */
+    void recordingStateChanged(bool isRecording);
     
 public slots:
     /**
