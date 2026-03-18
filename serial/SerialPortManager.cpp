@@ -30,6 +30,13 @@
 #include "../host/cameramanager.h"
 #include "../device/DeviceManager.h"
 #include "../device/HotplugMonitor.h"
+// Protocol constants
+#include "ch9329.h"
+
+// Local scancode constants for lock keys (used to build HID report)
+static constexpr uint8_t SCANCODE_NUMLOCK = 0x53;
+static constexpr uint8_t SCANCODE_CAPSLOCK = 0x39;
+static constexpr uint8_t SCANCODE_SCROLLLOCK = 0x47;
 
 #include <QSerialPortInfo>
 #include <QTimer>
@@ -3390,4 +3397,91 @@ void SerialPortManager::validateAsyncPortRetry(const QString &portName, int baud
             startAsyncPortRetries(portName, baudOrder, baudIndex + 1, cycle, maxCycles);
         }
     });
+}
+
+/**
+ * @brief Send NumLock toggle command to device
+ * @return true if command was sent successfully, false otherwise
+ */
+bool SerialPortManager::toggleNumLock()
+{
+    // Build NumLock HID command
+    // Format: Header(0x57 0xAB) | Address(0x00) | Cmd(0x02 = Send KB) | Length(0x08) | 
+    //         Modifier(0x00) | Reserved(0x00) | KeyCode(0x53 = NumLock) | Padding...
+    // Use protocol template and key mapping rather than hard-coded hex string
+    QByteArray lockCmd = CMD_SEND_KB_GENERAL_DATA;
+    uint8_t scancode = SCANCODE_NUMLOCK;
+    if (lockCmd.size() >= 8) {
+        lockCmd[5] = static_cast<char>(0x00); // modifier
+        lockCmd[6] = static_cast<char>(0x00); // reserved
+        lockCmd[7] = static_cast<char>(scancode);
+    }
+
+    bool success = sendAsyncCommand(lockCmd, false);
+    
+    if (success) {
+        qCDebug(log_core_serial) << "✓ NumLock toggle command sent to device";
+    } else {
+        qCWarning(log_core_serial) << "✗ Failed to send NumLock toggle command";
+    }
+    
+    return success;
+}
+
+/**
+ * @brief Send CapsLock toggle command to device
+ * @return true if command was sent successfully, false otherwise
+ */
+bool SerialPortManager::toggleCapsLock()
+{
+    // Build CapsLock HID command
+    // Format: Header(0x57 0xAB) | Address(0x00) | Cmd(0x02 = Send KB) | Length(0x08) | 
+    //         Modifier(0x00) | Reserved(0x00) | KeyCode(0x39 = CapsLock on US QWERTY) | Padding...
+    // Use protocol template and key mapping rather than hard-coded hex string
+    QByteArray lockCmd = CMD_SEND_KB_GENERAL_DATA;
+    uint8_t scancode = SCANCODE_CAPSLOCK;
+    if (lockCmd.size() >= 8) {
+        lockCmd[5] = static_cast<char>(0x00); // modifier
+        lockCmd[6] = static_cast<char>(0x00); // reserved
+        lockCmd[7] = static_cast<char>(scancode);
+    }
+
+    bool success = sendAsyncCommand(lockCmd, false);
+    
+    if (success) {
+        qCDebug(log_core_serial) << "✓ CapsLock toggle command sent to device";
+    } else {
+        qCWarning(log_core_serial) << "✗ Failed to send CapsLock toggle command";
+    }
+    
+    return success;
+}
+
+/**
+ * @brief Send ScrollLock toggle command to device
+ * @return true if command was sent successfully, false otherwise
+ */
+bool SerialPortManager::toggleScrollLock()
+{
+    // Build ScrollLock HID command
+    // Format: Header(0x57 0xAB) | Address(0x00) | Cmd(0x02 = Send KB) | Length(0x08) | 
+    //         Modifier(0x00) | Reserved(0x00) | KeyCode(0x47 = ScrollLock) | Padding...
+    // Use protocol template and key mapping rather than hard-coded hex string
+    QByteArray lockCmd = CMD_SEND_KB_GENERAL_DATA;
+    uint8_t scancode = SCANCODE_SCROLLLOCK;
+    if (lockCmd.size() >= 8) {
+        lockCmd[5] = static_cast<char>(0x00); // modifier
+        lockCmd[6] = static_cast<char>(0x00); // reserved
+        lockCmd[7] = static_cast<char>(scancode);
+    }
+
+    bool success = sendAsyncCommand(lockCmd, false);
+    
+    if (success) {
+        qCDebug(log_core_serial) << "✓ ScrollLock toggle command sent to device";
+    } else {
+        qCWarning(log_core_serial) << "✗ Failed to send ScrollLock toggle command";
+    }
+    
+    return success;
 }

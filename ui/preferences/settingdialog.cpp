@@ -108,7 +108,7 @@ void SettingDialog::createSettingTree() {
     settingTree->setHeaderHidden(true);
     settingTree->setSelectionMode(QAbstractItemView::SingleSelection);
 
-    settingTree->setMaximumSize(QSize(200, 1000));
+    settingTree->setMaximumSize(QSize(200, 900));
     settingTree->setMinimumWidth(110);
     settingTree->setRootIsDecorated(false);
 
