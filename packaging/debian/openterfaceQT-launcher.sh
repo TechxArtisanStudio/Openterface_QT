@@ -8,15 +8,13 @@
 LAUNCHER_LOG="/tmp/openterfaceqt-launcher-$(date +%s).log"
 CLEANUP_HANDLER_RAN=0
 
-{
-    echo "=== OpenterfaceQT Launcher Started at $(date) ==="
-    echo "Script PID: $$"
-    echo "Arguments: $@"
-} | tee "$LAUNCHER_LOG"
+# Use printf to avoid tee command at startup (before environment cleanup)
+/usr/bin/printf "=== OpenterfaceQT Launcher Started at %s ===\nScript PID: %s\nArguments: %s\n" "$(/bin/date)" "$$" "$*" > "$LAUNCHER_LOG" 2>/dev/null || true
 
 # Trap errors and log them (but don't use set -e to allow graceful library lookups)
 # Only trap real errors, not expected return codes from find_library function
-trap 'if [ $? -ne 1 ] && [ $? -ne 143 ] && [ $? -ne 137 ]; then echo "ERROR at line $LINENO: $BASH_COMMAND" | tee -a "$LAUNCHER_LOG"; fi' ERR
+# Use clean environment to prevent bundled library conflicts in error logging
+trap 'if [ $? -ne 1 ] && [ $? -ne 143 ] && [ $? -ne 137 ]; then /usr/bin/printf "ERROR at line %s: %s\n" "$LINENO" "$BASH_COMMAND" >> "$LAUNCHER_LOG" 2>/dev/null || true; fi' ERR
 
 # ============================================
 # Library Path Setup (CRITICAL for bundled libs)
@@ -315,29 +313,11 @@ fi
 # Debug Mode
 # ============================================
 if [ "${OPENTERFACE_DEBUG}" = "1" ] || [ "${OPENTERFACE_DEBUG}" = "true" ]; then
-    {
-        echo "========================================" 
-        echo "OpenterfaceQT Runtime Environment Setup" 
-        echo "========================================" 
-        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" 
-        echo "LD_PRELOAD=$LD_PRELOAD" 
-        echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 
-        echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" 
-        echo "QT_QPA_PLATFORM=$QT_QPA_PLATFORM"
-        echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" 
-        echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" 
-        echo "========================================" 
-    } | tee -a "$LAUNCHER_LOG"
+    # Use clean environment for debug output to prevent library conflicts
+    /usr/bin/printf "========================================\nOpenterfaceQT Runtime Environment Setup\n========================================\nLD_LIBRARY_PATH=%s\nLD_PRELOAD=%s\nQT_PLUGIN_PATH=%s\nQT_QPA_PLATFORM_PLUGIN_PATH=%s\nQT_QPA_PLATFORM=%s\nQML2_IMPORT_PATH=%s\nGST_PLUGIN_PATH=%s\n========================================\n" "$LD_LIBRARY_PATH" "$LD_PRELOAD" "$QT_PLUGIN_PATH" "$QT_QPA_PLATFORM_PLUGIN_PATH" "$QT_QPA_PLATFORM" "$QML2_IMPORT_PATH" "$GST_PLUGIN_PATH" >> "$LAUNCHER_LOG" 2>/dev/null || true
 else
     # Log env vars to file even in non-debug mode for troubleshooting
-    {
-        echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH" 
-        echo "LD_PRELOAD=$LD_PRELOAD" 
-        echo "QT_PLUGIN_PATH=$QT_PLUGIN_PATH" 
-        echo "QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH" 
-        echo "QML2_IMPORT_PATH=$QML2_IMPORT_PATH" 
-        echo "GST_PLUGIN_PATH=$GST_PLUGIN_PATH" 
-    } >> "$LAUNCHER_LOG"
+    /usr/bin/printf "LD_LIBRARY_PATH=%s\nLD_PRELOAD=%s\nQT_PLUGIN_PATH=%s\nQT_QPA_PLATFORM_PLUGIN_PATH=%s\nQML2_IMPORT_PATH=%s\nGST_PLUGIN_PATH=%s\n" "$LD_LIBRARY_PATH" "$LD_PRELOAD" "$QT_PLUGIN_PATH" "$QT_QPA_PLATFORM_PLUGIN_PATH" "$QML2_IMPORT_PATH" "$GST_PLUGIN_PATH" >> "$LAUNCHER_LOG" 2>/dev/null || true
 fi
 
 # ============================================
@@ -353,61 +333,55 @@ cleanup_handler() {
     
     local exit_code=$?
     
-    {
-        echo ""
-        echo "=== Cleanup Handler Triggered ===" 
-        echo "App PID: $APP_PID"
-        echo "Exit Code: $exit_code"
-        echo "Time: $(date)"
-    } | tee -a "$LAUNCHER_LOG"
+    # CRITICAL: Reset environment to prevent system commands from using bundled libraries
+    # This fixes "libpostproc.so.57: cannot open shared object file" errors during cleanup
+    unset LD_PRELOAD
+    unset LD_LIBRARY_PATH
+    unset QT_PLUGIN_PATH
+    unset QT_QPA_PLATFORM_PLUGIN_PATH
+    unset QML2_IMPORT_PATH
+    unset GST_PLUGIN_PATH
+    
+    # Use absolute paths and clean environment for all system commands
+    /usr/bin/printf "\n=== Cleanup Handler Triggered ===\nApp PID: %s\nExit Code: %s\nTime: %s\n" "$APP_PID" "$exit_code" "$(/bin/date)" >> "$LAUNCHER_LOG" 2>/dev/null || true
     
     # Kill the app if it's still running (gracefully first, then forcefully)
-    if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
-        {
-            echo "Application process still running (PID: $APP_PID). Attempting graceful termination..."
-        } | tee -a "$LAUNCHER_LOG"
+    if [ -n "$APP_PID" ] && /bin/kill -0 "$APP_PID" 2>/dev/null; then
+        /usr/bin/printf "Application process still running (PID: %s). Attempting graceful termination...\n" "$APP_PID" >> "$LAUNCHER_LOG" 2>/dev/null || true
         
         # Try graceful termination first (SIGTERM)
-        kill -TERM "$APP_PID" 2>/dev/null
+        /bin/kill -TERM "$APP_PID" 2>/dev/null || true
         
         # Wait up to 3 seconds for graceful shutdown
         local wait_count=0
-        while [ $wait_count -lt 30 ] && kill -0 "$APP_PID" 2>/dev/null; do
-            sleep 0.1
+        while [ $wait_count -lt 30 ] && /bin/kill -0 "$APP_PID" 2>/dev/null; do
+            /bin/sleep 0.1
             wait_count=$((wait_count + 1))
         done
         
         # If still running, force kill (SIGKILL)
-        if kill -0 "$APP_PID" 2>/dev/null; then
-            {
-                echo "Process did not terminate gracefully. Force killing (SIGKILL)..."
-            } | tee -a "$LAUNCHER_LOG"
-            kill -KILL "$APP_PID" 2>/dev/null
-            sleep 0.5
+        if /bin/kill -0 "$APP_PID" 2>/dev/null; then
+            /usr/bin/printf "Process did not terminate gracefully. Force killing (SIGKILL)...\n" >> "$LAUNCHER_LOG" 2>/dev/null || true
+            /bin/kill -KILL "$APP_PID" 2>/dev/null || true
+            /bin/sleep 0.5
         fi
     fi
     
     # Kill any remaining child processes of the launcher
-    local child_pids=$(pgrep -P $$ 2>/dev/null)
+    local child_pids=$(/usr/bin/pgrep -P $$ 2>/dev/null || true)
     if [ -n "$child_pids" ]; then
-        {
-            echo "Killing remaining child processes: $child_pids"
-        } | tee -a "$LAUNCHER_LOG"
-        kill -KILL $child_pids 2>/dev/null
+        /usr/bin/printf "Killing remaining child processes: %s\n" "$child_pids" >> "$LAUNCHER_LOG" 2>/dev/null || true
+        echo "$child_pids" | /usr/bin/xargs /bin/kill -KILL 2>/dev/null || true
     fi
     
     # Also try killing any openterfaceQT.bin processes that may have been orphaned
-    local orphaned_pids=$(pgrep -f "openterfaceQT\\.bin|openterfaceQT-bin" 2>/dev/null | grep -v "^$$")
+    local orphaned_pids=$(/usr/bin/pgrep -f "openterfaceQT\\.bin|openterfaceQT-bin" 2>/dev/null | /bin/grep -v "^$$" || true)
     if [ -n "$orphaned_pids" ]; then
-        {
-            echo "Killing orphaned openterface processes: $orphaned_pids"
-        } | tee -a "$LAUNCHER_LOG"
-        echo "$orphaned_pids" | xargs kill -KILL 2>/dev/null
+        /usr/bin/printf "Killing orphaned openterface processes: %s\n" "$orphaned_pids" >> "$LAUNCHER_LOG" 2>/dev/null || true
+        echo "$orphaned_pids" | /usr/bin/xargs /bin/kill -KILL 2>/dev/null || true
     fi
     
-    {
-        echo "=== Cleanup Complete ===" 
-    } | tee -a "$LAUNCHER_LOG"
+    /usr/bin/printf "=== Cleanup Complete ===\n" >> "$LAUNCHER_LOG" 2>/dev/null || true
     
     # Exit with the captured exit code
     exit $exit_code
@@ -442,76 +416,48 @@ for bin_path in \
 done
 
 if [ -z "$OPENTERFACE_BIN" ]; then
-    {
-        echo "ERROR: OpenterfaceQT binary not found in standard locations" >&2
-        echo "Searched:" >&2
-        echo "  - /usr/local/bin/openterfaceQT.bin" >&2
-        echo "  - /usr/bin/openterfaceQT.bin" >&2
-        echo "  - /opt/openterface/bin/openterfaceQT.bin" >&2
-        echo "  - /usr/local/bin/openterfaceQT-bin" >&2
-        echo "  - /usr/bin/openterfaceQT-bin" >&2
-        echo "  - /opt/openterface/bin/openterfaceQT-bin" >&2
-        echo "" >&2
-        echo "NOTE: The actual binary should be named 'openterfaceQT.bin'" >&2
-        echo "The launcher script should be installed as 'openterfaceQT' or 'openterfaceQT-launcher.sh'" >&2
-        echo "Launcher log: $LAUNCHER_LOG" >&2
-    } | tee -a "$LAUNCHER_LOG"
+    # Use clean environment for error reporting
+    /usr/bin/printf "ERROR: OpenterfaceQT binary not found in standard locations\nSearched:\n  - /usr/local/bin/openterfaceQT.bin\n  - /usr/bin/openterfaceQT.bin\n  - /opt/openterface/bin/openterfaceQT.bin\n  - /usr/local/bin/openterfaceQT-bin\n  - /usr/bin/openterfaceQT-bin\n  - /opt/openterface/bin/openterfaceQT-bin\n\nNOTE: The actual binary should be named 'openterfaceQT.bin'\nThe launcher script should be installed as 'openterfaceQT' or 'openterfaceQT-launcher.sh'\nLauncher log: %s\n" "$LAUNCHER_LOG" >&2
+    /usr/bin/printf "ERROR: OpenterfaceQT binary not found in standard locations\n" >> "$LAUNCHER_LOG" 2>/dev/null || true
     exit 1
 fi
 
-# Debug: Show what will be executed
-{
-    echo ""
-    echo "Executing: $OPENTERFACE_BIN $@"
-    echo "Launcher log location: $LAUNCHER_LOG"
-    echo ""
-} | tee -a "$LAUNCHER_LOG"
+# Debug: Show what will be executed (use clean environment)
+/usr/bin/printf "\nExecuting: %s %s\nLauncher log location: %s\n\n" "$OPENTERFACE_BIN" "$*" "$LAUNCHER_LOG" >> "$LAUNCHER_LOG" 2>/dev/null || true
 
 # Capture binary output and error for debugging
 APP_LOG="/tmp/openterfaceqt-app-$(date +%s).log"
-{
-    echo "=== OpenterfaceQT Application Started at $(date) ===" 
-    echo "Binary: $OPENTERFACE_BIN"
-    echo "Environment Variables:"
-    echo "  LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
-    echo "  LD_PRELOAD=$LD_PRELOAD"
-    echo "  QT_PLUGIN_PATH=$QT_PLUGIN_PATH"
-    echo "  QT_QPA_PLATFORM_PLUGIN_PATH=$QT_QPA_PLATFORM_PLUGIN_PATH"
-    echo "  QML2_IMPORT_PATH=$QML2_IMPORT_PATH"
-    echo "  GST_PLUGIN_PATH=$GST_PLUGIN_PATH"
-    echo ""
-    echo "=== Application Output ===" 
-} > "$APP_LOG" 2>&1
+# Use clean printf to create app log header (avoid tee at this stage)
+/usr/bin/printf "=== OpenterfaceQT Application Started at %s ===\nBinary: %s\nEnvironment Variables:\n  LD_LIBRARY_PATH=%s\n  LD_PRELOAD=%s\n  QT_PLUGIN_PATH=%s\n  QT_QPA_PLATFORM_PLUGIN_PATH=%s\n  QML2_IMPORT_PATH=%s\n  GST_PLUGIN_PATH=%s\n\n=== Application Output ===\n" "$(/bin/date)" "$OPENTERFACE_BIN" "$LD_LIBRARY_PATH" "$LD_PRELOAD" "$QT_PLUGIN_PATH" "$QT_QPA_PLATFORM_PLUGIN_PATH" "$QML2_IMPORT_PATH" "$GST_PLUGIN_PATH" > "$APP_LOG" 2>&1
 
 # Execute the binary with all passed arguments; use env to inject the
 # modified library path only for the child process.
-# Redirect output to both log file and console for monitoring
+# Redirect output to log file only to avoid tee command issues during cleanup
 env LD_LIBRARY_PATH="$LD_LIBRARY_PATH" \
     LD_PRELOAD="$LD_PRELOAD" \
     QT_PLUGIN_PATH="$QT_PLUGIN_PATH" \
     QT_QPA_PLATFORM_PLUGIN_PATH="$QT_QPA_PLATFORM_PLUGIN_PATH" \
     QML2_IMPORT_PATH="$QML2_IMPORT_PATH" \
     GST_PLUGIN_PATH="$GST_PLUGIN_PATH" \
-    "$OPENTERFACE_BIN" "$@" 2>&1 | tee -a "$APP_LOG" &
+    "$OPENTERFACE_BIN" "$@" >> "$APP_LOG" 2>&1 &
 APP_PID=$!
 
-# if this script was sourced by accident, remove the temporary variable to
-# avoid leaving LD_LIBRARY_PATH set in the caller's environment
+# if this script was sourced by accident, remove bundled library environment
+# to avoid leaving them set in the caller's environment
 unset LD_LIBRARY_PATH
+unset LD_PRELOAD
+unset QT_PLUGIN_PATH
+unset QT_QPA_PLATFORM_PLUGIN_PATH
+unset QML2_IMPORT_PATH
+unset GST_PLUGIN_PATH
 
-{
-    echo "Application started with PID: $APP_PID"
-    echo "Application log: $APP_LOG"
-} | tee -a "$LAUNCHER_LOG"
+# Use clean environment for logging to prevent libpostproc.so.57 errors
+/usr/bin/printf "Application started with PID: %s\nApplication log: %s\n" "$APP_PID" "$APP_LOG" >> "$LAUNCHER_LOG" 2>/dev/null || true
 
 # Wait for application to finish and capture exit code
 # Use wait with error suppression since the process might be killed by cleanup handler
 wait $APP_PID 2>/dev/null
 APP_EXIT_CODE=$?
 
-{
-    echo ""
-    echo "=== Application Exited ===" 
-    echo "Exit Code: $APP_EXIT_CODE"
-    echo "Time: $(date)"
-} | tee -a "$LAUNCHER_LOG"
+# Use clean environment for final logging
+/usr/bin/printf "\n=== Application Exited ===\nExit Code: %s\nTime: %s\n" "$APP_EXIT_CODE" "$(/bin/date)" >> "$LAUNCHER_LOG" 2>/dev/null || true
