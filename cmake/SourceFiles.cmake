@@ -103,6 +103,7 @@ set(RESOURCE_SOURCES
 # Script sources
 set(SCRIPT_SOURCES
     scripts/KeyboardMouse.cpp scripts/KeyboardMouse.h
+    scripts/SendKeyMaps.h
     scripts/Lexer.cpp scripts/Lexer.h
     scripts/Parser.cpp scripts/Parser.h
     scripts/semanticAnalyzer.cpp scripts/semanticAnalyzer.h

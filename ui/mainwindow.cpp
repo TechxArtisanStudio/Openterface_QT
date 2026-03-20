@@ -240,6 +240,9 @@ void MainWindow::updateUI() {
     if (m_deviceCoordinator) {
         m_deviceCoordinator->updateDeviceMenu(); // Update device menu when UI language changes
     }
+    if (m_cornerWidgetManager) {
+        m_cornerWidgetManager->retranslateUi(); // Update corner widget tooltips
+    }
 }
 
 void MainWindow::initCamera()

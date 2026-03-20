@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="es_ES">
+<TS version="2.0" language="es_ES">
 <context>
     <name>AudioPage</name>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="54"/>
         <source>Audio Device Selection</source>
-        <translation>Selección dispositivo de audio</translation>
+        <translation>Selección de dispositivo de audio</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="59"/>
@@ -73,7 +73,7 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="123"/>
         <source>Quality:</source>
-        <translation>Calidad</translation>
+        <translation>Calidad:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="132"/>
@@ -83,7 +83,7 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="145"/>
         <source>Container Format:</source>
-        <translation>Formato:</translation>
+        <translation>Formato del contenedor:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="150"/>
@@ -103,12 +103,12 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="164"/>
         <source>Enable real-time audio pass-through from input to output</source>
-        <translation>Ativar el pass-through de audio en tiempo real de entrada a salida</translation>
+        <translation>Activar el pass-through de audio en tiempo real de entrada a salida</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="169"/>
         <source>Volume:</source>
-        <translation>Volúmen</translation>
+        <translation>Volumen:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="178"/>
@@ -147,7 +147,7 @@
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
         <source>Start Recording</source>
-        <translation >Empieza la grabación</translation>
+        <translation>Empieza la grabación</translation>
     </message>
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
@@ -160,6 +160,50 @@
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
         <source>Mute Audio</source>
         <translation>Activa el silencio</translation>
+    </message>
+    <message>
+        <source>Screen scale</source>
+        <translation>Escala de pantalla</translation>
+    </message>
+    <message>
+        <source>Zoom in</source>
+        <translation>Ampliar</translation>
+    </message>
+    <message>
+        <source>Zoom out</source>
+        <translation>Reducir</translation>
+    </message>
+    <message>
+        <source>Restore original size</source>
+        <translation>Restaurar tamaño original</translation>
+    </message>
+    <message>
+        <source>Function key and composite key</source>
+        <translation>Tecla de función y tecla combinada</translation>
+    </message>
+    <message>
+        <source>Full screen capture</source>
+        <translation>Captura de pantalla completa</translation>
+    </message>
+    <message>
+        <source>Full screen mode</source>
+        <translation>Modo de pantalla completa</translation>
+    </message>
+    <message>
+        <source>Paste text to target</source>
+        <translation>Pegar texto en el objetivo</translation>
+    </message>
+    <message>
+        <source>Mouse dance</source>
+        <translation>Danza del ratón</translation>
+    </message>
+    <message>
+        <source>Start/Stop Recording</source>
+        <translation>Iniciar/Detener grabación</translation>
+    </message>
+    <message>
+        <source>Mute/Unmute Audio</source>
+        <translation>Silenciar/Activar audio</translation>
     </message>
 </context>
 <context>
@@ -195,12 +239,12 @@
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="48"/>
         <source>background-color:black; color:white;</source>
-        <translation>color de fondo:negro; color:blanco;</translation>
+        <translation>background-color:black; color:white;</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="58"/>
         <source>⎘</source>
-        <translation type="unfinished"></translation>
+        <translation>⎘</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="69"/>
@@ -287,7 +331,7 @@ After the driver is installed, a system restart and device re-plugging is requir
 
 Please restart your computer after the driver installation.</source>
         <translation>Falta el controlador. Por favor, instala el controlador en: https://www.wch.cn/downloads/CH341SER.EXE.html  
-Después de instalar el controlador, es necesario un reinicio del sistema y desconectar y volver a conectar el dispositivo para que los cambios surjan efecto.
+Después de instalar el controlador, es necesario un reinicio del sistema y desconectar y volver a conectar el dispositivo para que los cambios surtan efecto.
 
 Por favor, reinicia el ordenador tras la instalación del controlador.</translation>
     </message>
@@ -351,7 +395,7 @@ Por favor, reinicia el ordenador tras la instalación del controlador.</translat
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
-        <translation>Se ha instalado el controlador. Es necesario un reinicio del sistema y reconectar el dispositivo para que los cambios surjan efecto. 
+        <translation>Se ha instalado el controlador. Es necesario un reinicio del sistema y reconectar el dispositivo para que los cambios surtan efecto. 
     
 ¿Te gustaría reiniciar el sistema ahora?</translation>
     </message>
@@ -456,7 +500,8 @@ Por favor, inténtalo de nuevo</translation>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
         <source>
 </source>
-        <translation type="unfinished"></translation>
+        <translation>
+</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
@@ -468,13 +513,16 @@ Por favor, inténtalo de nuevo</translation>
         <source>
 
 </source>
-        <translation type="unfinished"></translation>
+        <translation>
+
+</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="151"/>
         <source>The update process will:
 </source>
-        <translation>El proceso de actualización: </translation>
+        <translation>El proceso de actualización realizará:
+</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="152"/>
@@ -601,6 +649,11 @@ Por favor, reinicia la aplicación e inténtalo de nuevo.</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="56"/>
+        <source>Scripts</source>
+        <translation>Scripts</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/logpage.cpp" line="57"/>
         <source>Enable file logging</source>
         <translation>Habilita el registro de archivos</translation>
     </message>
@@ -699,7 +752,7 @@ Por favor, reinicia la aplicación e inténtalo de nuevo.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="124"/>
-        <source>Advance</source>
+        <source>Advanced</source>
         <translation>Avanzado</translation>
     </message>
     <message>
@@ -801,6 +854,16 @@ Por favor, reinicia la aplicación e inténtalo de nuevo.</translation>
         <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>TCP Server</source>
         <translation>Servidor TCP</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
+        <source>Hardware Diagnostics</source>
+        <translation>Diagnóstico de hardware</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
+        <source>Run hardware diagnostics to test device functionality</source>
+        <translation>Ejecutar diagnósticos de hardware para probar la funcionalidad del dispositivo</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="254"/>
@@ -1191,7 +1254,7 @@ Detalles técnicos: %1</translation>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="277"/>
         <source>Codec:</source>
-        <translation>Códec</translation>
+        <translation>Códec:</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="284"/>
@@ -1248,7 +1311,7 @@ Detalles técnicos: %1</translation>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="326"/>
         <source>Format:</source>
-        <translation>Formato</translation>
+        <translation>Formato:</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="333"/>
@@ -1343,7 +1406,7 @@ Detalles técnicos: %1</translation>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="583"/>
         <source>Status: Settings applied</source>
-        <translation >Estado: configuración aplicada</translation>
+        <translation>Estado: configuración aplicada</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="640"/>
@@ -2050,7 +2113,7 @@ Do you want to continue?</source>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="759"/>
         <source>Reading cancelled - enter serial number</source>
-        <translation >Lectura cancelada - introducir número de serie</translation>
+        <translation>Lectura cancelada - introducir número de serie</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1016"/>
@@ -2091,7 +2154,7 @@ Do you want to continue?</source>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1754"/>
         <source>Processing Error</source>
-        <translation>Procesando errores</translation>
+        <translation>Error de procesamiento</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1754"/>

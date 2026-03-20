@@ -94,7 +94,8 @@ void MenuCoordinator::setupLanguageMenu()
         {"da", "Danish"},
         {"ja", "Japanese"},
         {"se", "Swedish"},
-        {"zh", "中文"}
+        {"zh", "中文"},
+        {"es", "Spanish"}
     };
     
     // Create menu actions for each language

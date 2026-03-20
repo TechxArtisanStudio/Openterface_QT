@@ -1,135 +1,135 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="da_DK">
+<TS version="2.0" language="da_DK">
 <context>
     <name>AudioPage</name>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="54"/>
         <source>Audio Device Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>Valg af lydenhed</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="59"/>
         <source>Audio Input Device:</source>
-        <translation type="unfinished"></translation>
+        <translation>Lydinputenhed:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="63"/>
         <source>Select the audio input device for capturing audio</source>
-        <translation type="unfinished"></translation>
+        <translation>Vælg lydinputenheden til optagelse af lyd</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="65"/>
         <source>Refresh</source>
-        <translation type="unfinished"></translation>
+        <translation>Opfriske</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="67"/>
         <source>Refresh the list of available audio devices</source>
-        <translation type="unfinished"></translation>
+        <translation>Opdater listen over tilgængelige lydenheder</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="74"/>
         <location filename="../../ui/preferences/audiopage.cpp" line="295"/>
         <location filename="../../ui/preferences/audiopage.cpp" line="329"/>
         <source>Current Device: None</source>
-        <translation type="unfinished"></translation>
+        <translation>Nuværende enhed: Ingen</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="79"/>
         <source>Audio Recording Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Indstillinger for lydoptagelse</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="84"/>
         <source>Audio Codec:</source>
-        <translation type="unfinished"></translation>
+        <translation>Lyd-codec:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="89"/>
         <source>Select the audio codec for recording</source>
-        <translation type="unfinished"></translation>
+        <translation>Vælg lydcodec til optagelse</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="95"/>
         <source>Sample Rate:</source>
-        <translation type="unfinished"></translation>
+        <translation>Prøvefrekvens:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="103"/>
         <source>Set the audio sample rate (Hz)</source>
-        <translation type="unfinished"></translation>
+        <translation>Indstil lydens samplingshastighed (Hz)</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="109"/>
         <source>Bitrate:</source>
-        <translation type="unfinished"></translation>
+        <translation>Bitrate:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="117"/>
         <source>Set the audio bitrate (kbps)</source>
-        <translation type="unfinished"></translation>
+        <translation>Indstil lydbithastigheden (kbps)</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="123"/>
         <source>Quality:</source>
-        <translation type="unfinished"></translation>
+        <translation>Kvalitet:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="132"/>
         <source>Adjust audio quality (1=lowest, 10=highest)</source>
-        <translation type="unfinished"></translation>
+        <translation>Juster lydkvaliteten (1=laveste, 10=højeste)</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="145"/>
         <source>Container Format:</source>
-        <translation type="unfinished"></translation>
+        <translation>Containerformat:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="150"/>
         <source>Select the container format for recordings</source>
-        <translation type="unfinished"></translation>
+        <translation>Vælg containerformatet til optagelser</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="156"/>
         <source>Live Audio Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Indstillinger for livelyd</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="161"/>
         <source>Enable Audio Pass-through</source>
-        <translation type="unfinished"></translation>
+        <translation>Aktivér lydgennemgang</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="164"/>
         <source>Enable real-time audio pass-through from input to output</source>
-        <translation type="unfinished"></translation>
+        <translation>Aktiver realtids lydgennemgang fra input til output</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="169"/>
         <source>Volume:</source>
-        <translation type="unfinished"></translation>
+        <translation>Lydstyrke:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="178"/>
         <source>Adjust audio volume (0-100%)</source>
-        <translation type="unfinished"></translation>
+        <translation>Juster lydstyrken (0-100%)</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="293"/>
         <source>No audio devices found</source>
-        <translation type="unfinished"></translation>
+        <translation>Ingen lydenheder fundet</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="312"/>
         <source> (Default)</source>
-        <translation type="unfinished"></translation>
+        <translation> (Standard)</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="327"/>
         <location filename="../../ui/preferences/audiopage.cpp" line="351"/>
         <source>Current Device: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Nuværende enhed: %1</translation>
     </message>
 </context>
 <context>
@@ -137,29 +137,73 @@
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="74"/>
         <source>Select Keyboard Layout</source>
-        <translation type="unfinished">Vælg tastaturlayout</translation>
+        <translation>Vælg tastaturlayout</translation>
     </message>
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
         <source>Stop Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>Stop optagelse</translation>
     </message>
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
         <source>Start Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>Start optagelse</translation>
     </message>
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
         <source>Unmute Audio</source>
-        <translation type="unfinished"></translation>
+        <translation>Slå lyd til</translation>
     </message>
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
         <source>Mute Audio</source>
-        <translation type="unfinished"></translation>
+        <translation>Slå lyden fra</translation>
+    </message>
+    <message>
+        <source>Screen scale</source>
+        <translation>Skærmskala</translation>
+    </message>
+    <message>
+        <source>Zoom in</source>
+        <translation>Zoom ind</translation>
+    </message>
+    <message>
+        <source>Zoom out</source>
+        <translation>Zoom ud</translation>
+    </message>
+    <message>
+        <source>Restore original size</source>
+        <translation>Gendan original størrelse</translation>
+    </message>
+    <message>
+        <source>Function key and composite key</source>
+        <translation>Funktionstast og kombinationstast</translation>
+    </message>
+    <message>
+        <source>Full screen capture</source>
+        <translation>Fuld skærm optagelse</translation>
+    </message>
+    <message>
+        <source>Full screen mode</source>
+        <translation>Fuldskærmstilstand</translation>
+    </message>
+    <message>
+        <source>Paste text to target</source>
+        <translation>Indsæt tekst til mål</translation>
+    </message>
+    <message>
+        <source>Mouse dance</source>
+        <translation>Mus dans</translation>
+    </message>
+    <message>
+        <source>Start/Stop Recording</source>
+        <translation>Start/Stop optagelse</translation>
+    </message>
+    <message>
+        <source>Mute/Unmute Audio</source>
+        <translation>Lydløs/Aktiver lyd</translation>
     </message>
 </context>
 <context>
@@ -167,7 +211,7 @@
     <message>
         <location filename="../../ui/coordinator/devicecoordinator.cpp" line="107"/>
         <source>No devices available</source>
-        <translation type="unfinished"></translation>
+        <translation>Ingen tilgængelige enheder</translation>
     </message>
 </context>
 <context>
@@ -175,7 +219,7 @@
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="6"/>
         <source>Environment Helper</source>
-        <translation type="unfinished">Miljøhjælper</translation>
+        <translation>Miljøhjælper</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="19"/>
@@ -195,7 +239,7 @@
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="48"/>
         <source>background-color:black; color:white;</source>
-        <translation>baggrundsfarve:sort; farve:hvid;</translation>
+        <translation>background-color:black; color:white;</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="58"/>
@@ -220,34 +264,34 @@
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="92"/>
         <source>&lt;a href=&quot;#&quot;&gt;Environment Help Documentation&lt;/a&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;a href=&quot;#&quot;&gt;Hjælpedokumentation til miljø&lt;/a&gt;</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="146"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
-        <translation type="unfinished"> Enheten er ikke tilkoblet. Koble den til og prøv igjen.</translation>
+        <translation> Enheden er ikke tilsluttet. Tilslut den og prøv igen.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="136"/>
         <location filename="../../ui/advance/envdialog.cpp" line="168"/>
         <source>◆ Driver Installed: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ Driver installeret: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="137"/>
         <location filename="../../ui/advance/envdialog.cpp" line="172"/>
         <source>◆ Latest Firmware: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ Seneste firmware: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="169"/>
         <source>◆ In Serial Port Permission: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ Seriel portadgang: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="170"/>
         <source>◆ HID Permission: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ HID-tilladelse:</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="171"/>
@@ -262,17 +306,17 @@
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="171"/>
         <source>◆ BRLTTY checking: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ BRLTTY-kontrol:</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="212"/>
         <source>Install Driver</source>
-        <translation type="unfinished">Installer driver</translation>
+        <translation>Installer driver</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="219"/>
         <source>Copy Link</source>
-        <translation type="unfinished">Kopier link</translation>
+        <translation>Kopier link</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="235"/>
@@ -302,17 +346,17 @@
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="292"/>
         <source>Serial port Permission: </source>
-        <translation type="unfinished">Serielt porttilladelse: </translation>
+        <translation>Serielt porttilladelse: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="133"/>
         <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
-        <translation type="unfinished">Følgende trin hjælper dig med at installere driveren og Openterface firmware-opdateringen. Nuværende status:</translation>
+        <translation>Følgende trin hjælper dig med at installere driveren og Openterface firmware-opdateringen. Nuværende status:&lt;br&gt;</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="167"/>
         <source>The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:&lt;br&gt;</source>
-        <translation type="unfinished">Følgende trin hjælper dig med at installere driveren og få adgang til enhedsrettighederne samt Openterface firmware-opdateringen. Nuværende status:</translation>
+        <translation>Følgende trin hjælper dig med at installere driveren og få adgang til enhedsrettighederne samt Openterface firmware-opdateringen. Nuværende status:&lt;br&gt;</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="213"/>
@@ -321,7 +365,7 @@
 After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.
 
 Please restart your computer after the driver installation.</source>
-        <translation type="unfinished">Driveren mangler. Installer driveren fra: https://www.wch.cn/downloads/CH341SER.EXE.html
+        <translation>Driveren mangler. Installer driveren fra: https://www.wch.cn/downloads/CH341SER.EXE.html
 
 Når driveren er installeret, skal systemet genstartes og enheden kobles fra og til igen, før ændringerne træder i kraft.
 
@@ -373,28 +417,28 @@ Vil du genstarte din computer nu?</translation>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="162"/>
         <source>Warning</source>
-        <translation type="unfinished">Advarsel</translation>
+        <translation>Advarsel</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
         <source>Please select a firmware file to write</source>
-        <translation type="unfinished">Vælg venligst en firmwarefil, der skal skrives</translation>
+        <translation>Vælg venligst en firmwarefil, der skal skrives</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="110"/>
         <source>Error</source>
-        <translation type="unfinished">Fejl</translation>
+        <translation>Fejl</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
         <source>Failed to read firmware file: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke læse firmwarefilen: %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="103"/>
         <source>Success</source>
-        <translation type="unfinished">Succes</translation>
+        <translation>Succes</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="103"/>
@@ -402,28 +446,32 @@ Vil du genstarte din computer nu?</translation>
 Please:
 1. Restart the application
 2. Disconnect and reconnect all cables</source>
-        <translation type="unfinished"></translation>
+        <translation>Firmware skrevet til EEPROM. Programmet lukkes nu.
+Venligst:
+1. Genstart programmet.
+2. Frakobl og tilslut alle kabler igen.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="110"/>
         <source>Failed to write firmware to EEPROM
 Please try again</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke skrive firmware til EEPROM
+Prøv igen</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="125"/>
         <source>Cancelled</source>
-        <translation type="unfinished"></translation>
+        <translation>Annulleret</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="125"/>
         <source>Firmware write operation was cancelled</source>
-        <translation type="unfinished"></translation>
+        <translation>Firmware-skrivningen blev annulleret</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="162"/>
         <source>Please select a file path</source>
-        <translation type="unfinished"></translation>
+        <translation>Vælg venligst en filsti</translation>
     </message>
 </context>
 <context>
@@ -431,41 +479,41 @@ Please try again</source>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="113"/>
         <source>Firmware Update Confirmation</source>
-        <translation type="unfinished">Bekræftelse af firmwareopdatering</translation>
+        <translation>Bekræftelse af firmwareopdatering</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="120"/>
         <source>Update</source>
-        <translation type="unfinished">Opdater</translation>
+        <translation>Opdater</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="121"/>
         <source>Cancel</source>
-        <translation type="unfinished">Annuller</translation>
+        <translation>Annuller</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
         <source>Current firmware version: </source>
-        <translation type="unfinished">Nuværende firmwareversion: </translation>
+        <translation>Nuværende firmwareversion: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
         <source>
 </source>
-        <translation type="unfinished">
+        <translation>
 </translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
         <source>Latest firmware version: </source>
-        <translation type="unfinished">Seneste firmwareversion: </translation>
+        <translation>Seneste firmwareversion: </translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
         <source>
 
 </source>
-        <translation type="unfinished">
+        <translation>
 
 </translation>
     </message>
@@ -473,7 +521,7 @@ Please try again</source>
         <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="151"/>
         <source>The update process will:
 </source>
-        <translation type="unfinished">Opdateringsprocessen vil:
+        <translation>Opdateringsprocessen vil:
 </translation>
     </message>
     <message>
@@ -489,7 +537,7 @@ Important:
 • Restart application after completion
 
 Do you want to proceed with the update?</source>
-        <translation type="unfinished">1. Stoppe alle video- og USB-operationer
+        <translation>1. Stoppe alle video- og USB-operationer
 2. Installere ny firmware
 3. Lukke programmet automatisk
 
@@ -592,15 +640,20 @@ Prøv igen efter at have genstartet programmet.</translation>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="54"/>
         <source>Device</source>
-        <translation type="unfinished"></translation>
+        <translation>Enhed</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="55"/>
         <source>Backend</source>
-        <translation type="unfinished"></translation>
+        <translation>Backend</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="56"/>
+        <source>Scripts</source>
+        <translation>Scripts</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/logpage.cpp" line="57"/>
         <source>Enable file logging</source>
         <translation>Aktivér fillogning</translation>
     </message>
@@ -612,7 +665,7 @@ Prøv igen efter at have genstartet programmet.</translation>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="59"/>
         <source>Inhibit Screen Saver</source>
-        <translation type="unfinished"></translation>
+        <translation>Deaktiver pauseskærm</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="86"/>
@@ -627,12 +680,12 @@ Prøv igen efter at have genstartet programmet.</translation>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="95"/>
         <source>Screen Saver setting</source>
-        <translation type="unfinished"></translation>
+        <translation>Indstilling af pauseskærm</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="99"/>
         <source>Inhibit the screen saver when the application is running.</source>
-        <translation type="unfinished"></translation>
+        <translation>Deaktiver pauseskærmen, når programmet kører.</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="120"/>
@@ -670,12 +723,12 @@ Prøv igen efter at have genstartet programmet.</translation>
     <message>
         <location filename="../../ui/mainwindow.ui" line="74"/>
         <source>Mouse Visibility</source>
-        <translation type="unfinished"></translation>
+        <translation>Musens synlighed</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="81"/>
         <source>Device</source>
-        <translation type="unfinished"></translation>
+        <translation>Enhed</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="86"/>
@@ -699,7 +752,7 @@ Prøv igen efter at have genstartet programmet.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="124"/>
-        <source>Advance</source>
+        <source>Advanced</source>
         <translation>Avanceret</translation>
     </message>
     <message>
@@ -740,7 +793,7 @@ Prøv igen efter at have genstartet programmet.</translation>
     <message>
         <location filename="../../ui/mainwindow.ui" line="184"/>
         <source>Office Website</source>
-        <translation>Kontorwebsite</translation>
+        <translation>Officielt websted</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="189"/>
@@ -790,17 +843,27 @@ Prøv igen efter at have genstartet programmet.</translation>
     <message>
         <location filename="../../ui/mainwindow.ui" line="241"/>
         <source>Video Recording Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Indstillinger for videooptagelse</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="244"/>
         <source>Configure video recording settings and start/stop recording</source>
-        <translation type="unfinished"></translation>
+        <translation>Konfigurer indstillinger for videooptagelse og start/stop optagelse</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>TCP Server</source>
         <translation>TCP-server</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
+        <source>Hardware Diagnostics</source>
+        <translation>Hardware-diagnostik</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
+        <source>Run hardware diagnostics to test device functionality</source>
+        <translation>Kør hardwarediagnostik for at teste enhedens funktionalitet</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="254"/>
@@ -810,7 +873,7 @@ Prøv igen efter at have genstartet programmet.</translation>
     <message>
         <location filename="../../ui/mainwindow.ui" line="259"/>
         <source>Firmware Manager</source>
-        <translation type="unfinished"></translation>
+        <translation>Firmware Manager</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="264"/>
@@ -820,22 +883,22 @@ Prøv igen efter at have genstartet programmet.</translation>
     <message>
         <location filename="../../ui/mainwindow.ui" line="269"/>
         <source>Device Selector</source>
-        <translation type="unfinished"></translation>
+        <translation>Enhedsvælger</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="272"/>
         <source>Open Device Selector Dialog</source>
-        <translation type="unfinished"></translation>
+        <translation>Åbn dialogboksen Enhedsvælger</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="277"/>
         <source>Update Display Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Opdater skærmindstillinger</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="280"/>
         <source>Update display name and serial number in EDID</source>
-        <translation type="unfinished"></translation>
+        <translation>Opdater visningsnavn og serienummer i EDID</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="289"/>
@@ -870,22 +933,22 @@ Prøv igen efter at have genstartet programmet.</translation>
     <message>
         <location filename="../../ui/mainwindow.ui" line="349"/>
         <source>Auto Hide</source>
-        <translation type="unfinished"></translation>
+        <translation>Skjul automatisk</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="352"/>
         <source>Auto hide mouse cursor</source>
-        <translation type="unfinished"></translation>
+        <translation>Skjul musemarkøren automatisk</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="360"/>
         <source>Always Show</source>
-        <translation type="unfinished"></translation>
+        <translation>Vis altid</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="363"/>
         <source>Always show mouse cursor</source>
-        <translation type="unfinished"></translation>
+        <translation>Vis altid musemarkøren</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="535"/>
@@ -898,57 +961,57 @@ Prøv igen efter at have genstartet programmet.</translation>
         <location filename="../../ui/mainwindow.cpp" line="643"/>
         <location filename="../../ui/mainwindow.cpp" line="647"/>
         <source>Recording Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Optagelsesfejl</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="610"/>
         <source>Recording system is not initialized. Please restart the application.</source>
-        <translation type="unfinished"></translation>
+        <translation>Optagesystemet er ikke initialiseret. Genstart venligst applikationen.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="617"/>
         <source>Camera system is not initialized. Please restart the application.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kamerasystemet er ikke initialiseret. Genstart venligst applikationen.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="626"/>
         <source>No Camera Available</source>
-        <translation type="unfinished"></translation>
+        <translation>Intet kamera tilgængeligt</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="627"/>
         <source>No camera devices detected. Please connect a camera and try again.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ingen kameraenheder fundet. Tilslut et kamera, og prøv igen.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="629"/>
         <source>Camera Not Active</source>
-        <translation type="unfinished"></translation>
+        <translation>Kamera ikke aktivt</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="630"/>
         <source>Camera is not active. Please start the camera preview before recording.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kameraet er ikke aktivt. Start venligst kameraforhåndsvisningen før optagelse.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="644"/>
         <source>An unexpected error occurred: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Der opstod en uventet fejl: %1</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="648"/>
         <source>An unexpected error occurred. Please try again or restart the application.</source>
-        <translation type="unfinished"></translation>
+        <translation>Der opstod en uventet fejl. Prøv igen, eller genstart applikationen.</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="682"/>
         <source>Active Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>Aktiv optagelse</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="683"/>
         <source>There is an active recording session. Do you want to stop it before changing settings?</source>
-        <translation type="unfinished"></translation>
+        <translation>Der er en aktiv optagelsessession. Vil du stoppe den, før du ændrer indstillingerne?</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="836"/>
@@ -969,18 +1032,20 @@ Prøv igen efter at have genstartet programmet.</translation>
         <location filename="../../ui/mainwindow.cpp" line="1464"/>
         <source>The firmware is up to date.
 Current version: </source>
-        <translation type="unfinished"></translation>
+        <translation>Firmwaren er opdateret.
+Nuværende version: </translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1486"/>
         <source>Firmware fetch timeout</source>
-        <translation type="unfinished"></translation>
+        <translation>Timeout for hentning af firmware</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="1487"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
-        <translation type="unfinished"></translation>
+        <translation>Timeout for hentning af firmware. Kontroller din netværksforbindelse, og prøv igen.
+Nuværende version: </translation>
     </message>
 </context>
 <context>
@@ -990,17 +1055,17 @@ Current version: </source>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="114"/>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="391"/>
         <source>Recording Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Optagelsesfejl</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="103"/>
         <source>No active camera device for recording. Please ensure a camera is connected.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ingen aktiv kameraenhed til optagelse. Sørg for, at der er tilsluttet et kamera.</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="115"/>
         <source>Cannot start recording - camera system not initialized.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kan ikke starte optagelse - kamerasystemet er ikke initialiseret.</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="368"/>
@@ -1013,7 +1078,15 @@ Possible causes:
 - Codec not supported on this system
 
 Technical details: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke starte optagelse.
+
+Mulige årsager:
+- Utilstrækkelig diskplads
+- Problemer med tilladelser til outputmappe
+- Kameraenheden er optaget eller afbrudt
+- Codec understøttes ikke på dette system
+
+Tekniske detaljer: %1</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="375"/>
@@ -1025,7 +1098,14 @@ Possible causes:
 - Drive disconnected during recording
 
 Technical details: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke gemme optagelsen.
+
+Mulige årsager:
+- Utilstrækkelig diskplads
+- Problemer med tilladelser til outputmappen
+- Drevet blev afbrudt under optagelse
+
+Tekniske detaljer: %1</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="381"/>
@@ -1037,63 +1117,71 @@ Possible causes:
 - Hardware acceleration problems
 
 Technical details: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Optagelsesfilen kan være beskadiget.
+
+Mulige årsager:
+- Optagelse stoppede uventet
+- Problemer med systemressourcer
+- Problemer med hardwareacceleration
+
+Tekniske detaljer: %1</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="387"/>
         <source>An error occurred with the recording:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Der opstod en fejl med optagelsen:
+%1</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="397"/>
         <source>Retry</source>
-        <translation type="unfinished"></translation>
+        <translation>Prøv igen</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="413"/>
         <source>Reset Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>Nulstilling mislykkedes</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="414"/>
         <source>Cannot reset recording system - camera manager is not available.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kan ikke nulstille optagesystemet - kamerastyring er ikke tilgængelig.</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="422"/>
         <source>Recording in Progress</source>
-        <translation type="unfinished"></translation>
+        <translation>Optagelse i gang</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="423"/>
         <source>A recording is currently in progress. Stop it and reset the recording system?</source>
-        <translation type="unfinished"></translation>
+        <translation>En optagelse er i gang. Vil du stoppe den og nulstille optagelsessystemet?</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="440"/>
         <source>System Reset</source>
-        <translation type="unfinished"></translation>
+        <translation>Systemnulstilling</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="441"/>
         <source>FFmpeg backend automatically handles recovery. Please try recording again.</source>
-        <translation type="unfinished"></translation>
+        <translation>FFmpeg-backend håndterer automatisk gendannelse. Prøv at optage igen.</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="465"/>
         <source>Recording System Diagnostics</source>
-        <translation type="unfinished"></translation>
+        <translation>Diagnostik af optagelsessystem</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="476"/>
         <source>Copy to Clipboard</source>
-        <translation type="unfinished"></translation>
+        <translation>Kopiér til udklipsholder</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="477"/>
         <source>Close</source>
-        <translation type="unfinished">Luk</translation>
+        <translation>Luk</translation>
     </message>
 </context>
 <context>
@@ -1101,281 +1189,281 @@ Technical details: %1</source>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="64"/>
         <source>Video Recording Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Indstillinger for videooptagelse</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="218"/>
         <source>Apply Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Anvend indstillinger</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="219"/>
         <source>Reset to Defaults</source>
-        <translation type="unfinished"></translation>
+        <translation>Nulstil til standardindstillinger</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="220"/>
         <source>Close</source>
-        <translation type="unfinished">Luk</translation>
+        <translation>Luk</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="232"/>
         <source>Recording Controls</source>
-        <translation type="unfinished"></translation>
+        <translation>Optagelseskontroller</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="236"/>
         <source>Backend: Detecting...</source>
-        <translation type="unfinished"></translation>
+        <translation>Backend: Detektering...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="240"/>
         <source>Start Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>Start optagelse</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="241"/>
         <source>Stop Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>Stop optagelse</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="242"/>
         <source>Pause</source>
-        <translation type="unfinished"></translation>
+        <translation>Pause</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="243"/>
         <source>Resume</source>
-        <translation type="unfinished"></translation>
+        <translation>Genoptage</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="246"/>
         <source>Status: Ready</source>
-        <translation type="unfinished"></translation>
+        <translation>Status: Klar</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="247"/>
         <source>Duration: 00:00:00</source>
-        <translation type="unfinished"></translation>
+        <translation>Varighed: 00:00:00</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="271"/>
         <source>Video Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Videoindstillinger</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="277"/>
         <source>Codec:</source>
-        <translation type="unfinished"></translation>
+        <translation>Codec:</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="284"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="771"/>
         <source>GStreamer codecs: mjpeg (fast), x264enc (good compression), x265enc (best compression)</source>
-        <translation type="unfinished"></translation>
+        <translation>GStreamer-codecs: mjpeg (hurtig), x264enc (god komprimering), x265enc (bedste komprimering)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="287"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="774"/>
         <source>FFmpeg codec: mjpeg (compatible with AVI format)</source>
-        <translation type="unfinished"></translation>
+        <translation>FFmpeg-codec: mjpeg (kompatibel med AVI-format)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="292"/>
         <source>Quality:</source>
-        <translation type="unfinished"></translation>
+        <translation>Kvalitet:</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
         <source>Low</source>
-        <translation type="unfinished"></translation>
+        <translation>Lav</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
         <source>Medium</source>
-        <translation type="unfinished"></translation>
+        <translation>Medium</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
         <source>High</source>
-        <translation type="unfinished"></translation>
+        <translation>Høj</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
         <source>Ultra</source>
-        <translation type="unfinished"></translation>
+        <translation>Ultra</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
         <source>Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>Brugerdefineret</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="298"/>
         <source>Bitrate (kbps):</source>
-        <translation type="unfinished"></translation>
+        <translation>Bitrate (kbps):</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="320"/>
         <source>Output Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Outputindstillinger</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="326"/>
         <source>Format:</source>
-        <translation type="unfinished"></translation>
+        <translation>Format:</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="333"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="781"/>
         <source>GStreamer formats: AVI (compatible), MP4 (modern), MKV (flexible)</source>
-        <translation type="unfinished"></translation>
+        <translation>GStreamer-formater: AVI (kompatibel), MP4 (moderne), MKV (fleksibel)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="336"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="784"/>
         <source>FFmpeg format: AVI (most compatible with custom build)</source>
-        <translation type="unfinished"></translation>
+        <translation>FFmpeg-format: AVI (mest kompatibel med brugerdefineret build)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="341"/>
         <source>Output Path:</source>
-        <translation type="unfinished"></translation>
+        <translation>Outputsti:</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="345"/>
         <source>Browse...</source>
-        <translation type="unfinished"></translation>
+        <translation>Gennemse...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="380"/>
         <source>Error</source>
-        <translation type="unfinished">Fejl</translation>
+        <translation>Fejl</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="380"/>
         <source>No video backend available.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ingen video-backend tilgængelig.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="388"/>
         <source>Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>Indspilning</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="388"/>
         <source>Recording is already in progress.</source>
-        <translation type="unfinished"></translation>
+        <translation>Optagelsen er allerede i gang.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="419"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="680"/>
         <source>Recording Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Optagelsesfejl</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="420"/>
         <source>Failed to start recording. Please check the settings and try again.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke starte optagelsen. Kontroller indstillingerne, og prøv igen.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="446"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="606"/>
         <source>Status: Recording to %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Status: Optager til %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="490"/>
         <source>Status: Recording stopped</source>
-        <translation type="unfinished"></translation>
+        <translation>Status: Optagelse stoppet</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="503"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="512"/>
         <source>Status: Recording stopped (with error)</source>
-        <translation type="unfinished"></translation>
+        <translation>Status: Optagelse stoppet (med fejl)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="546"/>
         <source>Save Recording As</source>
-        <translation type="unfinished"></translation>
+        <translation>Gem optagelse som</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="548"/>
         <source>Video Files (*.mp4 *.avi *.mov *.mkv *.webm);;All Files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>Videofiler (*.mp4 *.avi *.mov *.mkv *.webm);;Alle filer (*)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="560"/>
         <source>Warning</source>
-        <translation type="unfinished">Advarsel</translation>
+        <translation>Advarsel</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="560"/>
         <source>No video backend available!</source>
-        <translation type="unfinished"></translation>
+        <translation>Ingen video-backend tilgængelig!</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="583"/>
         <source>Status: Settings applied</source>
-        <translation type="unfinished"></translation>
+        <translation>Status: Indstillinger anvendt</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="640"/>
         <source>Status: Recording stopped. File saved to %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Status: Optagelse stoppet. Fil gemt til %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="649"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="686"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="696"/>
         <source>Duration: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Varighed: %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="659"/>
         <source>Status: Recording paused</source>
-        <translation type="unfinished"></translation>
+        <translation>Status: Optagelse sat på pause</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="666"/>
         <source>Status: Recording resumed</source>
-        <translation type="unfinished"></translation>
+        <translation>Status: Optagelse genoptaget</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="677"/>
         <source>Status: Recording error - %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Status: Optagelsesfejl - %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="681"/>
         <source>Recording failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Optagelse mislykkedes: %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="728"/>
         <source>Backend: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Backend: %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="730"/>
         <source>Backend: %1 (configured: %2)</source>
-        <translation type="unfinished"></translation>
+        <translation>Backend: %1 (konfigureret: %2)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="744"/>
         <source>Backend: None available</source>
-        <translation type="unfinished"></translation>
+        <translation>Backend: Ingen tilgængelig</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="761"/>
         <source>Windows Qt backend codecs: MJPEG</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows Qt backend-codecs: MJPEG</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="765"/>
         <source>Windows Qt backend formats: MP4 (recommended), AVI (compatible), MOV (QuickTime)</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows Qt backend-formater: MP4 (anbefales), AVI (kompatibel), MOV (QuickTime)</translation>
     </message>
 </context>
 <context>
@@ -1383,49 +1471,49 @@ Technical details: %1</source>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="54"/>
         <source>Rename Display</source>
-        <translation type="unfinished"></translation>
+        <translation>Omdøb skærm</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="59"/>
         <source>Enter new display name:</source>
-        <translation type="unfinished"></translation>
+        <translation>Indtast nyt visningsnavn:</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="62"/>
         <source>Display name</source>
-        <translation type="unfinished"></translation>
+        <translation>Vist navn</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="64"/>
         <source>Update</source>
-        <translation type="unfinished">Opdater</translation>
+        <translation>Opdater</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="67"/>
         <source>Cancel</source>
-        <translation type="unfinished">Annuller</translation>
+        <translation>Annuller</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="127"/>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="133"/>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="140"/>
         <source>Warning</source>
-        <translation type="unfinished">Advarsel</translation>
+        <translation>Advarsel</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="127"/>
         <source>Display name cannot be empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Visningsnavnet må ikke være tomt.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="133"/>
         <source>Display name cannot exceed 13 characters.</source>
-        <translation type="unfinished"></translation>
+        <translation>Visningsnavnet må ikke overstige 13 tegn.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="140"/>
         <source>Display name must contain only ASCII characters.</source>
-        <translation type="unfinished"></translation>
+        <translation>Visningsnavnet må kun indeholde ASCII-tegn.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="150"/>
@@ -1436,62 +1524,62 @@ Technical details: %1</source>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="275"/>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="301"/>
         <source>Error</source>
-        <translation type="unfinished">Fejl</translation>
+        <translation>Fejl</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="150"/>
         <source>Failed to start display name update process.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke starte opdateringen af visningsnavnet.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="163"/>
         <source>Default Display</source>
-        <translation type="unfinished"></translation>
+        <translation>Standardvisning</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="184"/>
         <source>Failed to determine firmware size.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke bestemme firmwarestørrelsen.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="202"/>
         <source>Reading firmware... %1%</source>
-        <translation type="unfinished"></translation>
+        <translation>Læser firmware... %1%</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="208"/>
         <source>Failed to read firmware.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke læse firmware.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="218"/>
         <source>Processing EDID data...</source>
-        <translation type="unfinished"></translation>
+        <translation>Behandler EDID-data...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="223"/>
         <source>Failed to read temporary firmware file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke læse den midlertidige firmwarefil.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="239"/>
         <source>Failed to process EDID data.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke behandle EDID-data.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="249"/>
         <source>Writing firmware...</source>
-        <translation type="unfinished"></translation>
+        <translation>Skriver firmware...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="260"/>
         <source>Writing firmware... %1%</source>
-        <translation type="unfinished"></translation>
+        <translation>Skriver firmware... %1%</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="268"/>
         <source>Success</source>
-        <translation type="unfinished">Succes</translation>
+        <translation>Succes</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="269"/>
@@ -1501,17 +1589,22 @@ The application will now close.
 Please:
 1. Restart the application
 2. Disconnect and reconnect all cables</source>
-        <translation type="unfinished"></translation>
+        <translation>Visningsnavnet er opdateret!
+
+Applikationen lukkes nu.
+Venligst:
+1. Genstart applikationen
+2. Frakobl og tilslut alle kabler igen</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="275"/>
         <source>Failed to write firmware.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke skrive firmware.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/renamedisplaydialog.cpp" line="301"/>
         <source>Firmware read error: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Firmwarelæsningsfejl: %1</translation>
     </message>
 </context>
 <context>
@@ -1519,7 +1612,7 @@ Please:
     <message>
         <location filename="../../ui/screenscale.cpp" line="8"/>
         <source>Screen Aspect Ratio</source>
-        <translation type="unfinished"></translation>
+        <translation>Skærmformatforhold</translation>
     </message>
 </context>
 <context>
@@ -1649,7 +1742,7 @@ Please:
         <location filename="../../ui/preferences/settingdialog.cpp" line="116"/>
         <location filename="../../ui/preferences/settingdialog.cpp" line="186"/>
         <source>Target Control</source>
-        <translation type="unfinished"></translation>
+        <translation>Målkontrol</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/settingdialog.cpp" line="133"/>
@@ -1677,52 +1770,52 @@ Please:
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="42"/>
         <source>Target Control Operating Mode:</source>
-        <translation type="unfinished"></translation>
+        <translation>Målstyringsdriftstilstand:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="45"/>
         <source>[Performance] Standard USB keyboard + USB mouse device + USB custom HID device</source>
-        <translation type="unfinished"></translation>
+        <translation>[Ydeevne] Standard USB-tastatur + USB-mus + USB-brugerdefineret HID-enhed</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="46"/>
         <source>The target USB port is a multi-functional composite device supporting a keyboard, mouse, and custom HID device. It performs best, though the mouse may have compatibility issues with Mac OS and Linux.</source>
-        <translation type="unfinished"></translation>
+        <translation>Den valgte USB-port er en multifunktionel kompositenhed, der understøtter et tastatur, en mus og en brugerdefineret HID-enhed. Den fungerer bedst, selvom musen kan have kompatibilitetsproblemer med Mac OS og Linux.</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="47"/>
         <source>[Keyboard Only] Standard USB keyboard device</source>
-        <translation type="unfinished"></translation>
+        <translation>[Kun tastatur] Standard USB-tastaturenhed</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="48"/>
         <source>The target USB port is a standard keyboard device without multimedia keys, supporting full keyboard mode and suitable for systems that don&apos;t support composite devices.</source>
-        <translation type="unfinished"></translation>
+        <translation>Den ønskede USB-port er en standardtastaturenhed uden multimedietaster, der understøtter fuld tastaturtilstand og er egnet til systemer, der ikke understøtter sammensatte enheder.</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="49"/>
         <source>[Compatibility] Standard USB keyboard + USB mouse device</source>
-        <translation type="unfinished"></translation>
+        <translation>[Kompatibilitet] Standard USB-tastatur + USB-musenhed</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="50"/>
         <source>The target USB port is a muti-functional composite device for keyboard and mouse. Best competibility with Mac OS, Andriod and Linux.</source>
-        <translation type="unfinished"></translation>
+        <translation>Den valgte USB-port er en multifunktionel kompositenhed til tastatur og mus. Bedste kompatibilitet med Mac OS, Android og Linux.</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="51"/>
         <source>[Custom HID] Standard USB custom HID device</source>
-        <translation type="unfinished"></translation>
+        <translation>[Brugerdefineret HID] Standard USB brugerdefineret HID-enhed</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="52"/>
         <source>The target USB port is a custom HID device supporting data transmission between host serial and target HID .</source>
-        <translation type="unfinished"></translation>
+        <translation>Mål-USB-porten er en brugerdefineret HID-enhed, der understøtter dataoverførsel mellem værtens serielle netværkskort og mål-HID&apos;en.</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="77"/>
         <source>Custom target USB Composite Device VID and PID:</source>
-        <translation type="unfinished"></translation>
+        <translation>Brugerdefineret mål USB Composite Device VID og PID:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="78"/>
@@ -1765,83 +1858,83 @@ Please:
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="176"/>
         <source>Update Display Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Opdater skærmindstillinger</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="185"/>
         <source>Display Name</source>
-        <translation type="unfinished"></translation>
+        <translation>Vist navn</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="188"/>
         <source>Update display name</source>
-        <translation type="unfinished"></translation>
+        <translation>Opdater visningsnavn</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="193"/>
         <source>Loading current display name...</source>
-        <translation type="unfinished"></translation>
+        <translation>Indlæser det aktuelle visningsnavn...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="200"/>
         <source>Serial Number</source>
-        <translation type="unfinished"></translation>
+        <translation>Serienummer</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="203"/>
         <source>Update serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>Opdater serienummer</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="208"/>
         <source>Loading current serial number...</source>
-        <translation type="unfinished"></translation>
+        <translation>Indlæser nuværende serienummer...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="215"/>
         <source>Reading Firmware</source>
-        <translation type="unfinished"></translation>
+        <translation>Læsning af firmware</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="218"/>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="524"/>
         <source>Reading firmware data...</source>
-        <translation type="unfinished"></translation>
+        <translation>Læser firmwaredata...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="229"/>
         <source>Cancel Reading</source>
-        <translation type="unfinished"></translation>
+        <translation>Annuller læsning</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="242"/>
         <source>Update</source>
-        <translation type="unfinished">Opdater</translation>
+        <translation>Opdater</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="246"/>
         <source>Cancel</source>
-        <translation type="unfinished">Annuller</translation>
+        <translation>Annuller</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="279"/>
         <source>Enabled</source>
-        <translation type="unfinished"></translation>
+        <translation>Aktiveret</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="279"/>
         <source>Resolution</source>
-        <translation type="unfinished"></translation>
+        <translation>Opløsning</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="279"/>
         <source>Refresh Rate</source>
-        <translation type="unfinished"></translation>
+        <translation>Opdateringshastighed</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="279"/>
         <source>Source</source>
-        <translation type="unfinished"></translation>
+        <translation>Kilde</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="365"/>
@@ -1851,62 +1944,62 @@ Please:
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="392"/>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="399"/>
         <source>Invalid Input</source>
-        <translation type="unfinished"></translation>
+        <translation>Ugyldigt input</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="365"/>
         <source>Display name cannot be empty when enabled.</source>
-        <translation type="unfinished"></translation>
+        <translation>Visningsnavnet må ikke være tomt, når det er aktiveret.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="370"/>
         <source>Display name cannot exceed 13 characters.</source>
-        <translation type="unfinished"></translation>
+        <translation>Visningsnavnet må ikke overstige 13 tegn.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="377"/>
         <source>Display name must contain only ASCII characters.</source>
-        <translation type="unfinished"></translation>
+        <translation>Visningsnavnet må kun indeholde ASCII-tegn.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="387"/>
         <source>Serial number cannot be empty when enabled.</source>
-        <translation type="unfinished"></translation>
+        <translation>Serienummeret må ikke være tomt, når det er aktiveret.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="392"/>
         <source>Serial number cannot exceed 13 characters.</source>
-        <translation type="unfinished"></translation>
+        <translation>Serienummeret må ikke overstige 13 tegn.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="399"/>
         <source>Serial number must contain only ASCII characters.</source>
-        <translation type="unfinished"></translation>
+        <translation>Serienummeret må kun indeholde ASCII-tegn.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="411"/>
         <source>No Updates Selected</source>
-        <translation type="unfinished"></translation>
+        <translation>Ingen opdateringer valgt</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="411"/>
         <source>Please select at least one setting to update.</source>
-        <translation type="unfinished"></translation>
+        <translation>Vælg mindst én indstilling, der skal opdateres.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="418"/>
         <source>Display Name: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Vist navn: %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="421"/>
         <source>Serial Number: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Serienummer: %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="425"/>
         <source>Resolution Changes: %1 resolution(s) selected</source>
-        <translation type="unfinished"></translation>
+        <translation>Opløsningsændringer: %1 opløsning(er) valgt</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="428"/>
@@ -1915,22 +2008,26 @@ Please:
 %1
 
 Do you want to continue?</source>
-        <translation type="unfinished"></translation>
+        <translation>Følgende ændringer vil blive anvendt:
+
+%1
+
+Vil du fortsætte?</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="430"/>
         <source>Confirm Updates</source>
-        <translation type="unfinished"></translation>
+        <translation>Bekræft opdateringer</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="440"/>
         <source>Update Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>Opdatering mislykkedes</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="440"/>
         <source>Failed to start the update process.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke starte opdateringsprocessen.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="514"/>
@@ -1938,7 +2035,7 @@ Do you want to continue?</source>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="602"/>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="615"/>
         <source>Failed to read firmware - enter display name</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke læse firmware - indtast visningsnavn</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="515"/>
@@ -1946,148 +2043,148 @@ Do you want to continue?</source>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="603"/>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="616"/>
         <source>Failed to read firmware - enter serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke læse firmware - indtast serienummer</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="711"/>
         <source>Error reading firmware - enter display name</source>
-        <translation type="unfinished"></translation>
+        <translation>Fejl ved læsning af firmware - indtast visningsnavn</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="712"/>
         <source>Error reading firmware - enter serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>Fejl ved læsning af firmware - indtast serienummer</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="626"/>
         <source>EDID not found - enter display name</source>
-        <translation type="unfinished"></translation>
+        <translation>EDID ikke fundet - indtast visningsnavn</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="627"/>
         <source>EDID not found - enter serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>EDID ikke fundet - indtast serienummer</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="634"/>
         <source>Invalid EDID - enter display name</source>
-        <translation type="unfinished"></translation>
+        <translation>Ugyldigt EDID - indtast visningsnavn</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="635"/>
         <source>Invalid EDID - enter serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>Ugyldigt EDID - indtast serienummer</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="650"/>
         <source>Enter new display name (max 13 characters)</source>
-        <translation type="unfinished"></translation>
+        <translation>Indtast nyt visningsnavn (maks. 13 tegn)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="654"/>
         <source>No display name found - enter new name</source>
-        <translation type="unfinished"></translation>
+        <translation>Intet visningsnavn fundet - indtast nyt navn</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="660"/>
         <source>Enter new serial number (max 13 characters)</source>
-        <translation type="unfinished"></translation>
+        <translation>Indtast nyt serienummer (maks. 13 tegn)</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="664"/>
         <source>No serial number found - enter new serial</source>
-        <translation type="unfinished"></translation>
+        <translation>Intet serienummer fundet - indtast nyt serienummer</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="717"/>
         <source>Firmware Read Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Firmware-læsningsfejl</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="718"/>
         <source>Failed to read firmware: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke læse firmware: %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="758"/>
         <source>Reading cancelled - enter display name</source>
-        <translation type="unfinished"></translation>
+        <translation>Læsning annulleret - indtast visningsnavn</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="759"/>
         <source>Reading cancelled - enter serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>Aflæsning annulleret - indtast serienummer</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1016"/>
         <source>Extension</source>
-        <translation type="unfinished"></translation>
+        <translation>Udvidelse</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1693"/>
         <source>Firmware Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Firmwarefejl</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1693"/>
         <source>Failed to read firmware size.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke læse firmwarestørrelsen.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1722"/>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1815"/>
         <source>Read Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Læsefejl</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1722"/>
         <source>Failed to read firmware from device.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke læse firmware fra enheden.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1739"/>
         <source>File Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Filfejl</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1739"/>
         <source>Failed to read firmware file.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke læse firmwarefilen.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1754"/>
         <source>Processing Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Behandlingsfejl</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1754"/>
         <source>Failed to process EDID settings.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke behandle EDID-indstillinger.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1785"/>
         <source>Success</source>
-        <translation type="unfinished">Succes</translation>
+        <translation>Succes</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1785"/>
         <source>Display settings updated successfully!\n\nPlease reconnect the device to see the changes.</source>
-        <translation type="unfinished"></translation>
+        <translation>Skærmindstillingerne er opdateret!\n\nTilslut venligst enheden igen for at se ændringerne.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1788"/>
         <source>Write Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Skrivefejl</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1788"/>
         <source>Failed to write firmware to device.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kunne ikke skrive firmware til enheden.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1815"/>
         <source>Firmware read failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Firmwarelæsning mislykkedes: %1</translation>
     </message>
 </context>
 <context>
@@ -2178,47 +2275,47 @@ Tjek venligst din internetforbindelse.
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="124"/>
         <source>Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bemærk: På Linux kan videoen blive sort efter OK eller Anvend. Tag venligst værtskablet ud og sæt det i igen.</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="132"/>
         <source>Media Backend: </source>
-        <translation type="unfinished"></translation>
+        <translation>Mediebackend: </translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="147"/>
         <source>Note: Changing media backend requires application restart to take effect.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bemærk: Ændring af mediebackend kræver genstart af applikationen for at træde i kraft.</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="154"/>
         <source>Hardware Acceleration: </source>
-        <translation type="unfinished"></translation>
+        <translation>Hardwareacceleration: </translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="160"/>
         <source>Note: Hardware acceleration improves performance but may not be available on all systems. Changing this setting requires application restart to take effect.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bemærk: Hardwareacceleration forbedrer ydeevnen, men er muligvis ikke tilgængelig på alle systemer. Ændring af denne indstilling kræver genstart af programmet for at det træder i kraft.</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="172"/>
         <source>Auto (Recommended)</source>
-        <translation type="unfinished"></translation>
+        <translation>Automatisk (anbefales)</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="174"/>
         <source>NVIDIA CUDA</source>
-        <translation type="unfinished"></translation>
+        <translation>NVIDIA CUDA</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="176"/>
         <source>Intel Quick Sync Video</source>
-        <translation type="unfinished"></translation>
+        <translation>Intel Quick Sync-video</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="178"/>
         <source>CPU</source>
-        <translation type="unfinished"></translation>
+        <translation>CPU</translation>
     </message>
 </context>
 </TS>

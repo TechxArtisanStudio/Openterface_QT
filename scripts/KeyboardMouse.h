@@ -251,6 +251,13 @@ const QMap<QString, uint8_t> keydata = {
     {"[", 0x2F}, // left bracket character
     {"]", 0x30}, // right bracket character
     {"\\", 0x31}, // backslash character
+    {"@", 0x1F},  // @ = Shift+2
+    {"$", 0x21},  // $ = Shift+4
+    {"%", 0x22},  // % = Shift+5
+    {"&", 0x24},  // & = Shift+7
+    {"*", 0x25},  // * = Shift+8
+    {"(", 0x26},  // ( = Shift+9
+    {")", 0x27},  // ) = Shift+0
     {"CapsLock", 0x39}, // caps lock
     {"F1", 0x3A}, // f1
     {"F2", 0x3B}, // f2
