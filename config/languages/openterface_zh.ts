@@ -1,135 +1,135 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="zh_CN">
+<TS version="2.0" language="zh_CN">
 <context>
     <name>AudioPage</name>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="54"/>
         <source>Audio Device Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>音频设备选择</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="59"/>
         <source>Audio Input Device:</source>
-        <translation type="unfinished"></translation>
+        <translation>音频输入设备：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="63"/>
         <source>Select the audio input device for capturing audio</source>
-        <translation type="unfinished"></translation>
+        <translation>选择用于采集音频的音频输入设备</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="65"/>
         <source>Refresh</source>
-        <translation type="unfinished"></translation>
+        <translation>刷新</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="67"/>
         <source>Refresh the list of available audio devices</source>
-        <translation type="unfinished"></translation>
+        <translation>刷新可用音频设备列表</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="74"/>
         <location filename="../../ui/preferences/audiopage.cpp" line="295"/>
         <location filename="../../ui/preferences/audiopage.cpp" line="329"/>
         <source>Current Device: None</source>
-        <translation type="unfinished"></translation>
+        <translation>当前设备：无</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="79"/>
         <source>Audio Recording Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>音频录制设置</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="84"/>
         <source>Audio Codec:</source>
-        <translation type="unfinished"></translation>
+        <translation>音频编解码器：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="89"/>
         <source>Select the audio codec for recording</source>
-        <translation type="unfinished"></translation>
+        <translation>选择用于录制的音频编解码器</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="95"/>
         <source>Sample Rate:</source>
-        <translation type="unfinished"></translation>
+        <translation>采样率：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="103"/>
         <source>Set the audio sample rate (Hz)</source>
-        <translation type="unfinished"></translation>
+        <translation>设置音频采样率（Hz）</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="109"/>
         <source>Bitrate:</source>
-        <translation type="unfinished"></translation>
+        <translation>比特率：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="117"/>
         <source>Set the audio bitrate (kbps)</source>
-        <translation type="unfinished"></translation>
+        <translation>设置音频比特率（kbps）</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="123"/>
         <source>Quality:</source>
-        <translation type="unfinished"></translation>
+        <translation>质量：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="132"/>
         <source>Adjust audio quality (1=lowest, 10=highest)</source>
-        <translation type="unfinished"></translation>
+        <translation>调整音频质量（1=最低，10=最高）</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="145"/>
         <source>Container Format:</source>
-        <translation type="unfinished"></translation>
+        <translation>容器格式：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="150"/>
         <source>Select the container format for recordings</source>
-        <translation type="unfinished"></translation>
+        <translation>选择录制文件的容器格式</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="156"/>
         <source>Live Audio Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>实时音频设置</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="161"/>
         <source>Enable Audio Pass-through</source>
-        <translation type="unfinished"></translation>
+        <translation>启用音频直通</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="164"/>
         <source>Enable real-time audio pass-through from input to output</source>
-        <translation type="unfinished"></translation>
+        <translation>启用从输入到输出的实时音频直通</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="169"/>
         <source>Volume:</source>
-        <translation type="unfinished"></translation>
+        <translation>音量：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="178"/>
         <source>Adjust audio volume (0-100%)</source>
-        <translation type="unfinished"></translation>
+        <translation>调节音量（0-100%）</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="293"/>
         <source>No audio devices found</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到音频设备</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="312"/>
         <source> (Default)</source>
-        <translation type="unfinished"></translation>
+        <translation>（默认）</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="327"/>
         <location filename="../../ui/preferences/audiopage.cpp" line="351"/>
         <source>Current Device: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>当前设备：%1</translation>
     </message>
 </context>
 <context>
@@ -142,24 +142,68 @@
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
         <source>Stop Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>停止录制</translation>
     </message>
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
         <source>Start Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>开始录制</translation>
     </message>
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
         <source>Unmute Audio</source>
-        <translation type="unfinished"></translation>
+        <translation>取消音频静音</translation>
     </message>
     <message>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
         <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
         <source>Mute Audio</source>
-        <translation type="unfinished"></translation>
+        <translation>音频静音</translation>
+    </message>
+    <message>
+        <source>Screen scale</source>
+        <translation>屏幕缩放</translation>
+    </message>
+    <message>
+        <source>Zoom in</source>
+        <translation>放大</translation>
+    </message>
+    <message>
+        <source>Zoom out</source>
+        <translation>缩小</translation>
+    </message>
+    <message>
+        <source>Restore original size</source>
+        <translation>恢复原始大小</translation>
+    </message>
+    <message>
+        <source>Function key and composite key</source>
+        <translation>功能键和组合键</translation>
+    </message>
+    <message>
+        <source>Full screen capture</source>
+        <translation>全屏截图</translation>
+    </message>
+    <message>
+        <source>Full screen mode</source>
+        <translation>全屏模式</translation>
+    </message>
+    <message>
+        <source>Paste text to target</source>
+        <translation>粘贴文本到目标</translation>
+    </message>
+    <message>
+        <source>Mouse dance</source>
+        <translation>鼠标舞蹈</translation>
+    </message>
+    <message>
+        <source>Start/Stop Recording</source>
+        <translation>开始/停止录制</translation>
+    </message>
+    <message>
+        <source>Mute/Unmute Audio</source>
+        <translation>音频静音/取消静音</translation>
     </message>
 </context>
 <context>
@@ -167,7 +211,7 @@
     <message>
         <location filename="../../ui/coordinator/devicecoordinator.cpp" line="107"/>
         <source>No devices available</source>
-        <translation type="unfinished"></translation>
+        <translation>没有可用设备</translation>
     </message>
 </context>
 <context>
@@ -251,28 +295,28 @@
         <location filename="../../ui/advance/envdialog.cpp" line="136"/>
         <location filename="../../ui/advance/envdialog.cpp" line="168"/>
         <source>◆ Driver Installed: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ 驱动程序已安装：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="137"/>
         <location filename="../../ui/advance/envdialog.cpp" line="172"/>
         <source>◆ Latest Firmware: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ 最新固件：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="169"/>
         <source>◆ In Serial Port Permission: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ 在串口权限中：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="170"/>
         <source>◆ HID Permission: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ HID 权限：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="171"/>
         <source>◆ BRLTTY checking: </source>
-        <translation type="unfinished"></translation>
+        <translation>◆ BRLTTY 检查：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.cpp" line="212"/>
@@ -602,10 +646,15 @@ Please try again after restarting the application.</source>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="55"/>
         <source>Backend</source>
-        <translation type="unfinished"></translation>
+        <translation>后端</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="56"/>
+        <source>Scripts</source>
+        <translation>脚本</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/logpage.cpp" line="57"/>
         <source>Enable file logging</source>
         <translation>启用文件日志</translation>
     </message>
@@ -704,7 +753,7 @@ Please try again after restarting the application.</source>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="124"/>
-        <source>Advance</source>
+        <source>Advanced</source>
         <translation>高级</translation>
     </message>
     <message>
@@ -795,17 +844,27 @@ Please try again after restarting the application.</source>
     <message>
         <location filename="../../ui/mainwindow.ui" line="241"/>
         <source>Video Recording Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>视频录制设置</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="244"/>
         <source>Configure video recording settings and start/stop recording</source>
-        <translation type="unfinished"></translation>
+        <translation>配置视频录制设置并开始/停止录制</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>TCP Server</source>
         <translation>TCP服务器</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
+        <source>Hardware Diagnostics</source>
+        <translation>硬件诊断</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
+        <source>Run hardware diagnostics to test device functionality</source>
+        <translation>运行硬件诊断以测试设备功能</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="254"/>
@@ -835,22 +894,22 @@ Please try again after restarting the application.</source>
     <message>
         <location filename="../../ui/mainwindow.ui" line="277"/>
         <source>Update Display Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>更新显示设置</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="280"/>
         <source>Update display name and serial number in EDID</source>
-        <translation type="unfinished"></translation>
+        <translation>更新 EDID 中的显示名称和序列号</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="289"/>
         <source>115200</source>
-        <translation type="unfinished"></translation>
+        <translation>115200</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="297"/>
         <source>9600</source>
-        <translation type="unfinished"></translation>
+        <translation>9600</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="307"/>
@@ -903,57 +962,57 @@ Please try again after restarting the application.</source>
         <location filename="../../ui/mainwindow.cpp" line="643"/>
         <location filename="../../ui/mainwindow.cpp" line="647"/>
         <source>Recording Error</source>
-        <translation type="unfinished"></translation>
+        <translation>录制错误</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="610"/>
         <source>Recording system is not initialized. Please restart the application.</source>
-        <translation type="unfinished"></translation>
+        <translation>录制系统尚未初始化，请重启应用程序。</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="617"/>
         <source>Camera system is not initialized. Please restart the application.</source>
-        <translation type="unfinished"></translation>
+        <translation>摄像头系统未初始化。请重启应用程序。</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="626"/>
         <source>No Camera Available</source>
-        <translation type="unfinished"></translation>
+        <translation>无摄像头</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="627"/>
         <source>No camera devices detected. Please connect a camera and try again.</source>
-        <translation type="unfinished"></translation>
+        <translation>未检测到摄像头设备。请连接摄像头后重试。</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="629"/>
         <source>Camera Not Active</source>
-        <translation type="unfinished"></translation>
+        <translation>摄像头未激活</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="630"/>
         <source>Camera is not active. Please start the camera preview before recording.</source>
-        <translation type="unfinished"></translation>
+        <translation>摄像头未激活。请先启动摄像头预览再进行录制。</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="644"/>
         <source>An unexpected error occurred: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>发生意外错误：%1</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="648"/>
         <source>An unexpected error occurred. Please try again or restart the application.</source>
-        <translation type="unfinished"></translation>
+        <translation>发生意外错误。请重试或重启应用程序。</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="682"/>
         <source>Active Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>正在录制</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="683"/>
         <source>There is an active recording session. Do you want to stop it before changing settings?</source>
-        <translation type="unfinished"></translation>
+        <translation>当前正在进行录制。您是否要在更改设置前停止录制？</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="836"/>
@@ -997,17 +1056,17 @@ Current version: </source>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="114"/>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="391"/>
         <source>Recording Error</source>
-        <translation type="unfinished"></translation>
+        <translation>录制错误</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="103"/>
         <source>No active camera device for recording. Please ensure a camera is connected.</source>
-        <translation type="unfinished"></translation>
+        <translation>没有正在使用的摄像头设备进行录制。请确保已连接摄像头。</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="115"/>
         <source>Cannot start recording - camera system not initialized.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法开始录制 - 摄像头系统未初始化。</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="368"/>
@@ -1020,7 +1079,15 @@ Possible causes:
 - Codec not supported on this system
 
 Technical details: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>录制失败。
+
+可能原因：
+- 磁盘空间不足
+- 输出文件夹权限问题
+- 摄像头设备繁忙或已断开连接
+- 此系统不支持该编解码器
+
+技术详情：%1</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="375"/>
@@ -1032,7 +1099,14 @@ Possible causes:
 - Drive disconnected during recording
 
 Technical details: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>录制文件保存失败。
+
+可能原因：
+- 磁盘空间不足
+- 输出文件夹权限问题
+- 录制过程中驱动器断开连接
+
+技术细节：%1</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="381"/>
@@ -1044,63 +1118,71 @@ Possible causes:
 - Hardware acceleration problems
 
 Technical details: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>录制文件可能已损坏。
+
+可能原因：
+- 录制意外停止
+- 系统资源问题
+- 硬件加速问题
+
+技术细节：%1</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="387"/>
         <source>An error occurred with the recording:
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>录制过程中发生错误：
+%1</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="397"/>
         <source>Retry</source>
-        <translation type="unfinished"></translation>
+        <translation>重试</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="413"/>
         <source>Reset Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>重置失败</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="414"/>
         <source>Cannot reset recording system - camera manager is not available.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法重置录像系统——摄像机管理器不可用。</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="422"/>
         <source>Recording in Progress</source>
-        <translation type="unfinished"></translation>
+        <translation>录制进行中</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="423"/>
         <source>A recording is currently in progress. Stop it and reset the recording system?</source>
-        <translation type="unfinished"></translation>
+        <translation>当前正在录制。是否停止录制并重置录制系统？</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="440"/>
         <source>System Reset</source>
-        <translation type="unfinished"></translation>
+        <translation>系统重置</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="441"/>
         <source>FFmpeg backend automatically handles recovery. Please try recording again.</source>
-        <translation type="unfinished"></translation>
+        <translation>FFmpeg后端会自动处理恢复过程。请再次尝试录制。</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="465"/>
         <source>Recording System Diagnostics</source>
-        <translation type="unfinished"></translation>
+        <translation>录制系统诊断</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="476"/>
         <source>Copy to Clipboard</source>
-        <translation type="unfinished"></translation>
+        <translation>复制到剪贴板</translation>
     </message>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="477"/>
         <source>Close</source>
-        <translation type="unfinished">关闭</translation>
+        <translation>关闭</translation>
     </message>
 </context>
 <context>
@@ -1108,281 +1190,281 @@ Technical details: %1</source>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="64"/>
         <source>Video Recording Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>视频录制设置</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="218"/>
         <source>Apply Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>应用设置</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="219"/>
         <source>Reset to Defaults</source>
-        <translation type="unfinished"></translation>
+        <translation>恢复默认设置</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="220"/>
         <source>Close</source>
-        <translation type="unfinished">关闭</translation>
+        <translation>关闭</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="232"/>
         <source>Recording Controls</source>
-        <translation type="unfinished"></translation>
+        <translation>录制控制</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="236"/>
         <source>Backend: Detecting...</source>
-        <translation type="unfinished"></translation>
+        <translation>后端：正在检测……</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="240"/>
         <source>Start Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>开始录制</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="241"/>
         <source>Stop Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>停止录制</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="242"/>
         <source>Pause</source>
-        <translation type="unfinished"></translation>
+        <translation>暂停</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="243"/>
         <source>Resume</source>
-        <translation type="unfinished"></translation>
+        <translation>恢复</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="246"/>
         <source>Status: Ready</source>
-        <translation type="unfinished"></translation>
+        <translation>状态：就绪</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="247"/>
         <source>Duration: 00:00:00</source>
-        <translation type="unfinished"></translation>
+        <translation>时长：00:00:00</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="271"/>
         <source>Video Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>视频设置</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="277"/>
         <source>Codec:</source>
-        <translation type="unfinished"></translation>
+        <translation>编解码器：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="284"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="771"/>
         <source>GStreamer codecs: mjpeg (fast), x264enc (good compression), x265enc (best compression)</source>
-        <translation type="unfinished"></translation>
+        <translation>GStreamer 编解码器：mjpeg（速度快）、x264enc（压缩效果好）、x265enc（压缩效果最佳）</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="287"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="774"/>
         <source>FFmpeg codec: mjpeg (compatible with AVI format)</source>
-        <translation type="unfinished"></translation>
+        <translation>FFmpeg 编解码器：mjpeg（兼容 AVI 格式）</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="292"/>
         <source>Quality:</source>
-        <translation type="unfinished"></translation>
+        <translation>质量：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
         <source>Low</source>
-        <translation type="unfinished"></translation>
+        <translation>低</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
         <source>Medium</source>
-        <translation type="unfinished"></translation>
+        <translation>中等</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
         <source>High</source>
-        <translation type="unfinished"></translation>
+        <translation>高</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
         <source>Ultra</source>
-        <translation type="unfinished"></translation>
+        <translation>极高</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
         <source>Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>自定义</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="298"/>
         <source>Bitrate (kbps):</source>
-        <translation type="unfinished"></translation>
+        <translation>比特率（kbps）：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="320"/>
         <source>Output Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>输出设置</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="326"/>
         <source>Format:</source>
-        <translation type="unfinished"></translation>
+        <translation>格式：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="333"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="781"/>
         <source>GStreamer formats: AVI (compatible), MP4 (modern), MKV (flexible)</source>
-        <translation type="unfinished"></translation>
+        <translation>GStreamer格式：AVI（兼容）、MP4（现代）、MKV（灵活）</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="336"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="784"/>
         <source>FFmpeg format: AVI (most compatible with custom build)</source>
-        <translation type="unfinished"></translation>
+        <translation>FFmpeg格式：AVI（与自定义版本兼容性最佳）</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="341"/>
         <source>Output Path:</source>
-        <translation type="unfinished"></translation>
+        <translation>输出路径：</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="345"/>
         <source>Browse...</source>
-        <translation type="unfinished"></translation>
+        <translation>浏览...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="380"/>
         <source>Error</source>
-        <translation type="unfinished">错误</translation>
+        <translation>错误</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="380"/>
         <source>No video backend available.</source>
-        <translation type="unfinished"></translation>
+        <translation>没有可用的视频后端。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="388"/>
         <source>Recording</source>
-        <translation type="unfinished"></translation>
+        <translation>录制</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="388"/>
         <source>Recording is already in progress.</source>
-        <translation type="unfinished"></translation>
+        <translation>录制已经开始。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="419"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="680"/>
         <source>Recording Error</source>
-        <translation type="unfinished"></translation>
+        <translation>录制错误</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="420"/>
         <source>Failed to start recording. Please check the settings and try again.</source>
-        <translation type="unfinished"></translation>
+        <translation>录制失败。请检查设置并重试。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="446"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="606"/>
         <source>Status: Recording to %1</source>
-        <translation type="unfinished"></translation>
+        <translation>状态：正在录制至 %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="490"/>
         <source>Status: Recording stopped</source>
-        <translation type="unfinished"></translation>
+        <translation>状态：录制已停止</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="503"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="512"/>
         <source>Status: Recording stopped (with error)</source>
-        <translation type="unfinished"></translation>
+        <translation>状态：录制已停止（出现错误）</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="546"/>
         <source>Save Recording As</source>
-        <translation type="unfinished"></translation>
+        <translation>将录制内容另存为</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="548"/>
         <source>Video Files (*.mp4 *.avi *.mov *.mkv *.webm);;All Files (*)</source>
-        <translation type="unfinished"></translation>
+        <translation>视频文件（*.mp4 *.avi *.mov *.mkv *.webm）；所有文件（*）</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="560"/>
         <source>Warning</source>
-        <translation type="unfinished">警告</translation>
+        <translation>警告</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="560"/>
         <source>No video backend available!</source>
-        <translation type="unfinished"></translation>
+        <translation>没有可用的视频后端！</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="583"/>
         <source>Status: Settings applied</source>
-        <translation type="unfinished"></translation>
+        <translation>状态：设置已应用</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="640"/>
         <source>Status: Recording stopped. File saved to %1</source>
-        <translation type="unfinished"></translation>
+        <translation>状态：录制已停止。文件已保存至 %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="649"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="686"/>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="696"/>
         <source>Duration: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>时长：%1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="659"/>
         <source>Status: Recording paused</source>
-        <translation type="unfinished"></translation>
+        <translation>状态：录制已暂停</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="666"/>
         <source>Status: Recording resumed</source>
-        <translation type="unfinished"></translation>
+        <translation>状态：录制已恢复</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="677"/>
         <source>Status: Recording error - %1</source>
-        <translation type="unfinished"></translation>
+        <translation>状态：录制错误 - %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="681"/>
         <source>Recording failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>录制失败：%1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="728"/>
         <source>Backend: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>后端：%1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="730"/>
         <source>Backend: %1 (configured: %2)</source>
-        <translation type="unfinished"></translation>
+        <translation>后端：%1（已配置：%2）</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="744"/>
         <source>Backend: None available</source>
-        <translation type="unfinished"></translation>
+        <translation>后端：暂无可用</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="761"/>
         <source>Windows Qt backend codecs: MJPEG</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows Qt 后端编解码器：MJPEG</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="765"/>
         <source>Windows Qt backend formats: MP4 (recommended), AVI (compatible), MOV (QuickTime)</source>
-        <translation type="unfinished"></translation>
+        <translation>Windows Qt 后端格式：MP4（推荐）、AVI（兼容）、MOV（QuickTime）</translation>
     </message>
 </context>
 <context>
@@ -1777,83 +1859,83 @@ Please:
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="176"/>
         <source>Update Display Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>更新显示设置</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="185"/>
         <source>Display Name</source>
-        <translation type="unfinished"></translation>
+        <translation>显示器名称</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="188"/>
         <source>Update display name</source>
-        <translation type="unfinished"></translation>
+        <translation>更新显示名称</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="193"/>
         <source>Loading current display name...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在加载当前显示名称...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="200"/>
         <source>Serial Number</source>
-        <translation type="unfinished"></translation>
+        <translation>序列号</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="203"/>
         <source>Update serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>更新序列号</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="208"/>
         <source>Loading current serial number...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在加载当前序列号...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="215"/>
         <source>Reading Firmware</source>
-        <translation type="unfinished"></translation>
+        <translation>读取固件</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="218"/>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="524"/>
         <source>Reading firmware data...</source>
-        <translation type="unfinished"></translation>
+        <translation>正在读取固件数据...</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="229"/>
         <source>Cancel Reading</source>
-        <translation type="unfinished"></translation>
+        <translation>取消读取</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="242"/>
         <source>Update</source>
-        <translation type="unfinished">更新</translation>
+        <translation>更新</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="246"/>
         <source>Cancel</source>
-        <translation type="unfinished">取消</translation>
+        <translation>取消</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="279"/>
         <source>Enabled</source>
-        <translation type="unfinished"></translation>
+        <translation>已启用</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="279"/>
         <source>Resolution</source>
-        <translation type="unfinished"></translation>
+        <translation>分辨率</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="279"/>
         <source>Refresh Rate</source>
-        <translation type="unfinished"></translation>
+        <translation>刷新率</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="279"/>
         <source>Source</source>
-        <translation type="unfinished"></translation>
+        <translation>来源</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="365"/>
@@ -1863,62 +1945,62 @@ Please:
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="392"/>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="399"/>
         <source>Invalid Input</source>
-        <translation type="unfinished"></translation>
+        <translation>输入无效</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="365"/>
         <source>Display name cannot be empty when enabled.</source>
-        <translation type="unfinished"></translation>
+        <translation>启用显示名称后，显示名称不能为空。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="370"/>
         <source>Display name cannot exceed 13 characters.</source>
-        <translation type="unfinished">显示器名称不能超过13个字符。</translation>
+        <translation>显示器名称不能超过13个字符。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="377"/>
         <source>Display name must contain only ASCII characters.</source>
-        <translation type="unfinished">显示器名称只能包含ASCII字符。</translation>
+        <translation>显示器名称只能包含ASCII字符。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="387"/>
         <source>Serial number cannot be empty when enabled.</source>
-        <translation type="unfinished"></translation>
+        <translation>启用此功能后，序列号不能为空。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="392"/>
         <source>Serial number cannot exceed 13 characters.</source>
-        <translation type="unfinished"></translation>
+        <translation>序列号不能超过13个字符。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="399"/>
         <source>Serial number must contain only ASCII characters.</source>
-        <translation type="unfinished"></translation>
+        <translation>序列号必须仅包含ASCII字符。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="411"/>
         <source>No Updates Selected</source>
-        <translation type="unfinished"></translation>
+        <translation>未选择任何更新</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="411"/>
         <source>Please select at least one setting to update.</source>
-        <translation type="unfinished"></translation>
+        <translation>请至少选择一项设置进行更新。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="418"/>
         <source>Display Name: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>显示器名称：%1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="421"/>
         <source>Serial Number: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>序列号：%1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="425"/>
         <source>Resolution Changes: %1 resolution(s) selected</source>
-        <translation type="unfinished"></translation>
+        <translation>分辨率更改：已选择 %1 个分辨率</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="428"/>
@@ -1927,22 +2009,26 @@ Please:
 %1
 
 Do you want to continue?</source>
-        <translation type="unfinished"></translation>
+        <translation>将应用以下更改：
+
+%1
+
+是否继续？</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="430"/>
         <source>Confirm Updates</source>
-        <translation type="unfinished"></translation>
+        <translation>确认更新</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="440"/>
         <source>Update Failed</source>
-        <translation type="unfinished"></translation>
+        <translation>更新失败</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="440"/>
         <source>Failed to start the update process.</source>
-        <translation type="unfinished"></translation>
+        <translation>更新过程启动失败。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="514"/>
@@ -1950,7 +2036,7 @@ Do you want to continue?</source>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="602"/>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="615"/>
         <source>Failed to read firmware - enter display name</source>
-        <translation type="unfinished"></translation>
+        <translation>读取固件失败 - 请输入显示名称</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="515"/>
@@ -1958,148 +2044,148 @@ Do you want to continue?</source>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="603"/>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="616"/>
         <source>Failed to read firmware - enter serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>读取固件失败 - 请输入序列号</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="711"/>
         <source>Error reading firmware - enter display name</source>
-        <translation type="unfinished"></translation>
+        <translation>读取固件时出错 - 请输入显示名称</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="712"/>
         <source>Error reading firmware - enter serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>读取固件时出错 - 请输入序列号</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="626"/>
         <source>EDID not found - enter display name</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到 EDID - 请输入显示名称</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="627"/>
         <source>EDID not found - enter serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到 EDID - 请输入序列号</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="634"/>
         <source>Invalid EDID - enter display name</source>
-        <translation type="unfinished"></translation>
+        <translation>无效的 EDID - 请输入显示名称</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="635"/>
         <source>Invalid EDID - enter serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>EDID 无效 - 请输入序列号</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="650"/>
         <source>Enter new display name (max 13 characters)</source>
-        <translation type="unfinished"></translation>
+        <translation>输入新的显示名称（最多 13 个字符）</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="654"/>
         <source>No display name found - enter new name</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到显示名称 - 请输入新名称</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="660"/>
         <source>Enter new serial number (max 13 characters)</source>
-        <translation type="unfinished"></translation>
+        <translation>请输入新的序列号（最多 13 个字符）</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="664"/>
         <source>No serial number found - enter new serial</source>
-        <translation type="unfinished"></translation>
+        <translation>未找到序列号 - 请输入新的序列号</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="717"/>
         <source>Firmware Read Error</source>
-        <translation type="unfinished"></translation>
+        <translation>固件读取错误</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="718"/>
         <source>Failed to read firmware: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>读取固件失败：%1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="758"/>
         <source>Reading cancelled - enter display name</source>
-        <translation type="unfinished"></translation>
+        <translation>读取已取消 - 请输入显示名称</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="759"/>
         <source>Reading cancelled - enter serial number</source>
-        <translation type="unfinished"></translation>
+        <translation>读取已取消 - 请输入序列号</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1016"/>
         <source>Extension</source>
-        <translation type="unfinished"></translation>
+        <translation>扩展</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1693"/>
         <source>Firmware Error</source>
-        <translation type="unfinished"></translation>
+        <translation>固件错误</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1693"/>
         <source>Failed to read firmware size.</source>
-        <translation type="unfinished"></translation>
+        <translation>读取固件大小失败。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1722"/>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1815"/>
         <source>Read Error</source>
-        <translation type="unfinished"></translation>
+        <translation>读取错误</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1722"/>
         <source>Failed to read firmware from device.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法从设备读取固件。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1739"/>
         <source>File Error</source>
-        <translation type="unfinished"></translation>
+        <translation>文件错误</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1739"/>
         <source>Failed to read firmware file.</source>
-        <translation type="unfinished"></translation>
+        <translation>读取固件文件失败。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1754"/>
         <source>Processing Error</source>
-        <translation type="unfinished"></translation>
+        <translation>处理错误</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1754"/>
         <source>Failed to process EDID settings.</source>
-        <translation type="unfinished"></translation>
+        <translation>EDID 设置处理失败。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1785"/>
         <source>Success</source>
-        <translation type="unfinished">成功</translation>
+        <translation>成功</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1785"/>
         <source>Display settings updated successfully!\n\nPlease reconnect the device to see the changes.</source>
-        <translation type="unfinished"></translation>
+        <translation>显示设置已成功更新！\n\n请重新连接设备以查看更改。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1788"/>
         <source>Write Error</source>
-        <translation type="unfinished"></translation>
+        <translation>写入错误</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1788"/>
         <source>Failed to write firmware to device.</source>
-        <translation type="unfinished"></translation>
+        <translation>固件写入设备失败。</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1815"/>
         <source>Firmware read failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>固件读取失败：%1</translation>
     </message>
 </context>
 <context>
@@ -2195,42 +2281,42 @@ Please check your internet connection.
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="132"/>
         <source>Media Backend: </source>
-        <translation type="unfinished"></translation>
+        <translation>媒体后端：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="147"/>
         <source>Note: Changing media backend requires application restart to take effect.</source>
-        <translation type="unfinished"></translation>
+        <translation>注意：更改媒体后端需要重启应用程序才能生效。</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="154"/>
         <source>Hardware Acceleration: </source>
-        <translation type="unfinished"></translation>
+        <translation>硬件加速：</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="160"/>
         <source>Note: Hardware acceleration improves performance but may not be available on all systems. Changing this setting requires application restart to take effect.</source>
-        <translation type="unfinished"></translation>
+        <translation>注意：硬件加速可以提升性能，但并非所有系统都支持此功能。更改此设置需要重启应用程序才能生效。</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="172"/>
         <source>Auto (Recommended)</source>
-        <translation type="unfinished"></translation>
+        <translation>自动（推荐）</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="174"/>
         <source>NVIDIA CUDA</source>
-        <translation type="unfinished"></translation>
+        <translation>NVIDIA CUDA</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="176"/>
         <source>Intel Quick Sync Video</source>
-        <translation type="unfinished"></translation>
+        <translation>英特尔快速同步视频</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="178"/>
         <source>CPU</source>
-        <translation type="unfinished"></translation>
+        <translation>CPU</translation>
     </message>
 </context>
 </TS>

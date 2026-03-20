@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="en_US">
+<TS version="2.0" language="en_US">
 <context>
     <name>AudioPage</name>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="54"/>
         <source>Audio Device Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>Audio Device Selection</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="59"/>
         <source>Audio Input Device:</source>
-        <translation type="unfinished"></translation>
+        <translation>Audio Input Device:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="63"/>
@@ -161,6 +161,50 @@
         <source>Mute Audio</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Screen scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom out</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore original size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Function key and composite key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Full screen capture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Full screen mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paste text to target</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mouse dance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start/Stop Recording</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mute/Unmute Audio</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>DeviceCoordinator</name>
@@ -200,7 +244,7 @@
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="58"/>
         <source>⎘</source>
-        <translation type="unfinished"></translation>
+        <translation>⎘</translation>
     </message>
     <message>
         <location filename="../../ui/advance/envdialog.ui" line="69"/>
@@ -573,6 +617,11 @@ Please try again after restarting the application.</source>
     </message>
     <message>
         <location filename="../../ui/preferences/logpage.cpp" line="56"/>
+        <source>Scripts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/logpage.cpp" line="57"/>
         <source>Enable file logging</source>
         <translation type="unfinished"></translation>
     </message>
@@ -671,7 +720,7 @@ Please try again after restarting the application.</source>
     </message>
     <message>
         <location filename="../../ui/mainwindow.ui" line="124"/>
-        <source>Advance</source>
+        <source>Advanced</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -772,6 +821,16 @@ Please try again after restarting the application.</source>
     <message>
         <location filename="../../ui/mainwindow.ui" line="249"/>
         <source>TCP Server</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
+        <source>Hardware Diagnostics</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="249"/>
+        <source>Run hardware diagnostics to test device functionality</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

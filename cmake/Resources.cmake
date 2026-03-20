@@ -84,6 +84,7 @@ set(languages_resources_files
     "config/languages/openterface_ja.qm"
     "config/languages/openterface_se.qm"
     "config/languages/openterface_zh.qm"
+    "config/languages/openterface_es.qm"
 )
 
 qt_add_resources(openterfaceQT "languages"
