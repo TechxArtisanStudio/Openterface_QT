@@ -170,6 +170,7 @@ HEADERS  += \
     host/backend/ffmpeg/ffmpegutils.h \
     regex/RegularExpression.h \
     scripts/KeyboardMouse.h \
+    scripts/SendKeyMaps.h \
     scripts/Lexer.h \
     scripts/Parser.h \
     scripts/semanticAnalyzer.h \
