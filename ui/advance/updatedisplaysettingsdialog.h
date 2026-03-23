@@ -92,6 +92,7 @@ private slots:
     void onSelectNoneResolutions();
     void onSelectDefaultResolutions();
     void onResolutionItemChanged(QTableWidgetItem* item);
+    void setAllResolutionSelection(bool enable);
     
     // Firmware reading slots
     void onFirmwareReadProgress(int percent);
@@ -101,8 +102,6 @@ private slots:
 
 private:
     // UI components
-    QLabel *titleLabel;
-    
     // Display Name Group
     QGroupBox *displayNameGroup;
     QCheckBox *displayNameCheckBox;
@@ -142,55 +141,60 @@ private:
     QThread *firmwareReaderThread;
     FirmwareReader *firmwareReader;
     bool m_cleanupInProgress;  // Flag to prevent double cleanup
+    bool m_operationFinished;  // Flag to avoid cancel handling after success/quit
     
     // Resolution data
     QList<ResolutionInfo> availableResolutions;
     
     // EDID and firmware processing
-    QString getCurrentDisplayName();
-    QString getCurrentSerialNumber();
     void loadCurrentEDIDSettings();
-    void parseEDIDDescriptors(const QByteArray &edidBlock, QString &displayName, QString &serialNumber);
-    void logSupportedResolutions(const QByteArray &edidBlock);
-    void parseEDIDExtensionBlocks(const QByteArray &firmwareData, int baseBlockOffset);
-    void parseCEA861ExtensionBlock(const QByteArray &block, int blockNumber);
-    void parseVideoTimingExtensionBlock(const QByteArray &block, int blockNumber);
-    void parseVideoDataBlock(const QByteArray &vdbData);
-    QString getVICResolution(quint8 vic);
     bool updateDisplaySettings(const QString &newName, const QString &newSerial);
+    void setupProgressDialog();
+    void closeProgressDialog();
+    void restartPollingDelayed(const QString &reason);
+    void showErrorAndRestart(const QString &title, const QString &message, const QString &reason);
+    bool readFirmwareFile(const QString &path, QByteArray &outData);
+    void startFirmwareWrite(const QByteArray &modifiedFirmware, const QString &tempFirmwarePath);
     void stopAllDevices();
     void hideMainWindow();
     QByteArray processEDIDDisplaySettings(const QByteArray &firmwareData, const QString &newName, const QString &newSerial);
-    quint8 calculateEDIDChecksum(const QByteArray &edidBlock);
     quint16 calculateFirmwareChecksumWithDiff(const QByteArray &originalFirmware, const QByteArray &originalEDID, const QByteArray &modifiedEDID);
     quint16 calculateFirmwareChecksumWithDiff(const QByteArray &originalFirmware, const QByteArray &modifiedFirmware);
-    int findEDIDBlock0(const QByteArray &firmwareData);
-    void updateEDIDDisplayName(QByteArray &edidBlock, const QString &newName);
-    void updateEDIDSerialNumber(QByteArray &edidBlock, const QString &newSerial);
-    void showEDIDDescriptors(const QByteArray &edidBlock);
-    void showFirmwareHexDump(const QByteArray &firmwareData, int startOffset = 0, int length = -1);
     
-    // Resolution management
+    // Resolution helpers
     void setupResolutionTable();
     void populateResolutionTable();
     void updateResolutionTableFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData, int baseOffset);
+    void collectResolutionsFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData);
     void addResolutionToList(const QString& description, int width, int height, int refreshRate, 
                            quint8 vic = 0, bool isStandardTiming = false, bool isEnabled = false);
-    void parseStandardTimingsForResolutions(const QByteArray &edidBlock);
-    void parseDetailedTimingDescriptorsForResolutions(const QByteArray &edidBlock);
-    void parseExtensionBlocksForResolutions(const QByteArray &firmwareData, int baseOffset);
-    void parseCEA861ExtensionBlockForResolutions(const QByteArray &block, int blockNumber);
-    void parseVideoDataBlockForResolutions(const QByteArray &dataBlockCollection);
-    ResolutionInfo getVICResolutionInfo(quint8 vic);
     QList<ResolutionInfo> getSelectedResolutions() const;
-    void applyResolutionChangesToEDID(QByteArray &edidBlock, const QByteArray &firmwareData);
     void updateExtensionBlockResolutions(QByteArray &firmwareData, int edidOffset);
     bool updateCEA861ExtensionBlockResolutions(QByteArray &block, const QSet<quint8> &enabledVICs, const QSet<quint8> &disabledVICs);
     bool hasResolutionChanges() const;
     
     // Helper methods
     void setupUI();
+    void buildDisplayNameSection();
+    void buildSerialNumberSection();
+    void buildProgressSection();
+    void buildButtonSection();
+    void connectUiSignals();
     void enableUpdateButton();
+    void setDialogControlsEnabled(bool enabled);
+    bool validateAsciiInput(const QString &text, int maxLen, const QString &fieldName, QString &errorMessage) const;
+    bool collectUpdateChanges(QString &newName, QString &newSerial, QStringList &changesSummary) const;
+
+    bool processFirmwareFile(const QString &tempFirmwarePath);
+    void processFirmwareReadResult(bool success);
+    bool parseEdidBlock(const QByteArray &firmwareData, int &edidOffset, QByteArray &edidBlock)
+        const;
+    void applyEdidUpdates(QByteArray &modifiedFirmware, int edidOffset, const QString &newName,
+                          const QString &newSerial);
+    void finalizeEdidBlock(QByteArray &modifiedFirmware, int edidOffset,
+                          const QByteArray &originalFirmware,
+                          const QByteArray &originalEdidBlock);
+
     void cleanupFirmwareReaderThread();
 };
 

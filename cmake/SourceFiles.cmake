@@ -194,6 +194,9 @@ set(UI_ADVANCE_SOURCES
     ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h
     ui/advance/renamedisplaydialog.cpp ui/advance/renamedisplaydialog.h
     ui/advance/updatedisplaysettingsdialog.cpp ui/advance/updatedisplaysettingsdialog.h
+    ui/advance/edid/edidutils.cpp ui/advance/edid/edidutils.h
+    ui/advance/edid/firmwareutils.cpp ui/advance/edid/firmwareutils.h
+    ui/advance/edid/edidresolutionparser.cpp ui/advance/edid/edidresolutionparser.h
     ui/advance/recordingsettingsdialog.cpp ui/advance/recordingsettingsdialog.h
 )
 
