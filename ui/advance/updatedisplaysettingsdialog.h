@@ -175,7 +175,26 @@ private:
     
     // Helper methods
     void setupUI();
+    void buildDisplayNameSection();
+    void buildSerialNumberSection();
+    void buildProgressSection();
+    void buildButtonSection();
+    void connectUiSignals();
     void enableUpdateButton();
+    void setDialogControlsEnabled(bool enabled);
+    bool validateAsciiInput(const QString &text, int maxLen, const QString &fieldName, QString &errorMessage) const;
+    bool collectUpdateChanges(QString &newName, QString &newSerial, QStringList &changesSummary) const;
+
+    bool processFirmwareFile(const QString &tempFirmwarePath);
+    void processFirmwareReadResult(bool success);
+    bool parseEdidBlock(const QByteArray &firmwareData, int &edidOffset, QByteArray &edidBlock)
+        const;
+    void applyEdidUpdates(QByteArray &modifiedFirmware, int edidOffset, const QString &newName,
+                          const QString &newSerial);
+    void finalizeEdidBlock(QByteArray &modifiedFirmware, int edidOffset,
+                          const QByteArray &originalFirmware,
+                          const QByteArray &originalEdidBlock);
+
     void cleanupFirmwareReaderThread();
 };
 

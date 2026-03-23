@@ -180,97 +180,105 @@ void UpdateDisplaySettingsDialog::setupUI()
     setModal(true);
     setMinimumSize(500, 600);
     resize(500, 600);
-    
-    // Create main layout
+
     mainLayout = new QVBoxLayout(this);
-    
-    // Display Name Group
+
+    buildDisplayNameSection();
+    buildSerialNumberSection();
+    buildProgressSection();
+    buildButtonSection();
+
+    setLayout(mainLayout);
+
+    connectUiSignals();
+
+    enableUpdateButton();
+
+    displayNameLineEdit->setFocus();
+}
+
+void UpdateDisplaySettingsDialog::buildDisplayNameSection()
+{
     displayNameGroup = new QGroupBox(tr("Display Name"), this);
     displayNameLayout = new QVBoxLayout(displayNameGroup);
-    
+
     displayNameCheckBox = new QCheckBox(tr("Update display name"), this);
-    displayNameCheckBox->setChecked(false); // Start unchecked, will be enabled after loading current settings
+    displayNameCheckBox->setChecked(false);
     displayNameLayout->addWidget(displayNameCheckBox);
-    
+
     displayNameLineEdit = new QLineEdit(this);
     displayNameLineEdit->setPlaceholderText(tr("Loading current display name..."));
-    displayNameLineEdit->setEnabled(false); // Will be enabled when checkbox is checked
+    displayNameLineEdit->setEnabled(false);
     displayNameLayout->addWidget(displayNameLineEdit);
-    
+
     mainLayout->addWidget(displayNameGroup);
-    
-    // Serial Number Group
+}
+
+void UpdateDisplaySettingsDialog::buildSerialNumberSection()
+{
     serialNumberGroup = new QGroupBox(tr("Serial Number"), this);
     serialNumberLayout = new QVBoxLayout(serialNumberGroup);
-    
+
     serialNumberCheckBox = new QCheckBox(tr("Update serial number"), this);
     serialNumberCheckBox->setChecked(false);
     serialNumberLayout->addWidget(serialNumberCheckBox);
-    
+
     serialNumberLineEdit = new QLineEdit(this);
     serialNumberLineEdit->setPlaceholderText(tr("Loading current serial number..."));
     serialNumberLineEdit->setEnabled(false);
     serialNumberLayout->addWidget(serialNumberLineEdit);
-    
+
     mainLayout->addWidget(serialNumberGroup);
-    
-    // Progress Group (initially hidden)
+}
+
+void UpdateDisplaySettingsDialog::buildProgressSection()
+{
     progressGroup = new QGroupBox(tr("Reading Firmware"), this);
     QVBoxLayout *progressLayout = new QVBoxLayout(progressGroup);
-    
+
     progressLabel = new QLabel(tr("Reading firmware data..."), this);
     progressLayout->addWidget(progressLabel);
-    
+
     progressBar = new QProgressBar(this);
     progressBar->setRange(0, 100);
     progressBar->setValue(0);
     progressLayout->addWidget(progressBar);
-    
-    // Cancel reading button
+
     QHBoxLayout *progressButtonLayout = new QHBoxLayout();
     progressButtonLayout->addStretch();
     cancelReadingButton = new QPushButton(tr("Cancel Reading"), this);
     progressButtonLayout->addWidget(cancelReadingButton);
     progressLayout->addLayout(progressButtonLayout);
-    
-    // Initially hide the progress group
+
     progressGroup->setVisible(false);
     mainLayout->addWidget(progressGroup);
-    
-    // Button layout
+}
+
+void UpdateDisplaySettingsDialog::buildButtonSection()
+{
     buttonLayout = new QHBoxLayout();
     QSpacerItem *horizontalSpacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
     buttonLayout->addItem(horizontalSpacer);
-    
+
     updateButton = new QPushButton(tr("Update"), this);
     updateButton->setDefault(true);
     buttonLayout->addWidget(updateButton);
-    
+
     cancelButton = new QPushButton(tr("Cancel"), this);
     buttonLayout->addWidget(cancelButton);
-    
+
     mainLayout->addLayout(buttonLayout);
-    
-    // Set the layout for the dialog
-    setLayout(mainLayout);
-    
-    // Connect signals to slots
+}
+
+void UpdateDisplaySettingsDialog::connectUiSignals()
+{
     connect(updateButton, &QPushButton::clicked, this, &UpdateDisplaySettingsDialog::onUpdateButtonClicked);
     connect(cancelButton, &QPushButton::clicked, this, &UpdateDisplaySettingsDialog::onCancelButtonClicked);
     connect(displayNameCheckBox, &QCheckBox::toggled, this, &UpdateDisplaySettingsDialog::onDisplayNameCheckChanged);
     connect(serialNumberCheckBox, &QCheckBox::toggled, this, &UpdateDisplaySettingsDialog::onSerialNumberCheckChanged);
-    
     connect(cancelReadingButton, &QPushButton::clicked, this, &UpdateDisplaySettingsDialog::onCancelReadingClicked);
-    
-    // Connect text change signals to update button state
     connect(displayNameLineEdit, &QLineEdit::textChanged, this, &UpdateDisplaySettingsDialog::enableUpdateButton);
     connect(serialNumberLineEdit, &QLineEdit::textChanged, this, &UpdateDisplaySettingsDialog::enableUpdateButton);
-    
-    // Update initial state
-    enableUpdateButton();
-    
-    // Set focus to the display name line edit
-    displayNameLineEdit->setFocus();
 }
 
 void UpdateDisplaySettingsDialog::setupResolutionTable()
@@ -356,90 +364,92 @@ void UpdateDisplaySettingsDialog::enableUpdateButton()
     updateButton->setEnabled(hasChanges);
 }
 
+void UpdateDisplaySettingsDialog::setDialogControlsEnabled(bool enabled)
+{
+    displayNameGroup->setEnabled(enabled);
+    serialNumberGroup->setEnabled(enabled);
+    if (resolutionGroup) {
+        resolutionGroup->setEnabled(enabled);
+    }
+    if (updateButton) {
+        updateButton->setEnabled(enabled);
+    }
+}
+
+bool UpdateDisplaySettingsDialog::validateAsciiInput(const QString &text, int maxLen, const QString &fieldName, QString &errorMessage) const
+{
+    if (text.isEmpty()) {
+        errorMessage = tr("%1 cannot be empty when enabled.").arg(fieldName);
+        return false;
+    }
+
+    if (text.length() > maxLen) {
+        errorMessage = tr("%1 cannot exceed %2 characters.").arg(fieldName).arg(maxLen);
+        return false;
+    }
+
+    for (const QChar &ch : text) {
+        if (ch.unicode() > 127) {
+            errorMessage = tr("%1 must contain only ASCII characters.").arg(fieldName);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool UpdateDisplaySettingsDialog::collectUpdateChanges(QString &newName, QString &newSerial, QStringList &changesSummary) const
+{
+    if (displayNameCheckBox->isChecked()) {
+        newName = displayNameLineEdit->text().trimmed();
+        QString err;
+        if (!validateAsciiInput(newName, 13, tr("Display name"), err)) {
+            QMessageBox::warning(const_cast<UpdateDisplaySettingsDialog*>(this), tr("Invalid Input"), err);
+            return false;
+        }
+        changesSummary << tr("Display Name: %1").arg(newName);
+    }
+
+    if (serialNumberCheckBox->isChecked()) {
+        newSerial = serialNumberLineEdit->text().trimmed();
+        QString err;
+        if (!validateAsciiInput(newSerial, 13, tr("Serial number"), err)) {
+            QMessageBox::warning(const_cast<UpdateDisplaySettingsDialog*>(this), tr("Invalid Input"), err);
+            return false;
+        }
+        changesSummary << tr("Serial Number: %1").arg(newSerial);
+    }
+
+    if (hasResolutionChanges()) {
+        changesSummary << tr("Resolution Changes: %1 resolution(s) selected").arg(getSelectedResolutions().size());
+    }
+
+    if (newName.isEmpty() && newSerial.isEmpty() && !hasResolutionChanges()) {
+        QMessageBox::warning(const_cast<UpdateDisplaySettingsDialog*>(this), tr("No Updates Selected"), tr("Please select at least one setting to update."));
+        return false;
+    }
+
+    return true;
+}
+
 void UpdateDisplaySettingsDialog::onUpdateButtonClicked()
 {
     QString newName;
     QString newSerial;
-    
-    // Validate display name if enabled
-    if (displayNameCheckBox->isChecked()) {
-        newName = displayNameLineEdit->text().trimmed();
-        if (newName.isEmpty()) {
-            QMessageBox::warning(this, tr("Invalid Input"), tr("Display name cannot be empty when enabled."));
-            return;
-        }
-        
-        if (newName.length() > 13) {
-            QMessageBox::warning(this, tr("Invalid Input"), tr("Display name cannot exceed 13 characters."));
-            return;
-        }
-        
-        // Check for ASCII-only characters
-        for (const QChar &ch : newName) {
-            if (ch.unicode() > 127) {
-                QMessageBox::warning(this, tr("Invalid Input"), tr("Display name must contain only ASCII characters."));
-                return;
-            }
-        }
-    }
-    
-    // Validate serial number if enabled
-    if (serialNumberCheckBox->isChecked()) {
-        newSerial = serialNumberLineEdit->text().trimmed();
-        if (newSerial.isEmpty()) {
-            QMessageBox::warning(this, tr("Invalid Input"), tr("Serial number cannot be empty when enabled."));
-            return;
-        }
-        
-        if (newSerial.length() > 13) {
-            QMessageBox::warning(this, tr("Invalid Input"), tr("Serial number cannot exceed 13 characters."));
-            return;
-        }
-        
-        // Check for ASCII-only characters
-        for (const QChar &ch : newSerial) {
-            if (ch.unicode() > 127) {
-                QMessageBox::warning(this, tr("Invalid Input"), tr("Serial number must contain only ASCII characters."));
-                return;
-            }
-        }
-    }
-    
-    // Check that at least one option is enabled
-    bool hasNameChange = displayNameCheckBox->isChecked() && !displayNameLineEdit->text().trimmed().isEmpty();
-    bool hasSerialChange = serialNumberCheckBox->isChecked() && !serialNumberLineEdit->text().trimmed().isEmpty();
-    bool hasResolutionChange = hasResolutionChanges();
-    
-    if (!hasNameChange && !hasSerialChange && !hasResolutionChange) {
-        QMessageBox::warning(this, tr("No Updates Selected"), tr("Please select at least one setting to update."));
+    QStringList changesSummary;
+
+    if (!collectUpdateChanges(newName, newSerial, changesSummary)) {
         return;
     }
-    
-    // Show summary of changes to user
-    QStringList changesSummary;
-    if (hasNameChange) {
-        changesSummary << tr("Display Name: %1").arg(newName);
-    }
-    if (hasSerialChange) {
-        changesSummary << tr("Serial Number: %1").arg(newSerial);
-    }
-    if (hasResolutionChange) {
-        QList<ResolutionInfo> selected = getSelectedResolutions();
-        changesSummary << tr("Resolution Changes: %1 resolution(s) selected").arg(selected.size());
-    }
-    
+
     QString summaryText = tr("The following changes will be applied:\n\n%1\n\nDo you want to continue?").arg(changesSummary.join("\n"));
-    
-    int reply = QMessageBox::question(this, tr("Confirm Updates"), summaryText, 
+    int reply = QMessageBox::question(this, tr("Confirm Updates"), summaryText,
                                       QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     if (reply != QMessageBox::Yes) {
         return;
     }
-    
-    // Start the update process
-    if (updateDisplaySettings(newName, newSerial)) {
-        // Success will be handled in the callback
-    } else {
+
+    if (!updateDisplaySettings(newName, newSerial)) {
         QMessageBox::critical(this, tr("Update Failed"), tr("Failed to start the update process."));
     }
 }
@@ -543,10 +553,7 @@ void UpdateDisplaySettingsDialog::loadCurrentEDIDSettings()
     progressLabel->setText(tr("Reading firmware data..."));
     
     // Disable main dialog controls while reading
-    displayNameGroup->setEnabled(false);
-    serialNumberGroup->setEnabled(false);
-    if (resolutionGroup) resolutionGroup->setEnabled(false);
-    updateButton->setEnabled(false);
+    setDialogControlsEnabled(false);
     
     // Create temporary file path for firmware reading
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
@@ -590,19 +597,30 @@ void UpdateDisplaySettingsDialog::onFirmwareReadFinished(bool success)
     if (progressGroup) {
         progressGroup->setVisible(false);
     }
-    
+
     // Clean up old progress dialog if it exists
     if (progressDialog) {
         progressDialog->close();
         progressDialog->deleteLater();
         progressDialog = nullptr;
     }
-    
-    // Re-enable dialog controls
-    displayNameGroup->setEnabled(true);
-    serialNumberGroup->setEnabled(true);
-    if (resolutionGroup) resolutionGroup->setEnabled(true);
-    
+
+    processFirmwareReadResult(success);
+
+    // Clean up firmware reader thread and restart polling
+    QTimer::singleShot(0, this, [this]() {
+        cleanupFirmwareReaderThread();
+        QTimer::singleShot(500, [this]() {
+            VideoHid::getInstance().start();
+        });
+    });
+}
+
+void UpdateDisplaySettingsDialog::processFirmwareReadResult(bool success)
+{
+    // Re-enable controls regardless of result
+    setDialogControlsEnabled(true);
+
     if (!success) {
         qWarning() << "Failed to read firmware data, cannot load current EDID settings";
         displayNameLineEdit->setPlaceholderText(tr("Failed to read firmware - enter display name"));
@@ -610,105 +628,114 @@ void UpdateDisplaySettingsDialog::onFirmwareReadFinished(bool success)
         enableUpdateButton();
         return;
     }
-    
-    // Read the firmware data from the temporary file
+
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QString tempFirmwarePath = tempDir + "/temp_firmware_read.bin";
-    
+
+    if (!processFirmwareFile(tempFirmwarePath)) {
+        displayNameLineEdit->setPlaceholderText(tr("Failed to parse firmware - enter display name"));
+        serialNumberLineEdit->setPlaceholderText(tr("Failed to parse firmware - enter serial number"));
+    }
+
+    // Ensure state is refreshed
+    enableUpdateButton();
+}
+
+bool UpdateDisplaySettingsDialog::processFirmwareFile(const QString &tempFirmwarePath)
+{
     QFile file(tempFirmwarePath);
     if (!file.open(QIODevice::ReadOnly)) {
         qWarning() << "Failed to open temporary firmware file";
-        displayNameLineEdit->setPlaceholderText(tr("Failed to read firmware - enter display name"));
-        serialNumberLineEdit->setPlaceholderText(tr("Failed to read firmware - enter serial number"));
-        return;
+        return false;
     }
-    
+
     QByteArray firmwareData = file.readAll();
     file.close();
-    
-    // Clean up temporary file
     QFile::remove(tempFirmwarePath);
-    
+
     if (firmwareData.isEmpty()) {
         qWarning() << "Empty firmware data read from file";
-        displayNameLineEdit->setPlaceholderText(tr("Failed to read firmware - enter display name"));
-        serialNumberLineEdit->setPlaceholderText(tr("Failed to read firmware - enter serial number"));
-        return;
+        return false;
     }
-    
-    qDebug() << "Successfully read firmware data, size:" << firmwareData.size() << "bytes";
-    
-    // Find EDID Block 0
-    int edidOffset = edid::EDIDUtils::findEDIDBlock0(firmwareData);
-    if (edidOffset == -1) {
-        qWarning() << "EDID Block 0 not found in firmware";
-        displayNameLineEdit->setPlaceholderText(tr("EDID not found - enter display name"));
-        serialNumberLineEdit->setPlaceholderText(tr("EDID not found - enter serial number"));
-        return;
+
+    int edidOffset;
+    QByteArray edidBlock;
+    if (!parseEdidBlock(firmwareData, edidOffset, edidBlock)) {
+        qWarning() << "EDID block parsing failed";
+        return false;
     }
-    
-    // Extract EDID block (128 bytes)
-    if (edidOffset + 128 > firmwareData.size()) {
-        qWarning() << "Incomplete EDID block in firmware";
-        displayNameLineEdit->setPlaceholderText(tr("Invalid EDID - enter display name"));
-        serialNumberLineEdit->setPlaceholderText(tr("Invalid EDID - enter serial number"));
-        return;
-    }
-    
-    QByteArray edidBlock = firmwareData.mid(edidOffset, 128);
-    qDebug() << "Found EDID Block 0 at offset:" << edidOffset;
-    
-    // Parse current display name and serial number
+
     QString currentDisplayName;
     QString currentSerialNumber;
     edid::EDIDUtils::parseEDIDDescriptors(edidBlock, currentDisplayName, currentSerialNumber);
-    
-    // Set the current values in the line edits
+
     if (!currentDisplayName.isEmpty()) {
         displayNameLineEdit->setText(currentDisplayName);
         displayNameLineEdit->setPlaceholderText(tr("Enter new display name (max 13 characters)"));
-        qDebug() << "Current display name:" << currentDisplayName;
     } else {
         displayNameLineEdit->clear();
         displayNameLineEdit->setPlaceholderText(tr("No display name found - enter new name"));
-        qDebug() << "No display name found in EDID";
     }
-    
+
     if (!currentSerialNumber.isEmpty()) {
         serialNumberLineEdit->setText(currentSerialNumber);
         serialNumberLineEdit->setPlaceholderText(tr("Enter new serial number (max 13 characters)"));
-        qDebug() << "Current serial number:" << currentSerialNumber;
     } else {
         serialNumberLineEdit->clear();
         serialNumberLineEdit->setPlaceholderText(tr("No serial number found - enter new serial"));
-        qDebug() << "No serial number found in EDID";
     }
-    
-    // Log supported resolutions
+
     edid::EDIDUtils::logSupportedResolutions(edidBlock);
-    
-    // Parse extension blocks for additional resolution information
     edid::EDIDUtils::parseEDIDExtensionBlocks(firmwareData, edidOffset);
-    
-    // Update resolution table with all found resolutions
     updateResolutionTableFromEDID(edidBlock, firmwareData, edidOffset);
-    
-    // Show EDID descriptors for debugging
     qDebug() << "=== CURRENT EDID DESCRIPTORS ===";
     edid::EDIDUtils::showEDIDDescriptors(edidBlock);
-    
-    // Update button state after loading is complete
-    enableUpdateButton();
-    
-    // Clean up the firmware reader thread now that we're done
-    // Use a timer to ensure this happens after all signals are processed
-    QTimer::singleShot(0, this, [this]() {
-        cleanupFirmwareReaderThread();
-        // Restart polling after cleanup with proper delay
-        QTimer::singleShot(500, [this]() {
-            VideoHid::getInstance().start();
-        });
-    });
+
+    return true;
+}
+
+bool UpdateDisplaySettingsDialog::parseEdidBlock(const QByteArray &firmwareData, int &edidOffset, QByteArray &edidBlock) const
+{
+    edidOffset = edid::EDIDUtils::findEDIDBlock0(firmwareData);
+    if (edidOffset == -1 || edidOffset + 128 > firmwareData.size()) {
+        return false;
+    }
+
+    edidBlock = firmwareData.mid(edidOffset, 128);
+    return true;
+}
+
+void UpdateDisplaySettingsDialog::applyEdidUpdates(QByteArray &modifiedFirmware, int edidOffset, const QString &newName,
+                                                  const QString &newSerial)
+{
+    QByteArray edidBlock = modifiedFirmware.mid(edidOffset, 128);
+
+    if (!newName.isEmpty()) {
+        edid::EDIDUtils::updateEDIDDisplayName(edidBlock, newName);
+    }
+    if (!newSerial.isEmpty()) {
+        edid::EDIDUtils::updateEDIDSerialNumber(edidBlock, newSerial);
+    }
+
+    if (hasResolutionChanges()) {
+        updateExtensionBlockResolutions(modifiedFirmware, edidOffset);
+    }
+
+    quint8 edidChecksum = edid::EDIDUtils::calculateEDIDChecksum(edidBlock);
+    edidBlock[127] = edidChecksum;
+    modifiedFirmware.replace(edidOffset, 128, edidBlock);
+}
+
+void UpdateDisplaySettingsDialog::finalizeEdidBlock(QByteArray &modifiedFirmware, int /*edidOffset*/,
+                                                   const QByteArray &originalFirmware,
+                                                   const QByteArray &/*originalEdidBlock*/)
+{
+    quint16 firmwareChecksum = calculateFirmwareChecksumWithDiff(originalFirmware, modifiedFirmware);
+
+    if (modifiedFirmware.size() >= 2) {
+        modifiedFirmware[modifiedFirmware.size() - 2] = static_cast<char>((firmwareChecksum >> 8) & 0xFF);
+        modifiedFirmware[modifiedFirmware.size() - 1] = static_cast<char>(firmwareChecksum & 0xFF);
+    }
 }
 
 void UpdateDisplaySettingsDialog::setupProgressDialog()
@@ -802,9 +829,7 @@ void UpdateDisplaySettingsDialog::onFirmwareReadError(const QString& errorMessag
     if (progressGroup) progressGroup->setVisible(false);
     closeProgressDialog();
 
-    displayNameGroup->setEnabled(true);
-    serialNumberGroup->setEnabled(true);
-    if (resolutionGroup) resolutionGroup->setEnabled(true);
+    setDialogControlsEnabled(true);
 
     qWarning() << "Firmware read error:" << errorMessage;
     displayNameLineEdit->setPlaceholderText(tr("Error reading firmware - enter display name"));
@@ -838,9 +863,7 @@ void UpdateDisplaySettingsDialog::onCancelReadingClicked()
 
     closeProgressDialog();
 
-    displayNameGroup->setEnabled(true);
-    serialNumberGroup->setEnabled(true);
-    if (resolutionGroup) resolutionGroup->setEnabled(true);
+    setDialogControlsEnabled(true);
 
     displayNameLineEdit->setPlaceholderText(tr("Reading cancelled - enter display name"));
     serialNumberLineEdit->setPlaceholderText(tr("Reading cancelled - enter serial number"));
@@ -1267,101 +1290,46 @@ QByteArray UpdateDisplaySettingsDialog::processEDIDDisplaySettings(const QByteAr
     if (!newSerial.isEmpty()) {
         qDebug() << "  Updating serial number to:" << newSerial;
     }
-    
+
     bool hasResolutionUpdate = hasResolutionChanges();
     if (hasResolutionUpdate) {
         qDebug() << "  Updating resolution settings in extension blocks";
     }
-    
-    QByteArray modifiedFirmware = firmwareData; // Make a copy
-    
-    // Show complete firmware BEFORE update (first 256 bytes for debugging)
+
+    QByteArray modifiedFirmware = firmwareData;
+
     qDebug() << "=== COMPLETE FIRMWARE BEFORE UPDATE ===";
     qDebug() << "Firmware size:" << firmwareData.size() << "bytes";
     edid::EDIDUtils::showFirmwareHexDump(firmwareData, 0, qMin(256, firmwareData.size()));
-    
-    // Find EDID Block 0
-    int edidOffset = edid::EDIDUtils::findEDIDBlock0(modifiedFirmware);
-    if (edidOffset == -1) {
-        qWarning() << "EDID Block 0 not found in firmware";
-        return QByteArray(); // Return empty array to indicate failure
-    }
-    
-    // Extract EDID block (128 bytes)
-    if (edidOffset + 128 > modifiedFirmware.size()) {
-        qWarning() << "Incomplete EDID block in firmware";
+
+    int edidOffset;
+    QByteArray edidBlock;
+    if (!parseEdidBlock(modifiedFirmware, edidOffset, edidBlock)) {
+        qWarning() << "EDID Block 0 not found or incomplete in firmware";
         return QByteArray();
     }
-    
-    QByteArray edidBlock = modifiedFirmware.mid(edidOffset, 128);
-    
-    // Store original EDID block for checksum difference calculation
-    QByteArray originalEDIDBlock = edidBlock; // Make a copy before modification
-    
-    // Show EDID descriptors BEFORE update
+
+    QByteArray originalEDIDBlock = edidBlock;
+
     qDebug() << "=== EDID DESCRIPTORS BEFORE UPDATE ===";
     edid::EDIDUtils::showEDIDDescriptors(edidBlock);
-    
-    // Update display settings
-    if (!newName.isEmpty()) {
-        edid::EDIDUtils::updateEDIDDisplayName(edidBlock, newName);
-    }
-    
-    if (!newSerial.isEmpty()) {
-        edid::EDIDUtils::updateEDIDSerialNumber(edidBlock, newSerial);
-    }
-    
-    // Apply resolution changes to extension blocks if any
-    if (hasResolutionUpdate) {
-        updateExtensionBlockResolutions(modifiedFirmware, edidOffset);
-    }
-    
-    // Show EDID descriptors AFTER update
+
+    applyEdidUpdates(modifiedFirmware, edidOffset, newName, newSerial);
+
     qDebug() << "=== EDID DESCRIPTORS AFTER UPDATE ===";
-    edid::EDIDUtils::showEDIDDescriptors(edidBlock);
-    
-    // Calculate and update EDID checksum
-    quint8 edidChecksum = edid::EDIDUtils::calculateEDIDChecksum(edidBlock);
-    edidBlock[127] = edidChecksum;
-    
-    // Replace EDID block in firmware
-    modifiedFirmware.replace(edidOffset, 128, edidBlock);
-    
-    // Calculate and update firmware checksum using differential method for all changes
-    quint16 firmwareChecksum = calculateFirmwareChecksumWithDiff(firmwareData, modifiedFirmware);
-    
-    // Write 16-bit checksum to last 2 bytes 
-    // Try different byte order - some firmwares store as [high_byte][low_byte]
-    if (modifiedFirmware.size() >= 2) {
-        // Try storing as big-endian (high byte first, then low byte)
-        modifiedFirmware[modifiedFirmware.size() - 2] = static_cast<char>((firmwareChecksum >> 8) & 0xFF); // High byte first
-        modifiedFirmware[modifiedFirmware.size() - 1] = static_cast<char>(firmwareChecksum & 0xFF);        // Low byte second
-        
-        qDebug() << "Written firmware checksum to last 2 bytes (big-endian, differential method):";
-        qDebug() << "  Checksum value: 0x" << QString::number(firmwareChecksum, 16).toUpper().rightJustified(4, '0');
-        qDebug() << "  High byte (pos-2): 0x" << QString::number((firmwareChecksum >> 8) & 0xFF, 16).toUpper().rightJustified(2, '0');
-        qDebug() << "  Low byte (pos-1): 0x" << QString::number(firmwareChecksum & 0xFF, 16).toUpper().rightJustified(2, '0');
-        
-        // Show actual bytes written
-        qDebug() << "  Actual last 2 bytes: 0x" << 
-            QString::number(static_cast<quint8>(modifiedFirmware[modifiedFirmware.size() - 2]), 16).toUpper().rightJustified(2, '0') << 
-            " 0x" << 
-            QString::number(static_cast<quint8>(modifiedFirmware[modifiedFirmware.size() - 1]), 16).toUpper().rightJustified(2, '0');
-    } else {
-        qWarning() << "Firmware too small to write checksum";
-    }
-    
-    // Show complete firmware AFTER update (first 256 bytes for debugging)
+    edid::EDIDUtils::showEDIDDescriptors(modifiedFirmware.mid(edidOffset, 128));
+
+    finalizeEdidBlock(modifiedFirmware, edidOffset, firmwareData, originalEDIDBlock);
+
     qDebug() << "=== COMPLETE FIRMWARE AFTER UPDATE ===";
     qDebug() << "Modified firmware size:" << modifiedFirmware.size() << "bytes";
     edid::EDIDUtils::showFirmwareHexDump(modifiedFirmware, 0, qMin(256, modifiedFirmware.size()));
-    
-    // Also show the end of firmware (last 32 bytes) to verify checksum
+
     if (modifiedFirmware.size() > 32) {
         qDebug() << "=== FIRMWARE END (last 32 bytes) ===";
         edid::EDIDUtils::showFirmwareHexDump(modifiedFirmware, modifiedFirmware.size() - 32, 32);
     }
-    
+
     qDebug() << "EDID display settings processing completed successfully";
     return modifiedFirmware;
 }
