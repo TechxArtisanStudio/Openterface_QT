@@ -1,4 +1,5 @@
 #include "edidutils.h"
+#include "edidresolutionparser.h"
 #include <QDebug>
 
 namespace edid {
@@ -331,6 +332,202 @@ void EDIDUtils::showFirmwareHexDump(const QByteArray &firmwareData, int startOff
         }
 
         qDebug() << line;
+    }
+}
+
+void EDIDUtils::logSupportedResolutions(const QByteArray &edidBlock)
+{
+    if (edidBlock.size() != 128) {
+        qWarning() << "Invalid EDID block size:" << edidBlock.size();
+        return;
+    }
+
+    qDebug() << "=== SUPPORTED RESOLUTIONS FROM EDID ===";
+    quint8 extensionCount = static_cast<quint8>(edidBlock[126]);
+    qDebug() << "EDID Extension blocks count:" << extensionCount;
+
+    if (extensionCount > 0) {
+        qDebug() << "There are" << extensionCount << "extension blocks available.";
+    } else {
+        qDebug() << "No extension blocks in EDID block 0";
+    }
+
+    qDebug() << "Standard Timings (bytes 35-42): [Skipping detailed analysis - focusing on extension blocks]";
+    qDebug() << "Detailed Timing Descriptors (Block 0): [May contain some legacy timings]";
+
+    for (int descriptorOffset = 54; descriptorOffset <= 54 + 3 * 18; descriptorOffset += 18) {
+        if (descriptorOffset + 18 > edidBlock.size()) break;
+
+        quint16 pixelClock = static_cast<quint16>(edidBlock[descriptorOffset]) |
+                             (static_cast<quint16>(edidBlock[descriptorOffset + 1]) << 8);
+
+        if (pixelClock > 0) {
+            quint16 hActive = static_cast<quint16>(edidBlock[descriptorOffset + 2]) |
+                              ((static_cast<quint16>(edidBlock[descriptorOffset + 4]) & 0xF0) << 4);
+
+            quint16 vActive = static_cast<quint16>(edidBlock[descriptorOffset + 5]) |
+                              ((static_cast<quint16>(edidBlock[descriptorOffset + 7]) & 0xF0) << 4);
+
+            double pixelClockMHz = pixelClock / 100.0;
+            qDebug() << "  " << hActive << "x" << vActive << "@ pixel clock" << pixelClockMHz << "MHz";
+        }
+    }
+
+    if (extensionCount > 0) {
+        qDebug() << "";
+        qDebug() << "=> FOCUS: Extension blocks contain the actual supported resolutions.";
+        qDebug() << "=> Resolution table will show VIC codes and detailed timings from extension blocks.";
+        qDebug() << "=> Standard timings above are often legacy and may not reflect true capabilities.";
+    } else {
+        qDebug() << "";
+        qDebug() << "=> WARNING: No extension blocks found. This may be a basic/legacy display.";
+        qDebug() << "=> Modern displays typically use extension blocks for resolution information.";
+    }
+
+    qDebug() << "=== END SUPPORTED RESOLUTIONS ===";
+}
+
+void EDIDUtils::parseEDIDExtensionBlocks(const QByteArray &firmwareData, int baseBlockOffset)
+{
+    if (baseBlockOffset < 0 || baseBlockOffset + 128 > firmwareData.size()) {
+        qWarning() << "Invalid base block offset for extension parsing:" << baseBlockOffset;
+        return;
+    }
+
+    quint8 extensionCount = static_cast<quint8>(firmwareData[baseBlockOffset + 126]);
+    if (extensionCount == 0) {
+        qDebug() << "No EDID extension blocks found";
+        return;
+    }
+
+    qDebug() << "=== PARSING EDID EXTENSION BLOCKS ===";
+    qDebug() << "Extension count:" << extensionCount;
+
+    for (int blockIndex = 1; blockIndex <= extensionCount; ++blockIndex) {
+        int blockOffset = baseBlockOffset + (blockIndex * 128);
+        if (blockOffset + 128 > firmwareData.size()) {
+            qWarning() << "Extension Block" << blockIndex << "not found in firmware (offset" << blockOffset << ")";
+            continue;
+        }
+
+        QByteArray extensionBlock = firmwareData.mid(blockOffset, 128);
+        quint8 extensionTag = static_cast<quint8>(extensionBlock[0]);
+
+        qDebug() << "";
+        qDebug() << "=== EXTENSION BLOCK" << blockIndex << "===";
+        qDebug() << "Block offset:" << blockOffset;
+        qDebug() << "Extension tag: 0x" << QString::number(extensionTag, 16).toUpper().rightJustified(2, '0');
+
+        switch (extensionTag) {
+            case 0x02:
+                qDebug() << "Type: CEA-861 Extension Block";
+                parseCEA861ExtensionBlock(extensionBlock, blockIndex);
+                break;
+            case 0x10:
+                qDebug() << "Type: Video Timing Extension Block";
+                parseVideoTimingExtensionBlock(extensionBlock, blockIndex);
+                break;
+            case 0x20:
+                qDebug() << "Type: EDID 2.0 Extension Block";
+                break;
+            case 0x30:
+                qDebug() << "Type: Color Information Extension Block";
+                break;
+            case 0x40:
+                qDebug() << "Type: DVI Feature Extension Block";
+                break;
+            case 0x50:
+                qDebug() << "Type: Touch Screen Extension Block";
+                break;
+            case 0x60:
+                qDebug() << "Type: Block Map Extension Block";
+                break;
+            case 0x70:
+                qDebug() << "Type: Display Device Data Extension Block";
+                break;
+            case 0xF0:
+                qDebug() << "Type: Block Map Extension Block (alternate)";
+                break;
+            default:
+                qDebug() << "Type: Unknown/Proprietary Extension Block";
+                break;
+        }
+
+        qDebug() << "First 32 bytes:";
+        QString hexDump;
+        for (int i = 0; i < qMin(32, extensionBlock.size()); ++i) {
+            hexDump += QString("%1 ").arg(static_cast<quint8>(extensionBlock[i]), 2, 16, QChar('0')).toUpper();
+        }
+        qDebug() << hexDump;
+    }
+
+    qDebug() << "=== END EXTENSION BLOCKS ===";
+}
+
+void EDIDUtils::parseCEA861ExtensionBlock(const QByteArray &block, int blockNumber)
+{
+    if (block.size() != 128) {
+        qWarning() << "Invalid CEA-861 extension block size:" << block.size();
+        return;
+    }
+
+    quint8 revision = static_cast<quint8>(block[1]);
+    quint8 dtdOffset = static_cast<quint8>(block[2]);
+    quint8 flags = static_cast<quint8>(block[3]);
+
+    qDebug() << "CEA-861 Revision:" << revision;
+    qDebug() << "DTD offset:" << dtdOffset;
+    qDebug() << "Flags: 0x" << QString::number(flags, 16).toUpper().rightJustified(2, '0');
+
+    bool hasUnderscan = (flags & 0x80) != 0;
+    bool hasBasicAudio = (flags & 0x40) != 0;
+    bool hasYCC444 = (flags & 0x20) != 0;
+    bool hasYCC422 = (flags & 0x10) != 0;
+
+    qDebug() << "Capabilities:";
+    qDebug() << "  Underscan support:" << (hasUnderscan ? "Yes" : "No");
+    qDebug() << "  Basic audio support:" << (hasBasicAudio ? "Yes" : "No");
+    qDebug() << "  YCC 4:4:4 support:" << (hasYCC444 ? "Yes" : "No");
+    qDebug() << "  YCC 4:2:2 support:" << (hasYCC422 ? "Yes" : "No");
+
+    if (dtdOffset > 4 && dtdOffset < 128) {
+        int descriptorStart = 4;
+        while (descriptorStart < dtdOffset) {
+            quint8 tag = static_cast<quint8>(block[descriptorStart]);
+            quint8 length = tag & 0x1F;
+            quint8 type = (tag >> 5) & 0x07;
+
+            if (type == 0) break;
+            if (type == 2) {
+                QByteArray videoData = block.mid(descriptorStart + 1, length);
+                parseVideoDataBlock(videoData);
+            }
+
+            descriptorStart += 1 + length;
+        }
+    }
+}
+
+void EDIDUtils::parseVideoTimingExtensionBlock(const QByteArray &block, int blockNumber)
+{
+    qDebug() << "Video Timing Extension Block parsing not fully implemented";
+    qDebug() << "This block contains additional timing information";
+}
+
+void EDIDUtils::parseVideoDataBlock(const QByteArray &vdbData)
+{
+    qDebug() << "    Video Data Block contains" << vdbData.size() << "Short Video Descriptors:";
+
+    for (int i = 0; i < vdbData.size(); ++i) {
+        quint8 svd = static_cast<quint8>(vdbData[i]);
+        quint8 vic = svd & 0x7F;
+        bool isNative = (svd & 0x80) != 0;
+
+        QString resolutionInfo = edid::EDIDResolutionParser::getVICResolution(vic);
+        qDebug() << QString("      VIC %1: %2%3")
+                    .arg(vic)
+                    .arg(resolutionInfo)
+                    .arg(isNative ? " (Native)" : "");
     }
 }
 

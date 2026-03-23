@@ -633,7 +633,7 @@ void UpdateDisplaySettingsDialog::onFirmwareReadFinished(bool success)
     qDebug() << "Successfully read firmware data, size:" << firmwareData.size() << "bytes";
     
     // Find EDID Block 0
-    int edidOffset = findEDIDBlock0(firmwareData);
+    int edidOffset = edid::EDIDUtils::findEDIDBlock0(firmwareData);
     if (edidOffset == -1) {
         qWarning() << "EDID Block 0 not found in firmware";
         displayNameLineEdit->setPlaceholderText(tr("EDID not found - enter display name"));
@@ -655,7 +655,7 @@ void UpdateDisplaySettingsDialog::onFirmwareReadFinished(bool success)
     // Parse current display name and serial number
     QString currentDisplayName;
     QString currentSerialNumber;
-    parseEDIDDescriptors(edidBlock, currentDisplayName, currentSerialNumber);
+    edid::EDIDUtils::parseEDIDDescriptors(edidBlock, currentDisplayName, currentSerialNumber);
     
     // Set the current values in the line edits
     if (!currentDisplayName.isEmpty()) {
@@ -679,17 +679,17 @@ void UpdateDisplaySettingsDialog::onFirmwareReadFinished(bool success)
     }
     
     // Log supported resolutions
-    logSupportedResolutions(edidBlock);
+    edid::EDIDUtils::logSupportedResolutions(edidBlock);
     
     // Parse extension blocks for additional resolution information
-    parseEDIDExtensionBlocks(firmwareData, edidOffset);
+    edid::EDIDUtils::parseEDIDExtensionBlocks(firmwareData, edidOffset);
     
     // Update resolution table with all found resolutions
     updateResolutionTableFromEDID(edidBlock, firmwareData, edidOffset);
     
     // Show EDID descriptors for debugging
     qDebug() << "=== CURRENT EDID DESCRIPTORS ===";
-    showEDIDDescriptors(edidBlock);
+    edid::EDIDUtils::showEDIDDescriptors(edidBlock);
     
     // Update button state after loading is complete
     enableUpdateButton();
@@ -794,162 +794,6 @@ void UpdateDisplaySettingsDialog::onCancelReadingClicked()
             VideoHid::getInstance().start();
         });
     });
-}
-
-void UpdateDisplaySettingsDialog::parseEDIDDescriptors(const QByteArray &edidBlock, QString &displayName, QString &serialNumber)
-{
-    edid::EDIDUtils::parseEDIDDescriptors(edidBlock, displayName, serialNumber);
-}
-
-void UpdateDisplaySettingsDialog::logSupportedResolutions(const QByteArray &edidBlock)
-{
-    if (edidBlock.size() != 128) {
-        qWarning() << "Invalid EDID block size for resolution parsing:" << edidBlock.size();
-        return;
-    }
-    
-    qDebug() << "=== SUPPORTED RESOLUTIONS FROM EDID ===";
-    
-    // Check if there are extension blocks
-    quint8 extensionCount = static_cast<quint8>(edidBlock[126]);
-    qDebug() << "EDID Extension blocks count:" << extensionCount;
-    
-    if (extensionCount > 0) {
-        qDebug() << "";
-        qDebug() << "This EDID has" << extensionCount << "extension block(s).";
-        qDebug() << "Modern resolution information is in the extension blocks (CEA-861, etc.)";
-        qDebug() << "which contain detailed timing descriptors and VIC codes for current resolutions.";
-        qDebug() << "Standard timings in Block 0 are often legacy and may not reflect actual capabilities.";
-        qDebug() << "";
-    } else {
-        qDebug() << "No extension blocks found - this may be a basic/legacy EDID.";
-    }
-    
-    // Skip detailed standard timing analysis - just note them briefly
-    qDebug() << "Standard Timings (bytes 35-42): [Skipping detailed analysis - focusing on extension blocks]";
-    
-    // Parse detailed timing descriptors from Block 0 (briefly)
-    qDebug() << "Detailed Timing Descriptors (Block 0): [May contain some legacy timings]";
-    for (int descriptorOffset = 54; descriptorOffset <= 54 + 3 * 18; descriptorOffset += 18) {
-        if (descriptorOffset + 18 > edidBlock.size()) break;
-        
-        // Check if this is a detailed timing descriptor (not a text descriptor)
-        if (!(edidBlock[descriptorOffset] == 0x00 && 
-              edidBlock[descriptorOffset + 1] == 0x00 && 
-              edidBlock[descriptorOffset + 2] == 0x00)) {
-            
-            // Parse detailed timing
-            quint16 pixelClock = static_cast<quint16>(edidBlock[descriptorOffset]) | 
-                               (static_cast<quint16>(edidBlock[descriptorOffset + 1]) << 8);
-            
-            if (pixelClock > 0) {
-                quint16 hActive = static_cast<quint16>(edidBlock[descriptorOffset + 2]) | 
-                                ((static_cast<quint16>(edidBlock[descriptorOffset + 4]) & 0xF0) << 4);
-                
-                quint16 vActive = static_cast<quint16>(edidBlock[descriptorOffset + 5]) | 
-                                ((static_cast<quint16>(edidBlock[descriptorOffset + 7]) & 0xF0) << 4);
-                
-                double pixelClockMHz = pixelClock / 100.0;
-                qDebug() << "  " << hActive << "x" << vActive << "@ pixel clock" << pixelClockMHz << "MHz";
-            }
-        }
-    }
-    
-    // Note about extension blocks
-    if (extensionCount > 0) {
-        qDebug() << "";
-        qDebug() << "=> FOCUS: Extension blocks contain the actual supported resolutions.";
-        qDebug() << "=> Resolution table will show VIC codes and detailed timings from extension blocks.";
-        qDebug() << "=> Standard timings above are often legacy and may not reflect true capabilities.";
-    } else {
-        qDebug() << "";
-        qDebug() << "=> WARNING: No extension blocks found. This may be a basic/legacy display.";
-        qDebug() << "=> Modern displays typically use extension blocks for resolution information.";
-    }
-    
-    qDebug() << "=== END SUPPORTED RESOLUTIONS ===";
-}
-
-void UpdateDisplaySettingsDialog::parseEDIDExtensionBlocks(const QByteArray &firmwareData, int baseBlockOffset)
-{
-    if (baseBlockOffset < 0 || baseBlockOffset + 128 > firmwareData.size()) {
-        qWarning() << "Invalid base block offset for extension parsing:" << baseBlockOffset;
-        return;
-    }
-    
-    // Get extension count from Block 0, byte 126
-    quint8 extensionCount = static_cast<quint8>(firmwareData[baseBlockOffset + 126]);
-    
-    if (extensionCount == 0) {
-        qDebug() << "No EDID extension blocks found";
-        return;
-    }
-    
-    qDebug() << "=== PARSING EDID EXTENSION BLOCKS ===";
-    qDebug() << "Extension count:" << extensionCount;
-    
-    for (int blockIndex = 1; blockIndex <= extensionCount; ++blockIndex) {
-        int blockOffset = baseBlockOffset + (blockIndex * 128);
-        
-        // Check if block exists in firmware
-        if (blockOffset + 128 > firmwareData.size()) {
-            qWarning() << "Extension Block" << blockIndex << "not found in firmware (offset" << blockOffset << ")";
-            continue;
-        }
-        
-        QByteArray extensionBlock = firmwareData.mid(blockOffset, 128);
-        quint8 extensionTag = static_cast<quint8>(extensionBlock[0]);
-        
-        qDebug() << "";
-        qDebug() << "=== EXTENSION BLOCK" << blockIndex << "===";
-        qDebug() << "Block offset:" << blockOffset;
-        qDebug() << "Extension tag: 0x" << QString::number(extensionTag, 16).toUpper().rightJustified(2, '0');
-        
-        switch (extensionTag) {
-            case 0x02: // CEA-861 Extension Block
-                qDebug() << "Type: CEA-861 Extension Block";
-                parseCEA861ExtensionBlock(extensionBlock, blockIndex);
-                break;
-            case 0x10: // Video Timing Extension Block  
-                qDebug() << "Type: Video Timing Extension Block";
-                parseVideoTimingExtensionBlock(extensionBlock, blockIndex);
-                break;
-            case 0x20: // EDID 2.0 Extension Block
-                qDebug() << "Type: EDID 2.0 Extension Block";
-                break;
-            case 0x30: // Color Information Extension Block
-                qDebug() << "Type: Color Information Extension Block";
-                break;
-            case 0x40: // DVI Feature Extension Block
-                qDebug() << "Type: DVI Feature Extension Block";
-                break;
-            case 0x50: // Touch Screen Extension Block
-                qDebug() << "Type: Touch Screen Extension Block";
-                break;
-            case 0x60: // Block Map Extension Block
-                qDebug() << "Type: Block Map Extension Block";
-                break;
-            case 0x70: // Display Device Data Extension Block
-                qDebug() << "Type: Display Device Data Extension Block";
-                break;
-            case 0xF0: // Block Map Extension Block
-                qDebug() << "Type: Block Map Extension Block (alternate)";
-                break;
-            default:
-                qDebug() << "Type: Unknown/Proprietary Extension Block";
-                break;
-        }
-        
-        // Show hex dump of first 32 bytes for debugging
-        qDebug() << "First 32 bytes:";
-        QString hexDump;
-        for (int i = 0; i < qMin(32, extensionBlock.size()); ++i) {
-            hexDump += QString("%1 ").arg(static_cast<quint8>(extensionBlock[i]), 2, 16, QChar('0')).toUpper();
-        }
-        qDebug() << hexDump;
-    }
-    
-    qDebug() << "=== END EXTENSION BLOCKS ===";
 }
 
 void UpdateDisplaySettingsDialog::addResolutionToList(const QString& description, int width, int height, int refreshRate, 
@@ -1120,7 +964,7 @@ void UpdateDisplaySettingsDialog::parseVideoDataBlockForResolutions(const QByteA
                 quint8 vic = static_cast<quint8>(dataBlockCollection[offset + i]) & 0x7F;
                 bool isNative = (static_cast<quint8>(dataBlockCollection[offset + i]) & 0x80) != 0;
                 
-                auto resolution = getVICResolutionInfo(vic);
+                auto resolution = edid::EDIDResolutionParser::getVICResolutionInfo(vic);
                 if (resolution.width > 0 && resolution.height > 0) {
                     QString description = QString("%1x%2 @ %3Hz (VIC %4%5)")
                                         .arg(resolution.width).arg(resolution.height)
@@ -1160,158 +1004,6 @@ bool UpdateDisplaySettingsDialog::hasResolutionChanges() const
     return false;
 }
 
-ResolutionInfo UpdateDisplaySettingsDialog::getVICResolutionInfo(quint8 vic)
-{
-    edid::ResolutionInfo edidInfo = edid::EDIDResolutionParser::getVICResolutionInfo(vic);
-    ResolutionInfo output;
-    output.description = edidInfo.description;
-    output.width = edidInfo.width;
-    output.height = edidInfo.height;
-    output.refreshRate = edidInfo.refreshRate;
-    output.vic = edidInfo.vic;
-    output.isStandardTiming = edidInfo.isStandardTiming;
-    output.isEnabled = edidInfo.isEnabled;
-    output.userSelected = edidInfo.userSelected;
-    return output;
-}
-
-void UpdateDisplaySettingsDialog::parseCEA861ExtensionBlock(const QByteArray &block, int blockNumber)
-{
-    if (block.size() != 128) {
-        qWarning() << "Invalid CEA-861 block size:" << block.size();
-        return;
-    }
-    
-    quint8 revision = static_cast<quint8>(block[1]);
-    quint8 dtdOffset = static_cast<quint8>(block[2]);
-    quint8 flags = static_cast<quint8>(block[3]);
-    
-    qDebug() << "CEA-861 Revision:" << revision;
-    qDebug() << "DTD offset:" << dtdOffset;
-    qDebug() << "Flags: 0x" << QString::number(flags, 16).toUpper().rightJustified(2, '0');
-    
-    bool hasUnderscan = (flags & 0x80) != 0;
-    bool hasBasicAudio = (flags & 0x40) != 0;
-    bool hasYCC444 = (flags & 0x20) != 0;
-    bool hasYCC422 = (flags & 0x10) != 0;
-    
-    qDebug() << "Capabilities:";
-    qDebug() << "  Underscan support:" << (hasUnderscan ? "Yes" : "No");
-    qDebug() << "  Basic audio support:" << (hasBasicAudio ? "Yes" : "No");
-    qDebug() << "  YCC 4:4:4 support:" << (hasYCC444 ? "Yes" : "No");
-    qDebug() << "  YCC 4:2:2 support:" << (hasYCC422 ? "Yes" : "No");
-    
-    // Parse detailed timing descriptors (if any)
-    if (dtdOffset >= 4 && dtdOffset < 128) {
-        qDebug() << "Detailed Timing Descriptors (CEA-861):";
-        
-        for (int dtdIndex = dtdOffset; dtdIndex <= 128 - 18; dtdIndex += 18) {
-            QByteArray dtd = block.mid(dtdIndex, 18);
-            
-            // Check if it's a valid DTD (non-zero pixel clock)
-            quint16 pixelClock = static_cast<quint16>(dtd[0]) | (static_cast<quint16>(dtd[1]) << 8);
-            
-            if (pixelClock > 0) {
-                quint16 hActive = static_cast<quint16>(dtd[2]) | ((static_cast<quint16>(dtd[4]) & 0xF0) << 4);
-                quint16 hBlank = static_cast<quint16>(dtd[3]) | ((static_cast<quint16>(dtd[4]) & 0x0F) << 8);
-                quint16 vActive = static_cast<quint16>(dtd[5]) | ((static_cast<quint16>(dtd[7]) & 0xF0) << 4);
-                quint16 vBlank = static_cast<quint16>(dtd[6]) | ((static_cast<quint16>(dtd[7]) & 0x0F) << 8);
-                
-                quint16 hSyncOffset = static_cast<quint16>(dtd[8]) | ((static_cast<quint16>(dtd[11]) & 0xC0) << 2);
-                quint16 hSyncWidth = static_cast<quint16>(dtd[9]) | ((static_cast<quint16>(dtd[11]) & 0x30) << 4);
-                quint16 vSyncOffset = ((static_cast<quint16>(dtd[10]) & 0xF0) >> 4) | ((static_cast<quint16>(dtd[11]) & 0x0C) << 2);
-                quint16 vSyncWidth = (static_cast<quint16>(dtd[10]) & 0x0F) | ((static_cast<quint16>(dtd[11]) & 0x03) << 4);
-                
-                double pixelClockMHz = pixelClock / 100.0;
-                double hTotal = hActive + hBlank;
-                double vTotal = vActive + vBlank;
-                double refreshRate = (pixelClockMHz * 1000000.0) / (hTotal * vTotal);
-                
-                qDebug() << QString("  %1 x %2 @ %3 Hz (pixel clock: %4 MHz)")
-                            .arg(hActive).arg(vActive).arg(refreshRate, 0, 'f', 2).arg(pixelClockMHz, 0, 'f', 2);
-                
-                qDebug() << QString("    H: %1/%2/%3/%4, V: %5/%6/%7/%8")
-                            .arg(hActive).arg(hSyncOffset).arg(hSyncWidth).arg(hTotal)
-                            .arg(vActive).arg(vSyncOffset).arg(vSyncWidth).arg(vTotal);
-            }
-        }
-    }
-    
-    // Parse Data Block Collection (if any)
-    if (dtdOffset > 4) {
-        qDebug() << "Data Block Collection:";
-        
-        for (int offset = 4; offset < dtdOffset; ) {
-            if (offset >= block.size()) break;
-            
-            quint8 header = static_cast<quint8>(block[offset]);
-            quint8 tag = (header >> 5) & 0x07;
-            quint8 length = header & 0x1F;
-            
-            if (offset + 1 + length > dtdOffset || offset + 1 + length > block.size()) {
-                qWarning() << "Invalid data block at offset" << offset;
-                break;
-            }
-            
-            switch (tag) {
-                case 1: // Audio Data Block
-                    qDebug() << "  Audio Data Block (length:" << length << ")";
-                    break;
-                case 2: // Video Data Block
-                    qDebug() << "  Video Data Block (length:" << length << ")";
-                    parseVideoDataBlock(block.mid(offset + 1, length));
-                    break;
-                case 3: // Vendor Specific Data Block
-                    qDebug() << "  Vendor Specific Data Block (length:" << length << ")";
-                    break;
-                case 4: // Speaker Allocation Data Block
-                    qDebug() << "  Speaker Allocation Data Block (length:" << length << ")";
-                    break;
-                case 7: // Extended Tag
-                    qDebug() << "  Extended Tag Data Block (length:" << length << ")";
-                    break;
-                default:
-                    qDebug() << "  Unknown Data Block (tag:" << tag << ", length:" << length << ")";
-                    break;
-            }
-            
-            offset += 1 + length;
-        }
-    }
-}
-
-void UpdateDisplaySettingsDialog::parseVideoTimingExtensionBlock(const QByteArray &block, int blockNumber)
-{
-    if (block.size() != 128) {
-        qWarning() << "Invalid Video Timing Extension block size:" << block.size();
-        return;
-    }
-    
-    qDebug() << "Video Timing Extension Block parsing not fully implemented";
-    qDebug() << "This block contains additional timing information";
-}
-
-void UpdateDisplaySettingsDialog::parseVideoDataBlock(const QByteArray &vdbData)
-{
-    qDebug() << "    Video Data Block contains" << vdbData.size() << "Short Video Descriptors:";
-    
-    for (int i = 0; i < vdbData.size(); ++i) {
-        quint8 svd = static_cast<quint8>(vdbData[i]);
-        quint8 vic = svd & 0x7F;
-        bool isNative = (svd & 0x80) != 0;
-        
-        QString resolutionInfo = getVICResolution(vic);
-        qDebug() << QString("      VIC %1: %2%3")
-                    .arg(vic)
-                    .arg(resolutionInfo)
-                    .arg(isNative ? " (Native)" : "");
-    }
-}
-
-QString UpdateDisplaySettingsDialog::getVICResolution(quint8 vic)
-{
-    return edid::EDIDResolutionParser::getVICResolution(vic);
-}
 
 QString UpdateDisplaySettingsDialog::getCurrentDisplayName()
 {
@@ -1388,9 +1080,7 @@ void UpdateDisplaySettingsDialog::updateExtensionBlockResolutions(QByteArray &fi
             
             if (updateCEA861ExtensionBlockResolutions(extensionBlock, enabledVICs, disabledVICs)) {
                 // Calculate new checksum for this extension block
-                quint8 blockChecksum = calculateEDIDChecksum(extensionBlock);
-                extensionBlock[127] = blockChecksum;
-                
+                    quint8 blockChecksum = edid::EDIDUtils::calculateEDIDChecksum(extensionBlock);
                 qDebug() << "Updated extension block" << blockIndex << "checksum to 0x" 
                          << QString::number(blockChecksum, 16).toUpper().rightJustified(2, '0');
                 
@@ -1767,26 +1457,6 @@ void UpdateDisplaySettingsDialog::hideMainWindow()
     }
 }
 
-int UpdateDisplaySettingsDialog::findEDIDBlock0(const QByteArray &firmwareData)
-{
-    return edid::EDIDUtils::findEDIDBlock0(firmwareData);
-}
-
-void UpdateDisplaySettingsDialog::updateEDIDDisplayName(QByteArray &edidBlock, const QString &newName)
-{
-    edid::EDIDUtils::updateEDIDDisplayName(edidBlock, newName);
-}
-
-void UpdateDisplaySettingsDialog::updateEDIDSerialNumber(QByteArray &edidBlock, const QString &newSerial)
-{
-    edid::EDIDUtils::updateEDIDSerialNumber(edidBlock, newSerial);
-}
-
-quint8 UpdateDisplaySettingsDialog::calculateEDIDChecksum(const QByteArray &edidBlock)
-{
-    return edid::EDIDUtils::calculateEDIDChecksum(edidBlock);
-}
-
 quint16 UpdateDisplaySettingsDialog::calculateFirmwareChecksumWithDiff(const QByteArray &originalFirmware, const QByteArray &originalEDID, const QByteArray &modifiedEDID)
 {
     return edid::FirmwareUtils::calculateFirmwareChecksumWithDiff(originalFirmware, originalEDID, modifiedEDID);
@@ -1817,10 +1487,10 @@ QByteArray UpdateDisplaySettingsDialog::processEDIDDisplaySettings(const QByteAr
     // Show complete firmware BEFORE update (first 256 bytes for debugging)
     qDebug() << "=== COMPLETE FIRMWARE BEFORE UPDATE ===";
     qDebug() << "Firmware size:" << firmwareData.size() << "bytes";
-    showFirmwareHexDump(firmwareData, 0, qMin(256, firmwareData.size()));
+    edid::EDIDUtils::showFirmwareHexDump(firmwareData, 0, qMin(256, firmwareData.size()));
     
     // Find EDID Block 0
-    int edidOffset = findEDIDBlock0(modifiedFirmware);
+    int edidOffset = edid::EDIDUtils::findEDIDBlock0(modifiedFirmware);
     if (edidOffset == -1) {
         qWarning() << "EDID Block 0 not found in firmware";
         return QByteArray(); // Return empty array to indicate failure
@@ -1839,15 +1509,15 @@ QByteArray UpdateDisplaySettingsDialog::processEDIDDisplaySettings(const QByteAr
     
     // Show EDID descriptors BEFORE update
     qDebug() << "=== EDID DESCRIPTORS BEFORE UPDATE ===";
-    showEDIDDescriptors(edidBlock);
+    edid::EDIDUtils::showEDIDDescriptors(edidBlock);
     
     // Update display settings
     if (!newName.isEmpty()) {
-        updateEDIDDisplayName(edidBlock, newName);
+        edid::EDIDUtils::updateEDIDDisplayName(edidBlock, newName);
     }
     
     if (!newSerial.isEmpty()) {
-        updateEDIDSerialNumber(edidBlock, newSerial);
+        edid::EDIDUtils::updateEDIDSerialNumber(edidBlock, newSerial);
     }
     
     // Apply resolution changes to extension blocks if any
@@ -1857,10 +1527,10 @@ QByteArray UpdateDisplaySettingsDialog::processEDIDDisplaySettings(const QByteAr
     
     // Show EDID descriptors AFTER update
     qDebug() << "=== EDID DESCRIPTORS AFTER UPDATE ===";
-    showEDIDDescriptors(edidBlock);
+    edid::EDIDUtils::showEDIDDescriptors(edidBlock);
     
     // Calculate and update EDID checksum
-    quint8 edidChecksum = calculateEDIDChecksum(edidBlock);
+    quint8 edidChecksum = edid::EDIDUtils::calculateEDIDChecksum(edidBlock);
     edidBlock[127] = edidChecksum;
     
     // Replace EDID block in firmware
@@ -1893,24 +1563,16 @@ QByteArray UpdateDisplaySettingsDialog::processEDIDDisplaySettings(const QByteAr
     // Show complete firmware AFTER update (first 256 bytes for debugging)
     qDebug() << "=== COMPLETE FIRMWARE AFTER UPDATE ===";
     qDebug() << "Modified firmware size:" << modifiedFirmware.size() << "bytes";
-    showFirmwareHexDump(modifiedFirmware, 0, qMin(256, modifiedFirmware.size()));
+    edid::EDIDUtils::showFirmwareHexDump(modifiedFirmware, 0, qMin(256, modifiedFirmware.size()));
     
     // Also show the end of firmware (last 32 bytes) to verify checksum
     if (modifiedFirmware.size() > 32) {
         qDebug() << "=== FIRMWARE END (last 32 bytes) ===";
-        showFirmwareHexDump(modifiedFirmware, modifiedFirmware.size() - 32, 32);
+        edid::EDIDUtils::showFirmwareHexDump(modifiedFirmware, modifiedFirmware.size() - 32, 32);
     }
     
     qDebug() << "EDID display settings processing completed successfully";
     return modifiedFirmware;
 }
 
-void UpdateDisplaySettingsDialog::showEDIDDescriptors(const QByteArray &edidBlock)
-{
-    edid::EDIDUtils::showEDIDDescriptors(edidBlock);
-}
 
-void UpdateDisplaySettingsDialog::showFirmwareHexDump(const QByteArray &firmwareData, int startOffset, int length)
-{
-    edid::EDIDUtils::showFirmwareHexDump(firmwareData, startOffset, length);
-}

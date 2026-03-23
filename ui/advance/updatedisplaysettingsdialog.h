@@ -150,27 +150,14 @@ private:
     QString getCurrentDisplayName();
     QString getCurrentSerialNumber();
     void loadCurrentEDIDSettings();
-    void parseEDIDDescriptors(const QByteArray &edidBlock, QString &displayName, QString &serialNumber);
-    void logSupportedResolutions(const QByteArray &edidBlock);
-    void parseEDIDExtensionBlocks(const QByteArray &firmwareData, int baseBlockOffset);
-    void parseCEA861ExtensionBlock(const QByteArray &block, int blockNumber);
-    void parseVideoTimingExtensionBlock(const QByteArray &block, int blockNumber);
-    void parseVideoDataBlock(const QByteArray &vdbData);
-    QString getVICResolution(quint8 vic);
     bool updateDisplaySettings(const QString &newName, const QString &newSerial);
     void stopAllDevices();
     void hideMainWindow();
     QByteArray processEDIDDisplaySettings(const QByteArray &firmwareData, const QString &newName, const QString &newSerial);
-    quint8 calculateEDIDChecksum(const QByteArray &edidBlock);
     quint16 calculateFirmwareChecksumWithDiff(const QByteArray &originalFirmware, const QByteArray &originalEDID, const QByteArray &modifiedEDID);
     quint16 calculateFirmwareChecksumWithDiff(const QByteArray &originalFirmware, const QByteArray &modifiedFirmware);
-    int findEDIDBlock0(const QByteArray &firmwareData);
-    void updateEDIDDisplayName(QByteArray &edidBlock, const QString &newName);
-    void updateEDIDSerialNumber(QByteArray &edidBlock, const QString &newSerial);
-    void showEDIDDescriptors(const QByteArray &edidBlock);
-    void showFirmwareHexDump(const QByteArray &firmwareData, int startOffset = 0, int length = -1);
     
-    // Resolution management
+    // Resolution helpers
     void setupResolutionTable();
     void populateResolutionTable();
     void updateResolutionTableFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData, int baseOffset);
@@ -181,7 +168,6 @@ private:
     void parseExtensionBlocksForResolutions(const QByteArray &firmwareData, int baseOffset);
     void parseCEA861ExtensionBlockForResolutions(const QByteArray &block, int blockNumber);
     void parseVideoDataBlockForResolutions(const QByteArray &dataBlockCollection);
-    ResolutionInfo getVICResolutionInfo(quint8 vic);
     QList<ResolutionInfo> getSelectedResolutions() const;
     void applyResolutionChangesToEDID(QByteArray &edidBlock, const QByteArray &firmwareData);
     void updateExtensionBlockResolutions(QByteArray &firmwareData, int edidOffset);
