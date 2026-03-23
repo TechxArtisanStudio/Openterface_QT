@@ -135,29 +135,34 @@
 <context>
     <name>CornerWidgetManager</name>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="74"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="75"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="272"/>
         <source>Select Keyboard Layout</source>
         <translation>キーボードレイアウトを選択</translation>
     </message>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="257"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="295"/>
         <source>Stop Recording</source>
         <translation>録画を停止</translation>
     </message>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="174"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="257"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="296"/>
         <source>Start Recording</source>
         <translation>録画を開始</translation>
     </message>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="199"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="266"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="300"/>
         <source>Unmute Audio</source>
         <translation>音声のミュートを解除</translation>
     </message>
     <message>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="182"/>
-        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="203"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="199"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="266"/>
+        <location filename="../../ui/cornerwidget/cornerwidgetmanager.cpp" line="301"/>
         <source>Mute Audio</source>
         <translation>音声をミュート</translation>
     </message>
@@ -209,9 +214,123 @@
 <context>
     <name>DeviceCoordinator</name>
     <message>
-        <location filename="../../ui/coordinator/devicecoordinator.cpp" line="107"/>
+        <location filename="../../ui/coordinator/devicecoordinator.cpp" line="99"/>
         <source>No devices available</source>
         <translation>利用可能なデバイスがありません</translation>
+    </message>
+</context>
+<context>
+    <name>DeviceDiagnosticsDialog</name>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="197"/>
+        <source>Diagnostic Tests</source>
+        <translation>診断テスト</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="273"/>
+        <source>Test Log:</source>
+        <translation>テストログ:</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="321"/>
+        <source>Restart</source>
+        <translation>再起動</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="326"/>
+        <source>Previous</source>
+        <translation>前へ</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="331"/>
+        <source>Next</source>
+        <translation>次へ</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="336"/>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="440"/>
+        <source>Check Now</source>
+        <translation>今すぐ確認</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="341"/>
+        <source>Support Email</source>
+        <translation>サポートメール</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="437"/>
+        <source>Testing...</source>
+        <translation>テスト中...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="524"/>
+        <source>Please attach the diagnostics_log.txt file to your email.</source>
+        <translation>diagnostics_log.txt ファイルをメールに添付してください。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="526"/>
+        <source>
+Also attach the serial log file: %1</source>
+        <translation>
+シリアルログファイルも添付してください: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="528"/>
+        <source>Log File</source>
+        <translation>ログファイル</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="560"/>
+        <source>Diagnostics Complete</source>
+        <translation>診断完了</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="643"/>
+        <source>Diagnostics not completed</source>
+        <translation>診断が完了していません</translation>
+    </message>
+</context>
+<context>
+    <name>DiagnosticsManager</name>
+    <message>
+        <location filename="../../ui/advance/diagnostics/diagnosticsmanager.cpp" line="48"/>
+        <source>Overall Connection</source>
+        <translation>全体的な接続状態</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/diagnosticsmanager.cpp" line="49"/>
+        <source>Target Plug &amp; Play</source>
+        <translation>ターゲットのプラグ＆プレイ</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/diagnosticsmanager.cpp" line="50"/>
+        <source>Host Plug &amp; Play</source>
+        <translation>ホストのプラグ＆プレイ</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/diagnosticsmanager.cpp" line="51"/>
+        <source>Factory Reset</source>
+        <translation>工場出荷時リセット</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/diagnosticsmanager.cpp" line="52"/>
+        <source>Serial Connection</source>
+        <translation>シリアル接続</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/diagnosticsmanager.cpp" line="53"/>
+        <source>High Baudrate</source>
+        <translation>高ボーレート</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/diagnosticsmanager.cpp" line="54"/>
+        <source>Low Baudrate</source>
+        <translation>低ボーレート</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/diagnosticsmanager.cpp" line="55"/>
+        <source>Stress Test</source>
+        <translation>ストレステスト</translation>
     </message>
 </context>
 <context>
@@ -267,99 +386,104 @@
         <translation>&lt;a href=&quot;#&quot;&gt;環境ヘルプドキュメント&lt;/a&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="146"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="148"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation> デバイスが接続されていません。接続してから、もう一度お試しください。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="136"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="168"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="138"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="170"/>
         <source>◆ Driver Installed: </source>
         <translation>◆ インストールされたドライバー:</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="137"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="172"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="139"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="175"/>
         <source>◆ Latest Firmware: </source>
         <translation>◆最新ファームウェア：</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="169"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="171"/>
         <source>◆ In Serial Port Permission: </source>
         <translation>◆ シリアルポートのアクセス許可:</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="170"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="172"/>
         <source>◆ HID Permission: </source>
         <translation>◆ HID権限:</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="171"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="173"/>
+        <source>◆ Video Permission: </source>
+        <translation>◆ ビデオ権限: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="174"/>
         <source> (needs removal)</source>
         <translation> (削除が必要)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="171"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="174"/>
         <source> (not running)</source>
         <translation> (実行中ではない)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="171"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="174"/>
         <source>◆ BRLTTY checking: </source>
         <translation>◆ BRLTTYチェック:</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="212"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="215"/>
         <source>Install Driver</source>
         <translation>ドライバーをインストール</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="219"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="222"/>
         <source>Copy Link</source>
         <translation>リンクをコピー</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="235"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="238"/>
         <source>Select Destination Directory</source>
         <translation>保存先ディレクトリを選択</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="291"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="294"/>
         <source>Driver Installed: </source>
         <translation>ドライバーインストール済み: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="291"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="292"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="293"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="294"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="295"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="296"/>
         <source>Yes</source>
         <translation>はい</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="291"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="292"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="293"/>
         <location filename="../../ui/advance/envdialog.cpp" line="294"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="295"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="296"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="297"/>
         <source>No</source>
         <translation>いいえ</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="292"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="295"/>
         <source>Serial port Permission: </source>
         <translation>シリアルポートの権限： </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="133"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="135"/>
         <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
         <translation>以下の手順に従って、ドライバーとOpenterfaceファームウェアの更新をインストールできます。現在の状態：&lt;br&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="167"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="169"/>
         <source>The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:&lt;br&gt;</source>
         <translation>以下の手順に従って、ドライバーのインストール、デバイス権限へのアクセス、およびOpenterfaceファームウェアの更新を行います。現在の状態：&lt;br&gt;</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="213"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="216"/>
         <source>The driver is missing. Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html 
 
 After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.
@@ -372,27 +496,27 @@ Please restart your computer after the driver installation.</source>
 ドライバーのインストール後、コンピューターを再起動してください。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="293"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="296"/>
         <source>HID Permission: </source>
         <translation>HID権限: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="294"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="297"/>
         <source>BRLTTY is Running: </source>
         <translation>BRLTTYが実行中: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="294"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="297"/>
         <source>Yes (needs removal)</source>
         <translation>はい (削除が必要)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="300"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="303"/>
         <source>Restart Required</source>
         <translation>再起動が必要です</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="301"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="304"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
@@ -401,12 +525,12 @@ Would you like to restart your computer now?</source>
 今すぐコンピュータを再起動しますか？</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="310"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="313"/>
         <source>Restart Later</source>
         <translation>後で再起動</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="311"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="314"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation>ドライバーが正しく動作するように、コンピュータを再起動し、デバイスを再接続してください。</translation>
     </message>
@@ -415,7 +539,7 @@ Would you like to restart your computer now?</source>
     <name>FirmwareManagerDialog</name>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
-        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="162"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="178"/>
         <source>Warning</source>
         <translation>警告</translation>
     </message>
@@ -426,7 +550,7 @@ Would you like to restart your computer now?</source>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
-        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="123"/>
         <source>Error</source>
         <translation>エラー</translation>
     </message>
@@ -436,12 +560,12 @@ Would you like to restart your computer now?</source>
         <translation>ファームウェアファイルの読み取りに失敗しました: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="103"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="109"/>
         <source>Success</source>
         <translation>成功</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="103"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="109"/>
         <source>Firmware written successfully to EEPROMThe application will now close.
 Please:
 1. Restart the application
@@ -453,23 +577,23 @@ Please:
 2. すべてのケーブルを抜き差ししてください。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="110"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="123"/>
         <source>Failed to write firmware to EEPROM
 Please try again</source>
         <translation>EEPROMへのファームウェア書き込みに失敗しました。もう一度お試しください。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="125"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="139"/>
         <source>Cancelled</source>
         <translation>キャンセル</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="125"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="139"/>
         <source>Firmware write operation was cancelled</source>
         <translation>ファームウェア書き込み操作がキャンセルされました</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="162"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="178"/>
         <source>Please select a file path</source>
         <translation>ファイルパスを選択してください</translation>
     </message>
@@ -477,39 +601,39 @@ Please try again</source>
 <context>
     <name>FirmwareUpdateConfirmDialog</name>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="113"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="142"/>
         <source>Firmware Update Confirmation</source>
         <translation>ファームウェア更新の確認</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="120"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
         <source>Update</source>
         <translation>更新</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="121"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
         <source>Cancel</source>
         <translation>キャンセル</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="192"/>
         <source>Current firmware version: </source>
         <translation>現在のファームウェアバージョン: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="149"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="192"/>
         <source>
 </source>
         <translation>
 </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="193"/>
         <source>Latest firmware version: </source>
         <translation>最新のファームウェアバージョン: </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="150"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="193"/>
         <source>
 
 </source>
@@ -518,14 +642,14 @@ Please try again</source>
 </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="151"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="194"/>
         <source>The update process will:
 </source>
         <translation>更新プロセスでは:
 </translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="152"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="195"/>
         <source>1. Stop all video and USB operations
 2. Install new firmware
 3. Close the application automatically
@@ -553,35 +677,35 @@ Do you want to proceed with the update?</source>
 <context>
     <name>FirmwareUpdateDialog</name>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="8"/>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="86"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="9"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="112"/>
         <source>Firmware Update</source>
         <translation>ファームウェア更新</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="13"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="14"/>
         <source>Preparing firmware update...</source>
         <translation>ファームウェア更新を準備中...</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="20"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="21"/>
         <source>Close</source>
         <translation>閉じる</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="65"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="77"/>
         <source>Updating firmware... Please do not disconnect the device.</source>
         <translation>ファームウェアを更新中... デバイスを切断しないでください。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="85"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="111"/>
         <source>Firmware update completed successfully.
 The application will close. Please restart it to apply the new firmware.</source>
         <translation>ファームウェア更新が正常に完了しました。
 アプリケーションが閉じます。新しいファームウェアを適用するために再起動してください。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="87"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="113"/>
         <source>Firmware update completed successfully.
 
 The application will now close.
@@ -596,17 +720,17 @@ Please:
 2. すべてのケーブルを切断して再接続する</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="93"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="122"/>
         <source>Firmware update failed. Please try again.</source>
         <translation>ファームウェア更新に失敗しました。もう一度お試しください。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="94"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="123"/>
         <source>Firmware Update Failed</source>
         <translation>ファームウェア更新に失敗</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="95"/>
+        <location filename="../../ui/advance/firmwareupdatedialog.cpp" line="124"/>
         <source>An error occurred during the firmware update.
 
 Please try again after restarting the application.</source>
@@ -658,37 +782,37 @@ Please try again after restarting the application.</source>
         <translation>ファイルロギングを有効にする</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="58"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="59"/>
         <source>Browse</source>
         <translation>参照</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="59"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="60"/>
         <source>Inhibit Screen Saver</source>
         <translation>スクリーンセーバーを無効にする</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="86"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="89"/>
         <source>General log setting</source>
         <translation>一般的なログ設定</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="90"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="93"/>
         <source>Check the check box to see the corresponding log in the QT console.</source>
         <translation>チェックボックスをオンにすると、QTコンソールで対応するログを確認できます。</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="95"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="98"/>
         <source>Screen Saver setting</source>
         <translation>スクリーンセーバー設定</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="99"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="102"/>
         <source>Inhibit the screen saver when the application is running.</source>
         <translation>アプリケーションの実行中はスクリーンセーバーを無効にします。</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="120"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="123"/>
         <source>Select Log Directory</source>
         <translation>ログディレクトリを選択</translation>
     </message>
@@ -756,292 +880,392 @@ Please try again after restarting the application.</source>
         <translation>詳細設定</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="149"/>
+        <location filename="../../ui/mainwindow.ui" line="150"/>
         <source>Close</source>
         <translation>閉じる</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="154"/>
+        <location filename="../../ui/mainwindow.ui" line="153"/>
+        <source>Ctrl+Q</source>
+        <translation>Ctrl+Q</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="158"/>
         <source>Change Settings</source>
         <translation>設定を変更</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="159"/>
+        <location filename="../../ui/mainwindow.ui" line="163"/>
         <source>Reset Serial Port</source>
         <translation>シリアルポートをリセット</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="164"/>
+        <location filename="../../ui/mainwindow.ui" line="168"/>
         <source>Serial Console</source>
         <translation>シリアルコンソール</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="169"/>
+        <location filename="../../ui/mainwindow.ui" line="173"/>
         <source>AutoReszie</source>
         <translation>自動リサイズ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="174"/>
+        <location filename="../../ui/mainwindow.ui" line="178"/>
         <source>Factory Reset HID Chip</source>
         <translation>HIDチップを工場出荷時にリセット</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="179"/>
+        <location filename="../../ui/mainwindow.ui" line="183"/>
         <source>Preferences</source>
         <translation>プリファレンス</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="184"/>
+        <location filename="../../ui/mainwindow.ui" line="186"/>
+        <source>Ctrl+P</source>
+        <translation>Ctrl+P</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="191"/>
         <source>Office Website</source>
         <translation>公式ウェブサイト</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="189"/>
+        <location filename="../../ui/mainwindow.ui" line="196"/>
         <source>Purchase</source>
         <translation>購入</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="194"/>
+        <location filename="../../ui/mainwindow.ui" line="201"/>
         <source>Feedback</source>
         <translation>フィードバック</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="199"/>
+        <location filename="../../ui/mainwindow.ui" line="206"/>
         <source>Update</source>
         <translation>更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="204"/>
+        <location filename="../../ui/mainwindow.ui" line="209"/>
+        <source>Ctrl+U</source>
+        <translation>Ctrl+U</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="214"/>
         <source>Environment</source>
         <translation>環境</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="209"/>
+        <location filename="../../ui/mainwindow.ui" line="217"/>
+        <source>Ctrl+E</source>
+        <translation>Ctrl+E</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="222"/>
         <source>About</source>
         <translation>バージョン情報</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="220"/>
+        <location filename="../../ui/mainwindow.ui" line="225"/>
+        <source>F1</source>
+        <translation>F1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="236"/>
         <source>Follow Switch</source>
         <translation>スイッチに従う</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="228"/>
+        <location filename="../../ui/mainwindow.ui" line="244"/>
         <source>Paste</source>
         <translation>貼り付け</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="231"/>
+        <location filename="../../ui/mainwindow.ui" line="247"/>
         <source>Paste clipboard content to target</source>
         <translation>クリップボードの内容をターゲットに貼り付け</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="236"/>
+        <location filename="../../ui/mainwindow.ui" line="250"/>
+        <source>Ctrl+V</source>
+        <translation>Ctrl+V</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="255"/>
         <source>Script Tool</source>
         <translation>スクリプトツール</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="241"/>
+        <location filename="../../ui/mainwindow.ui" line="258"/>
+        <source>Ctrl+Shift+L</source>
+        <translation>Ctrl+Shift+L</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="263"/>
         <source>Video Recording Settings</source>
         <translation>ビデオ録画設定</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="244"/>
+        <location filename="../../ui/mainwindow.ui" line="266"/>
         <source>Configure video recording settings and start/stop recording</source>
         <translation>ビデオ録画設定を構成し、録画を開始/停止します。</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="249"/>
+        <location filename="../../ui/mainwindow.ui" line="269"/>
+        <source>Ctrl+Shift+R</source>
+        <translation>Ctrl+Shift+R</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="280"/>
+        <source>Ctrl+Shift+D</source>
+        <translation>Ctrl+Shift+D</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="285"/>
         <source>TCP Server</source>
         <translation>TCPサーバー</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="249"/>
+        <location filename="../../ui/mainwindow.ui" line="432"/>
+        <source>Ctrl+Alt+S</source>
+        <translation>Ctrl+Alt+S</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="274"/>
         <source>Hardware Diagnostics</source>
         <translation>ハードウェア診断</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="249"/>
+        <location filename="../../ui/mainwindow.ui" line="277"/>
         <source>Run hardware diagnostics to test device functionality</source>
         <translation>ハードウェア診断を実行してデバイスの機能をテストします</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="254"/>
+        <location filename="../../ui/mainwindow.ui" line="288"/>
+        <source>Ctrl+Shift+C</source>
+        <translation>Ctrl+Shift+C</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="293"/>
         <source>Environment Checking</source>
         <translation>環境チェック</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="259"/>
+        <location filename="../../ui/mainwindow.ui" line="296"/>
+        <source>Ctrl+Shift+E</source>
+        <translation>Ctrl+Shift+E</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="301"/>
         <source>Firmware Manager</source>
         <translation>ファームウェアマネージャー</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="264"/>
+        <location filename="../../ui/mainwindow.ui" line="304"/>
+        <source>Ctrl+Shift+F</source>
+        <translation>Ctrl+Shift+F</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="309"/>
         <source>Firmware Update...</source>
         <translation>ファームウェア更新...</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="269"/>
+        <location filename="../../ui/mainwindow.ui" line="314"/>
         <source>Device Selector</source>
         <translation>デバイスセレクター</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="272"/>
+        <location filename="../../ui/mainwindow.ui" line="317"/>
         <source>Open Device Selector Dialog</source>
         <translation>デバイスセレクターダイアログを開く</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="277"/>
+        <location filename="../../ui/mainwindow.ui" line="320"/>
+        <source>Ctrl+Shift+I</source>
+        <translation>Ctrl+Shift+I</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="325"/>
         <source>Update Display Settings</source>
         <translation>ディスプレイ設定を更新する</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="280"/>
+        <location filename="../../ui/mainwindow.ui" line="328"/>
         <source>Update display name and serial number in EDID</source>
         <translation>EDIDの表示名とシリアル番号を更新します</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="289"/>
+        <location filename="../../ui/mainwindow.ui" line="331"/>
+        <source>Ctrl+Shift+U</source>
+        <translation>Ctrl+Shift+U</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="340"/>
         <source>115200</source>
         <translation>115200</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="297"/>
+        <location filename="../../ui/mainwindow.ui" line="348"/>
         <source>9600</source>
         <translation>9600</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="307"/>
+        <location filename="../../ui/mainwindow.ui" line="358"/>
         <source>To Host</source>
         <translation>ホストへ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="315"/>
+        <location filename="../../ui/mainwindow.ui" line="361"/>
+        <source>Ctrl+Shift+H</source>
+        <translation>Ctrl+Shift+H</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="369"/>
         <source>To Target</source>
         <translation>ターゲットへ</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="328"/>
+        <location filename="../../ui/mainwindow.ui" line="372"/>
+        <source>Ctrl+Shift+T</source>
+        <translation>Ctrl+Shift+T</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="385"/>
         <source>Absolute</source>
         <translation>絶対</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="336"/>
+        <location filename="../../ui/mainwindow.ui" line="388"/>
+        <source>Ctrl+Alt+A</source>
+        <translation>Ctrl+Alt+A</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="396"/>
         <source>Relative</source>
         <translation>相対</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="349"/>
+        <location filename="../../ui/mainwindow.ui" line="399"/>
+        <source>Ctrl+T</source>
+        <translation>Ctrl+T</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="412"/>
         <source>Auto Hide</source>
         <translation>自動非表示</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="352"/>
+        <location filename="../../ui/mainwindow.ui" line="415"/>
         <source>Auto hide mouse cursor</source>
         <translation>マウスカーソルを自動的に非表示にする</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="360"/>
+        <location filename="../../ui/mainwindow.ui" line="418"/>
+        <source>Ctrl+Alt+H</source>
+        <translation>Ctrl+Alt+H</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.ui" line="426"/>
         <source>Always Show</source>
         <translation>常に表示</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.ui" line="363"/>
+        <location filename="../../ui/mainwindow.ui" line="429"/>
         <source>Always show mouse cursor</source>
         <translation>マウスカーソルを常に表示する</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="535"/>
+        <location filename="../../ui/mainwindow.cpp" line="649"/>
         <source>Recorded %1 sec</source>
         <translation>記録された%1秒</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="609"/>
-        <location filename="../../ui/mainwindow.cpp" line="616"/>
-        <location filename="../../ui/mainwindow.cpp" line="643"/>
-        <location filename="../../ui/mainwindow.cpp" line="647"/>
+        <location filename="../../ui/mainwindow.cpp" line="722"/>
+        <location filename="../../ui/mainwindow.cpp" line="729"/>
+        <location filename="../../ui/mainwindow.cpp" line="756"/>
+        <location filename="../../ui/mainwindow.cpp" line="760"/>
         <source>Recording Error</source>
         <translation>録画エラー</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="610"/>
+        <location filename="../../ui/mainwindow.cpp" line="723"/>
         <source>Recording system is not initialized. Please restart the application.</source>
         <translation>録画システムが初期化されていません。アプリケーションを再起動してください。</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="617"/>
+        <location filename="../../ui/mainwindow.cpp" line="730"/>
         <source>Camera system is not initialized. Please restart the application.</source>
         <translation>カメラシステムが初期化されていません。アプリケーションを再起動してください。</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="626"/>
+        <location filename="../../ui/mainwindow.cpp" line="739"/>
         <source>No Camera Available</source>
         <translation>カメラが利用できません</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="627"/>
+        <location filename="../../ui/mainwindow.cpp" line="740"/>
         <source>No camera devices detected. Please connect a camera and try again.</source>
         <translation>カメラ機器が検出されませんでした。カメラを接続してもう一度お試しください。</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="629"/>
+        <location filename="../../ui/mainwindow.cpp" line="742"/>
         <source>Camera Not Active</source>
         <translation>カメラがアクティブではありません</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="630"/>
+        <location filename="../../ui/mainwindow.cpp" line="743"/>
         <source>Camera is not active. Please start the camera preview before recording.</source>
         <translation>カメラがアクティブになっていません。録画を開始する前に、カメラのプレビューを開始してください。</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="644"/>
+        <location filename="../../ui/mainwindow.cpp" line="757"/>
         <source>An unexpected error occurred: %1</source>
         <translation>予期せぬエラーが発生しました: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="648"/>
+        <location filename="../../ui/mainwindow.cpp" line="761"/>
         <source>An unexpected error occurred. Please try again or restart the application.</source>
         <translation>予期せぬエラーが発生しました。もう一度お試しいただくか、アプリケーションを再起動してください。</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="682"/>
+        <location filename="../../ui/mainwindow.cpp" line="798"/>
         <source>Active Recording</source>
         <translation>録画中</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="683"/>
+        <location filename="../../ui/mainwindow.cpp" line="799"/>
         <source>There is an active recording session. Do you want to stop it before changing settings?</source>
         <translation>現在録画セッションが進行中です。設定を変更する前に停止しますか？</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="836"/>
+        <location filename="../../ui/mainwindow.cpp" line="991"/>
         <source>Image Capture Error</source>
         <translation>画像キャプチャエラー</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="905"/>
+        <location filename="../../ui/mainwindow.cpp" line="1061"/>
         <source>Captured &quot;%1&quot;</source>
         <translation>&quot;%1&quot;をキャプチャしました</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1463"/>
+        <location filename="../../ui/mainwindow.cpp" line="1773"/>
         <source>Firmware Update</source>
         <translation>ファームウェア更新</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1464"/>
+        <location filename="../../ui/mainwindow.cpp" line="1774"/>
         <source>The firmware is up to date.
 Current version: </source>
         <translation>ファームウェアは最新です。
 現在のバージョン：</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1486"/>
+        <location filename="../../ui/mainwindow.cpp" line="1860"/>
         <source>Firmware fetch timeout</source>
         <translation>ファームウェア取得タイムアウト</translation>
     </message>
     <message>
-        <location filename="../../ui/mainwindow.cpp" line="1487"/>
+        <location filename="../../ui/mainwindow.cpp" line="1861"/>
         <source>Firmware retrieval timed out. Please check your network connection and try again.
 Current version: </source>
         <translation>ファームウェアの取得がタイムアウトしました。ネットワーク接続を確認して、もう一度お試しください。
@@ -1049,11 +1273,39 @@ Current version: </source>
     </message>
 </context>
 <context>
+    <name>QObject</name>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="43"/>
+        <source>Test not started</source>
+        <translation>テストは開始されていません</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="47"/>
+        <source>Test in progress...</source>
+        <translation>テスト進行中...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="51"/>
+        <source>Test completed successfully</source>
+        <translation>テストが正常に完了しました</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="55"/>
+        <source>Test failed</source>
+        <translation>テストが失敗しました</translation>
+    </message>
+    <message>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="306"/>
+        <source>Copied to clipboard</source>
+        <translation>クリップボードにコピーされました</translation>
+    </message>
+</context>
+<context>
     <name>RecordingController</name>
     <message>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="102"/>
         <location filename="../../ui/recording/recordingcontroller.cpp" line="114"/>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="391"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="392"/>
         <source>Recording Error</source>
         <translation>録画エラー</translation>
     </message>
@@ -1068,7 +1320,7 @@ Current version: </source>
         <translation>録画を開始できません - カメラシステムが初期化されていません。</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="368"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="369"/>
         <source>Failed to start recording.
 
 Possible causes:
@@ -1089,7 +1341,7 @@ Technical details: %1</source>
 技術的な詳細：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="375"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="376"/>
         <source>Failed to save recording.
 
 Possible causes:
@@ -1108,7 +1360,7 @@ Technical details: %1</source>
 技術的な詳細：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="381"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="382"/>
         <source>The recording file may be corrupted.
 
 Possible causes:
@@ -1127,59 +1379,59 @@ Technical details: %1</source>
 技術的な詳細：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="387"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="388"/>
         <source>An error occurred with the recording:
 %1</source>
         <translation>録画中にエラーが発生しました:
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="397"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="398"/>
         <source>Retry</source>
         <translation>リトライ</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="413"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="414"/>
         <source>Reset Failed</source>
         <translation>リセットに失敗しました</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="414"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="415"/>
         <source>Cannot reset recording system - camera manager is not available.</source>
         <translation>録画システムをリセットできません - カメラマネージャーが利用できません。</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="422"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="423"/>
         <source>Recording in Progress</source>
         <translation>録画中</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="423"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="424"/>
         <source>A recording is currently in progress. Stop it and reset the recording system?</source>
         <translation>現在録画中です。録画を停止して録画システムをリセットしますか？</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="440"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="441"/>
         <source>System Reset</source>
         <translation>システムリセット</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="441"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="442"/>
         <source>FFmpeg backend automatically handles recovery. Please try recording again.</source>
         <translation>FFmpegバックエンドが自動的に復旧処理を行います。もう一度録画をお試しください。</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="465"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="466"/>
         <source>Recording System Diagnostics</source>
         <translation>記録システム診断</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="476"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="477"/>
         <source>Copy to Clipboard</source>
         <translation>クリップボードにコピー</translation>
     </message>
     <message>
-        <location filename="../../ui/recording/recordingcontroller.cpp" line="477"/>
+        <location filename="../../ui/recording/recordingcontroller.cpp" line="478"/>
         <source>Close</source>
         <translation>閉じる</translation>
     </message>
@@ -1187,281 +1439,281 @@ Technical details: %1</source>
 <context>
     <name>RecordingSettingsDialog</name>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="64"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="65"/>
         <source>Video Recording Settings</source>
         <translation>ビデオ録画設定</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="218"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="219"/>
         <source>Apply Settings</source>
         <translation>設定を適用</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="219"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="220"/>
         <source>Reset to Defaults</source>
         <translation>初期設定に戻す</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="220"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="221"/>
         <source>Close</source>
         <translation>閉じる</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="232"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="233"/>
         <source>Recording Controls</source>
         <translation>録画コントロール</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="236"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="237"/>
         <source>Backend: Detecting...</source>
         <translation>バックエンド: 検出中...</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="240"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="241"/>
         <source>Start Recording</source>
         <translation>録画を開始</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="241"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="242"/>
         <source>Stop Recording</source>
         <translation>録画を停止</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="242"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="243"/>
         <source>Pause</source>
         <translation>一時停止</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="243"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="244"/>
         <source>Resume</source>
         <translation>再開する</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="246"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="247"/>
         <source>Status: Ready</source>
         <translation>ステータス：準備完了</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="247"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="248"/>
         <source>Duration: 00:00:00</source>
         <translation>再生時間：00:00:00</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="271"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="272"/>
         <source>Video Settings</source>
         <translation>ビデオ設定</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="277"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="278"/>
         <source>Codec:</source>
         <translation>コーデック:</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="284"/>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="771"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="285"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="772"/>
         <source>GStreamer codecs: mjpeg (fast), x264enc (good compression), x265enc (best compression)</source>
         <translation>GStreamerコーデック：mjpeg（高速）、x264enc（良好な圧縮率）、x265enc（最高の圧縮率）</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="287"/>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="774"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="288"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="775"/>
         <source>FFmpeg codec: mjpeg (compatible with AVI format)</source>
         <translation>FFmpegコーデック：mjpeg（AVI形式と互換性あり）</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="292"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="293"/>
         <source>Quality:</source>
         <translation>品質：</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="295"/>
         <source>Low</source>
         <translation>低い</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="295"/>
         <source>Medium</source>
         <translation>中くらい</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="295"/>
         <source>High</source>
         <translation>高い</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="295"/>
         <source>Ultra</source>
         <translation>ウルトラ</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="294"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="295"/>
         <source>Custom</source>
         <translation>カスタム</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="298"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="299"/>
         <source>Bitrate (kbps):</source>
         <translation>ビットレート（kbps）：</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="320"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="321"/>
         <source>Output Settings</source>
         <translation>出力設定</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="326"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="327"/>
         <source>Format:</source>
         <translation>形式：</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="333"/>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="781"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="334"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="782"/>
         <source>GStreamer formats: AVI (compatible), MP4 (modern), MKV (flexible)</source>
         <translation>GStreamer対応フォーマット：AVI（互換）、MP4（最新）、MKV（柔軟性あり）</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="336"/>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="784"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="337"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="785"/>
         <source>FFmpeg format: AVI (most compatible with custom build)</source>
         <translation>FFmpegフォーマット：AVI（カスタムビルドとの互換性が最も高い）</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="341"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="342"/>
         <source>Output Path:</source>
         <translation>出力パス:</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="345"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="346"/>
         <source>Browse...</source>
         <translation>ブラウズ...</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="380"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="381"/>
         <source>Error</source>
         <translation>エラー</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="380"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="381"/>
         <source>No video backend available.</source>
         <translation>動画バックエンドが利用できません。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="388"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="389"/>
         <source>Recording</source>
         <translation>録画</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="388"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="389"/>
         <source>Recording is already in progress.</source>
         <translation>録画は既に始まっています。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="419"/>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="680"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="420"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="681"/>
         <source>Recording Error</source>
         <translation>録画エラー</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="420"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="421"/>
         <source>Failed to start recording. Please check the settings and try again.</source>
-        <translation></translation>
+        <translation>録画を開始できませんでした。設定を確認して、もう一度お試しください。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="446"/>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="606"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="447"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="607"/>
         <source>Status: Recording to %1</source>
         <translation>ステータス: %1 に記録中</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="490"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="491"/>
         <source>Status: Recording stopped</source>
         <translation>ステータス：録画停止</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="503"/>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="512"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="504"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="513"/>
         <source>Status: Recording stopped (with error)</source>
         <translation>ステータス：録画が停止しました（エラー発生）</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="546"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="547"/>
         <source>Save Recording As</source>
         <translation>録画を名前を付けて保存</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="548"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="549"/>
         <source>Video Files (*.mp4 *.avi *.mov *.mkv *.webm);;All Files (*)</source>
         <translation>ビデオファイル (*.mp4 *.avi *.mov *.mkv *.webm);;すべてのファイル (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="560"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="561"/>
         <source>Warning</source>
         <translation>警告</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="560"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="561"/>
         <source>No video backend available!</source>
         <translation>動画バックエンドが利用できません！</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="583"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="584"/>
         <source>Status: Settings applied</source>
         <translation>ステータス：設定が適用されました</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="640"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="641"/>
         <source>Status: Recording stopped. File saved to %1</source>
         <translation>ステータス：録画が停止しました。ファイルは%1に保存されました。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="649"/>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="686"/>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="696"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="650"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="687"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="697"/>
         <source>Duration: %1</source>
         <translation>期間：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="659"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="660"/>
         <source>Status: Recording paused</source>
         <translation>ステータス：録画一時停止中</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="666"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="667"/>
         <source>Status: Recording resumed</source>
         <translation>ステータス：録画再開</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="677"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="678"/>
         <source>Status: Recording error - %1</source>
         <translation>ステータス：記録エラー - %1</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="681"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="682"/>
         <source>Recording failed: %1</source>
         <translation>録画失敗: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="728"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="729"/>
         <source>Backend: %1</source>
         <translation>バックエンド: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="730"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="731"/>
         <source>Backend: %1 (configured: %2)</source>
         <translation>バックエンド: %1 (設定済み: %2)</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="744"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="745"/>
         <source>Backend: None available</source>
         <translation>バックエンド: 利用不可</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="761"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="762"/>
         <source>Windows Qt backend codecs: MJPEG</source>
         <translation>Windows Qtバックエンドコーデック: MJPEG</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="765"/>
+        <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="766"/>
         <source>Windows Qt backend formats: MP4 (recommended), AVI (compatible), MOV (QuickTime)</source>
         <translation>Windows Qtバックエンドのフォーマット：MP4（推奨）、AVI（互換）、MOV（QuickTime）</translation>
     </message>
@@ -1761,6 +2013,210 @@ Please:
     </message>
 </context>
 <context>
+    <name>SupportEmailDialog</name>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="18"/>
+        <source>Support Email Draft</source>
+        <translation>サポートメール下書き</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="20"/>
+        <source> - Please complete the diagnostics tests first</source>
+        <translation> - まず診断テストを完了してください</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="41"/>
+        <source>Order ID (optional):</source>
+        <translation>注文ID（任意）:</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="43"/>
+        <source>Enter your order ID if applicable</source>
+        <translation>該当する場合は注文IDを入力してください</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="44"/>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="56"/>
+        <source>Apply</source>
+        <translation>適用</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="54"/>
+        <source>Your Name:</source>
+        <translation>お名前：</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="66"/>
+        <source>Send to email:</source>
+        <translation>メール送信先：</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="69"/>
+        <source>Copy Email</source>
+        <translation>メールアドレスをコピー</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="79"/>
+        <source>Email Draft:</source>
+        <translation>メール下書き：</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="92"/>
+        <source>Copy Draft</source>
+        <translation>下書きをコピー</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="96"/>
+        <source>Open File Folder</source>
+        <translation>ファイルフォルダを開く</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="106"/>
+        <source>Done</source>
+        <translation>完了</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="114"/>
+        <source>Subject: Openterface Diagnostics Report - Issues Found
+
+</source>
+        <translation>件名: Openterface 診断レポート - 問題が発見されました
+
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="115"/>
+        <source>Dear Openterface Support Team,
+
+</source>
+        <translation>Openterface サポートチーム御中、
+
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="116"/>
+        <source>Order ID: [Please enter your order ID if you have one]
+
+</source>
+        <translation>注文ID：[お持ちの場合は注文IDを入力してください]
+
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="117"/>
+        <source>I have run the diagnostics tool and encountered the following issues:
+
+</source>
+        <translation>診断ツールを実行したところ、以下の問題が発生しました：
+
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="123"/>
+        <source>Please find attached the diagnostics log file for your reference.
+</source>
+        <translation>ご参照用に診断ログファイルを添付いたします。
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="125"/>
+        <source>Also attached: Serial log file for diagnostics: %1
+
+</source>
+        <translation>また添付：診断用シリアルログファイル：%1
+
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="127"/>
+        <source>(If available, please include the serial log file as well.)
+
+</source>
+        <translation>（可能な場合は、シリアルログファイルも添付してください。）
+
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="129"/>
+        <source>Best regards,
+</source>
+        <translation>敬具、
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="130"/>
+        <source>[Your Name]
+</source>
+        <translation>[お名前]
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="138"/>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="150"/>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="163"/>
+        <source>Warning</source>
+        <translation>警告</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="138"/>
+        <source>Please enter your name.</source>
+        <translation>お名前を入力してください。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="150"/>
+        <source>Please enter your order ID.</source>
+        <translation>注文IDを入力してください。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="163"/>
+        <source>No log files exist.</source>
+        <translation>ログファイルが存在しません。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="170"/>
+        <source>Error</source>
+        <translation>エラー</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="170"/>
+        <source>Could not open log file directory.</source>
+        <translation>ログファイルのディレクトリを開けませんでした。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="172"/>
+        <source>Please attach the diagnostics log file to your email.</source>
+        <translation>診断ログファイルをメールに添付してください。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="174"/>
+        <source>
+Also attach the serial log file: %1</source>
+        <translation>
+シリアルログファイルも添付してください：%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="176"/>
+        <source>Log File</source>
+        <translation>ログファイル</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="182"/>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="188"/>
+        <source>Copied</source>
+        <translation>コピー済み</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="182"/>
+        <source>Email address copied to clipboard.</source>
+        <translation>メールアドレスをクリップボードにコピーしました。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="188"/>
+        <source>Email draft copied to clipboard.</source>
+        <translation>メール下書きをクリップボードにコピーしました。</translation>
+    </message>
+</context>
+<context>
     <name>TargetControlPage</name>
     <message>
         <location filename="../../ui/preferences/targetcontrolpage.cpp" line="38"/>
@@ -1897,7 +2353,7 @@ Please:
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="218"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="524"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="534"/>
         <source>Reading firmware data...</source>
         <translation>ファームウェアデータを読み込んでいます...</translation>
     </message>
@@ -2030,159 +2486,169 @@ Do you want to continue?</source>
         <translation>アップデート処理を開始できませんでした。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="514"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="589"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="602"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="615"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="521"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="599"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="612"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="625"/>
         <source>Failed to read firmware - enter display name</source>
         <translation>ファームウェアの読み取りに失敗しました - 表示名を入力してください</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="515"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="590"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="603"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="616"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="522"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="600"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="613"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="626"/>
         <source>Failed to read firmware - enter serial number</source>
         <translation>ファームウェアの読み取りに失敗しました - シリアル番号を入力してください</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="711"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="725"/>
         <source>Error reading firmware - enter display name</source>
         <translation>ファームウェアの読み取りエラー - 表示名を入力してください</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="712"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="726"/>
         <source>Error reading firmware - enter serial number</source>
         <translation>ファームウェアの読み取りエラー - シリアル番号を入力してください</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="626"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1870"/>
+        <source>Display settings updated successfully!
+
+The application will now exit.
+Please disconnect and reconnect the entire device to apply the changes.</source>
+        <translation>ディスプレイ設定が正常に更新されました！
+
+アプリケーションを終了します。
+変更を適用するには、デバイス全体を取り外して再接続してください。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="636"/>
         <source>EDID not found - enter display name</source>
         <translation>EDIDが見つかりません - 表示名を入力してください</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="627"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="637"/>
         <source>EDID not found - enter serial number</source>
         <translation>EDIDが見つかりません - シリアル番号を入力してください</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="634"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="644"/>
         <source>Invalid EDID - enter display name</source>
         <translation>無効なEDIDです - 表示名を入力してください</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="635"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="645"/>
         <source>Invalid EDID - enter serial number</source>
         <translation>EDIDが無効です - シリアル番号を入力してください</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="650"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="660"/>
         <source>Enter new display name (max 13 characters)</source>
         <translation>新しい表示名を入力してください（最大13文字）</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="654"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="664"/>
         <source>No display name found - enter new name</source>
         <translation>表示名が見つかりませんでした - 新しい名前を入力してください</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="660"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="670"/>
         <source>Enter new serial number (max 13 characters)</source>
         <translation>新しいシリアル番号を入力してください（最大13文字）</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="664"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="674"/>
         <source>No serial number found - enter new serial</source>
         <translation>シリアル番号が見つかりません - 新しいシリアル番号を入力してください</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="717"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="731"/>
         <source>Firmware Read Error</source>
         <translation>ファームウェア読み取りエラー</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="718"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="732"/>
         <source>Failed to read firmware: %1</source>
         <translation>ファームウェアの読み取りに失敗しました: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="758"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="776"/>
         <source>Reading cancelled - enter display name</source>
         <translation>読み取りがキャンセルされました - 表示名を入力してください</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="759"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="777"/>
         <source>Reading cancelled - enter serial number</source>
         <translation>読み取りがキャンセルされました - シリアル番号を入力してください</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1016"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1038"/>
         <source>Extension</source>
         <translation>拡大</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1693"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1736"/>
         <source>Firmware Error</source>
         <translation>ファームウェアエラー</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1693"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1736"/>
         <source>Failed to read firmware size.</source>
         <translation>ファームウェアサイズの読み取りに失敗しました。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1722"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1815"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1773"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1919"/>
         <source>Read Error</source>
         <translation>読み取りエラー</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1722"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1773"/>
         <source>Failed to read firmware from device.</source>
         <translation>デバイスからファームウェアを読み取れませんでした。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1739"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1798"/>
         <source>File Error</source>
         <translation>ファイルエラー</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1739"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1798"/>
         <source>Failed to read firmware file.</source>
         <translation>ファームウェアファイルの読み込みに失敗しました。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1754"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1821"/>
         <source>Processing Error</source>
         <translation>処理エラー</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1754"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1821"/>
         <source>Failed to process EDID settings.</source>
         <translation>EDID設定の処理に失敗しました。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1785"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1869"/>
         <source>Success</source>
         <translation>成功</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1785"/>
         <source>Display settings updated successfully!\n\nPlease reconnect the device to see the changes.</source>
         <translation>ディスプレイ設定が正常に更新されました！\n\n変更内容を確認するには、デバイスを再接続してください。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1788"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1889"/>
         <source>Write Error</source>
         <translation>書き込みエラー</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1788"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1889"/>
         <source>Failed to write firmware to device.</source>
         <translation>デバイスへのファームウェアの書き込みに失敗しました。</translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1815"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1919"/>
         <source>Firmware read failed: %1</source>
         <translation>ファームウェアの読み取りに失敗しました: %1</translation>
     </message>
@@ -2190,23 +2656,27 @@ Do you want to continue?</source>
 <context>
     <name>VersionInfoManager</name>
     <message>
-        <location filename="../../ui/help/versioninfomanager.cpp" line="59"/>
-        <location filename="../../ui/help/versioninfomanager.cpp" line="73"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="68"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="82"/>
         <source>%1</source>
         <translation>%1</translation>
     </message>
     <message>
-        <location filename="../../ui/help/versioninfomanager.cpp" line="77"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="86"/>
         <source>Copy</source>
         <translation>コピー</translation>
     </message>
     <message>
-        <location filename="../../ui/help/versioninfomanager.cpp" line="213"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="242"/>
+        <source>Openterface Mini KVM</source>
+        <translation>Openterface Mini KVM</translation>
+    </message>
+    <message>
         <source>Openterface KVM</source>
         <translation>Openterface KVM</translation>
     </message>
     <message>
-        <location filename="../../ui/help/versioninfomanager.cpp" line="216"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="251"/>
         <source>A new version is available!
 Current version: %1
 Latest version: %2
@@ -2217,29 +2687,67 @@ Latest version: %2
 </translation>
     </message>
     <message>
-        <location filename="../../ui/help/versioninfomanager.cpp" line="219"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="255"/>
+        <source>Release: %1</source>
+        <translation>リリース: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="266"/>
+        <source>What&apos;s new:</source>
+        <translation>新機能：</translation>
+    </message>
+    <message>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="285"/>
+        <source>Go to download new version</source>
+        <translation>新バージョンをダウンロード</translation>
+    </message>
+    <message>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="296"/>
+        <source>Copy URL</source>
+        <translation>URLをコピー</translation>
+    </message>
+    <message>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="297"/>
+        <source>Copy release page URL to clipboard</source>
+        <translation>リリースページURLをクリップボードにコピー</translation>
+    </message>
+    <message>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="319"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="374"/>
+        <source>Remind me in 1 month later</source>
+        <translation>1か月後にリマインドする</translation>
+    </message>
+    <message>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="320"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="375"/>
+        <source>Never remind me</source>
+        <translation>今後は通知しない</translation>
+    </message>
+    <message>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="337"/>
         <source>Update</source>
         <translation>更新</translation>
     </message>
     <message>
-        <location filename="../../ui/help/versioninfomanager.cpp" line="220"/>
+        <location filename="../../ui/help/versioninfomanager.cpp" line="367"/>
+        <source>You are using the latest version — Current version: %1</source>
+        <translation>最新バージョンを使用しています — 現在のバージョン: %1</translation>
+    </message>
+    <message>
         <source>Cancel</source>
         <translation>キャンセル</translation>
     </message>
     <message>
-        <location filename="../../ui/help/versioninfomanager.cpp" line="228"/>
         <source>You are using the latest version</source>
         <translation>あなたは最新バージョンを使用しています</translation>
     </message>
     <message>
-        <location filename="../../ui/help/versioninfomanager.cpp" line="234"/>
         <source>Update Check Failed
 </source>
         <translation>更新チェックに失敗しました
 </translation>
     </message>
     <message>
-        <location filename="../../ui/help/versioninfomanager.cpp" line="235"/>
         <source>Failed to check for updates.
 Error: %1
 Please check your internet connection.
@@ -2253,69 +2761,134 @@ Please check your internet connection.
 <context>
     <name>VideoPage</name>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="100"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="103"/>
         <source>General video setting</source>
         <translation>一般的なビデオ設定</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="104"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="107"/>
         <source>Capture resolutions: </source>
         <translation>キャプチャ解像度: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="110"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="113"/>
         <source>Framerate: </source>
         <translation>フレームレート: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="119"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="122"/>
         <source>Pixel format: </source>
         <translation>ピクセル形式: </translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="124"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="127"/>
         <source>Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable.</source>
         <translation>注：Linux環境では、「OK」または「適用」をクリックした後、画面が真っ暗になる場合があります。ホストケーブルを抜き差ししてください。</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="132"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="135"/>
         <source>Media Backend: </source>
         <translation>メディアバックエンド:</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="147"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="150"/>
         <source>Note: Changing media backend requires application restart to take effect.</source>
         <translation>注：メディアバックエンドを変更すると、変更内容を有効にするためにアプリケーションを再起動する必要があります。</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/videopage.cpp" line="154"/>
+        <source>GStreamer Sink Priority: </source>
+        <translation>GStreamerシンクの優先度:</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="163"/>
+        <source>Comma-separated list of sinks to try in order.</source>
+        <translation>順番に試すシンクのカンマ区切りリスト。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="171"/>
         <source>Hardware Acceleration: </source>
         <translation>ハードウェアアクセラレーション：</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="160"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="178"/>
         <source>Note: Hardware acceleration improves performance but may not be available on all systems. Changing this setting requires application restart to take effect.</source>
         <translation>注：ハードウェアアクセラレーションはパフォーマンスを向上させますが、すべてのシステムで利用できるとは限りません。この設定を変更するには、アプリケーションを再起動する必要があります。</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="172"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="203"/>
         <source>Auto (Recommended)</source>
         <translation>自動（推奨）</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="174"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="205"/>
         <source>NVIDIA CUDA</source>
         <translation>NVIDIA CUDA</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="176"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="207"/>
         <source>Intel Quick Sync Video</source>
         <translation>インテル クイック シンク ビデオ</translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="178"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="209"/>
         <source>CPU</source>
         <translation>CPU</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="226"/>
+        <source>Image Quality: </source>
+        <translation>画質: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="231"/>
+        <source>Fastest (Lower quality)</source>
+        <translation>最高速（低品質）</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="232"/>
+        <source>Balanced (Good quality)</source>
+        <translation>バランス（良好な品質）</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="233"/>
+        <source>High Quality (Recommended)</source>
+        <translation>高品質（推奨）</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="234"/>
+        <source>Best Quality (Slower)</source>
+        <translation>最高品質（低速）</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="249"/>
+        <source>Note: Higher quality settings provide sharper images but may use slightly more CPU.</source>
+        <translation>注：品質設定を高くするとより鸮檯な画像が得られますが、CPUの使用量が少し増える場合があります。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="281"/>
+        <source>Video Rendering Quality:</source>
+        <translation>動画レンダリング品質:</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="284"/>
+        <source>Enable Antialiasing (smoother edges)</source>
+        <translation>アンチエイリアシングを有効にする（滑らかな輪郭）</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="288"/>
+        <source>Enable Text Antialiasing (clearer text)</source>
+        <translation>テキストアンチエイリアシングを有効にする（鮮明なテキスト）</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="292"/>
+        <source>Enable Smooth Transform (better scaling)</source>
+        <translation>スムーズ変換を有効にする（尺度調整の向上）</translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/videopage.cpp" line="296"/>
+        <source>Note: These settings control video display quality. Disabling may improve performance on slower systems.</source>
+        <translation>注：これらの設定は動画表示品質を制御します。無効にすると、低速なシステムでのパフォーマンスが向上する場合があります。</translation>
     </message>
 </context>
 </TS>
