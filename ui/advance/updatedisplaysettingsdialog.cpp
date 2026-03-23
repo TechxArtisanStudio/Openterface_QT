@@ -52,7 +52,6 @@
 
 UpdateDisplaySettingsDialog::UpdateDisplaySettingsDialog(QWidget *parent) :
     QDialog(parent),
-    titleLabel(nullptr),
     displayNameGroup(nullptr),
     displayNameCheckBox(nullptr),
     displayNameLineEdit(nullptr),
@@ -77,7 +76,8 @@ UpdateDisplaySettingsDialog::UpdateDisplaySettingsDialog(QWidget *parent) :
     cancelReadingButton(nullptr),
     firmwareReaderThread(nullptr),
     firmwareReader(nullptr),
-    m_cleanupInProgress(false)
+    m_cleanupInProgress(false),
+    m_operationFinished(false)
 {
     setupUI();
     
@@ -449,24 +449,30 @@ void UpdateDisplaySettingsDialog::onCancelButtonClicked()
     QDialog::reject();
 }
 
-void UpdateDisplaySettingsDialog::onSelectAllResolutions()
+void UpdateDisplaySettingsDialog::setAllResolutionSelection(bool enable)
 {
+    if (!resolutionTable) return;
+
     for (int row = 0; row < resolutionTable->rowCount(); ++row) {
         QTableWidgetItem* checkItem = resolutionTable->item(row, 0);
         if (checkItem) {
-            checkItem->setCheckState(Qt::Checked);
+            checkItem->setCheckState(enable ? Qt::Checked : Qt::Unchecked);
+        }
+        if (row < availableResolutions.size()) {
+            availableResolutions[row].userSelected = enable;
         }
     }
+    enableUpdateButton();
+}
+
+void UpdateDisplaySettingsDialog::onSelectAllResolutions()
+{
+    setAllResolutionSelection(true);
 }
 
 void UpdateDisplaySettingsDialog::onSelectNoneResolutions()
 {
-    for (int row = 0; row < resolutionTable->rowCount(); ++row) {
-        QTableWidgetItem* checkItem = resolutionTable->item(row, 0);
-        if (checkItem) {
-            checkItem->setCheckState(Qt::Unchecked);
-        }
-    }
+    setAllResolutionSelection(false);
 }
 
 void UpdateDisplaySettingsDialog::onSelectDefaultResolutions()
@@ -705,96 +711,149 @@ void UpdateDisplaySettingsDialog::onFirmwareReadFinished(bool success)
     });
 }
 
+void UpdateDisplaySettingsDialog::setupProgressDialog()
+{
+    if (progressDialog) return;
+    progressDialog = new QProgressDialog(tr("Updating display settings..."), tr("Cancel"), 0, 100, this);
+    progressDialog->setWindowModality(Qt::WindowModal);
+    progressDialog->setAutoClose(false);
+    progressDialog->setAutoReset(false);
+    connect(progressDialog, &QProgressDialog::canceled, this, [this]() {
+        qDebug() << "Firmware operation canceled by user";
+        onCancelReadingClicked();
+    });
+    progressDialog->show();
+}
+
+void UpdateDisplaySettingsDialog::closeProgressDialog()
+{
+    if (!progressDialog) return;
+    progressDialog->blockSignals(true); // prevent canceled() from firing synchronously during close
+    progressDialog->close();
+    progressDialog->deleteLater();
+    progressDialog = nullptr;
+}
+
+void UpdateDisplaySettingsDialog::restartPollingDelayed(const QString &reason)
+{
+    QTimer::singleShot(500, this, [this, reason]() {
+        VideoHid::getInstance().start();
+        qDebug() << "Polling restarted after" << reason;
+    });
+}
+
+void UpdateDisplaySettingsDialog::showErrorAndRestart(const QString &title, const QString &message, const QString &reason)
+{
+    closeProgressDialog();
+    QMessageBox::critical(this, title, message);
+    restartPollingDelayed(reason);
+}
+
+bool UpdateDisplaySettingsDialog::readFirmwareFile(const QString &path, QByteArray &outData)
+{
+    QFile firmwareFile(path);
+    if (!firmwareFile.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+    outData = firmwareFile.readAll();
+    firmwareFile.close();
+    return true;
+}
+
+void UpdateDisplaySettingsDialog::startFirmwareWrite(const QByteArray &modifiedFirmware, const QString &tempFirmwarePath)
+{
+    QThread* writerThread = new QThread();
+    FirmwareWriter* firmwareWriter = new FirmwareWriter(&VideoHid::getInstance(), ADDR_EEPROM, modifiedFirmware, nullptr);
+    firmwareWriter->moveToThread(writerThread);
+
+    connect(firmwareWriter, &FirmwareWriter::progress, this, [this](int percent) {
+        if (progressDialog) {
+            progressDialog->setValue(40 + percent * 60 / 100);
+        }
+    });
+
+    connect(firmwareWriter, &FirmwareWriter::finished, this, [this, tempFirmwarePath, writerThread](bool writeSuccess) {
+        qDebug() << "FirmwareWriter finished with success:" << writeSuccess;
+        closeProgressDialog();
+        QFile::remove(tempFirmwarePath);
+
+        if (writeSuccess) {
+            m_operationFinished = true;
+            progressGroup->setVisible(false);
+            closeProgressDialog();
+            QMessageBox::information(this, tr("Success"), tr("Display settings updated successfully!\n\nThe application will now exit.\nPlease disconnect and reconnect the entire device to apply the changes."));
+            qDebug() << "Success dialog acknowledged, exiting application";
+            QApplication::quit();
+        } else {
+            showErrorAndRestart(tr("Write Error"), tr("Failed to write firmware to device."), tr("firmware write failure"));
+        }
+    });
+
+    connect(writerThread, &QThread::started, firmwareWriter, &FirmwareWriter::process);
+    connect(firmwareWriter, &FirmwareWriter::finished, writerThread, &QThread::quit);
+    connect(firmwareWriter, &FirmwareWriter::finished, firmwareWriter, &FirmwareWriter::deleteLater);
+    connect(writerThread, &QThread::finished, writerThread, &QThread::deleteLater);
+
+    writerThread->start();
+}
+
 void UpdateDisplaySettingsDialog::onFirmwareReadError(const QString& errorMessage)
 {
-    // Hide embedded progress components
-    if (progressGroup) {
-        progressGroup->setVisible(false);
-    }
-    
-    // Clean up old progress dialog if it exists
-    if (progressDialog) {
-        progressDialog->close();
-        progressDialog->deleteLater();
-        progressDialog = nullptr;
-    }
-    
-    // Re-enable dialog controls
+    if (progressGroup) progressGroup->setVisible(false);
+    closeProgressDialog();
+
     displayNameGroup->setEnabled(true);
     serialNumberGroup->setEnabled(true);
     if (resolutionGroup) resolutionGroup->setEnabled(true);
-    
+
     qWarning() << "Firmware read error:" << errorMessage;
     displayNameLineEdit->setPlaceholderText(tr("Error reading firmware - enter display name"));
     serialNumberLineEdit->setPlaceholderText(tr("Error reading firmware - enter serial number"));
-    
-    // Update button state
     enableUpdateButton();
-    
-    QMessageBox::warning(this, tr("Firmware Read Error"), 
-                        tr("Failed to read firmware: %1").arg(errorMessage));
-    
-    // Clean up the firmware reader thread
-    QTimer::singleShot(0, this, [this]() {
-        cleanupFirmwareReaderThread();
-        // Restart polling after cleanup with proper delay
-        QTimer::singleShot(500, [this]() {
-            VideoHid::getInstance().start();
-        });
-    });
+
+    showErrorAndRestart(tr("Firmware Read Error"), tr("Failed to read firmware: %1").arg(errorMessage), tr("firmware read error"));
+    cleanupFirmwareReaderThread();
 }
 
 void UpdateDisplaySettingsDialog::onCancelReadingClicked()
 {
+    if (m_operationFinished) {
+        qDebug() << "Cancel ignored because operation is already finished";
+        return;
+    }
+
     qDebug() << "User cancelled firmware reading";
-    
-    // Request thread interruption immediately
+
     if (firmwareReaderThread && firmwareReaderThread->isRunning()) {
-        qDebug() << "Requesting thread interruption";
+        qDebug() << "Requesting thread interruption and quit";
         firmwareReaderThread->requestInterruption();
-        
-        // Also request quit signal
         firmwareReaderThread->quit();
     }
-    
-    // Hide progress components immediately
+
+    cleanupFirmwareReaderThread();
+
     if (progressGroup) {
         progressGroup->setVisible(false);
     }
-    
-    // Clean up old progress dialog if it exists
-    if (progressDialog) {
-        progressDialog->cancel();
-        progressDialog->close();
-        progressDialog->deleteLater();
-        progressDialog = nullptr;
-    }
-    
-    // Re-enable dialog controls
+
+    closeProgressDialog();
+
     displayNameGroup->setEnabled(true);
     serialNumberGroup->setEnabled(true);
     if (resolutionGroup) resolutionGroup->setEnabled(true);
-    
-    // Update placeholders to indicate cancellation
+
     displayNameLineEdit->setPlaceholderText(tr("Reading cancelled - enter display name"));
     serialNumberLineEdit->setPlaceholderText(tr("Reading cancelled - enter serial number"));
-    
-    // Update button state
     enableUpdateButton();
-    
-    // Schedule thread cleanup for later (non-blocking)
-    QTimer::singleShot(1000, this, [this]() {
-        if (firmwareReaderThread && firmwareReaderThread->isRunning()) {
-            qWarning() << "Thread still running after 1 second, attempting termination";
-            firmwareReaderThread->terminate();
-            // Don't wait here - let the destructor handle final cleanup
-        }
-        // Restart polling after cancel
-        QTimer::singleShot(500, [this]() {
-            VideoHid::getInstance().start();
-        });
-    });
+
+    restartPollingDelayed(tr("user cancellation"));
+
+    // If this was triggered through the dialog cancel button, close the dialog
+    if (isVisible()) {
+        QDialog::reject();
+    }
 }
+
 
 void UpdateDisplaySettingsDialog::addResolutionToList(const QString& description, int width, int height, int refreshRate, 
                                                     quint8 vic, bool isStandardTiming, bool isEnabled)
@@ -913,20 +972,6 @@ bool UpdateDisplaySettingsDialog::hasResolutionChanges() const
     return false;
 }
 
-
-QString UpdateDisplaySettingsDialog::getCurrentDisplayName()
-{
-    // This method is now called by loadCurrentEDIDSettings()
-    // Return empty string as the actual value is loaded asynchronously
-    return QString();
-}
-
-QString UpdateDisplaySettingsDialog::getCurrentSerialNumber()
-{
-    // This method is now called by loadCurrentEDIDSettings()
-    // Return empty string as the actual value is loaded asynchronously
-    return QString();
-}
 
 void UpdateDisplaySettingsDialog::updateExtensionBlockResolutions(QByteArray &firmwareData, int edidOffset)
 {
@@ -1091,47 +1136,12 @@ bool UpdateDisplaySettingsDialog::updateDisplaySettings(const QString &newName, 
     videoHid.stopPollingOnly();
     qDebug() << "Polling stopped before firmware operation";
     
-    // Create progress dialog
-    progressDialog = new QProgressDialog("Updating display settings...", "Cancel", 0, 100, this);
-    progressDialog->setWindowModality(Qt::WindowModal);
-    progressDialog->setAutoClose(false);
-    progressDialog->setAutoReset(false);
-    
-    // Handle progress dialog cancellation
-    connect(progressDialog, &QProgressDialog::canceled, this, [this]() {
-        qDebug() << "Firmware operation canceled by user";
-        
-        // Try to interrupt any running firmware operations
-        // Note: The firmware threads should be stored if we want to interrupt them properly
-        // For now, we just restart polling after a delay
-        
-        // Restart polling after cancellation with delay
-        QTimer::singleShot(500, this, [this]() {
-            VideoHid& videoHid = VideoHid::getInstance();
-            videoHid.start();
-            qDebug() << "Polling restarted after user cancellation";
-        });
-        
-        // Close the dialog
-        QDialog::reject();
-    });
-    
-    progressDialog->show();
+    setupProgressDialog();
     
     // Step 2: Read firmware
     quint32 firmwareSize = VideoHid::getInstance().readFirmwareSize();
     if (firmwareSize == 0) {
-        QMessageBox::critical(this, tr("Firmware Error"), tr("Failed to read firmware size."));
-        delete progressDialog;
-        progressDialog = nullptr;
-        
-        // Restart polling after firmware size read error with delay
-        QTimer::singleShot(500, this, [this]() {
-            VideoHid& videoHid = VideoHid::getInstance();
-            videoHid.start();
-            qDebug() << "Polling restarted after firmware size read error";
-        });
-        
+        showErrorAndRestart(tr("Firmware Error"), tr("Failed to read firmware size."), tr("firmware size read error"));
         return false;
     }
     
@@ -1153,20 +1163,7 @@ bool UpdateDisplaySettingsDialog::updateDisplaySettings(const QString &newName, 
     // Handle firmware read completion
     connect(firmwareReader, &FirmwareReader::finished, this, [=](bool success) {
         if (!success) {
-            if (progressDialog) {
-                progressDialog->close();
-                delete progressDialog;
-                progressDialog = nullptr;
-            }
-            QMessageBox::critical(this, tr("Read Error"), tr("Failed to read firmware from device."));
-            
-            // Restart polling after firmware read failure with delay
-            QTimer::singleShot(500, this, [this]() {
-                VideoHid& videoHid = VideoHid::getInstance();
-                videoHid.start();
-                qDebug() << "Polling restarted after firmware read failure";
-            });
-            
+            showErrorAndRestart(tr("Read Error"), tr("Failed to read firmware from device."), tr("firmware read failure"));
             return;
         }
         
@@ -1178,20 +1175,7 @@ bool UpdateDisplaySettingsDialog::updateDisplaySettings(const QString &newName, 
         // Read the firmware file
         QFile firmwareFile(tempFirmwarePath);
         if (!firmwareFile.open(QIODevice::ReadOnly)) {
-            if (progressDialog) {
-                progressDialog->close();
-                delete progressDialog;
-                progressDialog = nullptr;
-            }
-            QMessageBox::critical(this, tr("File Error"), tr("Failed to read firmware file."));
-            
-            // Restart polling after file error with delay
-            QTimer::singleShot(500, this, [this]() {
-                VideoHid& videoHid = VideoHid::getInstance();
-                videoHid.start();
-                qDebug() << "Polling restarted after firmware file read error";
-            });
-            
+            showErrorAndRestart(tr("File Error"), tr("Failed to read firmware file."), tr("firmware file read error"));
             return;
         }
         
@@ -1201,20 +1185,7 @@ bool UpdateDisplaySettingsDialog::updateDisplaySettings(const QString &newName, 
         // Process the EDID with new settings
         QByteArray modifiedFirmware = processEDIDDisplaySettings(firmwareData, newName, newSerial);
         if (modifiedFirmware.isEmpty()) {
-            if (progressDialog) {
-                progressDialog->close();
-                delete progressDialog;
-                progressDialog = nullptr;
-            }
-            QMessageBox::critical(this, tr("Processing Error"), tr("Failed to process EDID settings."));
-            
-            // Restart polling after processing error with delay
-            QTimer::singleShot(500, this, [this]() {
-                VideoHid& videoHid = VideoHid::getInstance();
-                videoHid.start();
-                qDebug() << "Polling restarted after EDID processing error";
-            });
-            
+            showErrorAndRestart(tr("Processing Error"), tr("Failed to process EDID settings."), tr("EDID processing error"));
             return;
         }
         
@@ -1223,96 +1194,14 @@ bool UpdateDisplaySettingsDialog::updateDisplaySettings(const QString &newName, 
             progressDialog->setLabelText("Writing modified firmware...");
         }
         
-        // Create firmware writer thread
-        QThread* writerThread = new QThread();
-        FirmwareWriter* firmwareWriter = new FirmwareWriter(&VideoHid::getInstance(), ADDR_EEPROM, modifiedFirmware, nullptr);
-        firmwareWriter->moveToThread(writerThread);
-        
-        connect(firmwareWriter, &FirmwareWriter::progress, this, [this](int percent) {
-            if (progressDialog) {
-                progressDialog->setValue(40 + percent * 60 / 100); // Scale to 40-100%
-            }
-        });
-        
-        connect(firmwareWriter, &FirmwareWriter::finished, this, [this, tempFirmwarePath, writerThread](bool writeSuccess) {
-            qDebug() << "FirmwareWriter finished with success:" << writeSuccess;
-            
-            if (progressDialog) {
-                // Disconnect cancel signal to prevent dialog closure
-                disconnect(progressDialog, &QProgressDialog::canceled, this, nullptr);
-                progressDialog->close();
-                delete progressDialog;
-                progressDialog = nullptr;
-            }
-            
-            // Clean up temporary file
-            QFile::remove(tempFirmwarePath);
-            
-            if (writeSuccess) {
-                qDebug() << "Firmware write successful, showing success dialog and exiting";
-                
-                // Show success message and instruct user to reconnect device
-                QMessageBox* successBox = new QMessageBox(this);
-                successBox->setIcon(QMessageBox::Information);
-                successBox->setWindowTitle(tr("Success"));
-                successBox->setText(tr("Display settings updated successfully!\n\n"
-                                       "The application will now exit.\n"
-                                       "Please disconnect and reconnect the entire device to apply the changes."));
-                successBox->setStandardButtons(QMessageBox::Ok);
-                successBox->setAttribute(Qt::WA_DeleteOnClose);
-                
-                // Connect to exit application after user closes the dialog
-                connect(successBox, &QMessageBox::finished, []() {
-                    qDebug() << "Success dialog closed, exiting application";
-                    QApplication::quit();
-                });
-                
-                qDebug() << "About to show success dialog";
-                successBox->show();
-                successBox->raise();
-                successBox->activateWindow();
-                qDebug() << "Success dialog shown";
-            } else {
-                qDebug() << "Firmware write failed, showing error and restarting polling";
-                QMessageBox::critical(this, tr("Write Error"), tr("Failed to write firmware to device."));
-                
-                // Restart polling even after write failure with delay
-                QTimer::singleShot(500, this, [this]() {
-                    VideoHid& videoHid = VideoHid::getInstance();
-                    videoHid.start();
-                    qDebug() << "Polling restarted after firmware write failure";
-                });
-            }
-        });
-        
-        connect(writerThread, &QThread::started, firmwareWriter, &FirmwareWriter::process);
-        connect(firmwareWriter, &FirmwareWriter::finished, writerThread, &QThread::quit);
-        connect(firmwareWriter, &FirmwareWriter::finished, firmwareWriter, &FirmwareWriter::deleteLater);
-        connect(writerThread, &QThread::finished, writerThread, &QThread::deleteLater);
-        
-        writerThread->start();
-        
+        startFirmwareWrite(modifiedFirmware, tempFirmwarePath);
         readerThread->quit();
         readerThread->wait();
         readerThread->deleteLater();
     });
     
     connect(firmwareReader, &FirmwareReader::error, this, [=](const QString& errorMessage) {
-        if (progressDialog) {
-            progressDialog->close();
-            delete progressDialog;
-            progressDialog = nullptr;
-        }
-        
-        QMessageBox::critical(this, tr("Read Error"), tr("Firmware read failed: %1").arg(errorMessage));
-        
-        // Restart polling after read error with delay
-        QTimer::singleShot(500, this, [this]() {
-            VideoHid& videoHid = VideoHid::getInstance();
-            videoHid.start();
-            qDebug() << "Polling restarted after firmware read error";
-        });
-        
+        showErrorAndRestart(tr("Read Error"), tr("Firmware read failed: %1").arg(errorMessage), tr("firmware read error"));
         readerThread->quit();
         readerThread->wait();
         readerThread->deleteLater();

@@ -92,6 +92,7 @@ private slots:
     void onSelectNoneResolutions();
     void onSelectDefaultResolutions();
     void onResolutionItemChanged(QTableWidgetItem* item);
+    void setAllResolutionSelection(bool enable);
     
     // Firmware reading slots
     void onFirmwareReadProgress(int percent);
@@ -101,8 +102,6 @@ private slots:
 
 private:
     // UI components
-    QLabel *titleLabel;
-    
     // Display Name Group
     QGroupBox *displayNameGroup;
     QCheckBox *displayNameCheckBox;
@@ -142,15 +141,20 @@ private:
     QThread *firmwareReaderThread;
     FirmwareReader *firmwareReader;
     bool m_cleanupInProgress;  // Flag to prevent double cleanup
+    bool m_operationFinished;  // Flag to avoid cancel handling after success/quit
     
     // Resolution data
     QList<ResolutionInfo> availableResolutions;
     
     // EDID and firmware processing
-    QString getCurrentDisplayName();
-    QString getCurrentSerialNumber();
     void loadCurrentEDIDSettings();
     bool updateDisplaySettings(const QString &newName, const QString &newSerial);
+    void setupProgressDialog();
+    void closeProgressDialog();
+    void restartPollingDelayed(const QString &reason);
+    void showErrorAndRestart(const QString &title, const QString &message, const QString &reason);
+    bool readFirmwareFile(const QString &path, QByteArray &outData);
+    void startFirmwareWrite(const QByteArray &modifiedFirmware, const QString &tempFirmwarePath);
     void stopAllDevices();
     void hideMainWindow();
     QByteArray processEDIDDisplaySettings(const QByteArray &firmwareData, const QString &newName, const QString &newSerial);
