@@ -16,7 +16,7 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="63"/>
         <source>Select the audio input device for capturing audio</source>
-        <translation>音声を録音するための音声入力デバイスを選択してください。</translation>
+        <translation>音声を録音するための音声入力デバイスを選択してください</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="65"/>
@@ -48,7 +48,7 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="89"/>
         <source>Select the audio codec for recording</source>
-        <translation>録音に使用するオーディオコーデックを選択してください。</translation>
+        <translation>録音に使用するオーディオコーデックを選択してください</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="95"/>
@@ -58,7 +58,7 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="103"/>
         <source>Set the audio sample rate (Hz)</source>
-        <translation>音声サンプルレート（Hz）を設定します。</translation>
+        <translation>音声サンプルレート（Hz）を設定します</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="109"/>
@@ -68,7 +68,7 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="117"/>
         <source>Set the audio bitrate (kbps)</source>
-        <translation>音声ビットレート（kbps）を設定します。</translation>
+        <translation>音声ビットレート（kbps）を設定します</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="123"/>
@@ -288,6 +288,487 @@ Also attach the serial log file: %1</source>
         <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="643"/>
         <source>Diagnostics not completed</source>
         <translation>診断が完了していません</translation>
+    </message>
+</context>
+<context>
+    <name>DeviceSelectorDialog</name>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="29"/>
+        <source>Openterface Device Selector</source>
+        <translation>Openinterface デバイスセレクタ</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="65"/>
+        <source>Available Openterface Devices</source>
+        <translation>利用可能なOpenterfaceデバイス</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="76"/>
+        <source>Refresh</source>
+        <translation>リフレッシュ</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="77"/>
+        <source>Auto Refresh</source>
+        <translation>自動更新</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="79"/>
+        <source>Test Hotplug</source>
+        <translation>ホットプラグテスト</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="80"/>
+        <source>Clear Cache</source>
+        <translation>キャッシュをクリア</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="81"/>
+        <source>Debug USB</source>
+        <translation>デバッグ用USB</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="136"/>
+        <source>Device Details</source>
+        <translation>デバイスの詳細</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="147"/>
+        <source>Status</source>
+        <translation>状態</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="150"/>
+        <source>No devices detected</source>
+        <translation>デバイスが検出されませんでした</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="154"/>
+        <source>Hotplug events: 0</source>
+        <translation>ホットプラグイベント: 0</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="167"/>
+        <source>Select Device</source>
+        <translation>デバイスを選択</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="169"/>
+        <source>Switch to Device</source>
+        <translation>デバイスに切り替える</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="171"/>
+        <source>Deactivate Current</source>
+        <translation>現在の設定を無効にする</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="172"/>
+        <source>Show Active Interfaces</source>
+        <translation>アクティブなインターフェースを表示する</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="173"/>
+        <source>Close</source>
+        <translation>閉じる</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="250"/>
+        <source> [CURRENT]</source>
+        <translation>[現在]</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="270"/>
+        <source>Port %1</source>
+        <translation>ポート%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="271"/>
+        <source>- Openterface Mini KVM</source>
+        <translation>- Openterface Mini KVM</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="278"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="280"/>
+        <source>Serial(%1)</source>
+        <translation>シリアル番号(%1)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="283"/>
+        <source>HID</source>
+        <translation>HID</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="284"/>
+        <source>Camera</source>
+        <translation>カメラ</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="285"/>
+        <source>Audio</source>
+        <translation>オーディオ</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="339"/>
+        <source>%1/4 interfaces</source>
+        <translation>%1/4 インターフェース</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="345"/>
+        <source>ACTIVE</source>
+        <translation>アクティブ</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="347"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="540"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="541"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="542"/>
+        <source>Available</source>
+        <translation>利用可能</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="356"/>
+        <source>No device selected</source>
+        <translation>デバイスが選択されていません</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="360"/>
+        <source>&lt;h3&gt;Openterface Mini KVM Device&lt;/h3&gt;</source>
+        <translation>&lt;h3&gt;Openterface Mini KVMデバイス&lt;/h3&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="361"/>
+        <source>&lt;h4&gt;USB Port: %1&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;USBポート: %1&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="362"/>
+        <source>&lt;b&gt;Device Instance ID:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;デバイスインスタンスID:&lt;/b​​&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="363"/>
+        <source>&lt;b&gt;Last Seen:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;最終ログイン:&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="367"/>
+        <source>&lt;h4&gt;Physical Device Overview:&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;物理デバイスの概要:&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="369"/>
+        <source>&lt;b&gt;Available Interfaces:&lt;/b&gt; %1/4</source>
+        <translation>&lt;b&gt;利用可能なインターフェース:&lt;/b&gt; %1/4</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="370"/>
+        <source>&lt;b&gt;Device Status:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;デバイスの状態:&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="371"/>
+        <source>&lt;b&gt;Physical Location:&lt;/b&gt; USB Port %1</source>
+        <translation>&lt;b&gt;物理的な位置:&lt;/b&gt; USBポート %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="375"/>
+        <source>&lt;h4&gt;Interface Details:&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;インターフェースの詳細:&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="378"/>
+        <source>&lt;b&gt;Serial Interface:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;シリアルインターフェース:&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="379"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="400"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="420"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="428"/>
+        <source>   Device ID: %1</source>
+        <translation>デバイスID: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="380"/>
+        <source>   Function: Control and communication</source>
+        <translation>機能：制御および通信</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="382"/>
+        <source>❌ &lt;b&gt;Serial Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;シリアルインターフェース:&lt;/b&gt; 利用できません</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="397"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="417"/>
+        <source> (Active)</source>
+        <translation>（アクティブ）</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="398"/>
+        <source>️ &lt;b&gt;HID Interface:&lt;/b&gt; Available%1</source>
+        <translation>️ &lt;b&gt;HIDインターフェース:&lt;/b&gt; 利用可能%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="399"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="419"/>
+        <source>   Device Path: %1</source>
+        <translation>デバイスパス: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="401"/>
+        <source>   Function: Keyboard/mouse control</source>
+        <translation>機能：キーボード/マウス操作</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="403"/>
+        <source>❌ &lt;b&gt;HID Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;HIDインターフェース:&lt;/b&gt; 利用できません</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="418"/>
+        <source> &lt;b&gt;Camera Interface:&lt;/b&gt; Available%1</source>
+        <translation> &lt;b&gt;カメラインターフェース:&lt;/b&gt; 利用可能%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="421"/>
+        <source>   Function: Video capture</source>
+        <translation>機能: ビデオキャプチャ</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="423"/>
+        <source>❌ &lt;b&gt;Camera Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;カメラインターフェース:&lt;/b&gt; 利用できません</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="427"/>
+        <source> &lt;b&gt;Audio Interface:&lt;/b&gt; Available</source>
+        <translation>&lt;b&gt;オーディオインターフェース:&lt;/b&gt; 利用可能</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="429"/>
+        <source>   Function: Audio capture/playback</source>
+        <translation>機能：音声の録音／再生</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="431"/>
+        <source>❌ &lt;b&gt;Audio Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;オーディオインターフェース:&lt;/b&gt; 利用できません</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="437"/>
+        <source>&lt;h4&gt;Usage Instructions:&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;使用方法:&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="438"/>
+        <source>• Select this device to use all available interfaces</source>
+        <translation>• このデバイスを選択すると、利用可能なすべてのインターフェースが使用できます</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="439"/>
+        <source>• The device will be activated for serial communication</source>
+        <translation>・デバイスはシリアル通信用に有効化されます</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="440"/>
+        <source>• HID interface will be available for keyboard/mouse control</source>
+        <translation>・キーボード/マウス操作用のHIDインターフェースが利用可能になります</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="441"/>
+        <source>• Camera and audio interfaces will be available for capture</source>
+        <translation>・カメラとオーディオのインターフェースが利用可能になります</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="456"/>
+        <source>No Openterface devices detected</source>
+        <translation>Openterface デバイスは検出されませんでした</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="459"/>
+        <source>Found %1 physical Openterface device(s)</source>
+        <translation>%1 台の Openterface 物理デバイスが見つかりました</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="466"/>
+        <source>&lt;br&gt;Currently active: USB Port %1</source>
+        <translation>&lt;br&gt;現在アクティブ: USBポート %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="467"/>
+        <source>&lt;br&gt;Active interfaces: %1</source>
+        <translation>アクティブなインターフェース: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="469"/>
+        <source>&lt;br&gt;No device currently active</source>
+        <translation>現在アクティブなデバイスはありません</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="476"/>
+        <source>Hotplug events: %1</source>
+        <translation>ホットプラグイベント: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="478"/>
+        <source>&lt;br&gt;Last event: %1</source>
+        <translation>&lt;br&gt;最後のイベント: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="531"/>
+        <source>Select Physical Device</source>
+        <translation>物理デバイスを選択</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="532"/>
+        <source>Select Openterface device at port %1?
+
+This will activate:
+• Serial communication: %2
+• HID interface: %3
+• Camera interface: %4
+• Audio interface: %5</source>
+        <translation>ポート%1のOpenterfaceデバイスを選択しますか？
+
+これにより、以下の機能が有効になります。
+• シリアル通信: %2
+• HIDインターフェース: %3
+• カメラインターフェース: %4
+• オーディオインターフェース: %5</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="539"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="540"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="541"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="542"/>
+        <source>Not available</source>
+        <translation>利用不可</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="585"/>
+        <source>Switch Physical Device</source>
+        <translation>スイッチ物理デバイス</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="586"/>
+        <source>Switch from device at USB Port %1 to USB Port %2?
+
+Current device interfaces will be deactivated and
+new device interfaces will be activated.</source>
+        <translation>デバイス切り替え結果：USBポート%1のデバイスからUSBポート%2のデバイスに切り替えますか？
+
+現在のデバイスインターフェースは無効化され、
+新しいデバイスインターフェースが有効化されます。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="602"/>
+        <source>Device Switch Result</source>
+        <translation>デバイス切り替え結果</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="613"/>
+        <source>No Active Device</source>
+        <translation>アクティブなデバイスがありません</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="613"/>
+        <source>No device is currently active.</source>
+        <translation>現在、アクティブなデバイスはありません。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="619"/>
+        <source>Deactivate Device</source>
+        <translation>デバイスを無効にする</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="620"/>
+        <source>Deactivate current device at port %1?
+
+All device interfaces will be released.</source>
+        <translation>ポート%1で現在使用されているデバイスを無効化しますか？
+
+すべてのデバイスインターフェースが解放されます。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="631"/>
+        <source>Device Deactivated</source>
+        <translation>デバイスが無効化されました</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="632"/>
+        <source>Device at port %1 has been deactivated.</source>
+        <translation>ポート%1のデバイスは無効化されました。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="647"/>
+        <source>Device Selected Successfully</source>
+        <translation>デバイスが正常に選択されました</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="650"/>
+        <source>Openterface device at port %1 is now active!
+
+</source>
+        <translation>ポート%1のOpenterfaceデバイスがアクティブになりました！</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="653"/>
+        <source>✓ Serial: %1</source>
+        <translation>✓ シリアル番号: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="654"/>
+        <source>✓ HID: Available for keyboard/mouse</source>
+        <translation>✓ HID: キーボード/マウスで使用可能</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="655"/>
+        <source>✓ Camera: Available for video capture</source>
+        <translation>✓ カメラ：ビデオ撮影が可能</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="656"/>
+        <source>✓ Audio: Available for audio capture</source>
+        <translation>✓ 音声: 音声録音が可能</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="659"/>
+        <source>Active interfaces:
+</source>
+        <translation>アクティブなインターフェース:</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="671"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="680"/>
+        <source>Active Interfaces</source>
+        <translation>アクティブインターフェース</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="671"/>
+        <source>No device is currently selected.</source>
+        <translation>現在、デバイスは選択されていません。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="676"/>
+        <source>Active Device: %1
+
+Interfaces:
+%2</source>
+        <translation>アクティブデバイス：%1
+
+インターフェース：%2</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="694"/>
+        <source>Auto Refresh ON</source>
+        <translation>自動更新オン</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="698"/>
+        <source>Auto Refresh OFF</source>
+        <translation>自動更新オフ</translation>
     </message>
 </context>
 <context>
@@ -538,6 +1019,26 @@ Would you like to restart your computer now?</source>
 <context>
     <name>FirmwareManagerDialog</name>
     <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="24"/>
+        <source>Firmware Manager</source>
+        <translation>ファームウェアマネージャー</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="31"/>
+        <source>Current Firmware Version: </source>
+        <translation>現在のファームウェアバージョン：</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="36"/>
+        <source>Restore firmware</source>
+        <translation>ファームウェアを復元する</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="40"/>
+        <source>Write firmware from bin</source>
+        <translation>バイナリファイルからファームウェアを書き込む</translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="178"/>
         <source>Warning</source>
@@ -551,6 +1052,8 @@ Would you like to restart your computer now?</source>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="123"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="220"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="230"/>
         <source>Error</source>
         <translation>エラー</translation>
     </message>
@@ -560,7 +1063,19 @@ Would you like to restart your computer now?</source>
         <translation>ファームウェアファイルの読み取りに失敗しました: %1</translation>
     </message>
     <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="86"/>
+        <source>Writing firmware to EEPROM...</source>
+        <translation>EEPROMにファームウェアを書き込んでいます...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="86"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="190"/>
+        <source>Cancel</source>
+        <translation>キャンセル</translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="109"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="218"/>
         <source>Success</source>
         <translation>成功</translation>
     </message>
@@ -584,6 +1099,7 @@ Please try again</source>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="139"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="247"/>
         <source>Cancelled</source>
         <translation>キャンセル</translation>
     </message>
@@ -593,9 +1109,52 @@ Please try again</source>
         <translation>ファームウェア書き込み操作がキャンセルされました</translation>
     </message>
     <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="150"/>
+        <source>Open Firmware File</source>
+        <translation>ファームウェアファイルを開く</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="152"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="166"/>
+        <source>Firmware Files (*.bin);;All Files (*)</source>
+        <translation>ファームウェアファイル (*.bin)；すべてのファイル (*)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="164"/>
+        <source>Save Firmware File</source>
+        <translation>ファームウェアファイルを保存</translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="178"/>
         <source>Please select a file path</source>
         <translation>ファイルパスを選択してください</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="190"/>
+        <source>Reading firmware from EEPROM...</source>
+        <translation>EEPROMからファームウェアを読み込んでいます...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="218"/>
+        <source>Firmware read and saved successfully to: </source>
+        <translation>ファームウェアの読み込みと保存に成功しました:</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="218"/>
+        <source>
+You can restart the app or write the firmware</source>
+        <translation>
+アプリを再起動するか、ファームウェアを書き込むことができます</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="220"/>
+        <source>Failed to read and save firmware.</source>
+        <translation>ファームウェアの読み込みと保存に失敗しました。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="247"/>
+        <source>Firmware read operation was cancelled.</source>
+        <translation>ファームウェアの読み取り操作がキャンセルされました。</translation>
     </message>
 </context>
 <context>
@@ -1173,6 +1732,26 @@ Please try again after restarting the application.</source>
         <location filename="../../ui/mainwindow.ui" line="429"/>
         <source>Always show mouse cursor</source>
         <translation>マウスカーソルを常に表示する</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="432"/>
+        <source>Confirm Factory Reset HID Chip?</source>
+        <translation>HIDチップの工場出荷時設定へのリセットを確認しますか？</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="433"/>
+        <source>Factory reset the HID chip. Proceed?</source>
+        <translation>HIDチップを工場出荷時の設定にリセットします。続行しますか？</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="447"/>
+        <source>Confirm Reset Serial Port?</source>
+        <translation>シリアルポートのリセットを確認しますか？</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="448"/>
+        <source>Resetting the serial port will close and re-open it without changing settings. Proceed?</source>
+        <translation>シリアルポートをリセットすると、設定を変更せずにポートが閉じられ、再度開かれます。続行しますか？</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="649"/>

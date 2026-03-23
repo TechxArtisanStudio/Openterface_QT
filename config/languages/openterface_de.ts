@@ -4,6 +4,10 @@
 <context>
     <name>AudioPage</name>
     <message>
+        <source>Available Openterface Devices</source>
+        <translation>Verfügbare Openterface-Geräte</translation>
+    </message>
+    <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="54"/>
         <source>Audio Device Selection</source>
         <translation>Auswahl des Audiogeräts</translation>
@@ -16,7 +20,7 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="63"/>
         <source>Select the audio input device for capturing audio</source>
-        <translation>Wählen Sie das Audioeingabegerät für die Audioaufnahme aus.</translation>
+        <translation>Wählen Sie das Audioeingabegerät für die Audioaufnahme aus</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="65"/>
@@ -48,7 +52,7 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="89"/>
         <source>Select the audio codec for recording</source>
-        <translation>Wählen Sie den Audio-Codec für die Aufnahme aus.</translation>
+        <translation>Wählen Sie den Audio-Codec für die Aufnahme aus</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="95"/>
@@ -68,7 +72,7 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="117"/>
         <source>Set the audio bitrate (kbps)</source>
-        <translation>Stellen Sie die Audio-Bitrate (kbps) ein.</translation>
+        <translation>Stellen Sie die Audio-Bitrate (kbps) ein</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="123"/>
@@ -88,7 +92,7 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="150"/>
         <source>Select the container format for recordings</source>
-        <translation>Wählen Sie das Containerformat für Aufnahmen aus.</translation>
+        <translation>Wählen Sie das Containerformat für Aufnahmen aus</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="156"/>
@@ -108,7 +112,7 @@
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="169"/>
         <source>Volume:</source>
-        <translation>Volumen:</translation>
+        <translation>Lautstärke:</translation>
     </message>
     <message>
         <location filename="../../ui/preferences/audiopage.cpp" line="178"/>
@@ -288,6 +292,491 @@ Fügen Sie auch die serielle Protokolldatei bei: %1</translation>
         <location filename="../../ui/advance/devicediagnosticsdialog.cpp" line="643"/>
         <source>Diagnostics not completed</source>
         <translation>Diagnose nicht abgeschlossen</translation>
+    </message>
+</context>
+<context>
+    <name>DeviceSelectorDialog</name>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="29"/>
+        <source>Openterface Device Selector</source>
+        <translation>Openterface Geräteauswahl</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="65"/>
+        <source>Available Openterface Devices</source>
+        <translation>Verfügbare Openterface-Geräte</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="76"/>
+        <source>Refresh</source>
+        <translation>Aktualisieren</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="77"/>
+        <source>Auto Refresh</source>
+        <translation>Automatische Aktualisierung</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="79"/>
+        <source>Test Hotplug</source>
+        <translation>Hotplug testen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="80"/>
+        <source>Clear Cache</source>
+        <translation>Cache leeren</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="81"/>
+        <source>Debug USB</source>
+        <translation>USB debuggen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="136"/>
+        <source>Device Details</source>
+        <translation>Gerätedetails</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="147"/>
+        <source>Status</source>
+        <translation>Status</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="150"/>
+        <source>No devices detected</source>
+        <translation>Keine Geräte erkannt</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="154"/>
+        <source>Hotplug events: 0</source>
+        <translation>Hotplug-Ereignisse: 0</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="167"/>
+        <source>Select Device</source>
+        <translation>Gerät auswählen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="169"/>
+        <source>Switch to Device</source>
+        <translation>Zum Gerät wechseln</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="171"/>
+        <source>Deactivate Current</source>
+        <translation>Aktuelles deaktivieren</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="172"/>
+        <source>Show Active Interfaces</source>
+        <translation>Aktive Schnittstellen anzeigen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="173"/>
+        <source>Close</source>
+        <translation>Schließen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="250"/>
+        <source> [CURRENT]</source>
+        <translation> [AKTUELL]</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="270"/>
+        <source>Port %1</source>
+        <translation>Port %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="271"/>
+        <source>- Openterface Mini KVM</source>
+        <translation>- Openterface Mini KVM</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="278"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="280"/>
+        <source>Serial(%1)</source>
+        <translation>Seriell(%1)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="283"/>
+        <source>HID</source>
+        <translation>HID</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="284"/>
+        <source>Camera</source>
+        <translation>Kamera</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="285"/>
+        <source>Audio</source>
+        <translation>Audio</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="339"/>
+        <source>%1/4 interfaces</source>
+        <translation>%1/4 Schnittstellen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="345"/>
+        <source>ACTIVE</source>
+        <translation>AKTIV</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="347"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="540"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="541"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="542"/>
+        <source>Available</source>
+        <translation>Verfügbar</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="356"/>
+        <source>No device selected</source>
+        <translation>Kein Gerät ausgewählt</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="360"/>
+        <source>&lt;h3&gt;Openterface Mini KVM Device&lt;/h3&gt;</source>
+        <translation>&lt;h3&gt;Openterface Mini KVM-Gerät&lt;/h3&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="361"/>
+        <source>&lt;h4&gt;USB Port: %1&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;USB-Port: %1&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="362"/>
+        <source>&lt;b&gt;Device Instance ID:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;Geräteinstanz-ID:&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="363"/>
+        <source>&lt;b&gt;Last Seen:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;Zuletzt gesehen:&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="367"/>
+        <source>&lt;h4&gt;Physical Device Overview:&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;Physische Geräteübersicht:&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="369"/>
+        <source>&lt;b&gt;Available Interfaces:&lt;/b&gt; %1/4</source>
+        <translation>&lt;b&gt;Verfügbare Schnittstellen:&lt;/b&gt; %1/4</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="370"/>
+        <source>&lt;b&gt;Device Status:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;Gerätestatus:&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="371"/>
+        <source>&lt;b&gt;Physical Location:&lt;/b&gt; USB Port %1</source>
+        <translation>&lt;b&gt;Physischer Standort:&lt;/b&gt; USB-Port %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="375"/>
+        <source>&lt;h4&gt;Interface Details:&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;Schnittstellendetails:&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="378"/>
+        <source>&lt;b&gt;Serial Interface:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;Serielle Schnittstelle:&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="379"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="400"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="420"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="428"/>
+        <source>   Device ID: %1</source>
+        <translation>   Geräte-ID: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="380"/>
+        <source>   Function: Control and communication</source>
+        <translation>   Funktion: Steuerung und Kommunikation</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="382"/>
+        <source>❌ &lt;b&gt;Serial Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;Serielle Schnittstelle:&lt;/b&gt; Nicht verfügbar</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="397"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="417"/>
+        <source> (Active)</source>
+        <translation> (Aktiv)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="398"/>
+        <source>️ &lt;b&gt;HID Interface:&lt;/b&gt; Available%1</source>
+        <translation>️ &lt;b&gt;HID-Schnittstelle:&lt;/b&gt; Verfügbar%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="399"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="419"/>
+        <source>   Device Path: %1</source>
+        <translation>   Gerätepfad: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="401"/>
+        <source>   Function: Keyboard/mouse control</source>
+        <translation>   Funktion: Tastatur-/Maussteuerung</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="403"/>
+        <source>❌ &lt;b&gt;HID Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;HID-Schnittstelle:&lt;/b&gt; Nicht verfügbar</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="418"/>
+        <source> &lt;b&gt;Camera Interface:&lt;/b&gt; Available%1</source>
+        <translation> &lt;b&gt;Kameraschnittstelle:&lt;/b&gt; Verfügbar%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="421"/>
+        <source>   Function: Video capture</source>
+        <translation>   Funktion: Videoaufnahme</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="423"/>
+        <source>❌ &lt;b&gt;Camera Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;Kameraschnittstelle:&lt;/b&gt; Nicht verfügbar</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="427"/>
+        <source> &lt;b&gt;Audio Interface:&lt;/b&gt; Available</source>
+        <translation> &lt;b&gt;Audio-Interface:&lt;/b&gt; Verfügbar</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="429"/>
+        <source>   Function: Audio capture/playback</source>
+        <translation>   Funktion: Audioaufnahme/-wiedergabe</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="431"/>
+        <source>❌ &lt;b&gt;Audio Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;Audio-Schnittstelle:&lt;/b&gt; Nicht verfügbar</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="437"/>
+        <source>&lt;h4&gt;Usage Instructions:&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;Verwendungshinweise:&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="438"/>
+        <source>• Select this device to use all available interfaces</source>
+        <translation>• Dieses Gerät auswählen, um alle verfügbaren Schnittstellen zu nutzen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="439"/>
+        <source>• The device will be activated for serial communication</source>
+        <translation>• Das Gerät wird für die serielle Kommunikation aktiviert</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="440"/>
+        <source>• HID interface will be available for keyboard/mouse control</source>
+        <translation>• HID-Schnittstelle wird für Tastatur-/Maussteuerung verfügbar sein</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="441"/>
+        <source>• Camera and audio interfaces will be available for capture</source>
+        <translation>• Kamera- und Audio-Schnittstellen werden für die Aufnahme verfügbar sein</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="456"/>
+        <source>No Openterface devices detected</source>
+        <translation>Keine Openterface-Geräte erkannt</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="459"/>
+        <source>Found %1 physical Openterface device(s)</source>
+        <translation>%1 physisches Openterface-Gerät(e) gefunden</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="466"/>
+        <source>&lt;br&gt;Currently active: USB Port %1</source>
+        <translation>&lt;br&gt;Derzeit aktiv: USB-Port %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="467"/>
+        <source>&lt;br&gt;Active interfaces: %1</source>
+        <translation>&lt;br&gt;Aktive Schnittstellen: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="469"/>
+        <source>&lt;br&gt;No device currently active</source>
+        <translation>&lt;br&gt;Derzeit kein Gerät aktiv</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="476"/>
+        <source>Hotplug events: %1</source>
+        <translation>Hotplug-Ereignisse: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="478"/>
+        <source>&lt;br&gt;Last event: %1</source>
+        <translation>&lt;br&gt;Letztes Ereignis: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="531"/>
+        <source>Select Physical Device</source>
+        <translation>Physisches Gerät auswählen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="532"/>
+        <source>Select Openterface device at port %1?
+
+This will activate:
+• Serial communication: %2
+• HID interface: %3
+• Camera interface: %4
+• Audio interface: %5</source>
+        <translation>Openterface-Gerät an Port %1 auswählen?
+
+Dadurch wird Folgendes aktiviert:
+• Serielle Kommunikation: %2
+• HID-Schnittstelle: %3
+• Kamera-Schnittstelle: %4
+• Audio-Schnittstelle: %5</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="539"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="540"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="541"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="542"/>
+        <source>Not available</source>
+        <translation>Nicht verfügbar</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="585"/>
+        <source>Switch Physical Device</source>
+        <translation>Physisches Gerät wechseln</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="586"/>
+        <source>Switch from device at USB Port %1 to USB Port %2?
+
+Current device interfaces will be deactivated and
+new device interfaces will be activated.</source>
+        <translation>Vom Gerät an USB-Port %1 zu USB-Port %2 wechseln?
+
+Die aktuellen Geräteschnittstellen werden deaktiviert und
+die neuen Geräteschnittstellen werden aktiviert.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="602"/>
+        <source>Device Switch Result</source>
+        <translation>Ergebnis des Gerätewechsels</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="613"/>
+        <source>No Active Device</source>
+        <translation>Kein aktives Gerät</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="613"/>
+        <source>No device is currently active.</source>
+        <translation>Derzeit ist kein Gerät aktiv.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="619"/>
+        <source>Deactivate Device</source>
+        <translation>Gerät deaktivieren</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="620"/>
+        <source>Deactivate current device at port %1?
+
+All device interfaces will be released.</source>
+        <translation>Aktuelles Gerät am Port %1 deaktivieren?
+
+Alle Geräteschnittstellen werden freigegeben.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="631"/>
+        <source>Device Deactivated</source>
+        <translation>Gerät deaktiviert</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="632"/>
+        <source>Device at port %1 has been deactivated.</source>
+        <translation>Gerät am Port %1 wurde deaktiviert.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="647"/>
+        <source>Device Selected Successfully</source>
+        <translation>Gerät erfolgreich ausgewählt</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="650"/>
+        <source>Openterface device at port %1 is now active!
+
+</source>
+        <translation>Openterface-Gerät am Port %1 ist jetzt aktiv!
+
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="653"/>
+        <source>✓ Serial: %1</source>
+        <translation>✓ Seriell: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="654"/>
+        <source>✓ HID: Available for keyboard/mouse</source>
+        <translation>✓ HID: Verfügbar für Tastatur/Maus</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="655"/>
+        <source>✓ Camera: Available for video capture</source>
+        <translation>✓ Kamera: Verfügbar für Videoaufnahme</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="656"/>
+        <source>✓ Audio: Available for audio capture</source>
+        <translation>✓ Audio: Verfügbar für Audioaufnahme</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="659"/>
+        <source>Active interfaces:
+</source>
+        <translation>Aktive Schnittstellen:
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="671"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="680"/>
+        <source>Active Interfaces</source>
+        <translation>Aktive Schnittstellen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="671"/>
+        <source>No device is currently selected.</source>
+        <translation>Derzeit ist kein Gerät ausgewählt.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="676"/>
+        <source>Active Device: %1
+
+Interfaces:
+%2</source>
+        <translation>Aktives Gerät: %1
+
+Schnittstellen:
+%2</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="694"/>
+        <source>Auto Refresh ON</source>
+        <translation>Automatische Aktualisierung EIN</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="698"/>
+        <source>Auto Refresh OFF</source>
+        <translation>Automatische Aktualisierung AUS</translation>
     </message>
 </context>
 <context>
@@ -538,6 +1027,26 @@ Möchten Sie Ihren Computer jetzt neu starten?</translation>
 <context>
     <name>FirmwareManagerDialog</name>
     <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="24"/>
+        <source>Firmware Manager</source>
+        <translation>Firmware-Manager</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="31"/>
+        <source>Current Firmware Version: </source>
+        <translation>Aktuelle Firmware-Version: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="36"/>
+        <source>Restore firmware</source>
+        <translation>Firmware wiederherstellen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="40"/>
+        <source>Write firmware from bin</source>
+        <translation>Firmware aus Binärdatei schreiben</translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="178"/>
         <source>Warning</source>
@@ -551,6 +1060,8 @@ Möchten Sie Ihren Computer jetzt neu starten?</translation>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="123"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="220"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="230"/>
         <source>Error</source>
         <translation>Fehler</translation>
     </message>
@@ -560,7 +1071,19 @@ Möchten Sie Ihren Computer jetzt neu starten?</translation>
         <translation>Fehler beim Lesen der Firmware-Datei: %1</translation>
     </message>
     <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="86"/>
+        <source>Writing firmware to EEPROM...</source>
+        <translation>Firmware wird in den EEPROM geschrieben...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="86"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="190"/>
+        <source>Cancel</source>
+        <translation>Abbrechen</translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="109"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="218"/>
         <source>Success</source>
         <translation>Erfolg</translation>
     </message>
@@ -584,6 +1107,7 @@ Bitte versuchen Sie es erneut.</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="139"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="247"/>
         <source>Cancelled</source>
         <translation>Abgebrochen</translation>
     </message>
@@ -593,9 +1117,52 @@ Bitte versuchen Sie es erneut.</translation>
         <translation>Der Firmware-Schreibvorgang wurde abgebrochen.</translation>
     </message>
     <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="150"/>
+        <source>Open Firmware File</source>
+        <translation>Firmware-Datei öffnen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="152"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="166"/>
+        <source>Firmware Files (*.bin);;All Files (*)</source>
+        <translation>Firmware-Dateien (*.bin);;Alle Dateien (*)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="164"/>
+        <source>Save Firmware File</source>
+        <translation>Firmware-Datei speichern</translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="178"/>
         <source>Please select a file path</source>
         <translation>Bitte wählen Sie einen Dateipfad aus.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="190"/>
+        <source>Reading firmware from EEPROM...</source>
+        <translation>Firmware wird aus dem EEPROM gelesen...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="218"/>
+        <source>Firmware read and saved successfully to: </source>
+        <translation>Firmware erfolgreich gelesen und gespeichert unter: </translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="218"/>
+        <source>
+You can restart the app or write the firmware</source>
+        <translation>
+Sie können die Anwendung neu starten oder die Firmware schreiben</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="220"/>
+        <source>Failed to read and save firmware.</source>
+        <translation>Fehler beim Lesen und Speichern der Firmware.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="247"/>
+        <source>Firmware read operation was cancelled.</source>
+        <translation>Der Firmware-Lesevorgang wurde abgebrochen.</translation>
     </message>
 </context>
 <context>
@@ -1179,6 +1746,26 @@ Bitte versuchen Sie es erneut nach einem Neustart der Anwendung.</translation>
         <translation>Mauszeiger immer anzeigen</translation>
     </message>
     <message>
+        <location filename="../../ui/mainwindow.cpp" line="432"/>
+        <source>Confirm Factory Reset HID Chip?</source>
+        <translation>Werksreset des HID-Chips bestätigen?</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="433"/>
+        <source>Factory reset the HID chip. Proceed?</source>
+        <translation>HID-Chip auf Werkseinstellungen zurücksetzen. Fortfahren?</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="447"/>
+        <source>Confirm Reset Serial Port?</source>
+        <translation>Zurücksetzen der seriellen Schnittstelle bestätigen?</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="448"/>
+        <source>Resetting the serial port will close and re-open it without changing settings. Proceed?</source>
+        <translation>Das Zurücksetzen der seriellen Schnittstelle schließt sie und öffnet sie erneut, ohne die Einstellungen zu ändern. Fortfahren?</translation>
+    </message>
+    <message>
         <location filename="../../ui/mainwindow.cpp" line="649"/>
         <source>Recorded %1 sec</source>
         <translation>Aufgezeichnet %1 Sek.</translation>
@@ -1539,7 +2126,7 @@ Technische Details: %1</translation>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="295"/>
         <source>Medium</source>
-        <translation>Medium</translation>
+        <translation>Mittel</translation>
     </message>
     <message>
         <location filename="../../ui/advance/recordingsettingsdialog.cpp" line="295"/>

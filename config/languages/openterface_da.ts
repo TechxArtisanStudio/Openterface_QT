@@ -291,6 +291,491 @@ Vedhæft også seriel logfilen: %1</translation>
     </message>
 </context>
 <context>
+    <name>DeviceSelectorDialog</name>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="29"/>
+        <source>Openterface Device Selector</source>
+        <translation>Openterface Enhedsvælger</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="65"/>
+        <source>Available Openterface Devices</source>
+        <translation>Tilgængelige Openterface-enheder</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="76"/>
+        <source>Refresh</source>
+        <translation>Opfriske</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="77"/>
+        <source>Auto Refresh</source>
+        <translation>Automatisk opdatering</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="79"/>
+        <source>Test Hotplug</source>
+        <translation>Test Hotplug</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="80"/>
+        <source>Clear Cache</source>
+        <translation>Ryd cache</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="81"/>
+        <source>Debug USB</source>
+        <translation>Fejlfind USB</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="136"/>
+        <source>Device Details</source>
+        <translation>Enhedsdetaljer</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="147"/>
+        <source>Status</source>
+        <translation>Status</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="150"/>
+        <source>No devices detected</source>
+        <translation>Ingen enheder registreret</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="154"/>
+        <source>Hotplug events: 0</source>
+        <translation>Hotplug-hændelser: 0</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="167"/>
+        <source>Select Device</source>
+        <translation>Vælg enhed</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="169"/>
+        <source>Switch to Device</source>
+        <translation>Skift til enhed</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="171"/>
+        <source>Deactivate Current</source>
+        <translation>Deaktiver strøm</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="172"/>
+        <source>Show Active Interfaces</source>
+        <translation>Vis aktive grænseflader</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="173"/>
+        <source>Close</source>
+        <translation>Luk</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="250"/>
+        <source> [CURRENT]</source>
+        <translation>[STRØM]</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="270"/>
+        <source>Port %1</source>
+        <translation>Port %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="271"/>
+        <source>- Openterface Mini KVM</source>
+        <translation>- Openterface Mini KVM</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="278"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="280"/>
+        <source>Serial(%1)</source>
+        <translation>Seriel(%1)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="283"/>
+        <source>HID</source>
+        <translation>HID</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="284"/>
+        <source>Camera</source>
+        <translation>Kamera</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="285"/>
+        <source>Audio</source>
+        <translation>Lyd</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="339"/>
+        <source>%1/4 interfaces</source>
+        <translation>%1/4 grænseflader</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="345"/>
+        <source>ACTIVE</source>
+        <translation>AKTIV</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="347"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="540"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="541"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="542"/>
+        <source>Available</source>
+        <translation>Tilgængelig</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="356"/>
+        <source>No device selected</source>
+        <translation>Ingen enhed valgt</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="360"/>
+        <source>&lt;h3&gt;Openterface Mini KVM Device&lt;/h3&gt;</source>
+        <translation>&lt;h3&gt;Openinterface Mini KVM-enhed&lt;/h3&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="361"/>
+        <source>&lt;h4&gt;USB Port: %1&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;USB-port: %1&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="362"/>
+        <source>&lt;b&gt;Device Instance ID:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;Enhedsinstans-ID:&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="363"/>
+        <source>&lt;b&gt;Last Seen:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;Sidst set:&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="367"/>
+        <source>&lt;h4&gt;Physical Device Overview:&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;Oversigt over fysiske enheder:&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="369"/>
+        <source>&lt;b&gt;Available Interfaces:&lt;/b&gt; %1/4</source>
+        <translation>&lt;b&gt;Tilgængelige grænseflader:&lt;/b&gt; %1/4</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="370"/>
+        <source>&lt;b&gt;Device Status:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;Enhedsstatus:&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="371"/>
+        <source>&lt;b&gt;Physical Location:&lt;/b&gt; USB Port %1</source>
+        <translation>&lt;b&gt;Fysisk placering:&lt;/b&gt; USB-port %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="375"/>
+        <source>&lt;h4&gt;Interface Details:&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;Grænsefladedetaljer:&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="378"/>
+        <source>&lt;b&gt;Serial Interface:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;Serielt interface:&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="379"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="400"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="420"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="428"/>
+        <source>   Device ID: %1</source>
+        <translation>Enheds-ID: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="380"/>
+        <source>   Function: Control and communication</source>
+        <translation>Funktion: Kontrol og kommunikation</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="382"/>
+        <source>❌ &lt;b&gt;Serial Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;Serielt interface:&lt;/b&gt; Ikke tilgængelig</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="397"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="417"/>
+        <source> (Active)</source>
+        <translation>(Aktiv)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="398"/>
+        <source>️ &lt;b&gt;HID Interface:&lt;/b&gt; Available%1</source>
+        <translation>️ &lt;b&gt;HID-grænseflade:&lt;/b&gt; Tilgængelig%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="399"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="419"/>
+        <source>   Device Path: %1</source>
+        <translation>Enhedssti: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="401"/>
+        <source>   Function: Keyboard/mouse control</source>
+        <translation>Funktion: Tastatur-/musstyring</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="403"/>
+        <source>❌ &lt;b&gt;HID Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;HID-grænseflade:&lt;/b&gt; Ikke tilgængelig</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="418"/>
+        <source> &lt;b&gt;Camera Interface:&lt;/b&gt; Available%1</source>
+        <translation> &lt;b&gt;Kameragrænseflade:&lt;/b&gt; Tilgængelig%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="421"/>
+        <source>   Function: Video capture</source>
+        <translation>Funktion: Videooptagelse</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="423"/>
+        <source>❌ &lt;b&gt;Camera Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;Kameragrænseflade:&lt;/b&gt; Ikke tilgængelig</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="427"/>
+        <source> &lt;b&gt;Audio Interface:&lt;/b&gt; Available</source>
+        <translation>&lt;b&gt;Lydgrænseflade:&lt;/b&gt; Tilgængelig</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="429"/>
+        <source>   Function: Audio capture/playback</source>
+        <translation>Funktion: Lydoptagelse/-afspilning</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="431"/>
+        <source>❌ &lt;b&gt;Audio Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;Lydgrænseflade:&lt;/b&gt; Ikke tilgængelig</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="437"/>
+        <source>&lt;h4&gt;Usage Instructions:&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;Brugsanvisning:&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="438"/>
+        <source>• Select this device to use all available interfaces</source>
+        <translation>• Vælg denne enhed for at bruge alle tilgængelige grænseflader</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="439"/>
+        <source>• The device will be activated for serial communication</source>
+        <translation>• Enheden vil blive aktiveret til seriel kommunikation</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="440"/>
+        <source>• HID interface will be available for keyboard/mouse control</source>
+        <translation>• HID-grænsefladen vil være tilgængelig til tastatur-/musstyring</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="441"/>
+        <source>• Camera and audio interfaces will be available for capture</source>
+        <translation>• Kamera- og lydgrænseflader vil være tilgængelige til optagelse</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="456"/>
+        <source>No Openterface devices detected</source>
+        <translation>Ingen Openinterface-enheder fundet</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="459"/>
+        <source>Found %1 physical Openterface device(s)</source>
+        <translation>Fundet %1 fysiske OpenInterface-enheder</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="466"/>
+        <source>&lt;br&gt;Currently active: USB Port %1</source>
+        <translation>&lt;br&gt;Aktuelt aktiv: USB-port %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="467"/>
+        <source>&lt;br&gt;Active interfaces: %1</source>
+        <translation>Aktive grænseflader: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="469"/>
+        <source>&lt;br&gt;No device currently active</source>
+        <translation>&lt;br&gt;Ingen enhed aktiv i øjeblikket</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="476"/>
+        <source>Hotplug events: %1</source>
+        <translation>Hotplug-hændelser: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="478"/>
+        <source>&lt;br&gt;Last event: %1</source>
+        <translation>&lt;br&gt;Sidste begivenhed: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="531"/>
+        <source>Select Physical Device</source>
+        <translation>Vælg fysisk enhed</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="532"/>
+        <source>Select Openterface device at port %1?
+
+This will activate:
+• Serial communication: %2
+• HID interface: %3
+• Camera interface: %4
+• Audio interface: %5</source>
+        <translation>Vil du vælge Openinterface-enhed på port %1?
+
+Dette aktiverer:
+• Seriel kommunikation: %2
+• HID-grænseflade: %3
+• Kameragrænseflade: %4
+• Lydgrænseflade: %5</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="539"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="540"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="541"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="542"/>
+        <source>Not available</source>
+        <translation>Ikke tilgængelig</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="585"/>
+        <source>Switch Physical Device</source>
+        <translation>Skift fysisk enhed</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="586"/>
+        <source>Switch from device at USB Port %1 to USB Port %2?
+
+Current device interfaces will be deactivated and
+new device interfaces will be activated.</source>
+        <translation>Skift fra enhed på USB-port %1 til USB-port %2?
+
+Nuværende enhedsgrænseflader vil blive deaktiveret og
+ny enhedsgrænseflader vil blive aktiveret.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="602"/>
+        <source>Device Switch Result</source>
+        <translation>Resultat af enhedsskift</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="613"/>
+        <source>No Active Device</source>
+        <translation>Ingen aktiv enhed</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="613"/>
+        <source>No device is currently active.</source>
+        <translation>Ingen enhed er aktiv i øjeblikket.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="619"/>
+        <source>Deactivate Device</source>
+        <translation>Deaktiver enhed</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="620"/>
+        <source>Deactivate current device at port %1?
+
+All device interfaces will be released.</source>
+        <translation>Deaktiver den aktuelle enhed på port %1?
+
+Alle enhedsgrænseflader vil blive frigivet.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="631"/>
+        <source>Device Deactivated</source>
+        <translation>Enhed deaktiveret</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="632"/>
+        <source>Device at port %1 has been deactivated.</source>
+        <translation>Enhed på port %1 er blevet deaktiveret.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="647"/>
+        <source>Device Selected Successfully</source>
+        <translation>Enhed valgt</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="650"/>
+        <source>Openterface device at port %1 is now active!
+
+</source>
+        <translation>Openterface-enhed på port %1 er nu aktiv!
+
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="653"/>
+        <source>✓ Serial: %1</source>
+        <translation>✓ Seriel: %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="654"/>
+        <source>✓ HID: Available for keyboard/mouse</source>
+        <translation>✓ HID: Tilgængelig til tastatur/mus</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="655"/>
+        <source>✓ Camera: Available for video capture</source>
+        <translation>✓ Kamera: Tilgængeligt til videooptagelse</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="656"/>
+        <source>✓ Audio: Available for audio capture</source>
+        <translation>✓ Lyd: Tilgængelig til lydoptagelse</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="659"/>
+        <source>Active interfaces:
+</source>
+        <translation>Aktive grænseflader:
+</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="671"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="680"/>
+        <source>Active Interfaces</source>
+        <translation>Aktive grænseflader</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="671"/>
+        <source>No device is currently selected.</source>
+        <translation>Ingen enhed er valgt i øjeblikket.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="676"/>
+        <source>Active Device: %1
+
+Interfaces:
+%2</source>
+        <translation>Aktiv enhed: %1
+
+Grænseflader:
+%2</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="694"/>
+        <source>Auto Refresh ON</source>
+        <translation>Automatisk opdatering TIL</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="698"/>
+        <source>Auto Refresh OFF</source>
+        <translation>Automatisk opdatering FRA</translation>
+    </message>
+</context>
+<context>
     <name>DiagnosticsManager</name>
     <message>
         <location filename="../../ui/advance/diagnostics/diagnosticsmanager.cpp" line="48"/>
@@ -538,6 +1023,26 @@ Vil du genstarte din computer nu?</translation>
 <context>
     <name>FirmwareManagerDialog</name>
     <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="24"/>
+        <source>Firmware Manager</source>
+        <translation>Firmware Manager</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="31"/>
+        <source>Current Firmware Version: </source>
+        <translation>Aktuelle Firmware-Version:</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="36"/>
+        <source>Restore firmware</source>
+        <translation>Gendan firmware</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="40"/>
+        <source>Write firmware from bin</source>
+        <translation>Skriv firmware fra bin</translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="178"/>
         <source>Warning</source>
@@ -551,6 +1056,8 @@ Vil du genstarte din computer nu?</translation>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="123"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="220"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="230"/>
         <source>Error</source>
         <translation>Fejl</translation>
     </message>
@@ -560,7 +1067,19 @@ Vil du genstarte din computer nu?</translation>
         <translation>Kunne ikke læse firmwarefilen: %1</translation>
     </message>
     <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="86"/>
+        <source>Writing firmware to EEPROM...</source>
+        <translation>Skriver firmwaren til EEPROM&apos;en...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="86"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="190"/>
+        <source>Cancel</source>
+        <translation>Annuller</translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="109"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="218"/>
         <source>Success</source>
         <translation>Succes</translation>
     </message>
@@ -584,6 +1103,7 @@ Prøv igen</translation>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="139"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="247"/>
         <source>Cancelled</source>
         <translation>Annulleret</translation>
     </message>
@@ -593,9 +1113,52 @@ Prøv igen</translation>
         <translation>Firmware-skrivningen blev annulleret</translation>
     </message>
     <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="150"/>
+        <source>Open Firmware File</source>
+        <translation>Åbn firmwarefilen</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="152"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="166"/>
+        <source>Firmware Files (*.bin);;All Files (*)</source>
+        <translation>Firmwarefiler (*.bin);;Alle filer (*)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="164"/>
+        <source>Save Firmware File</source>
+        <translation>Gem firmwarefil</translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="178"/>
         <source>Please select a file path</source>
         <translation>Vælg venligst en filsti</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="190"/>
+        <source>Reading firmware from EEPROM...</source>
+        <translation>Læser firmwaren fra EEPROM&apos;en...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="218"/>
+        <source>Firmware read and saved successfully to: </source>
+        <translation>Firmware blev læst og gemt på:</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="218"/>
+        <source>
+You can restart the app or write the firmware</source>
+        <translation>
+Du kan genstarte applikationen eller flashe firmwaren</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="220"/>
+        <source>Failed to read and save firmware.</source>
+        <translation>Kan ikke læse og gemme firmware.</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="247"/>
+        <source>Firmware read operation was cancelled.</source>
+        <translation>Firmwarelæsningen blev annulleret.</translation>
     </message>
 </context>
 <context>
@@ -1173,6 +1736,26 @@ Prøv igen efter at have genstartet programmet.</translation>
         <location filename="../../ui/mainwindow.ui" line="429"/>
         <source>Always show mouse cursor</source>
         <translation>Vis altid musemarkøren</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="432"/>
+        <source>Confirm Factory Reset HID Chip?</source>
+        <translation>Bekræft fabriksnulstilling af HID-chip?</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="433"/>
+        <source>Factory reset the HID chip. Proceed?</source>
+        <translation>Fabriksnulstilling af HID-chippen. Fortsæt?</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="447"/>
+        <source>Confirm Reset Serial Port?</source>
+        <translation>Bekræft nulstilling af seriel port?</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="448"/>
+        <source>Resetting the serial port will close and re-open it without changing settings. Proceed?</source>
+        <translation>Nulstilling af serielporten vil lukke og genåbne den uden at ændre indstillingerne. Vil du fortsætte?</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="649"/>

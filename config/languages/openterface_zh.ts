@@ -291,6 +291,488 @@ Also attach the serial log file: %1</source>
     </message>
 </context>
 <context>
+    <name>DeviceSelectorDialog</name>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="29"/>
+        <source>Openterface Device Selector</source>
+        <translation>Openterface 设备选择器</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="65"/>
+        <source>Available Openterface Devices</source>
+        <translation>可用的 Openterface 设备</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="76"/>
+        <source>Refresh</source>
+        <translation>刷新</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="77"/>
+        <source>Auto Refresh</source>
+        <translation>自动刷新</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="79"/>
+        <source>Test Hotplug</source>
+        <translation>测试热插拔</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="80"/>
+        <source>Clear Cache</source>
+        <translation>清除缓存</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="81"/>
+        <source>Debug USB</source>
+        <translation>调试 USB</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="136"/>
+        <source>Device Details</source>
+        <translation>设备详情</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="147"/>
+        <source>Status</source>
+        <translation>状况</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="150"/>
+        <source>No devices detected</source>
+        <translation>未检测到任何设备</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="154"/>
+        <source>Hotplug events: 0</source>
+        <translation>热插拔事件：0</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="167"/>
+        <source>Select Device</source>
+        <translation>选择设备</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="169"/>
+        <source>Switch to Device</source>
+        <translation>切换到设备</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="171"/>
+        <source>Deactivate Current</source>
+        <translation>停用电流</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="172"/>
+        <source>Show Active Interfaces</source>
+        <translation>显示活动接口</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="173"/>
+        <source>Close</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="250"/>
+        <source> [CURRENT]</source>
+        <translation>[当前的]</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="270"/>
+        <source>Port %1</source>
+        <translation>端口 %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="271"/>
+        <source>- Openterface Mini KVM</source>
+        <translation>- Openterface Mini KVM</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="278"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="280"/>
+        <source>Serial(%1)</source>
+        <translation>序列号(%1)</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="283"/>
+        <source>HID</source>
+        <translation>HID</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="284"/>
+        <source>Camera</source>
+        <translation>相机</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="285"/>
+        <source>Audio</source>
+        <translation>音频</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="339"/>
+        <source>%1/4 interfaces</source>
+        <translation>%1/4 接口</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="345"/>
+        <source>ACTIVE</source>
+        <translation>积极的</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="347"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="540"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="541"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="542"/>
+        <source>Available</source>
+        <translation>可用的</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="356"/>
+        <source>No device selected</source>
+        <translation>未选择设备</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="360"/>
+        <source>&lt;h3&gt;Openterface Mini KVM Device&lt;/h3&gt;</source>
+        <translation>&lt;h3&gt;Openterface Mini KVM 设备&lt;/h3&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="361"/>
+        <source>&lt;h4&gt;USB Port: %1&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;USB 端口：%1&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="362"/>
+        <source>&lt;b&gt;Device Instance ID:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;设备实例 ID：&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="363"/>
+        <source>&lt;b&gt;Last Seen:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;最后上线时间：&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="367"/>
+        <source>&lt;h4&gt;Physical Device Overview:&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;物理设备概览：&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="369"/>
+        <source>&lt;b&gt;Available Interfaces:&lt;/b&gt; %1/4</source>
+        <translation>&lt;b&gt;可用接口：&lt;/b&gt; %1/4</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="370"/>
+        <source>&lt;b&gt;Device Status:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;设备状态：&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="371"/>
+        <source>&lt;b&gt;Physical Location:&lt;/b&gt; USB Port %1</source>
+        <translation>&lt;b&gt;物理位置：&lt;/b&gt; USB 端口 %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="375"/>
+        <source>&lt;h4&gt;Interface Details:&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;界面详情：&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="378"/>
+        <source>&lt;b&gt;Serial Interface:&lt;/b&gt; %1</source>
+        <translation>&lt;b&gt;串行接口：&lt;/b&gt; %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="379"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="400"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="420"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="428"/>
+        <source>   Device ID: %1</source>
+        <translation>设备 ID：%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="380"/>
+        <source>   Function: Control and communication</source>
+        <translation>功能：控制和通信</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="382"/>
+        <source>❌ &lt;b&gt;Serial Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;串口接口：&lt;/b&gt; 不可用</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="397"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="417"/>
+        <source> (Active)</source>
+        <translation>（积极的）</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="398"/>
+        <source>️ &lt;b&gt;HID Interface:&lt;/b&gt; Available%1</source>
+        <translation>️ &lt;b&gt;HID接口：&lt;/b&gt;可用%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="399"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="419"/>
+        <source>   Device Path: %1</source>
+        <translation>设备路径：%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="401"/>
+        <source>   Function: Keyboard/mouse control</source>
+        <translation>功能：键盘/鼠标控制</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="403"/>
+        <source>❌ &lt;b&gt;HID Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;HID接口：&lt;/b&gt;不可用❌ &lt;b&gt;HID Interface:&lt;/b&gt; Not available</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="418"/>
+        <source> &lt;b&gt;Camera Interface:&lt;/b&gt; Available%1</source>
+        <translation> &lt;b&gt;相机接口：&lt;/b&gt;可用%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="421"/>
+        <source>   Function: Video capture</source>
+        <translation>功能：视频录制</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="423"/>
+        <source>❌ &lt;b&gt;Camera Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;相机接口：&lt;/b&gt; 不可用</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="427"/>
+        <source> &lt;b&gt;Audio Interface:&lt;/b&gt; Available</source>
+        <translation>音频接口：可用</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="429"/>
+        <source>   Function: Audio capture/playback</source>
+        <translation>功能：音频采集/播放</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="431"/>
+        <source>❌ &lt;b&gt;Audio Interface:&lt;/b&gt; Not available</source>
+        <translation>❌ &lt;b&gt;音频接口：&lt;/b&gt; 不可用</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="437"/>
+        <source>&lt;h4&gt;Usage Instructions:&lt;/h4&gt;</source>
+        <translation>&lt;h4&gt;使用说明：&lt;/h4&gt;</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="438"/>
+        <source>• Select this device to use all available interfaces</source>
+        <translation>• 选择此设备可使用所有可用接口</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="439"/>
+        <source>• The device will be activated for serial communication</source>
+        <translation>• 该设备将激活串行通信功能</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="440"/>
+        <source>• HID interface will be available for keyboard/mouse control</source>
+        <translation>• 将提供HID接口，用于键盘/鼠标控制</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="441"/>
+        <source>• Camera and audio interfaces will be available for capture</source>
+        <translation>• 将提供摄像头和音频接口用于采集</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="456"/>
+        <source>No Openterface devices detected</source>
+        <translation>未检测到 OpenTerface 设备</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="459"/>
+        <source>Found %1 physical Openterface device(s)</source>
+        <translation>发现 %1 个物理 Openterface 设备</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="466"/>
+        <source>&lt;br&gt;Currently active: USB Port %1</source>
+        <translation>&lt;br&gt;当前活动端口：USB 端口 %1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="467"/>
+        <source>&lt;br&gt;Active interfaces: %1</source>
+        <translation>&lt;br&gt;活动接口：%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="469"/>
+        <source>&lt;br&gt;No device currently active</source>
+        <translation>&lt;br&gt;当前没有活动设备</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="476"/>
+        <source>Hotplug events: %1</source>
+        <translation>热插拔事件：%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="478"/>
+        <source>&lt;br&gt;Last event: %1</source>
+        <translation>&lt;br&gt;上次事件：%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="531"/>
+        <source>Select Physical Device</source>
+        <translation>选择物理设备</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="532"/>
+        <source>Select Openterface device at port %1?
+
+This will activate:
+• Serial communication: %2
+• HID interface: %3
+• Camera interface: %4
+• Audio interface: %5</source>
+        <translation>选择端口 %1 上的 Openterface 设备？
+
+这将激活：
+• 串口通信：%2
+• HID 接口：%3
+• 摄像头接口：%4
+• 音频接口：%5</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="539"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="540"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="541"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="542"/>
+        <source>Not available</source>
+        <translation>无法使用</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="585"/>
+        <source>Switch Physical Device</source>
+        <translation>交换机物理设备</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="586"/>
+        <source>Switch from device at USB Port %1 to USB Port %2?
+
+Current device interfaces will be deactivated and
+new device interfaces will be activated.</source>
+        <translation>设备切换结果：将设备从 USB 端口 %1 切换到 USB 端口 %2？
+
+当前设备接口将被停用，
+新的设备接口将被激活。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="602"/>
+        <source>Device Switch Result</source>
+        <translation>设备切换结果</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="613"/>
+        <source>No Active Device</source>
+        <translation>无活动设备</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="613"/>
+        <source>No device is currently active.</source>
+        <translation>目前没有设备处于活动状态。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="619"/>
+        <source>Deactivate Device</source>
+        <translation>停用设备</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="620"/>
+        <source>Deactivate current device at port %1?
+
+All device interfaces will be released.</source>
+        <translation>是否停用端口 %1 上的当前设备？
+
+所有设备接口都将被释放。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="631"/>
+        <source>Device Deactivated</source>
+        <translation>设备已停用</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="632"/>
+        <source>Device at port %1 has been deactivated.</source>
+        <translation>端口 %1 上的设备已被停用。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="647"/>
+        <source>Device Selected Successfully</source>
+        <translation>设备选择成功</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="650"/>
+        <source>Openterface device at port %1 is now active!
+
+</source>
+        <translation>端口 %1 上的 Openterface 设备现已激活！</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="653"/>
+        <source>✓ Serial: %1</source>
+        <translation>✓ 序列号：%1</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="654"/>
+        <source>✓ HID: Available for keyboard/mouse</source>
+        <translation>✓ HID：支持键盘/鼠标</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="655"/>
+        <source>✓ Camera: Available for video capture</source>
+        <translation>✓ 摄像头：可用于视频拍摄</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="656"/>
+        <source>✓ Audio: Available for audio capture</source>
+        <translation>✓ Ljud: Tillgängligt för ljudinspelning</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="659"/>
+        <source>Active interfaces:
+</source>
+        <translation>活动接口：</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="671"/>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="680"/>
+        <source>Active Interfaces</source>
+        <translation>活动接口</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="671"/>
+        <source>No device is currently selected.</source>
+        <translation>目前未选择任何设备。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="676"/>
+        <source>Active Device: %1
+
+Interfaces:
+%2</source>
+        <translation>活动设备：%1
+
+接口：
+%2</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="694"/>
+        <source>Auto Refresh ON</source>
+        <translation>自动刷新开启</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="698"/>
+        <source>Auto Refresh OFF</source>
+        <translation>自动刷新已关闭</translation>
+    </message>
+</context>
+<context>
     <name>DiagnosticsManager</name>
     <message>
         <location filename="../../ui/advance/diagnostics/diagnosticsmanager.cpp" line="48"/>
@@ -538,6 +1020,26 @@ Would you like to restart your computer now?</source>
 <context>
     <name>FirmwareManagerDialog</name>
     <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="24"/>
+        <source>Firmware Manager</source>
+        <translation>固件管理器</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="31"/>
+        <source>Current Firmware Version: </source>
+        <translation>当前固件版本：</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="36"/>
+        <source>Restore firmware</source>
+        <translation>恢复固件</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="40"/>
+        <source>Write firmware from bin</source>
+        <translation>从 bin 写入固件</translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="67"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="178"/>
         <source>Warning</source>
@@ -551,6 +1053,8 @@ Would you like to restart your computer now?</source>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="73"/>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="123"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="220"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="230"/>
         <source>Error</source>
         <translation>错误</translation>
     </message>
@@ -560,7 +1064,19 @@ Would you like to restart your computer now?</source>
         <translation>读取固件文件失败：%1</translation>
     </message>
     <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="86"/>
+        <source>Writing firmware to EEPROM...</source>
+        <translation>将固件写入EEPROM...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="86"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="190"/>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="109"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="218"/>
         <source>Success</source>
         <translation>成功</translation>
     </message>
@@ -585,6 +1101,7 @@ Please try again</source>
     </message>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="139"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="247"/>
         <source>Cancelled</source>
         <translation>已取消</translation>
     </message>
@@ -594,9 +1111,52 @@ Please try again</source>
         <translation>固件写入操作已取消</translation>
     </message>
     <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="150"/>
+        <source>Open Firmware File</source>
+        <translation>打开固件文件</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="152"/>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="166"/>
+        <source>Firmware Files (*.bin);;All Files (*)</source>
+        <translation>固件文件（*.bin）；所有文件（*）</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="164"/>
+        <source>Save Firmware File</source>
+        <translation>保存固件文件</translation>
+    </message>
+    <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="178"/>
         <source>Please select a file path</source>
         <translation>请选择文件路径</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="190"/>
+        <source>Reading firmware from EEPROM...</source>
+        <translation>从EEPROM读取固件...</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="218"/>
+        <source>Firmware read and saved successfully to: </source>
+        <translation>固件已成功读取并保存至：</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="218"/>
+        <source>
+You can restart the app or write the firmware</source>
+        <translation>
+您可以重启应用程序或写入固件</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="220"/>
+        <source>Failed to read and save firmware.</source>
+        <translation>读取和保存固件失败。</translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="247"/>
+        <source>Firmware read operation was cancelled.</source>
+        <translation>固件读取操作已取消。</translation>
     </message>
 </context>
 <context>
@@ -1174,6 +1734,26 @@ Please try again after restarting the application.</source>
         <location filename="../../ui/mainwindow.ui" line="429"/>
         <source>Always show mouse cursor</source>
         <translation>始终显示鼠标光标</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="432"/>
+        <source>Confirm Factory Reset HID Chip?</source>
+        <translation>确认是否已将HID芯片恢复出厂设置？</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="433"/>
+        <source>Factory reset the HID chip. Proceed?</source>
+        <translation>将HID芯片恢复出厂设置。继续吗？</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="447"/>
+        <source>Confirm Reset Serial Port?</source>
+        <translation>确认重置串口？</translation>
+    </message>
+    <message>
+        <location filename="../../ui/mainwindow.cpp" line="448"/>
+        <source>Resetting the serial port will close and re-open it without changing settings. Proceed?</source>
+        <translation>重置串口会关闭并重新打开它，但不会更改任何设置。是否继续？</translation>
     </message>
     <message>
         <location filename="../../ui/mainwindow.cpp" line="649"/>

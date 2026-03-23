@@ -21,23 +21,23 @@ FirmwareManagerDialog::FirmwareManagerDialog(QWidget *parent) :
     progressDialog(nullptr)
 {
     this->resize(200, 130);
-    this->setWindowTitle("Firmware Manager");
+    this->setWindowTitle(tr("Firmware Manager"));
 
     std::string curreantFirmwareVersion = VideoHid::getInstance().getFirmwareVersion();
     QVBoxLayout *verticalLayout = new QVBoxLayout(this);
     verticalLayout->setSpacing(15);
     verticalLayout->setContentsMargins(20, 20, 20, 20);
 
-    versionLabel = new QLabel("Current Firmware Version: " + QString::fromStdString(curreantFirmwareVersion), this);
+    versionLabel = new QLabel(tr("Current Firmware Version: ") + QString::fromStdString(curreantFirmwareVersion), this);
     verticalLayout->addWidget(versionLabel);
 
     QHBoxLayout *horzontal = new QHBoxLayout;
 
-    readLoacalFirmwareBtn = new QPushButton("Restore firmware", this);
+    readLoacalFirmwareBtn = new QPushButton(tr("Restore firmware"), this);
     connect(readLoacalFirmwareBtn, &QPushButton::clicked, this, &FirmwareManagerDialog::onReadFromFileClicked);
     horzontal->addWidget(readLoacalFirmwareBtn);
 
-    writeFirmwareFromFileBtn = new QPushButton("Write firmware from bin", this);
+    writeFirmwareFromFileBtn = new QPushButton(tr("Write firmware from bin"), this);
     connect(writeFirmwareFromFileBtn, &QPushButton::clicked, this, &FirmwareManagerDialog::onWriteFirmwareFromFileClick);
     horzontal->addWidget(writeFirmwareFromFileBtn);
 
@@ -83,7 +83,7 @@ void FirmwareManagerDialog::onWriteFirmwareFromFileClick() {
 
 
     // Create and configure the progress dialog
-    progressDialog = new QProgressDialog("Writing firmware to EEPROM...", "Cancel", 0, 100, this);
+    progressDialog = new QProgressDialog(tr("Writing firmware to EEPROM..."), tr("Cancel"), 0, 100, this);
     progressDialog->setWindowModality(Qt::WindowModal);
     progressDialog->setAutoClose(false);
     progressDialog->setAutoReset(false);
@@ -147,9 +147,9 @@ void FirmwareManagerDialog::onWriteFirmwareFromFileClick() {
 QString FirmwareManagerDialog::selectFirmware(){
     QString fileName = QFileDialog::getOpenFileName(
         nullptr,
-        "Open Firmware File",
+        tr("Open Firmware File"),
         QDir::currentPath(),
-        "Firmware Files (*.bin);;All Files (*)"
+        tr("Firmware Files (*.bin);;All Files (*)")
     );
     if (!fileName.isEmpty()) {
         return fileName;
@@ -161,9 +161,9 @@ QString FirmwareManagerDialog::onSelectPathClicked() {
     QString defaultFileName = "openterface.bin";
     QString filePath = QFileDialog::getSaveFileName(
         this,
-        "Save Firmware File",
+        tr("Save Firmware File"),
         defaultFileName,
-        "Firmware Files (*.bin);;All Files (*)"
+        tr("Firmware Files (*.bin);;All Files (*)")
     );
     if (!filePath.isEmpty()) {
         return filePath;
@@ -187,7 +187,7 @@ void FirmwareManagerDialog::onReadFromFileClicked() {
     }
 
     // Create and configure the progress dialog
-    progressDialog = new QProgressDialog("Reading firmware from EEPROM...", "Cancel", 0, 100, this);
+    progressDialog = new QProgressDialog(tr("Reading firmware from EEPROM..."), tr("Cancel"), 0, 100, this);
     progressDialog->setWindowModality(Qt::WindowModal);
     progressDialog->setAutoClose(false);
     progressDialog->setAutoReset(false);
@@ -215,9 +215,9 @@ void FirmwareManagerDialog::onReadFromFileClicked() {
             mainWindow->show();
         }
         if (success) {
-            QMessageBox::information(this, "Success", "Firmware read and saved successfully to: " + path +"\nYou can restart the app or wirte the firmware");
+            QMessageBox::information(this, tr("Success"), tr("Firmware read and saved successfully to: ") + path + tr("\nYou can restart the app or write the firmware"));
         } else {
-            QMessageBox::critical(this, "Error", "Failed to read and save firmware.");
+            QMessageBox::critical(this, tr("Error"), tr("Failed to read and save firmware."));
         }
         progressDialog->deleteLater();
         progressDialog = nullptr;
@@ -227,7 +227,7 @@ void FirmwareManagerDialog::onReadFromFileClicked() {
         if (mainWindow) {
             mainWindow->show();
         }
-        QMessageBox::critical(this, "Error", errorMessage);
+        QMessageBox::critical(this, tr("Error"), errorMessage);
         progressDialog->deleteLater();
         progressDialog = nullptr;
     });
@@ -244,7 +244,7 @@ void FirmwareManagerDialog::onReadFromFileClicked() {
         }
         progressDialog->deleteLater();
         progressDialog = nullptr;
-        QMessageBox::warning(this, "Cancelled", "Firmware read operation was cancelled.");
+        QMessageBox::warning(this, tr("Cancelled"), tr("Firmware read operation was cancelled."));
     });
 
     thread->start();
