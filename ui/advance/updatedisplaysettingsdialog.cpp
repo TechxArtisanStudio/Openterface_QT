@@ -1162,55 +1162,17 @@ bool UpdateDisplaySettingsDialog::hasResolutionChanges() const
 
 ResolutionInfo UpdateDisplaySettingsDialog::getVICResolutionInfo(quint8 vic)
 {
-    // Common VIC codes from CEA-861 standard
-    switch (vic) {
-        case 1: return ResolutionInfo("640x480 @ 60Hz", 640, 480, 60, vic);
-        case 2: return ResolutionInfo("720x480 @ 60Hz", 720, 480, 60, vic);
-        case 3: return ResolutionInfo("720x480 @ 60Hz", 720, 480, 60, vic);
-        case 4: return ResolutionInfo("1280x720 @ 60Hz", 1280, 720, 60, vic);
-        case 5: return ResolutionInfo("1920x1080i @ 60Hz", 1920, 1080, 60, vic);
-        case 6: return ResolutionInfo("1440x480i @ 60Hz", 1440, 480, 60, vic);
-        case 7: return ResolutionInfo("1440x480i @ 60Hz", 1440, 480, 60, vic);
-        case 16: return ResolutionInfo("1920x1080 @ 60Hz", 1920, 1080, 60, vic);
-        case 17: return ResolutionInfo("720x576 @ 50Hz", 720, 576, 50, vic);
-        case 18: return ResolutionInfo("720x576 @ 50Hz", 720, 576, 50, vic);
-        case 19: return ResolutionInfo("1280x720 @ 50Hz", 1280, 720, 50, vic);
-        case 20: return ResolutionInfo("1920x1080i @ 50Hz", 1920, 1080, 50, vic);
-        case 31: return ResolutionInfo("1920x1080 @ 50Hz", 1920, 1080, 50, vic);
-        case 32: return ResolutionInfo("1920x1080 @ 24Hz", 1920, 1080, 24, vic);
-        case 33: return ResolutionInfo("1920x1080 @ 25Hz", 1920, 1080, 25, vic);
-        case 34: return ResolutionInfo("1920x1080 @ 30Hz", 1920, 1080, 30, vic);
-        case 39: return ResolutionInfo("1920x1080i @ 50Hz", 1920, 1080, 50, vic);
-        case 40: return ResolutionInfo("1920x1080i @ 100Hz", 1920, 1080, 100, vic);
-        case 41: return ResolutionInfo("1280x720 @ 100Hz", 1280, 720, 100, vic);
-        case 42: return ResolutionInfo("720x576 @ 100Hz", 720, 576, 100, vic);
-        case 43: return ResolutionInfo("720x576 @ 100Hz", 720, 576, 100, vic);
-        case 44: return ResolutionInfo("1440x576i @ 100Hz", 1440, 576, 100, vic);
-        case 45: return ResolutionInfo("1440x576i @ 100Hz", 1440, 576, 100, vic);
-        case 46: return ResolutionInfo("1920x1080i @ 120Hz", 1920, 1080, 120, vic);
-        case 47: return ResolutionInfo("1280x720 @ 120Hz", 1280, 720, 120, vic);
-        case 48: return ResolutionInfo("720x480 @ 120Hz", 720, 480, 120, vic);
-        case 49: return ResolutionInfo("720x480 @ 120Hz", 720, 480, 120, vic);
-        case 50: return ResolutionInfo("1440x480i @ 120Hz", 1440, 480, 120, vic);
-        case 51: return ResolutionInfo("1440x480i @ 120Hz", 1440, 480, 120, vic);
-        case 60: return ResolutionInfo("1280x720 @ 24Hz", 1280, 720, 24, vic);
-        case 61: return ResolutionInfo("1280x720 @ 25Hz", 1280, 720, 25, vic);
-        case 62: return ResolutionInfo("1280x720 @ 30Hz", 1280, 720, 30, vic);
-        case 63: return ResolutionInfo("1920x1080 @ 120Hz", 1920, 1080, 120, vic);
-        case 64: return ResolutionInfo("1920x1080 @ 100Hz", 1920, 1080, 100, vic);
-        case 93: return ResolutionInfo("3840x2160 @ 24Hz", 3840, 2160, 24, vic);
-        case 94: return ResolutionInfo("3840x2160 @ 25Hz", 3840, 2160, 25, vic);
-        case 95: return ResolutionInfo("3840x2160 @ 30Hz", 3840, 2160, 30, vic);
-        case 96: return ResolutionInfo("3840x2160 @ 50Hz", 3840, 2160, 50, vic);
-        case 97: return ResolutionInfo("3840x2160 @ 60Hz", 3840, 2160, 60, vic);
-        case 98: return ResolutionInfo("4096x2160 @ 24Hz", 4096, 2160, 24, vic);
-        case 99: return ResolutionInfo("4096x2160 @ 25Hz", 4096, 2160, 25, vic);
-        case 100: return ResolutionInfo("4096x2160 @ 30Hz", 4096, 2160, 30, vic);
-        case 101: return ResolutionInfo("4096x2160 @ 50Hz", 4096, 2160, 50, vic);
-        case 102: return ResolutionInfo("4096x2160 @ 60Hz", 4096, 2160, 60, vic);
-        default: 
-            return ResolutionInfo(QString("Unknown VIC %1").arg(vic), 0, 0, 0, vic);
-    }
+    edid::ResolutionInfo edidInfo = edid::EDIDResolutionParser::getVICResolutionInfo(vic);
+    ResolutionInfo output;
+    output.description = edidInfo.description;
+    output.width = edidInfo.width;
+    output.height = edidInfo.height;
+    output.refreshRate = edidInfo.refreshRate;
+    output.vic = edidInfo.vic;
+    output.isStandardTiming = edidInfo.isStandardTiming;
+    output.isEnabled = edidInfo.isEnabled;
+    output.userSelected = edidInfo.userSelected;
+    return output;
 }
 
 void UpdateDisplaySettingsDialog::parseCEA861ExtensionBlock(const QByteArray &block, int blockNumber)
@@ -1348,55 +1310,7 @@ void UpdateDisplaySettingsDialog::parseVideoDataBlock(const QByteArray &vdbData)
 
 QString UpdateDisplaySettingsDialog::getVICResolution(quint8 vic)
 {
-    // Common VIC (Video Identification Code) to resolution mapping
-    // Based on CEA-861 standard
-    switch (vic) {
-        case 1: return "640x480p @ 59.94/60Hz";
-        case 2: return "720x480p @ 59.94/60Hz";
-        case 3: return "720x480p @ 59.94/60Hz";
-        case 4: return "1280x720p @ 59.94/60Hz";
-        case 5: return "1920x1080i @ 59.94/60Hz";
-        case 6: return "720x480i @ 59.94/60Hz";
-        case 7: return "720x480i @ 59.94/60Hz";
-        case 16: return "1920x1080p @ 59.94/60Hz";
-        case 17: return "720x576p @ 50Hz";
-        case 18: return "720x576p @ 50Hz";
-        case 19: return "1280x720p @ 50Hz";
-        case 20: return "1920x1080i @ 50Hz";
-        case 31: return "1920x1080p @ 50Hz";
-        case 32: return "1920x1080p @ 23.98/24Hz";
-        case 33: return "1920x1080p @ 25Hz";
-        case 34: return "1920x1080p @ 29.97/30Hz";
-        case 39: return "1920x1080i @ 50Hz";
-        case 40: return "1920x1080i @ 100Hz";
-        case 41: return "1280x720p @ 100Hz";
-        case 42: return "720x576p @ 100Hz";
-        case 43: return "720x576p @ 100Hz";
-        case 44: return "720x576i @ 100Hz";
-        case 45: return "720x576i @ 100Hz";
-        case 46: return "1920x1080i @ 119.88/120Hz";
-        case 47: return "1280x720p @ 119.88/120Hz";
-        case 48: return "720x480p @ 119.88/120Hz";
-        case 49: return "720x480p @ 119.88/120Hz";
-        case 50: return "720x480i @ 119.88/120Hz";
-        case 51: return "720x480i @ 119.88/120Hz";
-        case 60: return "1280x720p @ 23.98/24Hz";
-        case 61: return "1280x720p @ 25Hz";
-        case 62: return "1280x720p @ 29.97/30Hz";
-        case 63: return "1920x1080p @ 119.88/120Hz";
-        case 64: return "1920x1080p @ 100Hz";
-        case 93: return "3840x2160p @ 23.98/24Hz";
-        case 94: return "3840x2160p @ 25Hz";
-        case 95: return "3840x2160p @ 29.97/30Hz";
-        case 96: return "3840x2160p @ 50Hz";
-        case 97: return "3840x2160p @ 59.94/60Hz";
-        case 98: return "4096x2160p @ 23.98/24Hz";
-        case 99: return "4096x2160p @ 25Hz";
-        case 100: return "4096x2160p @ 29.97/30Hz";
-        case 101: return "4096x2160p @ 50Hz";
-        case 102: return "4096x2160p @ 59.94/60Hz";
-        default: return QString("Unknown VIC %1").arg(vic);
-    }
+    return edid::EDIDResolutionParser::getVICResolution(vic);
 }
 
 QString UpdateDisplaySettingsDialog::getCurrentDisplayName()

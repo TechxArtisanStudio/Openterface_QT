@@ -18,6 +18,13 @@ QList<ResolutionInfo> EDIDResolutionParser::parseStandardTimings(const QByteArra
     QList<ResolutionInfo> list;
     if (edidBlock.size() != 128) return list;
 
+    static const struct AspectRatio { int num; int den; } aspectRates[4] = {
+        {10, 16}, // 16:10
+        {3, 4},   // 4:3
+        {4, 5},   // 5:4
+        {9, 16}   // 16:9
+    };
+
     for (int offset = 35; offset <= 42; offset += 2) {
         quint8 byte1 = static_cast<quint8>(edidBlock[offset]);
         quint8 byte2 = static_cast<quint8>(edidBlock[offset + 1]);
@@ -25,13 +32,9 @@ QList<ResolutionInfo> EDIDResolutionParser::parseStandardTimings(const QByteArra
 
         int hres = (byte1 + 31) * 8;
         quint8 aspect = (byte2 >> 6) & 0x03;
-        int vres = 0;
-        switch (aspect) {
-            case 0: vres = hres * 10 / 16; break;
-            case 1: vres = hres * 3 / 4; break;
-            case 2: vres = hres * 4 / 5; break;
-            case 3: vres = hres * 9 / 16; break;
-        }
+
+        if (aspect >= 4) continue;
+        int vres = hres * aspectRates[aspect].num / aspectRates[aspect].den;
 
         int refresh = (byte2 & 0x3F) + 60;
         list.append(ResolutionInfo(QString("%1x%2 @ %3Hz").arg(hres).arg(vres).arg(refresh), hres, vres, refresh, 0, true));
@@ -102,31 +105,41 @@ QList<ResolutionInfo> EDIDResolutionParser::parseCEA861ExtensionBlocks(const QBy
     return list;
 }
 
+namespace {
+
+const struct VICEntry { quint8 vic; int width; int height; int refresh; const char *desc; const char *pretty; } VIC_TABLE[] = {
+    {1,  640,  480,  60, "640x480 @ 60Hz",   "640x480p @ 59.94/60Hz"},
+    {2,  720,  480,  60, "720x480 @ 60Hz",   "720x480p @ 59.94/60Hz"},
+    {3,  720,  480,  60, "720x480 @ 60Hz",   "720x480p @ 59.94/60Hz"},
+    {4, 1280,  720,  60, "1280x720 @ 60Hz",  "1280x720p @ 59.94/60Hz"},
+    {16,1920, 1080, 60, "1920x1080 @ 60Hz", "1920x1080p @ 59.94/60Hz"},
+    {93,3840,2160, 24, "3840x2160 @ 24Hz", "3840x2160p @ 23.98/24Hz"},
+    {97,3840,2160, 60, "3840x2160 @ 60Hz", "3840x2160p @ 59.94/60Hz"},
+};
+
+const int VIC_TABLE_SIZE = sizeof(VIC_TABLE) / sizeof(VIC_TABLE[0]);
+
+} // namespace
+
 ResolutionInfo EDIDResolutionParser::getVICResolutionInfo(quint8 vic)
 {
-    switch (vic) {
-        case 1: return ResolutionInfo("640x480 @ 60Hz", 640, 480, 60, vic);
-        case 2: return ResolutionInfo("720x480 @ 60Hz", 720, 480, 60, vic);
-        case 3: return ResolutionInfo("720x480 @ 60Hz", 720, 480, 60, vic);
-        case 4: return ResolutionInfo("1280x720 @ 60Hz", 1280, 720, 60, vic);
-        case 16: return ResolutionInfo("1920x1080 @ 60Hz", 1920, 1080, 60, vic);
-        case 93: return ResolutionInfo("3840x2160 @ 24Hz", 3840, 2160, 24, vic);
-        case 97: return ResolutionInfo("3840x2160 @ 60Hz", 3840, 2160, 60, vic);
-        default: return ResolutionInfo(QString("Unknown VIC %1").arg(vic), 0, 0, 0, vic);
+    for (int i = 0; i < VIC_TABLE_SIZE; ++i) {
+        if (VIC_TABLE[i].vic == vic) {
+            ResolutionInfo info(VIC_TABLE[i].desc, VIC_TABLE[i].width, VIC_TABLE[i].height, VIC_TABLE[i].refresh, vic);
+            return info;
+        }
     }
+    return ResolutionInfo(QString("Unknown VIC %1").arg(vic), 0, 0, 0, vic);
 }
 
 QString EDIDResolutionParser::getVICResolution(quint8 vic)
 {
-    switch (vic) {
-        case 1: return "640x480p @ 59.94/60Hz";
-        case 2: return "720x480p @ 59.94/60Hz";
-        case 4: return "1280x720p @ 59.94/60Hz";
-        case 16: return "1920x1080p @ 59.94/60Hz";
-        case 93: return "3840x2160p @ 23.98/24Hz";
-        case 97: return "3840x2160p @ 59.94/60Hz";
-        default: return QString("Unknown VIC %1").arg(vic);
+    for (int i = 0; i < VIC_TABLE_SIZE; ++i) {
+        if (VIC_TABLE[i].vic == vic) {
+            return QString::fromUtf8(VIC_TABLE[i].pretty);
+        }
     }
+    return QString("Unknown VIC %1").arg(vic);
 }
 
 } // namespace edid
