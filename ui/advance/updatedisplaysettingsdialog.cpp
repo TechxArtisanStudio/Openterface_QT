@@ -21,6 +21,9 @@
 */
 
 #include "updatedisplaysettingsdialog.h"
+#include "edid/edidutils.h"
+#include "edid/edidresolutionparser.h"
+#include "edid/firmwareutils.h"
 #include "../../video/videohid.h"
 #include "../../video/firmwarereader.h"
 #include "../../video/firmwarewriter.h"
@@ -795,49 +798,7 @@ void UpdateDisplaySettingsDialog::onCancelReadingClicked()
 
 void UpdateDisplaySettingsDialog::parseEDIDDescriptors(const QByteArray &edidBlock, QString &displayName, QString &serialNumber)
 {
-    if (edidBlock.size() != 128) {
-        qWarning() << "Invalid EDID block size:" << edidBlock.size();
-        return;
-    }
-    
-    displayName.clear();
-    serialNumber.clear();
-    
-    // Parse all 4 descriptors (offsets: 54, 72, 90, 108)
-    for (int descriptorOffset = 54; descriptorOffset <= 54 + 3 * 18; descriptorOffset += 18) {
-        if (descriptorOffset + 18 > edidBlock.size()) break;
-        
-        // Check if this is a text descriptor (non-timing descriptor)
-        if (edidBlock[descriptorOffset] == 0x00 && 
-            edidBlock[descriptorOffset + 1] == 0x00 && 
-            edidBlock[descriptorOffset + 2] == 0x00) {
-            
-            quint8 descriptorType = static_cast<quint8>(edidBlock[descriptorOffset + 3]);
-            
-            if (descriptorType == 0xFC) { // Display Product Name
-                QByteArray nameBytes = edidBlock.mid(descriptorOffset + 5, 13);
-                for (int i = 0; i < nameBytes.size(); ++i) {
-                    char c = nameBytes[i];
-                    if (c == 0x0A) break; // Line feed terminator
-                    if (c >= 32 && c <= 126) { // Printable ASCII
-                        displayName += c;
-                    }
-                }
-                displayName = displayName.trimmed();
-                
-            } else if (descriptorType == 0xFF) { // Display Serial Number
-                QByteArray serialBytes = edidBlock.mid(descriptorOffset + 5, 13);
-                for (int i = 0; i < serialBytes.size(); ++i) {
-                    char c = serialBytes[i];
-                    if (c == 0x0A) break; // Line feed terminator
-                    if (c >= 32 && c <= 126) { // Printable ASCII
-                        serialNumber += c;
-                    }
-                }
-                serialNumber = serialNumber.trimmed();
-            }
-        }
-    }
+    edid::EDIDUtils::parseEDIDDescriptors(edidBlock, displayName, serialNumber);
 }
 
 void UpdateDisplaySettingsDialog::logSupportedResolutions(const QByteArray &edidBlock)
@@ -1061,127 +1022,48 @@ void UpdateDisplaySettingsDialog::updateResolutionTableFromEDID(const QByteArray
     if (resolutionTable) {
         resolutionTable->setRowCount(0);
     }
-    
-    // Skip standard timings - only parse extension blocks for resolutions
-    // parseStandardTimingsForResolutions(edidBlock);
-    
-    // Skip detailed timing descriptors from Block 0 - focus on extension blocks
-    // parseDetailedTimingDescriptorsForResolutions(edidBlock);
-    
-    // Parse extension blocks for additional resolutions (this is where modern resolutions are)
-    parseExtensionBlocksForResolutions(firmwareData, baseOffset);
-    
-    // Populate the table with all found resolutions
+
+    // Parse standard timings and detailed timings from Block 0 (optional)
+    auto standardTimings = edid::EDIDResolutionParser::parseStandardTimings(edidBlock);
+    for (const auto &r : standardTimings) {
+        addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
+    }
+
+    auto detailedTimings = edid::EDIDResolutionParser::parseDetailedTimingDescriptors(edidBlock);
+    for (const auto &r : detailedTimings) {
+        addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
+    }
+
+    // Parse CEA-861 extension blocks for additional resolutions
+    auto extensionResolutions = edid::EDIDResolutionParser::parseCEA861ExtensionBlocks(firmwareData, baseOffset);
+    for (const auto &r : extensionResolutions) {
+        addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
+    }
+
     populateResolutionTable();
 }
 
 void UpdateDisplaySettingsDialog::parseStandardTimingsForResolutions(const QByteArray &edidBlock)
 {
-    qDebug() << "Parsing standard timings for resolution table...";
-    
-    // Parse standard timings (bytes 35-42)
-    for (int i = 35; i <= 42; i += 2) {
-        if (i + 1 >= edidBlock.size()) break;
-        
-        quint8 byte1 = static_cast<quint8>(edidBlock[i]);
-        quint8 byte2 = static_cast<quint8>(edidBlock[i + 1]);
-        
-        // Skip unused timings
-        if ((byte1 == 0x01 && byte2 == 0x01) || 
-            (byte1 == 0x00 && byte2 == 0x00) ||
-            (byte1 == 0xFF && byte2 == 0xFF)) {
-            continue;
-        }
-        
-        // Calculate resolution
-        int horizontalRes = (byte1 + 31) * 8;
-        int aspectRatio = (byte2 >> 6) & 0x03;
-        int refreshRate = (byte2 & 0x3F) + 60;
-        
-        int verticalRes = 0;
-        switch (aspectRatio) {
-            case 0: verticalRes = (horizontalRes * 10) / 16; break; // 16:10
-            case 1: verticalRes = (horizontalRes * 3) / 4; break;   // 4:3
-            case 2: verticalRes = (horizontalRes * 4) / 5; break;   // 5:4
-            case 3: verticalRes = (horizontalRes * 9) / 16; break;  // 16:9
-        }
-        
-        // Only add valid resolutions
-        if (horizontalRes >= 640 && horizontalRes <= 8192 && 
-            verticalRes >= 480 && verticalRes <= 8192 && 
-            refreshRate >= 60 && refreshRate <= 200) {
-            
-            QString description = QString("%1x%2 @ %3Hz").arg(horizontalRes).arg(verticalRes).arg(refreshRate);
-            addResolutionToList(description, horizontalRes, verticalRes, refreshRate, 0, true, true);
-        }
+    auto resolutions = edid::EDIDResolutionParser::parseStandardTimings(edidBlock);
+    for (const auto &r : resolutions) {
+        addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
     }
 }
 
 void UpdateDisplaySettingsDialog::parseDetailedTimingDescriptorsForResolutions(const QByteArray &edidBlock)
 {
-    qDebug() << "Parsing detailed timing descriptors for resolution table...";
-    
-    // Parse detailed timing descriptors (offsets: 54, 72, 90, 108)
-    for (int descriptorOffset = 54; descriptorOffset <= 54 + 3 * 18; descriptorOffset += 18) {
-        if (descriptorOffset + 18 > edidBlock.size()) break;
-        
-        // Check if this is a detailed timing descriptor (not a text descriptor)
-        if (!(edidBlock[descriptorOffset] == 0x00 && 
-              edidBlock[descriptorOffset + 1] == 0x00 && 
-              edidBlock[descriptorOffset + 2] == 0x00)) {
-            
-            // Parse detailed timing
-            quint16 pixelClock = static_cast<quint16>(edidBlock[descriptorOffset]) | 
-                               (static_cast<quint16>(edidBlock[descriptorOffset + 1]) << 8);
-            
-            if (pixelClock > 0) {
-                quint16 hActive = static_cast<quint16>(edidBlock[descriptorOffset + 2]) | 
-                                ((static_cast<quint16>(edidBlock[descriptorOffset + 4]) & 0xF0) << 4);
-                
-                quint16 hBlank = static_cast<quint16>(edidBlock[descriptorOffset + 3]) | 
-                               ((static_cast<quint16>(edidBlock[descriptorOffset + 4]) & 0x0F) << 8);
-                
-                quint16 vActive = static_cast<quint16>(edidBlock[descriptorOffset + 5]) | 
-                                ((static_cast<quint16>(edidBlock[descriptorOffset + 7]) & 0xF0) << 4);
-                
-                quint16 vBlank = static_cast<quint16>(edidBlock[descriptorOffset + 6]) | 
-                               ((static_cast<quint16>(edidBlock[descriptorOffset + 7]) & 0x0F) << 8);
-                
-                double pixelClockMHz = pixelClock / 100.0;
-                double hTotal = hActive + hBlank;
-                double vTotal = vActive + vBlank;
-                double refreshRate = (pixelClockMHz * 1000000.0) / (hTotal * vTotal);
-                
-                if (hActive >= 640 && vActive >= 480 && refreshRate >= 30 && refreshRate <= 200) {
-                    QString description = QString("%1x%2 @ %3Hz").arg(hActive).arg(vActive).arg(refreshRate, 0, 'f', 1);
-                    addResolutionToList(description, hActive, vActive, qRound(refreshRate), 0, false, true);
-                }
-            }
-        }
+    auto resolutions = edid::EDIDResolutionParser::parseDetailedTimingDescriptors(edidBlock);
+    for (const auto &r : resolutions) {
+        addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
     }
 }
 
 void UpdateDisplaySettingsDialog::parseExtensionBlocksForResolutions(const QByteArray &firmwareData, int baseOffset)
 {
-    qDebug() << "Parsing extension blocks for resolution table...";
-    
-    // Get extension count from Block 0
-    if (baseOffset + 126 >= firmwareData.size()) return;
-    
-    quint8 extensionCount = static_cast<quint8>(firmwareData[baseOffset + 126]);
-    if (extensionCount == 0) return;
-    
-    for (int blockIndex = 1; blockIndex <= extensionCount; ++blockIndex) {
-        int blockOffset = baseOffset + (blockIndex * 128);
-        
-        if (blockOffset + 128 > firmwareData.size()) continue;
-        
-        QByteArray extensionBlock = firmwareData.mid(blockOffset, 128);
-        quint8 extensionTag = static_cast<quint8>(extensionBlock[0]);
-        
-        if (extensionTag == 0x02) { // CEA-861 Extension Block
-            parseCEA861ExtensionBlockForResolutions(extensionBlock, blockIndex);
-        }
+    auto resolutions = edid::EDIDResolutionParser::parseCEA861ExtensionBlocks(firmwareData, baseOffset);
+    for (const auto &r : resolutions) {
+        addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
     }
 }
 
@@ -1973,335 +1855,32 @@ void UpdateDisplaySettingsDialog::hideMainWindow()
 
 int UpdateDisplaySettingsDialog::findEDIDBlock0(const QByteArray &firmwareData)
 {
-    // EDID header signature: 00 FF FF FF FF FF FF 00
-    const QByteArray edidHeader = QByteArray::fromHex("00FFFFFFFFFFFF00");
-    
-    for (int i = 0; i <= firmwareData.size() - edidHeader.size(); ++i) {
-        if (firmwareData.mid(i, edidHeader.size()) == edidHeader) {
-            qDebug() << "EDID Block 0 found at offset:" << i;
-            return i;
-        }
-    }
-    
-    qDebug() << "EDID Block 0 not found in firmware";
-    return -1;
+    return edid::EDIDUtils::findEDIDBlock0(firmwareData);
 }
 
 void UpdateDisplaySettingsDialog::updateEDIDDisplayName(QByteArray &edidBlock, const QString &newName)
 {
-    // Search for existing display name descriptor (0xFC) or use the first available descriptor
-    int targetDescriptorOffset = -1;
-    
-    // Check all 4 descriptors (offsets: 54, 72, 90, 108)
-    for (int descriptorOffset = 54; descriptorOffset <= 54 + 3 * 18; descriptorOffset += 18) {
-        if (descriptorOffset + 18 > edidBlock.size()) break;
-        
-        // Check if this is a display name descriptor
-        if (edidBlock[descriptorOffset] == 0x00 && 
-            edidBlock[descriptorOffset + 1] == 0x00 && 
-            edidBlock[descriptorOffset + 2] == 0x00 && 
-            edidBlock[descriptorOffset + 3] == static_cast<char>(0xFC)) {
-            targetDescriptorOffset = descriptorOffset;
-            break;
-        }
-    }
-    
-    // If no display name descriptor found, use the last descriptor (offset 108)
-    if (targetDescriptorOffset == -1) {
-        targetDescriptorOffset = 108;
-        qDebug() << "No existing display name descriptor found, using descriptor at offset 108";
-    }
-    
-    if (targetDescriptorOffset + 18 > edidBlock.size()) {
-        qWarning() << "Target descriptor offset exceeds EDID block size";
-        return;
-    }
-    
-    QByteArray nameBytes = newName.toUtf8();
-    if (nameBytes.size() > 13) {
-        nameBytes = nameBytes.left(13);
-    }
-    
-    nameBytes.append(0x0A);
-
-    // Pad with spaces and terminate with 0x0A
-    while (nameBytes.size() < 13) {
-        nameBytes.append(' ');
-    }
-    
-    qDebug() << "Updating display name descriptor at offset:" << targetDescriptorOffset;
-    
-    // Show descriptor BEFORE update
-    qDebug() << "=== DESCRIPTOR BEFORE UPDATE (offset" << targetDescriptorOffset << ") ===";
-    QByteArray beforeDescriptor = edidBlock.mid(targetDescriptorOffset, 18);
-    QString beforeHex;
-    for (int i = 0; i < beforeDescriptor.size(); ++i) {
-        beforeHex += QString("%1 ").arg(static_cast<quint8>(beforeDescriptor[i]), 2, 16, QChar('0')).toUpper();
-    }
-    qDebug() << "Before:" << beforeHex;
-    
-    // Set descriptor header for display name
-    edidBlock[targetDescriptorOffset] = 0x00;
-    edidBlock[targetDescriptorOffset + 1] = 0x00;
-    edidBlock[targetDescriptorOffset + 2] = 0x00;
-    edidBlock[targetDescriptorOffset + 3] = 0xFC; // Display name tag
-    edidBlock[targetDescriptorOffset + 4] = 0x00;
-    
-    // Copy display name
-    for (int i = 0; i < 13; ++i) {
-        if (i < nameBytes.size()) {
-            edidBlock[targetDescriptorOffset + 5 + i] = nameBytes[i];
-        } else {
-            edidBlock[targetDescriptorOffset + 5 + i] = ' ';
-        }
-    }
-    
-    // Show descriptor AFTER update
-    qDebug() << "=== DESCRIPTOR AFTER UPDATE (offset" << targetDescriptorOffset << ") ===";
-    QByteArray afterDescriptor = edidBlock.mid(targetDescriptorOffset, 18);
-    QString afterHex;
-    for (int i = 0; i < afterDescriptor.size(); ++i) {
-        afterHex += QString("%1 ").arg(static_cast<quint8>(afterDescriptor[i]), 2, 16, QChar('0')).toUpper();
-    }
-    qDebug() << "After:" << afterHex;
-    
-    qDebug() << "Display name updated to:" << newName;
+    edid::EDIDUtils::updateEDIDDisplayName(edidBlock, newName);
 }
 
 void UpdateDisplaySettingsDialog::updateEDIDSerialNumber(QByteArray &edidBlock, const QString &newSerial)
 {
-    // Search for existing serial number descriptor (0xFF) or use an available descriptor
-    int targetDescriptorOffset = -1;
-    
-    // Check all 4 descriptors (offsets: 54, 72, 90, 108)
-    for (int descriptorOffset = 54; descriptorOffset <= 54 + 3 * 18; descriptorOffset += 18) {
-        if (descriptorOffset + 18 > edidBlock.size()) break;
-        
-        // Check if this is a serial number descriptor
-        if (edidBlock[descriptorOffset] == 0x00 && 
-            edidBlock[descriptorOffset + 1] == 0x00 && 
-            edidBlock[descriptorOffset + 2] == 0x00 && 
-            edidBlock[descriptorOffset + 3] == static_cast<char>(0xFF)) {
-            targetDescriptorOffset = descriptorOffset;
-            break;
-        }
-    }
-    
-    // If no serial number descriptor found, look for an unused descriptor
-    if (targetDescriptorOffset == -1) {
-        for (int descriptorOffset = 54; descriptorOffset <= 54 + 3 * 18; descriptorOffset += 18) {
-            if (descriptorOffset + 18 > edidBlock.size()) break;
-            
-            // Check if this descriptor is unused (all zeros or display name if we're updating both)
-            bool isUnused = true;
-            for (int i = 0; i < 18; ++i) {
-                if (edidBlock[descriptorOffset + i] != 0x00) {
-                    isUnused = false;
-                    break;
-                }
-            }
-            
-            // Also check if it's not a display name descriptor (to avoid conflicts)
-            if (!isUnused && 
-                edidBlock[descriptorOffset] == 0x00 && 
-                edidBlock[descriptorOffset + 1] == 0x00 && 
-                edidBlock[descriptorOffset + 2] == 0x00 && 
-                edidBlock[descriptorOffset + 3] == static_cast<char>(0xFC)) {
-                continue; // Skip display name descriptor
-            }
-            
-            if (isUnused) {
-                targetDescriptorOffset = descriptorOffset;
-                break;
-            }
-        }
-    }
-    
-    // If still no descriptor found, use the first available one (54)
-    if (targetDescriptorOffset == -1) {
-        targetDescriptorOffset = 72; // Use second descriptor to avoid conflicts with display name
-        qDebug() << "No existing serial number descriptor found, using descriptor at offset 72";
-    }
-    
-    if (targetDescriptorOffset + 18 > edidBlock.size()) {
-        qWarning() << "Target descriptor offset exceeds EDID block size";
-        return;
-    }
-    
-    QByteArray serialBytes = newSerial.toUtf8();
-    if (serialBytes.size() > 13) {
-        serialBytes = serialBytes.left(13);
-    }
-    
-    serialBytes.append(0x0A);
-
-    // Pad with spaces
-    while (serialBytes.size() < 13) {
-        serialBytes.append(' ');
-    }
-    
-    qDebug() << "Updating serial number descriptor at offset:" << targetDescriptorOffset;
-    
-    // Show descriptor BEFORE update
-    qDebug() << "=== SERIAL DESCRIPTOR BEFORE UPDATE (offset" << targetDescriptorOffset << ") ===";
-    QByteArray beforeDescriptor = edidBlock.mid(targetDescriptorOffset, 18);
-    QString beforeHex;
-    for (int i = 0; i < beforeDescriptor.size(); ++i) {
-        beforeHex += QString("%1 ").arg(static_cast<quint8>(beforeDescriptor[i]), 2, 16, QChar('0')).toUpper();
-    }
-    qDebug() << "Before:" << beforeHex;
-    
-    // Set descriptor header for serial number
-    edidBlock[targetDescriptorOffset] = 0x00;
-    edidBlock[targetDescriptorOffset + 1] = 0x00;
-    edidBlock[targetDescriptorOffset + 2] = 0x00;
-    edidBlock[targetDescriptorOffset + 3] = 0xFF; // Serial number tag
-    edidBlock[targetDescriptorOffset + 4] = 0x00;
-    
-    // Copy serial number
-    for (int i = 0; i < 13; ++i) {
-        if (i < serialBytes.size()) {
-            edidBlock[targetDescriptorOffset + 5 + i] = serialBytes[i];
-        } else {
-            edidBlock[targetDescriptorOffset + 5 + i] = ' ';
-        }
-    }
-    
-    // Show descriptor AFTER update
-    qDebug() << "=== SERIAL DESCRIPTOR AFTER UPDATE (offset" << targetDescriptorOffset << ") ===";
-    QByteArray afterDescriptor = edidBlock.mid(targetDescriptorOffset, 18);
-    QString afterHex;
-    for (int i = 0; i < afterDescriptor.size(); ++i) {
-        afterHex += QString("%1 ").arg(static_cast<quint8>(afterDescriptor[i]), 2, 16, QChar('0')).toUpper();
-    }
-    qDebug() << "After:" << afterHex;
-    
-    qDebug() << "Serial number updated to:" << newSerial;
+    edid::EDIDUtils::updateEDIDSerialNumber(edidBlock, newSerial);
 }
 
 quint8 UpdateDisplaySettingsDialog::calculateEDIDChecksum(const QByteArray &edidBlock)
 {
-    if (edidBlock.size() != 128) {
-        qWarning() << "EDID block size is not 128 bytes:" << edidBlock.size();
-        return 0;
-    }
-    
-    quint16 sum = 0;
-    for (int i = 0; i < 127; ++i) {
-        sum += static_cast<quint8>(edidBlock[i]);
-    }
-    
-    quint8 checksum = (256 - (sum & 0xFF)) & 0xFF;
-    qDebug() << "Calculated EDID checksum:" << QString("0x%1").arg(checksum, 2, 16, QChar('0'));
-    
-    return checksum;
+    return edid::EDIDUtils::calculateEDIDChecksum(edidBlock);
 }
 
 quint16 UpdateDisplaySettingsDialog::calculateFirmwareChecksumWithDiff(const QByteArray &originalFirmware, const QByteArray &originalEDID, const QByteArray &modifiedEDID)
 {
-    if (originalFirmware.size() < 2) {
-        qWarning() << "Firmware too small for checksum calculation";
-        return 0;
-    }
-    
-    if (originalEDID.size() != modifiedEDID.size() || originalEDID.size() != 128) {
-        qWarning() << "EDID blocks must be 128 bytes and same size";
-        return 0;
-    }
-    
-    qDebug() << "Calculating firmware checksum using EDID difference method:";
-    qDebug() << "  Total firmware size:" << originalFirmware.size() << "bytes";
-    
-    // Get the original firmware checksum from the last 2 bytes
-    quint8 originalLowByte = static_cast<quint8>(originalFirmware[originalFirmware.size() - 2]);
-    quint8 originalHighByte = static_cast<quint8>(originalFirmware[originalFirmware.size() - 1]);
-    
-    // Determine byte order by checking which interpretation makes more sense
-    // Try both little-endian and big-endian interpretations
-    quint16 originalChecksumLE = originalLowByte | (originalHighByte << 8);  // Little-endian
-    quint16 originalChecksumBE = (originalLowByte << 8) | originalHighByte;  // Big-endian
-    
-    qDebug() << "  Original last 2 bytes: 0x" << QString::number(originalLowByte, 16).toUpper().rightJustified(2, '0') << 
-                " 0x" << QString::number(originalHighByte, 16).toUpper().rightJustified(2, '0');
-    qDebug() << "  Original checksum (little-endian): 0x" << QString::number(originalChecksumLE, 16).toUpper().rightJustified(4, '0');
-    qDebug() << "  Original checksum (big-endian): 0x" << QString::number(originalChecksumBE, 16).toUpper().rightJustified(4, '0');
-    
-    // Calculate the sum difference between original and modified EDID blocks
-    qint32 edidDifference = 0;
-    for (int i = 0; i < 128; ++i) {
-        edidDifference += static_cast<quint8>(modifiedEDID[i]) - static_cast<quint8>(originalEDID[i]);
-    }
-    
-    qDebug() << "  EDID byte sum difference:" << edidDifference;
-    
-    // Calculate new checksum by adding the difference to the original checksum
-    // We'll use big-endian format as it's more common for firmware checksums
-    qint32 newChecksumInt = static_cast<qint32>(originalChecksumBE) + edidDifference;
-    quint16 newChecksum = static_cast<quint16>(newChecksumInt & 0xFFFF);
-    
-    qDebug() << "  Original checksum (using big-endian): 0x" << QString::number(originalChecksumBE, 16).toUpper().rightJustified(4, '0');
-    qDebug() << "  New checksum calculation: 0x" << QString::number(originalChecksumBE, 16).toUpper() << 
-                " + " << edidDifference << " = 0x" << QString::number(newChecksumInt, 16).toUpper();
-    qDebug() << "  Final checksum (16-bit): 0x" << QString::number(newChecksum, 16).toUpper().rightJustified(4, '0');
-    
-    // Verify by showing byte breakdown
-    qDebug() << "  New checksum breakdown:";
-    qDebug() << "    High byte: 0x" << QString::number((newChecksum >> 8) & 0xFF, 16).toUpper().rightJustified(2, '0');
-    qDebug() << "    Low byte: 0x" << QString::number(newChecksum & 0xFF, 16).toUpper().rightJustified(2, '0');
-    
-    return newChecksum;
+    return edid::FirmwareUtils::calculateFirmwareChecksumWithDiff(originalFirmware, originalEDID, modifiedEDID);
 }
 
 quint16 UpdateDisplaySettingsDialog::calculateFirmwareChecksumWithDiff(const QByteArray &originalFirmware, const QByteArray &modifiedFirmware)
 {
-    if (originalFirmware.size() < 2 || modifiedFirmware.size() < 2) {
-        qWarning() << "Firmware too small for checksum calculation";
-        return 0;
-    }
-    
-    if (originalFirmware.size() != modifiedFirmware.size()) {
-        qWarning() << "Original and modified firmware must be same size";
-        return 0;
-    }
-    
-    qDebug() << "Calculating firmware checksum using complete firmware difference method:";
-    qDebug() << "  Total firmware size:" << originalFirmware.size() << "bytes";
-    
-    // Get the original firmware checksum from the last 2 bytes
-    quint8 originalLowByte = static_cast<quint8>(originalFirmware[originalFirmware.size() - 2]);
-    quint8 originalHighByte = static_cast<quint8>(originalFirmware[originalFirmware.size() - 1]);
-    
-    // Use big-endian format as it's more common for firmware checksums
-    quint16 originalChecksum = (originalLowByte << 8) | originalHighByte;
-    
-    qDebug() << "  Original last 2 bytes: 0x" << QString::number(originalLowByte, 16).toUpper().rightJustified(2, '0') << 
-                " 0x" << QString::number(originalHighByte, 16).toUpper().rightJustified(2, '0');
-    qDebug() << "  Original checksum (big-endian): 0x" << QString::number(originalChecksum, 16).toUpper().rightJustified(4, '0');
-    
-    // Calculate the sum difference between original and modified firmware (excluding last 2 checksum bytes)
-    qint32 firmwareDifference = 0;
-    int checksumExcludeSize = originalFirmware.size() - 2;
-    
-    for (int i = 0; i < checksumExcludeSize; ++i) {
-        firmwareDifference += static_cast<quint8>(modifiedFirmware[i]) - static_cast<quint8>(originalFirmware[i]);
-    }
-    
-    qDebug() << "  Firmware byte sum difference (excluding checksum):" << firmwareDifference;
-    
-    // Calculate new checksum by adding the difference to the original checksum
-    qint32 newChecksumInt = static_cast<qint32>(originalChecksum) + firmwareDifference;
-    quint16 newChecksum = static_cast<quint16>(newChecksumInt & 0xFFFF);
-    
-    qDebug() << "  New checksum calculation: 0x" << QString::number(originalChecksum, 16).toUpper() << 
-                " + " << firmwareDifference << " = 0x" << QString::number(newChecksumInt, 16).toUpper();
-    qDebug() << "  Final checksum (16-bit): 0x" << QString::number(newChecksum, 16).toUpper().rightJustified(4, '0');
-    
-    // Verify by showing byte breakdown
-    qDebug() << "  New checksum breakdown:";
-    qDebug() << "    High byte: 0x" << QString::number((newChecksum >> 8) & 0xFF, 16).toUpper().rightJustified(2, '0');
-    qDebug() << "    Low byte: 0x" << QString::number(newChecksum & 0xFF, 16).toUpper().rightJustified(2, '0');
-    
-    return newChecksum;
+    return edid::FirmwareUtils::calculateFirmwareChecksumWithDiff(originalFirmware, modifiedFirmware);
 }
 
 QByteArray UpdateDisplaySettingsDialog::processEDIDDisplaySettings(const QByteArray &firmwareData, const QString &newName, const QString &newSerial)
@@ -2414,116 +1993,10 @@ QByteArray UpdateDisplaySettingsDialog::processEDIDDisplaySettings(const QByteAr
 
 void UpdateDisplaySettingsDialog::showEDIDDescriptors(const QByteArray &edidBlock)
 {
-    qDebug() << "EDID Block size:" << edidBlock.size();
-    
-    // Display descriptors starting at offset 54 (4 descriptors, each 18 bytes)
-    for (int descriptorOffset = 54; descriptorOffset <= 54 + 3 * 18; descriptorOffset += 18) {
-        if (descriptorOffset + 18 > edidBlock.size()) break;
-        
-        QByteArray descriptor = edidBlock.mid(descriptorOffset, 18);
-        QString hexString;
-        for (int i = 0; i < descriptor.size(); ++i) {
-            hexString += QString("%1 ").arg(static_cast<quint8>(descriptor[i]), 2, 16, QChar('0')).toUpper();
-        }
-        
-        qDebug() << QString("Descriptor at offset %1:").arg(descriptorOffset);
-        qDebug() << "  Hex:" << hexString;
-        
-        // Check descriptor type
-        quint8 descriptorType = static_cast<quint8>(descriptor[3]);
-        if (descriptor[0] == 0x00 && descriptor[1] == 0x00 && descriptor[2] == 0x00) {
-            switch (descriptorType) {
-                case 0xFF:
-                    qDebug() << "  Type: Display Serial Number";
-                    if (descriptor.size() >= 18) {
-                        QByteArray serialBytes = descriptor.mid(5, 13);
-                        QString serialNumber;
-                        for (int i = 0; i < serialBytes.size(); ++i) {
-                            char c = serialBytes[i];
-                            if (c == 0x0A) break; // Line feed terminator
-                            if (c >= 32 && c <= 126) { // Printable ASCII
-                                serialNumber += c;
-                            }
-                        }
-                        qDebug() << "  Serial Number:" << serialNumber.trimmed();
-                    }
-                    break;
-                case 0xFE:
-                    qDebug() << "  Type: Unspecified Text";
-                    break;
-                case 0xFD:
-                    qDebug() << "  Type: Display Range Limits";
-                    break;
-                case 0xFC:
-                    qDebug() << "  Type: Display Product Name";
-                    // Extract display name (13 bytes starting at offset 5)
-                    if (descriptor.size() >= 18) {
-                        QByteArray nameBytes = descriptor.mid(5, 13);
-                        QString displayName;
-                        for (int i = 0; i < nameBytes.size(); ++i) {
-                            char c = nameBytes[i];
-                            if (c == 0x0A) break; // Line feed terminator
-                            if (c >= 32 && c <= 126) { // Printable ASCII
-                                displayName += c;
-                            }
-                        }
-                        qDebug() << "  Display Name:" << displayName.trimmed();
-                    }
-                    break;
-                case 0xFB:
-                    qDebug() << "  Type: Color Point Data";
-                    break;
-                case 0xFA:
-                    qDebug() << "  Type: Standard Timing Identifications";
-                    break;
-                default:
-                    if (descriptorType == 0x00) {
-                        qDebug() << "  Type: Empty/Unused Descriptor";
-                    } else {
-                        qDebug() << "  Type: Unknown (" << QString("0x%1").arg(descriptorType, 2, 16, QChar('0')).toUpper() << ")";
-                    }
-                    break;
-            }
-        } else {
-            qDebug() << "  Type: Detailed Timing Descriptor";
-        }
-    }
+    edid::EDIDUtils::showEDIDDescriptors(edidBlock);
 }
 
 void UpdateDisplaySettingsDialog::showFirmwareHexDump(const QByteArray &firmwareData, int startOffset, int length)
 {
-    if (length == -1) {
-        length = firmwareData.size() - startOffset;
-    }
-    
-    length = qMin(length, firmwareData.size() - startOffset);
-    
-    for (int i = 0; i < length; i += 16) {
-        QString line = QString("0x%1: ").arg(startOffset + i, 8, 16, QChar('0')).toUpper();
-        
-        // Hex bytes
-        for (int j = 0; j < 16 && (i + j) < length; ++j) {
-            quint8 byte = static_cast<quint8>(firmwareData[startOffset + i + j]);
-            line += QString("%1 ").arg(byte, 2, 16, QChar('0')).toUpper();
-        }
-        
-        // Pad if incomplete line
-        for (int j = (i + 16 > length) ? length - i : 16; j < 16; ++j) {
-            line += "   ";
-        }
-        
-        line += " | ";
-        
-        // ASCII representation
-        for (int j = 0; j < 16 && (i + j) < length; ++j) {
-            char c = firmwareData[startOffset + i + j];
-            if (c >= 32 && c <= 126) {
-                line += c;
-            } else {
-                line += '.';
-            }
-        }
-        
-        qDebug() << line;
-    }
+    edid::EDIDUtils::showFirmwareHexDump(firmwareData, startOffset, length);
 }

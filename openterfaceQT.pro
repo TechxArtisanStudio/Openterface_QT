@@ -95,6 +95,9 @@ SOURCES += main.cpp \
     ui/advance/firmwaremanagerdialog.cpp \
     ui/advance/renamedisplaydialog.cpp \
     ui/advance/updatedisplaysettingsdialog.cpp \
+    ui/advance/edid/edidutils.cpp \
+    ui/advance/edid/firmwareutils.cpp \
+    ui/advance/edid/edidresolutionparser.cpp \
     ui/advance/recordingsettingsdialog.cpp \
     ui/advance/diagnostics/SupportEmailDialog.cpp \
     ui/initializer/mainwindowinitializer.cpp \
@@ -233,6 +236,9 @@ HEADERS  += \
     ui/advance/firmwaremanagerdialog.h \
     ui/advance/renamedisplaydialog.h \
     ui/advance/updatedisplaysettingsdialog.h \
+    ui/advance/edid/edidutils.h \
+    ui/advance/edid/firmwareutils.h \
+    ui/advance/edid/edidresolutionparser.h \
     ui/advance/recordingsettingsdialog.h \
     ui/advance/diagnostics/SupportEmailDialog.h \
     ui/initializer/mainwindowinitializer.h \
