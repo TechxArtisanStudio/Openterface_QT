@@ -161,15 +161,10 @@ private:
     void setupResolutionTable();
     void populateResolutionTable();
     void updateResolutionTableFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData, int baseOffset);
+    void collectResolutionsFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData);
     void addResolutionToList(const QString& description, int width, int height, int refreshRate, 
                            quint8 vic = 0, bool isStandardTiming = false, bool isEnabled = false);
-    void parseStandardTimingsForResolutions(const QByteArray &edidBlock);
-    void parseDetailedTimingDescriptorsForResolutions(const QByteArray &edidBlock);
-    void parseExtensionBlocksForResolutions(const QByteArray &firmwareData, int baseOffset);
-    void parseCEA861ExtensionBlockForResolutions(const QByteArray &block, int blockNumber);
-    void parseVideoDataBlockForResolutions(const QByteArray &dataBlockCollection);
     QList<ResolutionInfo> getSelectedResolutions() const;
-    void applyResolutionChangesToEDID(QByteArray &edidBlock, const QByteArray &firmwareData);
     void updateExtensionBlockResolutions(QByteArray &firmwareData, int edidOffset);
     bool updateCEA861ExtensionBlockResolutions(QByteArray &block, const QSet<quint8> &enabledVICs, const QSet<quint8> &disabledVICs);
     bool hasResolutionChanges() const;

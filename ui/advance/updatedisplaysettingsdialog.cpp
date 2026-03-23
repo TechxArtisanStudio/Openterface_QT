@@ -861,13 +861,18 @@ void UpdateDisplaySettingsDialog::populateResolutionTable()
 
 void UpdateDisplaySettingsDialog::updateResolutionTableFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData, int baseOffset)
 {
-    // Clear existing resolutions
+    // Reset resolution list and rebuild from EDID
     availableResolutions.clear();
     if (resolutionTable) {
         resolutionTable->setRowCount(0);
     }
 
-    // Parse standard timings and detailed timings from Block 0 (optional)
+    collectResolutionsFromEDID(edidBlock, firmwareData);
+    populateResolutionTable();
+}
+
+void UpdateDisplaySettingsDialog::collectResolutionsFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData)
+{
     auto standardTimings = edid::EDIDResolutionParser::parseStandardTimings(edidBlock);
     for (const auto &r : standardTimings) {
         addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
@@ -878,105 +883,9 @@ void UpdateDisplaySettingsDialog::updateResolutionTableFromEDID(const QByteArray
         addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
     }
 
-    // Parse CEA-861 extension blocks for additional resolutions
-    auto extensionResolutions = edid::EDIDResolutionParser::parseCEA861ExtensionBlocks(firmwareData, baseOffset);
+    auto extensionResolutions = edid::EDIDResolutionParser::parseCEA861ExtensionBlocks(firmwareData, edid::EDIDUtils::findEDIDBlock0(firmwareData));
     for (const auto &r : extensionResolutions) {
         addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
-    }
-
-    populateResolutionTable();
-}
-
-void UpdateDisplaySettingsDialog::parseStandardTimingsForResolutions(const QByteArray &edidBlock)
-{
-    auto resolutions = edid::EDIDResolutionParser::parseStandardTimings(edidBlock);
-    for (const auto &r : resolutions) {
-        addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
-    }
-}
-
-void UpdateDisplaySettingsDialog::parseDetailedTimingDescriptorsForResolutions(const QByteArray &edidBlock)
-{
-    auto resolutions = edid::EDIDResolutionParser::parseDetailedTimingDescriptors(edidBlock);
-    for (const auto &r : resolutions) {
-        addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
-    }
-}
-
-void UpdateDisplaySettingsDialog::parseExtensionBlocksForResolutions(const QByteArray &firmwareData, int baseOffset)
-{
-    auto resolutions = edid::EDIDResolutionParser::parseCEA861ExtensionBlocks(firmwareData, baseOffset);
-    for (const auto &r : resolutions) {
-        addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
-    }
-}
-
-void UpdateDisplaySettingsDialog::parseCEA861ExtensionBlockForResolutions(const QByteArray &block, int blockNumber)
-{
-    if (block.size() != 128) return;
-    
-    quint8 dtdOffset = static_cast<quint8>(block[2]);
-    
-    // Parse detailed timing descriptors in the extension block
-    if (dtdOffset >= 4 && dtdOffset < 128) {
-        for (int dtdIndex = dtdOffset; dtdIndex <= 128 - 18; dtdIndex += 18) {
-            QByteArray dtd = block.mid(dtdIndex, 18);
-            
-            quint16 pixelClock = static_cast<quint16>(dtd[0]) | (static_cast<quint16>(dtd[1]) << 8);
-            
-            if (pixelClock > 0) {
-                quint16 hActive = static_cast<quint16>(dtd[2]) | ((static_cast<quint16>(dtd[4]) & 0xF0) << 4);
-                quint16 hBlank = static_cast<quint16>(dtd[3]) | ((static_cast<quint16>(dtd[4]) & 0x0F) << 8);
-                quint16 vActive = static_cast<quint16>(dtd[5]) | ((static_cast<quint16>(dtd[7]) & 0xF0) << 4);
-                quint16 vBlank = static_cast<quint16>(dtd[6]) | ((static_cast<quint16>(dtd[7]) & 0x0F) << 8);
-                
-                double pixelClockMHz = pixelClock / 100.0;
-                double hTotal = hActive + hBlank;
-                double vTotal = vActive + vBlank;
-                double refreshRate = (pixelClockMHz * 1000000.0) / (hTotal * vTotal);
-                
-                if (hActive >= 640 && vActive >= 480 && refreshRate >= 30 && refreshRate <= 200) {
-                    QString description = QString("%1x%2 @ %3Hz (CEA-861)").arg(hActive).arg(vActive).arg(refreshRate, 0, 'f', 1);
-                    addResolutionToList(description, hActive, vActive, qRound(refreshRate), 0, false, true);
-                }
-            }
-        }
-    }
-    
-    // Parse Video Data Block for VIC codes
-    if (dtdOffset > 4) {
-        parseVideoDataBlockForResolutions(block.mid(4, dtdOffset - 4));
-    }
-}
-
-void UpdateDisplaySettingsDialog::parseVideoDataBlockForResolutions(const QByteArray &dataBlockCollection)
-{
-    int offset = 0;
-    while (offset < dataBlockCollection.size()) {
-        if (offset >= dataBlockCollection.size()) break;
-        
-        quint8 header = static_cast<quint8>(dataBlockCollection[offset]);
-        quint8 tag = (header >> 5) & 0x07;
-        quint8 length = header & 0x1F;
-        
-        if (tag == 2) { // Video Data Block
-            for (int i = 1; i <= length && offset + i < dataBlockCollection.size(); ++i) {
-                quint8 vic = static_cast<quint8>(dataBlockCollection[offset + i]) & 0x7F;
-                bool isNative = (static_cast<quint8>(dataBlockCollection[offset + i]) & 0x80) != 0;
-                
-                auto resolution = edid::EDIDResolutionParser::getVICResolutionInfo(vic);
-                if (resolution.width > 0 && resolution.height > 0) {
-                    QString description = QString("%1x%2 @ %3Hz (VIC %4%5)")
-                                        .arg(resolution.width).arg(resolution.height)
-                                        .arg(resolution.refreshRate).arg(vic)
-                                        .arg(isNative ? ", Native" : "");
-                    addResolutionToList(description, resolution.width, resolution.height, 
-                                      resolution.refreshRate, vic, false, true);
-                }
-            }
-        }
-        
-        offset += length + 1;
     }
 }
 
@@ -1017,13 +926,6 @@ QString UpdateDisplaySettingsDialog::getCurrentSerialNumber()
     // This method is now called by loadCurrentEDIDSettings()
     // Return empty string as the actual value is loaded asynchronously
     return QString();
-}
-
-void UpdateDisplaySettingsDialog::applyResolutionChangesToEDID(QByteArray &edidBlock, const QByteArray &firmwareData)
-{
-    qDebug() << "=== APPLYING RESOLUTION CHANGES TO EDID ===";
-    qDebug() << "Note: This method is deprecated. Use updateExtensionBlockResolutions instead.";
-    qDebug() << "=== RESOLUTION CHANGES APPLIED ===";
 }
 
 void UpdateDisplaySettingsDialog::updateExtensionBlockResolutions(QByteArray &firmwareData, int edidOffset)
