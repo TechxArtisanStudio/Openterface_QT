@@ -51,6 +51,7 @@ public:
     void showRecordingTime(bool show);
     int getCaptureWidth() const;
     int getCaptureHeight() const;
+    void checkAndWarnResolutionMismatch(const int &preferredWidth, const int &preferredHeight, const float &preferredFps);
 
 protected:
     void changeEvent(QEvent *event) override;
