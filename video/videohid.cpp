@@ -2697,13 +2697,14 @@ bool VideoHid::writeChunk(quint16 address, const QByteArray &data) {
         qCDebug(log_host_hid)  << "Report:" << report.toHex(' ').toUpper();
         
         status = sendFeatureReport((uint8_t*)report.data(), report.size());
-        
+        qCDebug(log_host_hid) << "writeChunk: sendFeatureReport" << (status ? "OK" : "FAIL") << "addr=" << QString("0x%1").arg(_address, 4, 16, QChar('0'));
+
         if (!status) {
             qWarning() << "Failed to write chunk to address:" << QString("0x%1").arg(_address, 4, 16, QChar('0'));
             return false;
         }
         written_size += chunk_length;
-        qCDebug(log_host_hid) << "writeChunk: emitting firmwareWriteChunkComplete, written_size=" << written_size << " addr=" << QString("0x%1").arg(_address, 4, 16, QChar('0')).toUpper();
+        qCDebug(log_host_hid) << "writeChunk: emitted firmwareWriteChunkComplete, written_size=" << written_size << " addr=" << QString("0x%1").arg(_address, 4, 16, QChar('0')).toUpper();
         emit firmwareWriteChunkComplete(written_size);
         _address += chunkSize; 
     }
@@ -2732,7 +2733,7 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
             if (written_size % 64 == 0) {
                 qCDebug(log_host_hid)  << "Written size:" << written_size;
             }
-            QThread::msleep(150); // Add 100ms delay between writes
+            QThread::msleep(20); // Throttle a little to avoid USB packet bursts
         } else {
             qCDebug(log_host_hid)  << "Failed to write chunk to EEPROM";
             break;

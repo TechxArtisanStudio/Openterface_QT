@@ -35,25 +35,7 @@ void FirmwareReader::process()
         return;
     }
 
-    // Save firmware to file
-    QFile file(m_outputFilePath);
-    if (!file.open(QIODevice::WriteOnly)) {
-        qDebug() << "Failed to open file for writing:" << m_outputFilePath;
-        emit error(QString("Failed to open file for writing: %1").arg(m_outputFilePath));
-        emit finished(false);
-        return;
-    }
-
-    qint64 bytesWritten = file.write(firmwareData);
-    file.close();
-
-    if (bytesWritten != firmwareData.size()) {
-        qDebug() << "Failed to write all firmware data to file:" << m_outputFilePath;
-        emit error(QString("Failed to write all firmware data to file: %1").arg(m_outputFilePath));
-        emit finished(false);
-        return;
-    }
-
-    qDebug() << "Firmware successfully read and saved to:" << m_outputFilePath;
-    emit finished(true);
+    // Return firmware via signal without writing to disk
+    qDebug() << "Firmware successfully read into memory (avoided disk write)";
+    emit finished(true, firmwareData);
 }

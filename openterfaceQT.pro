@@ -70,6 +70,7 @@ SOURCES += main.cpp \
     video/platformhidadapter.cpp \
     video/firmwarewriter.cpp \
     video/firmwarereader.cpp \
+    video/firmwareoperationmanager.cpp \
     ui/TaskManager.cpp \
     ui/globalsetting.cpp \
     ui/inputhandler.cpp \
