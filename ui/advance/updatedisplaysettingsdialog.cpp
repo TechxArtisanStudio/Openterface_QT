@@ -151,8 +151,9 @@ void UpdateDisplaySettingsDialog::cleanupFirmwareReaderThread()
             qDebug() << "Requesting reader thread interruption";
             firmwareReaderThread->requestInterruption();
             firmwareReaderThread->quit();
-            if (!firmwareReaderThread->wait(1000)) {
-                qWarning() << "Firmware reader thread didn't quit gracefully, terminating...";
+
+            if (!firmwareReaderThread->wait(2000)) {
+                qWarning() << "Firmware reader thread didn't quit gracefully, terminating";
                 firmwareReaderThread->terminate();
                 firmwareReaderThread->wait(500);
             }
@@ -163,7 +164,6 @@ void UpdateDisplaySettingsDialog::cleanupFirmwareReaderThread()
     }
 
     if (firmwareReader) {
-        // We can safely reset pointer; object flagged for deletion via Qt parent chain or manual later
         firmwareReader->deleteLater();
         firmwareReader = nullptr;
     }
@@ -312,8 +312,8 @@ void UpdateDisplaySettingsDialog::startFirmwareReadTask(QThread*& thread, Firmwa
     });
     connect(reader, &FirmwareReader::finished, thread, &QThread::quit);
     connect(reader, &FirmwareReader::error, thread, &QThread::quit);
-    connect(reader, &FirmwareReader::finished, reader, &FirmwareReader::deleteLater);
-    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
+    // Do NOT connect auto-deleteLater here.
+    // cleanupFirmwareReaderThread() owns all deletion to avoid double-free / use-after-free.
 
     thread->start();
 }
