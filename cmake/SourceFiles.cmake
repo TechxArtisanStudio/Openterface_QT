@@ -197,6 +197,8 @@ set(UI_ADVANCE_SOURCES
     ui/advance/edid/edidutils.cpp ui/advance/edid/edidutils.h
     ui/advance/edid/firmwareutils.cpp ui/advance/edid/firmwareutils.h
     ui/advance/edid/edidresolutionparser.cpp ui/advance/edid/edidresolutionparser.h
+    ui/advance/edid/resolutionmodel.cpp ui/advance/edid/resolutionmodel.h
+    ui/advance/edid/edidprocessor.cpp ui/advance/edid/edidprocessor.h
     ui/advance/recordingsettingsdialog.cpp ui/advance/recordingsettingsdialog.h
 )
 

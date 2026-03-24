@@ -33,6 +33,7 @@
 #include <QMessageBox>
 #include <QCloseEvent>
 #include <QLineEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QLabel>
 #include <QVBoxLayout>
@@ -134,45 +135,43 @@ void UpdateDisplaySettingsDialog::cleanupFirmwareReaderThread()
         qDebug() << "Cleanup already in progress, skipping";
         return;
     }
-    
+
     m_cleanupInProgress = true;
     qDebug() << "Starting firmware reader thread cleanup";
-    
+
+    // Disconnect but avoid touching in-progress QObjects prematurely.
+    if (firmwareReader) {
+        firmwareReader->disconnect();
+    }
+
     if (firmwareReaderThread) {
-        // Disconnect all signals to prevent callbacks during cleanup
         firmwareReaderThread->disconnect();
-        if (firmwareReader) {
-            firmwareReader->disconnect();
-        }
-        
-        // If thread is running, try to stop it gracefully
+
         if (firmwareReaderThread->isRunning()) {
-            qDebug() << "Stopping running firmware reader thread";
+            qDebug() << "Requesting reader thread interruption";
             firmwareReaderThread->requestInterruption();
             firmwareReaderThread->quit();
-            
-            // Wait briefly for graceful shutdown
-            if (!firmwareReaderThread->wait(1000)) {
-                qWarning() << "Firmware reader thread didn't quit gracefully, terminating...";
+
+            if (!firmwareReaderThread->wait(2000)) {
+                qWarning() << "Firmware reader thread didn't quit gracefully, terminating";
                 firmwareReaderThread->terminate();
-                firmwareReaderThread->wait(500); // Brief wait after terminate
+                firmwareReaderThread->wait(500);
             }
         }
-        
-        // Clean up objects manually if they haven't been auto-deleted yet
-        if (firmwareReader && !firmwareReader->parent()) {
-            firmwareReader->deleteLater();
-        }
-        firmwareReader = nullptr;
-        
-        // Schedule thread for deletion
+
         firmwareReaderThread->deleteLater();
         firmwareReaderThread = nullptr;
     }
-    
+
+    if (firmwareReader) {
+        firmwareReader->deleteLater();
+        firmwareReader = nullptr;
+    }
+
     qDebug() << "Firmware reader thread cleanup completed";
     m_cleanupInProgress = false;
 }
+
 
 void UpdateDisplaySettingsDialog::setupUI()
 {
@@ -279,6 +278,44 @@ void UpdateDisplaySettingsDialog::connectUiSignals()
     connect(cancelReadingButton, &QPushButton::clicked, this, &UpdateDisplaySettingsDialog::onCancelReadingClicked);
     connect(displayNameLineEdit, &QLineEdit::textChanged, this, &UpdateDisplaySettingsDialog::enableUpdateButton);
     connect(serialNumberLineEdit, &QLineEdit::textChanged, this, &UpdateDisplaySettingsDialog::enableUpdateButton);
+}
+
+void UpdateDisplaySettingsDialog::startFirmwareReadTask(QThread*& thread, FirmwareReader*& reader, quint32 firmwareSize, const QString& tempFirmwarePath,
+                                                        std::function<void(int)> progressCallback,
+                                                        std::function<void(bool)> finishedCallback,
+                                                        std::function<void(const QString&)> errorCallback)
+{
+    // Clean up existing thread if this is the member context.
+    if (thread && thread == firmwareReaderThread) {
+        cleanupFirmwareReaderThread();
+    }
+
+    thread = new QThread(this);
+    reader = new FirmwareReader(&VideoHid::getInstance(), ADDR_EEPROM, firmwareSize, tempFirmwarePath);
+    reader->moveToThread(thread);
+
+    connect(thread, &QThread::started, reader, &FirmwareReader::process);
+    connect(reader, &FirmwareReader::progress, this, [progressCallback](int percent) {
+        if (progressCallback) {
+            progressCallback(percent);
+        }
+    });
+    connect(reader, &FirmwareReader::finished, this, [this, finishedCallback](bool success) {
+        if (finishedCallback) {
+            finishedCallback(success);
+        }
+    });
+    connect(reader, &FirmwareReader::error, this, [this, errorCallback](const QString &msg) {
+        if (errorCallback) {
+            errorCallback(msg);
+        }
+    });
+    connect(reader, &FirmwareReader::finished, thread, &QThread::quit);
+    connect(reader, &FirmwareReader::error, thread, &QThread::quit);
+    // Do NOT connect auto-deleteLater here.
+    // cleanupFirmwareReaderThread() owns all deletion to avoid double-free / use-after-free.
+
+    thread->start();
 }
 
 void UpdateDisplaySettingsDialog::setupResolutionTable()
@@ -468,10 +505,9 @@ void UpdateDisplaySettingsDialog::setAllResolutionSelection(bool enable)
         if (checkItem) {
             checkItem->setCheckState(enable ? Qt::Checked : Qt::Unchecked);
         }
-        if (row < availableResolutions.size()) {
-            availableResolutions[row].userSelected = enable;
-        }
     }
+
+    resolutionModel.setSelectionFromTable(resolutionTable);
     enableUpdateButton();
 }
 
@@ -514,11 +550,9 @@ void UpdateDisplaySettingsDialog::onSelectDefaultResolutions()
 
 void UpdateDisplaySettingsDialog::onResolutionItemChanged(QTableWidgetItem* item)
 {
-    if (item && item->column() == 0) { // Only handle checkbox column
-        int row = item->row();
-        if (row < availableResolutions.size()) {
-            availableResolutions[row].userSelected = (item->checkState() == Qt::Checked);
-        }
+    if (item && item->column() == 0 && resolutionTable) {
+        resolutionModel.setSelectionFromTable(resolutionTable);
+        enableUpdateButton();
     }
 }
 
@@ -559,36 +593,12 @@ void UpdateDisplaySettingsDialog::loadCurrentEDIDSettings()
     QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     QString tempFirmwarePath = tempDir + "/temp_firmware_read.bin";
     
-    // Create firmware reader thread
-    firmwareReaderThread = new QThread(this);
-    firmwareReader = new FirmwareReader(&videoHid, ADDR_EEPROM, firmwareSize, tempFirmwarePath);
-    firmwareReader->moveToThread(firmwareReaderThread);
-    
-    // Connect signals
-    connect(firmwareReaderThread, &QThread::started, firmwareReader, &FirmwareReader::process);
-    connect(firmwareReader, &FirmwareReader::progress, this, &UpdateDisplaySettingsDialog::onFirmwareReadProgress);
-    connect(firmwareReader, &FirmwareReader::finished, this, &UpdateDisplaySettingsDialog::onFirmwareReadFinished);
-    connect(firmwareReader, &FirmwareReader::error, this, &UpdateDisplaySettingsDialog::onFirmwareReadError);
-    connect(firmwareReader, &FirmwareReader::finished, firmwareReaderThread, &QThread::quit);
-    
+    startFirmwareReadTask(firmwareReaderThread, firmwareReader, firmwareSize, tempFirmwarePath,
+                          [this](int percent){ onFirmwareReadProgress(percent); },
+                          [this](bool success){ onFirmwareReadFinished(success); },
+                          [this](const QString &err){ onFirmwareReadError(err); });
     // Note: We handle cleanup manually in cleanupFirmwareReaderThread() instead of auto-deleting
     // to avoid crashes when the dialog is closed while the thread is running
-    
-    // Start the thread
-    firmwareReaderThread->start();
-}
-
-void UpdateDisplaySettingsDialog::onFirmwareReadProgress(int percent)
-{
-    // Update embedded progress bar
-    if (progressBar) {
-        progressBar->setValue(percent);
-    }
-    
-    // Also update old progress dialog if it exists (for compatibility)
-    if (progressDialog) {
-        progressDialog->setValue(percent);
-    }
 }
 
 void UpdateDisplaySettingsDialog::onFirmwareReadFinished(bool success)
@@ -607,10 +617,20 @@ void UpdateDisplaySettingsDialog::onFirmwareReadFinished(bool success)
 
     processFirmwareReadResult(success);
 
-    // Clean up firmware reader thread and restart polling
-    QTimer::singleShot(0, this, [this]() {
+    // Clean up firmware reader thread and restart polling safely.
+    // Use QPointer for safe object lifetime checking.
+    QPointer<UpdateDisplaySettingsDialog> selfPtr(this);
+    QTimer::singleShot(0, this, [this, selfPtr]() {
+        if (!selfPtr) {
+            return;
+        }
+
         cleanupFirmwareReaderThread();
-        QTimer::singleShot(500, [this]() {
+
+        QTimer::singleShot(500, this, [this, selfPtr]() {
+            if (!selfPtr) {
+                return;
+            }
             VideoHid::getInstance().start();
         });
     });
@@ -687,7 +707,7 @@ bool UpdateDisplaySettingsDialog::processFirmwareFile(const QString &tempFirmwar
 
     edid::EDIDUtils::logSupportedResolutions(edidBlock);
     edid::EDIDUtils::parseEDIDExtensionBlocks(firmwareData, edidOffset);
-    updateResolutionTableFromEDID(edidBlock, firmwareData, edidOffset);
+    readResolutionFromEDID(edidBlock, firmwareData);
     qDebug() << "=== CURRENT EDID DESCRIPTORS ===";
     edid::EDIDUtils::showEDIDDescriptors(edidBlock);
 
@@ -703,39 +723,6 @@ bool UpdateDisplaySettingsDialog::parseEdidBlock(const QByteArray &firmwareData,
 
     edidBlock = firmwareData.mid(edidOffset, 128);
     return true;
-}
-
-void UpdateDisplaySettingsDialog::applyEdidUpdates(QByteArray &modifiedFirmware, int edidOffset, const QString &newName,
-                                                  const QString &newSerial)
-{
-    QByteArray edidBlock = modifiedFirmware.mid(edidOffset, 128);
-
-    if (!newName.isEmpty()) {
-        edid::EDIDUtils::updateEDIDDisplayName(edidBlock, newName);
-    }
-    if (!newSerial.isEmpty()) {
-        edid::EDIDUtils::updateEDIDSerialNumber(edidBlock, newSerial);
-    }
-
-    if (hasResolutionChanges()) {
-        updateExtensionBlockResolutions(modifiedFirmware, edidOffset);
-    }
-
-    quint8 edidChecksum = edid::EDIDUtils::calculateEDIDChecksum(edidBlock);
-    edidBlock[127] = edidChecksum;
-    modifiedFirmware.replace(edidOffset, 128, edidBlock);
-}
-
-void UpdateDisplaySettingsDialog::finalizeEdidBlock(QByteArray &modifiedFirmware, int /*edidOffset*/,
-                                                   const QByteArray &originalFirmware,
-                                                   const QByteArray &/*originalEdidBlock*/)
-{
-    quint16 firmwareChecksum = calculateFirmwareChecksumWithDiff(originalFirmware, modifiedFirmware);
-
-    if (modifiedFirmware.size() >= 2) {
-        modifiedFirmware[modifiedFirmware.size() - 2] = static_cast<char>((firmwareChecksum >> 8) & 0xFF);
-        modifiedFirmware[modifiedFirmware.size() - 1] = static_cast<char>(firmwareChecksum & 0xFF);
-    }
 }
 
 void UpdateDisplaySettingsDialog::setupProgressDialog()
@@ -878,270 +865,31 @@ void UpdateDisplaySettingsDialog::onCancelReadingClicked()
 }
 
 
-void UpdateDisplaySettingsDialog::addResolutionToList(const QString& description, int width, int height, int refreshRate, 
-                                                    quint8 vic, bool isStandardTiming, bool isEnabled)
+void UpdateDisplaySettingsDialog::populateResolutionTableFromModel()
 {
-    // Check if resolution already exists to avoid duplicates
-    for (const auto& existing : availableResolutions) {
-        if (existing.width == width && existing.height == height && existing.refreshRate == refreshRate) {
-            return; // Already exists
-        }
-    }
-    
-    ResolutionInfo resolution(description, width, height, refreshRate, vic, isStandardTiming);
-    resolution.isEnabled = isEnabled;
-    resolution.userSelected = isEnabled; // Default to current EDID state
-    
-    availableResolutions.append(resolution);
-    qDebug() << "Added resolution:" << description;
-}
+    if (!resolutionTable) return;
 
-void UpdateDisplaySettingsDialog::populateResolutionTable()
-{
-    if (!resolutionTable) return;  // Skip if resolution table is not shown
-    
-    resolutionTable->setRowCount(availableResolutions.size());
-    
-    for (int row = 0; row < availableResolutions.size(); ++row) {
-        const ResolutionInfo& resolution = availableResolutions[row];
-        
-        // Enabled checkbox
-        QTableWidgetItem* checkItem = new QTableWidgetItem();
-        checkItem->setCheckState(resolution.userSelected ? Qt::Checked : Qt::Unchecked);
-        checkItem->setFlags(Qt::ItemIsUserCheckable | Qt::ItemIsEnabled);
-        resolutionTable->setItem(row, 0, checkItem);
-        
-        // Resolution text
-        QTableWidgetItem* resolutionItem = new QTableWidgetItem(QString("%1x%2").arg(resolution.width).arg(resolution.height));
-        resolutionItem->setFlags(Qt::ItemIsEnabled);
-        resolutionTable->setItem(row, 1, resolutionItem);
-        
-        // Refresh rate
-        QTableWidgetItem* refreshItem = new QTableWidgetItem(QString("%1 Hz").arg(resolution.refreshRate));
-        refreshItem->setFlags(Qt::ItemIsEnabled);
-        resolutionTable->setItem(row, 2, refreshItem);
-        
-        // Source - only show extension sources now
-        QString sourceText = tr("Extension");
-        if (resolution.vic > 0) {
-            sourceText += QString(" (VIC %1)").arg(resolution.vic);
-        }
-        QTableWidgetItem* sourceItem = new QTableWidgetItem(sourceText);
-        sourceItem->setFlags(Qt::ItemIsEnabled);
-        resolutionTable->setItem(row, 3, sourceItem);
-    }
-    
-    // Show the resolution group now that we have data
-    if (availableResolutions.size() > 0) {
+    resolutionModel.populateTable(resolutionTable);
+
+    if (!resolutionModel.isEmpty()) {
         resolutionGroup->setVisible(true);
-        qDebug() << "Resolution table populated with" << availableResolutions.size() << "extension block resolutions";
-    } else {
-        qDebug() << "No extension block resolutions found";
-        // You could optionally show a message or keep the group hidden
     }
 }
 
-void UpdateDisplaySettingsDialog::updateResolutionTableFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData, int baseOffset)
+void UpdateDisplaySettingsDialog::readResolutionFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData)
 {
-    // Reset resolution list and rebuild from EDID
-    availableResolutions.clear();
-    if (resolutionTable) {
-        resolutionTable->setRowCount(0);
-    }
-
-    collectResolutionsFromEDID(edidBlock, firmwareData);
-    populateResolutionTable();
-}
-
-void UpdateDisplaySettingsDialog::collectResolutionsFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData)
-{
-    auto standardTimings = edid::EDIDResolutionParser::parseStandardTimings(edidBlock);
-    for (const auto &r : standardTimings) {
-        addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
-    }
-
-    auto detailedTimings = edid::EDIDResolutionParser::parseDetailedTimingDescriptors(edidBlock);
-    for (const auto &r : detailedTimings) {
-        addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
-    }
-
-    auto extensionResolutions = edid::EDIDResolutionParser::parseCEA861ExtensionBlocks(firmwareData, edid::EDIDUtils::findEDIDBlock0(firmwareData));
-    for (const auto &r : extensionResolutions) {
-        addResolutionToList(r.description, r.width, r.height, r.refreshRate, r.vic, r.isStandardTiming, r.isEnabled);
-    }
+    resolutionModel.loadFromEDID(edidBlock, firmwareData);
+    populateResolutionTableFromModel();
 }
 
 QList<ResolutionInfo> UpdateDisplaySettingsDialog::getSelectedResolutions() const
 {
-    QList<ResolutionInfo> selectedResolutions;
-    for (const auto& resolution : availableResolutions) {
-        if (resolution.userSelected) {
-            selectedResolutions.append(resolution);
-        }
-    }
-    return selectedResolutions;
+    return resolutionModel.selected();
 }
 
 bool UpdateDisplaySettingsDialog::hasResolutionChanges() const
 {
-    if (!resolutionTable) return false;  // No resolution UI, no changes
-    
-    // Check if any resolution's current selection differs from its original enabled state
-    for (const auto& resolution : availableResolutions) {
-        if (resolution.userSelected != resolution.isEnabled) {
-            return true;
-        }
-    }
-    return false;
-}
-
-
-void UpdateDisplaySettingsDialog::updateExtensionBlockResolutions(QByteArray &firmwareData, int edidOffset)
-{
-    qDebug() << "=== UPDATING EXTENSION BLOCK RESOLUTIONS ===";
-    
-    // Check if there are extension blocks
-    if (edidOffset + 126 >= firmwareData.size()) {
-        qWarning() << "EDID block too small to check extension count";
-        return;
-    }
-    
-    quint8 extensionCount = static_cast<quint8>(firmwareData[edidOffset + 126]);
-    if (extensionCount == 0) {
-        qDebug() << "No extension blocks found - cannot update resolutions";
-        return;
-    }
-    
-    qDebug() << "Found" << extensionCount << "extension block(s) for resolution updates";
-    
-    // Build sets of enabled and disabled VICs based on user selection
-    QSet<quint8> enabledVICs;
-    QSet<quint8> disabledVICs;
-    
-    for (const auto& resolution : availableResolutions) {
-        if (resolution.vic > 0) {
-            if (resolution.userSelected) {
-                enabledVICs.insert(resolution.vic);
-                qDebug() << "  Enable VIC" << resolution.vic << ":" << resolution.description;
-            } else {
-                disabledVICs.insert(resolution.vic);
-                qDebug() << "  Disable VIC" << resolution.vic << ":" << resolution.description;
-            }
-        }
-    }
-    
-    qDebug() << "Total VICs to enable:" << enabledVICs.size() << ", to disable:" << disabledVICs.size();
-    
-    // Process each extension block
-    bool anyBlockModified = false;
-    for (int blockIndex = 1; blockIndex <= extensionCount; ++blockIndex) {
-        int blockOffset = edidOffset + (blockIndex * 128);
-        
-        if (blockOffset + 128 > firmwareData.size()) {
-            qWarning() << "Extension Block" << blockIndex << "exceeds firmware size";
-            continue;
-        }
-        
-        QByteArray extensionBlock = firmwareData.mid(blockOffset, 128);
-        quint8 extensionTag = static_cast<quint8>(extensionBlock[0]);
-        
-        if (extensionTag == 0x02) { // CEA-861 Extension Block
-            qDebug() << "Processing CEA-861 extension block" << blockIndex << "at offset" << blockOffset;
-            
-            if (updateCEA861ExtensionBlockResolutions(extensionBlock, enabledVICs, disabledVICs)) {
-                // Calculate new checksum for this extension block
-                    quint8 blockChecksum = edid::EDIDUtils::calculateEDIDChecksum(extensionBlock);
-                qDebug() << "Updated extension block" << blockIndex << "checksum to 0x" 
-                         << QString::number(blockChecksum, 16).toUpper().rightJustified(2, '0');
-                
-                // Replace the modified extension block back into firmware
-                firmwareData.replace(blockOffset, 128, extensionBlock);
-                anyBlockModified = true;
-                
-                qDebug() << "Extension block" << blockIndex << "updated successfully";
-            }
-        } else {
-            qDebug() << "Skipping non-CEA-861 extension block" << blockIndex << "(tag 0x" 
-                     << QString::number(extensionTag, 16).toUpper().rightJustified(2, '0') << ")";
-        }
-    }
-    
-    if (anyBlockModified) {
-        qDebug() << "Extension blocks have been updated with resolution changes";
-    } else {
-        qDebug() << "No extension blocks were modified";
-    }
-    
-    qDebug() << "=== EXTENSION BLOCK RESOLUTION UPDATE COMPLETE ===";
-}
-
-bool UpdateDisplaySettingsDialog::updateCEA861ExtensionBlockResolutions(QByteArray &block, const QSet<quint8> &enabledVICs, const QSet<quint8> &disabledVICs)
-{
-    if (block.size() != 128) {
-        qWarning() << "Invalid CEA-861 extension block size:" << block.size();
-        return false;
-    }
-    
-    quint8 dtdOffset = static_cast<quint8>(block[2]);
-    if (dtdOffset <= 4 || dtdOffset > 127) {
-        qWarning() << "Invalid DTD offset in CEA-861 block:" << dtdOffset;
-        return false;
-    }
-    
-    // Parse data blocks to find Video Data Block
-    int offset = 4;
-    bool foundVideoDataBlock = false;
-    bool blockModified = false;
-    
-    while (offset < dtdOffset && offset < block.size()) {
-        quint8 header = static_cast<quint8>(block[offset]);
-        quint8 tag = (header >> 5) & 0x07;
-        quint8 length = header & 0x1F;
-        
-        if (tag == 2) { // Video Data Block
-            qDebug() << "Found Video Data Block at offset" << offset << "with length" << length;
-            foundVideoDataBlock = true;
-            
-            // Update VIC codes in this block
-            for (int i = 1; i <= length && offset + i < block.size(); ++i) {
-                quint8 currentVIC = static_cast<quint8>(block[offset + i]) & 0x7F;
-                bool isNative = (static_cast<quint8>(block[offset + i]) & 0x80) != 0;
-                
-                if (currentVIC == 0) {
-                    // Skip already disabled entries
-                    continue;
-                }
-                
-                if (disabledVICs.contains(currentVIC)) {
-                    // Disable this VIC by setting it to 0
-                    qDebug() << "  Disabling VIC" << currentVIC << "-> setting to 0x00";
-                    block[offset + i] = 0x00;
-                    blockModified = true;
-                } else if (enabledVICs.contains(currentVIC)) {
-                    // Keep this VIC enabled (no change needed)
-                    qDebug() << "  VIC" << currentVIC << "remains enabled" << (isNative ? "(native)" : "");
-                } else {
-                    // VIC not in our list - leave as is for now
-                    qDebug() << "  VIC" << currentVIC << "not in selection list - leaving unchanged";
-                }
-            }
-            
-            // TODO: Add new VICs if needed (requires expanding the data block)
-            // For now, we only disable existing VICs that are not selected
-            
-            break; // We found and processed the Video Data Block
-        }
-        
-        offset += length + 1;
-        if (offset >= dtdOffset) break;
-    }
-    
-    if (!foundVideoDataBlock) {
-        qDebug() << "No Video Data Block found in CEA-861 extension block";
-        return false;
-    }
-    
-    return blockModified;
+    return resolutionModel.hasChanges();
 }
 
 bool UpdateDisplaySettingsDialog::updateDisplaySettings(const QString &newName, const QString &newSerial)
@@ -1172,72 +920,74 @@ bool UpdateDisplaySettingsDialog::updateDisplaySettings(const QString &newName, 
     QString tempFirmwarePath = QApplication::applicationDirPath() + "/temp_firmware.bin";
     
     // Read firmware using FirmwareReader in a thread
-    QThread* readerThread = new QThread();
-    FirmwareReader* firmwareReader = new FirmwareReader(&VideoHid::getInstance(), ADDR_EEPROM, firmwareSize, tempFirmwarePath, nullptr);
-    firmwareReader->moveToThread(readerThread);
-    
-    // Track overall progress (reading: 0-30%, processing: 30-40%, writing: 40-100%)
-    connect(firmwareReader, &FirmwareReader::progress, this, [this](int percent) {
+    if (firmwareReaderThread) {
+        cleanupFirmwareReaderThread();
+    }
+    firmwareReaderThread = nullptr;
+    firmwareReader = nullptr;
+
+    QThread* readerThread = firmwareReaderThread;
+    FirmwareReader* reader = firmwareReader;
+
+    auto onProgress = [this](int percent){
         if (progressDialog) {
             progressDialog->setValue(percent * 30 / 100); // Scale to 0-30%
         }
-    });
-    
-    // Handle firmware read completion
-    connect(firmwareReader, &FirmwareReader::finished, this, [=](bool success) {
+    };
+
+    auto onFinished = [this, tempFirmwarePath, newName, newSerial](bool success) {
         if (!success) {
             showErrorAndRestart(tr("Read Error"), tr("Failed to read firmware from device."), tr("firmware read failure"));
             return;
         }
-        
+
         if (progressDialog) {
             progressDialog->setValue(30); // Reading complete
             progressDialog->setLabelText("Processing EDID settings...");
         }
-        
+
         // Read the firmware file
         QFile firmwareFile(tempFirmwarePath);
         if (!firmwareFile.open(QIODevice::ReadOnly)) {
             showErrorAndRestart(tr("File Error"), tr("Failed to read firmware file."), tr("firmware file read error"));
             return;
         }
-        
+
         QByteArray firmwareData = firmwareFile.readAll();
         firmwareFile.close();
-        
+
         // Process the EDID with new settings
-        QByteArray modifiedFirmware = processEDIDDisplaySettings(firmwareData, newName, newSerial);
+        EdidProcessor processor(resolutionModel);
+        QByteArray modifiedFirmware = processor.processDisplaySettings(firmwareData, newName, newSerial);
         if (modifiedFirmware.isEmpty()) {
             showErrorAndRestart(tr("Processing Error"), tr("Failed to process EDID settings."), tr("EDID processing error"));
             return;
         }
-        
+
         if (progressDialog) {
             progressDialog->setValue(40); // Processing complete
             progressDialog->setLabelText("Writing modified firmware...");
         }
-        
+
         startFirmwareWrite(modifiedFirmware, tempFirmwarePath);
-        readerThread->quit();
-        readerThread->wait();
-        readerThread->deleteLater();
-    });
-    
-    connect(firmwareReader, &FirmwareReader::error, this, [=](const QString& errorMessage) {
+    };
+
+    auto onError = [this](const QString &errorMessage) {
         showErrorAndRestart(tr("Read Error"), tr("Firmware read failed: %1").arg(errorMessage), tr("firmware read error"));
-        readerThread->quit();
-        readerThread->wait();
-        readerThread->deleteLater();
-    });
-    
-    connect(readerThread, &QThread::started, firmwareReader, &FirmwareReader::process);
-    connect(firmwareReader, &FirmwareReader::finished, readerThread, &QThread::quit);
-    connect(firmwareReader, &FirmwareReader::finished, firmwareReader, &FirmwareReader::deleteLater);
-    connect(readerThread, &QThread::finished, readerThread, &QThread::deleteLater);
-    
-    readerThread->start();
-    
-    return true; // Process started successfully
+    };
+
+    startFirmwareReadTask(firmwareReaderThread, firmwareReader, firmwareSize, tempFirmwarePath, onProgress, onFinished, onError);
+    return true;
+}
+
+void UpdateDisplaySettingsDialog::onFirmwareReadProgress(int percent)
+{
+    if (progressBar) {
+        progressBar->setValue(percent);
+    }
+    if (progressDialog) {
+        progressDialog->setValue(percent);
+    }
 }
 
 void UpdateDisplaySettingsDialog::stopAllDevices()
@@ -1271,67 +1021,5 @@ void UpdateDisplaySettingsDialog::hideMainWindow()
     }
 }
 
-quint16 UpdateDisplaySettingsDialog::calculateFirmwareChecksumWithDiff(const QByteArray &originalFirmware, const QByteArray &originalEDID, const QByteArray &modifiedEDID)
-{
-    return edid::FirmwareUtils::calculateFirmwareChecksumWithDiff(originalFirmware, originalEDID, modifiedEDID);
-}
-
-quint16 UpdateDisplaySettingsDialog::calculateFirmwareChecksumWithDiff(const QByteArray &originalFirmware, const QByteArray &modifiedFirmware)
-{
-    return edid::FirmwareUtils::calculateFirmwareChecksumWithDiff(originalFirmware, modifiedFirmware);
-}
-
-QByteArray UpdateDisplaySettingsDialog::processEDIDDisplaySettings(const QByteArray &firmwareData, const QString &newName, const QString &newSerial)
-{
-    qDebug() << "Processing EDID display settings update...";
-    if (!newName.isEmpty()) {
-        qDebug() << "  Updating display name to:" << newName;
-    }
-    if (!newSerial.isEmpty()) {
-        qDebug() << "  Updating serial number to:" << newSerial;
-    }
-
-    bool hasResolutionUpdate = hasResolutionChanges();
-    if (hasResolutionUpdate) {
-        qDebug() << "  Updating resolution settings in extension blocks";
-    }
-
-    QByteArray modifiedFirmware = firmwareData;
-
-    qDebug() << "=== COMPLETE FIRMWARE BEFORE UPDATE ===";
-    qDebug() << "Firmware size:" << firmwareData.size() << "bytes";
-    edid::EDIDUtils::showFirmwareHexDump(firmwareData, 0, qMin(256, firmwareData.size()));
-
-    int edidOffset;
-    QByteArray edidBlock;
-    if (!parseEdidBlock(modifiedFirmware, edidOffset, edidBlock)) {
-        qWarning() << "EDID Block 0 not found or incomplete in firmware";
-        return QByteArray();
-    }
-
-    QByteArray originalEDIDBlock = edidBlock;
-
-    qDebug() << "=== EDID DESCRIPTORS BEFORE UPDATE ===";
-    edid::EDIDUtils::showEDIDDescriptors(edidBlock);
-
-    applyEdidUpdates(modifiedFirmware, edidOffset, newName, newSerial);
-
-    qDebug() << "=== EDID DESCRIPTORS AFTER UPDATE ===";
-    edid::EDIDUtils::showEDIDDescriptors(modifiedFirmware.mid(edidOffset, 128));
-
-    finalizeEdidBlock(modifiedFirmware, edidOffset, firmwareData, originalEDIDBlock);
-
-    qDebug() << "=== COMPLETE FIRMWARE AFTER UPDATE ===";
-    qDebug() << "Modified firmware size:" << modifiedFirmware.size() << "bytes";
-    edid::EDIDUtils::showFirmwareHexDump(modifiedFirmware, 0, qMin(256, modifiedFirmware.size()));
-
-    if (modifiedFirmware.size() > 32) {
-        qDebug() << "=== FIRMWARE END (last 32 bytes) ===";
-        edid::EDIDUtils::showFirmwareHexDump(modifiedFirmware, modifiedFirmware.size() - 32, 32);
-    }
-
-    qDebug() << "EDID display settings processing completed successfully";
-    return modifiedFirmware;
-}
 
 
