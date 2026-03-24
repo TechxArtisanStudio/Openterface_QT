@@ -295,12 +295,12 @@ Bifoga även serielogfilen: %1</translation>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="29"/>
         <source>Openterface Device Selector</source>
-        <translation>OpenInterface-enhetsväljare</translation>
+        <translation>openterface-enhetsväljare</translation>
     </message>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="65"/>
         <source>Available Openterface Devices</source>
-        <translation>Tillgängliga OpenInterface-enheter</translation>
+        <translation>Tillgängliga openterface-enheter</translation>
     </message>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="76"/>
@@ -434,7 +434,7 @@ Bifoga även serielogfilen: %1</translation>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="360"/>
         <source>&lt;h3&gt;Openterface Mini KVM Device&lt;/h3&gt;</source>
-        <translation>&lt;h3&gt;OpenInterface Mini KVM-enhet&lt;/h3&gt;</translation>
+        <translation>&lt;h3&gt;OOpenterface Mini KVM-enhet&lt;/h3&gt;</translation>
     </message>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="361"/>
@@ -589,7 +589,7 @@ Bifoga även serielogfilen: %1</translation>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="459"/>
         <source>Found %1 physical Openterface device(s)</source>
-        <translation>Hittade %1 fysiska OpenInterface-enheter</translation>
+        <translation>Hittade %1 fysiska Openterface-enheter</translation>
     </message>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="466"/>
@@ -630,7 +630,7 @@ This will activate:
 • HID interface: %3
 • Camera interface: %4
 • Audio interface: %5</source>
-        <translation>Välja Openinterface-enhet på port %1?
+        <translation>Välja OOpenterface-enhet på port %1?
 
 Detta aktiverar:
 • Seriell kommunikation: %2
@@ -710,7 +710,7 @@ Alla enhetsgränssnitt kommer att släppas.</translation>
         <source>Openterface device at port %1 is now active!
 
 </source>
-        <translation>Openinterface-enheten på port %1 är nu aktiv!</translation>
+        <translation>Openterface-enheten på port %1 är nu aktiv!</translation>
     </message>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="653"/>

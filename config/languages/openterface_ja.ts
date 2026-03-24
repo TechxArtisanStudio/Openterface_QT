@@ -295,7 +295,7 @@ Also attach the serial log file: %1</source>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="29"/>
         <source>Openterface Device Selector</source>
-        <translation>Openinterface デバイスセレクタ</translation>
+        <translation>openterface デバイスセレクタ</translation>
     </message>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="65"/>

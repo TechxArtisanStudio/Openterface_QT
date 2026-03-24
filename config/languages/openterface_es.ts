@@ -630,7 +630,7 @@ This will activate:
 • HID interface: %3
 • Camera interface: %4
 • Audio interface: %5</source>
-        <translation>¿Seleccionar dispositivo OpenInterface en el puerto %1?
+        <translation>¿Seleccionar dispositivo openterface en el puerto %1?
 
 Esto activará:
 • Comunicación serial: %2

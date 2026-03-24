@@ -434,7 +434,7 @@ Vedhæft også seriel logfilen: %1</translation>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="360"/>
         <source>&lt;h3&gt;Openterface Mini KVM Device&lt;/h3&gt;</source>
-        <translation>&lt;h3&gt;Openinterface Mini KVM-enhed&lt;/h3&gt;</translation>
+        <translation>&lt;h3&gt;openterface Mini KVM-enhed&lt;/h3&gt;</translation>
     </message>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="361"/>
@@ -584,12 +584,12 @@ Vedhæft også seriel logfilen: %1</translation>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="456"/>
         <source>No Openterface devices detected</source>
-        <translation>Ingen Openinterface-enheder fundet</translation>
+        <translation>Ingen openterface-enheder fundet</translation>
     </message>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="459"/>
         <source>Found %1 physical Openterface device(s)</source>
-        <translation>Fundet %1 fysiske OpenInterface-enheder</translation>
+        <translation>Fundet %1 fysiske openterface-enheder</translation>
     </message>
     <message>
         <location filename="../../ui/advance/DeviceSelectorDialog.cpp" line="466"/>
@@ -630,7 +630,7 @@ This will activate:
 • HID interface: %3
 • Camera interface: %4
 • Audio interface: %5</source>
-        <translation>Vil du vælge Openinterface-enhed på port %1?
+        <translation>Vil du vælge openterface-enhed på port %1?
 
 Dette aktiverer:
 • Seriel kommunikation: %2
