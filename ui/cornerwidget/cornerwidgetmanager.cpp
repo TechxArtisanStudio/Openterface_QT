@@ -78,26 +78,27 @@ void CornerWidgetManager::createWidgets()
         QPushButton** button;
         const char* objectName;
         const char* iconPath;
-        const char* tooltip;
+        const char* tooltipText;
+        const char* shortcut;
     } buttons[] = {
-        {&screenScaleButton, "ScreenScaleButton", ":/images/screen_scale.svg", "Screen scale (Ctrl+Shift+A)"},
-        {&zoomInButton, "ZoomInButton", ":/images/zoom_in.svg", "Zoom in (Ctrl++)"},
-        {&zoomOutButton, "ZoomOutButton", ":/images/zoom_out.svg", "Zoom out (Ctrl+-)"},
-        {&zoomReductionButton, "ZoomReductionButton", ":/images/zoom_fit.svg", "Restore original size (Ctrl+0)"},
-        {&virtualKeyboardButton, "virtualKeyboardButton", ":/images/keyboard.svg", "Function key and composite key (Ctrl+Shift+K)"},
-        {&captureButton, "captureButton", ":/images/capture.svg", "Full screen capture (Ctrl+Shift+S)"},
-        {&fullScreenButton, "fullScreenButton", ":/images/full_screen.svg", "Full screen mode (Alt+F11)"},
-        {&pasteButton, "pasteButton", ":/images/paste.svg", "Paste text to target (Ctrl+Shift+V)"},
-        {&screensaverButton, "screensaverButton", ":/images/screensaver.svg", "Mouse dance (Ctrl+Shift+F10)"},
-        {&recordingButton, "recordingButton", ":/images/startRecord.svg", "Start/Stop Recording (Ctrl+Shift+F11)"},
-        {&muteButton, "muteButton", ":/images/audio.svg", "Mute/Unmute Audio (Ctrl+Shift+F9)"}
+        {&screenScaleButton, "ScreenScaleButton", ":/images/screen_scale.svg", "Screen scale", "Ctrl+Shift+A"},
+        {&zoomInButton, "ZoomInButton", ":/images/zoom_in.svg", "Zoom in", "Ctrl++"},
+        {&zoomOutButton, "ZoomOutButton", ":/images/zoom_out.svg", "Zoom out", "Ctrl+-"},
+        {&zoomReductionButton, "ZoomReductionButton", ":/images/zoom_fit.svg", "Restore original size", "Ctrl+0"},
+        {&virtualKeyboardButton, "virtualKeyboardButton", ":/images/keyboard.svg", "Function key and composite key", "Ctrl+Shift+K"},
+        {&captureButton, "captureButton", ":/images/capture.svg", "Full screen capture", "Ctrl+Shift+S"},
+        {&fullScreenButton, "fullScreenButton", ":/images/full_screen.svg", "Full screen mode", "Alt+F11"},
+        {&pasteButton, "pasteButton", ":/images/paste.svg", "Paste text to target", "Ctrl+Shift+V"},
+        {&screensaverButton, "screensaverButton", ":/images/screensaver.svg", "Mouse dance", "Ctrl+Shift+F10"},
+        {&recordingButton, "recordingButton", ":/images/startRecord.svg", "Start/Stop Recording", "Ctrl+Shift+F11"},
+        {&muteButton, "muteButton", ":/images/audio.svg", "Mute/Unmute Audio", "Ctrl+Shift+F9"}
     };
 
     for (const auto& btn : buttons) {
         *btn.button = new QPushButton(cornerWidget);
         (*btn.button)->setObjectName(btn.objectName);
         setButtonIcon(*btn.button, btn.iconPath);
-        (*btn.button)->setToolTip(tr(btn.tooltip));
+        (*btn.button)->setToolTip(tr(btn.tooltipText) + " (" + btn.shortcut + ")");
     }
     
     screensaverButton->setCheckable(true);
@@ -195,7 +196,7 @@ void CornerWidgetManager::restoreMuteState(bool muted)
     isMuted = muted;
     if (muteButton) {
         setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
-        muteButton->setToolTip(isMuted ? tr("Unmute Audio (Ctrl+Shift+F9)") : tr("Mute Audio (Ctrl+Shift+F9)"));
+        muteButton->setToolTip(isMuted ? tr("Unmute Audio") + " (Ctrl+Shift+F9)" : tr("Mute Audio") + " (Ctrl+Shift+F9)");
     }
 }
 
@@ -253,7 +254,7 @@ void CornerWidgetManager::updateRecordingState(bool recording)
     isRecording = recording;
     if (recordingButton) {
         setButtonIcon(recordingButton, isRecording ? ":/images/stopRecord.svg" : ":/images/startRecord.svg");
-        recordingButton->setToolTip(isRecording ? tr("Stop Recording (Ctrl+Shift+F11)") : tr("Start Recording (Ctrl+Shift+F11)"));
+        recordingButton->setToolTip(isRecording ? tr("Stop Recording") + " (Ctrl+Shift+F11)" : tr("Start Recording") + " (Ctrl+Shift+F11)");
     }
 }
 
@@ -262,6 +263,41 @@ void CornerWidgetManager::updateMuteState(bool muted)
     isMuted = muted;
     if (muteButton) {
         setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
-        muteButton->setToolTip(isMuted ? tr("Unmute Audio (Ctrl+Shift+F9)") : tr("Mute Audio (Ctrl+Shift+F9)"));
+        muteButton->setToolTip(isMuted ? tr("Unmute Audio") + " (Ctrl+Shift+F9)" : tr("Mute Audio") + " (Ctrl+Shift+F9)");
+    }
+}
+
+void CornerWidgetManager::retranslateUi()
+{
+    keyboardLayoutComboBox->setToolTip(tr("Select Keyboard Layout"));
+
+    const struct {
+        QPushButton** button;
+        const char* tooltipText;
+        const char* shortcut;
+    } buttons[] = {
+        {&screenScaleButton,     "Screen scale",                   "Ctrl+Shift+A"},
+        {&zoomInButton,          "Zoom in",                        "Ctrl++"},
+        {&zoomOutButton,         "Zoom out",                       "Ctrl+-"},
+        {&zoomReductionButton,   "Restore original size",          "Ctrl+0"},
+        {&virtualKeyboardButton, "Function key and composite key", "Ctrl+Shift+K"},
+        {&captureButton,         "Full screen capture",            "Ctrl+Shift+S"},
+        {&fullScreenButton,      "Full screen mode",               "Alt+F11"},
+        {&pasteButton,           "Paste text to target",           "Ctrl+Shift+V"},
+        {&screensaverButton,     "Mouse dance",                    "Ctrl+Shift+F10"},
+    };
+    for (const auto& btn : buttons) {
+        (*btn.button)->setToolTip(tr(btn.tooltipText) + " (" + btn.shortcut + ")");
+    }
+
+    if (recordingButton) {
+        recordingButton->setToolTip(isRecording
+            ? tr("Stop Recording")  + " (Ctrl+Shift+F11)"
+            : tr("Start Recording") + " (Ctrl+Shift+F11)");
+    }
+    if (muteButton) {
+        muteButton->setToolTip(isMuted
+            ? tr("Unmute Audio") + " (Ctrl+Shift+F9)"
+            : tr("Mute Audio")   + " (Ctrl+Shift+F9)");
     }
 }

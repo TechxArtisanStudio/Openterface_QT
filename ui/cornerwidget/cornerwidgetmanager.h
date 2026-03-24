@@ -26,6 +26,7 @@ public:
     void updateRecordingState(bool recording);
     void updateMuteState(bool muted);
     bool isUpdatingFromStatus() const { return m_updatingFromStatus; }  // New getter
+    void retranslateUi();
     QPushButton *screensaverButton;
     QPushButton *recordingButton;
     QPushButton *muteButton;

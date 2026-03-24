@@ -177,23 +177,33 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
     m_performanceTimer->setInterval(5000); // Report every 5 seconds
     connect(m_performanceTimer, &QTimer::timeout, this, [this]() {
         if (m_frameCount > 0) {
-            double fps = m_frameCount / 5.0;
+            double actualFps = m_frameCount / 5.0;
             
             // Get target framerate for comparison
             int targetFps = m_currentFramerate > 0 ? m_currentFramerate : 0;
             
             if (targetFps > 0) {
-                double fpsDeviation = ((fps - targetFps) / targetFps) * 100.0;
+                double fpsDeviation = ((actualFps - targetFps) / targetFps) * 100.0;
                 qCDebug(log_ffmpeg_backend) << QString("FFmpeg capture - Target: %1 FPS, Actual: %2 FPS, Deviation: %3%")
                     .arg(targetFps)
-                    .arg(fps, 0, 'f', 2)
+                    .arg(actualFps, 0, 'f', 2)
                     .arg(fpsDeviation, 0, 'f', 1);
+                
+                // Emit the target FPS as set by user preferences instead of actual FPS
+                // This ensures the status bar shows what the user selected in preferences
+                emit fpsChanged(static_cast<double>(targetFps));
             } else {
-                qCDebug(log_ffmpeg_backend) << QString("FFmpeg capture performance: %1 FPS").arg(fps, 0, 'f', 2);
+                qCDebug(log_ffmpeg_backend) << QString("FFmpeg capture performance: %1 FPS").arg(actualFps, 0, 'f', 2);
+                emit fpsChanged(actualFps);
             }
             
-            emit fpsChanged(fps);
             m_frameCount = 0;
+        } else {
+            // Even if no frames were captured, emit the target framerate if available
+            int targetFps = m_currentFramerate > 0 ? m_currentFramerate : 0;
+            if (targetFps > 0) {
+                emit fpsChanged(static_cast<double>(targetFps));
+            }
         }
     });
 }
@@ -316,7 +326,22 @@ void FFmpegBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession* s
 void FFmpegBackendHandler::startCamera()
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Starting camera with direct capture";
-    
+
+    // Refresh framerate from GlobalVar so that changes made in Preferences take effect.
+    // m_currentFramerate is only set during initial setup (selectOptimalFormat / restartCaptureWithDevice),
+    // so without this refresh the old framerate (e.g. 30) is used even after the user picks 60 in settings.
+    int globalFps = GlobalVar::instance().getCaptureFps();
+    if (globalFps > 0) {
+        m_currentFramerate = globalFps;
+    }
+
+    // Same issue applies to resolution - refresh from GlobalVar.
+    int globalWidth  = GlobalVar::instance().getCaptureWidth();
+    int globalHeight = GlobalVar::instance().getCaptureHeight();
+    if (globalWidth > 0 && globalHeight > 0) {
+        m_currentResolution = QSize(globalWidth, globalHeight);
+    }
+
     qCDebug(log_ffmpeg_backend) << "Current device:" << m_currentDevice;
     qCDebug(log_ffmpeg_backend) << "Current resolution:" << m_currentResolution;
     qCDebug(log_ffmpeg_backend) << "Current framerate:" << m_currentFramerate;
