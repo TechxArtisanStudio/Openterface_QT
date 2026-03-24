@@ -22,6 +22,12 @@ void FirmwareReader::process()
     // Disconnect the progress signal to prevent further emissions
     disconnect(m_videoHid, &VideoHid::firmwareReadProgress, this, &FirmwareReader::progress);
 
+    if (QThread::currentThread()->isInterruptionRequested()) {
+        qDebug() << "FirmwareReader::process interrupted after read";
+        emit finished(false);
+        return;
+    }
+
     if (firmwareData.isEmpty()) {
         qDebug() << "Failed to read firmware from EEPROM";
         emit error("Failed to read firmware from EEPROM");

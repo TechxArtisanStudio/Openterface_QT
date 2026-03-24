@@ -98,6 +98,8 @@ SOURCES += main.cpp \
     ui/advance/edid/edidutils.cpp \
     ui/advance/edid/firmwareutils.cpp \
     ui/advance/edid/edidresolutionparser.cpp \
+    ui/advance/edid/resolutionmodel.cpp \
+    ui/advance/edid/edidprocessor.cpp \
     ui/advance/recordingsettingsdialog.cpp \
     ui/advance/diagnostics/SupportEmailDialog.cpp \
     ui/initializer/mainwindowinitializer.cpp \
@@ -239,6 +241,8 @@ HEADERS  += \
     ui/advance/edid/edidutils.h \
     ui/advance/edid/firmwareutils.h \
     ui/advance/edid/edidresolutionparser.h \
+    ui/advance/edid/resolutionmodel.h \
+    ui/advance/edid/edidprocessor.h \
     ui/advance/recordingsettingsdialog.h \
     ui/advance/diagnostics/SupportEmailDialog.h \
     ui/initializer/mainwindowinitializer.h \
