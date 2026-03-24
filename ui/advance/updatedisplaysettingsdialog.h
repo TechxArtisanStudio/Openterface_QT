@@ -42,31 +42,15 @@
 #include <QScrollArea>
 #include <QSet>
 #include <QProgressBar>
+#include <functional>
+#include "edid/resolutionmodel.h"
+#include "edid/edidprocessor.h"
 
 // Forward declarations
 class VideoHid;
 class FirmwareReader;
 class FirmwareWriter;
 class MainWindow;
-
-// Structure to hold resolution information
-struct ResolutionInfo {
-    QString description;      // e.g., "1920x1080 @ 60Hz"
-    int width;
-    int height;
-    int refreshRate;
-    quint8 vic;              // Video Identification Code (for CEA-861)
-    bool isStandardTiming;   // true if from standard timings, false if from extension block
-    bool isEnabled;          // current state in EDID
-    bool userSelected;       // user's selection in the UI
-    
-    ResolutionInfo() : width(0), height(0), refreshRate(0), vic(0), 
-                      isStandardTiming(false), isEnabled(false), userSelected(false) {}
-    
-    ResolutionInfo(const QString& desc, int w, int h, int rate, quint8 v = 0, bool isStd = false) 
-        : description(desc), width(w), height(h), refreshRate(rate), vic(v), 
-          isStandardTiming(isStd), isEnabled(false), userSelected(false) {}
-};
 
 class UpdateDisplaySettingsDialog : public QDialog
 {
@@ -144,7 +128,7 @@ private:
     bool m_operationFinished;  // Flag to avoid cancel handling after success/quit
     
     // Resolution data
-    QList<ResolutionInfo> availableResolutions;
+    ResolutionModel resolutionModel;
     
     // EDID and firmware processing
     void loadCurrentEDIDSettings();
@@ -157,20 +141,16 @@ private:
     void startFirmwareWrite(const QByteArray &modifiedFirmware, const QString &tempFirmwarePath);
     void stopAllDevices();
     void hideMainWindow();
-    QByteArray processEDIDDisplaySettings(const QByteArray &firmwareData, const QString &newName, const QString &newSerial);
-    quint16 calculateFirmwareChecksumWithDiff(const QByteArray &originalFirmware, const QByteArray &originalEDID, const QByteArray &modifiedEDID);
-    quint16 calculateFirmwareChecksumWithDiff(const QByteArray &originalFirmware, const QByteArray &modifiedFirmware);
     
     // Resolution helpers
     void setupResolutionTable();
-    void populateResolutionTable();
-    void updateResolutionTableFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData, int baseOffset);
-    void collectResolutionsFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData);
-    void addResolutionToList(const QString& description, int width, int height, int refreshRate, 
-                           quint8 vic = 0, bool isStandardTiming = false, bool isEnabled = false);
-    QList<ResolutionInfo> getSelectedResolutions() const;
     void updateExtensionBlockResolutions(QByteArray &firmwareData, int edidOffset);
     bool updateCEA861ExtensionBlockResolutions(QByteArray &block, const QSet<quint8> &enabledVICs, const QSet<quint8> &disabledVICs);
+    
+    // Helpers for resolution state
+    void populateResolutionTableFromModel();
+    void readResolutionFromEDID(const QByteArray &edidBlock, const QByteArray &firmwareData);
+    QList<ResolutionInfo> getSelectedResolutions() const;
     bool hasResolutionChanges() const;
     
     // Helper methods
@@ -185,16 +165,15 @@ private:
     bool validateAsciiInput(const QString &text, int maxLen, const QString &fieldName, QString &errorMessage) const;
     bool collectUpdateChanges(QString &newName, QString &newSerial, QStringList &changesSummary) const;
 
+    // Common firmware thread helper
+    void startFirmwareReadTask(QThread*& thread, FirmwareReader*& reader, quint32 firmwareSize, const QString& tempFirmwarePath,
+                               std::function<void(int)> progressCallback,
+                               std::function<void(bool)> finishedCallback,
+                               std::function<void(const QString&)> errorCallback);
+
     bool processFirmwareFile(const QString &tempFirmwarePath);
     void processFirmwareReadResult(bool success);
-    bool parseEdidBlock(const QByteArray &firmwareData, int &edidOffset, QByteArray &edidBlock)
-        const;
-    void applyEdidUpdates(QByteArray &modifiedFirmware, int edidOffset, const QString &newName,
-                          const QString &newSerial);
-    void finalizeEdidBlock(QByteArray &modifiedFirmware, int edidOffset,
-                          const QByteArray &originalFirmware,
-                          const QByteArray &originalEdidBlock);
-
+    bool parseEdidBlock(const QByteArray &firmwareData, int &edidOffset, QByteArray &edidBlock) const;
     void cleanupFirmwareReaderThread();
 };
 
