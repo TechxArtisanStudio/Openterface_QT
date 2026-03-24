@@ -19,7 +19,7 @@ public slots:
 
 signals:
     void progress(int percent);
-    void finished(bool success);
+    void finished(bool success, const QByteArray &firmwareData = QByteArray());
     void error(const QString& errorMessage);
 
 private:
