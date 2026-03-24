@@ -150,6 +150,7 @@ set(VIDEO_SOURCES
     video/platformhidadapter.cpp video/platformhidadapter.h
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/firmwarereader.cpp video/firmwarereader.h
+    video/firmwareoperationmanager.cpp video/firmwareoperationmanager.h
     video/ms2109.h
     video/videohidchip.cpp video/videohidchip.h
 )

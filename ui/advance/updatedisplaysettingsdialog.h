@@ -31,7 +31,6 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
-#include <QProgressDialog>
 #include <QThread>
 #include <QByteArray>
 #include <QGroupBox>
@@ -48,8 +47,7 @@
 
 // Forward declarations
 class VideoHid;
-class FirmwareReader;
-class FirmwareWriter;
+class FirmwareOperationManager;
 class MainWindow;
 
 class UpdateDisplaySettingsDialog : public QDialog
@@ -83,6 +81,7 @@ private slots:
     void onFirmwareReadFinished(bool success);
     void onFirmwareReadError(const QString& errorMessage);
     void onCancelReadingClicked();
+    void onBackupFirmwareClicked();
 
 private:
     // UI components
@@ -104,6 +103,7 @@ private:
     QPushButton *selectDefaultButton;
     
     QPushButton *updateButton;
+    QPushButton *backupButton;
     QPushButton *cancelButton;
     
     // Progress components for firmware reading
@@ -118,27 +118,21 @@ private:
     QVBoxLayout *serialNumberLayout;
     QHBoxLayout *buttonLayout;
     
-    // Progress dialog for firmware operations (kept for compatibility)
-    QProgressDialog *progressDialog;
-    
-    // Threading for firmware reading
-    QThread *firmwareReaderThread;
-    FirmwareReader *firmwareReader;
-    bool m_cleanupInProgress;  // Flag to prevent double cleanup
+    // Firmware operation manager
+    class FirmwareOperationManager *firmwareOperationManager;
+    QString m_tempFirmwarePath;
     bool m_operationFinished;  // Flag to avoid cancel handling after success/quit
-    
+    bool m_updateMode;        // Indicates read is part of update flow
+
     // Resolution data
     ResolutionModel resolutionModel;
+    QByteArray m_pendingFirmwareData;
     
     // EDID and firmware processing
     void loadCurrentEDIDSettings();
     bool updateDisplaySettings(const QString &newName, const QString &newSerial);
-    void setupProgressDialog();
-    void closeProgressDialog();
     void restartPollingDelayed(const QString &reason);
     void showErrorAndRestart(const QString &title, const QString &message, const QString &reason);
-    bool readFirmwareFile(const QString &path, QByteArray &outData);
-    void startFirmwareWrite(const QByteArray &modifiedFirmware, const QString &tempFirmwarePath);
     void stopAllDevices();
     void hideMainWindow();
     
@@ -155,26 +149,23 @@ private:
     
     // Helper methods
     void setupUI();
-    void buildDisplayNameSection();
-    void buildSerialNumberSection();
+    void ensureFirmwareOperationManager();
+    QGroupBox* buildSettingsSection(QCheckBox *&checkBox, QLineEdit *&lineEdit, QVBoxLayout *&sectionLayout,
+                                    const QString &title, const QString &checkboxText, const QString &placeholderText);
     void buildProgressSection();
     void buildButtonSection();
     void connectUiSignals();
     void enableUpdateButton();
     void setDialogControlsEnabled(bool enabled);
+    void setProgressState(bool active, const QString &labelText);
     bool validateAsciiInput(const QString &text, int maxLen, const QString &fieldName, QString &errorMessage) const;
     bool collectUpdateChanges(QString &newName, QString &newSerial, QStringList &changesSummary) const;
+    void shutdownFirmwareOperation(bool closeDialog = false);
+    bool processAndWriteFirmware();
 
-    // Common firmware thread helper
-    void startFirmwareReadTask(QThread*& thread, FirmwareReader*& reader, quint32 firmwareSize, const QString& tempFirmwarePath,
-                               std::function<void(int)> progressCallback,
-                               std::function<void(bool)> finishedCallback,
-                               std::function<void(const QString&)> errorCallback);
-
-    bool processFirmwareFile(const QString &tempFirmwarePath);
+    bool processFirmwareData(const QByteArray &firmwareData);
     void processFirmwareReadResult(bool success);
     bool parseEdidBlock(const QByteArray &firmwareData, int &edidOffset, QByteArray &edidBlock) const;
-    void cleanupFirmwareReaderThread();
 };
 
 #endif // UPDATEDISPLAYSETTINGSDIALOG_H
