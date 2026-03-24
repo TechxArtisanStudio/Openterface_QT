@@ -429,8 +429,8 @@ void MainWindow::onActionMouseAlwaysShowTriggered()
 void MainWindow::onActionFactoryResetHIDTriggered()
 {
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::warning(this, "Confirm Factory Reset HID Chip?",
-                                        "Factory reset the HID chip. Proceed?",
+    reply = QMessageBox::warning(this, tr("Confirm Factory Reset HID Chip?"),
+                                        tr("Factory reset the HID chip. Proceed?"),
                                   QMessageBox::Yes | QMessageBox::No);
 
     if (reply == QMessageBox::Yes) {
@@ -444,8 +444,8 @@ void MainWindow::onActionFactoryResetHIDTriggered()
 void MainWindow::onActionResetSerialPortTriggered()
 {
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::question(this, "Confirm Reset Serial Port?",
-                                        "Resetting the serial port will close and re-open it without changing settings. Proceed?",
+    reply = QMessageBox::question(this, tr("Confirm Reset Serial Port?"),
+                                        tr("Resetting the serial port will close and re-open it without changing settings. Proceed?"),
                                   QMessageBox::Yes | QMessageBox::No);
 
     if (reply == QMessageBox::Yes) {
