@@ -31,6 +31,9 @@
 #include <QHBoxLayout>
 #include <QProcess>
 #include <QEvent>
+#include <QMessageBox>
+#include <QApplication>
+#include <QRegularExpression>
 #include "serial/SerialPortManager.h"
 
 #ifdef Q_OS_WIN
@@ -679,5 +682,45 @@ void StatusWidget::onScrollLockClicked()
         qCWarning(log_ui_statuswidget) << "✗ Failed to send ScrollLock command";
         // Revert button state if command failed
         scrollLockBtn->setChecked(!isChecked);
+    }
+}
+
+void StatusWidget::checkAndWarnResolutionMismatch(const int &preferredWidth, const int &preferredHeight, const float &preferredFps)
+{
+    // Get the currently displayed input resolution information
+    QString inputResText = inputResolutionLabel->text();
+    if (inputResText == "INPUT(NA)" || inputResText.isEmpty()) {
+        // If there's no input resolution information, return directly
+        return;
+    }
+
+    // Parse the input resolution information
+    // Format: INPUT(1920X1080@60.0)
+    QRegularExpression rx("INPUT\\((\\d+)X(\\d+)@(\\d+\\.?\\d*)\\)");
+    QRegularExpressionMatch match = rx.match(inputResText);
+    if (match.hasMatch()) {
+        int inputWidth = match.captured(1).toInt();
+        int inputHeight = match.captured(2).toInt();
+        float inputFps = match.captured(3).toFloat();
+
+        // Compare if resolution and frame rate match
+        bool resolutionMatch = (inputWidth == preferredWidth && inputHeight == preferredHeight);
+        bool fpsMatch = (qAbs(inputFps - preferredFps) < 0.5f); // Allow 0.5 margin of error
+
+        if (!resolutionMatch || !fpsMatch) {
+            QString warningMessage = QString(tr("Resolution/FPS mismatch detected!\n\n")) +
+                                    QString(tr("Preferred setting: %1x%2@%3fps\n")).arg(preferredWidth).arg(preferredHeight).arg(preferredFps) +
+                                    QString(tr("Actual input: %1x%2@%3fps\n\n")).arg(inputWidth).arg(inputHeight).arg(inputFps) +
+                                    tr("Where to adjust:\n") +
+                                    tr("1. Go to Preferences -> Video Settings to change capture resolution/framerate\n") +
+                                    tr("2. Adjust your source device's output resolution/framerate\n\n") +
+                                    tr("Potential consequences of mismatch:\n") +
+                                    tr("- Reduced performance and frame drops\n") +
+                                    tr("- Display scaling artifacts\n") +
+                                    tr("- Possible audio/video sync issues\n") +
+                                    tr("- Suboptimal user experience");
+
+            QMessageBox::warning(this, tr("Resolution/FPS Mismatch Warning"), warningMessage);
+        }
     }
 }
