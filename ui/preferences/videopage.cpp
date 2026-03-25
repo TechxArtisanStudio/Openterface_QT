@@ -26,6 +26,7 @@
 #include "host/cameramanager.h"
 #include "host/multimediabackend.h"
 #include "host/backend/ffmpegbackendhandler.h"
+#include "ui/statusbar/statuswidget.h"
 #include <QDebug>
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -319,7 +320,7 @@ void VideoPage::setupUI()
         // Add default resolution options for FFmpeg backend
         if (videoFormatBox->count() == 0) {
             // Add common resolutions as defaults when no camera formats available
-            std::set<int> defaultFps = {30, 60};
+            std::set<int> defaultFps = {30, 60, 120};
             QVariant fpsVariant = QVariant::fromValue<std::set<int>>(defaultFps);
             
             videoFormatBox->addItem("1920x1080 [30 - 60 Hz]", fpsVariant);
@@ -392,7 +393,7 @@ void VideoPage::populateResolutionBox(const QList<QCameraFormat> &videoFormats) 
             // This prevents the step assertion error
         } else {
             // For other backends, use the original approach with standard rates
-            std::vector<int> standardFrameRates = {5, 10, 15, 20, 24, 25, 30, 50, 60};
+            std::vector<int> standardFrameRates = {5, 10, 15, 20, 24, 25, 30, 50, 60, 120};
             
             for (int stdRate : standardFrameRates) {
                 if (stdRate >= minFrameRate && stdRate <= maxFrameRate) {
@@ -598,6 +599,30 @@ void VideoPage::applyVideoSettings() {
     
     // Emit the signal with the new width and height
     emit videoSettingsChanged();
+    
+    // Call StatusWidget to check for resolution mismatch and warn if needed
+    // Find the main window and then the status bar to access StatusWidget
+    QWidget *mainWidget = this;
+    while (mainWidget && mainWidget->parentWidget()) {
+        mainWidget = mainWidget->parentWidget();
+    }
+
+    // Try to find StatusWidget in the main window's children or in the status bar
+    StatusWidget *statusWidget = nullptr;
+    if (mainWidget) {
+        statusWidget = mainWidget->findChild<StatusWidget*>();
+    }
+
+    // If not found as direct child, try to find it in the application
+    if (!statusWidget) {
+        statusWidget = qobject_cast<StatusWidget*>(qApp->findChild<QObject*>("StatusWidget"));
+    }
+
+    if (statusWidget) {
+        statusWidget->checkAndWarnResolutionMismatch(m_currentResolution.width(), m_currentResolution.height(), static_cast<float>(fps));
+    } else {
+        qDebug() << "StatusWidget not found, cannot check resolution mismatch";
+    }
 }
 
 void VideoPage::initVideoSettings() {

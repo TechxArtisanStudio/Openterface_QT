@@ -700,7 +700,7 @@ void FFmpegBackendHandler::processFrame()
     //     catch-up while the ring buffer is being consumed.
     //
     // The ShouldDropFrame() gate inside ProcessPacketToImage() already provides correct
-    // rate-limiting (drops a frame if < 17 ms since the last one was shown, ≈60 fps
+    // rate-limiting (drops a frame if < 8.33 ms since the last one was shown, ≈120 fps
     // cap).  That is all the rate control we need for a real-time KVM stream.
     qint64 currentSystemTime = QDateTime::currentMSecsSinceEpoch();
 
