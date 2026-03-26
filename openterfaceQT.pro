@@ -207,6 +207,7 @@ HEADERS  += \
     video/videohid.h \
     video/firmwarewriter.h \
     video/firmwarereader.h \
+    video/firmwareoperationmanager.h \
     video/ms2109.h \
     video/ms2109s.h \
     video/ms2130s.h \
