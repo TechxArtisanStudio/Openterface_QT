@@ -6,9 +6,9 @@ Architecture: ${ARCH}
 Maintainer: TechxArtisan <info@techxartisan.com>
 Depends: libegl1, libgles2-mesa | libgles2, libpulse0, libgstreamer1.0-0,
  libv4l-0, libxkbcommon0, libwayland-client0 | libwayland-client,
- libxcb1, libx11-6, libqt6svg6 | qt6-svg-dev,
+ libxcb1, libx11-6, libqt6core6 (>= 6.4.0), libqt6svg6 | qt6-svg-dev,
  libva2, libva-drm2, libva-x11-2, libvdpau1,
- libgl1-mesa-glx | libgl1, libglx0, libglvnd0, zlib1g
+ libgl1-mesa-glx | libgl1, libglx0, libglvnd0, zlib1g, libturbojpeg0
 Description: OpenterfaceQT KVM Linux Edition
  A Qt6‑based KVM frontend for video capture and playback.  This package
  relies on the distribution’s Qt6, FFmpeg, VA‑API/VDPAU and GStreamer libraries

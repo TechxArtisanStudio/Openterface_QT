@@ -108,7 +108,7 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     
     // Create labels with SVG icons
     cpuUsageLabel = new QLabel(this);
-    cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "0%"));
+    cpuUsageLabel->setPixmap(createIconTextLabel(":/images/cpu.svg", "0%"));
     
     fpsLabel = new QLabel(this);
     fpsLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "0fps"));
@@ -229,6 +229,7 @@ void StatusWidget::refreshAllIcons()
 }
 
 void StatusWidget::setInputResolution(const int &width, const int &height, const float &fps, const float &pixelClk) {
+    qDebug() << "[DIAG] setInputResolution:" << width << "x" << height << "@" << fps;
     if(width == 0 || height == 0 || fps == 0) {
         inputResolutionLabel->setText("INPUT(NA)");
         inputResolutionLabel->setToolTip("Input video is not available");
@@ -277,11 +278,42 @@ void StatusWidget::setCaptureResolution(const int &width, const int &height, con
 }
 
 void StatusWidget::setConnectedPort(const QString &port, const int &baudrate) {
-    if(baudrate > 0){
-        connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", QString("%1@%2").arg(port).arg(baudrate)));
-    }else{
-        connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", "N/A"));
+    // Check if the new state is the same as the current state to avoid unnecessary updates
+    if (m_lastPort == port && m_lastBaudrate == baudrate) {
+        // States are the same, skip the update
+        qDebug() << "[StatusWidget] Skipping duplicate state update - port:" << port << "baudrate:" << baudrate;
+        return;
     }
+
+    // Update the stored state
+    m_lastPort = port;
+    m_lastBaudrate = baudrate;
+    
+    QString displayText;
+    
+    // Debug logging to understand port and baudrate values
+    qDebug() << "[StatusWidget] setConnectedPort called with port:" << port << "baudrate:" << baudrate;
+    
+    // Handle different cases for port and baudrate
+    if (port == "NA" || port.isEmpty()) {
+        // No valid port or specifically marked as "NA" - show Not Connected
+        displayText = "Not Connected";
+        qDebug() << "[StatusWidget] Showing 'Not Connected' status";
+    } else if (baudrate > 0) {
+        // Valid baudrate - show port and baudrate
+        displayText = QString("%1@%2").arg(port).arg(baudrate);
+        qDebug() << "[StatusWidget] Showing port and baudrate:" << displayText;
+    } else if (baudrate == 0 && !port.isEmpty()) {
+        // Baudrate is 0 but port is valid - show just the port name
+        displayText = port;
+        qDebug() << "[StatusWidget] Showing port name only:" << displayText;
+    } else {
+        // Other cases - show the port name
+        displayText = port;
+        qDebug() << "[StatusWidget] Showing port name (fallback):" << displayText;
+    }
+    
+    connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", displayText));
     update(); 
 }
 
@@ -403,10 +435,10 @@ void StatusWidget::updateCpuUsage()
             color = QColor("green");
         }
         
-        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", text, color));
+        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/cpu.svg", text, color));
         cpuUsageLabel->setToolTip(QString("App CPU Usage: %1%").arg(QString::number(cpuUsage, 'f', 1)));
     } else {
-        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "N/A"));
+        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/cpu.svg", "N/A"));
         cpuUsageLabel->setToolTip("App CPU usage unavailable");
     }
     update();
