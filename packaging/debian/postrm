@@ -1,17 +1,13 @@
 #!/bin/bash
 set -e
 
-# Clean up bundled library configuration on removal
+# Clean up any legacy bundled library configuration on removal
 if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
-    # Remove ldconfig configuration
+    # Keep this for compatibility with older versions that created the file.
     rm -f /etc/ld.so.conf.d/openterface-libs.conf
     
-    # Update library cache
-    if command -v ldconfig >/dev/null 2>&1; then
-        ldconfig
-    fi
-    
-    echo "OpenterfaceQT: Bundled library configuration removed"
+    # Do NOT enforce global ldconfig behavior in new installs; leave updates to the administrator.
+    echo "OpenterfaceQT: Legacy ld.so.conf.d file removed (if present)"
 fi
 
 exit 0

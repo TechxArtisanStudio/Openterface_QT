@@ -793,7 +793,7 @@ fi
 # Post-Installation: Register bundled libraries and create symlinks
 # =============================================================================
 # Create symlinks for bundled libraries to handle soname variations and suppress ldconfig warnings
-mkdir -p /etc/ld.so.conf.d
+# (No /etc/ld.so.conf.d registration is done; launcher manages bundled libs)
 
 echo "Setting up OpenterfaceQT bundled libraries..."
 
@@ -885,24 +885,9 @@ if [ -d /usr/lib/openterfaceqt ]; then
     echo "✅ Bundled library symlinks created"
 fi
 
-# Register bundled libraries with system linker during installation
-mkdir -p /etc/ld.so.conf.d
-
-cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
-# OpenterfaceQT bundled libraries (isolated from system libraries)
-# This directory contains a complete set of FFmpeg, Qt6, and multimedia libraries
-/usr/lib/openterfaceqt
-EOF
-
-# Rebuild the dynamic linker cache to register bundled libraries
-# Filter out ldconfig warnings that are expected for bundled scenarios
-# Note: Bundled libraries in /usr/lib/openterfaceqt/ are actual files, not symlinks (harmless)
-echo "Registering bundled libraries with system linker..."
-ldconfig 2>&1 | grep -v "is not a symbolic link" | grep -v "^$" || true
-
-# Verify libraries are registered
-echo "OpenterfaceQT libraries registered. Checking library cache..."
-ldconfig -p 2>/dev/null | grep openterfaceqt | head -3 || echo "Note: Library check may not be available in all environments"
+# NOTE: bundled libraries are loaded by launcher via LD_LIBRARY_PATH/LD_PRELOAD,
+# so we avoid creating /etc/ld.so.conf.d/openterface-libs.conf to prevent global linker config pollution.
+# Symlinks were already created above where necessary.
 
 # Create symlink for binary in /usr/local/bin for consistency with DEB/AppImage installations
 # This allows the standard entrypoint script to find the binary without modification
@@ -914,11 +899,10 @@ fi
 echo "✅ OpenterfaceQT post-installation setup complete"
 
 %postun
-# Remove ldconfig configuration on uninstall to clean up bundled library paths
+# Remove any legacy ldconfig configuration file from older versions
 if [ $1 -eq 0 ]; then
     rm -f /etc/ld.so.conf.d/openterface-libs.conf
-    ldconfig
-    echo "OpenterfaceQT library configuration removed"
+    echo "OpenterfaceQT legacy library configuration removed"
 fi
 
 %changelog
