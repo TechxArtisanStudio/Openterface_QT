@@ -1,0 +1,42 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN"
+ "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg version="1.0" xmlns="http://www.w3.org/2000/svg"
+ width="300.000000pt" height="300.000000pt" viewBox="0 0 300.000000 300.000000"
+ preserveAspectRatio="xMidYMid meet">
+<g transform="translate(0.000000,300.000000) scale(0.100000,-0.100000)"
+fill="#000000" stroke="none">
+<!-- CPU chip package border (outer - inner = frame, using evenodd) -->
+<path fill-rule="evenodd" d="
+M650 2350 L650 650 L2350 650 L2350 2350 Z
+M750 2250 L2250 2250 L2250 750 L750 750 Z
+"/>
+<!-- Inner die square -->
+<path d="M1000 2000 L1000 1000 L2000 1000 L2000 2000 Z
+M1100 1900 L1900 1900 L1900 1100 L1100 1100 Z" fill-rule="evenodd"/>
+<!-- Top pins (5 pins) -->
+<path d="M1020 2350 L1020 2580 L1110 2580 L1110 2350 Z"/>
+<path d="M1230 2350 L1230 2580 L1320 2580 L1320 2350 Z"/>
+<path d="M1440 2350 L1440 2580 L1530 2580 L1530 2350 Z"/>
+<path d="M1650 2350 L1650 2580 L1740 2580 L1740 2350 Z"/>
+<path d="M1860 2350 L1860 2580 L1950 2580 L1950 2350 Z"/>
+<!-- Bottom pins (5 pins) -->
+<path d="M1020 420 L1020 650 L1110 650 L1110 420 Z"/>
+<path d="M1230 420 L1230 650 L1320 650 L1320 420 Z"/>
+<path d="M1440 420 L1440 650 L1530 650 L1530 420 Z"/>
+<path d="M1650 420 L1650 650 L1740 650 L1740 420 Z"/>
+<path d="M1860 420 L1860 650 L1950 650 L1950 420 Z"/>
+<!-- Left pins (5 pins) -->
+<path d="M420 1020 L420 1110 L650 1110 L650 1020 Z"/>
+<path d="M420 1230 L420 1320 L650 1320 L650 1230 Z"/>
+<path d="M420 1440 L420 1530 L650 1530 L650 1440 Z"/>
+<path d="M420 1650 L420 1740 L650 1740 L650 1650 Z"/>
+<path d="M420 1860 L420 1950 L650 1950 L650 1860 Z"/>
+<!-- Right pins (5 pins) -->
+<path d="M2350 1020 L2350 1110 L2580 1110 L2580 1020 Z"/>
+<path d="M2350 1230 L2350 1320 L2580 1320 L2580 1230 Z"/>
+<path d="M2350 1440 L2350 1530 L2580 1530 L2580 1440 Z"/>
+<path d="M2350 1650 L2350 1740 L2580 1740 L2580 1650 Z"/>
+<path d="M2350 1860 L2350 1950 L2580 1950 L2580 1860 Z"/>
+</g>
+</svg>
