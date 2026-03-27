@@ -108,7 +108,7 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     
     // Create labels with SVG icons
     cpuUsageLabel = new QLabel(this);
-    cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "0%"));
+    cpuUsageLabel->setPixmap(createIconTextLabel(":/images/cpu.svg", "0%"));
     
     fpsLabel = new QLabel(this);
     fpsLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "0fps"));
@@ -435,10 +435,10 @@ void StatusWidget::updateCpuUsage()
             color = QColor("green");
         }
         
-        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", text, color));
+        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/cpu.svg", text, color));
         cpuUsageLabel->setToolTip(QString("App CPU Usage: %1%").arg(QString::number(cpuUsage, 'f', 1)));
     } else {
-        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "N/A"));
+        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/cpu.svg", "N/A"));
         cpuUsageLabel->setToolTip("App CPU usage unavailable");
     }
     update();
