@@ -99,6 +99,7 @@ HWACCEL_DEPS=(
     "libva-drm2"
     "libva-x11-2"
     "libvdpau1"
+    "libturbojpeg0"
 )
 
 COMPRESSION_DEPS=(
