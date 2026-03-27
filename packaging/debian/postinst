@@ -1,23 +1,12 @@
 #!/bin/bash
 set -e
 
-# Register bundled FFmpeg 6.1.1 and GStreamer libraries with system linker
+# Register bundled FFmpeg 6.1.1 and GStreamer libraries with launcher instead of system linker
 if [ "$1" = "configure" ]; then
-    # Create ldconfig configuration for bundled libraries
-    cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
-# OpenterfaceQT bundled libraries (isolated from system libraries)
-# - FFmpeg 6.1.1
-# - GStreamer 1.0 (if bundled)
-# - JPEG/TurboJPEG
-# - VA-API
-/usr/lib/openterfaceqt
-EOF
-    
-    # Update library cache
-    # Suppress warnings about symlinks - these are expected in bundled scenarios
-    ldconfig 2>&1 | grep -v "is not a symbolic link" | grep -v "^$" || true
-    
-    echo "OpenterfaceQT: Bundled libraries (FFmpeg 6.1.1, GStreamer, etc.) registered with system linker"
+    # NOTE: We intentionally avoid adding /usr/lib/openterfaceqt to /etc/ld.so.conf.d
+    # to prevent global library search path pollution and conflicts with system libraries.
+    # Bundled libraries are loaded by the launcher via LD_LIBRARY_PATH/LD_PRELOAD.
+    echo "OpenterfaceQT: Bundled libraries handled by launcher; system ldconfig modification is disabled"
     
     # Setup permissions for dialout (serial port access)
     # Add dialout group for standard serial port access
