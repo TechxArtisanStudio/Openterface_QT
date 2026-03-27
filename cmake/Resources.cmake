@@ -29,6 +29,7 @@ set(mainwindow_resource_files
     "ui/../images/laptop.svg"
     "ui/../images/monitor.svg"
     "ui/../images/usbplug.svg"
+    "ui/../images/cpu.svg"
     "ui/../images/startRecord.svg"
     "ui/../images/stopRecord.svg"
     "ui/../images/audio.svg"
@@ -85,6 +86,11 @@ set(languages_resources_files
     "config/languages/openterface_se.qm"
     "config/languages/openterface_zh.qm"
     "config/languages/openterface_es.qm"
+    "config/languages/openterface_it.qm"
+    "config/languages/openterface_ko.qm"
+    "config/languages/openterface_pt.qm"
+    "config/languages/openterface_ru.qm"
+    "config/languages/openterface_ro.qm"
 )
 
 qt_add_resources(openterfaceQT "languages"
