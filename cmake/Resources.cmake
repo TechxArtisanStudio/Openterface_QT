@@ -86,11 +86,11 @@ set(languages_resources_files
     "config/languages/openterface_se.qm"
     "config/languages/openterface_zh.qm"
     "config/languages/openterface_es.qm"
-    # "config/languages/openterface_it.qm"
-    # "config/languages/openterface_ko.qm"
-    # "config/languages/openterface_pt.qm"
-    # "config/languages/openterface_ru.qm"
-    # "config/languages/openterface_ro.qm"
+    "config/languages/openterface_it.qm"
+    "config/languages/openterface_ko.qm"
+    "config/languages/openterface_pt.qm"
+    "config/languages/openterface_ru.qm"
+    "config/languages/openterface_ro.qm"
 )
 
 qt_add_resources(openterfaceQT "languages"
