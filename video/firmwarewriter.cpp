@@ -16,14 +16,21 @@ void FirmwareWriter::onChunkWritten(int writtenBytes)
         qDebug() << "FirmwareWriter::onChunkWritten called but total size is zero";
         return;
     }
-    int percent = (writtenBytes * 100) / m_totalSize;
+
+    int percent = qBound(1, (writtenBytes * 100) / static_cast<int>(m_totalSize), 100);
     int last = m_lastPercent.load();
-    qDebug() << "FirmwareWriter::onChunkWritten writtenBytes=" << writtenBytes << " total=" << m_totalSize << " percent=" << percent << " last=" << last;
+
+    qDebug() << "FirmwareWriter::onChunkWritten writtenBytes=" << writtenBytes
+             << " total=" << m_totalSize << " percent=" << percent << " last=" << last;
+
+    // Always update progress at least once per percent-step
     if (percent > last) {
-        // update atomically
         m_lastPercent.store(percent);
         emit progress(percent);
         qDebug() << "FirmwareWriter::progress emitted percent=" << percent;
+    } else if (percent == last && percent > 0 && percent < 100) {
+        // Value may remain same during small chunks; emit occasionally to keep UI responsive
+        emit progress(percent);
     }
 } 
 
@@ -36,30 +43,22 @@ void FirmwareWriter::process()
     m_lastPercent.store(0);
 
     // Connect to the VideoHid written_size signal to track progress.
-    // Use DirectConnection so the slot runs immediately in the emitter's thread and can calculate percent safely
+    // Use DirectConnection because the write loop is synchronous in this thread, and we need immediate progress updates.
     connect(m_videoHid, &VideoHid::firmwareWriteChunkComplete, this, &FirmwareWriter::onChunkWritten, Qt::DirectConnection);
 
-    // Perform the actual firmware write safely by invoking the VideoHid's slot in its own thread
+    // Perform the actual firmware write directly in this worker thread.
     bool success = false;
-    QPointer<QObject> safeVideo(static_cast<QObject*>(m_videoHid));
-    if (!safeVideo) {
-        qDebug() << "FirmwareWriter: VideoHid no longer exists, aborting write.";
-        // Ensure progress handler disconnected
+    if (!m_videoHid) {
+        qDebug() << "FirmwareWriter: VideoHid is null, aborting write.";
         disconnect(m_videoHid, &VideoHid::firmwareWriteChunkComplete, this, &FirmwareWriter::onChunkWritten);
         emit finished(false);
         return;
     }
 
-    // Use a blocking queued invocation to perform the write in VideoHid's thread
-    QMetaObject::invokeMethod(safeVideo.data(), "performWriteEeprom",
-                              Qt::BlockingQueuedConnection,
-                              Q_RETURN_ARG(bool, success),
-                              Q_ARG(quint16, m_address),
-                              Q_ARG(QByteArray, m_firmware));
+    // perform write directly on worker thread; VideoHid write/EEPROM operations should be thread-safe when polling is paused.
+    success = m_videoHid->writeEeprom(m_address, m_firmware);
 
-    // Disconnect progress handler now that write is finished
     disconnect(m_videoHid, &VideoHid::firmwareWriteChunkComplete, this, &FirmwareWriter::onChunkWritten);
 
-    // Signal completion
     emit finished(success);
 }

@@ -1517,8 +1517,41 @@ void SerialPortManager::completePortCloseCleanup() {
         m_hotplugHandler->CancelAutoConnectAttempts();
     }
 
-    // Notify listeners that port is not available
-    emit connectedPortChanged("NA", 0);
+    // Check if there are any available ports before emitting the status signal
+    // This prevents showing "NA" when the system is simply transitioning between ports
+    bool hasAvailablePorts = false;
+    QString firstAvailablePort;
+    for (const QSerialPortInfo &info : QSerialPortInfo::availablePorts()) {
+        if (!info.portName().isEmpty()) {
+            hasAvailablePorts = true;
+            firstAvailablePort = info.portName();
+            break;
+        }
+    }
+
+    // Only emit "NA" if no ports are available, otherwise emit the first available port
+    if (!hasAvailablePorts) {
+        // Notify listeners that port is not available
+        emit connectedPortChanged("NA", 0);
+    } else {
+        // Find and emit the first available port with its baudrate instead of "Searching" to reduce delay
+        for (const QSerialPortInfo &info : QSerialPortInfo::availablePorts()) {
+            if (!info.portName().isEmpty()) {
+                // Emit the actual port name and baudrate immediately to reduce UI delay
+                int currentBaud = (serialPort && serialPort->isOpen()) ? serialPort->baudRate() : 0;
+                emit connectedPortChanged(info.portName(), currentBaud);
+                
+                // Schedule a timeout to revert to "Not Connected" if no device connects within a reasonable time
+                QTimer::singleShot(3000, this, [this, info]() {
+                    // Only update status if we're still in the disconnected state and no actual connection happened
+                    if (ready == false && serialPort && serialPort->isOpen() == false) {
+                        emit connectedPortChanged("NA", 0);
+                    }
+                });
+                break;
+            }
+        }
+    }
     
     // Stop watchdog while port is closed (thread-safe)
     stopConnectionWatchdog();

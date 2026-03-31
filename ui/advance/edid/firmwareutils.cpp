@@ -1,5 +1,7 @@
 #include "firmwareutils.h"
 #include <QDebug>
+#include <QFile>
+#include <QFileInfo>
 
 namespace edid {
 
@@ -64,6 +66,36 @@ quint16 FirmwareUtils::calculateFirmwareChecksumWithDiff(const QByteArray &origi
     qDebug() << "New checksum (16-bit): 0x" << QString::number(newChecksum, 16).toUpper().rightJustified(4, '0');
 
     return newChecksum;
+}
+
+bool FirmwareUtils::backupFirmware(const QByteArray &firmwareData, const QString &path)
+{
+    if (firmwareData.isEmpty()) {
+        qWarning() << "No firmware data available to backup";
+        return false;
+    }
+
+    if (path.isEmpty()) {
+        qWarning() << "Backup path is empty";
+        return false;
+    }
+
+    QFile backupFile(path);
+    if (!backupFile.open(QIODevice::WriteOnly)) {
+        qWarning() << "Failed to open backup file for writing:" << path;
+        return false;
+    }
+
+    qint64 written = backupFile.write(firmwareData);
+    backupFile.close();
+
+    if (written != firmwareData.size()) {
+        qWarning() << "Backup firmware write incomplete" << written << "bytes of" << firmwareData.size();
+        return false;
+    }
+
+    qDebug() << "Backup firmware saved to:" << path;
+    return true;
 }
 
 } // namespace edid

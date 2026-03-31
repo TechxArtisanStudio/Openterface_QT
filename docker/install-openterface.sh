@@ -618,31 +618,22 @@ install_rpm_package() {
         print_success "RPM package installed successfully"
     fi
     
-    # Ensure bundled libraries are registered with the system linker
-    print_section "Registering bundled libraries with system linker..."
+    # Ensure bundled libraries are loaded by launcher, not via system ld.so.conf.d
+    print_section "Configuring library loading policy..."
     if [ -f /etc/ld.so.conf.d/openterface-libs.conf ]; then
-        print_info "Found openterface-libs.conf configuration"
-        print_info "Bundled libraries location: /usr/lib/openterfaceqt/"
-    else
-        print_warning "openterface-libs.conf not found"
-        print_info "Creating configuration for bundled libraries..."
+        print_warning "Legacy /etc/ld.so.conf.d/openterface-libs.conf found; removing to prevent system-wide conflicts"
         if [ "$(id -u)" -eq 0 ]; then
-            mkdir -p /etc/ld.so.conf.d
-            cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
-# OpenterfaceQT bundled libraries (isolated from system libraries)
-/usr/lib/openterfaceqt
-EOF
-            print_success "Created /etc/ld.so.conf.d/openterface-libs.conf"
+            rm -f /etc/ld.so.conf.d/openterface-libs.conf
+            print_success "Removed legacy openterface-libs.conf"
+        else
+            print_warning "Insufficient privileges to remove legacy ld.so config"
         fi
+    else
+        print_info "No system ld.so.conf.d entry exists for openterface-libs (expected in new packaging)"
     fi
     
-    # Update library cache to register all bundled libraries
-    print_section "Updating system library cache..."
-    if $SUDO ldconfig 2>&1 | head -5; then
-        print_success "Library cache updated successfully"
-    else
-        print_warning "ldconfig may not be available in this environment"
-    fi
+    print_info "Bundled libraries will be prioritized by the launcher script via LD_LIBRARY_PATH/LD_PRELOAD"
+    print_success "Library loading policy set (without global ldconfig modifications)"
     
     # Clean up
     rm -f "$PACKAGE_FILE"

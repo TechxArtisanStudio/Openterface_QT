@@ -4,9 +4,16 @@
         <file>openterface_da.qm</file>
         <file>openterface_de.qm</file>
         <file>openterface_en.qm</file>
+        <file>openterface_es.qm</file>
         <file>openterface_fr.qm</file>
-		<file>openterface_ja.qm</file>
-		<file>openterface_se.qm</file>
+        <file>openterface_it.qm</file>
+        <file>openterface_ja.qm</file>
+        <file>openterface_ko.qm</file>
+        <file>openterface_pt.qm</file>
+        <file>openterface_ru.qm</file>
+        <file>openterface_ro.qm</file>
+        <file>openterface_se.qm</file>
         <file>openterface_zh.qm</file>
+        <file>openterface_es.qm</file>
     </qresource>
 </RCC> 

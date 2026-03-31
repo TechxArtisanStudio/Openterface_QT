@@ -51,6 +51,7 @@ public:
     void showRecordingTime(bool show);
     int getCaptureWidth() const;
     int getCaptureHeight() const;
+    void checkAndWarnResolutionMismatch(const int &preferredWidth, const int &preferredHeight, const float &preferredFps);
 
 protected:
     void changeEvent(QEvent *event) override;
@@ -89,6 +90,10 @@ private:
     QPixmap plugIcon;
     
     int m_cpuCoreCount = 1;
+
+    // Variables to track the last port and baudrate to avoid duplicate updates
+    QString m_lastPort;
+    int m_lastBaudrate = -1;
 
     double getCpuUsage();
     QPixmap createIconTextLabel(const QString &svgPath, const QString &text, const QColor &textColor = QColor(), const QColor &iconColor = QColor());

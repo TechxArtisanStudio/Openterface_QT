@@ -44,7 +44,7 @@ FFmpegFrameProcessor::FFmpegFrameProcessor()
     , last_target_width_(-1)
     , last_target_height_(-1)
     , scaling_algorithm_(SWS_BILINEAR)
-    , frame_drop_threshold_display_(17)    // allow ~16.66ms (60fps) intervals to pass reliably
+    , frame_drop_threshold_display_(8)     // allow ~8.33ms (120fps) intervals to pass reliably - adjusted to exactly 8.33ms for 120fps support
     , frame_drop_threshold_recording_(33)  // Restore: ~30fps capable (drop if >33ms processing)
     , last_process_time_(0)
     , dropped_frames_(0)

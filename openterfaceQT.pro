@@ -70,6 +70,7 @@ SOURCES += main.cpp \
     video/platformhidadapter.cpp \
     video/firmwarewriter.cpp \
     video/firmwarereader.cpp \
+    video/firmwareoperationmanager.cpp \
     ui/TaskManager.cpp \
     ui/globalsetting.cpp \
     ui/inputhandler.cpp \
@@ -206,6 +207,7 @@ HEADERS  += \
     video/videohid.h \
     video/firmwarewriter.h \
     video/firmwarereader.h \
+    video/firmwareoperationmanager.h \
     video/ms2109.h \
     video/ms2109s.h \
     video/ms2130s.h \
@@ -373,5 +375,8 @@ TRANSLATIONS += config/languages/openterface_en.ts \
                 config/languages/openterface_se.ts \
                 config/languages/openterface_de.ts \
                 config/languages/openterface_zh.ts \
-                config/languages/openterface_es.ts
-                # Add more languages here
+                config/languages/openterface_es.ts \
+                config/languages/openterface_it.ts \
+                config/languages/openterface_ko.ts \
+                config/languages/openterface_pt.ts \
+                config/languages/openterface_ru.ts
