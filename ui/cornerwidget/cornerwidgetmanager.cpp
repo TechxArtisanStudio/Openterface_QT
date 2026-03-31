@@ -80,17 +80,17 @@ void CornerWidgetManager::createWidgets()
         const char* iconPath;
         const char* tooltip;
     } buttons[] = {
-        {&screenScaleButton, "ScreenScaleButton", ":/images/screen_scale.svg", "Screen scale"},
-        {&zoomInButton, "ZoomInButton", ":/images/zoom_in.svg", "Zoom in"},
-        {&zoomOutButton, "ZoomOutButton", ":/images/zoom_out.svg", "Zoom out"},
-        {&zoomReductionButton, "ZoomReductionButton", ":/images/zoom_fit.svg", "Restore original size"},
-        {&virtualKeyboardButton, "virtualKeyboardButton", ":/images/keyboard.svg", "Function key and composite key"},
-        {&captureButton, "captureButton", ":/images/capture.svg", "Full screen capture"},
-        {&fullScreenButton, "fullScreenButton", ":/images/full_screen.svg", "Full screen mode"},
-        {&pasteButton, "pasteButton", ":/images/paste.svg", "Paste text to target"},
-        {&screensaverButton, "screensaverButton", ":/images/screensaver.svg", "Mouse dance"},
-        {&recordingButton, "recordingButton", ":/images/startRecord.svg", "Start/Stop Recording"},
-        {&muteButton, "muteButton", ":/images/audio.svg", "Mute/Unmute Audio"}
+        {&screenScaleButton, "ScreenScaleButton", ":/images/screen_scale.svg", "Screen scale (Ctrl+Shift+A)"},
+        {&zoomInButton, "ZoomInButton", ":/images/zoom_in.svg", "Zoom in (Ctrl++)"},
+        {&zoomOutButton, "ZoomOutButton", ":/images/zoom_out.svg", "Zoom out (Ctrl+-)"},
+        {&zoomReductionButton, "ZoomReductionButton", ":/images/zoom_fit.svg", "Restore original size (Ctrl+0)"},
+        {&virtualKeyboardButton, "virtualKeyboardButton", ":/images/keyboard.svg", "Function key and composite key (Ctrl+Shift+K)"},
+        {&captureButton, "captureButton", ":/images/capture.svg", "Full screen capture (Ctrl+Shift+S)"},
+        {&fullScreenButton, "fullScreenButton", ":/images/full_screen.svg", "Full screen mode (Alt+F11)"},
+        {&pasteButton, "pasteButton", ":/images/paste.svg", "Paste text to target (Ctrl+Shift+V)"},
+        {&screensaverButton, "screensaverButton", ":/images/screensaver.svg", "Mouse dance (Ctrl+Shift+F10)"},
+        {&recordingButton, "recordingButton", ":/images/startRecord.svg", "Start/Stop Recording (Ctrl+Shift+F11)"},
+        {&muteButton, "muteButton", ":/images/audio.svg", "Mute/Unmute Audio (Ctrl+Shift+F9)"}
     };
 
     for (const auto& btn : buttons) {
@@ -170,17 +170,11 @@ void CornerWidgetManager::setupConnections()
     
     // Connect recording button click to toggle recording state and emit signal
     connect(recordingButton, &QPushButton::clicked, this, [this]() {
-        isRecording = !isRecording;
-        setButtonIcon(recordingButton, isRecording ? ":/images/stopRecord.svg" : ":/images/startRecord.svg");
-        recordingButton->setToolTip(isRecording ? tr("Stop Recording") : tr("Start Recording"));
         emit recordingToggled();
     });
     
     // Connect mute button click to toggle mute state and emit signal
     connect(muteButton, &QPushButton::clicked, this, [this]() {
-        isMuted = !isMuted;
-        setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
-        muteButton->setToolTip(isMuted ? tr("Unmute Audio") : tr("Mute Audio"));
         emit muteToggled();
     });
 }
@@ -201,7 +195,7 @@ void CornerWidgetManager::restoreMuteState(bool muted)
     isMuted = muted;
     if (muteButton) {
         setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
-        muteButton->setToolTip(isMuted ? tr("Unmute Audio") : tr("Mute Audio"));
+        muteButton->setToolTip(isMuted ? tr("Unmute Audio (Ctrl+Shift+F9)") : tr("Mute Audio (Ctrl+Shift+F9)"));
     }
 }
 
@@ -251,5 +245,23 @@ void CornerWidgetManager::updateUSBStatus(bool isToTarget)
         m_updatingFromStatus = true;  // Set flag before update
         toggleSwitch->setChecked(isToTarget);
         m_updatingFromStatus = false;  // Clear flag after update
+    }
+}
+
+void CornerWidgetManager::updateRecordingState(bool recording)
+{
+    isRecording = recording;
+    if (recordingButton) {
+        setButtonIcon(recordingButton, isRecording ? ":/images/stopRecord.svg" : ":/images/startRecord.svg");
+        recordingButton->setToolTip(isRecording ? tr("Stop Recording (Ctrl+Shift+F11)") : tr("Start Recording (Ctrl+Shift+F11)"));
+    }
+}
+
+void CornerWidgetManager::updateMuteState(bool muted)
+{
+    isMuted = muted;
+    if (muteButton) {
+        setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
+        muteButton->setToolTip(isMuted ? tr("Unmute Audio (Ctrl+Shift+F9)") : tr("Mute Audio (Ctrl+Shift+F9)"));
     }
 }

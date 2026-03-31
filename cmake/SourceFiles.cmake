@@ -103,6 +103,7 @@ set(RESOURCE_SOURCES
 # Script sources
 set(SCRIPT_SOURCES
     scripts/KeyboardMouse.cpp scripts/KeyboardMouse.h
+    scripts/SendKeyMaps.h
     scripts/Lexer.cpp scripts/Lexer.h
     scripts/Parser.cpp scripts/Parser.h
     scripts/semanticAnalyzer.cpp scripts/semanticAnalyzer.h
@@ -193,6 +194,11 @@ set(UI_ADVANCE_SOURCES
     ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h
     ui/advance/renamedisplaydialog.cpp ui/advance/renamedisplaydialog.h
     ui/advance/updatedisplaysettingsdialog.cpp ui/advance/updatedisplaysettingsdialog.h
+    ui/advance/edid/edidutils.cpp ui/advance/edid/edidutils.h
+    ui/advance/edid/firmwareutils.cpp ui/advance/edid/firmwareutils.h
+    ui/advance/edid/edidresolutionparser.cpp ui/advance/edid/edidresolutionparser.h
+    ui/advance/edid/resolutionmodel.cpp ui/advance/edid/resolutionmodel.h
+    ui/advance/edid/edidprocessor.cpp ui/advance/edid/edidprocessor.h
     ui/advance/recordingsettingsdialog.cpp ui/advance/recordingsettingsdialog.h
 )
 

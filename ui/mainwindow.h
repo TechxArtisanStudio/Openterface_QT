@@ -133,6 +133,13 @@ public:
     // Deferred initialization methods (called after window is shown)
     void deferredSetupCoordinators();
     void deferredInitializeCamera();
+    
+    // Zoom functionality
+    void zoomIn();
+    void zoomOut();
+    void resetZoom();
+    void fitToWindow();
+    void actualSize();
 
 signals:
     void emitTCPCommandStatus(bool status);
@@ -159,14 +166,17 @@ private slots:
     void takeImageDefault();
     void displayCaptureError(int, QImageCapture::Error, const QString &errorString);
 
+    void showScriptTool();
     void versionInfo();
 
+    void startServer();
     void purchaseLink();
     void feedbackLink();
     void officialLink();
     void aboutLink();
     void updateLink();
 
+    void configScreenScale();
     void configureSettings();
     void debugSerialPort();
     void openDeviceSelector();
@@ -337,7 +347,6 @@ private:
     std::unique_ptr<ScriptExecutor> scriptExecutor;
     std::unique_ptr<ScriptRunner> scriptRunner;
     TaskManager* taskmanager;
-    void showScriptTool();
 
     void onToolbarVisibilityChanged(bool visible);
 
@@ -346,10 +355,8 @@ private:
     ScreenScale *m_screenScaleDialog = nullptr;
     CornerWidgetManager *m_cornerWidgetManager = nullptr;
     WindowControlManager *m_windowControlManager = nullptr;
-    void configScreenScale();
     
     ratioType currentRatioType = ratioType::EQUAL;
-    void startServer();
     void stopServer();
     TcpServer *tcpServer;
     bool m_tcpServerRunning = false;

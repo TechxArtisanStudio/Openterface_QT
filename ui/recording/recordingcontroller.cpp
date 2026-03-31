@@ -305,7 +305,8 @@ void RecordingController::connectSignals()
 
 void RecordingController::updateUIStates()
 {
-    // UI state management removed - recording state shown in status bar only
+    // Notify listeners of recording state change so they can update their UI
+    emit recordingStateChanged(m_isRecording);
 }
 
 QString RecordingController::formatDuration(qint64 milliseconds) const

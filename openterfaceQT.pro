@@ -95,6 +95,11 @@ SOURCES += main.cpp \
     ui/advance/firmwaremanagerdialog.cpp \
     ui/advance/renamedisplaydialog.cpp \
     ui/advance/updatedisplaysettingsdialog.cpp \
+    ui/advance/edid/edidutils.cpp \
+    ui/advance/edid/firmwareutils.cpp \
+    ui/advance/edid/edidresolutionparser.cpp \
+    ui/advance/edid/resolutionmodel.cpp \
+    ui/advance/edid/edidprocessor.cpp \
     ui/advance/recordingsettingsdialog.cpp \
     ui/advance/diagnostics/SupportEmailDialog.cpp \
     ui/initializer/mainwindowinitializer.cpp \
@@ -170,6 +175,7 @@ HEADERS  += \
     host/backend/ffmpeg/ffmpegutils.h \
     regex/RegularExpression.h \
     scripts/KeyboardMouse.h \
+    scripts/SendKeyMaps.h \
     scripts/Lexer.h \
     scripts/Parser.h \
     scripts/semanticAnalyzer.h \
@@ -232,6 +238,11 @@ HEADERS  += \
     ui/advance/firmwaremanagerdialog.h \
     ui/advance/renamedisplaydialog.h \
     ui/advance/updatedisplaysettingsdialog.h \
+    ui/advance/edid/edidutils.h \
+    ui/advance/edid/firmwareutils.h \
+    ui/advance/edid/edidresolutionparser.h \
+    ui/advance/edid/resolutionmodel.h \
+    ui/advance/edid/edidprocessor.h \
     ui/advance/recordingsettingsdialog.h \
     ui/advance/diagnostics/SupportEmailDialog.h \
     ui/initializer/mainwindowinitializer.h \

@@ -20,34 +20,36 @@
 * ========================================================================== *
 */
 
-#ifndef MOUSEEVENTDTO_H
-#define MOUSEEVENTDTO_H
+#ifndef SENDKEYMAPS_H
+#define SENDKEYMAPS_H
 
-class MouseEventDTO {
-public:
-    MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton, int wheelDelta);
-    MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton)
-        : MouseEventDTO(x, y, isAbsoluteMode, mouseButton, 0) {}
-    MouseEventDTO(int x, int y, bool isAbsoluteMode)
-        : MouseEventDTO(x, y, isAbsoluteMode, 0, 0) {}
+#include <cstdint>
+#include <QChar>
+#include <QMap>
+#include <QPair>
+#include <QSet>
 
-    int getX() const;
-    int getY() const;
-    bool isAbsoluteMode();
-    int getMouseButton() const { return mouseButton; }
-    void setMouseButton(int button) { mouseButton = button; }
-    int getWheelDelta() const { return wheelDelta; }
-    void setWheelDelta(int delta) { wheelDelta = delta; }
-
-private:
-    int absX;
-    int absY;
-    int deltaX;
-    int deltaY;
-    bool _isAbsoluteMode;
-
-    int mouseButton;
-    int wheelDelta;
+// Backtick escape map for AHK-style Send command.
+// In AHK, a backtick (`) is the escape character. This allows typing literal
+// modifier symbols (^, !, +, #) or common control sequences.
+//
+// Format: escapeChar → { HID usage ID, needsShift }
+const QMap<QChar, QPair<uint8_t, bool>> backtickEscapeMap = {
+    {'!', {0x1E, true}},   // `! → literal !  (Shift+1)
+    {'#', {0x20, true}},   // `# → literal #  (Shift+3)
+    {'+', {0x2E, true}},   // `+ → literal +  (Shift+=)
+    {'^', {0x23, true}},   // `^ → literal ^  (Shift+6)
+    {'`', {0x35, false}},  // `` → literal `  (grave accent)
+    {'n', {0x28, false}},  // `n → newline    (Enter)
+    {'t', {0x2B, false}},  // `t → tab        (Tab)
+    {'r', {0x28, false}},  // `r → carriage return (Enter)
 };
 
-#endif // MOUSEEVENTDTO_H
+// Symbol characters that require a Shift modifier when typed literally.
+// Does not include ^, !, +, # — those are AHK modifier prefix characters
+// handled separately via controldata.
+const QSet<QChar> shiftRequiredChars = {
+    '@', '$', '%', '&', '*', '(', ')'
+};
+
+#endif // SENDKEYMAPS_H

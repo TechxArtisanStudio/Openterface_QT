@@ -27,6 +27,7 @@
 #include <QString>
 #include <QThread>
 #include "KeyboardMouse.h"
+#include "SendKeyMaps.h"
 #include "global.h"
 
 
@@ -282,34 +283,68 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
     int pos = 0;
     int packetCount = 0;
     const int MAX_PACKETS = 50;
-    
+
+    // backtickEscapeMap and shiftRequiredChars are defined in SendKeyMaps.h
+
     while (pos < tmpKeys.length() && packetCount < MAX_PACKETS) {
         std::array<uint8_t, 6> general = {0x00,0x00,0x00,0x00,0x00,0x00};
         uint8_t control = 0x00;
 
-        // Check brace key first (e.g., {Enter}, {Tab})
+        // [Phase 4] Backtick escape sequences (highest priority, before modifier check)
+        if (tmpKeys[pos] == '`' && pos + 1 < tmpKeys.length()) {
+            QChar nextCh = tmpKeys[pos + 1];
+            if (backtickEscapeMap.contains(nextCh)) {
+                QPair<uint8_t, bool> entry = backtickEscapeMap.value(nextCh);
+                general[0] = entry.first;
+                uint8_t escCtrl = entry.second ? 0x02 : 0x00;
+                keyPacket pack(general, escCtrl);
+                keyboardMouse->addKeyPacket(pack);
+                packetCount++;
+                std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
+                keyPacket releasePack(release, 0x00);
+                keyboardMouse->addKeyPacket(releasePack);
+                packetCount++;
+                qCDebug(log_script) << "Added backtick escape:" << nextCh;
+                pos += 2;
+                continue;
+            }
+            // Unrecognized backtick sequence: skip the backtick itself
+            qCDebug(log_script) << "Send: unrecognized backtick escape:" << tmpKeys[pos + 1] << "(skipping)";
+            pos++;
+            continue;
+        }
+
+        // [Phase 3] Accumulate AHK modifier prefixes: ^=Ctrl, !=Alt, +=Shift, #=Win
+        // Multiple modifiers may be combined (e.g. "^+c" = Ctrl+Shift+C)
+        while (pos < tmpKeys.length() && controldata.contains(QString(tmpKeys[pos]))) {
+            control |= controldata.value(QString(tmpKeys[pos]));
+            pos++;
+        }
+        if (pos >= tmpKeys.length()) break;
+
+        // Check brace key (e.g., {Enter}, {Tab}) — re-evaluated after modifier advance
         QRegularExpressionMatch braceMatch = regex.braceKeyRegex.match(tmpKeys, pos);
         if (braceMatch.hasMatch() && braceMatch.capturedStart() == pos) {
             QString keyName = braceMatch.captured(1);
-            
+
             // Check if this is a Click command
             if (keyName.startsWith("Click", Qt::CaseInsensitive)) {
                 // Extract coordinates from "Click x, y"
                 QRegularExpression clickRegex(R"(Click\s+(\d+)\s*,\s*(\d+))", QRegularExpression::CaseInsensitiveOption);
                 QRegularExpressionMatch clickMatch = clickRegex.match(keyName);
-                
+
                 if (clickMatch.hasMatch() && mouseManager) {
                     int x = clickMatch.captured(1).toInt();
                     int y = clickMatch.captured(2).toInt();
                     qCDebug(log_script) << "Send: executing click at:" << x << "," << y;
-                    
+
                     // Send any pending keyboard packets first
                     if (packetCount > 0) {
                         qCDebug(log_script) << "Send: sending" << packetCount << "packets before click";
                         keyboardMouse->dataSend();
                         packetCount = 0;
                     }
-                    
+
                     // Perform mouse click: press, wait, release
                     mouseManager->handleAbsoluteMouseAction(x, y, Qt::LeftButton, 0);  // Press
                     QThread::msleep(5);  // Wait 5ms
@@ -320,7 +355,7 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
                 pos = braceMatch.capturedEnd();
                 continue;
             }
-            
+
             // Normalize key name: capitalize first letter
             if (!keyName.isEmpty()) {
                 keyName = keyName.at(0).toUpper() + keyName.mid(1).toLower();
@@ -331,15 +366,15 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
                 keyboardMouse->addKeyPacket(pack);
                 packetCount++;
                 qCDebug(log_script) << "Added brace key press:" << keyName;
-                
+
                 // Send key release
                 std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
                 keyPacket releasePack(release, 0x00);
                 keyboardMouse->addKeyPacket(releasePack);
                 packetCount++;
             } else {
-                qCDebug(log_script) << "Send: unsupported brace key:" << keyName;
-                return;
+                qCDebug(log_script) << "Send: unsupported brace key:" << keyName << "(skipping)";
+                // Changed from return to continue: unknown brace key skips rather than aborting
             }
             pos = braceMatch.capturedEnd();
             continue;
@@ -347,28 +382,29 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
 
         // Handle simple character
         QChar ch = tmpKeys[pos];
-        if (ch.isUpper()) control = 0x02;  // Shift modifier
+        // [Phase 2] Detect Shift requirement for uppercase letters and symbol characters
+        if (ch.isUpper() || shiftRequiredChars.contains(ch)) control |= 0x02;
         QString chStr(ch);
-        
+
         if (keydata.contains(chStr)) {
             general[0] = keydata.value(chStr);
             keyPacket pack(general, control);
             keyboardMouse->addKeyPacket(pack);
             packetCount++;
             qCDebug(log_script) << "Added char press:" << ch;
-            
+
             // Send key release
             std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
             keyPacket releasePack(release, 0x00);
             keyboardMouse->addKeyPacket(releasePack);
             packetCount++;
         } else {
-            qCDebug(log_script) << "Send: unsupported char:" << ch;
-            return;
+            qCDebug(log_script) << "Send: unsupported char:" << ch << "(skipping)";
+            // Changed from return to continue: unknown character is skipped instead of aborting
         }
         pos++;
     }
-    
+
     if (packetCount >= MAX_PACKETS) {
         qCDebug(log_script) << "Send: packet count exceeded limit";
         return;

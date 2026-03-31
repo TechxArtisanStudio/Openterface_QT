@@ -1757,6 +1757,12 @@ QByteArray VideoHid::readEeprom(quint16 address, quint32 size) {
     quint32 bytesRemaining = size;
 
     while (bytesRemaining > 0 && success) {
+        if (QThread::currentThread()->isInterruptionRequested()) {
+            qCInfo(log_host_hid) << "readEeprom interrupted";
+            endTransaction();
+            return QByteArray();
+        }
+
         int chunkSize = qMin(MAX_CHUNK, static_cast<int>(bytesRemaining));
         QByteArray chunk;
         bool chunkSuccess = false;
