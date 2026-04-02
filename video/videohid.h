@@ -168,6 +168,13 @@ public:
     // Read firmware from EEPROM
     QByteArray readEeprom(quint16 address, quint32 size);
 
+    // MS2130S-specific flash operations (erase + 4096b burst write)
+    bool ms2130sEraseSector(quint32 startAddress);
+    bool ms2130sFlashEraseDone(bool &done);
+    bool ms2130sFlashBurstWrite(quint32 address, const QByteArray &data);
+    bool ms2130sWriteFirmware(quint16 address, const QByteArray &data);
+    bool ms2130sInitializeGPIO();
+
     // Transaction-based HID access
     bool beginTransaction();
     void endTransaction();
@@ -285,11 +292,12 @@ private:
     bool writeChunk(quint16 address, const QByteArray &data);
     bool writeEeprom(quint16 address, const QByteArray &data);
     bool readChunk(quint16 address, QByteArray &data, int chunkSize);
-    uint16_t written_size = 0;
     uint32_t read_size = 0;
 
     // Last firmware write percent (updated from writer thread and read by UI)
     std::atomic_int m_lastFirmwarePercent{0};
+    // Set true for the duration of firmware flash so all background register reads bail immediately
+    std::atomic_bool m_flashInProgress{false};
 
 
 #ifdef _WIN32
@@ -319,6 +327,10 @@ private:
     // Abstraction for chip-specific behavior
     std::unique_ptr<VideoChip> m_chipImpl{nullptr};
 
+    // Keep chunk-write progress for firmware write
+    quint32 written_size = 0;
+
+public:
     Q_INVOKABLE void detectChipType();
     VideoChipType getChipType() const { return m_chipType; }
     VideoChip* getChipImpl() const { return m_chipImpl.get(); }

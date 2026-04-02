@@ -463,7 +463,10 @@ void MainWindow::onActionSwitchToHostTriggered()
         SerialPortManager::getInstance().switchUsbToHostViaSerial();
     }else{
         qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
-        VideoHid::getInstance().switchToHost();
+        // Post to VideoHid's dedicated thread so the HID I/O doesn't stall the UI.
+        QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
+            VideoHid::getInstance().switchToHost();
+        }, Qt::QueuedConnection);
         ui->actionTo_Host->setChecked(true);
         ui->actionTo_Target->setChecked(false);
     }
@@ -477,7 +480,10 @@ void MainWindow::onActionSwitchToTargetTriggered()
         SerialPortManager::getInstance().switchUsbToTargetViaSerial();
     }else{
         qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
-        VideoHid::getInstance().switchToTarget();
+        // Post to VideoHid's dedicated thread so the HID I/O doesn't stall the UI.
+        QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
+            VideoHid::getInstance().switchToTarget();
+        }, Qt::QueuedConnection);
         ui->actionTo_Host->setChecked(false);
         ui->actionTo_Target->setChecked(true);
     }

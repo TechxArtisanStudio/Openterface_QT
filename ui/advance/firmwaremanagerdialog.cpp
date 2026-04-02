@@ -94,6 +94,10 @@ void FirmwareManagerDialog::onWriteFirmwareFromFileClick() {
     progressDialog->setValue(0);
 
     // Create the FirmwareWriter
+    if (VideoHid::getInstance().getChipType() == VideoChipType::MS2130S) {
+        qDebug() << "MS2130S detected - using erase+4096B burst firmware write path";
+    }
+
     QThread* thread = new QThread();
     // Do NOT set a GUI parent on the worker; moving a QObject with a GUI-thread parent
     // into another thread can cause crashes. Use nullptr here.

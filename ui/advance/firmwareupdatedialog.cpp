@@ -108,16 +108,23 @@ void FirmwareUpdateDialog::updateComplete(bool success)
     disconnect(&VideoHid::getInstance(), &VideoHid::firmwareWriteComplete, this, &FirmwareUpdateDialog::updateComplete);
     
     if (success) {
+        // Stop all HID threads FIRST so the device is fully released
+        VideoHid::getInstance().stop();
+
         statusLabel->setText(tr("Firmware update completed successfully.\nThe application will close. Please restart it to apply the new firmware."));
+        progressBar->setValue(100);
+
+        // Blocking dialog – clicking OK exits the entire application
         QMessageBox::information(this, tr("Firmware Update"), 
                     tr("Firmware update completed successfully.\n\n"
                     "The application will now close.\n"
                     "Please:\n"
                     "1. Restart the application\n"
                     "2. Disconnect and reconnect all cables"));
-        
-        // Stop VideoHid after successful firmware update
-        VideoHid::getInstance().stop();
+
+        // User clicked OK – exit immediately
+        QApplication::quit();
+        return;
     } else {
         statusLabel->setText(tr("Firmware update failed. Please try again."));
         QMessageBox::critical(this, tr("Firmware Update Failed"), 
@@ -127,13 +134,6 @@ void FirmwareUpdateDialog::updateComplete(bool success)
     
     closeButton->setEnabled(true);
     emit updateFinished(success);
-    
-    if (success) {
-        // Give user a moment to see the success message before auto-closing
-        QTimer::singleShot(2000, this, []() {
-            QApplication::quit();
-        });
-    }
 }
 
 FirmwareUpdateConfirmDialog::FirmwareUpdateConfirmDialog(QWidget *parent)

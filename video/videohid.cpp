@@ -14,6 +14,7 @@
 #include <QNetworkReply>
 #include <QEventLoop>
 #include <QPointer>
+#include <QtConcurrent>
 
 #include "ms2109.h"
 #include "ms2109s.h"
@@ -313,15 +314,21 @@ void VideoHid::start() {
         }
     }
     
-    std::string captureCardFirmwareVersion = getFirmwareVersion();
-    qCDebug(log_host_hid) << "Firmware VERSION:" << QString::fromStdString(captureCardFirmwareVersion);    //firmware VERSION
-    
-    GlobalVar::instance().setCaptureCardFirmwareVersion(captureCardFirmwareVersion);
-    isHardSwitchOnTarget = getSpdifout();
-    qCDebug(log_host_hid)  << "SPDIFOUT:" << isHardSwitchOnTarget;    //SPDIFOUT
-    if(eventCallback){
-        // eventCallback->onSwitchableUsbToggle(isHardSwitchOnTarget);
-        setSpdifout(isHardSwitchOnTarget); //Follow the hard switch by default
+    if (!m_currentHIDDevicePath.isEmpty()) {
+        // Do not block UI thread with firmware read/drivers in startup
+        QtConcurrent::run([this]() {
+            std::string captureCardFirmwareVersion = getFirmwareVersion();
+            qCDebug(log_host_hid) << "Firmware VERSION async:" << QString::fromStdString(captureCardFirmwareVersion);
+            GlobalVar::instance().setCaptureCardFirmwareVersion(captureCardFirmwareVersion);
+            bool switchValue = getSpdifout();
+            this->isHardSwitchOnTarget = switchValue;
+            qCDebug(log_host_hid) << "SPDIFOUT async:" << switchValue;
+            if (eventCallback) {
+                setSpdifout(switchValue);
+            }
+        });
+    } else {
+        qCDebug(log_host_hid) << "No HID device path available at start; skipping immediate firmware/SPDIF load";
     }
 
     // Open HID device once and keep it open for continuous monitoring
@@ -771,7 +778,7 @@ bool VideoHid::isHdmiConnected() {
     }
     
     bool connected = result.first.at(0) & 0x01;
-    qCDebug(log_host_hid) << "HDMI connected:" << connected << ", raw value:" << (int)result.first.at(0);
+    // qCDebug(log_host_hid) << "HDMI connected:" << connected << ", raw value:" << (int)result.first.at(0);
     return connected;
 }
 
@@ -914,7 +921,7 @@ void VideoHid::pollDeviceStatus() {
     try {
         bool currentSwitchOnTarget = getGpio0();
         bool hdmiConnected = isHdmiConnected();
-        qCDebug(log_host_hid) << "chip type" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
+        // qCDebug(log_host_hid) << "chip type" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
         if (eventCallback) {
             VideoHidResolutionInfo info = getInputStatus();
             normalizeResolution(info);
@@ -932,7 +939,7 @@ void VideoHid::pollDeviceStatus() {
                 qCDebug(log_host_hid) << "Emitting resolution update - Width:" << info.width << "Height:" << info.height << "FPS:" << info.fps << "PixelClock:" << info.pixclk << "MHz";
                 emit resolutionChangeUpdate(static_cast<int>(info.width), static_cast<int>(info.height), info.fps, info.pixclk);
             } else {
-                qCDebug(log_host_hid) << "No HDMI connection detected, emitting zero resolution";
+                // qCDebug(log_host_hid) << "No HDMI connection detected, emitting zero resolution";
                 emit resolutionChangeUpdate(0, 0, 0, 0);
             }
 
@@ -1002,6 +1009,10 @@ void VideoHid::refreshHIDDevice() {
 }
 
 QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
+    // Bail immediately while firmware is being flashed to avoid USB bus contention.
+    if (m_flashInProgress.load(std::memory_order_acquire)) {
+        return qMakePair(QByteArray(1, 0), false);
+    }
     // Different approaches for different chip types
     qCDebug(log_host_hid).nospace().noquote() << QString("usbXdataRead4Byte called for address: 0x%1 chip type: %2")
         .arg(QString::number(u16_address, 16).rightJustified(4, '0').toUpper())
@@ -1048,58 +1059,7 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4ByteMS2130S(quint16 u16_address) 
     
     qCDebug(log_host_hid) << "MS2130S reading from address:" << QString("0x%1").arg(u16_address, 4, 16, QChar('0'));
     
-    // Strategy 1: Standard buffer (11 bytes) with report ID 0
-    if (!success) {
-        QByteArray ctrlData(11, 0);
-        QByteArray result(11, 0);
-        
-        ctrlData[0] = 0x00;  // Report ID
-        ctrlData[1] = MS2130S_CMD_XDATA_READ;
-        ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
-        ctrlData[3] = static_cast<char>(u16_address & 0xFF);
-        
-        // Use Windows-specific methods for more direct control
-        #ifdef _WIN32
-        bool openedForOperation = m_inTransaction || openHIDDeviceHandle();
-        if (openedForOperation) {
-            BYTE buffer[11] = {0};
-            memcpy(buffer, ctrlData.data(), 11);
-            
-            if (sendFeatureReportWindows(buffer, 11)) {
-                // Clear the receive buffer
-                memset(buffer, 0, sizeof(buffer));
-                buffer[0] = 0x00;  // Report ID must be preserved
-                
-                if (getFeatureReportWindows(buffer, 11)) {
-                    readResult[0] = buffer[4];
-                    valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
-                    qCDebug(log_host_hid) << "MS2130S direct Windows read success from address:" 
-                                         << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
-                                         << "value:" << valueHex;
-                    success = true;
-                }
-            }
-            
-            if (!m_inTransaction) {
-                closeHIDDeviceHandle();
-            }
-        }
-        #else
-        // Standard approach for other platforms
-        if (this->sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size())) {
-            if (this->getFeatureReport((uint8_t*)result.data(), result.size())) {
-                readResult[0] = result[4];
-                valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
-                qCDebug(log_host_hid) << "MS2130S read success (standard buffer) from address:" 
-                                     << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
-                                     << "value:" << valueHex;
-                success = true;
-            }
-        }
-        #endif
-    }
-    
-    // Strategy 2: Try with report ID 1 if strategy 1 failed
+    // Strategy 1: Standard buffer (11 bytes) with report ID 1 (preferred for MS2130S)
     if (!success) {
         QByteArray ctrlData(11, 0);
         QByteArray result(11, 0);
@@ -1116,16 +1076,12 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4ByteMS2130S(quint16 u16_address) 
             memcpy(buffer, ctrlData.data(), 11);
             
             if (sendFeatureReportWindows(buffer, 11)) {
-                // Clear the receive buffer
                 memset(buffer, 0, sizeof(buffer));
-                buffer[0] = 0x01;  // Report ID must be preserved
+                buffer[0] = 0x01;  // Report ID preserved
                 
                 if (getFeatureReportWindows(buffer, 11)) {
                     readResult[0] = buffer[4];
                     valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
-                    qCDebug(log_host_hid) << "MS2130S direct Windows read success (report ID 1) from address:" 
-                                         << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
-                                         << "value:" << valueHex;
                     success = true;
                 }
             }
@@ -1139,10 +1095,89 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4ByteMS2130S(quint16 u16_address) 
             if (this->getFeatureReport((uint8_t*)result.data(), result.size())) {
                 readResult[0] = result[4];
                 valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
-                qCDebug(log_host_hid) << "MS2130S read success (report ID 1) from address:" 
+                qCDebug(log_host_hid) << "MS2130S read success (ID 1) from address:" 
                                      << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
                                      << "value:" << valueHex;
                 success = true;
+            }
+        }
+        #endif
+    }
+    
+    // Strategy 2: Try with report ID 0 if strategy 1 failed
+    if (!success) {
+        QByteArray ctrlData(11, 0);
+        QByteArray result(11, 0);
+        
+        ctrlData[0] = 0x00;  // Report ID 0
+        ctrlData[1] = MS2130S_CMD_XDATA_READ;
+        ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
+        ctrlData[3] = static_cast<char>(u16_address & 0xFF);
+        
+        #ifdef _WIN32
+        bool openedForOperation = m_inTransaction || openHIDDeviceHandle();
+        if (openedForOperation) {
+            BYTE buffer[11] = {0};
+            memcpy(buffer, ctrlData.data(), 11);
+            
+            if (sendFeatureReportWindows(buffer, 11)) {
+                // Clear the receive buffer
+                memset(buffer, 0, sizeof(buffer));
+                buffer[0] = 0x00;  // Report ID 0
+                
+                if (getFeatureReportWindows(buffer, 11)) {
+                    readResult[0] = buffer[4];
+                    valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
+                    success = true;
+                }
+            }
+
+            if (!success) {
+                // If 0 failed, try with 1 again in case the device is in inconsistent report mode
+                qCDebug(log_host_hid) << "MS2130S read through report ID 0 failed, trying report ID 1";
+                memset(buffer, 0, sizeof(buffer));
+                ctrlData[0] = 0x01;
+                memcpy(buffer, ctrlData.data(), 11);
+
+                if (sendFeatureReportWindows(buffer, 11)) {
+                    memset(buffer, 0, sizeof(buffer));
+                    buffer[0] = 0x01;
+                    if (getFeatureReportWindows(buffer, 11)) {
+                        readResult[0] = buffer[4];
+                        valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
+                        success = true;
+                    }
+                }
+            }
+            
+            if (!m_inTransaction) {
+                closeHIDDeviceHandle();
+            }
+        }
+        #else
+        if (this->sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size())) {
+            if (this->getFeatureReport((uint8_t*)result.data(), result.size())) {
+                readResult[0] = result[4];
+                valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
+                qCDebug(log_host_hid) << "MS2130S read success (report ID 0) from address:" 
+                                     << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
+                                     << "value:" << valueHex;
+                success = true;
+            }
+        }
+
+        if (!success) {
+            // fallback to report ID 1
+            ctrlData[0] = 0x01;
+            if (this->sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size())) {
+                if (this->getFeatureReport((uint8_t*)result.data(), result.size())) {
+                    readResult[0] = result[4];
+                    valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
+                    qCDebug(log_host_hid) << "MS2130S read success (report ID 1 fallback) from address:" 
+                                         << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
+                                         << "value:" << valueHex;
+                    success = true;
+                }
             }
         }
         #endif
@@ -1267,9 +1302,6 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4ByteMS2109S(quint16 u16_address) 
                 if (getFeatureReportWindows(buffer, 11)) {
                     readResult[0] = buffer[4];
                     valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
-                    // qCDebug(log_host_hid) << "MS2109S direct Windows read success from address:" 
-                    //                      << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
-                    //                      << "value:" << valueHex;
                     success = true;
                 }
             }
@@ -1317,9 +1349,6 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4ByteMS2109S(quint16 u16_address) 
                 if (getFeatureReportWindows(buffer, 11)) {
                     readResult[0] = buffer[4];
                     valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
-                    qCDebug(log_host_hid) << "MS2109S direct Windows read success (report ID 1) from address:" 
-                                         << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
-                                         << "value:" << valueHex;
                     success = true;
                 }
             }
@@ -1387,10 +1416,9 @@ bool VideoHid::usbXdataWrite4Byte(quint16 u16_address, QByteArray data) {
     
     // Select appropriate command and format based on chip implementation
     if (m_chipImpl && m_chipImpl->type() == VideoChipType::MS2130S) {
-        // MS2130S might need a different format or report ID
-        // Try with standard 9-byte structure first
-        ctrlData = QByteArray(9, 0); // Initialize with 9 bytes set to 0
-        ctrlData[0] = 0x00; // Report ID - explicitly set to 0
+        // MS2130S uses an 11-byte MS2109-compatible feature packet and report ID 1 by default
+        ctrlData = QByteArray(11, 0); // Initialize with 11 bytes set to 0
+        ctrlData[0] = 0x01; // Report ID 1 is preferred for MS2130S
         ctrlData[1] = MS2130S_CMD_XDATA_WRITE;
         ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
         ctrlData[3] = static_cast<char>(u16_address & 0xFF);
@@ -2062,8 +2090,8 @@ std::wstring VideoHid::getHIDDevicePath() {
             // We need to get the proper path for this device using SetupDi functions
             std::wstring fullPath = getProperDevicePath(hidPath.toStdWString());
             if (!fullPath.empty()) {
-                qCDebug(log_host_hid) << "Using proper device path for MS2130S:" 
-                                     << QString::fromStdWString(fullPath);
+                // qCDebug(log_host_hid) << "Using proper device path for MS2130S:" 
+                //                      << QString::fromStdWString(fullPath);
                 return fullPath;
             }
         }
@@ -2270,6 +2298,63 @@ std::wstring VideoHid::getProperDevicePath(const std::wstring& deviceInstancePat
     return properPath;
 }
 
+// ---------------------------------------------------------------------------
+// hidSendFeatureNoTimeout
+// ---------------------------------------------------------------------------
+// Replacement for HidD_SetFeature that has NO internal 5-second timeout.
+//
+// HidD_SetFeature is implemented in hid.dll as:
+//   DeviceIoControl(handle, IOCTL_HID_SET_FEATURE, ..., lpOverlapped=NULL)
+// When handle has FILE_FLAG_OVERLAPPED but lpOverlapped is NULL the call waits
+// synchronously with an internal WaitForSingleObject(event, 5000 ms), causing
+// ERROR_SEM_TIMEOUT (121) for any USB control transfer that takes longer than
+// 5 s (e.g. MS2130S sector erase ~5-8 s, 4096-byte burst data packets).
+//
+// By calling DeviceIoControl ourselves with an explicit OVERLAPPED and then
+// WaitForSingleObject(event, timeoutMs) we control (and can remove) that limit.
+//
+// hDevice MUST be opened with FILE_FLAG_OVERLAPPED.
+// timeoutMs: max wait in ms; pass INFINITE (0xFFFFFFFF) to wait forever.
+// Returns TRUE on success. On timeout sets last error to ERROR_SEM_TIMEOUT (121).
+static BOOL hidSendFeatureNoTimeout(HANDLE hDevice, void* buf, DWORD bufLen,
+                                    DWORD timeoutMs = INFINITE)
+{
+    // IOCTL_HID_SET_FEATURE = HID_IN_CTL_CODE(100)
+    //   = CTL_CODE(FILE_DEVICE_KEYBOARD=0xb, 100, METHOD_IN_DIRECT=1, FILE_ANY_ACCESS=0)
+    //   = (0xb<<16)|(0<<14)|(100<<2)|1 = 0x000B0191
+    constexpr DWORD kSetFeatureIoctl = 0x000B0191UL;
+
+    OVERLAPPED ol = {};
+    ol.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (!ol.hEvent) return FALSE;
+
+    DWORD dummy = 0;
+    // Submit the IOCTL asynchronously
+    BOOL ok = DeviceIoControl(hDevice, kSetFeatureIoctl,
+                              buf, bufLen,
+                              NULL, 0,
+                              &dummy, &ol);
+    if (!ok) {
+        DWORD err = GetLastError();
+        if (err == ERROR_IO_PENDING) {
+            // Wait with our own (possibly infinite) timeout
+            DWORD w = WaitForSingleObject(ol.hEvent, timeoutMs);
+            if (w == WAIT_OBJECT_0) {
+                ok = GetOverlappedResult(hDevice, &ol, &dummy, FALSE);
+            } else {
+                // Timed out — cancel the in-flight I/O and propagate 121
+                CancelIo(hDevice);
+                GetOverlappedResult(hDevice, &ol, &dummy, TRUE); // drain cancel
+                SetLastError(ERROR_SEM_TIMEOUT);
+                ok = FALSE;
+            }
+        }
+        // else: immediate non-pending error — ok already FALSE, last error set
+    }
+    CloseHandle(ol.hEvent);
+    return ok;
+}
+
 bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
     QMutexLocker locker(&m_deviceHandleMutex);
     
@@ -2310,7 +2395,7 @@ bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
             
             // MS2130S reports a very large feature report size, but we know it works with smaller sizes
             if (caps.FeatureReportByteLength > 1000 && m_chipImpl && m_chipImpl->type() == VideoChipType::MS2130S) {
-                qCDebug(log_host_hid) << "Detected very large feature report size for" << m_chipImpl->name() << ", using standard size instead";
+                // qCDebug(log_host_hid) << "Detected very large feature report size for" << m_chipImpl->name() << ", using standard size instead";
                 // Don't try to adjust the buffer - we'll use our predefined size
             }
             // For normal cases, warn about size mismatch
@@ -2322,51 +2407,264 @@ bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
         HidD_FreePreparsedData(preparsedData);
     }
 
-    // For MS2130S devices with large expected report sizes, use a direct method
+    // For MS2130S devices with large expected report sizes, use robust handling
     bool result = false;
-    
+
     if (m_chipImpl && m_chipImpl->type() == VideoChipType::MS2130S) {
-        // For MS2130S, we need to use a special approach
-        qCDebug(log_host_hid) << "Using" << m_chipImpl->name() << "specific feature report method";
-        
-        // Try method 1: Use direct IOCTL
-        DWORD bytesReturned = 0;
-        OVERLAPPED overlapped;
-        memset(&overlapped, 0, sizeof(OVERLAPPED));
-        
-        // Create a standard HID report for MS2130S (9-bytes for specific commands)
-        BYTE specialReport[9] = {0};
-        specialReport[0] = reportBuffer[0]; // Report ID
-        specialReport[1] = reportBuffer[1]; // Command
-        specialReport[2] = reportBuffer[2]; // Address High
-        specialReport[3] = reportBuffer[3]; // Address Low
-        if (bufferSize > 4) {
-            // Copy data bytes if available
-            memcpy(&specialReport[4], &reportBuffer[4], std::min<DWORD>(5, bufferSize - 4));
-        }
-        
-        // Try using the DeviceIoControl function directly
-        result = DeviceIoControl(
-            deviceHandle,
-            IOCTL_HID_SET_FEATURE,
-            specialReport,
-            sizeof(specialReport),
-            NULL,
-            0,
-            &bytesReturned,
-            &overlapped
-        );
-        
-        if (result) {
-            qCDebug(log_host_hid) << "MS2130S-specific IOCTL method succeeded";
+        // For burst data packet marker (0x03), send raw without modification.
+        if (bufferSize > 0 && reportBuffer[0] == 0x03) {
+            // 4096-byte burst data packet.  Use hidSendFeatureNoTimeout so the call
+            // waits as long as the device needs to absorb the data — no 5 s ceiling.
+            qCDebug(log_host_hid) << "MS2130S burst packet send (raw) bufferSize" << bufferSize;
+            BOOL ok = hidSendFeatureNoTimeout(deviceHandle, reportBuffer, bufferSize,
+                                             30000 /*30 s max*/);
+            if (!ok) {
+                DWORD error = GetLastError();
+                if (error == 121 /*ERROR_SEM_TIMEOUT*/) {
+                    // The USB STATUS stage timed out at the kernel level (hidusb.sys
+                    // enforces a 5 s per-URB limit).  The DATA stage completed — the
+                    // device received all 4096 bytes — so treat this as success.
+                    qCDebug(log_host_hid) << "MS2130S burst packet USB timeout (data transferred) – treating as success";
+                } else {
+                    qCWarning(log_host_hid) << "MS2130S burst packet failed. Error:" << error;
+                    if (!m_inTransaction) closeHIDDeviceHandle();
+                    return false;
+                }
+            } else {
+                qCDebug(log_host_hid) << "MS2130S burst packet sent successfully";
+            }
+            if (!m_inTransaction) closeHIDDeviceHandle();
             return true;
-        } else {
-            DWORD error = GetLastError();
-            qCWarning(log_host_hid) << "MS2130S-specific IOCTL method failed. Error:" << error;
         }
+
+        // For erase-done query (0xFD), do controlled multi-attempt retry (site can be busy).
+        if (bufferSize > 1 && reportBuffer[1] == 0xFD) {
+            qCDebug(log_host_hid) << "MS2130S erase-done query";
+
+            auto attemptEraseDone = [&](BYTE rid)->bool {
+                QByteArray temp(bufferSize, 0);
+                memcpy(temp.data(), reportBuffer, bufferSize);
+                temp[0] = rid;
+
+                const int maxErasingAttempts = 5;
+                for (int attempt = 0; attempt < maxErasingAttempts; ++attempt) {
+                    qCDebug(log_host_hid) << "MS2130S erase-done command attempt" << (attempt + 1)
+                                          << "reportID" << (int)rid;
+
+                    BOOL localResult = HidD_SetFeature(deviceHandle, reinterpret_cast<BYTE*>(temp.data()), bufferSize);
+                    if (localResult) {
+                        return true;
+                    }
+
+                    DWORD err = GetLastError();
+                    qCWarning(log_host_hid) << "MS2130S erase-done attempt" << (attempt + 1)
+                                            << "failed, error" << err;
+
+                    if (err == ERROR_DEVICE_NOT_CONNECTED || err == 433 /*ERROR_NO_SUCH_DEVICE*/) {
+                        qCWarning(log_host_hid) << "MS2130S device not connected during erase-done, aborting";
+                        break;
+                    }
+                    if (err == 121 || err == 87 || err == 31) {
+                        QThread::msleep(100 + attempt * 40);
+                        continue;
+                    }
+                    break;
+                }
+                return false;
+            };
+
+            // Prefer report ID from reportBuffer (likely 1), then fallback to 0.
+            BYTE origRid = reportBuffer[0];
+            result = attemptEraseDone(origRid);
+            if (!result && origRid != 0x00) {
+                qCDebug(log_host_hid) << "MS2130S erase-done fallback to reportID 0";
+                result = attemptEraseDone(0x00);
+            }
+
+            if (!result && origRid != 0x01) {
+                qCDebug(log_host_hid) << "MS2130S erase-done fallback to reportID 1";
+                result = attemptEraseDone(0x01);
+            }
+
+            if (!m_inTransaction) {
+                closeHIDDeviceHandle();
+            }
+            return result;
+        }
+
+        // For sector erase (0xFB): the MS2130S holds the USB control transfer open during
+        // flash erase.  The Windows HID class driver enforces a ~5 s per-URB timeout on
+        // ALL control transfers (overlapped and sync alike), so HidD_SetFeature either
+        // returns TRUE just as the erase completes, or returns ERROR_SEM_TIMEOUT (121)
+        // if the erase runs slightly long.  The device is still erasing in the latter
+        // case; the NEXT 0xFB command will fail with ERROR_GEN_FAILURE (31) unless we
+        // wait for the erase to finish first.
+        //
+        // NOTE: 0xFD (erase-done query) is only valid after full-chip erase (0xFF).
+        // After per-sector 0xFB the device holds 0xFD control transfers open for 5 s
+        // without responding — using SetFeature(0xFD) as a readiness probe here would
+        // waste 5 s per attempt.  Use HidD_GetFeature instead: it returns quickly
+        // (< 200 ms) with ERROR_GEN_FAILURE (31) while the sector is erasing, and with
+        // any other result once the device is idle.
+        if (bufferSize >= 2 && reportBuffer[1] == 0xFB) {
+            // Use hidSendFeatureNoTimeout: sector erase takes ~5-8 s hardware time.
+            // HidD_SetFeature times out after exactly 5 s (ERROR_SEM_TIMEOUT=121);
+            // with our own OVERLAPPED + WaitForSingleObject(30s) we wait the full
+            // hardware erase time and receive TRUE — no CancelIo, no GetFeature polling.
+            qCDebug(log_host_hid) << "MS2130S sector erase (0xFB) – sending (no-timeout path)";
+            BOOL r = hidSendFeatureNoTimeout(deviceHandle, reportBuffer, bufferSize,
+                                            30000 /*30 s max*/);
+            if (r) {
+                qCDebug(log_host_hid) << "MS2130S 0xFB sector erase complete";
+            } else {
+                DWORD err = GetLastError();
+                if (err == 121 /*ERROR_SEM_TIMEOUT*/) {
+                    // hidusb.sys enforces a 5 s per-URB kernel timeout.  The device DID
+                    // receive the 0xFB command and is erasing; it just didn't ACK the USB
+                    // STATUS stage before the host cancelled the transfer.  The device
+                    // typically finishes ~200 ms after the timeout.  Poll HidD_GetFeature
+                    // every 200 ms until error 31 (ERROR_GEN_FAILURE = device busy) clears.
+                    // This ensures the device is fully idle before we send the next 0xFB.
+                    qCDebug(log_host_hid) << "MS2130S 0xFB USB timeout – polling until device ready";
+                    constexpr int kMaxPollMs    = 5000;
+                    constexpr int kPollInterval =  200;
+                    BYTE probe[65] = {0x01};
+                    int pollWaited = 0;
+                    for (; pollWaited < kMaxPollMs; pollWaited += kPollInterval) {
+                        QThread::msleep(kPollInterval);
+                        BOOL  pr   = HidD_GetFeature(deviceHandle, probe, sizeof(probe));
+                        DWORD perr = pr ? 0 : GetLastError();
+                        if (perr != ERROR_GEN_FAILURE) {
+                            qCDebug(log_host_hid) << "MS2130S sector erase done after"
+                                                 << (pollWaited + kPollInterval) << "ms post-timeout";
+                            break;
+                        }
+                    }
+                } else {
+                    qCWarning(log_host_hid) << "MS2130S sector erase (0xFB) failed, error" << err;
+                    if (!m_inTransaction) closeHIDDeviceHandle();
+                    return false;
+                }
+            }
+            if (!m_inTransaction) closeHIDDeviceHandle();
+            return true;
+        }
+
+        // For burst-write init (0xE7), the device enters burst-receive mode WITHOUT sending
+        // an ACK. HidD_SetFeature therefore blocks until the USB SET_FEATURE control transfer
+        // times out (ERROR_SEM_TIMEOUT = 121, ~5 s). Treat that timeout as a normal/expected
+        // outcome: the device did receive the command and is waiting for the data packets.
+        // Any other error means the command genuinely failed.
+        if (bufferSize >= 2 && reportBuffer[1] == 0xE7) {
+            // Use hidSendFeatureNoTimeout so we wait as long as the device needs to
+            // enter burst-receive mode — no 5 s ceiling.
+            qCDebug(log_host_hid) << "MS2130S burst-write init (0xE7) – sending (no-timeout path)";
+            BOOL r = hidSendFeatureNoTimeout(deviceHandle, reportBuffer, bufferSize,
+                                            30000 /*30 s max*/);
+            if (r) {
+                qCDebug(log_host_hid) << "MS2130S 0xE7 burst init ACKed";
+            } else {
+                DWORD err = GetLastError();
+                if (err == 121 /*ERROR_SEM_TIMEOUT*/) {
+                    // Timed out after 30 s — very unusual; device may still be ready.
+                    qCWarning(log_host_hid) << "MS2130S 0xE7 exceeded 30 s – proceeding";
+                } else {
+                    qCWarning(log_host_hid) << "MS2130S burst-write init (0xE7) failed, error" << err;
+                    if (!m_inTransaction) closeHIDDeviceHandle();
+                    return false;
+                }
+            }
+            if (!m_inTransaction) closeHIDDeviceHandle();
+            return true;
+        }
+
+        // For command packets (0x01 for V2/V3 path), keep report ID unchanged and retry:
+        const int maxAttempts = 8;
+        DWORD lastError = 0;
+        bool reportIdFallbackTried = false;
+
+        // Use local copy so we can try alternate report IDs without modifying the caller buffer.
+        std::vector<BYTE> sendBuffer(reportBuffer, reportBuffer + bufferSize);
+        BYTE originalReportId = sendBuffer[0];
+
+        for (int attempt = 0; attempt < maxAttempts; ++attempt) {
+            qCDebug(log_host_hid) << "MS2130S sending feature report attempt" << (attempt + 1)
+                                 << "reportID" << (int)sendBuffer[0]
+                                 << "cmd" << QString("0x%1").arg((int)sendBuffer[1], 2, 16, QChar('0')).toUpper()
+                                 << "bufferSize" << bufferSize;
+
+            result = HidD_SetFeature(deviceHandle, sendBuffer.data(), bufferSize);
+            if (result) {
+                if (bufferSize > 9) {
+                    qCDebug(log_host_hid) << "MS2130S large packet HidD_SetFeature succeeded (reportID" << (int)sendBuffer[0] << ")";
+                }
+                if (!m_inTransaction) {
+                    closeHIDDeviceHandle();
+                }
+                return true;
+            }
+
+            lastError = GetLastError();
+            qCWarning(log_host_hid) << "MS2130S HidD_SetFeature failed (reportID" << (int)sendBuffer[0] << ") attempt" << (attempt + 1)
+                                    << "error" << lastError;
+
+            // Fatal: device is not present — no point retrying.
+            if (lastError == ERROR_DEVICE_NOT_CONNECTED /*1167*/ ||
+                lastError == 433                        /*ERROR_NO_SUCH_DEVICE*/ ||
+                lastError == ERROR_FILE_NOT_FOUND       /*2*/) {
+                qCWarning(log_host_hid) << "MS2130S device not connected (error" << lastError << "), aborting retries";
+                break;
+            }
+
+            // If device not functioning, attempt alternate report ID once.
+            if ((lastError == 31 || lastError == 121 || lastError == 87) && !reportIdFallbackTried) {
+                BYTE altReportId = (originalReportId == 0x01) ? 0x00 : 0x01;
+                if (altReportId != sendBuffer[0]) {
+                    qCDebug(log_host_hid) << "MS2130S switching reportID fallback from" << (int)sendBuffer[0] << "to" << (int)altReportId;
+                    sendBuffer[0] = altReportId;
+                    reportIdFallbackTried = true;
+                    QThread::msleep(40);
+                    continue;
+                }
+            }
+
+            // If busy, wait a bit and retry.
+            if (lastError == 121 || lastError == 87) {
+                QThread::msleep(40 + attempt * 20);
+                continue;
+            }
+
+            QThread::msleep(30);
+        }
+
+        // WriteFile fallback for small packets
+        if (bufferSize <= 9) {
+            qCDebug(log_host_hid) << "Attempting alternative write method (WriteFile) for" << m_chipImpl->name();
+            BYTE smallBuf[9] = {0};
+            memcpy(smallBuf, reportBuffer, std::min<DWORD>(9, bufferSize));
+            DWORD bytesWritten = 0;
+            OVERLAPPED ol;
+            memset(&ol, 0, sizeof(OVERLAPPED));
+            if (WriteFile(deviceHandle, smallBuf, sizeof(smallBuf), &bytesWritten, &ol)) {
+                qCDebug(log_host_hid) << "Alternative WriteFile method succeeded, wrote" << bytesWritten << "bytes";
+                if (!m_inTransaction) {
+                    closeHIDDeviceHandle();
+                }
+                return true;
+            } else {
+                lastError = GetLastError();
+                qCWarning(log_host_hid) << "Alternative WriteFile method failed. Error:" << lastError;
+            }
+        }
+
+        qCWarning(log_host_hid) << "MS2130S HidD_SetFeature all attempts exhausted. Last error:" << lastError;
+        if (!m_inTransaction) {
+            closeHIDDeviceHandle();
+        }
+        return false;
     }
-    
-    // Standard method as a fallback
+
+    // Standard method as a fallback for other devices
     result = HidD_SetFeature(deviceHandle, reportBuffer, bufferSize);
     
     if (!result) {
@@ -2430,12 +2728,18 @@ bool VideoHid::openHIDDeviceHandle() {
             return false;
         }
         
+        // Open with GENERIC_READ only, matching the reference MsHidLink implementation.
+        // HidD_SetFeature uses IOCTL_HID_SET_FEATURE which does not require write access.
+        // Adding GENERIC_WRITE causes the HID class driver to hold the write channel
+        // exclusively, preventing the device from ACKing feature report IOCTLs promptly —
+        // that is why 0xFB (erase) and 0xE7 (burst init) would block for 5 s and return
+        // ERROR_SEM_TIMEOUT (121) instead of completing immediately.
         deviceHandle = CreateFileW(devicePath.c_str(),
-                                 GENERIC_READ | GENERIC_WRITE,
+                                 GENERIC_READ,
                                  FILE_SHARE_READ | FILE_SHARE_WRITE,
                                  NULL,
                                  OPEN_EXISTING,
-                                 0,
+                                 FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
                                  NULL);
         
         if (deviceHandle == INVALID_HANDLE_VALUE) {
@@ -2444,15 +2748,15 @@ bool VideoHid::openHIDDeviceHandle() {
             return false;
         }
     }
-    qCDebug(log_host_hid) << "Successfully opened device handle";
+    // qCDebug(log_host_hid) << "Successfully opened device handle";
     return true;
 }
 
 bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
     QMutexLocker locker(&m_deviceHandleMutex);
-    
+
     bool openedForOperation = m_inTransaction || openHIDDeviceHandle();
-    
+
     if (!openedForOperation) {
         qCDebug(log_host_hid) << "Failed to open device handle for getting feature report.";
         return false;
@@ -2492,24 +2796,12 @@ bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
         memset(ms2130sBuffer, 0, MS2130S_BUFFER_SIZE);
         ms2130sBuffer[0] = reportBuffer[0]; // Copy the report ID
         
-        // Try direct IOCTL for MS2130S
-        DWORD bytesReturned = 0;
-        OVERLAPPED overlapped;
-        memset(&overlapped, 0, sizeof(OVERLAPPED));
-        
-        result = DeviceIoControl(
-            deviceHandle,
-            IOCTL_HID_GET_FEATURE,
-            NULL,
-            0,
-            ms2130sBuffer,
-            MS2130S_BUFFER_SIZE,
-            &bytesReturned,
-            &overlapped
-        );
+        // Use HidD_GetFeature (handles FILE_FLAG_OVERLAPPED handles correctly internally).
+        result = HidD_GetFeature(deviceHandle, ms2130sBuffer, MS2130S_BUFFER_SIZE);
+        DWORD bytesReturned = MS2130S_BUFFER_SIZE;
         
         if (result) {
-            qCDebug(log_host_hid) << "MS2130S-specific IOCTL get method succeeded, got" << bytesReturned << "bytes";
+            // qCDebug(log_host_hid) << "MS2130S-specific IOCTL get method succeeded, got" << bytesReturned << "bytes";
             // Copy the data back to the original buffer
             memcpy(reportBuffer, ms2130sBuffer, std::min<DWORD>(bufferSize, bytesReturned));
             delete[] ms2130sBuffer;
@@ -2528,34 +2820,43 @@ bool VideoHid::getFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
     if (!result) {
         DWORD error = GetLastError();
         qCWarning(log_host_hid) << "Failed to get feature report. Windows error:" << error;
-        
-        // Try with a different approach for MS2130S
+
+        // Try a report ID fallback for MS2130S
         if (m_chipImpl && m_chipImpl->type() == VideoChipType::MS2130S) {
-            // Some MS2130S devices might need a different approach
-            qCDebug(log_host_hid) << "Attempting alternative method for" << m_chipImpl->name() << "get feature report";
-            
-            // Try ReadFile approach with a fixed, smaller buffer
+            qCDebug(log_host_hid) << "MS2130S get feature report fallback: trying alternate report IDs";
+            for (BYTE rid : { (BYTE)0x00, (BYTE)0x01 }) {
+                QByteArray tmp(reinterpret_cast<char*>(reportBuffer), bufferSize);
+                tmp[0] = static_cast<char>(rid);
+                BOOL got = HidD_GetFeature(deviceHandle, reinterpret_cast<BYTE*>(tmp.data()), bufferSize);
+                if (got) {
+                    qCDebug(log_host_hid) << "MS2130S get feature report succeeded with reportID" << (int)rid;
+                    memcpy(reportBuffer, tmp.data(), bufferSize);
+                    if (!m_inTransaction) {
+                        closeHIDDeviceHandle();
+                    }
+                    return true;
+                }
+                DWORD e = GetLastError();
+                qCWarning(log_host_hid) << "MS2130S get feature report fallback reportID" << (int)rid << "failed. Error:" << e;
+            }
+
+            // Try ReadFile approach as last resort for MIS behaviors
+            qCDebug(log_host_hid) << "Attempting alternative read method for" << m_chipImpl->name() << "get feature report";
             const DWORD SAFE_BUFFER_SIZE = 64;
             DWORD bytesRead = 0;
             OVERLAPPED ol;
             memset(&ol, 0, sizeof(OVERLAPPED));
-            
-            // Prepare buffer for ReadFile with a reasonable size
             BYTE* readBuffer = new BYTE[SAFE_BUFFER_SIZE];
             memset(readBuffer, 0, SAFE_BUFFER_SIZE);
-            readBuffer[0] = reportBuffer[0]; // Copy the report ID
-            
+            readBuffer[0] = reportBuffer[0];
             result = ReadFile(deviceHandle, readBuffer, SAFE_BUFFER_SIZE, &bytesRead, &ol);
-            
             if (result) {
                 qCDebug(log_host_hid) << "Alternative read method succeeded, read" << bytesRead << "bytes";
-                // Copy the data back to the original buffer
                 memcpy(reportBuffer, readBuffer, std::min<DWORD>(bufferSize, bytesRead));
             } else {
                 error = GetLastError();
                 qCWarning(log_host_hid) << "Alternative read method failed. Error:" << error;
             }
-            
             delete[] readBuffer;
         }
     }
@@ -2712,38 +3013,355 @@ bool VideoHid::writeChunk(quint16 address, const QByteArray &data) {
 }
 
 bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
-    const int MAX_CHUNK = 16;
-    QByteArray remainingData = data;
-    written_size = 0;
-    
-    // Begin transaction for the entire operation
-    if (!beginTransaction()) {
-        qCDebug(log_host_hid)  << "Failed to begin transaction for EEPROM write";
-        return false;
+    // Signal all background HID reads (polling thread AND any QtConcurrent threads from start())
+    // to bail out immediately so they don't compete with firmware write on the USB bus.
+    m_flashInProgress.store(true, std::memory_order_release);
+
+    // Pause polling during EEPROM updates to avoid concurrent HID bus contention.
+    bool hadPolling = (m_pollingThread != nullptr);
+    if (hadPolling) {
+        qCDebug(log_host_hid) << "writeEeprom: stopping polling thread to avoid HID bus contention";
+        stopPollingOnly();
+        QThread::msleep(50); // brief delay for thread stop handshake
     }
-    
+
     bool success = true;
-    while (!remainingData.isEmpty() && success) {
-        QByteArray chunk = remainingData.left(MAX_CHUNK);
-        success = writeChunk(address, chunk);
-        
-        if (success) {
-            address += chunk.size();
-            remainingData = remainingData.mid(MAX_CHUNK);
-            if (written_size % 64 == 0) {
-                qCDebug(log_host_hid)  << "Written size:" << written_size;
-            }
-            QThread::msleep(20); // Throttle a little to avoid USB packet bursts
+
+    if (m_chipType == VideoChipType::MS2130S) {
+        success = ms2130sWriteFirmware(address, data);
+    } else {
+        const int MAX_CHUNK = 16;
+        QByteArray remainingData = data;
+        written_size = 0;
+
+        // Begin transaction for the entire operation
+        if (!beginTransaction()) {
+            qCDebug(log_host_hid)  << "Failed to begin transaction for EEPROM write";
+            success = false;
         } else {
-            qCDebug(log_host_hid)  << "Failed to write chunk to EEPROM";
-            break;
+            while (!remainingData.isEmpty() && success) {
+                QByteArray chunk = remainingData.left(MAX_CHUNK);
+                success = writeChunk(address, chunk);
+
+                if (success) {
+                    address += chunk.size();
+                    remainingData = remainingData.mid(MAX_CHUNK);
+                    if (written_size % 64 == 0) {
+                        qCDebug(log_host_hid)  << "Written size:" << written_size;
+                    }
+                    QThread::msleep(20); // Throttle a little to avoid USB packet bursts
+                } else {
+                    qCDebug(log_host_hid)  << "Failed to write chunk to EEPROM";
+                    break;
+                }
+            }
+
+            endTransaction();
         }
     }
-    
-    // End transaction
-    endTransaction();
-    
+
+    // Allow background reads to resume before restarting the polling thread.
+    m_flashInProgress.store(false, std::memory_order_release);
+
+    if (hadPolling) {
+        qCDebug(log_host_hid) << "writeEeprom: restarting polling thread after EEPROM update";
+        start();
+    }
+
     return success;
+}
+
+
+bool VideoHid::ms2130sEraseSector(quint32 startAddress) {
+    QByteArray ctrlData(9, 0);
+    ctrlData[0] = 0x01;
+    ctrlData[1] = 0xFB; // flash erase sector
+    ctrlData[2] = static_cast<char>((startAddress >> 16) & 0xFF);
+    ctrlData[3] = static_cast<char>((startAddress >> 8) & 0xFF);
+    ctrlData[4] = static_cast<char>(startAddress & 0xFF);
+
+    // hidSendFeatureNoTimeout (via sendFeatureReport → sendFeatureReportWindows 0xFB case)
+    // waits the full hardware erase duration (~5-8 s) and returns TRUE — no polling needed.
+    if (!sendFeatureReport((uint8_t*)ctrlData.data(), ctrlData.size())) {
+        qCWarning(log_host_hid) << "MS2130S sector erase failed at"
+                                << QString("0x%1").arg(startAddress, 8, 16, QChar('0'));
+        return false;
+    }
+    qCDebug(log_host_hid) << "MS2130S sector erase complete at"
+                          << QString("0x%1").arg(startAddress, 8, 16, QChar('0'));
+    return true;
+}
+
+bool VideoHid::ms2130sFlashEraseDone(bool &done) {
+    // Mirror MsHidLink::mshidlink_flash_erase_done exactly:
+    // Use the SAME 9-byte buffer for both HidD_SetFeature and HidD_GetFeature.
+    // Routing through the abstract sendFeatureReport/getFeatureReport wrappers causes
+    // getFeatureReportWindows to use a 64-byte intermediate buffer and a different code
+    // path that returns the command bytes unchanged (byte[2] stays 0xFD forever).
+    QMutexLocker locker(&m_deviceHandleMutex);
+
+    bool openedForOperation = m_inTransaction || openHIDDeviceHandle();
+    if (!openedForOperation) {
+        qCWarning(log_host_hid) << "MS2130S erase-done: failed to open device handle";
+        done = false;
+        return true; // keep polling
+    }
+
+    BYTE ctrlData[9] = { 0 };
+    ctrlData[0] = 0x01;
+    ctrlData[1] = 0xFD;
+    ctrlData[2] = 0xFD;
+
+    BOOL setOk = HidD_SetFeature(deviceHandle, ctrlData, 9);
+    if (!setOk) {
+        qCWarning(log_host_hid) << "MS2130S erase-done HidD_SetFeature failed, error" << GetLastError();
+        if (!m_inTransaction) closeHIDDeviceHandle();
+        done = false;
+        return true; // keep polling
+    }
+
+    BOOL getOk = HidD_GetFeature(deviceHandle, ctrlData, 9);
+    if (!getOk) {
+        qCWarning(log_host_hid) << "MS2130S erase-done HidD_GetFeature failed, error" << GetLastError();
+        if (!m_inTransaction) closeHIDDeviceHandle();
+        done = false;
+        return true; // keep polling
+    }
+
+    if (!m_inTransaction) closeHIDDeviceHandle();
+
+    quint8 statusByte = static_cast<quint8>(ctrlData[2]);
+    done = (statusByte == 0x00);
+    qCDebug(log_host_hid) << "MS2130S erase-done status byte[2]:"
+                          << QString("0x%1").arg(statusByte, 2, 16, QChar('0')).toUpper()
+                          << "done=" << done;
+    return true;
+}
+
+bool VideoHid::ms2130sFlashBurstWrite(quint32 address, const QByteArray &data) {
+    if (data.isEmpty()) return false;
+
+    // Prepare burst write init command (9 bytes, same as reference MsHidLink)
+    QByteArray cmd(9, 0);
+    cmd[0] = 0x01;
+    cmd[1] = 0xE7; // burst write cmd for MS2130S V2/V3
+    cmd[2] = static_cast<char>((address >> 24) & 0xFF);
+    cmd[3] = static_cast<char>((address >> 16) & 0xFF);
+    cmd[4] = static_cast<char>((address >> 8) & 0xFF);
+    cmd[5] = static_cast<char>(address & 0xFF);
+    quint16 length16 = static_cast<quint16>(data.size());
+    cmd[6] = static_cast<char>((length16 >> 8) & 0xFF);
+    cmd[7] = static_cast<char>(length16 & 0xFF);
+
+    if (!sendFeatureReport((uint8_t*)cmd.data(), cmd.size())) {
+        qCWarning(log_host_hid) << "MS2130S burst write init failed";
+        return false;
+    }
+
+    // Send data in fixed 4096-byte packets (0x03 header + 4095 data bytes, zero-padded for
+    // partial last chunk). The reference MsHidLink always sends the full 4096-byte buffer.
+    const quint32 chunkData = 4095;
+    const quint32 packetSize = 4096;
+    quint32 written = 0;
+    quint32 total = static_cast<quint32>(data.size());
+    QByteArray packet(static_cast<int>(packetSize), 0);
+    packet[0] = 0x03; // data packet marker
+
+    while (written < total) {
+        quint32 block = qMin(chunkData, total - written);
+        memcpy(packet.data() + 1, data.constData() + written, block);
+        // Zero-pad the remainder for partial last chunk
+        if (block < chunkData) {
+            memset(packet.data() + 1 + block, 0, chunkData - block);
+        }
+
+        if (!sendFeatureReport((uint8_t*)packet.data(), static_cast<size_t>(packetSize))) {
+            qCWarning(log_host_hid) << "MS2130S burst write chunk failed at" << written << "bytes";
+            return false;
+        }
+
+        written += block;
+        written_size = written;
+        emit firmwareWriteChunkComplete(written_size);
+    }
+
+    return true;
+}
+
+bool VideoHid::ms2130sInitializeGPIO() {
+    // Mirrors the Swift initializeGPIO() from the MsHidLink reference.
+    // Configures GPIO registers so the SPI flash subsystem is accessible.
+    // Must be called inside an open transaction (beginTransaction already done).
+    qCDebug(log_host_hid) << "MS2130S initializing GPIO for flash operations...";
+
+    // --- 8-bit address helpers (cmd 0xC5 read / 0xC6 write) ---
+    auto read8 = [this](quint8 addr, quint8 &value) -> bool {
+        QByteArray cmd(9, 0);
+        cmd[0] = 0x01;
+        cmd[1] = static_cast<char>(0xC5);
+        cmd[2] = static_cast<char>(addr);
+        if (!sendFeatureReport(reinterpret_cast<uint8_t*>(cmd.data()), cmd.size()))
+            return false;
+        QByteArray resp(9, 0);
+        resp[0] = 0x01;
+        if (!getFeatureReport(reinterpret_cast<uint8_t*>(resp.data()), resp.size()))
+            return false;
+        value = static_cast<quint8>(resp[3]);
+        return true;
+    };
+    auto write8 = [this](quint8 addr, quint8 value) -> bool {
+        QByteArray cmd(9, 0);
+        cmd[0] = 0x01;
+        cmd[1] = static_cast<char>(0xC6);
+        cmd[2] = static_cast<char>(addr);
+        cmd[3] = static_cast<char>(value);
+        return sendFeatureReport(reinterpret_cast<uint8_t*>(cmd.data()), cmd.size());
+    };
+
+    // --- 16-bit address helpers (cmd 0xB5 read / 0xB6 write) ---
+    auto read16 = [this](quint16 addr, quint8 &value) -> bool {
+        QByteArray cmd(9, 0);
+        cmd[0] = 0x01;
+        cmd[1] = static_cast<char>(0xB5);
+        cmd[2] = static_cast<char>((addr >> 8) & 0xFF);
+        cmd[3] = static_cast<char>(addr & 0xFF);
+        if (!sendFeatureReport(reinterpret_cast<uint8_t*>(cmd.data()), cmd.size()))
+            return false;
+        QByteArray resp(9, 0);
+        resp[0] = 0x01;
+        if (!getFeatureReport(reinterpret_cast<uint8_t*>(resp.data()), resp.size()))
+            return false;
+        value = static_cast<quint8>(resp[4]);
+        return true;
+    };
+    auto write16 = [this](quint16 addr, quint8 value) -> bool {
+        QByteArray cmd(9, 0);
+        cmd[0] = 0x01;
+        cmd[1] = static_cast<char>(0xB6);
+        cmd[2] = static_cast<char>((addr >> 8) & 0xFF);
+        cmd[3] = static_cast<char>(addr & 0xFF);
+        cmd[4] = static_cast<char>(value);
+        return sendFeatureReport(reinterpret_cast<uint8_t*>(cmd.data()), cmd.size());
+    };
+
+    // Step 1: Read 0xB0, clear bit 2 (& ~0x04), write back
+    quint8 b0;
+    if (!read8(0xB0, b0)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to read 0xB0"; return false; }
+    if (!write8(0xB0, b0 & static_cast<quint8>(~0x04))) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xB0"; return false; }
+    qCDebug(log_host_hid) << "MS2130S GPIO: 0xB0" << QString("0x%1").arg(b0, 2, 16, QChar('0'))
+                          << "->" << QString("0x%1").arg(b0 & static_cast<quint8>(~0x04), 2, 16, QChar('0'));
+
+    // Step 2: Read 0xA0, set bit 2 (| 0x04), write back
+    quint8 a0;
+    if (!read8(0xA0, a0)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to read 0xA0"; return false; }
+    if (!write8(0xA0, a0 | 0x04)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xA0"; return false; }
+    qCDebug(log_host_hid) << "MS2130S GPIO: 0xA0" << QString("0x%1").arg(a0, 2, 16, QChar('0'))
+                          << "->" << QString("0x%1").arg(a0 | 0x04, 2, 16, QChar('0'));
+
+    // Step 3: Write 0xD1 to 0xC7
+    if (!write8(0xC7, 0xD1)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xC7"; return false; }
+
+    // Step 4: Write 0xC0 to 0xC8
+    if (!write8(0xC8, 0xC0)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xC8"; return false; }
+
+    // Step 5: Write 0x00 to 0xCA
+    if (!write8(0xCA, 0x00)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xCA"; return false; }
+
+    // Step 6: Read 0xF01F, set bit 4 (| 0x10), clear bit 7 (& ~0x80), write back
+    quint8 f01f;
+    if (!read16(0xF01F, f01f)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to read 0xF01F"; return false; }
+    quint8 f01fMod = (f01f | 0x10) & static_cast<quint8>(~0x80);
+    if (!write16(0xF01F, f01fMod)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xF01F"; return false; }
+    qCDebug(log_host_hid) << "MS2130S GPIO: 0xF01F" << QString("0x%1").arg(f01f, 2, 16, QChar('0'))
+                          << "->" << QString("0x%1").arg(f01fMod, 2, 16, QChar('0'));
+
+    qCInfo(log_host_hid) << "MS2130S GPIO initialization completed successfully";
+    return true;
+}
+
+bool VideoHid::ms2130sWriteFirmware(quint16 address, const QByteArray &data) {
+    if (!beginTransaction()) {
+        qCWarning(log_host_hid) << "MS2130S could not begin transaction for firmware write";
+        return false;
+    }
+
+    // Phase 0: Initialize GPIO for flash operations (matches Swift initializeGPIO).
+    // This configures the chip so the SPI flash subsystem is accessible.
+    if (!ms2130sInitializeGPIO()) {
+        qCWarning(log_host_hid) << "MS2130S GPIO initialization failed – aborting firmware write";
+        endTransaction();
+        return false;
+    }
+
+    // Phase 1: Erase all flash sectors covered by the firmware image.
+    // hidSendFeatureNoTimeout(0xFB) waits the full hardware erase time (~5-8 s) and
+    // returns TRUE with no USB-level timeout artefacts.
+    {
+        int numSectors = (data.size() + 4095) / 4096;
+        qCDebug(log_host_hid) << "MS2130S erasing" << numSectors
+                              << "sector(s) starting at"
+                              << QString("0x%1").arg(address, 4, 16, QChar('0'));
+        for (int i = 0; i < numSectors; ++i) {
+            quint32 sectorAddr = static_cast<quint32>(address) + static_cast<quint32>(i) * 4096;
+            qCDebug(log_host_hid) << "MS2130S erasing sector" << (i + 1) << "/" << numSectors
+                                  << "at" << QString("0x%1").arg(sectorAddr, 8, 16, QChar('0'));
+            if (!ms2130sEraseSector(sectorAddr)) {
+                qCWarning(log_host_hid) << "MS2130S sector erase failed at"
+                                        << QString("0x%1").arg(sectorAddr, 8, 16, QChar('0'));
+                endTransaction();
+                return false;
+            }
+        }
+
+        // Extra sector 15 erase when firmware is small (matches Swift reference)
+        if (numSectors <= 15) {
+            quint32 sector15Addr = static_cast<quint32>(address) + 15u * 4096;
+            qCDebug(log_host_hid) << "MS2130S erasing extra sector 15 at"
+                                  << QString("0x%1").arg(sector15Addr, 8, 16, QChar('0'));
+            ms2130sEraseSector(sector15Addr); // best-effort, don't fail on this
+        }
+
+        qCInfo(log_host_hid) << "MS2130S all" << numSectors << "sectors erased successfully";
+    }
+
+    // Stabilization delay after erase before write (matches Swift reference 1 s wait)
+    qCDebug(log_host_hid) << "MS2130S waiting 1 s for flash to stabilize after erase...";
+    QThread::msleep(1000);
+
+    qCInfo(log_host_hid) << "MS2130S starting burst write";
+
+    // Phase 2: Burst write in ≤60 KB chunks (MsHidLink V2/V3 max per 0xE7 call).
+    // Each chunk: one 0xE7 init (device ACKs immediately) + 0x03 data packets.
+    bool ok = true;
+    quint32 written = 0;
+    const quint32 totalSize = static_cast<quint32>(data.size());
+    const quint32 maxBurstSize = 60 * 1024;
+
+    while (written < totalSize && ok) {
+        quint32 toWrite = qMin(maxBurstSize, totalSize - written);
+        ok = ms2130sFlashBurstWrite(address + written, data.mid(written, static_cast<int>(toWrite)));
+        if (!ok) {
+            qCWarning(log_host_hid) << "MS2130S burst write failed at"
+                                    << QString("0x%1").arg(address + written, 8, 16, QChar('0'))
+                                    << "len=" << toWrite;
+        } else {
+            qCDebug(log_host_hid) << "MS2130S burst write chunk OK: wrote" << toWrite
+                                  << "bytes at" << QString("0x%1").arg(address + written, 8, 16, QChar('0'))
+                                  << "(" << (written + toWrite) << "/" << totalSize << ")";
+        }
+        written += toWrite;
+    }
+
+    if (ok) {
+        qCInfo(log_host_hid) << "MS2130S firmware write COMPLETED SUCCESSFULLY:"
+                             << totalSize << "bytes written";
+    } else {
+        qCWarning(log_host_hid) << "MS2130S firmware write FAILED after writing"
+                                << written << "/" << totalSize << "bytes";
+    }
+
+    endTransaction();
+    return ok;
 }
 
 void VideoHid::loadFirmwareToEeprom() {
@@ -2785,10 +3403,10 @@ void VideoHid::loadFirmwareToEeprom() {
     
     connect(worker, &FirmwareWriter::finished, this, [this](bool success) {
         if (success) {
-            qCDebug(log_host_hid) << "Firmware write completed successfully";
+            qCInfo(log_host_hid) << "[Firmware Update] SUCCESS – firmware has been written to the device";
             emit firmwareWriteComplete(true);
         } else {
-            qCDebug(log_host_hid) << "Firmware write failed - user should try again";
+            qCWarning(log_host_hid) << "[Firmware Update] FAILED – please reconnect the device and try again";
             emit firmwareWriteComplete(false);
             emit firmwareWriteError("Firmware update failed. Please try again.");
         }
