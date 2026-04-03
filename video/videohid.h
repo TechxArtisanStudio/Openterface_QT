@@ -168,12 +168,15 @@ public:
     // Read firmware from EEPROM
     QByteArray readEeprom(quint16 address, quint32 size);
 
-    // MS2130S-specific flash operations (erase + 4096b burst write)
+    // MS2130S-specific flash operations (erase + 4096b burst write/read)
     bool ms2130sEraseSector(quint32 startAddress);
     bool ms2130sFlashEraseDone(bool &done);
     bool ms2130sFlashBurstWrite(quint32 address, const QByteArray &data);
+    bool ms2130sFlashBurstRead(quint32 address, quint32 length, QByteArray &outData);
     bool ms2130sWriteFirmware(quint16 address, const QByteArray &data);
     bool ms2130sInitializeGPIO();
+    void ms2130sRestoreGPIO();
+    int  ms2130sDetectConnectMode();
 
     // Transaction-based HID access
     bool beginTransaction();
@@ -329,6 +332,18 @@ private:
 
     // Keep chunk-write progress for firmware write
     quint32 written_size = 0;
+
+    // Saved GPIO register values for ms2130sInitializeGPIO / ms2130sRestoreGPIO.
+    // On Windows CloseHandle does NOT trigger a USB reset, so we must explicitly
+    // restore these after flash to take the chip out of SPI-flash-access mode.
+    bool  m_gpioSaved{false};
+    int   m_ms2130sConnectMode{0}; // 0=unknown, 2=V2, 3=V3 (ref: CONNECT_MODE_V2/V3)
+    quint8 m_gpio_saved_b0{0};
+    quint8 m_gpio_saved_a0{0};
+    quint8 m_gpio_saved_c7{0};
+    quint8 m_gpio_saved_c8{0};
+    quint8 m_gpio_saved_ca{0};
+    quint8 m_gpio_saved_f01f{0};
 
 public:
     Q_INVOKABLE void detectChipType();
