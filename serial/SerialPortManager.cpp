@@ -233,9 +233,17 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
         restartPort();
     });
 
+    // Connect hardware setting application signal to worker thread slot
+    connect(this, &SerialPortManager::requestApplyHardwareSetting, this, &SerialPortManager::applyHardwareSettingInternal, Qt::QueuedConnection);
+
     // Initialize FactoryResetManager and forward its signals for backward compatibility
     // Create without a QObject parent to avoid cross-thread parent/child creation warnings.
     m_factoryResetManager = std::make_unique<FactoryResetManager>(this);
+    // CRITICAL: Move FactoryResetManager to the worker thread so that all its
+    // QTimer::singleShot callbacks fire in SerialWorkerThread.  Without this,
+    // the timers run on the MainThread and access serialPort (owned by the
+    // worker thread) without synchronisation, causing data races / segfaults.
+    m_factoryResetManager->moveToThread(m_serialWorkerThread);
     connect(m_factoryResetManager.get(), &FactoryResetManager::factoryReset, this, &SerialPortManager::factoryReset, Qt::QueuedConnection);
     connect(m_factoryResetManager.get(), &FactoryResetManager::factoryResetCompleted, this, &SerialPortManager::factoryResetCompleted, Qt::QueuedConnection);
 
@@ -1461,9 +1469,9 @@ void SerialPortManager::closePortInternal() {
                 // Close synchronously in worker thread
                 serialPort->close();
                 qCDebug(log_core_serial) << "Serial port closed";
-                
-                // Force event processing to ensure Qt's socket notifiers are cleaned up
-                QCoreApplication::processEvents();
+                // NOTE: Do NOT call QCoreApplication::processEvents() here.
+                // Calling it inside a mutex lock risks re-entrancy/deadlock.
+                // deleteLater() + QTimer::singleShot(0) below handle cleanup safely.
             } catch (...) {
                 qCWarning(log_core_serial) << "Exception during serial port close";
             }
@@ -1644,9 +1652,6 @@ void SerialPortManager::restartPortInternalAsync(const QString &portName, qint32
     
     // Schedule reopening after delay - use QueuedConnection for thread safety
     QTimer::singleShot(500, this, [this, portName, baudRate]() {
-        // Process any pending events to ensure cleanup is complete
-        QCoreApplication::processEvents();
-        
         // Ensure the open operation happens in the worker thread
         QMetaObject::invokeMethod(this, [this, portName, baudRate]() {
             bool openResult = openPort(portName, baudRate);
@@ -1666,11 +1671,14 @@ void SerialPortManager::restartPortInternalAsync(const QString &portName, qint32
 
 // Helper method to stop all timers safely (must be called from worker thread)
 void SerialPortManager::stopAllTimers(bool disconnectSignals) {
-    // Enhanced thread safety - avoid blocking calls that can cause deadlocks
+    // Use BlockingQueuedConnection so the caller only returns after timers are
+    // truly stopped.  The previous QueuedConnection was async, meaning a caller
+    // on the MainThread could proceed while timers were still firing on the
+    // WorkerThread, leading to use-after-free / double-close scenarios.
     if (QThread::currentThread() != this->thread()) {
         QMetaObject::invokeMethod(this, [this, disconnectSignals]() {
             stopAllTimers(disconnectSignals);
-        }, Qt::QueuedConnection);
+        }, Qt::BlockingQueuedConnection);
         return;
     }
     
@@ -2192,27 +2200,36 @@ void SerialPortManager::switchUsbToTargetViaSerial() {
 * Set the USB configuration
 */
 void SerialPortManager::setUSBconfiguration(int targetBaudrate){
+    qCDebug(log_core_serial) << "================== setUSBconfiguration START ==================";
+    qCDebug(log_core_serial) << "setUSBconfiguration called with targetBaudrate=" << targetBaudrate;
+    qCDebug(log_core_serial) << "  - serialPort=" << static_cast<void*>(serialPort);
+    qCDebug(log_core_serial) << "  - isOpen=" << (serialPort && serialPort->isOpen());
+    
     QSettings settings("Techxartisan", "Openterface");
     uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
+    qCDebug(log_core_serial) << "  - Mode from settings: 0x" << QString::number(mode, 16);
 
     // Select the appropriate command prefix based on target baudrate
     QByteArray command;
     if (targetBaudrate == BAUDRATE_LOWSPEED) {
         command = CMD_SET_PARA_CFG_PREFIX_9600;
-        qCDebug(log_core_serial) << "Using 9600 baudrate configuration for USB setup";
+        qCDebug(log_core_serial) << "  - Using 9600 baudrate configuration for USB setup";
     } else {
         command = CMD_SET_PARA_CFG_PREFIX_115200;
-        qCDebug(log_core_serial) << "Using 115200 baudrate configuration for USB setup";
+        qCDebug(log_core_serial) << "  - Using 115200 baudrate configuration for USB setup";
     }
     command[5] = mode;  // Set mode byte at index 5 (6th byte)
+    qCDebug(log_core_serial) << "  - Command byte 5 (mode) set to: 0x" << QString::number(mode, 16);
 
     QString VID = settings.value("serial/vid", "86 1A").toString();
     QString PID = settings.value("serial/pid", "29 E1").toString();
     QString enable = settings.value("serial/enableflag", "00").toString();
+    qCDebug(log_core_serial) << "  - VID: " << VID << ", PID: " << PID << ", enable: " << enable;
 
     QByteArray VIDbyte = GlobalSetting::instance().convertStringToByteArray(VID);
     QByteArray PIDbyte = GlobalSetting::instance().convertStringToByteArray(PID);
     QByteArray enableByte =  GlobalSetting::instance().convertStringToByteArray(enable);
+    qCDebug(log_core_serial) << "  - VIDbyte size: " << VIDbyte.size() << ", PIDbyte size: " << PIDbyte.size() << ", enableByte size: " << enableByte.size();
 
     command.append(RESERVED_2BYTES);
     command.append(PACKAGE_INTERVAL);
@@ -2232,18 +2249,31 @@ void SerialPortManager::setUSBconfiguration(int targetBaudrate){
     command.append(RESERVED_4BYTES);
     command.append(RESERVED_4BYTES);
     
-    qDebug(log_core_serial) <<  " no checksum" << command.toHex(' ');
+    qCDebug(log_core_serial) << "  - Final command (without checksum): " << command.toHex(' ');
+    
+    bool commandSent = false;
     if (serialPort != nullptr && serialPort->isOpen()){
+        qCDebug(log_core_serial) << "  - Calling sendSyncCommand()...";
+        commandSent = true;
         QByteArray respon = sendSyncCommand(command, true); 
-        qDebug(log_core_serial) << respon;
-        qDebug(log_core_serial) << " After sending command";
-    } 
+        qCDebug(log_core_serial) << "  - sendSyncCommand completed, response size: " << respon.size() << ", data: " << respon.toHex(' ');
+    } else {
+        qCWarning(log_core_serial) << "  - WARNING: serialPort is null or not open, command NOT sent!";
+        qCWarning(log_core_serial) << "  - serialPort=" << static_cast<void*>(serialPort);
+        qCWarning(log_core_serial) << "  - isOpen=" << (serialPort && serialPort->isOpen());
+    }
+    qCDebug(log_core_serial) << "================== setUSBconfiguration END (commandSent=" << commandSent << ") ==================";
 }
 
 /*
  * change USB Descriptor of the device
  */
 void SerialPortManager::changeUSBDescriptor() {
+    qCDebug(log_core_serial) << "================== changeUSBDescriptor START ==================";
+    qCDebug(log_core_serial) << "changeUSBDescriptor called";
+    qCDebug(log_core_serial) << "  - serialPort=" << static_cast<void*>(serialPort);
+    qCDebug(log_core_serial) << "  - isOpen=" << (serialPort && serialPort->isOpen());
+    
     QSettings settings("Techxartisan", "Openterface");
     
     QString USBDescriptors[3];
@@ -2256,11 +2286,12 @@ void SerialPortManager::changeUSBDescriptor() {
     bool ok;    
     int hexValue = enableflag.toInt(&ok, 16);
 
-    qDebug(log_core_serial) << "extractBits: " << hexValue;
+    qCDebug(log_core_serial) << "  - enableflag hex value: " << hexValue;
 
     if (!ok) {
-        qDebug(log_core_serial) << "Convert failed";
-        return ; // return empty array
+        qCWarning(log_core_serial) << "  - WARNING: convert enableflag failed";
+        qCDebug(log_core_serial) << "================== changeUSBDescriptor END (FAILED) ==================";
+        return; // return empty array
     }
     
     bits[0] = (hexValue >> 0) & 1;
@@ -2268,14 +2299,18 @@ void SerialPortManager::changeUSBDescriptor() {
     bits[2] = (hexValue >> 2) & 1;
     bits[3] = (hexValue >> 7) & 1;
     
+    qCDebug(log_core_serial) << "  - enableflag bits: [" << bits[0] << ", " << bits[1] << ", " << bits[2] << ", " << bits[3] << "]";
+    
     if (bits[3]){
-        int delayIndex = 0;
+        qCDebug(log_core_serial) << "  - USB descriptor customization is ENABLED, processing descriptors...";
         for(uint i=0; i < sizeof(bits)/ sizeof(bits[0]) -1; i++){
             if (bits[i]){
+                qCDebug(log_core_serial) << "  - Processing descriptor " << i << ": " << USBDescriptors[i];
                 QByteArray command = CMD_SET_USB_STRING_PREFIX;
                 QByteArray tmp = USBDescriptors[i].toUtf8();
-                // qCDebug(log_core_serial) << "USB descriptor:" << tmp;
                 int descriptor_size = tmp.length();
+                qCDebug(log_core_serial) << "    - descriptor_size: " << descriptor_size;
+                
                 QByteArray hexLength = QByteArray::number(descriptor_size, 16).rightJustified(2, '0').toUpper();
                 QByteArray hexLength_2 = QByteArray::number(descriptor_size + 2, 16).rightJustified(2, '0').toUpper();
                 QByteArray descriptor_type = QByteArray::number(0, 16).rightJustified(1, '0').toUpper() + QByteArray::number(i, 16).rightJustified(1, '0').toUpper();
@@ -2290,19 +2325,25 @@ void SerialPortManager::changeUSBDescriptor() {
                 command.append(hexLength_bin);
                 command.append(tmp);
 
-                // qCDebug(log_core_serial) <<  "usb descriptor" << command.toHex(' ');
+                qCDebug(log_core_serial) << "    - Final command: " << command.toHex(' ');
+                
                 if (serialPort != nullptr && serialPort->isOpen()){
-                    // Use delayed execution to avoid blocking
-                    QTimer::singleShot(10 * delayIndex++, this, [this, command]() {
-                        QByteArray respon = sendSyncCommand(command, true);
-                        qDebug(log_core_serial) << respon;
-                        qDebug(log_core_serial) << " After sending command";
-                    });
+                    qCDebug(log_core_serial) << "    - Calling sendSyncCommand()...";
+                    QByteArray respon = sendSyncCommand(command, true);
+                    qCDebug(log_core_serial) << "    - sendSyncCommand completed, response size: " << respon.size() << ", data: " << respon.toHex(' ');
+                } else {
+                    qCWarning(log_core_serial) << "    - WARNING: serialPort is null or not open, descriptor " << i << " NOT sent!";
                 }
-                qCDebug(log_core_serial) <<  "usb descriptor" << command.toHex(' ');
+                qCDebug(log_core_serial) << "    - Descriptor " << i << " processed";
+            } else {
+                qCDebug(log_core_serial) << "  - Descriptor " << i << " is DISABLED, skipping";
             }
         }
+        qCDebug(log_core_serial) << "  - All descriptors processed";
+    } else {
+        qCDebug(log_core_serial) << "  - USB descriptor customization is DISABLED (bits[3]=false), skipping";
     }
+    qCDebug(log_core_serial) << "================== changeUSBDescriptor END ==================";
 }
 
 void SerialPortManager::sendCommand(const QByteArray &command, bool waitForAck) {
@@ -3517,4 +3558,67 @@ bool SerialPortManager::toggleScrollLock()
     }
     
     return success;
+}
+
+/*
+ * Apply hardware setting in worker thread (thread-safe)
+ * This slot is called in the worker thread context to safely access serialPort
+ */
+void SerialPortManager::applyHardwareSettingInternal(int baudrate, uint8_t mode, bool needFactoryReset)
+{
+    qCDebug(log_core_serial) << "================== applyHardwareSettingInternal START ==================";
+    qCDebug(log_core_serial) << "applyHardwareSettingInternal called in thread:" << QThread::currentThread()->objectName();
+    qCDebug(log_core_serial) << "Parameters: baudrate=" << baudrate << ", mode=0x" << QString::number(mode, 16) << ", needFactoryReset=" << needFactoryReset;
+    
+    // Check if we're in the correct thread
+    if (QThread::currentThread() != this->thread()) {
+        qCWarning(log_core_serial) << "applyHardwareSettingInternal called from WRONG THREAD!";
+        qCWarning(log_core_serial) << "Current thread:" << QThread::currentThread() << " Expected:" << this->thread();
+        return;
+    }
+    qCDebug(log_core_serial) << "✓ Thread check passed - running in worker thread";
+    
+    // Log serial port state
+    qCDebug(log_core_serial) << "Serial port state: serialPort=" << static_cast<void*>(serialPort)
+                             << ", isOpen=" << (serialPort && serialPort->isOpen())
+                             << ", portName=" << (serialPort && serialPort->isOpen() ? serialPort->portName() : "N/A")
+                             << ", baudRate=" << (serialPort && serialPort->isOpen() ? QString::number(serialPort->baudRate()) : "N/A");
+    
+    // Step 1: Apply USB configuration
+    qCDebug(log_core_serial) << "Step 1: Calling setUSBconfiguration()...";
+    if (serialPort && serialPort->isOpen()) {
+        qCDebug(log_core_serial) << "  - Calling setUSBconfiguration with baudrate=" << baudrate;
+        setUSBconfiguration(baudrate);
+        qCDebug(log_core_serial) << "  - setUSBconfiguration completed";
+    } else {
+        qCDebug(log_core_serial) << "Step 1 SKIPPED: Serial port not open, skipping USB configuration";
+    }
+    qCDebug(log_core_serial) << "Step 1 COMPLETED: setUSBconfiguration (or skipped)";
+    
+    // Step 2: Apply USB descriptor changes
+    qCDebug(log_core_serial) << "Step 2: Calling changeUSBDescriptor()...";
+    qCDebug(log_core_serial) << "  - Before changeUSBDescriptor: serialPort=" << static_cast<void*>(serialPort);
+    changeUSBDescriptor();
+    qCDebug(log_core_serial) << "  - After changeUSBDescriptor: serialPort=" << static_cast<void*>(serialPort);
+    qCDebug(log_core_serial) << "Step 2 COMPLETED: changeUSBDescriptor";
+    
+    // Step 3: Perform factory reset if mode changed
+    if (needFactoryReset) {
+        qCDebug(log_core_serial) << "Step 3: Operating mode changed, performing factory reset...";
+        
+        if (serialPort && serialPort->isOpen()) {
+            qCDebug(log_core_serial) << "  - Calling handleFactoryResetInternal...";
+            bool factoryResetResult = handleFactoryResetInternal();
+            qCDebug(log_core_serial) << "  - handleFactoryResetInternal completed with result=" << factoryResetResult;
+        } else {
+            qCWarning(log_core_serial) << "Step 3 SKIPPED: Serial port not open, cannot perform factory reset";
+            qCWarning(log_core_serial) << "  - serialPort=" << static_cast<void*>(serialPort)
+                                      << ", isOpen=" << (serialPort && serialPort->isOpen());
+        }
+        qCDebug(log_core_serial) << "Step 3 COMPLETED: factory reset (or skipped)";
+    } else {
+        qCDebug(log_core_serial) << "Step 3 SKIPPED: Mode not changed, no factory reset needed";
+    }
+    
+    qCDebug(log_core_serial) << "================== applyHardwareSettingInternal END ==================";
 }
