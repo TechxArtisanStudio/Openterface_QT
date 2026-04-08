@@ -25,6 +25,11 @@
 #include "serial/SerialPortManager.h"
 #include <QSettings>
 #include <QMessageBox>
+#include <QLoggingCategory>
+#include <QApplication>
+
+// Define logging category for Target Control page
+Q_LOGGING_CATEGORY(log_target_control, "opf.targetcontrol")
 
 TargetControlPage::TargetControlPage(QWidget *parent) : QWidget(parent)
 {
@@ -186,10 +191,16 @@ void TargetControlPage::onCheckBoxStateChanged(int state) {
 
 void TargetControlPage::applyHardwareSetting()
 {
+    qCDebug(log_target_control) << "[TargetControlPage] applyHardwareSetting() called";
+    qCDebug(log_target_control) << "[TargetControlPage] Current thread:" << QThread::currentThread();
+    qCDebug(log_target_control) << "[TargetControlPage] QApplication thread:" << qApp->thread();
+    
     QSettings settings("Techxartisan", "Openterface");
     
     // Save the selected operating mode
     int selectedMode = operatingModeGroup->checkedId();
+    qCDebug(log_target_control) << "[TargetControlPage] Selected operating mode:" << selectedMode;
+    
     settings.setValue("hardware/operatingMode", selectedMode);
     GlobalSetting::instance().setOperatingMode(selectedMode);
     
@@ -208,18 +219,22 @@ void TargetControlPage::applyHardwareSetting()
     GlobalSetting::instance().setSerialNumber(serialNumberLineEdit->text());
     GlobalSetting::instance().setUSBEnabelFlag(QString(EnableFlag.toHex()));
 
-    SerialPortManager::getInstance().changeUSBDescriptor();
+    // Store current baudrate for use in worker thread
+    int currentBaudrate = SerialPortManager::getInstance().getCurrentBaudrate();
+    qCDebug(log_target_control) << "[TargetControlPage] Current baudrate from SerialPortManager:" << currentBaudrate;
     
-    // Use delayed execution instead of blocking sleep
-    QTimer::singleShot(10, this, [this, selectedMode]() {
-        SerialPortManager::getInstance().setUSBconfiguration();
-        
-        // Check if operating mode has changed
-        if (selectedMode != originalOperatingMode) {
-            SerialPortManager::getInstance().factoryResetHipChip();
-            originalOperatingMode = selectedMode; 
-        }
-    });
+    bool needFactoryReset = (selectedMode != originalOperatingMode);
+    qCDebug(log_target_control) << "[TargetControlPage] Mode changed:" << (selectedMode != originalOperatingMode);
+    qCDebug(log_target_control) << "[TargetControlPage] Need factory reset:" << needFactoryReset;
+    
+    // Emit signal to worker thread for thread-safe serial port operations
+    //Qt::QueuedConnection ensures the slot runs in the worker thread
+    qCDebug(log_target_control) << "[TargetControlPage] Emitting requestApplyHardwareSetting signal...";
+    emit SerialPortManager::getInstance().requestApplyHardwareSetting(currentBaudrate, selectedMode, needFactoryReset);
+    qCDebug(log_target_control) << "[TargetControlPage] Signal emitted successfully";
+    
+    originalOperatingMode = selectedMode;
+    qCDebug(log_target_control) << "[TargetControlPage] applyHardwareSetting() completed";
 }
 
 QByteArray TargetControlPage::convertCheckBoxValueToBytes(){
