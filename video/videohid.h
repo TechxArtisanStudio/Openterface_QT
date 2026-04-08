@@ -337,7 +337,7 @@ private:
     // On Windows CloseHandle does NOT trigger a USB reset, so we must explicitly
     // restore these after flash to take the chip out of SPI-flash-access mode.
     bool  m_gpioSaved{false};
-    int   m_ms2130sConnectMode{0}; // 0=unknown, 2=V2, 3=V3 (ref: CONNECT_MODE_V2/V3)
+    int   m_ms2130sConnectMode{0}; // 0=unknown, 1=V1, 2=V2, 3=V3
     quint8 m_gpio_saved_b0{0};
     quint8 m_gpio_saved_a0{0};
     quint8 m_gpio_saved_c7{0};
