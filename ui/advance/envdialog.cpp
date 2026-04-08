@@ -85,16 +85,11 @@ const QString EnvironmentSetupDialog::udevCommands =
     "sudo udevadm control --reload-rules\n"
     "sudo udevadm trigger\n\n";
 const QString EnvironmentSetupDialog::brlttyCommands =
-    "# BRLTTY interferes with USB serial/HID device access.\n"
-    "# On distros where brltty cannot be removed (e.g. KDE neon, Ubuntu with neon-desktop),\n"
-    "# mask the brltty-udev service so it no longer grabs the device:\n"
-    "sudo systemctl mask brltty-udev.service\n"
-    "sudo systemctl stop brltty-udev.service\n"
-    "sudo systemctl mask brltty.service\n"
-    "sudo systemctl stop brltty.service\n"
-    "# No reboot required - re-plug the device after running the above commands.\n\n"
-    "# Alternative: if your distro allows it, you may fully remove brltty instead:\n"
-    "# sudo apt-get remove -y brltty && sudo apt-get autoremove -y\n\n";
+    "# BRLTTY interferes with USB serial/HID device access. Mask it:\n"
+    "sudo systemctl mask brltty-udev.service && sudo systemctl stop brltty-udev.service\n"
+    "sudo systemctl mask brltty.service && sudo systemctl stop brltty.service\n"
+    "# Or remove it: sudo apt-get remove -y brltty && sudo apt-get autoremove -y\n"
+    "# Re-plug the device after running the above commands.\n\n";
 
 bool EnvironmentSetupDialog::isSerialPermission = false;
 bool EnvironmentSetupDialog::isHidPermission = false;
@@ -179,8 +174,8 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     statusSummary += tr("◆ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ Video Permission: ") + QString(isVideoPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ BRLTTY (brltty-udev.service): ") + QString(isBrlttyRunning
-        ? crossHtml + tr(" active - interferes with device access. Run the commands below to mask it (no removal needed).")
-        : tickHtml + tr(" not active (masked/inactive/not-found) - OK")) + "<br>";
+        ? crossHtml + tr(" active - interferes with device access. Run the commands below to fix.")
+        : tickHtml + tr(" not active - OK")) + "<br>";
     statusSummary += tr("◆ Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestFirewareDescription);
     ui->descriptionLabel->setText(statusSummary);
 
@@ -303,7 +298,7 @@ void EnvironmentSetupDialog::accept()
         statusSummary += tr("Driver Installed: ") + QString(isDriverInstalled ? tr("Yes") : tr("No")) + "\n";
         statusSummary += tr("Serial port Permission: ") + QString(isSerialPermission ? tr("Yes") : tr("No")) + "\n";
         statusSummary += tr("HID Permission: ") + QString(isHidPermission ? tr("Yes") : tr("No")) + "\n";
-        statusSummary += tr("BRLTTY (brltty-udev.service) active: ") + QString(isBrlttyRunning ? tr("Yes (mask with systemctl mask brltty-udev.service)") : tr("No")) + "\n";
+        statusSummary += tr("BRLTTY (brltty-udev.service) active: ") + QString(isBrlttyRunning ? tr("Yes (run the commands below to fix)") : tr("No")) + "\n";
 
         // Append the status summary to the description label
         ui->descriptionLabel->setText(ui->descriptionLabel->text() + "\n" + statusSummary);
