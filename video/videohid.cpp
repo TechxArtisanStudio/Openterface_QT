@@ -1027,10 +1027,10 @@ void VideoHid::clearDevicePathCache() {
 
 void VideoHid::refreshHIDDevice() {
     qCDebug(log_host_hid) << "Refreshing HID device connection";
-    
+
     // Clear cached device path to force re-discovery
     clearDevicePathCache();
-    
+
     // If we're currently in a transaction, restart it with the new device
     bool wasInTransaction = m_inTransaction;
     if (wasInTransaction) {
@@ -1077,48 +1077,48 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
 QPair<QByteArray, bool> VideoHid::usbXdataRead4ByteMS2130S(quint16 u16_address) {
     // For MS2130S chip - use multiple approaches with strict error handling
     bool wasInTransaction = m_inTransaction;
-    
+
     if (!wasInTransaction) {
         if (!beginTransaction()) {
             qCWarning(log_host_hid) << "Failed to begin transaction for MS2130S read";
             return qMakePair(QByteArray(4, 0), false);
         }
     }
-    
+
     // Define several strategies with different buffer sizes and report IDs
     QByteArray readResult(1, 0);
     bool success = false;
     QString valueHex;
-    
+
     qCDebug(log_host_hid) << "MS2130S reading from address:" << QString("0x%1").arg(u16_address, 4, 16, QChar('0'));
-    
+
     // Strategy 1: Standard buffer (11 bytes) with report ID 1 (preferred for MS2130S)
     if (!success) {
         QByteArray ctrlData(11, 0);
         QByteArray result(11, 0);
-        
+
         ctrlData[0] = 0x01;  // Report ID 1
         ctrlData[1] = MS2130S_CMD_XDATA_READ;
         ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
         ctrlData[3] = static_cast<char>(u16_address & 0xFF);
-        
+
         #ifdef _WIN32
         bool openedForOperation = m_inTransaction || openHIDDeviceHandle();
         if (openedForOperation) {
             BYTE buffer[11] = {0};
             memcpy(buffer, ctrlData.data(), 11);
-            
+
             if (sendFeatureReportWindows(buffer, 11)) {
                 memset(buffer, 0, sizeof(buffer));
                 buffer[0] = 0x01;  // Report ID preserved
-                
+
                 if (getFeatureReportWindows(buffer, 11)) {
                     readResult[0] = buffer[4];
                     valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
                     success = true;
                 }
             }
-            
+
             if (!m_inTransaction) {
                 closeHIDDeviceHandle();
             }
@@ -1128,20 +1128,20 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4ByteMS2130S(quint16 u16_address) 
             if (this->getFeatureReport((uint8_t*)result.data(), result.size())) {
                 readResult[0] = result[4];
                 valueHex = QString("0x%1").arg((quint8)readResult[0], 2, 16, QChar('0'));
-                qCDebug(log_host_hid) << "MS2130S read success (ID 1) from address:" 
-                                     << QString("0x%1").arg(u16_address, 4, 16, QChar('0')) 
+                qCDebug(log_host_hid) << "MS2130S read success (ID 1) from address:"
+                                     << QString("0x%1").arg(u16_address, 4, 16, QChar('0'))
                                      << "value:" << valueHex;
                 success = true;
             }
         }
         #endif
     }
-    
+
     // Strategy 2: Try with report ID 0 if strategy 1 failed
     if (!success) {
         QByteArray ctrlData(11, 0);
         QByteArray result(11, 0);
-        
+
         ctrlData[0] = 0x00;  // Report ID 0
         ctrlData[1] = MS2130S_CMD_XDATA_READ;
         ctrlData[2] = static_cast<char>((u16_address >> 8) & 0xFF);
@@ -2363,11 +2363,13 @@ static BOOL hidSendFeatureNoTimeout(HANDLE hDevice, void* buf, DWORD bufLen,
 
     DWORD dummy = 0;
     // Submit the IOCTL asynchronously.
-    // IOCTL_HID_SET_FEATURE uses METHOD_IN_DIRECT: the HID class driver builds an MDL
-    // from the *output* buffer and maps it to the device.  Both lpInBuffer and
-    // lpOutBuffer must point to the report data, both with the same size — exactly as
-    // HidD_SetFeature and libusb do internally.  Passing NULL/0 for the output buffer
-    // causes the device to receive no data (empty MDL), corrupting flash writes.
+    // IOCTL_HID_SET_FEATURE uses METHOD_IN_DIRECT: the driver reads report data from
+    // SystemBuffer (input), but the USB driver stack may also use the MDL created from
+    // lpOutBuffer for the USB control transfer data-stage DMA — especially for large
+    // (4096-byte) feature reports.  HidD_SetFeature internally passes the SAME buffer
+    // as both input AND output; we must do the same to ensure the MDL is present and
+    // maps the correct data.  Passing NULL for lpOutBuffer caused 4096-byte 0x03 data
+    // packets to appear successful but deliver no data to the device.
     BOOL ok = DeviceIoControl(hDevice, kSetFeatureIoctl,
                               buf, bufLen,
                               buf, bufLen,
@@ -2454,17 +2456,14 @@ bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
     if (m_chipImpl && m_chipImpl->type() == VideoChipType::MS2130S) {
         // For burst data packet marker (0x03), send raw without modification.
         if (bufferSize > 0 && reportBuffer[0] == 0x03) {
-            // 4096-byte burst data packet.  Use hidSendFeatureNoTimeout so the call
-            // waits as long as the device needs to absorb the data — no 5 s ceiling.
+            // 4096-byte burst data packet.  Use HidD_SetFeature directly.
+            // On a synchronous handle (flash path), this blocks until device responds.
+            // On an overlapped handle (normal path), 5 s timeout applies but is sufficient.
             qCDebug(log_host_hid) << "MS2130S burst packet send (raw) bufferSize" << bufferSize;
-            BOOL ok = hidSendFeatureNoTimeout(deviceHandle, reportBuffer, bufferSize,
-                                             30000 /*30 s max*/);
+            BOOL ok = HidD_SetFeature(deviceHandle, reportBuffer, bufferSize);
             if (!ok) {
                 DWORD error = GetLastError();
                 if (error == 121 /*ERROR_SEM_TIMEOUT*/) {
-                    // The USB STATUS stage timed out at the kernel level (hidusb.sys
-                    // enforces a 5 s per-URB limit).  The DATA stage completed — the
-                    // device received all 4096 bytes — so treat this as success.
                     qCDebug(log_host_hid) << "MS2130S burst packet USB timeout (data transferred) – treating as success";
                 } else {
                     qCWarning(log_host_hid) << "MS2130S burst packet failed. Error:" << error;
@@ -2548,24 +2547,16 @@ bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
         // (< 200 ms) with ERROR_GEN_FAILURE (31) while the sector is erasing, and with
         // any other result once the device is idle.
         if (bufferSize >= 2 && reportBuffer[1] == 0xFB) {
-            // Use hidSendFeatureNoTimeout: sector erase takes ~5-8 s hardware time.
-            // HidD_SetFeature times out after exactly 5 s (ERROR_SEM_TIMEOUT=121);
-            // with our own OVERLAPPED + WaitForSingleObject(30s) we wait the full
-            // hardware erase time and receive TRUE — no CancelIo, no GetFeature polling.
-            qCDebug(log_host_hid) << "MS2130S sector erase (0xFB) – sending (no-timeout path)";
-            BOOL r = hidSendFeatureNoTimeout(deviceHandle, reportBuffer, bufferSize,
-                                            30000 /*30 s max*/);
+            // Use HidD_SetFeature directly.  On a synchronous flash handle, this blocks
+            // until the device completes the erase.  On an overlapped handle, the 5 s
+            // timeout applies but sector erase typically takes ~30-40 ms.
+            qCDebug(log_host_hid) << "MS2130S sector erase (0xFB) – sending via HidD_SetFeature";
+            BOOL r = HidD_SetFeature(deviceHandle, reportBuffer, bufferSize);
             if (r) {
                 qCDebug(log_host_hid) << "MS2130S 0xFB sector erase complete";
             } else {
                 DWORD err = GetLastError();
                 if (err == 121 /*ERROR_SEM_TIMEOUT*/) {
-                    // hidusb.sys enforces a 5 s per-URB kernel timeout.  The device DID
-                    // receive the 0xFB command and is erasing; it just didn't ACK the USB
-                    // STATUS stage before the host cancelled the transfer.  The device
-                    // typically finishes ~200 ms after the timeout.  Poll HidD_GetFeature
-                    // every 200 ms until error 31 (ERROR_GEN_FAILURE = device busy) clears.
-                    // This ensures the device is fully idle before we send the next 0xFB.
                     qCDebug(log_host_hid) << "MS2130S 0xFB USB timeout – polling until device ready";
                     constexpr int kMaxPollMs    = 5000;
                     constexpr int kPollInterval =  200;
@@ -2591,24 +2582,18 @@ bool VideoHid::sendFeatureReportWindows(BYTE* reportBuffer, DWORD bufferSize) {
             return true;
         }
 
-        // For burst-write init (0xE7), the device enters burst-receive mode WITHOUT sending
-        // an ACK. HidD_SetFeature therefore blocks until the USB SET_FEATURE control transfer
-        // times out (ERROR_SEM_TIMEOUT = 121, ~5 s). Treat that timeout as a normal/expected
-        // outcome: the device did receive the command and is waiting for the data packets.
-        // Any other error means the command genuinely failed.
+        // For burst-write init (0xE7), use HidD_SetFeature directly.
+        // On a synchronous flash handle, this blocks until the device responds.
+        // Treat error 121 (timeout) as success: device received the command.
         if (bufferSize >= 2 && reportBuffer[1] == 0xE7) {
-            // Use hidSendFeatureNoTimeout so we wait as long as the device needs to
-            // enter burst-receive mode — no 5 s ceiling.
-            qCDebug(log_host_hid) << "MS2130S burst-write init (0xE7) – sending (no-timeout path)";
-            BOOL r = hidSendFeatureNoTimeout(deviceHandle, reportBuffer, bufferSize,
-                                            30000 /*30 s max*/);
+            qCDebug(log_host_hid) << "MS2130S burst-write init (0xE7) – sending via HidD_SetFeature";
+            BOOL r = HidD_SetFeature(deviceHandle, reportBuffer, bufferSize);
             if (r) {
                 qCDebug(log_host_hid) << "MS2130S 0xE7 burst init ACKed";
             } else {
                 DWORD err = GetLastError();
                 if (err == 121 /*ERROR_SEM_TIMEOUT*/) {
-                    // Timed out after 30 s — very unusual; device may still be ready.
-                    qCWarning(log_host_hid) << "MS2130S 0xE7 exceeded 30 s – proceeding";
+                    qCWarning(log_host_hid) << "MS2130S 0xE7 timeout – proceeding";
                 } else {
                     qCWarning(log_host_hid) << "MS2130S burst-write init (0xE7) failed, error" << err;
                     if (!m_inTransaction) closeHIDDeviceHandle();
@@ -3054,6 +3039,9 @@ bool VideoHid::writeChunk(quint16 address, const QByteArray &data) {
 }
 
 bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
+    // Snapshot chip type once to avoid hotplug race changing behavior mid-flash.
+    const VideoChipType chipTypeAtStart = m_chipType;
+
     // Signal all background HID reads (polling thread AND any QtConcurrent threads from start())
     // to bail out immediately so they don't compete with firmware write on the USB bus.
     m_flashInProgress.store(true, std::memory_order_release);
@@ -3068,7 +3056,7 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
 
     bool success = true;
 
-    if (m_chipType == VideoChipType::MS2130S) {
+    if (chipTypeAtStart == VideoChipType::MS2130S) {
         success = ms2130sWriteFirmware(address, data);
     } else {
         const int MAX_CHUNK = 16;
@@ -3108,11 +3096,12 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
         // After MS2130S firmware flash the device needs a power cycle to boot the new
         // firmware.  Restarting the polling thread immediately would hammer a device
         // that is still in an undefined state, generating confusing errors.
-        if (m_chipType != VideoChipType::MS2130S) {
+        if (chipTypeAtStart != VideoChipType::MS2130S) {
             qCDebug(log_host_hid) << "writeEeprom: restarting polling thread after EEPROM update";
             start();
         } else {
-            qCInfo(log_host_hid) << "writeEeprom: NOT restarting polling – MS2130S needs power cycle after flash";
+            qCInfo(log_host_hid) << "writeEeprom: NOT restarting polling – MS2130S needs power cycle after flash"
+                                 << "(chip snapshot at start:" << static_cast<int>(chipTypeAtStart) << ")";
         }
     }
 
@@ -3138,13 +3127,39 @@ bool VideoHid::ms2130sEraseSector(quint32 startAddress) {
     ctrlData[3] = (BYTE)((startAddress >> 8) & 0xFF);
     ctrlData[4] = (BYTE)(startAddress & 0xFF);
 
+    // Use HidD_SetFeature directly (matching reference tool exactly).
+    // On a synchronous handle (no FILE_FLAG_OVERLAPPED), HidD_SetFeature blocks
+    // until the device completes the erase — no timeout, no async complexity.
+    // Sector erase typically takes 30-40 ms.
     BOOL ret = HidD_SetFeature(deviceHandle, ctrlData, 9);
     if (!ret) {
         DWORD err = GetLastError();
-        qCWarning(log_host_hid) << "MS2130S sector erase failed at"
-                                << QString("0x%1").arg(startAddress, 8, 16, QChar('0'))
-                                << "error" << err;
-        return false;
+        if (err == 121 /*ERROR_SEM_TIMEOUT*/) {
+            // Shouldn't happen with synchronous handle, but handle gracefully.
+            qCWarning(log_host_hid) << "MS2130S sector erase timeout at"
+                                    << QString("0x%1").arg(startAddress, 8, 16, QChar('0'))
+                                    << "– polling until device ready";
+            constexpr int kMaxPollMs    = 10000;
+            constexpr int kPollInterval =  200;
+            BYTE probe[9] = {};
+            probe[0] = ctrlData[0]; // same report ID
+            int pollWaited = 0;
+            for (; pollWaited < kMaxPollMs; pollWaited += kPollInterval) {
+                QThread::msleep(kPollInterval);
+                BOOL pr = HidD_GetFeature(deviceHandle, probe, sizeof(probe));
+                DWORD perr = pr ? 0 : GetLastError();
+                if (perr != ERROR_GEN_FAILURE) {
+                    qCDebug(log_host_hid) << "MS2130S sector erase done after"
+                                         << (pollWaited + kPollInterval) << "ms post-timeout";
+                    break;
+                }
+            }
+        } else {
+            qCWarning(log_host_hid) << "MS2130S sector erase failed at"
+                                    << QString("0x%1").arg(startAddress, 8, 16, QChar('0'))
+                                    << "error" << err;
+            return false;
+        }
     }
     qCDebug(log_host_hid) << "MS2130S sector erase complete at"
                           << QString("0x%1").arg(startAddress, 8, 16, QChar('0'));
@@ -3221,11 +3236,9 @@ bool VideoHid::ms2130sFlashBurstWrite(quint32 address, const QByteArray &data) {
     // atomic — no other HID command may be interleaved.  Hold the mutex for the entire
     // operation.
     //
-    // Use HidD_SetFeature for both 0xE7 init and 0x03 data packets, exactly matching
-    // the reference mshidlink_flash_burst_write() implementation.  HidD_SetFeature
-    // passes lpOutBuffer=NULL to DeviceIoControl, which is critical — our earlier
-    // hidSendFeatureNoTimeout passed lpOutBuffer=buf (creating an MDL), which may cause
-    // the HID/USB driver stack to behave differently with METHOD_IN_DIRECT IOCTLs.
+    // Use hidSendFeatureNoTimeout which matches HidD_SetFeature's DeviceIoControl
+    // parameters exactly (same buffer as both input AND output) but with a configurable
+    // timeout instead of the hard-coded 5-second limit.
 #ifdef _WIN32
     QMutexLocker locker(&m_deviceHandleMutex);
     if (deviceHandle == INVALID_HANDLE_VALUE) {
@@ -3276,6 +3289,10 @@ bool VideoHid::ms2130sFlashBurstWrite(quint32 address, const QByteArray &data) {
     }
 
     // Step 1: Send 0xE7 burst write init via HidD_SetFeature (matching reference)
+    // CRITICAL: V2/V3 0xE7 uses 4-byte addressing (different from 0xFB erase which uses 3-byte).
+    // Reference MsHidLink.cpp mshidlink_flash_burst_write() V2/V3:
+    //   ctrlData[2] = (addr >> 24), [3] = (addr >> 16), [4] = (addr >> 8), [5] = (addr & FF)
+    //   ctrlData[6] = (len >> 8), [7] = (len & FF)
     BYTE ctrlData[9] = {0};
     ctrlData[0] = 0x01;
     ctrlData[1] = 0xE7;
@@ -3287,14 +3304,33 @@ bool VideoHid::ms2130sFlashBurstWrite(quint32 address, const QByteArray &data) {
     ctrlData[6] = (BYTE)((u16_length >> 8) & 0xFF);
     ctrlData[7] = (BYTE)(u16_length & 0xFF);
 
+    {
+        QString hexDump;
+        for (int k = 0; k < 9; ++k)
+            hexDump += QString("%1 ").arg(ctrlData[k], 2, 16, QChar('0'));
+        qCInfo(log_host_hid) << "MS2130S burst write 0xE7 init packet:" << hexDump.trimmed()
+                             << "addr=" << QString("0x%1").arg(address, 6, 16, QChar('0'))
+                             << "len=" << u16_length;
+    }
+
+    // Use HidD_SetFeature directly for 0xE7 (matching reference tool exactly).
+    // On a synchronous handle (no FILE_FLAG_OVERLAPPED), HidD_SetFeature blocks
+    // until the device completes — no 5 s timeout, no CancelIo.  The reference
+    // tool does not check the return value of HidD_SetFeature for 0xE7.
     BOOL ret = HidD_SetFeature(deviceHandle, ctrlData, 9);
     if (!ret) {
         DWORD err = GetLastError();
-        qCWarning(log_host_hid) << "MS2130S burst write 0xE7 init failed, error" << err;
-        return false;
+        if (err == 121 /*ERROR_SEM_TIMEOUT*/) {
+            qCDebug(log_host_hid) << "MS2130S burst write 0xE7 USB STATUS timeout – device received command, proceeding";
+        } else {
+            qCWarning(log_host_hid) << "MS2130S burst write 0xE7 init failed, error" << err;
+            return false;
+        }
     }
 
     // Step 2: Send data in 4096-byte packets (0x03 + 4095 data) via HidD_SetFeature.
+    // On a synchronous handle, HidD_SetFeature blocks until the device completes the
+    // USB control transfer — no 5 s timeout.  This matches the reference tool exactly.
     BYTE buffer[4096] = { 0x03 };
     const UINT16 u16_bufferSize = 4095;
 
@@ -3314,18 +3350,31 @@ bool VideoHid::ms2130sFlashBurstWrite(quint32 address, const QByteArray &data) {
         }
         ret = HidD_SetFeature(deviceHandle, buffer, u16_bufferSize + 1);
         if (!ret) {
-            qCWarning(log_host_hid) << "MS2130S burst write data chunk" << j << "failed, error" << GetLastError();
-            return false;
+            DWORD err = GetLastError();
+            if (err == 121) {
+                // USB STATUS timeout — data was already transferred to device.
+                qCDebug(log_host_hid) << "MS2130S burst write data chunk" << j << "USB timeout (data transferred)";
+            } else {
+                qCWarning(log_host_hid) << "MS2130S burst write data chunk" << j << "failed, error" << err;
+                return false;
+            }
         }
         written_size += u16_bufferSize;
         emit firmwareWriteChunkComplete(written_size);
     }
     if ((left != 0)) {
+        // Reference does NOT zero the tail — just memcpy over the existing buffer.
+        // Match reference exactly: only overwrite the first 'left' bytes.
         memcpy(&buffer[1], data.constData() + static_cast<qsizetype>(u16_bufferSize) * j, left);
         ret = HidD_SetFeature(deviceHandle, buffer, u16_bufferSize + 1);
         if (!ret) {
-            qCWarning(log_host_hid) << "MS2130S burst write final chunk failed, error" << GetLastError();
-            return false;
+            DWORD err = GetLastError();
+            if (err == 121) {
+                qCDebug(log_host_hid) << "MS2130S burst write final chunk USB timeout (data transferred)";
+            } else {
+                qCWarning(log_host_hid) << "MS2130S burst write final chunk failed, error" << err;
+                return false;
+            }
         }
         written_size += left;
         emit firmwareWriteChunkComplete(written_size);
@@ -3334,6 +3383,7 @@ bool VideoHid::ms2130sFlashBurstWrite(quint32 address, const QByteArray &data) {
     return true;
 #else
     // Non-Windows fallback: use sendFeatureReport (original path)
+    // V2/V3 0xE7 uses 4-byte addressing (matching reference MsHidLink.cpp)
     QByteArray cmd(9, 0);
     cmd[0] = 0x01;
     cmd[1] = 0xE7;
@@ -3356,9 +3406,8 @@ bool VideoHid::ms2130sFlashBurstWrite(quint32 address, const QByteArray &data) {
     packet[0] = 0x03;
     while (written < total) {
         quint32 block = qMin(chunkData, total - written);
+        // Reference does NOT zero the tail — match exactly.
         memcpy(packet.data() + 1, data.constData() + written, block);
-        if (block < chunkData)
-            memset(packet.data() + 1 + block, 0, chunkData - block);
         if (!sendFeatureReport((uint8_t*)packet.data(), static_cast<size_t>(packetSize))) {
             qCWarning(log_host_hid) << "MS2130S burst write chunk failed at" << written << "bytes";
             return false;
@@ -3387,6 +3436,7 @@ bool VideoHid::ms2130sFlashBurstRead(quint32 address, quint32 length, QByteArray
     }
     
     // Step 1: Send 0xE7 burst read init via HidD_SetFeature (matching reference)
+    // V2/V3 0xE7 uses 4-byte addressing (matching reference MsHidLink.cpp)
     BYTE ctrlData[9] = {0};
     ctrlData[0] = 0x01;
     ctrlData[1] = 0xE7;
@@ -3398,11 +3448,17 @@ bool VideoHid::ms2130sFlashBurstRead(quint32 address, quint32 length, QByteArray
     ctrlData[6] = (BYTE)((u16_length >> 8) & 0xFF);
     ctrlData[7] = (BYTE)(u16_length & 0xFF);
 
+    // Use HidD_SetFeature directly for 0xE7 (matching reference tool exactly).
+    // On a synchronous handle, this blocks until the device responds.
     BOOL ret = HidD_SetFeature(deviceHandle, ctrlData, 9);
     if (!ret) {
         DWORD err = GetLastError();
-        qCWarning(log_host_hid) << "MS2130S burst read 0xE7 init failed, error" << err;
-        return false;
+        if (err == 121 /*ERROR_SEM_TIMEOUT*/) {
+            qCDebug(log_host_hid) << "MS2130S burst read 0xE7 USB STATUS timeout – device received command, proceeding";
+        } else {
+            qCWarning(log_host_hid) << "MS2130S burst read 0xE7 init failed, error" << err;
+            return false;
+        }
     }
 
     // Step 2: Read data via HidD_GetFeature, matching reference EXACTLY.
@@ -3491,6 +3547,7 @@ bool VideoHid::ms2130sFlashBurstRead(quint32 address, quint32 length, QByteArray
     return true;
 #else
     // Non-Windows fallback: use sendFeatureReport for 0xE7 init
+    // V2/V3 0xE7 uses 4-byte addressing (matching reference MsHidLink.cpp)
     QByteArray cmd(9, 0);
     cmd[0] = 0x01;
     cmd[1] = 0xE7;
@@ -3729,87 +3786,26 @@ bool VideoHid::ms2130sInitializeGPIO() {
         return true;
     };
 
-    // Step 1: 0xB0 — clear bit 2 (SPI CS control)
-    BYTE b0Val = 0;
-    if (!directRead8(0xB0, b0Val)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to read 0xB0"; return false; }
-    m_gpio_saved_b0 = b0Val;
-    BYTE b0New = b0Val & ~0x04;
-    if (!directWrite8(0xB0, b0New)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xB0"; return false; }
-    BYTE b0Verify = 0;
-    directRead8(0xB0, b0Verify);
-    qCInfo(log_host_hid) << "MS2130S GPIO: 0xB0 saved=" << QString("0x%1").arg(b0Val, 2, 16, QChar('0'))
-                         << "wrote=" << QString("0x%1").arg(b0New, 2, 16, QChar('0'))
-                         << "readback=" << QString("0x%1").arg(b0Verify, 2, 16, QChar('0'))
-                         << (b0Verify == b0New ? "OK" : "MISMATCH!");
+    // Match mshidlink_open_device() exactly: save the pre-flash values we need for
+    // diagnostics, but do not perform additional post-write readback probes on the
+    // SPI control registers. The reference tool only issues the write sequence below.
+    if (!directRead8(0xB0, m_gpio_saved_b0)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to read 0xB0"; return false; }
+    if (!directWrite8(0xB0, static_cast<BYTE>(m_gpio_saved_b0 & ~0x04))) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xB0"; return false; }
 
-    // Step 2: 0xA0 — set bit 2 (SPI CS direction)
-    BYTE a0Val = 0;
-    if (!directRead8(0xA0, a0Val)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to read 0xA0"; return false; }
-    m_gpio_saved_a0 = a0Val;
-    BYTE a0New = a0Val | 0x04;
-    if (!directWrite8(0xA0, a0New)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xA0"; return false; }
-    BYTE a0Verify = 0;
-    directRead8(0xA0, a0Verify);
-    qCInfo(log_host_hid) << "MS2130S GPIO: 0xA0 saved=" << QString("0x%1").arg(a0Val, 2, 16, QChar('0'))
-                         << "wrote=" << QString("0x%1").arg(a0New, 2, 16, QChar('0'))
-                         << "readback=" << QString("0x%1").arg(a0Verify, 2, 16, QChar('0'))
-                         << (a0Verify == a0New ? "OK" : "MISMATCH!");
+    if (!directRead8(0xA0, m_gpio_saved_a0)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to read 0xA0"; return false; }
+    if (!directWrite8(0xA0, static_cast<BYTE>(m_gpio_saved_a0 | 0x04))) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xA0"; return false; }
 
-    // Step 3: 0xC7 — SPI clock config = 0xD1
-    // Note: Like MsHidLink, we write SPI config registers without strict verification.
-    // Some registers may return hardware status (not config shadow) on read.
     directRead8(0xC7, m_gpio_saved_c7);
     if (!directWrite8(0xC7, 0xD1)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xC7"; return false; }
-    BYTE c7Verify = 0;
-    directRead8(0xC7, c7Verify);
-    qCInfo(log_host_hid) << "MS2130S GPIO: 0xC7 saved=" << QString("0x%1").arg(m_gpio_saved_c7, 2, 16, QChar('0'))
-                         << "wrote=0xd1 readback=" << QString("0x%1").arg(c7Verify, 2, 16, QChar('0'))
-                         << (c7Verify == 0xD1 ? "OK" : "INFO-only");
 
-    // Step 4: 0xC8 — SPI mode config = 0xC0
-    // CRITICAL INSIGHT: MsHidLink.cpp does NOT verify this register write!
-    // Testing shows 0xC8 reads back as 0x05 even after writing 0xC0, BUT flash ops work correctly.
-    // HYPOTHESIS: 0xC8 read returns hardware status, not the config shadow register value.
-    // The write IS taking effect (enabling SPI mode), but the readback shows different info.
     directRead8(0xC8, m_gpio_saved_c8);
-    if (!directWrite8(0xC8, 0xC0)) { 
-        qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xC8"; 
-        return false; 
-    }
-    BYTE c8Verify = 0;
-    directRead8(0xC8, c8Verify);
-    
-    // Don't abort on mismatch - log as info/warning but continue
-    if (c8Verify != 0xC0) {
-        qCWarning(log_host_hid) << "MS2130S GPIO 0xC8: wrote 0xC0 but readback=" << QString("0x%1").arg(c8Verify, 2, 16, QChar('0'))
-                                << "- continuing (MsHidLink doesn't verify this register)";
-    }
-    
-    qCInfo(log_host_hid) << "MS2130S GPIO: 0xC8 saved=" << QString("0x%1").arg(m_gpio_saved_c8, 2, 16, QChar('0'))
-                         << "wrote=0xc0 readback=" << QString("0x%1").arg(c8Verify, 2, 16, QChar('0'))
-                         << (c8Verify == 0xC0 ? "OK" : "READBACK-DIFFERS (expected for this register)");
+    if (!directWrite8(0xC8, 0xC0)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xC8"; return false; }
 
-    // Step 5: 0xCA — SPI config = 0x00
     directRead8(0xCA, m_gpio_saved_ca);
     if (!directWrite8(0xCA, 0x00)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xCA"; return false; }
-    BYTE caVerify = 0;
-    directRead8(0xCA, caVerify);
-    qCInfo(log_host_hid) << "MS2130S GPIO: 0xCA saved=" << QString("0x%1").arg(m_gpio_saved_ca, 2, 16, QChar('0'))
-                         << "wrote=0x00 readback=" << QString("0x%1").arg(caVerify, 2, 16, QChar('0'))
-                         << (caVerify == 0x00 ? "OK" : "INFO-only");
 
-    // Step 6: 0xF01F — set bit 4, clear bit 7
-    BYTE f01fVal = 0;
-    if (!directRead16(0xF01F, f01fVal)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to read 0xF01F"; return false; }
-    m_gpio_saved_f01f = f01fVal;
-    BYTE f01fNew = (f01fVal | 0x10) & ~0x80;
-    if (!directWrite16(0xF01F, f01fNew)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xF01F"; return false; }
-    BYTE f01fVerify = 0;
-    directRead16(0xF01F, f01fVerify);
-    qCInfo(log_host_hid) << "MS2130S GPIO: 0xF01F saved=" << QString("0x%1").arg(f01fVal, 2, 16, QChar('0'))
-                         << "wrote=" << QString("0x%1").arg(f01fNew, 2, 16, QChar('0'))
-                         << "readback=" << QString("0x%1").arg(f01fVerify, 2, 16, QChar('0'))
-                         << (f01fVerify == f01fNew ? "OK" : "INFO-only");
+    if (!directRead16(0xF01F, m_gpio_saved_f01f)) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to read 0xF01F"; return false; }
+    if (!directWrite16(0xF01F, static_cast<BYTE>((m_gpio_saved_f01f | 0x10) & ~0x80))) { qCWarning(log_host_hid) << "MS2130S GPIO init: failed to write 0xF01F"; return false; }
 
     m_gpioSaved = true;
     qCInfo(log_host_hid) << "MS2130S GPIO initialization completed successfully";
@@ -3889,53 +3885,51 @@ bool VideoHid::ms2130sInitializeGPIO() {
 }
 
 void VideoHid::ms2130sRestoreGPIO() {
-    // Restore GPIO registers to their original values saved by ms2130sInitializeGPIO().
-    // On Windows, closing the device handle does NOT trigger a USB reset, so we must
-    // explicitly restore these registers to take the chip out of SPI-flash-access mode.
     if (!m_gpioSaved) {
         qCDebug(log_host_hid) << "MS2130S GPIO restore: nothing saved, skipping";
         return;
     }
-    qCDebug(log_host_hid) << "MS2130S restoring GPIO registers to pre-flash values...";
 
-    const quint8 reportId = (m_ms2130sConnectMode == 1) ? 0x00 : 0x01;
+    // Restore GPIO registers to pre-flash values, matching mshidlink_close_device()
+    // in the reference which reverses all the writes done in mshidlink_open_device().
+    qCInfo(log_host_hid) << "MS2130S restoring GPIO registers to pre-flash values...";
 
-    auto write8 = [this, reportId](quint8 addr, quint8 value) -> bool {
+    const int mode = m_ms2130sConnectMode;
+    const quint8 reportId = (mode == 1) ? 0x00 : 0x01;
+
 #ifdef _WIN32
-        QMutexLocker locker(&m_deviceHandleMutex);
-        if (deviceHandle == INVALID_HANDLE_VALUE) {
-            return false;
-        }
-        BYTE cmd[9] = {reportId, 0xC6, static_cast<BYTE>(addr), static_cast<BYTE>(value), 0, 0, 0, 0, 0};
-        return hidSendFeatureNoTimeout(deviceHandle, cmd, 9, 1500) == TRUE;
+    QMutexLocker locker(&m_deviceHandleMutex);
+    if (deviceHandle == INVALID_HANDLE_VALUE) {
+        qCWarning(log_host_hid) << "MS2130S GPIO restore: device handle invalid";
+        m_gpioSaved = false;
+        return;
+    }
+
+    auto directWrite8 = [&](BYTE addr, BYTE value) -> bool {
+        BYTE buf[9] = {reportId, 0xC6, addr, value, 0, 0, 0, 0, 0};
+        return HidD_SetFeature(deviceHandle, buf, 9);
+    };
+    auto directWrite16 = [&](UINT16 addr, BYTE value) -> bool {
+        BYTE buf[9] = {reportId, 0xB6, (BYTE)((addr>>8)&0xFF), (BYTE)(addr&0xFF), value, 0, 0, 0, 0};
+        return HidD_SetFeature(deviceHandle, buf, 9);
+    };
+
+    directWrite16(0xF01F, m_gpio_saved_f01f);
+    directWrite8(0xCA, m_gpio_saved_ca);
+    directWrite8(0xC8, m_gpio_saved_c8);
+    directWrite8(0xC7, m_gpio_saved_c7);
+    directWrite8(0xA0, m_gpio_saved_a0);
+    directWrite8(0xB0, m_gpio_saved_b0);
 #else
+    auto write8 = [this](quint8 addr, quint8 value) -> bool {
         QByteArray cmd(9, 0);
         cmd[0] = 0x01;
         cmd[1] = static_cast<char>(0xC6);
         cmd[2] = static_cast<char>(addr);
         cmd[3] = static_cast<char>(value);
         return sendFeatureReport(reinterpret_cast<uint8_t*>(cmd.data()), cmd.size());
-#endif
     };
-    auto write16 = [this, reportId](quint16 addr, quint8 value) -> bool {
-#ifdef _WIN32
-        QMutexLocker locker(&m_deviceHandleMutex);
-        if (deviceHandle == INVALID_HANDLE_VALUE) {
-            return false;
-        }
-        BYTE cmd[9] = {
-            reportId,
-            0xB6,
-            static_cast<BYTE>((addr >> 8) & 0xFF),
-            static_cast<BYTE>(addr & 0xFF),
-            static_cast<BYTE>(value),
-            0,
-            0,
-            0,
-            0
-        };
-        return hidSendFeatureNoTimeout(deviceHandle, cmd, 9, 1500) == TRUE;
-#else
+    auto write16 = [this](quint16 addr, quint8 value) -> bool {
         QByteArray cmd(9, 0);
         cmd[0] = 0x01;
         cmd[1] = static_cast<char>(0xB6);
@@ -3943,43 +3937,18 @@ void VideoHid::ms2130sRestoreGPIO() {
         cmd[3] = static_cast<char>(addr & 0xFF);
         cmd[4] = static_cast<char>(value);
         return sendFeatureReport(reinterpret_cast<uint8_t*>(cmd.data()), cmd.size());
-#endif
     };
 
-    bool restoreOk = true;
+    write16(0xF01F, m_gpio_saved_f01f);
+    write8(0xCA, m_gpio_saved_ca);
+    write8(0xC8, m_gpio_saved_c8);
+    write8(0xC7, m_gpio_saved_c7);
+    write8(0xA0, m_gpio_saved_a0);
+    write8(0xB0, m_gpio_saved_b0);
+#endif
 
-    // Restore in reverse order
-    if (!write16(0xF01F, m_gpio_saved_f01f)) {
-        qCWarning(log_host_hid) << "MS2130S GPIO restore failed at 0xF01F";
-        restoreOk = false;
-    }
-    if (!write8(0xCA, m_gpio_saved_ca)) {
-        qCWarning(log_host_hid) << "MS2130S GPIO restore failed at 0xCA";
-        restoreOk = false;
-    }
-    if (!write8(0xC8, m_gpio_saved_c8)) {
-        qCWarning(log_host_hid) << "MS2130S GPIO restore failed at 0xC8";
-        restoreOk = false;
-    }
-    if (!write8(0xC7, m_gpio_saved_c7)) {
-        qCWarning(log_host_hid) << "MS2130S GPIO restore failed at 0xC7";
-        restoreOk = false;
-    }
-    if (!write8(0xA0, m_gpio_saved_a0)) {
-        qCWarning(log_host_hid) << "MS2130S GPIO restore failed at 0xA0";
-        restoreOk = false;
-    }
-    if (!write8(0xB0, m_gpio_saved_b0)) {
-        qCWarning(log_host_hid) << "MS2130S GPIO restore failed at 0xB0";
-        restoreOk = false;
-    }
-
+    qCInfo(log_host_hid) << "MS2130S GPIO registers restored";
     m_gpioSaved = false;
-    if (restoreOk) {
-        qCInfo(log_host_hid) << "MS2130S GPIO registers restored";
-    } else {
-        qCWarning(log_host_hid) << "MS2130S GPIO restore completed with errors";
-    }
 }
 
 bool VideoHid::ms2130sWriteFirmware(quint16 address, const QByteArray &data) {
@@ -3988,19 +3957,64 @@ bool VideoHid::ms2130sWriteFirmware(quint16 address, const QByteArray &data) {
         return false;
     }
 
-    // 🔥 SOLUTION 2: DO NOT close/reopen device handle - keep the existing handle
-    // The MsHidLink reference opens the device ONCE in mshidlink_open_device() and
-    // reuses that same handle for all GPIO init + flash operations without closing.
-    // Closing and reopening may cause the device driver to lose GPIO configuration state.
-    // TESTING: Try keeping the existing handle that was already opened by beginTransaction().
-    qCDebug(log_host_hid) << "MS2130S keeping existing device handle for flash ops (not closing/reopening)...";
-    // closeHIDDeviceHandle();  // ← DISABLED for testing
-    // if (!openHIDDeviceHandle()) {  // ← DISABLED for testing
-    //     qCWarning(log_host_hid) << "MS2130S failed to reopen device handle for flash ops";
-    //     endTransaction();
-    //     return false;
-    // }
-    // qCDebug(log_host_hid) << "MS2130S fresh device handle opened successfully";
+    qCInfo(log_host_hid) << "MS2130S flash flow: synchronous handle, GPIO restore enabled, no soft-reset, power cycle required";
+
+    // Re-detect connect mode at the beginning of every flash session.
+    // The mode may change after reconnect/re-enumeration and stale mode state can
+    // produce a "write success" log while the actual flash protocol is wrong.
+    m_ms2130sConnectMode = 0;
+
+    // Open a SYNCHRONOUS device handle for flash operations.
+    // The reference MS Flash Upgrade Tool opens its HID handle WITHOUT
+    // FILE_FLAG_OVERLAPPED, making HidD_SetFeature block synchronously until
+    // the device completes the USB control transfer — no 5 s WaitForSingleObject
+    // ceiling, no CancelIo, no event-based asynchronous completion.  This is
+    // critical because the HID class driver (hidclass.sys) processes IOCTLs
+    // differently for overlapped vs synchronous handles, and the MS2130S firmware
+    // was designed/tested with the synchronous path.
+    //
+    // Also add GENERIC_WRITE: the HidD_SetFeature documentation states that the
+    // handle must have write access.  The normal polling handle uses GENERIC_READ
+    // only (to avoid channel contention), but during flash we need reliable writes.
+    qCDebug(log_host_hid) << "MS2130S closing overlapped handle and opening synchronous handle for flash...";
+    closeHIDDeviceHandle();
+    {
+        std::wstring devicePath = getHIDDevicePath();
+        if (devicePath.empty()) {
+            qCWarning(log_host_hid) << "MS2130S failed to get device path for flash ops";
+            endTransaction();
+            return false;
+        }
+        QMutexLocker locker(&m_deviceHandleMutex);
+        deviceHandle = CreateFileW(devicePath.c_str(),
+                                   GENERIC_READ | GENERIC_WRITE,
+                                   FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                   NULL,
+                                   OPEN_EXISTING,
+                                   FILE_ATTRIBUTE_NORMAL,  // NO FILE_FLAG_OVERLAPPED
+                                   NULL);
+        if (deviceHandle == INVALID_HANDLE_VALUE) {
+            DWORD err = GetLastError();
+            qCWarning(log_host_hid) << "MS2130S failed to open synchronous device handle, error" << err;
+            // Fallback: try GENERIC_READ only (some HID drivers reject GENERIC_WRITE)
+            deviceHandle = CreateFileW(devicePath.c_str(),
+                                       GENERIC_READ,
+                                       FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                       NULL,
+                                       OPEN_EXISTING,
+                                       FILE_ATTRIBUTE_NORMAL,  // NO FILE_FLAG_OVERLAPPED
+                                       NULL);
+            if (deviceHandle == INVALID_HANDLE_VALUE) {
+                qCWarning(log_host_hid) << "MS2130S fallback GENERIC_READ also failed, error" << GetLastError();
+                endTransaction();
+                return false;
+            }
+            qCDebug(log_host_hid) << "MS2130S opened synchronous handle with GENERIC_READ only (fallback)";
+        } else {
+            qCDebug(log_host_hid) << "MS2130S opened synchronous handle with GENERIC_READ|GENERIC_WRITE";
+        }
+    }
+    qCDebug(log_host_hid) << "MS2130S synchronous flash handle opened successfully";
 
     bool ok = true;
     bool gpioInitialized = false;
@@ -4012,6 +4026,21 @@ bool VideoHid::ms2130sWriteFirmware(quint16 address, const QByteArray &data) {
         ok = false;
     } else {
         gpioInitialized = true;
+        qCInfo(log_host_hid) << "MS2130S detected connect mode for flash:" << m_ms2130sConnectMode;
+    }
+
+    // IMPORTANT:
+    // The official Windows tool contains a dedicated V1 pre-treatment flow:
+    // - flash a bridge/upgrade image
+    // - ROM reset -> reconnect
+    // - RAM reset -> reconnect
+    // This code path is not implemented in this project yet. Continuing in V1 mode
+    // can cause false-success writes and leave the device in U3 Upgrade HID state.
+    if (ok && m_ms2130sConnectMode == 1) {
+        qCWarning(log_host_hid) << "MS2130S V1 mode is not supported by current updater flow."
+                                << "Official tool uses additional pre-treatment/reset steps."
+                                << "Aborting to avoid corrupt or non-bootable state.";
+        ok = false;
     }
 
     // Phase 1: Erase all flash sectors covered by the firmware image.
@@ -4038,12 +4067,11 @@ bool VideoHid::ms2130sWriteFirmware(quint16 address, const QByteArray &data) {
                                   << "in" << eraseMs << "ms";
         }
 
-        // Extra sector 15 erase when firmware is small (matches reference)
         if (ok && numSectors <= 15) {
             quint32 sector15Addr = static_cast<quint32>(address) + 15u * 4096;
             qCDebug(log_host_hid) << "MS2130S erasing extra sector 15 at"
                                   << QString("0x%1").arg(sector15Addr, 8, 16, QChar('0'));
-            ms2130sEraseSector(sector15Addr); // best-effort, don't fail on this
+            ms2130sEraseSector(sector15Addr);
         }
 
         if (ok) {
@@ -4051,25 +4079,25 @@ bool VideoHid::ms2130sWriteFirmware(quint16 address, const QByteArray &data) {
         }
     }
 
-    // The reference MSFlashUpgradeToolDlg goes straight from erase to burst write
-    // with NO delays and NO intermediate reads.  Do NOT issue a burst read here:
-    // entering burst-read mode right before burst-write corrupts the write sequence.
-
-    // Wait 1 second after erase to allow flash chip to complete internal erase
-    // operations. Swift reference implementation uses Thread.sleep(forTimeInterval: 1.0).
+    // HidD_SetFeature for 0xFB blocks synchronously until the sector erase
+    // completes (~30 ms per sector), so by the time the loop above finishes ALL
+    // sectors are already erased.  The reference has NO delay between erase and
+    // write — start burst write immediately to avoid MCU background tasks
+    // (camera, audio) potentially reconfiguring GPIO/SPI state.
     if (ok) {
-        qCDebug(log_host_hid) << "MS2130S waiting 1 second after erase for flash to stabilize...";
-        QThread::msleep(1000);
-
-        qCInfo(log_host_hid) << "MS2130S starting burst write";
+        qCInfo(log_host_hid) << "MS2130S starting burst write (no post-erase delay, matching reference)";
     }
 
-    // Phase 2: Burst write in 60 KB chunks.
-    // The reference MSFlashUpgradeToolDlg (V2/V3 mode) writes 60*1024 bytes per burst.
-    // (The 0x1000-byte bursts in the reference code are only for V1 upgrade mode.)
     quint32 written = 0;
     const quint32 totalSize = static_cast<quint32>(data.size());
-    const quint32 maxBurstSize = 60u * 1024u; // 60 KB, matching reference C++ tool
+    const quint32 maxBurstSize = (m_ms2130sConnectMode == 1) ? 0x1000u : (60u * 1024u);
+
+    qCInfo(log_host_hid) << "MS2130S write mode" << m_ms2130sConnectMode
+                         << "max burst chunk size" << maxBurstSize << "bytes";
+    if (m_ms2130sConnectMode == 1 && totalSize > 0x1000u) {
+        qCWarning(log_host_hid) << "MS2130S V1 mode detected: splitting firmware into 0x1000-byte chunks"
+                                << "to match mshidlink limits";
+    }
 
     while (written < totalSize && ok) {
         quint32 chunkAddr = address + written;
@@ -4097,26 +4125,25 @@ bool VideoHid::ms2130sWriteFirmware(quint16 address, const QByteArray &data) {
     }
 
     if (ok) {
-        // Log first 16 bytes of firmware data for diagnostics
-        {
-            QString hexDump;
-            for (int i = 0; i < 16 && i < data.size(); ++i) {
-                hexDump += QString("%1 ").arg(static_cast<quint8>(data.at(i)), 2, 16, QChar('0'));
-            }
-            qCInfo(log_host_hid) << "MS2130S firmware data first 16 bytes:" << hexDump.trimmed();
+        QString hexDump;
+        for (int i = 0; i < 16 && i < data.size(); ++i) {
+            hexDump += QString("%1 ").arg(static_cast<quint8>(data.at(i)), 2, 16, QChar('0'));
         }
+        qCInfo(log_host_hid) << "MS2130S firmware data first 16 bytes:" << hexDump.trimmed();
 
-        // Keep verification off by default: on some devices the immediate burst-read path
-        // can stall the HID pipe (error 121) and then poison follow-up GPIO restore commands.
+        // DISABLED: Read-back verification sends 0xE7 which always times out
+        // (error 121, 5s) on Windows, leaving the flash controller in an
+        // inconsistent read-pending state.  The reference tool does verify,
+        // but it works because it uses FILE_FLAG_OVERLAPPED + custom OVERLAPPED
+        // I/O that can handle the timing.  Sending a failed 0xE7 followed by
+        // CancelIo corrupts the device state worse than skipping verification.
         const bool enableReadBackVerify = false;
         if (enableReadBackVerify) {
             bool verifyOk = true;
             bool verifyTransportOk = true;
 
-            qCInfo(log_host_hid) << "MS2130S waiting 2000 ms for flash to settle after write...";
-            QThread::msleep(2000);
-
-            qCInfo(log_host_hid) << "MS2130S starting read-back verification (same device handle)...";
+            // Reference has NO delay between write and verify — start immediately.
+            qCInfo(log_host_hid) << "MS2130S starting read-back verification (no delay, matching reference)...";
             quint32 verified = 0;
             while (verified < totalSize && verifyOk) {
                 quint32 toRead = qMin(maxBurstSize, totalSize - verified);
@@ -4128,11 +4155,11 @@ bool VideoHid::ms2130sWriteFirmware(quint16 address, const QByteArray &data) {
                     break;
                 }
                 if (verified == 0) {
-                    QString hexDump;
+                    QString verifyHexDump;
                     for (int i = 0; i < 16 && i < readBack.size(); ++i) {
-                        hexDump += QString("%1 ").arg(static_cast<quint8>(readBack.at(i)), 2, 16, QChar('0'));
+                        verifyHexDump += QString("%1 ").arg(static_cast<quint8>(readBack.at(i)), 2, 16, QChar('0'));
                     }
-                    qCInfo(log_host_hid) << "MS2130S read-back first 16 bytes:" << hexDump.trimmed();
+                    qCInfo(log_host_hid) << "MS2130S read-back first 16 bytes:" << verifyHexDump.trimmed();
                 }
                 for (quint32 k = 0; k < toRead; ++k) {
                     if (readBack.at(static_cast<int>(k)) != data.at(static_cast<int>(verified + k))) {
@@ -4159,17 +4186,19 @@ bool VideoHid::ms2130sWriteFirmware(quint16 address, const QByteArray &data) {
         }
     }
 
-    // Wait for flash internal programming to settle before closing the HID handle.
-    // Keep this conservative; we avoid any extra register writes after burst-write.
-    qCDebug(log_host_hid) << "MS2130S waiting 2000 ms for flash programming to settle...";
-    QThread::msleep(2000);
+    // Reference has no post-verify delay — proceeds directly to close.
+    // Do not add extra delays that give the MCU time to reconfigure GPIO/SPI state.
 
-    // IMPORTANT: Do not restore GPIO registers here.
-    // The reference MsHidLink flash flow does not perform a post-write GPIO restore;
-    // it closes the tool and asks for a full power cycle. Extra register writes right
-    // after burst-write can interfere with devices that are still finalizing flash.
-    Q_UNUSED(gpioInitialized);
-    qCInfo(log_host_hid) << "MS2130S skipping GPIO restore after flash write (aligned with reference flow)";
+    // DISABLED: The reference tool does NOT restore GPIO after firmware flash.
+    // The msflashupgrade.md comparison (step 10) confirms: "No GPIO restore,
+    // no soft reset."  GPIO restore sends 6 HidD_SetFeature calls that each
+    // timeout (5s each = 15s total), and the resulting CancelIo calls may
+    // corrupt the flash controller state, preventing the device from booting
+    // the new firmware after power cycle.
+    // if (gpioInitialized) {
+    //     ms2130sRestoreGPIO();
+    // }
+    (void)gpioInitialized; // suppress unused warning
 
     // Phase 5: Close connection and let the user power-cycle.
     // The reference MSFlashUpgradeToolDlg does NOT perform soft-reset after the
@@ -4178,8 +4207,6 @@ bool VideoHid::ms2130sWriteFirmware(quint16 address, const QByteArray &data) {
     // For the actual firmware write the reference says:
     //   "关闭此工具后再给设备重新上电可加载新固件功能"
     //   (Close this tool and power cycle the device to load the new firmware.)
-    // Performing soft-reset here was leaving the MCU in an inconsistent state,
-    // causing the device to become unrecognizable after a power cycle.
     if (ok) {
         qCInfo(log_host_hid) << "MS2130S firmware update complete – user must power-cycle the device to load new firmware";
     } else {
