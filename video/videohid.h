@@ -135,16 +135,9 @@ public:
     // Returns the FirmwareOperationManager used by loadFirmwareToEeprom().
     FirmwareOperationManager* getFirmwareOperationManager() const;
 
-    // Delegating accessors for Ms2130sChip flash operations
-    // (kept for FirmwareWriter / FirmwareOperationManager compatibility)
-    bool ms2130sEraseSector(quint32 startAddress);
-    bool ms2130sFlashEraseDone(bool &done);
-    bool ms2130sFlashBurstWrite(quint32 address, const QByteArray &data);
-    bool ms2130sFlashBurstRead(quint32 address, quint32 length, QByteArray &outData);
-    bool ms2130sWriteFirmware(quint16 address, const QByteArray &data);
-    bool ms2130sInitializeGPIO();
-    void ms2130sRestoreGPIO();
-    int  ms2130sDetectConnectMode();
+    // Typed accessor for Ms2130sChip flash operations; returns nullptr for non-MS2130S chips
+    Ms2130sChip* getMs2130sChip() const;
+
 
     // Transaction-based HID access
     bool beginTransaction();

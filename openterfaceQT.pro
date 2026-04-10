@@ -66,6 +66,8 @@ SOURCES += main.cpp \
     target/MouseManager.cpp \
     target/mouseeventdto.cpp \
     video/videohid.cpp \
+    video/videohid_register.cpp \
+    video/videohid_eeprom.cpp \
     video/videohidchip.cpp \
     video/platformhidadapter.cpp \
     video/firmwarewriter.cpp \

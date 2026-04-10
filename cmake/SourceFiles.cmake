@@ -147,6 +147,8 @@ set(TARGET_SOURCES
 # Video sources
 set(VIDEO_SOURCES
     video/videohid.cpp video/videohid.h
+    video/videohid_register.cpp
+    video/videohid_eeprom.cpp
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/firmwarereader.cpp video/firmwarereader.h
     video/firmwareoperationmanager.cpp video/firmwareoperationmanager.h
