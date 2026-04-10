@@ -223,6 +223,9 @@ signals:
     
     void logMessage(const QString& msg);
     
+    // New signal for applying hardware settings in worker thread
+    void requestApplyHardwareSetting(int baudrate, uint8_t mode, bool needFactoryReset);
+    
 private slots:
     void observeSerialPortNotification();
     void readData();
@@ -232,6 +235,9 @@ private slots:
     
     void handleFactoryReset();
     void handleFactoryResetV191();
+    
+    // Hardware setting application (runs in worker thread)
+    void applyHardwareSettingInternal(int baudrate, uint8_t mode, bool needFactoryReset);
     
     // New async restart methods to replace blocking operations
     void restartPortInternalAsync(const QString &portName, qint32 baudRate);

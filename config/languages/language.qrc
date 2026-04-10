@@ -14,6 +14,5 @@
         <file>openterface_ro.qm</file>
         <file>openterface_se.qm</file>
         <file>openterface_zh.qm</file>
-        <file>openterface_es.qm</file>
     </qresource>
 </RCC> 
