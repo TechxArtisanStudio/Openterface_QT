@@ -153,6 +153,11 @@ set(VIDEO_SOURCES
     video/firmwareoperationmanager.cpp video/firmwareoperationmanager.h
     video/ms2109.h
     video/videohidchip.cpp video/videohidchip.h
+    video/detection/ChipDetector.cpp video/detection/ChipDetector.h
+    video/firmware/FirmwareNetworkClient.cpp video/firmware/FirmwareNetworkClient.h
+    video/transport/IHIDTransport.h
+    video/transport/WindowsHIDTransport.cpp video/transport/WindowsHIDTransport.h
+    video/transport/LinuxHIDTransport.cpp video/transport/LinuxHIDTransport.h
 )
 
 # UI core sources
