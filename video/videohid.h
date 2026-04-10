@@ -4,18 +4,16 @@
 #include <QObject>
 #include <QTimer>
 #include <atomic>
-#include <QNetworkAccessManager>
-#include <QNetworkRequest>
-#include <QNetworkReply>
-#include <QEventLoop>
 #include "firmware/FirmwareNetworkClient.h"
 #include <vector>
 #include <chrono>
+#include <functional>
 #include <QMutex>
 #include <QRecursiveMutex>
 #include <memory>
-#include "platformhidadapter.h"
 #include "transport/IHIDTransport.h"
+
+class FirmwareOperationManager;
 #ifdef _WIN32
 #include "transport/WindowsHIDTransport.h"
 #elif __linux__
@@ -40,17 +38,6 @@ struct VideoHidResolutionInfo {
     bool hdmiConnected{false};
 };
 
-#if defined(_WIN32) && !defined(Q_MOC_RUN)
-#include <windows.h>
-#elif defined(_WIN32) && defined(Q_MOC_RUN)
-// Minimal stubs for moc parsing on Windows to avoid including heavy system headers
-typedef void* HANDLE;
-typedef unsigned long DWORD;
-typedef unsigned char BYTE;
-#elif __linux__
-#include <linux/hid.h>
-#endif
-
 class FirmwareWriter; // Forward declaration
 class FirmwareReader; // Forward declaration
 
@@ -69,9 +56,6 @@ class VideoHid : public QObject, public IHIDTransport
 
     friend class FirmwareWriter;
     friend class FirmwareReader;
-    friend class PlatformHidAdapter; // Allow platform adapter to call platform_* helpers
-    friend class WindowsHidAdapter;
-    friend class LinuxHidAdapter;
 
 public:
     static VideoHid* getPointer(){
@@ -143,8 +127,13 @@ public:
     void loadEepromToFile(const QString &filePath);
     quint32 readFirmwareSize();
 
-    // Read firmware from EEPROM (MS2109/MS2109S)
-    QByteArray readEeprom(quint16 address, quint32 size);
+    // Read firmware from EEPROM (MS2109/MS2109S).
+    // Optional progressCallback is called with percent [0,100] after each chunk.
+    QByteArray readEeprom(quint16 address, quint32 size,
+                          std::function<void(int)> progressCallback = nullptr);
+
+    // Returns the FirmwareOperationManager used by loadFirmwareToEeprom().
+    FirmwareOperationManager* getFirmwareOperationManager() const;
 
     // Delegating accessors for Ms2130sChip flash operations
     // (kept for FirmwareWriter / FirmwareOperationManager compatibility)
@@ -181,16 +170,8 @@ public:
     Q_INVOKABLE void dispatchSwitchableUsbToggle(bool isToTarget);
 
 signals:
-    void firmwareWriteProgress(int percent);
-    void firmwareWriteComplete(bool success);
-    void firmwareWriteChunkComplete(int writtenBytes);
-    void firmwareReadProgress(int percent);
-    void firmwareReadComplete(bool success);
-    void firmwareReadChunkComplete(int readBytes);
     void inputResolutionChanged(int old_input_width, int old_input_height, int new_input_width, int new_input_height);
     void resolutionChangeUpdate(const int& width, const int& height, const float& fps, const float& pixelClk);
-    void firmwareWriteError(const QString &errorMessage);
-    void firmwareReadError(const QString &errorMessage);
     void hidDeviceChanged(const QString& oldDevicePath, const QString& newDevicePath);
     void hidDeviceSwitched(const QString& fromPortChain, const QString& toPortChain);
     void hidDeviceConnected(const QString& devicePath);
@@ -211,30 +192,11 @@ private:
     // Created in VideoHid constructor.
     std::unique_ptr<IHIDTransport> m_deviceTransport{nullptr};
 
-    // Legacy platform adapter kept for PlatformHidAdapter compatibility.
-    // Will be removed in Phase 5.
-    std::unique_ptr<PlatformHidAdapter> m_platformAdapter{nullptr};
-
-    // openHIDDeviceHandle / closeHIDDeviceHandle now delegate to m_deviceTransport.
-    bool openHIDDeviceHandle();
-    void closeHIDDeviceHandle();
-
-    // platform_* wrappers retained for PlatformHidAdapter (Phase 5 cleanup target).
-    bool platform_openDevice();
-    void platform_closeDevice();
-    bool platform_sendFeatureReport(uint8_t* reportBuffer, size_t bufferSize);
-    bool platform_getFeatureReport(uint8_t* reportBuffer, size_t bufferSize);
-    QString platform_getHIDDevicePath();
-
     // IHIDTransport override — re-open as synchronous handle for flash ops.
     bool reopenSync() override;
 
     // Cache for the discovered HID device path (cleared by clearDevicePathCache).
-#ifdef _WIN32
-    std::wstring      m_cachedDevicePath;
-#elif __linux__
-    QString           m_cachedDevicePath;
-#endif
+    QString m_cachedDevicePath;
 
     // Polling thread used to poll device status periodically.
     class PollingThread; // forward-declared in videohid.cpp
@@ -275,8 +237,10 @@ private:
 
     StatusEventCallback* eventCallback = nullptr;
 
-    bool writeChunk(quint16 address, const QByteArray &data);
-    bool writeEeprom(quint16 address, const QByteArray &data);
+    bool writeChunk(quint16 address, const QByteArray &data,
+                    const std::function<void(int)>& chunkCallback = {});
+    bool writeEeprom(quint16 address, const QByteArray &data,
+                     std::function<void(int)> chunkCallback = nullptr);
     bool readChunk(quint16 address, QByteArray &data, int chunkSize);
     uint32_t read_size = 0;
 
@@ -298,6 +262,9 @@ private:
     // Chip detection and implementation
     VideoChipType m_chipType = VideoChipType::UNKNOWN;
     std::unique_ptr<VideoChip> m_chipImpl{nullptr};
+
+    // Firmware operation manager for loadFirmwareToEeprom()
+    FirmwareOperationManager* m_firmwareOpManager{nullptr};
 
     // Chunk-write progress for firmware write
     quint32 written_size = 0;

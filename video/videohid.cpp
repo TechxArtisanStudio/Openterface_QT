@@ -1,4 +1,4 @@
-#include "videohid.h"
+﻿#include "videohid.h"
 
 #include <QDebug>
 #include <QDir>
@@ -18,6 +18,7 @@
 #include <QtConcurrent>
 #include "firmware/FirmwareNetworkClient.h"
 
+#include "firmwareoperationmanager.h"
 #include "ms2109.h"
 #include "ms2109s.h"
 #include "ms2130s.h"
@@ -28,7 +29,6 @@
 #include "../device/HotplugMonitor.h"
 #include "../ui/globalsetting.h"
 #include "../device/platform/AbstractPlatformDeviceManager.h"
-#include "platformhidadapter.h"
 #include "videohidchip.h"
 #include "detection/ChipDetector.h"
 #include "transport/WindowsHIDTransport.h"
@@ -51,13 +51,8 @@ VideoHid::VideoHid(QObject *parent) : QObject(parent), m_inTransaction(false) {
     m_deviceTransport = std::make_unique<LinuxHIDTransport>(this);
 #endif
 
-    // Create legacy platform adapter (delegates to platform_* which now delegate
-    // to m_deviceTransport).  Kept for backward-compat with existing call sites.
-    m_platformAdapter.reset(PlatformHidAdapter::create(this));
-    if (m_platformAdapter) {
-        qCDebug(log_host_hid) << "PlatformHidAdapter initialized. Initial HID path:"
-                              << m_platformAdapter->getHIDDevicePath();
-    }
+    // Create firmware operation manager (used by loadFirmwareToEeprom).
+    m_firmwareOpManager = new FirmwareOperationManager(this, ADDR_EEPROM, this);
 }
 
 VideoHid::~VideoHid() {
@@ -70,6 +65,10 @@ VideoHid::~VideoHid() {
     disconnectFromHotplugMonitor();
     // Ensure we stop polling and close any open device before destruction
     stop();
+}
+
+FirmwareOperationManager* VideoHid::getFirmwareOperationManager() const {
+    return m_firmwareOpManager;
 }
 
 // Nested PollingThread type definition for VideoHid
@@ -121,11 +120,11 @@ void VideoHid::detectChipType() {
 
     m_chipImpl = ChipDetector::createChip(m_chipType, this);
 
-    // Wire the progress callback for Ms2130sChip firmware writes
+    // Wire a default no-op progress tracker for Ms2130sChip firmware writes.
+    // The actual per-write callback is injected via writeEeprom() at write time.
     if (auto* ms2130s = dynamic_cast<Ms2130sChip*>(m_chipImpl.get())) {
         ms2130s->onChunkWritten = [this](quint32 n) {
             written_size = n;
-            emit firmwareWriteChunkComplete(static_cast<int>(n));
         };
     }
 
@@ -701,10 +700,9 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
     }
 }
 
-// Legacy per-chip read helpers (usbXdataRead4ByteMS2130S/MS2109/MS2109S) removed.
-// Logic now lives in Ms2xxxChip::read4Byte().
+// Legacy per-chip read helpers moved to Ms2xxxChip::read4Byte().
 
-#if 0  // BEGIN REMOVED LEGACY METHODS
+#if 0  // BEGIN REMOVED LEGACY METHODS (retained temporarily for reference only)
 QPair<QByteArray, bool> VideoHid::usbXdataRead4ByteMS2130S(quint16 u16_address) {
     // For MS2130S chip - use multiple approaches with strict error handling
     bool wasInTransaction = m_inTransaction;
@@ -1119,35 +1117,6 @@ bool VideoHid::reopenSync() {
     return false;
 }
 
-void VideoHid::closeHIDDeviceHandle() {
-    if (m_deviceTransport) m_deviceTransport->close();
-}
-
-// Platform wrapper implementations used by PlatformHidAdapter
-bool VideoHid::platform_openDevice() {
-    if (m_deviceTransport) return m_deviceTransport->open();
-    return false;
-}
-
-void VideoHid::platform_closeDevice() {
-    if (m_deviceTransport) m_deviceTransport->close();
-}
-
-bool VideoHid::platform_sendFeatureReport(uint8_t* reportBuffer, size_t bufferSize) {
-    if (m_deviceTransport) return m_deviceTransport->sendFeatureReport(reportBuffer, bufferSize);
-    return false;
-}
-
-bool VideoHid::platform_getFeatureReport(uint8_t* reportBuffer, size_t bufferSize) {
-    if (m_deviceTransport) return m_deviceTransport->getFeatureReport(reportBuffer, bufferSize);
-    return false;
-}
-
-QString VideoHid::platform_getHIDDevicePath() {
-    if (m_deviceTransport) return m_deviceTransport->getHIDDevicePath();
-    return {};
-}
-
 bool VideoHid::beginTransaction() {
     if (m_inTransaction) {
         qCDebug(log_host_hid)  << "Transaction already in progress";
@@ -1165,13 +1134,7 @@ bool VideoHid::beginTransaction() {
             QThread::msleep(100); 
         }
         
-        #ifdef _WIN32
-            success = m_deviceTransport ? m_deviceTransport->open() : false;
-        #elif __linux__
-            success = m_deviceTransport ? m_deviceTransport->open() : false;
-        #else
-            success = false;
-        #endif
+        success = m_deviceTransport ? m_deviceTransport->open() : false;
     }
 
     if (success) {
@@ -1209,7 +1172,7 @@ void VideoHid::endTransaction() {
             QThread::msleep(10);
         }
         
-        closeHIDDeviceHandle();
+        if (m_deviceTransport) m_deviceTransport->close();
         m_inTransaction = false;
         qCDebug(log_host_hid) << "HID transaction ended";
     }
@@ -1324,7 +1287,6 @@ bool VideoHid::readChunk(quint16 address, QByteArray &data, int chunkSize) {
         if (getFeatureReport((uint8_t*)result.data(), result.size())) {
             data.append(result.mid(4, chunkSize));
             read_size += chunkSize;
-            emit firmwareReadChunkComplete(read_size);
             return true;
         }
     }
@@ -1332,7 +1294,9 @@ bool VideoHid::readChunk(quint16 address, QByteArray &data, int chunkSize) {
     return false;
 }
 
-QByteArray VideoHid::readEeprom(quint16 address, quint32 size) {
+QByteArray VideoHid::readEeprom(quint16 address, quint32 size,
+                                std::function<void(int)> progressCallback)
+{
     const int MAX_CHUNK = 1;
     const int MAX_RETRIES = 3; // Number of retries for failed reads
     QByteArray firmwareData;
@@ -1341,7 +1305,6 @@ QByteArray VideoHid::readEeprom(quint16 address, quint32 size) {
     // Begin transaction for the entire operation
     if (!beginTransaction()) {
         qCDebug(log_host_hid) << "Failed to begin transaction for EEPROM read";
-        emit firmwareReadError("Failed to begin transaction for EEPROM read");
         return QByteArray();
     }
 
@@ -1376,7 +1339,7 @@ QByteArray VideoHid::readEeprom(quint16 address, quint32 size) {
             firmwareData.append(chunk);
             currentAddress += chunkSize;
             bytesRemaining -= chunkSize;
-            emit firmwareReadProgress((read_size * 100) / size);
+            if (progressCallback) progressCallback((read_size * 100) / size);
             if (read_size % 64 == 0) {
                 qCDebug(log_host_hid) << "Read size:" << read_size;
             }
@@ -1394,7 +1357,6 @@ QByteArray VideoHid::readEeprom(quint16 address, quint32 size) {
 
     if (!success) {
         qCDebug(log_host_hid) << "EEPROM read failed";
-        emit firmwareReadError("Failed to read firmware from EEPROM");
         return QByteArray();
     }
 
@@ -1405,7 +1367,6 @@ quint32 VideoHid::readFirmwareSize(){
     QByteArray header = readEeprom(ADDR_EEPROM, 4);
     if (header.size() != 4) {
         qDebug() << "Can not read firemware header form eeprom:" << header.size();
-        emit firmwareReadError("Can not read firemware header form eeprom");
         return 0;
     }
 
@@ -1430,14 +1391,11 @@ void VideoHid::loadEepromToFile(const QString &filePath) {
     connect(thread, &QThread::finished, thread, &QThread::deleteLater);
 
 
-    connect(worker, &FirmwareReader::finished, this, [this](bool success) {
+    connect(worker, &FirmwareReader::finished, this, [](bool success) {
         if (success) {
             qCDebug(log_host_hid) << "Firmware read completed successfully";
-            emit firmwareReadComplete(true);
         } else {
             qCDebug(log_host_hid) << "Firmware read failed - user should try again";
-            emit firmwareReadComplete(false);
-
         }
     });
     
@@ -1450,20 +1408,10 @@ QString VideoHid::findMatchingHIDDevice(const QString& portChain) const
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_lastPathQuery).count();
     
-#ifdef _WIN32
-    if (!m_cachedDevicePath.empty() && elapsed < 10) {
-        // Return cached path if it's less than 10 seconds old
-        QString cachedPath = QString::fromStdWString(m_cachedDevicePath);
-        qCDebug(log_host_hid) << "Using cached HID device path:" << cachedPath;
-        return cachedPath;
-    }
-#elif __linux__
     if (!m_cachedDevicePath.isEmpty() && elapsed < 10) {
-        // Return cached path if it's less than 10 seconds old
         qCDebug(log_host_hid) << "Using cached HID device path:" << m_cachedDevicePath;
         return m_cachedDevicePath;
     }
-#endif
 
     // Update the last query time (need to cast away const since this is conceptually a const operation)
     const_cast<VideoHid*>(this)->m_lastPathQuery = now;
@@ -1515,11 +1463,7 @@ QString VideoHid::findMatchingHIDDevice(const QString& portChain) const
             qCDebug(log_host_hid) << "Selected HID device path:" << selectedDevice.hidDevicePath;
             
             // Cache the found device path
-#ifdef _WIN32
-            const_cast<VideoHid*>(this)->m_cachedDevicePath = selectedDevice.hidDevicePath.toStdWString();
-#elif __linux__
             const_cast<VideoHid*>(this)->m_cachedDevicePath = selectedDevice.hidDevicePath;
-#endif
             
             return selectedDevice.hidDevicePath;
         }
@@ -1592,11 +1536,7 @@ bool VideoHid::switchToHIDDeviceByPortChain(const QString& portChain)
         // Clear cached device path to force re-discovery with new device
         clearDevicePathCache();
         
-#ifdef _WIN32
-        m_cachedDevicePath = targetHIDPath.toStdWString();
-#elif __linux__
         m_cachedDevicePath = targetHIDPath;
-#endif
 
         // Re-open HID device with new path if it was previously open
         bool switchSuccess = true;
@@ -1642,7 +1582,9 @@ bool VideoHid::switchToHIDDeviceByPortChain(const QString& portChain)
     }
 }
 
-bool VideoHid::writeChunk(quint16 address, const QByteArray &data) {
+bool VideoHid::writeChunk(quint16 address, const QByteArray &data,
+                          const std::function<void(int)>& chunkCallback)
+{
     const int chunkSize = 1;
     const int REPORT_SIZE = 9;
 
@@ -1668,14 +1610,15 @@ bool VideoHid::writeChunk(quint16 address, const QByteArray &data) {
             return false;
         }
         written_size += chunk_length;
-        qCDebug(log_host_hid) << "writeChunk: emitted firmwareWriteChunkComplete, written_size=" << written_size << " addr=" << QString("0x%1").arg(_address, 4, 16, QChar('0')).toUpper();
-        emit firmwareWriteChunkComplete(written_size);
+        if (chunkCallback) chunkCallback(written_size);
         _address += chunkSize; 
     }
     return true;
 }
 
-bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
+bool VideoHid::writeEeprom(quint16 address, const QByteArray &data,
+                           std::function<void(int)> chunkCallback)
+{
     // Snapshot chip type once to avoid hotplug race changing behavior mid-flash.
     const VideoChipType chipTypeAtStart = m_chipType;
 
@@ -1694,7 +1637,19 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
     bool success = true;
 
     if (chipTypeAtStart == VideoChipType::MS2130S) {
+        // Override the chip's onChunkWritten for the duration of this write so it calls
+        // our callback instead of the removed firmwareWriteChunkComplete signal.
+        if (auto* ms2130s = dynamic_cast<Ms2130sChip*>(m_chipImpl.get())) {
+            ms2130s->onChunkWritten = [this, chunkCallback](quint32 n) {
+                written_size = n;
+                if (chunkCallback) chunkCallback(static_cast<int>(n));
+            };
+        }
         success = ms2130sWriteFirmware(address, data);
+        // Restore no-op default after write
+        if (auto* ms2130s = dynamic_cast<Ms2130sChip*>(m_chipImpl.get())) {
+            ms2130s->onChunkWritten = [this](quint32 n) { written_size = n; };
+        }
     } else {
         const int MAX_CHUNK = 16;
         QByteArray remainingData = data;
@@ -1707,7 +1662,7 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data) {
         } else {
             while (!remainingData.isEmpty() && success) {
                 QByteArray chunk = remainingData.left(MAX_CHUNK);
-                success = writeChunk(address, chunk);
+                success = writeChunk(address, chunk, chunkCallback);
 
                 if (success) {
                     address += chunk.size();
@@ -1789,10 +1744,8 @@ bool VideoHid::ms2130sWriteFirmware(quint16 address, const QByteArray &data) {
 void VideoHid::loadFirmwareToEeprom() {
     qCDebug(log_host_hid) << "loadFirmwareToEeprom() called";
     
-    // Create firmware data
     if (m_netClient.getNetworkFirmware().empty()) {
         qCDebug(log_host_hid) << "No firmware data available to write - networkFirmware is empty";
-        emit firmwareWriteComplete(false);
         return;
     }
 
@@ -1800,47 +1753,9 @@ void VideoHid::loadFirmwareToEeprom() {
     qCDebug(log_host_hid) << "networkFirmware size:" << rawFirmware.size() << "bytes";
 
     QByteArray firmware(reinterpret_cast<const char*>(rawFirmware.data()), rawFirmware.size());
-    qCDebug(log_host_hid) << "Created QByteArray firmware with size:" << firmware.size() << "bytes";
-    
-    // Create a worker thread to handle firmware writing
-    QThread* thread = new QThread();
-    thread->setObjectName("FirmwareWriterThread");
-    FirmwareWriter* worker = new FirmwareWriter(this, ADDR_EEPROM, firmware);
-    worker->moveToThread(thread);
-    
-    qCDebug(log_host_hid) << "Created FirmwareWriter worker thread";
-    
-    // Connect signals/slots
-    connect(thread, &QThread::started, worker, &FirmwareWriter::process);
-    connect(worker, &FirmwareWriter::finished, thread, &QThread::quit);
-    connect(worker, &FirmwareWriter::finished, worker, &FirmwareWriter::deleteLater);
-    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
-    
-    // Connect progress and status signals if needed
-    connect(worker, &FirmwareWriter::progress, this, [this](int percent) {
-        // Update last-known percent so UI can poll it if signals are missed
-        m_lastFirmwarePercent.store(percent);
-        qCDebug(log_host_hid) << "Firmware write progress: " << percent << "%";
-        emit firmwareWriteProgress(percent);
-    });
-    
-    connect(worker, &FirmwareWriter::finished, this, [this](bool success) {
-        if (success) {
-            qCInfo(log_host_hid) << "[Firmware Update] SUCCESS �?firmware has been written to the device";
-            emit firmwareWriteComplete(true);
-        } else {
-            qCWarning(log_host_hid) << "[Firmware Update] FAILED �?please reconnect the device and try again";
-            emit firmwareWriteComplete(false);
-            emit firmwareWriteError("Firmware update failed. Please try again.");
-        }
-    });
-    
-    qCDebug(log_host_hid) << "Signals connected, starting FirmwareWriter thread...";
-    
-    // Start the thread
-    thread->start();
-    
-    qCDebug(log_host_hid) << "FirmwareWriter thread started successfully";
+    qCDebug(log_host_hid) << "Delegating to FirmwareOperationManager, firmware size:" << firmware.size() << "bytes";
+
+    m_firmwareOpManager->writeFirmware(firmware, QString());
 }
 
 FirmwareResult VideoHid::isLatestFirmware() {

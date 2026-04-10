@@ -13,14 +13,10 @@ void FirmwareReader::process()
 {
     qDebug() << "Starting firmware read process in thread:" << QThread::currentThreadId();
 
-    // Connect to VideoHid's progress signal to forward progress updates
-    connect(m_videoHid, &VideoHid::firmwareReadProgress, this, &FirmwareReader::progress);
-
-    // Read firmware from EEPROM
-    QByteArray firmwareData = m_videoHid->readEeprom(m_address, m_size);
-
-    // Disconnect the progress signal to prevent further emissions
-    disconnect(m_videoHid, &VideoHid::firmwareReadProgress, this, &FirmwareReader::progress);
+    // Read firmware from EEPROM, passing a progress callback so VideoHid can report
+    // per-chunk progress without needing the removed firmwareReadProgress signal.
+    QByteArray firmwareData = m_videoHid->readEeprom(m_address, m_size,
+                                                      [this](int pct){ emit progress(pct); });
 
     if (QThread::currentThread()->isInterruptionRequested()) {
         qDebug() << "FirmwareReader::process interrupted after read";

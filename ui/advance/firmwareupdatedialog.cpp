@@ -1,4 +1,5 @@
 #include "firmwareupdatedialog.h"
+#include "video/firmwareoperationmanager.h"
 #include <QMessageBox>
 #include <QDebug>
 
@@ -77,8 +78,9 @@ bool FirmwareUpdateDialog::startUpdate()
     statusLabel->setText(tr("Updating firmware... Please do not disconnect the device."));
 
     // Connect signals before starting
-    connect(&VideoHid::getInstance(), &VideoHid::firmwareWriteProgress, this, &FirmwareUpdateDialog::updateProgress);
-    connect(&VideoHid::getInstance(), &VideoHid::firmwareWriteComplete, this, &FirmwareUpdateDialog::updateComplete);
+    FirmwareOperationManager* mgr = VideoHid::getInstance().getFirmwareOperationManager();
+    connect(mgr, &FirmwareOperationManager::progress,       this, &FirmwareUpdateDialog::updateProgress);
+    connect(mgr, &FirmwareOperationManager::writeCompleted, this, &FirmwareUpdateDialog::updateComplete);
     qDebug() << "Signals connected, showing dialog";
 
     // Show the dialog first so the user sees it immediately, then start the firmware load
@@ -104,8 +106,9 @@ void FirmwareUpdateDialog::updateComplete(bool success)
     updateResult = success;
     
     // Disconnect the signals to prevent further updates
-    disconnect(&VideoHid::getInstance(), &VideoHid::firmwareWriteProgress, this, &FirmwareUpdateDialog::updateProgress);
-    disconnect(&VideoHid::getInstance(), &VideoHid::firmwareWriteComplete, this, &FirmwareUpdateDialog::updateComplete);
+    FirmwareOperationManager* mgr = VideoHid::getInstance().getFirmwareOperationManager();
+    disconnect(mgr, &FirmwareOperationManager::progress,       this, &FirmwareUpdateDialog::updateProgress);
+    disconnect(mgr, &FirmwareOperationManager::writeCompleted, this, &FirmwareUpdateDialog::updateComplete);
     
     if (success) {
         // Stop all HID threads FIRST so the device is fully released
