@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.0" language="en_US">
+<TS version="2.1" language="en_US">
 <context>
     <name>AudioPage</name>
     <message>
@@ -810,69 +810,69 @@ Interfaces:
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="148"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="150"/>
         <source> The device is not plugged in. Please plug it in and try again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="174"/>
-        <source> (needs removal)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="174"/>
-        <source> (not running)</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="215"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="219"/>
         <source>Install Driver</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="135"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="137"/>
         <source>The following steps help you install the driver and the Openterface firmware update. Current status:&lt;br&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="169"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="171"/>
         <source>The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:&lt;br&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="138"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="170"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="140"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="172"/>
         <source>◆ Driver Installed: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="139"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="175"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="141"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="179"/>
         <source>◆ Latest Firmware: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="171"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="173"/>
         <source>◆ In Serial Port Permission: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="172"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="174"/>
         <source>◆ HID Permission: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="173"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="175"/>
         <source>◆ Video Permission: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="174"/>
-        <source>◆ BRLTTY checking: </source>
+        <location filename="../../ui/advance/envdialog.cpp" line="176"/>
+        <source>◆ BRLTTY (brltty-udev.service): </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="216"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="177"/>
+        <source> active - interferes with device access. Run the commands below to fix.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="178"/>
+        <source> not active - OK</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/envdialog.cpp" line="220"/>
         <source>The driver is missing. Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html 
 
 After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.
@@ -881,74 +881,74 @@ Please restart your computer after the driver installation.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="222"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="226"/>
         <source>Copy Link</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="238"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="242"/>
         <source>Select Destination Directory</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="294"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="298"/>
         <source>Driver Installed: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="294"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="295"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="296"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="298"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="299"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="300"/>
         <source>Yes</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="294"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="295"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="296"/>
-        <location filename="../../ui/advance/envdialog.cpp" line="297"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="298"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="299"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="300"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="301"/>
         <source>No</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="295"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="299"/>
         <source>Serial port Permission: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="296"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="300"/>
         <source>HID Permission: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="297"/>
-        <source>BRLTTY is Running: </source>
+        <location filename="../../ui/advance/envdialog.cpp" line="301"/>
+        <source>BRLTTY (brltty-udev.service) active: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="297"/>
-        <source>Yes (needs removal)</source>
+        <location filename="../../ui/advance/envdialog.cpp" line="301"/>
+        <source>Yes (run the commands below to fix)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="303"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="307"/>
         <source>Restart Required</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="304"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="308"/>
         <source>The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.
 
 Would you like to restart your computer now?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="313"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="317"/>
         <source>Restart Later</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/envdialog.cpp" line="314"/>
+        <location filename="../../ui/advance/envdialog.cpp" line="318"/>
         <source>Please remember to restart your computer and re-plug the device for the driver to work properly.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1086,6 +1086,35 @@ You can restart the app or write the firmware</source>
     <message>
         <location filename="../../ui/advance/firmwaremanagerdialog.cpp" line="247"/>
         <source>Firmware read operation was cancelled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>FirmwareOperationManager</name>
+    <message>
+        <location filename="../../video/firmwareoperationmanager.cpp" line="22"/>
+        <location filename="../../video/firmwareoperationmanager.cpp" line="54"/>
+        <source>Firmware operation timeout</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../video/firmwareoperationmanager.cpp" line="29"/>
+        <source>Invalid firmware read parameters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../video/firmwareoperationmanager.cpp" line="61"/>
+        <source>Invalid firmware write parameters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../video/firmwareoperationmanager.cpp" line="115"/>
+        <source>Failed to read firmware</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../video/firmwareoperationmanager.cpp" line="136"/>
+        <source>Failed to write firmware</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -1261,27 +1290,42 @@ Please try again after restarting the application.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="89"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="61"/>
+        <source>Hide keyboard input characters displayed in bottom-left corner</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/logpage.cpp" line="91"/>
         <source>General log setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="93"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="95"/>
         <source>Check the check box to see the corresponding log in the QT console.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="98"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="100"/>
         <source>Screen Saver setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="102"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="104"/>
         <source>Inhibit the screen saver when the application is running.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/logpage.cpp" line="123"/>
+        <location filename="../../ui/preferences/logpage.cpp" line="107"/>
+        <source>Privacy setting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/logpage.cpp" line="111"/>
+        <source>Hide the keyboard input shown in the status bar to prevent others from seeing which keys are pressed.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/preferences/logpage.cpp" line="136"/>
         <source>Select Log Directory</source>
         <translation type="unfinished"></translation>
     </message>
@@ -1784,6 +1828,11 @@ Current version: </source>
     <message>
         <location filename="../../ui/help/versioninfomanager.cpp" line="306"/>
         <source>Copied to clipboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/edid/resolutionmodel.cpp" line="69"/>
+        <source>Extension</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -2472,6 +2521,82 @@ Please:
     </message>
 </context>
 <context>
+    <name>StatusWidget</name>
+    <message>
+        <location filename="../../ui/statusbar/statuswidget.cpp" line="743"/>
+        <source>Resolution/FPS mismatch detected!
+
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/statusbar/statuswidget.cpp" line="744"/>
+        <source>Preferred setting: %1x%2@%3fps
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/statusbar/statuswidget.cpp" line="745"/>
+        <source>Actual input: %1x%2@%3fps
+
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/statusbar/statuswidget.cpp" line="746"/>
+        <source>Where to adjust:
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/statusbar/statuswidget.cpp" line="747"/>
+        <source>1. Go to Preferences -&gt; Video Settings to change capture resolution/framerate
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/statusbar/statuswidget.cpp" line="748"/>
+        <source>2. Adjust your source device&apos;s output resolution/framerate
+
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/statusbar/statuswidget.cpp" line="749"/>
+        <source>Potential consequences of mismatch:
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/statusbar/statuswidget.cpp" line="750"/>
+        <source>- Reduced performance and frame drops
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/statusbar/statuswidget.cpp" line="751"/>
+        <source>- Display scaling artifacts
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/statusbar/statuswidget.cpp" line="752"/>
+        <source>- Possible audio/video sync issues
+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/statusbar/statuswidget.cpp" line="753"/>
+        <source>- Suboptimal user experience</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/statusbar/statuswidget.cpp" line="755"/>
+        <source>Resolution/FPS Mismatch Warning</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>SupportEmailDialog</name>
     <message>
         <location filename="../../ui/advance/diagnostics/SupportEmailDialog.cpp" line="18"/>
@@ -2663,92 +2788,92 @@ Also attach the serial log file: %1</translation>
 <context>
     <name>TargetControlPage</name>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="38"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="43"/>
         <source>Target control setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="42"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="47"/>
         <source>Target Control Operating Mode:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="45"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="50"/>
         <source>[Performance] Standard USB keyboard + USB mouse device + USB custom HID device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="46"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="51"/>
         <source>The target USB port is a multi-functional composite device supporting a keyboard, mouse, and custom HID device. It performs best, though the mouse may have compatibility issues with Mac OS and Linux.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="47"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="52"/>
         <source>[Keyboard Only] Standard USB keyboard device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="48"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="53"/>
         <source>The target USB port is a standard keyboard device without multimedia keys, supporting full keyboard mode and suitable for systems that don&apos;t support composite devices.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="49"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="54"/>
         <source>[Compatibility] Standard USB keyboard + USB mouse device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="50"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="55"/>
         <source>The target USB port is a muti-functional composite device for keyboard and mouse. Best competibility with Mac OS, Andriod and Linux.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="51"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="56"/>
         <source>[Custom HID] Standard USB custom HID device</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="52"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="57"/>
         <source>The target USB port is a custom HID device supporting data transmission between host serial and target HID .</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="77"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="82"/>
         <source>Custom target USB Composite Device VID and PID:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="78"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="83"/>
         <source>Custom target USB descriptors: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="79"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="84"/>
         <source>VID: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="80"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="85"/>
         <source>PID: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="81"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="86"/>
         <source>Custom vendor descriptor:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="82"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="87"/>
         <source>Custom product descriptor:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="83"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="88"/>
         <source>USB serial number:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="84"/>
+        <location filename="../../ui/preferences/targetcontrolpage.cpp" line="89"/>
         <source>Enable custom USB flag</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2756,38 +2881,49 @@ Also attach the serial log file: %1</translation>
 <context>
     <name>UpdateDisplaySettingsDialog</name>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="176"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="103"/>
         <source>Update Display Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="185"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="111"/>
         <source>Display Name</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="188"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="111"/>
         <source>Update display name</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="193"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="112"/>
         <source>Loading current display name...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="200"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="115"/>
         <source>Serial Number</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="203"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="115"/>
         <source>Update serial number</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="208"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="116"/>
         <source>Loading current serial number...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="159"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="590"/>
+        <source>EDID processing error</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="178"/>
+        <source>firmware write failure</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2797,12 +2933,12 @@ Also attach the serial log file: %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="218"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="534"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="557"/>
         <source>Reading firmware data...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="229"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="228"/>
         <source>Cancel Reading</source>
         <translation type="unfinished"></translation>
     </message>
@@ -2813,96 +2949,140 @@ Also attach the serial log file: %1</translation>
     </message>
     <message>
         <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="246"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="830"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="840"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="844"/>
+        <source>Backup Firmware</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="250"/>
         <source>Cancel</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="279"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="274"/>
         <source>Enabled</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="279"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="274"/>
         <source>Resolution</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="279"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="274"/>
         <source>Refresh Rate</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="279"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="274"/>
         <source>Source</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="365"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="370"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="377"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="387"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="392"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="399"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="391"/>
+        <source>%1 cannot be empty when enabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="396"/>
+        <source>%1 cannot exceed %2 characters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="402"/>
+        <source>%1 must contain only ASCII characters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="415"/>
+        <source>Display name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="416"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="426"/>
         <source>Invalid Input</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="365"/>
-        <source>Display name cannot be empty when enabled.</source>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="739"/>
+        <source>user cancellation</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="370"/>
-        <source>Display name cannot exceed 13 characters.</source>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="782"/>
+        <source>Writing modified firmware...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="377"/>
-        <source>Display name must contain only ASCII characters.</source>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="802"/>
+        <source>Updating display settings...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="387"/>
-        <source>Serial number cannot be empty when enabled.</source>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="807"/>
+        <source>firmware size read error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="392"/>
-        <source>Serial number cannot exceed 13 characters.</source>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="830"/>
+        <source>No firmware data available to backup.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="399"/>
-        <source>Serial number must contain only ASCII characters.</source>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="834"/>
+        <source>Backup firmware to</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="411"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="834"/>
+        <source>Binary Files (*.bin);;All Files (*)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="840"/>
+        <source>Failed to save firmware backup to %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="844"/>
+        <source>Firmware backup saved to %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="437"/>
         <source>No Updates Selected</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="411"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="437"/>
         <source>Please select at least one setting to update.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="418"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="419"/>
         <source>Display Name: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="421"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="425"/>
+        <source>Serial number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="429"/>
         <source>Serial Number: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="425"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="433"/>
         <source>Resolution Changes: %1 resolution(s) selected</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="428"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="454"/>
         <source>The following changes will be applied:
 
 %1
@@ -2911,48 +3091,64 @@ Do you want to continue?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="430"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="455"/>
         <source>Confirm Updates</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="440"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="462"/>
         <source>Update Failed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="440"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="462"/>
         <source>Failed to start the update process.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="521"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="599"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="612"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="625"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="546"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="617"/>
         <source>Failed to read firmware - enter display name</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="522"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="600"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="613"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="626"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="547"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="618"/>
         <source>Failed to read firmware - enter serial number</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="725"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="578"/>
+        <source>firmware read failure</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="594"/>
+        <source>Waiting for firmware thread to finish before write...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="631"/>
+        <source>Failed to parse firmware - enter display name</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="632"/>
+        <source>Failed to parse firmware - enter serial number</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="717"/>
         <source>Error reading firmware - enter display name</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="726"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="718"/>
         <source>Error reading firmware - enter serial number</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1870"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="175"/>
         <source>Display settings updated successfully!
 
 The application will now exit.
@@ -2960,129 +3156,95 @@ Please disconnect and reconnect the entire device to apply the changes.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="636"/>
-        <source>EDID not found - enter display name</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="637"/>
-        <source>EDID not found - enter serial number</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="644"/>
-        <source>Invalid EDID - enter display name</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="645"/>
-        <source>Invalid EDID - enter serial number</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="660"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="659"/>
         <source>Enter new display name (max 13 characters)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="664"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="662"/>
         <source>No display name found - enter new name</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="670"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="667"/>
         <source>Enter new serial number (max 13 characters)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="674"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="670"/>
         <source>No serial number found - enter new serial</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="731"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="722"/>
         <source>Firmware Read Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="732"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="722"/>
         <source>Failed to read firmware: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="776"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="722"/>
+        <source>firmware read error</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="736"/>
         <source>Reading cancelled - enter display name</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="777"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="737"/>
         <source>Reading cancelled - enter serial number</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1038"/>
-        <source>Extension</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1736"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="807"/>
         <source>Firmware Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1736"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="807"/>
         <source>Failed to read firmware size.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1773"/>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1919"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="578"/>
         <source>Read Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1773"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="578"/>
         <source>Failed to read firmware from device.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1798"/>
-        <source>File Error</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1798"/>
-        <source>Failed to read firmware file.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1821"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="159"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="590"/>
         <source>Processing Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1821"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="159"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="590"/>
         <source>Failed to process EDID settings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1869"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="175"/>
         <source>Success</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1889"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="178"/>
         <source>Write Error</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1889"/>
+        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="178"/>
         <source>Failed to write firmware to device.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../../ui/advance/updatedisplaysettingsdialog.cpp" line="1919"/>
-        <source>Firmware read failed: %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3163,132 +3325,132 @@ Latest version: %2
 <context>
     <name>VideoPage</name>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="103"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="104"/>
         <source>General video setting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="107"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="108"/>
         <source>Capture resolutions: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="113"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="114"/>
         <source>Framerate: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="122"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="123"/>
         <source>Pixel format: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="127"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="128"/>
         <source>Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="135"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="136"/>
         <source>Media Backend: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="150"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="151"/>
         <source>Note: Changing media backend requires application restart to take effect.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="154"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="155"/>
         <source>GStreamer Sink Priority: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="163"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="164"/>
         <source>Comma-separated list of sinks to try in order.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="171"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="172"/>
         <source>Hardware Acceleration: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="178"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="179"/>
         <source>Note: Hardware acceleration improves performance but may not be available on all systems. Changing this setting requires application restart to take effect.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="203"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="204"/>
         <source>Auto (Recommended)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="205"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="206"/>
         <source>NVIDIA CUDA</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="207"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="208"/>
         <source>Intel Quick Sync Video</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="209"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="210"/>
         <source>CPU</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="226"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="227"/>
         <source>Image Quality: </source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="231"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="232"/>
         <source>Fastest (Lower quality)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="232"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="233"/>
         <source>Balanced (Good quality)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="233"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="234"/>
         <source>High Quality (Recommended)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="234"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="235"/>
         <source>Best Quality (Slower)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="249"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="250"/>
         <source>Note: Higher quality settings provide sharper images but may use slightly more CPU.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="281"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="282"/>
         <source>Video Rendering Quality:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="284"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="285"/>
         <source>Enable Antialiasing (smoother edges)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="288"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="289"/>
         <source>Enable Text Antialiasing (clearer text)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="292"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="293"/>
         <source>Enable Smooth Transform (better scaling)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/preferences/videopage.cpp" line="296"/>
+        <location filename="../../ui/preferences/videopage.cpp" line="297"/>
         <source>Note: These settings control video display quality. Disabling may improve performance on slower systems.</source>
         <translation type="unfinished"></translation>
     </message>
