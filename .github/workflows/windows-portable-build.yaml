@@ -562,6 +562,11 @@ jobs:
               exit 1
             fi
           done
+
+          echo ""
+          echo "=== PCRE2 library diagnostics ==="
+          ls -lh /mingw64/lib/libpcre2-16* 2>&1 || echo "No /mingw64 pcre2 libraries found"
+          ls -lh /c/msys64/mingw64/lib/libpcre2-16* 2>&1 || echo "No /c/msys64/mingw64 pcre2 libraries found"
           
           # Verify FFmpeg static libraries
           echo "Verifying FFmpeg static libraries in /c/ffmpeg-static/lib:"

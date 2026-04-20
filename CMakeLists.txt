@@ -133,31 +133,44 @@ if(OPENTERFACE_BUILD_STATIC)
     endforeach()
 endif()
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus Threads::Threads)
+set(OPENTERFACE_STATIC_PCRE2_LIB "")
 
-# Link X11 libraries for Linux builds to resolve X11 symbols used in overlay code
-if(UNIX AND NOT APPLE)
-    target_link_libraries(${PROJECT_NAME} PRIVATE ${X11_LIBRARIES})
-endif()
-
-# For static Qt builds on Windows with MinGW, link MinGW runtime libraries
-# When building static on Windows, prefer real static libraries (.a) over import libs (.dll.a)
 if(OPENTERFACE_BUILD_STATIC AND WIN32)
     set(MSYS_MINGW_PATH "/mingw64")
     list(INSERT CMAKE_LIBRARY_PATH 0 "${MSYS_MINGW_PATH}/lib")
     list(INSERT CMAKE_INCLUDE_PATH 0 "${MSYS_MINGW_PATH}/include")
     message(STATUS "Using MSYS2 MinGW path: ${MSYS_MINGW_PATH}")
-    
-    # Link PCRE2 static library (required by Qt6Core for QRegularExpression)
-    # PCRE2 must be linked BEFORE Qt6 because Qt6Core depends on PCRE2
-    set(PCRE2_LIB "${MSYS_MINGW_PATH}/lib/libpcre2-16.a")
-    if(EXISTS "${PCRE2_LIB}")
-        target_link_libraries(openterfaceQT PRIVATE "${PCRE2_LIB}")
-        message(STATUS "Linked PCRE2 static library: ${PCRE2_LIB}")
+
+    find_library(OPENTERFACE_PCRE2_LIBRARY
+        NAMES pcre2-16 pcre2
+        PATHS "${MSYS_MINGW_PATH}/lib"
+        NO_DEFAULT_PATH)
+
+    if(OPENTERFACE_PCRE2_LIBRARY)
+        message(STATUS "Found PCRE2 library: ${OPENTERFACE_PCRE2_LIBRARY}")
+        set(OPENTERFACE_STATIC_PCRE2_LIB "${OPENTERFACE_PCRE2_LIBRARY}")
     else()
-        message(WARNING "PCRE2 static library not found at: ${PCRE2_LIB}")
-        message(WARNING "Static Qt build requires PCRE2. CI environment must install: mingw-w64-x86_64-pcre2")
+        set(PCRE2_LIB_PATH "${MSYS_MINGW_PATH}/lib/libpcre2-16.a")
+        if(EXISTS "${PCRE2_LIB_PATH}")
+            message(STATUS "Found PCRE2 static archive: ${PCRE2_LIB_PATH}")
+            set(OPENTERFACE_STATIC_PCRE2_LIB "${PCRE2_LIB_PATH}")
+        else()
+            message(WARNING "PCRE2 library not found in ${MSYS_MINGW_PATH}/lib")
+            message(WARNING "Static Qt build requires PCRE2. CI environment must install: mingw-w64-x86_64-pcre2")
+        endif()
     endif()
+endif()
+
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus Threads::Threads)
+
+if(OPENTERFACE_STATIC_PCRE2_LIB)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${OPENTERFACE_STATIC_PCRE2_LIB})
+    message(STATUS "Appending PCRE2 library to target link list: ${OPENTERFACE_STATIC_PCRE2_LIB}")
+endif()
+
+# Link X11 libraries for Linux builds to resolve X11 symbols used in overlay code
+if(UNIX AND NOT APPLE)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${X11_LIBRARIES})
 endif()
 
 # For static Qt builds, we need to link platform plugins and their dependencies (Linux only)
