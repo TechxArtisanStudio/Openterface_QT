@@ -19,6 +19,7 @@ function(force_static_compression_libraries target)
             z
             bz2
             lzma
+            pcre2-16
         )
         
         # Build list of static library paths

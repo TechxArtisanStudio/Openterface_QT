@@ -147,6 +147,17 @@ if(OPENTERFACE_BUILD_STATIC AND WIN32)
     list(INSERT CMAKE_LIBRARY_PATH 0 "${MSYS_MINGW_PATH}/lib")
     list(INSERT CMAKE_INCLUDE_PATH 0 "${MSYS_MINGW_PATH}/include")
     message(STATUS "Using MSYS2 MinGW path: ${MSYS_MINGW_PATH}")
+    
+    # Link PCRE2 static library (required by Qt6Core for QRegularExpression)
+    set(PCRE2_LIB "${MSYS_MINGW_PATH}/lib/libpcre2-16.a")
+    if(EXISTS "${PCRE2_LIB}")
+        target_link_libraries(openterfaceQT PRIVATE "${PCRE2_LIB}")
+        message(STATUS "Linked PCRE2 static library: ${PCRE2_LIB}")
+    else()
+        # Check if pcre2 is available via force_static_compression_libraries
+        message(STATUS "PCRE2 static library not found at: ${PCRE2_LIB}")
+        message(STATUS "Trying to link via force_static_compression_libraries...")
+    endif()
 endif()
 
 # For static Qt builds, we need to link platform plugins and their dependencies (Linux only)
