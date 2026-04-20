@@ -143,20 +143,20 @@ endif()
 # For static Qt builds on Windows with MinGW, link MinGW runtime libraries
 # When building static on Windows, prefer real static libraries (.a) over import libs (.dll.a)
 if(OPENTERFACE_BUILD_STATIC AND WIN32)
-    set(MSYS_MINGW_PATH "/c/msys64/mingw64")
+    set(MSYS_MINGW_PATH "/mingw64")
     list(INSERT CMAKE_LIBRARY_PATH 0 "${MSYS_MINGW_PATH}/lib")
     list(INSERT CMAKE_INCLUDE_PATH 0 "${MSYS_MINGW_PATH}/include")
     message(STATUS "Using MSYS2 MinGW path: ${MSYS_MINGW_PATH}")
     
     # Link PCRE2 static library (required by Qt6Core for QRegularExpression)
+    # PCRE2 must be linked BEFORE Qt6 because Qt6Core depends on PCRE2
     set(PCRE2_LIB "${MSYS_MINGW_PATH}/lib/libpcre2-16.a")
     if(EXISTS "${PCRE2_LIB}")
         target_link_libraries(openterfaceQT PRIVATE "${PCRE2_LIB}")
         message(STATUS "Linked PCRE2 static library: ${PCRE2_LIB}")
     else()
-        # Check if pcre2 is available via force_static_compression_libraries
-        message(STATUS "PCRE2 static library not found at: ${PCRE2_LIB}")
-        message(STATUS "Trying to link via force_static_compression_libraries...")
+        message(WARNING "PCRE2 static library not found at: ${PCRE2_LIB}")
+        message(WARNING "Static Qt build requires PCRE2. CI environment must install: mingw-w64-x86_64-pcre2")
     endif()
 endif()
 

@@ -52,6 +52,7 @@ jobs:
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             diffutils
             make
             libtool
@@ -108,6 +109,7 @@ jobs:
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-libusb
             mingw-w64-x86_64-lld
+            mingw-w64-x86_64-pcre2
             diffutils
             make
             libtool
@@ -180,7 +182,11 @@ jobs:
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-libmfx
             mingw-w64-x86_64-libiconv
+            mingw-w64-x86_64-libb2
+            mingw-w64-x86_64-brotli
+            mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             diffutils
             make
             libtool
@@ -247,8 +253,11 @@ jobs:
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-libmfx
             mingw-w64-x86_64-libiconv
-            mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-libb2
             mingw-w64-x86_64-brotli
+            mingw-w64-x86_64-libjpeg-turbo
+            mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             diffutils
             make
             libtool
@@ -458,6 +467,7 @@ jobs:
             mingw-w64-x86_64-brotli \
             mingw-w64-x86_64-libjpeg-turbo \
             mingw-w64-x86_64-libusb \
+            mingw-w64-x86_64-pcre2 \
             mingw-w64-x86_64-zstd
           
           # Ensure C:\msys64 symlink exists for Qt CMake files that expect it
@@ -544,7 +554,7 @@ jobs:
           
           # Verify critical static libraries exist
           echo "Verifying static libraries in ${MSYS_MINGW_PATH}/lib:"
-          for lib in libz.a libbz2.a libb2.a liblzma.a libmfx.a libwinpthread.a libiconv.a libbrotlidec.a libbrotlicommon.a libbrotlienc.a libusb-1.0.a libzstd.a libcrypto.a libssl.a; do
+          for lib in libz.a libbz2.a libb2.a liblzma.a libmfx.a libwinpthread.a libiconv.a libbrotlidec.a libbrotlicommon.a libbrotlienc.a libusb-1.0.a libzstd.a libcrypto.a libssl.a libpcre2-16.a; do
             if [ -f "${MSYS_MINGW_PATH}/lib/$lib" ]; then
               echo "  ✓ $lib"
             else
