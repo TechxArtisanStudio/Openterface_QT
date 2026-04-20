@@ -163,6 +163,10 @@ public:
     void setUpdateNeverRemind(bool never);
     bool getUpdateNeverRemind() const;
 
+    // Privacy: hide keyboard input display in status bar
+    void setHideKeyDisplay(bool hide);
+    bool getHideKeyDisplay() const;
+
 private:
     QSettings m_settings;
 };

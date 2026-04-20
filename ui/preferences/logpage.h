@@ -60,6 +60,7 @@ private:
     QLineEdit *logFilePathLineEdit;
     QPushButton *browseButton;
     QCheckBox *screenSaverCheckBox;
+    QCheckBox *hideKeyDisplayCheckBox;
 
     QHBoxLayout *logCheckboxLayout;
     QHBoxLayout *logFilePathLayout;
