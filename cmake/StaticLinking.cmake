@@ -43,6 +43,7 @@ function(force_static_compression_libraries target)
         endif()
 
         # PCRE2 is required by Qt6 Core for regular expressions
+        # Qt static build must have been compiled with -DPCRE2_STATIC
         set(PCRE2_LIBRARY "${MINGW_ROOT}/lib/libpcre2-16.a")
         if(EXISTS "${PCRE2_LIBRARY}")
             list(APPEND STATIC_LIB_PATHS "${PCRE2_LIBRARY}")
@@ -50,6 +51,9 @@ function(force_static_compression_libraries target)
         else()
             message(WARNING "  PCRE2 not found at ${PCRE2_LIBRARY} - Qt6 regex will fail to link")
         endif()
+
+        # Define PCRE2_STATIC so our code doesn't generate __imp_ references either
+        target_compile_definitions(${target} PRIVATE PCRE2_STATIC)
         
         # Link found static libraries
         if(STATIC_LIB_PATHS)
