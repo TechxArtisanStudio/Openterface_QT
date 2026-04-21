@@ -145,7 +145,11 @@ void StatusBarManager::showDeviceUnplugged(const QString& portChain)
 void StatusBarManager::onLastKeyPressed(const QString& key)
 {
     updateKeyboardIcon(key);
-    keyLabel->setText(key);
+    if (m_hideKeyboardInput && !key.isEmpty()) {
+        keyLabel->setText(QString(1, QChar(0x2022)));
+    } else {
+        keyLabel->setText(key);
+    }
 }
 
 void StatusBarManager::onTcpServerKeyHandled(const QString& key)
@@ -296,5 +300,18 @@ void StatusBarManager::showRecordingIndicator(bool show)
 {
     if (m_statusWidget) {
         m_statusWidget->showRecordingTime(show);
+    }
+}
+
+void StatusBarManager::setHideKeyboardInput(bool hide)
+{
+    m_hideKeyboardInput = hide;
+    if (hide) {
+        QString currentKey = keyLabel->text();
+        if (!currentKey.isEmpty()) {
+            keyLabel->setText(QString(1, QChar(0x2022)));
+        }
+    } else {
+        keyLabel->setText("");
     }
 }

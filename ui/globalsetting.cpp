@@ -199,6 +199,14 @@ void GlobalSetting::getKeyboardLayout(QString &keyboardLayout){
     keyboardLayout = m_settings.value("keyboard/keyboardLayout", "US QWERTY").toString();
 }
 
+void GlobalSetting::setHideKeyboardInput(bool hide){
+    m_settings.setValue("keyboard/hideInput", hide);
+}
+
+bool GlobalSetting::getHideKeyboardInput() const {
+    return m_settings.value("keyboard/hideInput", false).toBool();
+}
+
 
 void GlobalSetting::setMouseAutoHideEnable(bool enable){
     m_settings.setValue("mouse/autoHide", enable);
