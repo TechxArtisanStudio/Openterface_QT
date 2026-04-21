@@ -41,6 +41,15 @@ function(force_static_compression_libraries target)
             message(WARNING "Missing static compression libraries: ${MISSING_LIBS}")
             message(WARNING "Install them with: pacman -S ${MISSING_LIBS}")
         endif()
+
+        # PCRE2 is required by Qt6 Core for regular expressions
+        set(PCRE2_LIBRARY "${MINGW_ROOT}/lib/libpcre2-16.a")
+        if(EXISTS "${PCRE2_LIBRARY}")
+            list(APPEND STATIC_LIB_PATHS "${PCRE2_LIBRARY}")
+            message(STATUS "  Found PCRE2 library: ${PCRE2_LIBRARY}")
+        else()
+            message(WARNING "  PCRE2 not found at ${PCRE2_LIBRARY} - Qt6 regex will fail to link")
+        endif()
         
         # Link found static libraries
         if(STATIC_LIB_PATHS)

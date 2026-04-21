@@ -52,6 +52,7 @@ jobs:
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             diffutils
             make
             libtool
@@ -107,6 +108,7 @@ jobs:
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-lld
             diffutils
             make
@@ -181,6 +183,7 @@ jobs:
             mingw-w64-x86_64-libmfx
             mingw-w64-x86_64-libiconv
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             diffutils
             make
             libtool
@@ -248,6 +251,7 @@ jobs:
             mingw-w64-x86_64-libmfx
             mingw-w64-x86_64-libiconv
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-brotli
             diffutils
             make
@@ -458,6 +462,7 @@ jobs:
             mingw-w64-x86_64-brotli \
             mingw-w64-x86_64-libjpeg-turbo \
             mingw-w64-x86_64-libusb \
+            mingw-w64-x86_64-pcre2 \
             mingw-w64-x86_64-zstd
           
           # Ensure C:\msys64 symlink exists for Qt CMake files that expect it
