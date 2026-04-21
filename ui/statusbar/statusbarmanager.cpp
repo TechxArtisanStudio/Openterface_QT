@@ -145,11 +145,7 @@ void StatusBarManager::showDeviceUnplugged(const QString& portChain)
 void StatusBarManager::onLastKeyPressed(const QString& key)
 {
     updateKeyboardIcon(key);
-    if (GlobalSetting::instance().getHideKeyDisplay() && !key.isEmpty()) {
-        keyLabel->setText("\u2022");
-    } else {
-        keyLabel->setText(key);
-    }
+    keyLabel->setText(key);
 }
 
 void StatusBarManager::onTcpServerKeyHandled(const QString& key)
