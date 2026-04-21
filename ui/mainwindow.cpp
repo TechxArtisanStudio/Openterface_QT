@@ -1764,6 +1764,20 @@ void MainWindow::showFirmwareManagerDialog() {
 
 }
 
+void MainWindow::showWCHFlashDialog() {
+    if (!wchFlashDialog) {
+        wchFlashDialog = new WCHFlashDialog(this);
+        connect(wchFlashDialog, &QDialog::finished, this, [this]() {
+            wchFlashDialog->deleteLater();
+            wchFlashDialog = nullptr;
+        });
+        wchFlashDialog->show();
+    } else {
+        wchFlashDialog->raise();
+        wchFlashDialog->activateWindow();
+    }
+}
+
 void MainWindow::updateFirmware() {
     // Check if it's latest firmware
     qDebug() << "Checking for latest firmware version...";

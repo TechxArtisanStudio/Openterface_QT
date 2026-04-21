@@ -207,6 +207,17 @@ set(UI_ADVANCE_SOURCES
     ui/advance/edid/resolutionmodel.cpp ui/advance/edid/resolutionmodel.h
     ui/advance/edid/edidprocessor.cpp ui/advance/edid/edidprocessor.h
     ui/advance/recordingsettingsdialog.cpp ui/advance/recordingsettingsdialog.h
+    ui/advance/wchflash/WCHFlashDialog.cpp ui/advance/wchflash/WCHFlashDialog.h
+    ui/advance/wchflash/WCHFlashWorker.cpp ui/advance/wchflash/WCHFlashWorker.h
+)
+
+# WCH ISP flashing backend
+set(WCH_SOURCES
+    wch/WCHProtocol.cpp wch/WCHProtocol.h
+    wch/WCHDevice.cpp wch/WCHDevice.h
+    wch/WCHUSBTransport.cpp wch/WCHUSBTransport.h
+    wch/WCHHexParser.cpp wch/WCHHexParser.h
+    wch/WCHFlasher.cpp wch/WCHFlasher.h
 )
 
 # UI initializer sources
@@ -275,6 +286,7 @@ set(SOURCE_FILES
     ${UI_TOOLBAR_SOURCES}
     ${UI_RECORDING_SOURCES}
     ${UI_PREFERENCES_SOURCES}
+    ${WCH_SOURCES}
 )
 
 # Print source files summary

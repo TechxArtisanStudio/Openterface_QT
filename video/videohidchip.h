@@ -149,6 +149,7 @@ public:
     // SPI flash operations (moved from VideoHid)
     bool eraseSector(quint32 startAddress);
     bool flashEraseDone(bool& done);
+    bool flashGetSize(quint32& flashSize);
     bool flashBurstWrite(quint32 address, const QByteArray& data);
     bool flashBurstRead(quint32 address, quint32 length, QByteArray& outData);
     bool writeFirmware(quint16 address, const QByteArray& data);

@@ -11,6 +11,7 @@
 // synchronous flash handle is moved into the platform transport layer.
 #include "../videohid.h"
 
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QLoggingCategory>
