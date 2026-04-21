@@ -9,7 +9,7 @@
 #include <QFile>
 #include <QTextStream>
 #include <QLoggingCategory>
-#include "../ui/globalsetting.h"
+#include "../../ui/globalsetting.h"
 
 #include <fcntl.h>
 #include <unistd.h>

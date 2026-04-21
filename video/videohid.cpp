@@ -179,7 +179,7 @@ void VideoHid::start() {
     
     if (!m_currentHIDDevicePath.isEmpty()) {
         // Do not block UI thread with firmware read/drivers in startup
-        QtConcurrent::run([this]() {
+        (void)QtConcurrent::run([this]() {
             std::string captureCardFirmwareVersion = getFirmwareVersion();
             qCDebug(log_host_hid) << "Firmware VERSION async:" << QString::fromStdString(captureCardFirmwareVersion);
             GlobalVar::instance().setCaptureCardFirmwareVersion(captureCardFirmwareVersion);
