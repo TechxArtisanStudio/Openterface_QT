@@ -38,6 +38,7 @@ public:
     void setRecordingTime(const QString& time);
     void showRecordingIndicator(bool show);
     void onTcpServerKeyHandled(const QString& key);
+    void setHideKeyboardInput(bool hide);
 
 
 private:
@@ -60,6 +61,7 @@ private:
     QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &size);
     QColor getContrastingColor(const QColor &color);
     QString m_currentPort;
+    bool m_hideKeyboardInput = false;
     void updateKeyboardIcon(const QString& key);
     void showThrottledMessage(const QString& message, const QString& style, int duration = 3000);
 };

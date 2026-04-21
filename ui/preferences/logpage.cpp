@@ -71,6 +71,8 @@ void LogPage::setupUI()
     browseButton->setObjectName("browseButton");
     storeLogCheckBox->setObjectName("storeLogCheckBox");
     screenSaverCheckBox->setObjectName("screenSaverCheckBox");
+    hideKeyboardInputCheckBox = new QCheckBox(tr("Hide keyboard input characters"));
+    hideKeyboardInputCheckBox->setObjectName("hideKeyboardInputCheckBox");
 
 
     QHBoxLayout *logCheckboxLayout = new QHBoxLayout();
@@ -102,6 +104,13 @@ void LogPage::setupUI()
     QLabel *screenSaverDescription = new QLabel(tr("Inhibit the screen saver when the application is running."));
     screenSaverDescription->setStyleSheet(commentsFontSize);
 
+    QLabel *keyboardInputLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Keyboard Input privacy")));
+    keyboardInputLabel->setTextFormat(Qt::RichText);
+    keyboardInputLabel->setStyleSheet(bigLabelFontSize);
+
+    QLabel *keyboardInputDescription = new QLabel(tr("Hide keyboard input characters in the status bar by displaying them as dots."));
+    keyboardInputDescription->setStyleSheet(commentsFontSize);
+
     QVBoxLayout *logLayout = new QVBoxLayout(this);
     logLayout->addWidget(logLabel);
     logLayout->addWidget(logDescription);
@@ -111,6 +120,9 @@ void LogPage::setupUI()
     logLayout->addWidget(screenSaverLabel);
     logLayout->addWidget(screenSaverDescription);
     logLayout->addWidget(screenSaverCheckBox);
+    logLayout->addWidget(keyboardInputLabel);
+    logLayout->addWidget(keyboardInputDescription);
+    logLayout->addWidget(hideKeyboardInputCheckBox);
 
     logLayout->addStretch();
     
@@ -173,6 +185,9 @@ void LogPage::initLogSettings(){
 
     screenSaverCheckBox->setChecked(settings.value("ScreenSaver/Inhibited", false).toBool());
 
+    QCheckBox *hideKeyboardInputCheckBox = findChild<QCheckBox*>("hideKeyboardInputCheckBox");
+    hideKeyboardInputCheckBox->setChecked(GlobalSetting::instance().getHideKeyboardInput());
+
     logFilePathLineEdit->setText(settings.value("log/logFilePath", "").toString());
 
 }
@@ -191,6 +206,7 @@ void LogPage::applyLogsettings() {
     QCheckBox *storeLogCheckBox = findChild<QCheckBox*>("storeLogCheckBox");
     QCheckBox *screenSaverCheckBox = findChild<QCheckBox*>("screenSaverCheckBox");
     QLineEdit *logFilePathLineEdit = findChild<QLineEdit*>("logFilePathLineEdit");
+    QCheckBox *hideKeyboardInputCheckBox = findChild<QCheckBox*>("hideKeyboardInputCheckBox");
     bool core =  coreCheckBox->isChecked();
     bool host = hostCheckBox->isChecked();
     bool serial = serialCheckBox->isChecked();
@@ -220,4 +236,8 @@ void LogPage::applyLogsettings() {
 
     bool inhibitScreenSaver = screenSaverCheckBox->isChecked();
     emit ScreenSaverInhibitedChanged(inhibitScreenSaver);
+
+    bool hideKeyboardInput = hideKeyboardInputCheckBox->isChecked();
+    GlobalSetting::instance().setHideKeyboardInput(hideKeyboardInput);
+    emit hideKeyboardInputChanged(hideKeyboardInput);
 }
