@@ -549,8 +549,8 @@ jobs:
           export PKG_CONFIG_PATH="${MSYS_MINGW_PATH}/lib/pkgconfig:${MSYS_MINGW_PATH}/share/pkgconfig"
           echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}"
           
-          # Force reinstall zstd to ensure static library is available
-          pacman -S --noconfirm --needed mingw-w64-x86_64-zstd
+          # Force reinstall zstd and pcre2 to ensure static libraries are available
+          pacman -S --noconfirm --needed mingw-w64-x86_64-zstd mingw-w64-x86_64-pcre2
           
           # Verify critical static libraries exist
           echo "Verifying static libraries in ${MSYS_MINGW_PATH}/lib:"

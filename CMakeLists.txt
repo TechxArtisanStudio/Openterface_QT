@@ -136,37 +136,79 @@ endif()
 set(OPENTERFACE_STATIC_PCRE2_LIB "")
 
 if(OPENTERFACE_BUILD_STATIC AND WIN32)
-    set(MSYS_MINGW_PATH "/mingw64")
+    set(MSYS_MINGW_ROOTS
+        "/mingw64"
+        "/c/msys64/mingw64"
+        "C:/msys64/mingw64"
+    )
+
+    set(MSYS_MINGW_PATH "")
+
+    if(DEFINED ENV{MINGW_ROOT} AND EXISTS "$ENV{MINGW_ROOT}/lib")
+        set(MSYS_MINGW_PATH "$ENV{MINGW_ROOT}")
+        message(STATUS "Using MINGW_ROOT from environment: ${MSYS_MINGW_PATH}")
+    else()
+        foreach(MSYS_MINGW_CANDIDATE IN LISTS MSYS_MINGW_ROOTS)
+            if(EXISTS "${MSYS_MINGW_CANDIDATE}/lib")
+                set(MSYS_MINGW_PATH "${MSYS_MINGW_CANDIDATE}")
+                break()
+            endif()
+        endforeach()
+    endif()
+
+    if(NOT MSYS_MINGW_PATH)
+        message(FATAL_ERROR "MSYS2 MinGW root not found. Tried: ${MSYS_MINGW_ROOTS}. Please ensure the MinGW path exists and is accessible.")
+    endif()
+
     list(INSERT CMAKE_LIBRARY_PATH 0 "${MSYS_MINGW_PATH}/lib")
     list(INSERT CMAKE_INCLUDE_PATH 0 "${MSYS_MINGW_PATH}/include")
     message(STATUS "Using MSYS2 MinGW path: ${MSYS_MINGW_PATH}")
 
-    find_library(OPENTERFACE_PCRE2_LIBRARY
-        NAMES pcre2-16 pcre2
-        PATHS "${MSYS_MINGW_PATH}/lib"
-        NO_DEFAULT_PATH)
+    set(PCRE2_CANDIDATES
+        "${MSYS_MINGW_PATH}/lib/libpcre2-16.a"
+        "${MSYS_MINGW_PATH}/lib/libpcre2-16.dll.a"
+        "${MSYS_MINGW_PATH}/lib/libpcre2.a"
+        "${MSYS_MINGW_PATH}/lib/libpcre2.dll.a"
+    )
 
-    if(OPENTERFACE_PCRE2_LIBRARY)
-        message(STATUS "Found PCRE2 library: ${OPENTERFACE_PCRE2_LIBRARY}")
-        set(OPENTERFACE_STATIC_PCRE2_LIB "${OPENTERFACE_PCRE2_LIBRARY}")
-    else()
-        set(PCRE2_LIB_PATH "${MSYS_MINGW_PATH}/lib/libpcre2-16.a")
-        if(EXISTS "${PCRE2_LIB_PATH}")
-            message(STATUS "Found PCRE2 static archive: ${PCRE2_LIB_PATH}")
-            set(OPENTERFACE_STATIC_PCRE2_LIB "${PCRE2_LIB_PATH}")
-        else()
-            message(WARNING "PCRE2 library not found in ${MSYS_MINGW_PATH}/lib")
-            message(WARNING "Static Qt build requires PCRE2. CI environment must install: mingw-w64-x86_64-pcre2")
+    foreach(PCRE2_CANDIDATE IN LISTS PCRE2_CANDIDATES)
+        if(EXISTS "${PCRE2_CANDIDATE}")
+            set(OPENTERFACE_STATIC_PCRE2_LIB "${PCRE2_CANDIDATE}")
+            message(STATUS "Found PCRE2 library candidate: ${OPENTERFACE_STATIC_PCRE2_LIB}")
+            break()
         endif()
+    endforeach()
+
+    if(NOT OPENTERFACE_STATIC_PCRE2_LIB)
+        message(FATAL_ERROR "PCRE2 library not found in ${MSYS_MINGW_PATH}/lib. Expected one of: ${PCRE2_CANDIDATES}. Static Qt build requires PCRE2. CI environment must install: mingw-w64-x86_64-pcre2")
     endif()
 endif()
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus Threads::Threads)
+set(OPENTERFACE_LINK_LIBS Qt6::Core)
 
 if(OPENTERFACE_STATIC_PCRE2_LIB)
-    target_link_libraries(${PROJECT_NAME} PRIVATE ${OPENTERFACE_STATIC_PCRE2_LIB})
+    list(APPEND OPENTERFACE_LINK_LIBS ${OPENTERFACE_STATIC_PCRE2_LIB})
     message(STATUS "Appending PCRE2 library to target link list: ${OPENTERFACE_STATIC_PCRE2_LIB}")
 endif()
+
+list(APPEND OPENTERFACE_LINK_LIBS
+    Qt6::Widgets
+    Qt6::Gui
+    Qt6::Network
+    Qt6::Multimedia
+    Qt6::MultimediaWidgets
+    Qt6::SerialPort
+    Qt6::OpenGL
+    Qt6::OpenGLWidgets
+    Qt6::Xml
+    Qt6::Svg
+    Qt6::SvgWidgets
+    Qt6::Concurrent
+    Qt6::DBus
+    Threads::Threads
+)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE ${OPENTERFACE_LINK_LIBS})
 
 # Link X11 libraries for Linux builds to resolve X11 symbols used in overlay code
 if(UNIX AND NOT APPLE)
