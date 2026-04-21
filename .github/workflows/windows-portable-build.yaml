@@ -64,7 +64,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.QT_PREFIX }}
-          key: qt-6.6.3-msys2-mingw64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+          key: qt-6.6.3-msys2-mingw64-windows-static-v3-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
       - name: Cache FFmpeg static build
         id: cache-ffmpeg
@@ -149,7 +149,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.QT_PREFIX }}
-          key: qt-6.6.3-msys2-mingw64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+          key: qt-6.6.3-msys2-mingw64-windows-static-v3-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
   build-ffmpeg:
     name: Build FFmpeg (Static)
@@ -383,7 +383,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.QT_PREFIX }}
-          key: qt-6.6.3-msys2-mingw64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+          key: qt-6.6.3-msys2-mingw64-windows-static-v3-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
       - name: Show Qt cache restore result
         run: |
