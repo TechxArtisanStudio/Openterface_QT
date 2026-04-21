@@ -58,7 +58,6 @@ void LogPage::setupUI()
     logFilePathLineEdit = new QLineEdit(this);
     browseButton = new QPushButton(tr("Browse"));
     screenSaverCheckBox = new QCheckBox(tr("Inhibit Screen Saver"));
-    hideKeyDisplayCheckBox = new QCheckBox(tr("Hide keyboard input characters displayed in bottom-left corner"));
 
 
     coreCheckBox->setObjectName("core");
@@ -72,7 +71,6 @@ void LogPage::setupUI()
     browseButton->setObjectName("browseButton");
     storeLogCheckBox->setObjectName("storeLogCheckBox");
     screenSaverCheckBox->setObjectName("screenSaverCheckBox");
-    hideKeyDisplayCheckBox->setObjectName("hideKeyDisplayCheckBox");
 
 
     QHBoxLayout *logCheckboxLayout = new QHBoxLayout();
@@ -104,14 +102,6 @@ void LogPage::setupUI()
     QLabel *screenSaverDescription = new QLabel(tr("Inhibit the screen saver when the application is running."));
     screenSaverDescription->setStyleSheet(commentsFontSize);
 
-    QLabel *privacyLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Privacy setting")));
-    privacyLabel->setTextFormat(Qt::RichText);
-    privacyLabel->setStyleSheet(bigLabelFontSize);
-
-    QLabel *privacyDescription = new QLabel(tr("Hide the keyboard input shown in the status bar to prevent others from seeing which keys are pressed."));
-    privacyDescription->setStyleSheet(commentsFontSize);
-    privacyDescription->setWordWrap(true);
-
     QVBoxLayout *logLayout = new QVBoxLayout(this);
     logLayout->addWidget(logLabel);
     logLayout->addWidget(logDescription);
@@ -121,9 +111,6 @@ void LogPage::setupUI()
     logLayout->addWidget(screenSaverLabel);
     logLayout->addWidget(screenSaverDescription);
     logLayout->addWidget(screenSaverCheckBox);
-    logLayout->addWidget(privacyLabel);
-    logLayout->addWidget(privacyDescription);
-    logLayout->addWidget(hideKeyDisplayCheckBox);
 
     logLayout->addStretch();
     
@@ -188,10 +175,6 @@ void LogPage::initLogSettings(){
 
     logFilePathLineEdit->setText(settings.value("log/logFilePath", "").toString());
 
-    QCheckBox *hideKeyDisplayCheckBox = findChild<QCheckBox*>("hideKeyDisplayCheckBox");
-    if (hideKeyDisplayCheckBox)
-        hideKeyDisplayCheckBox->setChecked(GlobalSetting::instance().getHideKeyDisplay());
-
 }
 
 void LogPage::applyLogsettings() {
@@ -237,8 +220,4 @@ void LogPage::applyLogsettings() {
 
     bool inhibitScreenSaver = screenSaverCheckBox->isChecked();
     emit ScreenSaverInhibitedChanged(inhibitScreenSaver);
-
-    QCheckBox *hideKeyDisplayCheckBox = findChild<QCheckBox*>("hideKeyDisplayCheckBox");
-    if (hideKeyDisplayCheckBox)
-        GlobalSetting::instance().setHideKeyDisplay(hideKeyDisplayCheckBox->isChecked());
 }

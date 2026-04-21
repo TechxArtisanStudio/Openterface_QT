@@ -264,18 +264,6 @@ bool GlobalSetting::getUpdateNeverRemind() const
     return m_settings.value("update/neverRemind", false).toBool();
 }
 
-// Privacy: hide keyboard input display in status bar
-void GlobalSetting::setHideKeyDisplay(bool hide)
-{
-    m_settings.setValue("keyboard/hideKeyDisplay", hide);
-    m_settings.sync();
-}
-
-bool GlobalSetting::getHideKeyDisplay() const
-{
-    return m_settings.value("keyboard/hideKeyDisplay", false).toBool();
-}
-
 // Port chain management for Openterface devices
 void GlobalSetting::setOpenterfacePortChain(const QString& portChain) {
     qDebug() << "Logging Openterface port chain:" << portChain;
