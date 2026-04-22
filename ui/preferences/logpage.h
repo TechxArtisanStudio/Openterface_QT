@@ -46,6 +46,7 @@ public:
 
 signals:
     void ScreenSaverInhibitedChanged(bool inhibited);
+    void hideKeyboardInputChanged(bool hide);
 
 private:
 
@@ -60,6 +61,7 @@ private:
     QLineEdit *logFilePathLineEdit;
     QPushButton *browseButton;
     QCheckBox *screenSaverCheckBox;
+    QCheckBox *hideKeyboardInputCheckBox;
 
     QHBoxLayout *logCheckboxLayout;
     QHBoxLayout *logFilePathLayout;

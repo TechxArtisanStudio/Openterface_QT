@@ -52,6 +52,7 @@ jobs:
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             diffutils
             make
             libtool
@@ -63,7 +64,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.QT_PREFIX }}
-          key: qt-6.6.3-msys2-mingw64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+          key: qt-6.6.3-msys2-mingw64-windows-static-v3-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
       - name: Cache FFmpeg static build
         id: cache-ffmpeg
@@ -107,6 +108,7 @@ jobs:
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-lld
             diffutils
             make
@@ -147,7 +149,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.QT_PREFIX }}
-          key: qt-6.6.3-msys2-mingw64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+          key: qt-6.6.3-msys2-mingw64-windows-static-v3-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
   build-ffmpeg:
     name: Build FFmpeg (Static)
@@ -181,6 +183,7 @@ jobs:
             mingw-w64-x86_64-libmfx
             mingw-w64-x86_64-libiconv
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             diffutils
             make
             libtool
@@ -248,6 +251,7 @@ jobs:
             mingw-w64-x86_64-libmfx
             mingw-w64-x86_64-libiconv
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-brotli
             diffutils
             make
@@ -379,7 +383,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.QT_PREFIX }}
-          key: qt-6.6.3-msys2-mingw64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+          key: qt-6.6.3-msys2-mingw64-windows-static-v3-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
       - name: Show Qt cache restore result
         run: |
@@ -458,6 +462,7 @@ jobs:
             mingw-w64-x86_64-brotli \
             mingw-w64-x86_64-libjpeg-turbo \
             mingw-w64-x86_64-libusb \
+            mingw-w64-x86_64-pcre2 \
             mingw-w64-x86_64-zstd
           
           # Ensure C:\msys64 symlink exists for Qt CMake files that expect it
