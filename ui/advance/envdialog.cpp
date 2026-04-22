@@ -85,9 +85,11 @@ const QString EnvironmentSetupDialog::udevCommands =
     "sudo udevadm control --reload-rules\n"
     "sudo udevadm trigger\n\n";
 const QString EnvironmentSetupDialog::brlttyCommands =
-    "# Remove BRLTTY which may interfere with device access\n"
-    "sudo apt-get remove -y brltty\n"
-    "sudo apt-get autoremove -y\n\n";
+    "# BRLTTY interferes with USB serial/HID device access. Mask it:\n"
+    "sudo systemctl mask brltty-udev.service && sudo systemctl stop brltty-udev.service\n"
+    "sudo systemctl mask brltty.service && sudo systemctl stop brltty.service\n"
+    "# Or remove it: sudo apt-get remove -y brltty && sudo apt-get autoremove -y\n"
+    "# Re-plug the device after running the above commands.\n\n";
 
 bool EnvironmentSetupDialog::isSerialPermission = false;
 bool EnvironmentSetupDialog::isHidPermission = false;
@@ -171,7 +173,9 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     statusSummary += tr("◆ In Serial Port Permission: ") + QString(isSerialPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ Video Permission: ") + QString(isVideoPermission ? tickHtml : crossHtml) + "<br>";
-    statusSummary += tr("◆ BRLTTY checking: ") + QString(isBrlttyRunning ? crossHtml + tr(" (needs removal)") : tickHtml + tr(" (not running)")) + "<br>";
+    statusSummary += tr("◆ BRLTTY (brltty-udev.service): ") + QString(isBrlttyRunning
+        ? crossHtml + tr(" active - interferes with device access. Run the commands below to fix.")
+        : tickHtml + tr(" not active - OK")) + "<br>";
     statusSummary += tr("◆ Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestFirewareDescription);
     ui->descriptionLabel->setText(statusSummary);
 
@@ -294,7 +298,7 @@ void EnvironmentSetupDialog::accept()
         statusSummary += tr("Driver Installed: ") + QString(isDriverInstalled ? tr("Yes") : tr("No")) + "\n";
         statusSummary += tr("Serial port Permission: ") + QString(isSerialPermission ? tr("Yes") : tr("No")) + "\n";
         statusSummary += tr("HID Permission: ") + QString(isHidPermission ? tr("Yes") : tr("No")) + "\n";
-        statusSummary += tr("BRLTTY is Running: ") + QString(isBrlttyRunning ? tr("Yes (needs removal)") : tr("No")) + "\n";
+        statusSummary += tr("BRLTTY (brltty-udev.service) active: ") + QString(isBrlttyRunning ? tr("Yes (run the commands below to fix)") : tr("No")) + "\n";
 
         // Append the status summary to the description label
         ui->descriptionLabel->setText(ui->descriptionLabel->text() + "\n" + statusSummary);
@@ -501,17 +505,41 @@ bool EnvironmentSetupDialog::checkVideoPermission() {
 }
 
 bool EnvironmentSetupDialog::checkBrlttyRunning() {
-    // Check if BRLTTY is installed
-    qDebug() << "Checking if BRLTTY is installed.";
-    std::string checkInstalled = "which brltty > /dev/null 2>&1";
-    std::string checkRunning = "pgrep brltty > /dev/null 2>&1";
-    int isInstalled = system(checkInstalled.c_str());
-    int pid = isInstalled == 0 ? system(checkRunning.c_str()) : -1;
-    isBrlttyRunning = (pid == 0);
-    if (isBrlttyRunning) {
-        qDebug() << "BRLTTY is running. It may interfere with device access.";
+    // brltty can interfere via two different systemd activation paths:
+    //   1. brltty-udev.service  - udev-triggered, grabs USB serial/HID devices on plug-in (main culprit)
+    //   2. brltty.service       - persistent daemon, may also hold the device
+    // On distros like KDE neon where brltty cannot be removed (neon-desktop depends on it),
+    // masking both services is the recommended fix (no uninstall required).
+
+    auto queryService = [](const QString &unit) -> QString {
+        QProcess p;
+        p.start("systemctl", QStringList() << "is-active" << unit);
+        p.waitForFinished(3000);
+        return p.readAllStandardOutput().trimmed();
+    };
+
+    QString udevState = queryService("brltty-udev.service");
+    QString daemonState = queryService("brltty.service");
+    qDebug() << "brltty-udev.service state:" << udevState;
+    qDebug() << "brltty.service state:" << daemonState;
+
+    bool eitherActive = (udevState == "active") || (daemonState == "active");
+
+    if (eitherActive) {
+        // Double-check: verify the brltty process is actually running
+        QProcess procCheck;
+        procCheck.start("pgrep", QStringList() << "-x" << "brltty");
+        procCheck.waitForFinished(2000);
+        isBrlttyRunning = (procCheck.exitCode() == 0);
+        if (isBrlttyRunning) {
+            qDebug() << "BRLTTY service(s) active and process running. It may interfere with device access.";
+        } else {
+            qDebug() << "BRLTTY service(s) active but process not found. Treating as OK.";
+        }
     } else {
-        qDebug() << "BRLTTY is not running. Good!";
+        // Both masked / inactive / failed / not-found - safe
+        isBrlttyRunning = false;
+        qDebug() << "Neither brltty-udev.service nor brltty.service is active. Good!";
     }
     return isBrlttyRunning;
 }
