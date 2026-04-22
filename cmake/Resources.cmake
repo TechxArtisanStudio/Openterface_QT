@@ -163,7 +163,6 @@ if(WIN32)
                 target_include_directories(openterfaceQT PRIVATE "C:/libusb/include")
             endif()
             target_link_libraries(openterfaceQT PRIVATE
-                hid
                 ${LIBUSB_LIBRARY}
                 ole32
                 oleaut32
@@ -174,7 +173,6 @@ if(WIN32)
         else()
             message(WARNING "libusb-1.0 not found for Windows - trying with default name")
             target_link_libraries(openterfaceQT PRIVATE
-                hid
                 libusb-1.0
                 ole32
                 oleaut32
@@ -186,7 +184,6 @@ if(WIN32)
     else()
         message(STATUS "USB functionality disabled by USE_USB=OFF")
         target_link_libraries(openterfaceQT PRIVATE
-            hid
             ole32
             oleaut32
             setupapi

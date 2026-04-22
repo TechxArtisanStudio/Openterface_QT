@@ -407,6 +407,17 @@ void MainWindowInitializer::connectCameraSignals()
 void MainWindowInitializer::connectVideoHidSignals()
 {
     qCDebug(log_ui_mainwindowinitializer) << "Connecting video HID signals...";
+
+    // Move VideoHid to a dedicated thread so its operations don't block the UI main thread.
+    // This must be done before start() is called and before any event-loop-dependent cross-thread
+    // connections are established. Direct calls from other threads (e.g. FirmwareWriter) are still
+    // guarded by VideoHid's QRecursiveMutex.
+    m_hidThread = new QThread(m_mainWindow);
+    m_hidThread->setObjectName("VideoHidThread");
+    VideoHid::getInstance().moveToThread(m_hidThread);
+    m_hidThread->start();
+    qCDebug(log_ui_mainwindowinitializer) << "VideoHid moved to dedicated thread";
+
     connect(m_videoPane, &VideoPane::mouseMoved,
             m_statusBarManager, &StatusBarManager::onLastMouseLocation);
     connect(&VideoHid::getInstance(), &VideoHid::inputResolutionChanged, m_mainWindow, &MainWindow::onInputResolutionChanged);
@@ -437,6 +448,15 @@ void MainWindowInitializer::initializeCamera()
 
 void MainWindowInitializer::deferredInitializeCamera()
 {
+    qCDebug(log_ui_mainwindowinitializer) << "Deferred: Starting VideoHid on HID thread...";
+    // Start VideoHid on its dedicated thread — same deferred pattern as camera/audio.
+    // m_hidThread was started in connectVideoHidSignals(); QueuedConnection posts the
+    // call to that thread's event loop so start() never blocks the UI main thread.
+    QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
+        VideoHid::getInstance().start();
+        qInfo() << "VideoHid started (on HID thread)";
+    }, Qt::QueuedConnection);
+
     qCDebug(log_ui_mainwindowinitializer) << "Deferred: Initializing camera...";
     m_mainWindow->initCamera();
     

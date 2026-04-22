@@ -42,23 +42,17 @@ void FirmwareWriter::process()
     m_totalSize = m_firmware.size();
     m_lastPercent.store(0);
 
-    // Connect to the VideoHid written_size signal to track progress.
-    // Use DirectConnection because the write loop is synchronous in this thread, and we need immediate progress updates.
-    connect(m_videoHid, &VideoHid::firmwareWriteChunkComplete, this, &FirmwareWriter::onChunkWritten, Qt::DirectConnection);
-
     // Perform the actual firmware write directly in this worker thread.
-    bool success = false;
+    // Pass our onChunkWritten handler as a callback so VideoHid can report
+    // per-chunk progress without needing the removed firmwareWriteChunkComplete signal.
     if (!m_videoHid) {
         qDebug() << "FirmwareWriter: VideoHid is null, aborting write.";
-        disconnect(m_videoHid, &VideoHid::firmwareWriteChunkComplete, this, &FirmwareWriter::onChunkWritten);
         emit finished(false);
         return;
     }
 
-    // perform write directly on worker thread; VideoHid write/EEPROM operations should be thread-safe when polling is paused.
-    success = m_videoHid->writeEeprom(m_address, m_firmware);
-
-    disconnect(m_videoHid, &VideoHid::firmwareWriteChunkComplete, this, &FirmwareWriter::onChunkWritten);
+    bool success = m_videoHid->writeEeprom(m_address, m_firmware,
+                                            [this](int n){ onChunkWritten(n); });
 
     emit finished(success);
 }

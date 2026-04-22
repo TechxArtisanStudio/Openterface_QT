@@ -229,7 +229,6 @@ void StatusWidget::refreshAllIcons()
 }
 
 void StatusWidget::setInputResolution(const int &width, const int &height, const float &fps, const float &pixelClk) {
-    qDebug() << "[DIAG] setInputResolution:" << width << "x" << height << "@" << fps;
     if(width == 0 || height == 0 || fps == 0) {
         inputResolutionLabel->setText("INPUT(NA)");
         inputResolutionLabel->setToolTip("Input video is not available");

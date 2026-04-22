@@ -333,14 +333,7 @@ int main(int argc, char *argv[])
         qInfo() << "Device menu setup complete";
     });
     
-    // Start VideoHid immediately after window is shown (has 500ms sleep, so defer it)
-    QTimer::singleShot(10, []() {
-        qInfo() << "Starting VideoHid...";
-        VideoHid::getInstance().start();
-        qInfo() << "VideoHid started";
-    });
-    
-    // Defer camera and audio initialization (improves startup time)
+    // Defer camera, audio, and VideoHid initialization (improves startup time)
     // This was blocking startup for ~500ms
     QTimer::singleShot(150, window, [window]() {
         qInfo() << "Initializing camera and audio...";
