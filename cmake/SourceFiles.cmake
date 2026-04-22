@@ -147,12 +147,18 @@ set(TARGET_SOURCES
 # Video sources
 set(VIDEO_SOURCES
     video/videohid.cpp video/videohid.h
-    video/platformhidadapter.cpp video/platformhidadapter.h
+    video/videohid_register.cpp
+    video/videohid_eeprom.cpp
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/firmwarereader.cpp video/firmwarereader.h
     video/firmwareoperationmanager.cpp video/firmwareoperationmanager.h
     video/ms2109.h
     video/videohidchip.cpp video/videohidchip.h
+    video/detection/ChipDetector.cpp video/detection/ChipDetector.h
+    video/firmware/FirmwareNetworkClient.cpp video/firmware/FirmwareNetworkClient.h
+    video/transport/IHIDTransport.h
+    video/transport/WindowsHIDTransport.cpp video/transport/WindowsHIDTransport.h
+    video/transport/LinuxHIDTransport.cpp video/transport/LinuxHIDTransport.h
 )
 
 # UI core sources
@@ -201,6 +207,17 @@ set(UI_ADVANCE_SOURCES
     ui/advance/edid/resolutionmodel.cpp ui/advance/edid/resolutionmodel.h
     ui/advance/edid/edidprocessor.cpp ui/advance/edid/edidprocessor.h
     ui/advance/recordingsettingsdialog.cpp ui/advance/recordingsettingsdialog.h
+    ui/advance/wchflash/WCHFlashDialog.cpp ui/advance/wchflash/WCHFlashDialog.h
+    ui/advance/wchflash/WCHFlashWorker.cpp ui/advance/wchflash/WCHFlashWorker.h
+)
+
+# WCH ISP flashing backend
+set(WCH_SOURCES
+    wch/WCHProtocol.cpp wch/WCHProtocol.h
+    wch/WCHDevice.cpp wch/WCHDevice.h
+    wch/WCHUSBTransport.cpp wch/WCHUSBTransport.h
+    wch/WCHHexParser.cpp wch/WCHHexParser.h
+    wch/WCHFlasher.cpp wch/WCHFlasher.h
 )
 
 # UI initializer sources
@@ -269,6 +286,7 @@ set(SOURCE_FILES
     ${UI_TOOLBAR_SOURCES}
     ${UI_RECORDING_SOURCES}
     ${UI_PREFERENCES_SOURCES}
+    ${WCH_SOURCES}
 )
 
 # Print source files summary

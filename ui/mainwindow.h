@@ -43,6 +43,7 @@
 #include "ui/advance/firmwaremanagerdialog.h"
 #include "ui/advance/updatedisplaysettingsdialog.h"
 #include "ui/advance/devicediagnosticsdialog.h"
+#include "ui/advance/wchflash/WCHFlashDialog.h"
 #include "ui/help/versioninfomanager.h"
 #include "ui/toolbar/toolbarmanager.h"
 #include "ui/TaskManager.h"
@@ -223,6 +224,8 @@ private slots:
 
     void showFirmwareManagerDialog();
 
+    void showWCHFlashDialog();
+
     void showUpdateDisplaySettingsDialog();
 
     void showHardwareDiagnostics();
@@ -315,6 +318,7 @@ private:
     DeviceSelectorDialog *deviceSelectorDialog = nullptr;
     FirmwareManagerDialog *firmwareManagerDialog = nullptr;
     UpdateDisplaySettingsDialog *updateDisplaySettingsDialog = nullptr;
+    WCHFlashDialog *wchFlashDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;
 

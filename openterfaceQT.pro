@@ -66,11 +66,19 @@ SOURCES += main.cpp \
     target/MouseManager.cpp \
     target/mouseeventdto.cpp \
     video/videohid.cpp \
+    video/videohid_register.cpp \
+    video/videohid_eeprom.cpp \
     video/videohidchip.cpp \
-    video/platformhidadapter.cpp \
     video/firmwarewriter.cpp \
     video/firmwarereader.cpp \
     video/firmwareoperationmanager.cpp \
+    wch/WCHUSBTransport.cpp \
+    wch/WCHFlasher.cpp \
+    wch/WCHHexParser.cpp \
+    wch/WCHDevice.cpp \
+    wch/WCHProtocol.cpp \
+    video/detection/ChipDetector.cpp \
+    video/firmware/FirmwareNetworkClient.cpp \
     ui/TaskManager.cpp \
     ui/globalsetting.cpp \
     ui/inputhandler.cpp \
@@ -103,6 +111,8 @@ SOURCES += main.cpp \
     ui/advance/edid/edidprocessor.cpp \
     ui/advance/recordingsettingsdialog.cpp \
     ui/advance/diagnostics/SupportEmailDialog.cpp \
+    ui/advance/wchflash/WCHFlashDialog.cpp \
+    ui/advance/wchflash/WCHFlashWorker.cpp \
     ui/initializer/mainwindowinitializer.cpp \
     ui/statusbar/statusbarmanager.cpp \
     ui/statusbar/statuswidget.cpp \
@@ -212,6 +222,9 @@ HEADERS  += \
     video/ms2109s.h \
     video/ms2130s.h \
     video/platformhidadapter.h \
+    video/detection/ChipDetector.h \
+    video/firmware/FirmwareNetworkClient.h \
+    video/transport/IHIDTransport.h \
     ui/TaskManager.h \
     ui/globalsetting.h \
     ui/inputhandler.h \
@@ -247,6 +260,8 @@ HEADERS  += \
     ui/advance/edid/edidprocessor.h \
     ui/advance/recordingsettingsdialog.h \
     ui/advance/diagnostics/SupportEmailDialog.h \
+    ui/advance/wchflash/WCHFlashDialog.h \
+    ui/advance/wchflash/WCHFlashWorker.h \
     ui/initializer/mainwindowinitializer.h \
     ui/statusbar/statusbarmanager.h \
     ui/statusbar/statuswidget.h \
@@ -287,8 +302,10 @@ win32 {
         device/platform/windows/discoverers/BaseDeviceDiscoverer.cpp \
         device/platform/windows/discoverers/BotherDeviceDiscoverer.cpp \
         device/platform/windows/discoverers/Generation3Discoverer.cpp \
-        device/platform/windows/discoverers/DeviceDiscoveryManager.cpp
+        device/platform/windows/discoverers/DeviceDiscoveryManager.cpp \
+        video/transport/WindowsHIDTransport.cpp
     HEADERS += device/platform/WindowsDeviceManager.h \
+        video/transport/WindowsHIDTransport.h \
         device/platform/windows/discoverers/IDeviceDiscoverer.h \
         device/platform/windows/discoverers/BaseDeviceDiscoverer.h \
         device/platform/windows/discoverers/BotherDeviceDiscoverer.h \
@@ -339,8 +356,10 @@ win32 {
 
 unix {
     # Add Linux-specific sources if any
-    SOURCES += device/platform/LinuxDeviceManager.cpp
-    HEADERS += device/platform/LinuxDeviceManager.h
+    SOURCES += device/platform/LinuxDeviceManager.cpp \
+               video/transport/LinuxHIDTransport.cpp
+    HEADERS += device/platform/LinuxDeviceManager.h \
+               video/transport/LinuxHIDTransport.h
 
     INCLUDEPATH += /usr/include
     LIBS += -lusb-1.0 -lX11 -lgstapp-1.0 -lturbojpeg
