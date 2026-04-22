@@ -88,6 +88,9 @@ public:
 
     void getKeyboardLayout(QString &keyboardLayout);
 
+    void setHideKeyboardInput(bool hide);
+    bool getHideKeyboardInput() const;
+
     void setMouseAutoHideEnable(bool enable);
 
     bool getMouseAutoHideEnable();
