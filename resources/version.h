@@ -5,7 +5,7 @@
 // The patch number resets to 1 whenever the major or minor version is updated.
 // Please refer to build-script/update_version.py
 
-#define APP_VERSION "0.5.21.084"
+#define APP_VERSION "0.5.22.112"
 #define STABLE_APP_VERSION "0.3.19"
 
 #endif // VERSION_H
