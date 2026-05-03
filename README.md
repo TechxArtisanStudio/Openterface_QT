@@ -4,7 +4,7 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Latest Release](https://img.shields.io/github/release/TechxArtisanStudio/Openterface_QT)](https://github.com/TechxArtisanStudio/Openterface_QT/releases)
-[![Discord Community](https://img.shields.io/discord/1126137258053894215?label=Discord&logo=discord)](https://discord.gg/sFTJD6a3R8)
+[![Discord Community](https://img.shields.io/discord/1199611503469408276?label=Discord&logo=discord)](https://discord.gg/sFTJD6a3R8)
 
 ## What is This?
 
