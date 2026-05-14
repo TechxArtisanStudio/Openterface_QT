@@ -48,6 +48,7 @@
         "Key_BracketLeft": "0x2F",
         "Key_BracketRight": "0x30",
         "Key_Hash": "0x31",
+        "Key_Backslash": "0x64",
         "Key_Semicolon": "0x33",
         "Key_Apostrophe": "0x34",
         "Key_QuoteLeft": "0x35",
@@ -122,7 +123,8 @@
         "=": "Key_Equal", "+": "Key_Equal",
         "[": "Key_BracketLeft", "{": "Key_BracketLeft",
         "]": "Key_BracketRight", "}": "Key_BracketRight",
-        "#": "Key_Hash", "~": "Key_Hash", "¬": "Key_Hash", "|": "Key_Hash",
+        "#": "Key_Hash", "~": "Key_Hash",
+        "\\": "Key_Backslash", "|": "Key_Backslash",
         ";": "Key_Semicolon", ":": "Key_Semicolon",
         "'": "Key_Apostrophe", "@": "Key_Apostrophe",
         ",": "Key_Comma", "<": "Key_Comma",
@@ -135,12 +137,12 @@
     },
     "need_shift_keys": [
         "!", "\"", "£", "$", "%", "^", "&", "*", "(", ")",
-        "_", "+", "{", "}", "~", ":", "@", "<", ">", "?",
+        "_", "+", "{", "}", "~", ":", "@", "<", ">", "?", "|",
         "A", "B", "C", "D", "E", "F", "G", "H", "I",
         "J", "K", "L", "M", "N", "O", "P", "Q", "R",
         "S", "T", "U", "V", "W", "X", "Y", "Z"
     ],
     "need_altgr_keys": [
-        "€", "¦", "¬", "[", "]", "{", "}", "@", "~", "|"
+        "€", "¦", "[", "]", "{", "}", "@", "~"
     ]
 }
