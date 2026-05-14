@@ -113,6 +113,7 @@ SOURCES += main.cpp \
     ui/advance/diagnostics/SupportEmailDialog.cpp \
     ui/advance/wchflash/WCHFlashDialog.cpp \
     ui/advance/wchflash/WCHFlashWorker.cpp \
+    ui/advance/keyboardmapeditor.cpp \
     ui/initializer/mainwindowinitializer.cpp \
     ui/statusbar/statusbarmanager.cpp \
     ui/statusbar/statuswidget.cpp \
@@ -128,7 +129,8 @@ SOURCES += main.cpp \
     ui/preferences/logpage.cpp \
     ui/preferences/videopage.cpp \
     ui/preferences/audiopage.cpp \
-    ui/preferences/targetcontrolpage.cpp
+    ui/preferences/targetcontrolpage.cpp \
+    ui/floatingwindow/floatingwindow.cpp
 
 # Platform-specific backend handlers (exclude on Windows)
 !win32 {
@@ -212,6 +214,7 @@ HEADERS  += \
     target/KeyboardManager.h \
     target/MouseManager.h \
     target/Keymapping.h \
+    target/HIDScancodeReference.h \
     target/mouseeventdto.h \
     resources/version.h \
     video/videohid.h \
@@ -262,6 +265,7 @@ HEADERS  += \
     ui/advance/diagnostics/SupportEmailDialog.h \
     ui/advance/wchflash/WCHFlashDialog.h \
     ui/advance/wchflash/WCHFlashWorker.h \
+    ui/advance/keyboardmapeditor.h \
     ui/initializer/mainwindowinitializer.h \
     ui/statusbar/statusbarmanager.h \
     ui/statusbar/statuswidget.h \
@@ -276,7 +280,8 @@ HEADERS  += \
     ui/preferences/logpage.h \
     ui/preferences/targetcontrolpage.h \
     ui/preferences/videopage.h \
-    ui/preferences/audiopage.h
+    ui/preferences/audiopage.h \
+    ui/floatingwindow/floatingwindow.h
 
 FORMS    += \
     ui/mainwindow.ui \

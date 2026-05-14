@@ -157,6 +157,12 @@ public:
     void setVideoSmoothTransform(bool enabled);
     bool getVideoSmoothTransform() const;
 
+    // Floating window
+    void setFloatingWindowEnabled(bool enabled);
+    bool getFloatingWindowEnabled() const;
+    void setFloatingWindowOpacity(double opacity);
+    double getFloatingWindowOpacity() const;
+
     // Update reminder settings
     // Stores the epoch seconds of the last update check (used for 30-day throttle)
     void setUpdateLastChecked(qint64 secsSinceEpoch);

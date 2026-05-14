@@ -140,7 +140,7 @@ bool VideoOverlayManager::embedVideoInVideoPane(void* pipeline, ::VideoPane* vid
 #endif
 }
 
-bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, QWidget* videoWidget, QGraphicsVideoItem* graphicsVideoItem)
+bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, const QSize& videoResolution, QWidget* videoWidget, QGraphicsVideoItem* graphicsVideoItem)
 {
 #ifdef HAVE_GSTREAMER
     if (!videoSinkPtr || windowId == 0) {
@@ -149,6 +149,16 @@ bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, QW
     }
 
     GstElement* videoSink = static_cast<GstElement*>(videoSinkPtr);
+
+    // Log sink and target geometry for diagnostics
+    const GstElementFactory* factory = gst_element_get_factory(videoSink);
+    const gchar* sinkName = factory ? gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory)) : "unknown";
+    qCDebug(log_gstreamer_videooverlaymanager) << "Overlay setup: sink=" << (sinkName ? sinkName : "unknown")
+                                   << "windowId=" << windowId
+                                   << "videoResolution=" << videoResolution
+                                   << "videoWidgetSize=" << (videoWidget ? videoWidget->size() : QSize())
+                                   << "graphicsVideoItemSize=" << (graphicsVideoItem ? graphicsVideoItem->boundingRect().size() : QSizeF());
+    if (factory) gst_object_unref((GstObject*)factory);
 
     // Check if the sink supports video overlay interface
     if (GST_IS_VIDEO_OVERLAY(videoSink)) {
@@ -171,11 +181,12 @@ bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, QW
         try {
             gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(videoSink), windowId);
 
-            // Configure video sink for proper scaling and aspect ratio
+            // For sinks that support force-aspect-ratio (Qt/GTK sinks), enable it for auto-centering.
+            // For X11 sinks (xvimagesink/ximagesink) that don't have this property, we manually
+            // calculate an aspect-ratio-preserving render rectangle below.
             if (g_object_class_find_property(G_OBJECT_GET_CLASS(videoSink), "force-aspect-ratio")) {
-                // Allow the sink to stretch to the configured render rectangle so overlay scales to widget size
                 g_object_set(videoSink, "force-aspect-ratio", FALSE, NULL);
-                qCDebug(log_gstreamer_videooverlaymanager) << "Disabled force-aspect-ratio on video sink to allow fill scaling";
+                qCDebug(log_gstreamer_videooverlaymanager) << "Disabled force-aspect-ratio on video sink so overlay fills render rectangle";
             }
 
             if (g_object_class_find_property(G_OBJECT_GET_CLASS(videoSink), "pixel-aspect-ratio")) {
@@ -183,12 +194,68 @@ bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, QW
                 qCDebug(log_gstreamer_videooverlaymanager) << "Set pixel-aspect-ratio to 1:1 on video sink";
             }
 
-            // Configure render rectangle based on provided targets
+            // Configure render rectangle - the pipeline already scales the video with
+            // add-borders=true, so we just fill the entire widget area. For X11 sinks
+            // (xvimagesink/ximagesink) where render rectangle is applied as clipping,
+            // clamp the rectangle to the visible screen area.
             if (videoWidget) {
                 QSize widgetSize = videoWidget->size();
-                if (widgetSize.width() > 0 && widgetSize.height() > 0) {
-                    gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(videoSink), 0, 0, widgetSize.width(), widgetSize.height());
-                    qCDebug(log_gstreamer_videooverlaymanager) << "Set render rectangle to widget size:" << widgetSize;
+                QPoint renderOffset(0, 0);
+                QSize renderSize = widgetSize;
+                QScreen* screen = nullptr;
+                qreal screenDpr = 1.0;
+                QRect visibleRect;
+
+                if (QWidget* topLevel = videoWidget->window()) {
+                    if (QWindow* windowHandle = topLevel->windowHandle()) {
+                        screen = windowHandle->screen();
+                        if (screen) {
+                            screenDpr = screen->devicePixelRatio();
+                        }
+                    }
+                }
+                if (!screen) {
+                    screen = QGuiApplication::primaryScreen();
+                    if (screen) {
+                        screenDpr = screen->devicePixelRatio();
+                    }
+                }
+
+                QRect overlayGlobalRect(videoWidget->mapToGlobal(QPoint(0, 0)), widgetSize);
+                if (screen) {
+                    QSize screenSize = screen->availableGeometry().size();
+                    QSize screenPhysical = (screenDpr > 1.0)
+                        ? QSize(qRound(screenSize.width() * screenDpr), qRound(screenSize.height() * screenDpr))
+                        : screenSize;
+                    visibleRect = overlayGlobalRect.intersected(screen->availableGeometry());
+
+                    qCDebug(log_gstreamer_videooverlaymanager) << "Overlay widget size:" << widgetSize
+                                                           << "screen logical:" << screenSize
+                                                           << "screen physical:" << screenPhysical
+                                                           << "screenDPR:" << screenDpr
+                                                           << "overlay global rect:" << overlayGlobalRect
+                                                           << "visible rect:" << visibleRect;
+
+                    if (visibleRect.isValid() && visibleRect.size() != widgetSize) {
+                        renderSize = visibleRect.size();
+                        renderOffset = visibleRect.topLeft() - overlayGlobalRect.topLeft();
+                        qCDebug(log_gstreamer_videooverlaymanager) << "Render rectangle localized to visible overlay region:" << renderOffset << renderSize;
+                    }
+                    if (!screenPhysical.isEmpty() && renderSize.width() > screenPhysical.width()) {
+                        qCDebug(log_gstreamer_videooverlaymanager) << "Clamping render rectangle width" << renderSize.width()
+                                                               << "to screen physical width" << screenPhysical.width();
+                        renderSize.setWidth(screenPhysical.width());
+                    }
+                    if (!screenPhysical.isEmpty() && renderSize.height() > screenPhysical.height()) {
+                        qCDebug(log_gstreamer_videooverlaymanager) << "Clamping render rectangle height" << renderSize.height()
+                                                               << "to screen physical height" << screenPhysical.height();
+                        renderSize.setHeight(screenPhysical.height());
+                    }
+                }
+                if (renderSize.width() > 0 && renderSize.height() > 0) {
+                    gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(videoSink), renderOffset.x(), renderOffset.y(), renderSize.width(), renderSize.height());
+                    gst_video_overlay_expose(GST_VIDEO_OVERLAY(videoSink));
+                    qCDebug(log_gstreamer_videooverlaymanager) << "Set render rectangle to:" << QRect(renderOffset, renderSize);
                 }
             } else if (graphicsVideoItem) {
                 QRectF itemRect = graphicsVideoItem->boundingRect();
@@ -230,9 +297,11 @@ bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, QW
     }
 
     // For autovideosink, try to get the actual sink it selected and set up overlay on that
-    const GstElementFactory* factory = gst_element_get_factory(videoSink);
-    const gchar* sinkName = factory ? gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory)) : "unknown";
-    const QByteArray sinkNameBA = QByteArray(sinkName);
+    const GstElementFactory* autovideosinkFactory = gst_element_get_factory(videoSink);
+    const gchar* autovideosinkName = autovideosinkFactory ? gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(autovideosinkFactory)) : "unknown";
+    const QByteArray sinkNameBA = QByteArray(autovideosinkName);
+
+    if (autovideosinkFactory) gst_object_unref((GstObject*)autovideosinkFactory);
 
     if (sinkNameBA.contains("autovideo")) {
         GstElement* actualSink = nullptr;
@@ -244,16 +313,11 @@ bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, QW
                 if (actualSink && GST_IS_VIDEO_OVERLAY(actualSink)) {
                     qCDebug(log_gstreamer_videooverlaymanager) << "Found overlay-capable sink inside autovideosink";
                     gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(actualSink), windowId);
-                    // Use target widget size if available to set explicit render rectangle so scaling works
                     if (videoWidget) {
                         QSize widgetSize = videoWidget->size();
                         if (widgetSize.width() > 0 && widgetSize.height() > 0) {
                             gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(actualSink), 0, 0, widgetSize.width(), widgetSize.height());
                             qCDebug(log_gstreamer_videooverlaymanager) << "Set render rectangle to widget size for autovideosink child sink:" << widgetSize;
-                            if (g_object_class_find_property(G_OBJECT_GET_CLASS(actualSink), "force-aspect-ratio")) {
-                                g_object_set(actualSink, "force-aspect-ratio", FALSE, NULL);
-                                qCDebug(log_gstreamer_videooverlaymanager) << "Disabled force-aspect-ratio on autovideosink child sink";
-                            }
                         } else {
                             gst_video_overlay_set_render_rectangle(GST_VIDEO_OVERLAY(actualSink), 0, 0, -1, -1);
                         }
@@ -285,7 +349,7 @@ bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, QW
 #endif
 }
 
-bool VideoOverlayManager::setupVideoOverlayForPipeline(void* pipeline, WId windowId, QWidget* videoWidget, QGraphicsVideoItem* graphicsVideoItem)
+bool VideoOverlayManager::setupVideoOverlayForPipeline(void* pipeline, WId windowId, const QSize& videoResolution, QWidget* videoWidget, QGraphicsVideoItem* graphicsVideoItem)
 {
 #ifdef HAVE_GSTREAMER
     if (!pipeline) return false;
@@ -296,7 +360,7 @@ bool VideoOverlayManager::setupVideoOverlayForPipeline(void* pipeline, WId windo
     }
 
     if (videoSink) {
-        bool ok = setupVideoOverlay(videoSink, windowId, videoWidget, graphicsVideoItem);
+        bool ok = setupVideoOverlay(videoSink, windowId, videoResolution, videoWidget, graphicsVideoItem);
         gst_object_unref(videoSink);
         return ok;
     }

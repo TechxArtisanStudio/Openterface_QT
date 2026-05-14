@@ -182,7 +182,7 @@ struct KeyboardLayoutConfig {
 
     }
     
-private:
+    // Public static member for key name to Qt key mapping (needed by KeyboardLayoutManager)
     static QMap<QString, int> keyNameToQt;
 };
 
@@ -198,6 +198,34 @@ public:
     
     // List available layouts
     QStringList getAvailableLayouts() const;
+    
+    // === Custom Layout Support ===
+    
+    // Get custom layouts directory path
+    static QString getCustomLayoutsDir();
+    
+    // Create a new custom layout based on an existing layout
+    bool createCustomLayout(const QString& baseName, const QString& customName);
+    
+    // Save a custom layout to file
+    bool saveCustomLayout(const KeyboardLayoutConfig& config, const QString& name);
+    
+    // Merge corrections into a base layout
+    KeyboardLayoutConfig mergeCorrections(const KeyboardLayoutConfig& base, 
+                                         const QMap<int, uint8_t>& keyMapCorrections,
+                                         const QMap<uint8_t, int>& charMapCorrections);
+    
+    // Export layout to JSON string
+    QString exportLayoutToJson(const KeyboardLayoutConfig& config) const;
+    
+    // Import layout from JSON file
+    bool importLayoutFromJson(const QString& jsonPath);
+    
+    // Get list of custom layouts (user-created)
+    QStringList getCustomLayouts() const;
+    
+    // Delete a custom layout
+    bool deleteCustomLayout(const QString& name);
 
 private:
     KeyboardLayoutManager() {} // Private constructor for singleton

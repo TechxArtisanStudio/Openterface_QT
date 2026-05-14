@@ -73,6 +73,15 @@ void LogPage::setupUI()
     screenSaverCheckBox->setObjectName("screenSaverCheckBox");
     hideKeyboardInputCheckBox = new QCheckBox(tr("Hide keyboard input characters"));
     hideKeyboardInputCheckBox->setObjectName("hideKeyboardInputCheckBox");
+    floatingWindowCheckBox = new QCheckBox(tr("Show floating control window"));
+    floatingWindowCheckBox->setObjectName("floatingWindowCheckBox");
+
+    floatingWindowOpacitySlider = new QSlider(Qt::Horizontal, this);
+    floatingWindowOpacitySlider->setRange(20, 100);
+    floatingWindowOpacitySlider->setObjectName("floatingWindowOpacitySlider");
+    floatingWindowOpacityLabel = new QLabel(tr("Opacity: 85%"));
+    floatingWindowOpacityLabel->setObjectName("floatingWindowOpacityLabel");
+    floatingWindowOpacityLabel->setStyleSheet(commentsFontSize);
 
 
     QHBoxLayout *logCheckboxLayout = new QHBoxLayout();
@@ -111,6 +120,13 @@ void LogPage::setupUI()
     QLabel *keyboardInputDescription = new QLabel(tr("Hide keyboard input characters in the status bar by displaying them as dots."));
     keyboardInputDescription->setStyleSheet(commentsFontSize);
 
+    QLabel *floatingWindowLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Floating control window")));
+    floatingWindowLabel->setTextFormat(Qt::RichText);
+    floatingWindowLabel->setStyleSheet(bigLabelFontSize);
+
+    QLabel *floatingWindowDescription = new QLabel(tr("Show a floating window with video control buttons."));
+    floatingWindowDescription->setStyleSheet(commentsFontSize);
+
     QVBoxLayout *logLayout = new QVBoxLayout(this);
     logLayout->addWidget(logLabel);
     logLayout->addWidget(logDescription);
@@ -123,6 +139,13 @@ void LogPage::setupUI()
     logLayout->addWidget(keyboardInputLabel);
     logLayout->addWidget(keyboardInputDescription);
     logLayout->addWidget(hideKeyboardInputCheckBox);
+    logLayout->addWidget(floatingWindowLabel);
+    logLayout->addWidget(floatingWindowDescription);
+    logLayout->addWidget(floatingWindowCheckBox);
+    QHBoxLayout *opacityLayout = new QHBoxLayout();
+    opacityLayout->addWidget(floatingWindowOpacityLabel);
+    opacityLayout->addWidget(floatingWindowOpacitySlider);
+    logLayout->addLayout(opacityLayout);
 
     logLayout->addStretch();
     
@@ -188,6 +211,18 @@ void LogPage::initLogSettings(){
     QCheckBox *hideKeyboardInputCheckBox = findChild<QCheckBox*>("hideKeyboardInputCheckBox");
     hideKeyboardInputCheckBox->setChecked(GlobalSetting::instance().getHideKeyboardInput());
 
+    QCheckBox *floatingWindowCheckBox = findChild<QCheckBox*>("floatingWindowCheckBox");
+    floatingWindowCheckBox->setChecked(GlobalSetting::instance().getFloatingWindowEnabled());
+
+    QSlider *opacitySlider = findChild<QSlider*>("floatingWindowOpacitySlider");
+    QLabel *opacityLabel = findChild<QLabel*>("floatingWindowOpacityLabel");
+    int opacityValue = GlobalSetting::instance().getFloatingWindowOpacity() * 100;
+    opacitySlider->setValue(qBound(20, opacityValue, 100));
+    opacityLabel->setText(tr("Opacity: %1%").arg(opacitySlider->value()));
+    connect(opacitySlider, &QSlider::valueChanged, this, [opacityLabel](int val) {
+        opacityLabel->setText(tr("Opacity: %1%").arg(val));
+    });
+
     logFilePathLineEdit->setText(settings.value("log/logFilePath", "").toString());
 
 }
@@ -240,4 +275,14 @@ void LogPage::applyLogsettings() {
     bool hideKeyboardInput = hideKeyboardInputCheckBox->isChecked();
     GlobalSetting::instance().setHideKeyboardInput(hideKeyboardInput);
     emit hideKeyboardInputChanged(hideKeyboardInput);
+
+    QCheckBox *floatingWindowCheckBox = findChild<QCheckBox*>("floatingWindowCheckBox");
+    bool floatingWindowEnabled = floatingWindowCheckBox->isChecked();
+    GlobalSetting::instance().setFloatingWindowEnabled(floatingWindowEnabled);
+    emit floatingWindowEnabledChanged(floatingWindowEnabled);
+
+    QSlider *opacitySlider = findChild<QSlider*>("floatingWindowOpacitySlider");
+    double opacity = opacitySlider->value() / 100.0;
+    GlobalSetting::instance().setFloatingWindowOpacity(opacity);
+    emit floatingWindowOpacityChanged(opacity);
 }

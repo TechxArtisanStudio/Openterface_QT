@@ -31,6 +31,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QSettings>
+#include <QSlider>
 #include "fontstyle.h"
 
 class LogPage : public QWidget
@@ -47,6 +48,8 @@ public:
 signals:
     void ScreenSaverInhibitedChanged(bool inhibited);
     void hideKeyboardInputChanged(bool hide);
+    void floatingWindowEnabledChanged(bool enabled);
+    void floatingWindowOpacityChanged(double opacity);
 
 private:
 
@@ -62,6 +65,9 @@ private:
     QPushButton *browseButton;
     QCheckBox *screenSaverCheckBox;
     QCheckBox *hideKeyboardInputCheckBox;
+    QCheckBox *floatingWindowCheckBox;
+    QSlider *floatingWindowOpacitySlider;
+    QLabel *floatingWindowOpacityLabel;
 
     QHBoxLayout *logCheckboxLayout;
     QHBoxLayout *logFilePathLayout;

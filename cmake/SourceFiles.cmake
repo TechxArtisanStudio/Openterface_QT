@@ -140,6 +140,7 @@ set(TARGET_SOURCES
     target/KeyboardLayouts.cpp target/KeyboardLayouts.h
     target/KeyboardManager.cpp target/KeyboardManager.h
     target/Keymapping.h
+    target/HIDScancodeReference.h
     target/MouseManager.cpp target/MouseManager.h
     target/mouseeventdto.cpp target/mouseeventdto.h
 )
@@ -209,6 +210,7 @@ set(UI_ADVANCE_SOURCES
     ui/advance/recordingsettingsdialog.cpp ui/advance/recordingsettingsdialog.h
     ui/advance/wchflash/WCHFlashDialog.cpp ui/advance/wchflash/WCHFlashDialog.h
     ui/advance/wchflash/WCHFlashWorker.cpp ui/advance/wchflash/WCHFlashWorker.h
+    ui/advance/keyboardmapeditor.cpp ui/advance/keyboardmapeditor.h
 )
 
 # WCH ISP flashing backend
@@ -252,6 +254,11 @@ set(UI_RECORDING_SOURCES
     ui/recording/recordingcontroller.cpp ui/recording/recordingcontroller.h
 )
 
+# UI floating window sources
+set(UI_FLOATING_WINDOW_SOURCES
+    ui/floatingwindow/floatingwindow.cpp ui/floatingwindow/floatingwindow.h
+)
+
 # UI preferences sources
 set(UI_PREFERENCES_SOURCES
     ui/preferences/cameraadjust.cpp ui/preferences/cameraadjust.h
@@ -286,6 +293,7 @@ set(SOURCE_FILES
     ${UI_TOOLBAR_SOURCES}
     ${UI_RECORDING_SOURCES}
     ${UI_PREFERENCES_SOURCES}
+    ${UI_FLOATING_WINDOW_SOURCES}
     ${WCH_SOURCES}
 )
 

@@ -560,8 +560,10 @@ bool FFmpegDeviceManager::SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator
     // Disable experimental codec features, use normal compliance
     codec_context_->strict_std_compliance = FF_COMPLIANCE_NORMAL;
     
-    // Preserve frame metadata for accurate rendering
+    // Preserve frame metadata for accurate rendering (if supported by this FFmpeg version)
+#ifdef AV_CODEC_FLAG_COPY_OPAQUE
     codec_context_->flags |= AV_CODEC_FLAG_COPY_OPAQUE;
+#endif
     
     qCInfo(log_ffmpeg_backend) << "=== CODEC CONFIGURATION FOR QUALITY ===";
     qCInfo(log_ffmpeg_backend) << "Codec:" << (codec->name ? codec->name : "unknown");
@@ -615,7 +617,9 @@ bool FFmpegDeviceManager::SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator
             codec_context_->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
             codec_context_->pix_fmt = AV_PIX_FMT_YUVJ420P;
             codec_context_->strict_std_compliance = FF_COMPLIANCE_NORMAL;
+#ifdef AV_CODEC_FLAG_COPY_OPAQUE
             codec_context_->flags |= AV_CODEC_FLAG_COPY_OPAQUE;
+#endif
             
             usingHwDecoder = false;
             qCInfo(log_ffmpeg_backend) << "Falling back to software decoder:" << codec->name << "(" << fallback_threads << "threads, CPU cores:" << QThread::idealThreadCount() << ")"; 

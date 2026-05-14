@@ -137,6 +137,7 @@
     <addaction name="actionUpdateFirmware"/>
     <addaction name="actionRenameDisplay"/>
     <addaction name="actionWCHFlash"/>
+    <addaction name="actionKeyboardMapEditor"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -341,6 +342,14 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+W</string>
+   </property>
+  </action>
+  <action name="actionKeyboardMapEditor">
+   <property name="text">
+    <string>Keyboard Mapping Editor</string>
+   </property>
+   <property name="toolTip">
+    <string>Create and edit custom keyboard layouts to correct key mapping issues</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
@@ -646,6 +655,12 @@
    <receiver>MainWindow</receiver>
    <slot>showWCHFlashDialog()</slot>
   </connection>
+  <connection>
+   <sender>actionKeyboardMapEditor</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>openKeyboardMapEditor()</slot>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
@@ -674,5 +689,6 @@
   <slot>openDeviceSelector()</slot>
   <slot>showUpdateDisplaySettingsDialog()</slot>
   <slot>showWCHFlashDialog()</slot>
+  <slot>openKeyboardMapEditor()</slot>
  </slots>
 </ui>

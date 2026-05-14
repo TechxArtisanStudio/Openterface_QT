@@ -24,6 +24,7 @@
 #include "global.h"
 #include "ui_mainwindow.h"
 #include "globalsetting.h"
+#include "floatingwindow/floatingwindow.h"
 #include <QTimer>
 #include "ui/statusbar/statusbarmanager.h"
 #include "host/HostManager.h"
@@ -707,6 +708,13 @@ void MainWindow::configureSettings() {
         LogPage* logPage = settingDialog->getLogPage();
         connect(logPage, &LogPage::ScreenSaverInhibitedChanged, m_screenSaverManager, &ScreenSaverManager::setScreenSaverInhibited);
         connect(logPage, &LogPage::hideKeyboardInputChanged, m_statusBarManager, &StatusBarManager::setHideKeyboardInput);
+        connect(logPage, &LogPage::floatingWindowEnabledChanged, this, [this](bool enabled) {
+            if (enabled) showFloatingWindow();
+            else hideFloatingWindow();
+        });
+        connect(logPage, &LogPage::floatingWindowOpacityChanged, this, [this](double opacity) {
+            if (m_floatingWindow) m_floatingWindow->setWindowOpacityValue(opacity);
+        });
         m_statusBarManager->setHideKeyboardInput(GlobalSetting::instance().getHideKeyboardInput());
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
         // connect the finished signal to the set the dialog pointer to nullptr
@@ -858,6 +866,22 @@ void MainWindow::debugSerialPort() {
         serialPortDebugDialog->raise();
         serialPortDebugDialog->activateWindow();
     }
+}
+
+void MainWindow::openKeyboardMapEditor() {
+    qDebug() << "Opening keyboard mapping editor";
+    
+    KeyboardMapEditor* editor = new KeyboardMapEditor(this);
+    
+    connect(editor, &QDialog::finished, this, [this, editor](int result) {
+        if (result == QDialog::Accepted) {
+            // Refresh keyboard layouts in main window
+            initializeKeyboardLayouts();
+        }
+        editor->deleteLater();
+    });
+    
+    editor->show();
 }
 
 void MainWindow::purchaseLink(){
@@ -1474,6 +1498,92 @@ void MainWindow::actualSize()
     if (videoPane) {
         videoPane->actualSize();
     }
+}
+
+void MainWindow::ensureFloatingWindowCreated()
+{
+    if (m_floatingWindow) return;
+
+    m_floatingWindow = new FloatingWindow(this);
+
+    connect(m_floatingWindow, &FloatingWindow::zoomInRequested, this, [this]() {
+        if (m_windowLayoutCoordinator) m_windowLayoutCoordinator->zoomIn();
+    });
+    connect(m_floatingWindow, &FloatingWindow::zoomOutRequested, this, [this]() {
+        if (m_windowLayoutCoordinator) m_windowLayoutCoordinator->zoomOut();
+    });
+    connect(m_floatingWindow, &FloatingWindow::fullscreenRequested, this, [this]() {
+        if (m_windowLayoutCoordinator) m_windowLayoutCoordinator->fullScreen();
+    });
+    connect(m_floatingWindow, &FloatingWindow::fitToWindowRequested, this, [this]() {
+        if (videoPane) videoPane->fitToWindow();
+    });
+
+    const int moveStep = 10;
+    connect(m_floatingWindow, &FloatingWindow::moveUpRequested, this, [this, moveStep]() {
+        if (videoPane && videoPane->verticalScrollBar())
+            videoPane->verticalScrollBar()->setValue(videoPane->verticalScrollBar()->value() - moveStep);
+    });
+    connect(m_floatingWindow, &FloatingWindow::moveDownRequested, this, [this, moveStep]() {
+        if (videoPane && videoPane->verticalScrollBar())
+            videoPane->verticalScrollBar()->setValue(videoPane->verticalScrollBar()->value() + moveStep);
+    });
+    connect(m_floatingWindow, &FloatingWindow::moveLeftRequested, this, [this, moveStep]() {
+        if (videoPane && videoPane->horizontalScrollBar())
+            videoPane->horizontalScrollBar()->setValue(videoPane->horizontalScrollBar()->value() - moveStep);
+    });
+    connect(m_floatingWindow, &FloatingWindow::moveRightRequested, this, [this, moveStep]() {
+        if (videoPane && videoPane->horizontalScrollBar())
+            videoPane->horizontalScrollBar()->setValue(videoPane->horizontalScrollBar()->value() + moveStep);
+    });
+
+    // Apply opacity setting
+    double opacity = GlobalSetting::instance().getFloatingWindowOpacity();
+    m_floatingWindow->setWindowOpacityValue(opacity);
+
+    // Position at top-right of screen
+    connect(m_floatingWindow, &FloatingWindow::dragEnded,
+            this, [this]() { if (m_floatingWindow) m_floatingWindow->clampToScreen(); });
+
+    // Reposition floating window when exiting fullscreen
+    connect(m_windowLayoutCoordinator, &WindowLayoutCoordinator::fullscreenChanged,
+            this, [this](bool entered) {
+        if (!entered && m_floatingWindow && m_floatingWindow->isVisible() && videoPane) {
+            m_floatingWindow->positionAtVideoPaneTopRight(videoPane);
+            m_floatingWindow->clampToScreen();
+        }
+    });
+
+    // Clamp to screen on move
+    connect(m_floatingWindow, &FloatingWindow::moveUpRequested, this, [this]() {
+        if (m_floatingWindow) m_floatingWindow->clampToScreen();
+    });
+    connect(m_floatingWindow, &FloatingWindow::moveDownRequested, this, [this]() {
+        if (m_floatingWindow) m_floatingWindow->clampToScreen();
+    });
+    connect(m_floatingWindow, &FloatingWindow::moveLeftRequested, this, [this]() {
+        if (m_floatingWindow) m_floatingWindow->clampToScreen();
+    });
+    connect(m_floatingWindow, &FloatingWindow::moveRightRequested, this, [this]() {
+        if (m_floatingWindow) m_floatingWindow->clampToScreen();
+    });
+}
+
+void MainWindow::showFloatingWindow()
+{
+    ensureFloatingWindowCreated();
+    if (videoPane) {
+        m_floatingWindow->positionAtVideoPaneTopRight(videoPane);
+        m_floatingWindow->clampToScreen();
+    } else {
+        m_floatingWindow->moveToTopRight();
+    }
+    m_floatingWindow->show();
+}
+
+void MainWindow::hideFloatingWindow()
+{
+    if (m_floatingWindow) m_floatingWindow->hide();
 }
 
 void MainWindow::showScriptTool()
