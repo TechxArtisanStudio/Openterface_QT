@@ -115,11 +115,11 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     // CacheBackground can hold old frames and prevent updates
     setCacheMode(QGraphicsView::CacheNone);
 
-    // Use center alignment so extra space is distributed evenly on all sides.
-    // The scene rect is set to the video content's scaled dimensions, so when
-    // the viewport is larger than the scaled video, AlignCenter automatically
-    // distributes the remaining space evenly (letterboxing/pillarboxing).
-    setAlignment(Qt::AlignCenter);
+    // Use top-left alignment so the scene origin always maps to viewport (0,0).
+    // Item centering is handled explicitly via setPos() in updateVideoItemTransform(),
+    // so relying on AlignCenter (the Qt default) would double-center the content and
+    // cause display shifts whenever the scene rect doesn't exactly match the viewport.
+    setAlignment(Qt::AlignLeft | Qt::AlignTop);
 
     this->setMouseTracking(true);
     this->installEventFilter(m_inputHandler);
@@ -749,21 +749,15 @@ void VideoPane::setupScene()
 void VideoPane::updateScrollBarsAndSceneRect()
 {
     // Get the actual video content size in SCENE coordinates (accounts for item
-    // transform and device pixel ratio).
+    // transform and device pixel ratio).  Using the item's LOCAL boundingRect()
+    // here would be wrong on HiDPI displays (DPR > 1): the pixmap logical size is
+    // physical_size / DPR, which is smaller than the viewport, causing AlignCenter
+    // to push the content to the right side with a large black area on the left.
     QRectF contentRect;
     if (m_directFFmpegMode && m_pixmapItem) {
-        // Use item's local boundingRect transformed by its scale — but anchored
-        // at the scene origin (0,0) so the scene rect doesn't absorb the item's
-        // centering offset.
-        QRectF localRect = m_pixmapItem->boundingRect();
-        QTransform itemTransform = m_pixmapItem->transform();
-        QRectF scaledRect = itemTransform.mapRect(QRectF(0, 0, localRect.width(), localRect.height()));
-        contentRect = QRectF(0, 0, scaledRect.width(), scaledRect.height());
+        contentRect = m_pixmapItem->mapToScene(m_pixmapItem->boundingRect()).boundingRect();
     } else if (m_videoItem) {
-        QRectF localRect = m_videoItem->boundingRect();
-        QTransform itemTransform = m_videoItem->transform();
-        QRectF scaledRect = itemTransform.mapRect(QRectF(0, 0, localRect.width(), localRect.height()));
-        contentRect = QRectF(0, 0, scaledRect.width(), scaledRect.height());
+        contentRect = m_videoItem->mapToScene(m_videoItem->boundingRect()).boundingRect();
     }
 
     if (contentRect.isEmpty()) {
@@ -775,22 +769,16 @@ void VideoPane::updateScrollBarsAndSceneRect()
         // Enable scroll bars when zoomed in
         setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-
-        // In FFmpeg mode, updateVideoItemTransform() already sets the scene
-        // rect to a large fixed size. Don't override it here.
-        if (m_directFFmpegMode) {
-            return;
-        }
-
+        
         if (m_scene) {
             QRectF zoomedSceneRect = contentRect;
             if (zoomedSceneRect.isEmpty()) {
                 zoomedSceneRect = viewport()->rect();
             }
-            // Scene rect anchored at (0,0) so the item's centering position
-            // in updateVideoItemTransform() is preserved.
+            // Use the item's scene-space bounds so scrollbars reflect the actual
+            // zoomed video content correctly regardless of DPR.
             m_scene->setSceneRect(zoomedSceneRect);
-
+            
             qCDebug(log_ui_video) << "Updated scene rect for zoom:" << zoomedSceneRect
                                  << "zoom factor:" << m_scaleFactor
                                  << "viewport:" << viewport()->rect();
@@ -944,11 +932,13 @@ QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
     
     // qCDebug(log_ui_video) << "      [getTransformed] normalizedX/Y:" << normalizedX << normalizedY;
     
-    // Step 5: Convert normalized coordinates back to viewport coordinates for the logical video area
+    // Step 5: Convert normalized coordinates back to original video coordinates
     // (This is the actual size expected by the target device)
-    // Use qRound() for proper rounding to minimize error
-    double transformedXDouble = normalizedX * viewRect.width();
-    double transformedYDouble = normalizedY * viewRect.height();
+    // CRITICAL FIX: Use m_originalVideoSize instead of viewRect for FFmpeg mode
+    // because normalizedX/Y are relative positions in video content, and should map
+    // to the target device's coordinate system (which matches the original video size)
+    double transformedXDouble = normalizedX * m_originalVideoSize.width();
+    double transformedYDouble = normalizedY * m_originalVideoSize.height();
     
     // qCDebug(log_ui_video) << "      [getTransformed] Before rounding:" << transformedXDouble << transformedYDouble;
     

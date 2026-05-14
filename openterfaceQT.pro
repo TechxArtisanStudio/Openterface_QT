@@ -113,6 +113,7 @@ SOURCES += main.cpp \
     ui/advance/diagnostics/SupportEmailDialog.cpp \
     ui/advance/wchflash/WCHFlashDialog.cpp \
     ui/advance/wchflash/WCHFlashWorker.cpp \
+    ui/advance/keyboardmapeditor.cpp \
     ui/initializer/mainwindowinitializer.cpp \
     ui/statusbar/statusbarmanager.cpp \
     ui/statusbar/statuswidget.cpp \
@@ -213,6 +214,7 @@ HEADERS  += \
     target/KeyboardManager.h \
     target/MouseManager.h \
     target/Keymapping.h \
+    target/HIDScancodeReference.h \
     target/mouseeventdto.h \
     resources/version.h \
     video/videohid.h \
@@ -263,6 +265,7 @@ HEADERS  += \
     ui/advance/diagnostics/SupportEmailDialog.h \
     ui/advance/wchflash/WCHFlashDialog.h \
     ui/advance/wchflash/WCHFlashWorker.h \
+    ui/advance/keyboardmapeditor.h \
     ui/initializer/mainwindowinitializer.h \
     ui/statusbar/statusbarmanager.h \
     ui/statusbar/statuswidget.h \

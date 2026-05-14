@@ -553,7 +553,7 @@ QImage FFmpegFrameProcessor::DecodeMJPEGWithTurboJPEG(AVPacket* packet, const QS
         native_jpeg_size_ = QSize(width, height);
     }
     
-    // Determine target size for DCT scaling
+    // Determine target size for scaling
     int target_width = width;
     int target_height = height;
 
