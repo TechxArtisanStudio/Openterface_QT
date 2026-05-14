@@ -29,7 +29,7 @@ QString PipelineBuilder::buildFlexiblePipeline(const QString& device, const QSiz
     QString pipelineTemplate = sourceElement + " ! " +
                       decoderElement + " ! " +
                       "videoconvert ! "
-                      "videoscale method=lanczos add-borders=true ! "
+                      "videoscale method=lanczos ! "
                       "%SCALE_CAPS% ! " +
                       "identity sync=true ! "
                       "tee name=t allow-not-linked=true "

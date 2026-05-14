@@ -31,6 +31,8 @@
 #include <QtMultimediaWidgets>
 #include <QDebug>
 #include <QTimer>
+#include <QPropertyAnimation>
+#include <QGraphicsOpacityEffect>
 #include <thread>
 #include <chrono>
 #include <cmath>
@@ -57,7 +59,10 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     m_lastGStreamerUpdateTime(0),
     m_directFFmpegMode(false),
     m_lastViewportSize(QSize()),
-    m_frameIsViewportSized(false)
+    m_frameIsViewportSized(false),
+    m_zoomHintLabel(nullptr),
+    m_zoomHintShown(false),
+    m_zoomHintTimer(nullptr)
 {
     qDebug(log_ui_video) << "VideoPane init...";
     
@@ -110,12 +115,42 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     // CacheBackground can hold old frames and prevent updates
     setCacheMode(QGraphicsView::CacheNone);
 
+    // Use center alignment so extra space is distributed evenly on all sides.
+    // The scene rect is set to the video content's scaled dimensions, so when
+    // the viewport is larger than the scaled video, AlignCenter automatically
+    // distributes the remaining space evenly (letterboxing/pillarboxing).
+    setAlignment(Qt::AlignCenter);
+
     this->setMouseTracking(true);
     this->installEventFilter(m_inputHandler);
     this->setFocusPolicy(Qt::StrongFocus);
     relativeModeEnable = false;
     // Set up the timer
     connect(escTimer, &QTimer::timeout, this, &VideoPane::showHostMouse);
+    
+    // Initialize zoom hint label
+    m_zoomHintLabel = new QLabel(this);
+    m_zoomHintLabel->setText(tr("Shift + Arrow Keys to move viewport"));
+    m_zoomHintLabel->setStyleSheet(
+        "QLabel { "
+        "background-color: rgba(0, 0, 0, 180); "
+        "color: white; "
+        "padding: 10px 15px; "
+        "border-radius: 5px; "
+        "font-size: 14px; "
+        "font-weight: bold; "
+        "}"
+    );
+    m_zoomHintLabel->setAlignment(Qt::AlignCenter);
+    m_zoomHintLabel->adjustSize();
+    m_zoomHintLabel->move(10, 10); // Position at top-left corner
+    m_zoomHintLabel->hide(); // Hidden by default
+    m_zoomHintLabel->raise(); // Ensure it's on top
+    
+    // Initialize timer for fade out
+    m_zoomHintTimer = new QTimer(this);
+    m_zoomHintTimer->setSingleShot(true);
+    connect(m_zoomHintTimer, &QTimer::timeout, this, &VideoPane::startZoomHintFadeOut);
 }
 
 VideoPane::~VideoPane()
@@ -143,6 +178,17 @@ VideoPane::~VideoPane()
         escTimer->stop();
         escTimer->deleteLater();
         escTimer = nullptr;
+    }
+    
+    if (m_zoomHintTimer) {
+        m_zoomHintTimer->stop();
+        m_zoomHintTimer->deleteLater();
+        m_zoomHintTimer = nullptr;
+    }
+    
+    if (m_zoomHintLabel) {
+        m_zoomHintLabel->deleteLater();
+        m_zoomHintLabel = nullptr;
     }
     
     // 4. Specific signal disconnection to prevent callbacks during destruction
@@ -424,6 +470,9 @@ void VideoPane::centerOn(const QPointF &pos)
 
 void VideoPane::zoomIn(double factor)
 {
+    // Check if this is the first zoom in (transitioning from 1.0 to > 1.0)
+    bool wasNotZoomed = (m_scaleFactor <= 1.0);
+    
     // Store the center point of the viewport before zooming
     QPointF centerPoint = mapToScene(viewport()->rect().center());
     
@@ -435,6 +484,11 @@ void VideoPane::zoomIn(double factor)
     
     // Center back on the same scene point to maintain focus during zoom
     centerOn(centerPoint);
+    
+    // Show hint if this is the first zoom in and hint hasn't been shown yet
+    if (wasNotZoomed && m_scaleFactor > 1.0 && !m_zoomHintShown) {
+        showZoomHint();
+    }
     
     // Log zoom information
     qCDebug(log_ui_video) << "Zoom in: factor=" << factor << "current zoom=" << m_scaleFactor
@@ -503,10 +557,13 @@ void VideoPane::resizeEvent(QResizeEvent *event)
         updateVideoFrame(m_pixmapItem->pixmap());
     }
 
+    // Update item transform FIRST, then compute scene rect from the new transform.
+    // Order matters: updateScrollBarsAndSceneRect() uses the item's current transform
+    // to calculate content bounds, so the transform must be up-to-date.
+    updateVideoItemTransform();
+
     // Update scene rect and scroll bars on resize
     updateScrollBarsAndSceneRect();
-    
-    updateVideoItemTransform();
     
     // Update overlay widget geometry for direct GStreamer mode
     if (m_directGStreamerMode && m_overlayWidget) {
@@ -525,49 +582,46 @@ void VideoPane::resizeEvent(QResizeEvent *event)
 // Helper methods
 void VideoPane::updateOverlayWidgetGeometry()
 {
-    if (!m_overlayWidget) {
+    if (!m_overlayWidget || !viewport()) {
         return;
     }
 
-    if (viewport()) {
-        m_overlayWidget->setGeometry(viewport()->rect());
+    QRect viewportRect = viewport()->rect();
+    QRect newGeometry;
+    if (m_scaleFactor > 1.0) {
+        QSize scaledSize(qRound(viewportRect.width() * m_scaleFactor), qRound(viewportRect.height() * m_scaleFactor));
+        QPointF sceneTopLeft = mapToScene(viewportRect.topLeft());
+        int x = qRound(-sceneTopLeft.x() * m_scaleFactor);
+        int y = qRound(-sceneTopLeft.y() * m_scaleFactor);
+        newGeometry = QRect(x, y, scaledSize.width(), scaledSize.height());
+    } else {
+        newGeometry = viewportRect;
     }
 
-    std::thread([this]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        QMetaObject::invokeMethod(this, [this]() {
-            if (!m_overlayWidget || !viewport()) return;
-            m_overlayWidget->setGeometry(viewport()->rect());
-        }, Qt::QueuedConnection);
-    }).detach();
-    qCDebug(log_ui_video) << "VideoPane: Updated GStreamer overlay widget geometry to:" << m_overlayWidget->geometry();
+    if (m_overlayWidget->geometry() != newGeometry) {
+        m_overlayWidget->setGeometry(newGeometry);
+    }
+    m_overlayWidget->update();
 
+    qCDebug(log_ui_video) << "VideoPane: Updated GStreamer overlay widget geometry to:" << m_overlayWidget->geometry();
 }
 
 void VideoPane::updateVideoItemTransform()
 {
-    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     QGraphicsItem* targetItem = nullptr;
     QRectF itemRect;
-    
+
     if (m_directFFmpegMode && m_pixmapItem) {
         targetItem = m_pixmapItem;
         itemRect = m_pixmapItem->boundingRect();
-        // qDebug(log_ui_video) << "VideoPane: Updating FFmpeg pixmap transform";
     } else if (m_directGStreamerMode) {
-        // For GStreamer overlay mode, the Qt video item is not used; instead, ensure the overlay
-        // widget matches the viewport geometry and skip detailed QGraphics transforms.
         updateOverlayWidgetGeometry();
-        // Nothing further to transform; overlay handles the rendered video
         return;
     } else if (m_videoItem) {
-        // Default: use the Qt video item when not in FFmpeg mode and not in GStreamer overlay mode
         targetItem = m_videoItem;
         itemRect = m_videoItem->boundingRect();
-        qCDebug(log_ui_video) << "VideoPane: Updating Qt video item transform";
     }
 
-    // If we don't have a valid target item, nothing to transform
     if (!targetItem) {
         return;
     }
@@ -575,71 +629,79 @@ void VideoPane::updateVideoItemTransform()
     QRectF viewRect = viewport()->rect();
     if (itemRect.isEmpty() || viewRect.isEmpty()) return;
 
-    // Normalize the item rectangle to start from (0,0) and get the original offset
     QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
-    QPointF itemOffset = itemRect.topLeft();
 
-    // Check if frame is viewport-sized (pre-scaled at decode time) and use 1:1 scaling
-    if (m_directFFmpegMode && m_frameIsViewportSized) {
-        // Frame is already sized to viewport - use identity transform for 1:1 display
-        qCDebug(log_ui_video) << "Using 1:1 scaling for viewport-sized frame:" << normalizedRect.size() << "viewport:" << viewRect.size();
-        
-        QTransform transform;
-        // Identity transform (no scaling)
-        targetItem->setTransform(transform);
-        
-        // Center the item directly without additional scaling
-        double x = (viewRect.width() - normalizedRect.width()) / 2.0 - itemOffset.x();
-        double y = (viewRect.height() - normalizedRect.height()) / 2.0 - itemOffset.y();
-        targetItem->setPos(x, y);
-        
-        return; // Skip standard scaling logic
+    if (m_directFFmpegMode) {
+        qCDebug(log_ui_video) << "DEBUG transform: itemRect=" << itemRect
+                             << "viewRect=" << viewRect
+                             << "currentPos=" << targetItem->pos()
+                             << "currentTransform=" << targetItem->transform()
+                             << "scaleFactor=" << m_scaleFactor
+                             << "frameIsViewportSized=" << m_frameIsViewportSized;
     }
 
+    // Compute scale to fit video within viewport while maintaining aspect ratio
+    double scaleX = viewRect.width() / normalizedRect.width();
+    double scaleY = viewRect.height() / normalizedRect.height();
+    double scale = qMin(scaleX, scaleY);
+
     if (m_scaleFactor > 1.0) {
-        // When zoomed in, use the view transform to scale the item, but apply a base transform
-        double scaleX = viewRect.width() / normalizedRect.width();
-        double scaleY = viewRect.height() / normalizedRect.height();
-        double scale = qMin(scaleX, scaleY);
+        scale *= m_scaleFactor;
+    } else if (!m_maintainAspectRatio) {
+        scaleX = viewRect.width() / normalizedRect.width();
+        scaleY = viewRect.height() / normalizedRect.height();
+    }
+
+    // In FFmpeg mode, use a large fixed scene rect and center the item manually.
+    // This avoids QGraphicsView::AlignCenter subtleties and ensures centering
+    // works consistently regardless of viewport size or timing.
+    if (m_directFFmpegMode) {
+        // Use a large fixed scene rect (4096x4096) so there's always room
+        // for centering the video item.
+        const qreal sceneSize = 4096.0;
+        qreal scaledWidth = normalizedRect.width() * scale;
+        qreal scaledHeight = normalizedRect.height() * scale;
+        qreal x = (sceneSize - scaledWidth) / 2.0;
+        qreal y = (sceneSize - scaledHeight) / 2.0;
+
+        m_scene->setSceneRect(0, 0, sceneSize, sceneSize);
 
         QTransform transform;
+        transform.translate(x, y);
         transform.scale(scale, scale);
         targetItem->setTransform(transform);
+        targetItem->setPos(0, 0);
 
-        QRectF scaledRect = QRectF(0, 0, normalizedRect.width() * scale, normalizedRect.height() * scale);
-        double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * scale);
-        double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * scale);
-        targetItem->setPos(x, y);
+        if (m_directFFmpegMode) {
+            qCDebug(log_ui_video) << "DEBUG FFmpeg centering: scale=" << scale
+                                 << "scaledSize=" << QSizeF(scaledWidth, scaledHeight)
+                                 << "itemPos=" << QPointF(x, y)
+                                 << "sceneRect=" << m_scene->sceneRect()
+                                 << "viewport=" << viewRect;
+        }
     } else if (m_maintainAspectRatio) {
-        // Calculate scale to fit while maintaining aspect ratio
-        double scaleX = viewRect.width() / normalizedRect.width();
-        double scaleY = viewRect.height() / normalizedRect.height();
-        double scale = qMin(scaleX, scaleY);
-
-        // Apply transformation
         QTransform transform;
         transform.scale(scale, scale);
         targetItem->setTransform(transform);
-
-        // Center the item after scaling, accounting for the original offset
-        QRectF scaledRect = QRectF(0, 0, normalizedRect.width() * scale, normalizedRect.height() * scale);
-        double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * scale);
-        double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * scale);
-        targetItem->setPos(x, y);
+        targetItem->setPos(0, 0);
     } else {
-        // Stretch to fill (ignore aspect ratio)
         QTransform transform;
         transform.scale(viewRect.width() / normalizedRect.width(), viewRect.height() / normalizedRect.height());
         targetItem->setTransform(transform);
-        // Account for the original offset when stretching
-        targetItem->setPos(-itemOffset.x(), -itemOffset.y());
+        targetItem->setPos(0, 0);
     }
-    // qCDebug(log_ui_video) <<  QDateTime::currentMSecsSinceEpoch() - currentTime << "ms taken to update video item transform.";
 }
 
 void VideoPane::centerVideoItem()
 {
-    // Handle both Qt video item and FFmpeg pixmap item
+    // In FFmpeg mode, centering is handled by QGraphicsView::AlignCenter
+    // with the scene rect set to the scaled content size. Manual positioning
+    // would conflict with the view's automatic centering.
+    if (m_directFFmpegMode) {
+        return;
+    }
+
+    // For QGraphicsVideoItem (non-FFmpeg path), manually center the item.
     QGraphicsItem* targetItem = nullptr;
     QRectF itemRect;
     
@@ -654,21 +716,21 @@ void VideoPane::centerVideoItem()
     }
     
     if (!targetItem) return;
-    
+
     QRectF viewRect = viewport()->rect();
-    
+
     // Normalize the item rectangle and get the original offset
     QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
     QPointF itemOffset = itemRect.topLeft();
-    
+
     // Get the current transform to calculate the scaled size
     QTransform transform = targetItem->transform();
     QRectF scaledRect = transform.mapRect(normalizedRect);
-    
+
     // Center the item accounting for the original offset
     double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * transform.m11());
     double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * transform.m22());
-    
+
     targetItem->setPos(x, y);
 }
 
@@ -686,56 +748,118 @@ void VideoPane::setupScene()
 
 void VideoPane::updateScrollBarsAndSceneRect()
 {
-    // Get the actual video content size
+    // Get the actual video content size in SCENE coordinates (accounts for item
+    // transform and device pixel ratio).
     QRectF contentRect;
     if (m_directFFmpegMode && m_pixmapItem) {
-        contentRect = m_pixmapItem->boundingRect();
+        // Use item's local boundingRect transformed by its scale — but anchored
+        // at the scene origin (0,0) so the scene rect doesn't absorb the item's
+        // centering offset.
+        QRectF localRect = m_pixmapItem->boundingRect();
+        QTransform itemTransform = m_pixmapItem->transform();
+        QRectF scaledRect = itemTransform.mapRect(QRectF(0, 0, localRect.width(), localRect.height()));
+        contentRect = QRectF(0, 0, scaledRect.width(), scaledRect.height());
     } else if (m_videoItem) {
-        contentRect = m_videoItem->boundingRect();
+        QRectF localRect = m_videoItem->boundingRect();
+        QTransform itemTransform = m_videoItem->transform();
+        QRectF scaledRect = itemTransform.mapRect(QRectF(0, 0, localRect.width(), localRect.height()));
+        contentRect = QRectF(0, 0, scaledRect.width(), scaledRect.height());
     }
-    
+
     if (contentRect.isEmpty()) {
         // Fallback to viewport size if no content
         contentRect = viewport()->rect();
     }
-    
+
     if (m_scaleFactor > 1.0) {
         // Enable scroll bars when zoomed in
         setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-        
-        // When zoomed in, we need a scene rect that accounts for the zoom level
-        // to ensure proper scrolling boundaries
+
+        // In FFmpeg mode, updateVideoItemTransform() already sets the scene
+        // rect to a large fixed size. Don't override it here.
+        if (m_directFFmpegMode) {
+            return;
+        }
+
         if (m_scene) {
-            QRectF viewportRect = viewport()->rect();
-            
-            // Calculate the effective scene size based on the zoom factor
-            // This ensures scroll bars have the correct range
-            QRectF zoomedSceneRect = QRectF(
-                viewportRect.x(),
-                viewportRect.y(),
-                viewportRect.width(), 
-                viewportRect.height()
-            );
-            
-            // Set the scene rect to match the viewport
+            QRectF zoomedSceneRect = contentRect;
+            if (zoomedSceneRect.isEmpty()) {
+                zoomedSceneRect = viewport()->rect();
+            }
+            // Scene rect anchored at (0,0) so the item's centering position
+            // in updateVideoItemTransform() is preserved.
             m_scene->setSceneRect(zoomedSceneRect);
-            
-            // Log the scene rect update
+
             qCDebug(log_ui_video) << "Updated scene rect for zoom:" << zoomedSceneRect
                                  << "zoom factor:" << m_scaleFactor
-                                 << "viewport:" << viewportRect;
+                                 << "viewport:" << viewport()->rect();
         }
     } else {
         // Disable scroll bars when at normal zoom or below
         setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        
-        // Reset scene rect to viewport size
+
+        // In FFmpeg mode, updateVideoItemTransform() already sets the scene
+        // rect and centers the item. Don't override it here.
+        if (m_directFFmpegMode) {
+            return;
+        }
+
         if (m_scene) {
-            m_scene->setSceneRect(viewport()->rect());
+            QRectF sceneRect = contentRect;
+            if (sceneRect.isEmpty()) {
+                sceneRect = viewport()->rect();
+            }
+            m_scene->setSceneRect(sceneRect);
+
+            qCDebug(log_ui_video) << "Scene rect (fit):" << sceneRect
+                                 << "viewport:" << viewport()->rect()
+                                 << "contentRect:" << contentRect
+                                 << "alignment:" << alignment();
         }
     }
+}
+
+QRectF VideoPane::getGStreamerVideoContentRect() const
+{
+    if (m_directGStreamerMode && m_overlayWidget && viewport()) {
+        // In direct GStreamer mode, mouse coordinates should map to the active
+        // visible overlay region, not the full widget geometry if part of the
+        // overlay is clipped by the screen or the parent window.
+        QRect overlayGeometry = m_overlayWidget->geometry();
+        QRect visibleLocal = m_overlayWidget->visibleRegion().boundingRect();
+
+        if (visibleLocal.isValid() && visibleLocal.size() != m_overlayWidget->size()) {
+            QPoint viewportTopLeft = m_overlayWidget->mapTo(viewport(), visibleLocal.topLeft());
+            return QRectF(viewportTopLeft, visibleLocal.size());
+        }
+
+        QRect globalOverlayRect(m_overlayWidget->mapToGlobal(QPoint(0, 0)), m_overlayWidget->size());
+        QScreen *screen = nullptr;
+        if (QWindow *topWindow = window() ? window()->windowHandle() : nullptr) {
+            screen = topWindow->screen();
+        }
+        if (!screen) {
+            screen = QGuiApplication::primaryScreen();
+        }
+
+        if (screen) {
+            QRect visibleGlobal = globalOverlayRect.intersected(screen->availableGeometry());
+            if (visibleGlobal.isValid() && visibleGlobal.size() != globalOverlayRect.size()) {
+                QPoint viewportTopLeft = viewport()->mapFromGlobal(visibleGlobal.topLeft());
+                return QRectF(viewportTopLeft, visibleGlobal.size());
+            }
+        }
+
+        return QRectF(overlayGeometry);
+    }
+
+    if (viewport()) {
+        return QRectF(viewport()->rect());
+    }
+
+    return QRectF();
 }
 
 QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
@@ -755,66 +879,24 @@ QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
         itemRect = m_videoItem->boundingRect();
         // qCDebug(log_ui_video) << "      [getTransformed] Using video item";
     } else if (m_directGStreamerMode) {
-        // Special handling for GStreamer mode
-        QRectF viewRect = viewport()->rect();
-        qDebug() << "      [getTransformed] viewRect:" << viewRect;
+        QRectF videoRect = getGStreamerVideoContentRect();
+        qDebug() << "      [getTransformed] GStreamer video rect:" << videoRect;
 
-        // Guard against invalid view or original video size
-        if (viewRect.width() <= 0 || viewRect.height() <= 0) {
-            qCWarning(log_ui_video) << "Invalid viewport size for GStreamer mapping:" << viewRect.size();
+        if (!videoRect.isValid() || videoRect.isEmpty()) {
+            qCWarning(log_ui_video) << "Invalid video content rect for GStreamer mapping:" << videoRect;
             return QPointF(viewportPos);
         }
 
-        int vwInt = m_originalVideoSize.width();
-        int vhInt = m_originalVideoSize.height();
-        if (vwInt <= 0 || vhInt <= 0) {
-            qCWarning(log_ui_video) << "Invalid original video size for GStreamer mapping:" << m_originalVideoSize;
-            // fallback to viewport coordinates
-            return QPointF(viewportPos);
-        }
-
-        double vw = static_cast<double>(vwInt);
-        double vh = static_cast<double>(vhInt);
-        double viewW = viewRect.width();
-        double viewH = viewRect.height();
-        double videoAspect = vw / vh;
-        double viewAspect = viewW / viewH;
-        double scale;
-        if (videoAspect > viewAspect) {
-            scale = viewW / vw;
-        } else {
-            scale = viewH / vh;
-        }
-        double scaledWidth = vw * scale;
-        double scaledHeight = vh * scale;
-        double x = (viewW - scaledWidth) / 2;
-        double y = (viewH - scaledHeight) / 2;
-        QRectF videoRect(x, y, scaledWidth, scaledHeight);
-        qDebug() << "      [videoRect] " << x << y << scaledWidth << scaledHeight;
-        // Calculate itemPos manually
         QPointF itemPos = viewportPos - videoRect.topLeft();
         double itemWidth = videoRect.width();
         double itemHeight = videoRect.height();
-        qDebug() << "      [getTransformed] itemPos, itemWidth, itemHeight:" << itemPos << itemWidth << itemHeight;
-        if (itemWidth <= 0 || itemHeight <= 0) {
-            return viewportPos;
-        }
-        qDebug() << "      [getTransformed] itemWidth/itemHeight:" << itemWidth << itemHeight;
         double relativeX = itemPos.x() / itemWidth;
         double relativeY = itemPos.y() / itemHeight;
         double normalizedX = qBound(0.0, relativeX, 1.0);
         double normalizedY = qBound(0.0, relativeY, 1.0);
-        double transformedXDouble = normalizedX * viewRect.width();
-        double transformedYDouble = normalizedY * viewRect.height();
-        int transformedX = qRound(transformedXDouble);
-        int transformedY = qRound(transformedYDouble);
-        QPointF finalResult(transformedXDouble, transformedYDouble);
-        qDebug() << "      [getTransformed] Before zoom correction:" << finalResult;
-        if (m_scaleFactor > 1.0) {
-            transformedX += m_zoomOffsetCorrectionX;
-            transformedY += m_zoomOffsetCorrectionY;
-            finalResult = QPointF(transformedX, transformedY);
-        }
+
+        QPointF finalResult(normalizedX * itemWidth, normalizedY * itemHeight);
+        qDebug() << "      [getTransformed] GStreamer normalized pos:" << finalResult;
         return finalResult;
     }
     
@@ -936,6 +1018,75 @@ void VideoPane::wheelEvent(QWheelEvent *event)
         m_inputHandler->handleWheelEvent(event);
     }
     event->accept();
+}
+
+void VideoPane::keyPressEvent(QKeyEvent *event)
+{
+    // Handle Shift + Arrow keys for panning in zoomed mode
+    if (m_scaleFactor > 1.0 && event->modifiers() == Qt::ShiftModifier) {
+        // Define scroll step size (in pixels)
+        const int scrollStep = 50;
+        bool handled = false;
+        
+        switch (event->key()) {
+            case Qt::Key_Up:
+                // Scroll up (decrease vertical scroll bar value)
+                if (verticalScrollBar()) {
+                    int currentValue = verticalScrollBar()->value();
+                    verticalScrollBar()->setValue(currentValue - scrollStep);
+                    // Only log on first press, not on auto-repeat
+                    if (!event->isAutoRepeat()) {
+                        qCDebug(log_ui_video) << "Shift+Up: scrolled up, new value:" << verticalScrollBar()->value();
+                    }
+                    handled = true;
+                }
+                break;
+                
+            case Qt::Key_Down:
+                // Scroll down (increase vertical scroll bar value)
+                if (verticalScrollBar()) {
+                    int currentValue = verticalScrollBar()->value();
+                    verticalScrollBar()->setValue(currentValue + scrollStep);
+                    if (!event->isAutoRepeat()) {
+                        qCDebug(log_ui_video) << "Shift+Down: scrolled down, new value:" << verticalScrollBar()->value();
+                    }
+                    handled = true;
+                }
+                break;
+                
+            case Qt::Key_Left:
+                // Scroll left (decrease horizontal scroll bar value)
+                if (horizontalScrollBar()) {
+                    int currentValue = horizontalScrollBar()->value();
+                    horizontalScrollBar()->setValue(currentValue - scrollStep);
+                    if (!event->isAutoRepeat()) {
+                        qCDebug(log_ui_video) << "Shift+Left: scrolled left, new value:" << horizontalScrollBar()->value();
+                    }
+                    handled = true;
+                }
+                break;
+                
+            case Qt::Key_Right:
+                // Scroll right (increase horizontal scroll bar value)
+                if (horizontalScrollBar()) {
+                    int currentValue = horizontalScrollBar()->value();
+                    horizontalScrollBar()->setValue(currentValue + scrollStep);
+                    if (!event->isAutoRepeat()) {
+                        qCDebug(log_ui_video) << "Shift+Right: scrolled right, new value:" << horizontalScrollBar()->value();
+                    }
+                    handled = true;
+                }
+                break;
+        }
+        
+        if (handled) {
+            event->accept();
+            return;
+        }
+    }
+    
+    // Pass unhandled events to base class
+    QGraphicsView::keyPressEvent(event);
 }
 
 void VideoPane::mousePressEvent(QMouseEvent *event)
@@ -1143,6 +1294,8 @@ void VideoPane::setupForGStreamerOverlay()
         // top-level window stacking issues and menu/dialog interference.
         m_overlayWidget->setAttribute(Qt::WA_NativeWindow, true);
         m_overlayWidget->setAttribute(Qt::WA_PaintOnScreen, true);
+        m_overlayWidget->setAttribute(Qt::WA_NoSystemBackground, true);
+        m_overlayWidget->setAttribute(Qt::WA_OpaquePaintEvent, true);
         m_overlayWidget->setAttribute(Qt::WA_TransparentForMouseEvents, false);
 
         // IMPORTANT: Make sure the widget can receive video overlay (from working v0.4.0)
@@ -1280,6 +1433,10 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
     m_frameIsViewportSized = (qAbs(qRound(logicalFrameSizeF.width()) - viewportLogical.width()) <= tolerance &&
                               qAbs(qRound(logicalFrameSizeF.height()) - viewportLogical.height()) <= tolerance);
 
+    qCDebug(log_ui_video) << "updateVideoFrame: frame=" << logicalFrameSize
+                         << "viewport=" << viewportLogical
+                         << "isViewportSized=" << m_frameIsViewportSized;
+
     // FAST PATH: 1:1 mapping of logical pixels (no runtime resampling)
     if (m_frameIsViewportSized) {
         // If the sizes are close but not exact, pre-scale the pixmap to exact viewport physical size
@@ -1304,14 +1461,37 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
                                                                          : Qt::FastTransformation);
         }
 
-        m_pixmapItem->setTransform(QTransform());
-        m_pixmapItem->setPos(0, 0);
         m_pixmapItem->setVisible(true);
 
         if (m_videoItem) m_videoItem->setVisible(false);
 
-        // Ensure scene rect equals viewport logical rect (use integers)
-        m_scene->setSceneRect(QRectF(0, 0, viewportLogical.width(), viewportLogical.height()));
+        // Use the same manual centering transform as the non-FAST path.
+        // Setting scene rect = viewport size would make AlignCenter a no-op.
+        if (m_directFFmpegMode) {
+            const qreal sceneSize = 4096.0;
+            qreal scaledWidth = viewportLogical.width();
+            qreal scaledHeight = viewportLogical.height();
+            qreal x = (sceneSize - scaledWidth) / 2.0;
+            qreal y = (sceneSize - scaledHeight) / 2.0;
+
+            m_scene->setSceneRect(0, 0, sceneSize, sceneSize);
+
+            QTransform transform;
+            transform.translate(x, y);
+            transform.scale(1.0, 1.0);
+            m_pixmapItem->setTransform(transform);
+            m_pixmapItem->setPos(0, 0);
+
+            qCDebug(log_ui_video) << "DEBUG FFmpeg FAST PATH centering: scale=1.0"
+                                 << "scaledSize=" << QSizeF(scaledWidth, scaledHeight)
+                                 << "itemPos=" << QPointF(x, y)
+                                 << "sceneRect=" << m_scene->sceneRect()
+                                 << "viewport=" << viewportLogical;
+        } else {
+            m_pixmapItem->setTransform(QTransform());
+            m_pixmapItem->setPos(0, 0);
+            m_scene->setSceneRect(QRectF(0, 0, viewportLogical.width(), viewportLogical.height()));
+        }
         
         // CRITICAL FIX: Force immediate updates to prevent freezing
         QRectF updateRect = m_pixmapItem->boundingRect();
@@ -1450,19 +1630,70 @@ void VideoPane::onCameraActiveChanged(bool active)
         clearVideoFrame();
         qWarning() << "VideoPane: Video frame cleared";
     }else{
-        // Apply zoom
-        m_scaleFactor *= 1.02;
-        scale(1.02, 1.02);
-        // updateVideoItemTransform();
-        updateScrollBarsAndSceneRect();
-
+        // Camera activated — defer fitToWindow to allow the first frames to arrive
+        // and let the sizing logic work with actual video dimensions.
         std::thread([this]() {
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            QMetaObject::invokeMethod(this, [this]() { 
+            QMetaObject::invokeMethod(this, [this]() {
                 qCInfo(log_ui_video) << "VideoPane: Calling fitToWindow after camera activation";
                 this->fitToWindow();
             }, Qt::QueuedConnection);
         }).detach();
     }
+}
+
+void VideoPane::showZoomHint()
+{
+    if (!m_zoomHintLabel || m_zoomHintShown) {
+        return;
+    }
+    
+    qCDebug(log_ui_video) << "Showing zoom hint for the first time";
+    
+    // Mark as shown so it won't appear again in this session
+    m_zoomHintShown = true;
+    
+    // Remove any existing opacity effect
+    if (m_zoomHintLabel->graphicsEffect()) {
+        delete m_zoomHintLabel->graphicsEffect();
+    }
+    
+    // Show the label
+    m_zoomHintLabel->show();
+    m_zoomHintLabel->raise(); // Bring to front
+    
+    // Start timer to trigger fade out after 3 seconds
+    m_zoomHintTimer->start(3000);
+}
+
+void VideoPane::startZoomHintFadeOut()
+{
+    if (!m_zoomHintLabel || !m_zoomHintLabel->isVisible()) {
+        return;
+    }
+    
+    qCDebug(log_ui_video) << "Starting zoom hint fade out animation";
+    
+    // Create opacity effect
+    QGraphicsOpacityEffect *opacityEffect = new QGraphicsOpacityEffect(m_zoomHintLabel);
+    m_zoomHintLabel->setGraphicsEffect(opacityEffect);
+    
+    // Create fade out animation
+    QPropertyAnimation *fadeAnimation = new QPropertyAnimation(opacityEffect, "opacity");
+    fadeAnimation->setDuration(1000); // 1 second fade duration
+    fadeAnimation->setStartValue(1.0);
+    fadeAnimation->setEndValue(0.0);
+    fadeAnimation->setEasingCurve(QEasingCurve::OutQuad);
+    
+    // Hide the label when animation finishes
+    connect(fadeAnimation, &QPropertyAnimation::finished, this, [this, fadeAnimation]() {
+        if (m_zoomHintLabel) {
+            m_zoomHintLabel->hide();
+        }
+        fadeAnimation->deleteLater();
+        qCDebug(log_ui_video) << "Zoom hint fade out completed";
+    });
+    
+    fadeAnimation->start(QAbstractAnimation::DeleteWhenStopped);
 }
 

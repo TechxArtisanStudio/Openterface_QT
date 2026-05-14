@@ -142,6 +142,11 @@ GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
     m_healthCheckTimer->setInterval(1000);
     connect(m_healthCheckTimer, &QTimer::timeout, this, &GStreamerBackendHandler::checkPipelineHealth);
 
+    // create overlay rebuild timer used to coalesce rapid resize events
+    m_overlayRebuildTimer = new QTimer(this);
+    m_overlayRebuildTimer->setSingleShot(true);
+    connect(m_overlayRebuildTimer, &QTimer::timeout, this, &GStreamerBackendHandler::handleOverlayResizeRebuildTimeout);
+
     // runners
     m_inProcessRunner = new InProcessGstRunner(this);
     m_externalRunner = new ExternalGstRunner(this);
@@ -188,6 +193,12 @@ GStreamerBackendHandler::~GStreamerBackendHandler()
         m_healthCheckTimer->stop();
         delete m_healthCheckTimer;
         m_healthCheckTimer = nullptr;
+    }
+
+    if (m_overlayRebuildTimer) {
+        m_overlayRebuildTimer->stop();
+        delete m_overlayRebuildTimer;
+        m_overlayRebuildTimer = nullptr;
     }
 
     if (m_externalRunner) {
@@ -347,6 +358,10 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     m_currentDevicePath = device;
     m_currentResolution = resolution;
     m_currentFramerate = framerate;
+
+    if (m_videoPane) {
+        m_videoPane->setOriginalVideoSize(m_currentResolution);
+    }
     
     // Determine the appropriate video sink for current environment
     const QString platform = QGuiApplication::platformName();
@@ -1128,47 +1143,24 @@ bool GStreamerBackendHandler::eventFilter(QObject *watched, QEvent *event)
                     QSize newSize = re->size();
                     qCDebug(log_gstreamer_backend) << "Video widget resize event: new size=" << newSize;
 
-                    // Rebuild pipeline if the widget grew beyond the size used at pipeline creation
+                    // Rebuild pipeline if the widget grew or shrank significantly compared
+                    // to the size used at pipeline creation. Coalesce rapid resize events
+                    // using a single timer so the pipeline is rebuilt only once after resize
+                    // activity settles.
                     if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled() && m_pipelineRunning && !m_pipelineDisplaySize.isEmpty() &&
-                        (newSize.width() > m_pipelineDisplaySize.width() + 20 || newSize.height() > m_pipelineDisplaySize.height() + 20)) {
-                        qCDebug(log_gstreamer_backend) << "Video widget grew from" << m_pipelineDisplaySize << "to" << newSize << "- scheduling pipeline rebuild";
-                        QTimer::singleShot(500, this, [this]() {
-                            if (!m_isDestructing && !m_currentDevicePath.isEmpty() && m_pipelineRunning) {
-                                qCDebug(log_gstreamer_backend) << "Rebuilding pipeline with new display size";
-                                stopGStreamerPipeline();
-                                cleanupGStreamer();
-                                if (createGStreamerPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate)) {
-                                    startGStreamerPipeline();
-                                }
-                            }
-                        });
+                        overlayPipelineSizeChangeRequiresRebuild(newSize)) {
+                        qCDebug(log_gstreamer_backend) << "Video widget resize changed from" << m_pipelineDisplaySize << "to" << newSize << "- scheduling pipeline rebuild";
+                        scheduleOverlayPipelineRebuild(500);
                         return true;
                     }
 
                     // One-shot rebuild after initial layout settles: if the pipeline was created
                     // with a size that doesn't match the actual widget now, rebuild once with the
-                    // final size. This handles both growth (widget was initially small) and
-                    // shrinkage (screen is smaller than the pipeline output) — the latter is the
-                    // root cause of left-side black screen on small displays.
+                    // final size.
                     if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled() && m_pipelineRunning && !m_pipelineDisplaySize.isEmpty() &&
                         !m_postLayoutRebuildScheduled) {
                         m_postLayoutRebuildScheduled = true;
-                        QTimer::singleShot(1500, this, [this]() {
-                            if (!m_isDestructing && !m_currentDevicePath.isEmpty() && m_pipelineRunning) {
-                                QSize currentOverlaySize;
-                                if (m_videoPane && m_videoPane->getOverlayWidget()) {
-                                    currentOverlaySize = m_videoPane->getOverlayWidget()->size();
-                                }
-                                if (!currentOverlaySize.isEmpty() && currentOverlaySize != m_pipelineDisplaySize) {
-                                    qCDebug(log_gstreamer_backend) << "Post-layout rebuild: was" << m_pipelineDisplaySize << "now overlay is" << currentOverlaySize;
-                                    stopGStreamerPipeline();
-                                    cleanupGStreamer();
-                                    if (createGStreamerPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate)) {
-                                        startGStreamerPipeline();
-                                    }
-                                }
-                            }
-                        });
+                        scheduleOverlayPipelineRebuild(1500);
                     }
 
                     updateVideoRenderRectangle(newSize);
@@ -1245,68 +1237,32 @@ bool GStreamerBackendHandler::eventFilter(QObject *watched, QEvent *event)
 
                     // If the pipeline was created before the window finished layout,
                     // the display size used for pipeline creation may be smaller than
-                    // the actual widget now. Rebuild when the overlay grows significantly.
+                    // the actual widget now. Rebuild when the overlay grows or shrinks
+                    // significantly, but coalesce rapid changes into a single rebuild.
                     if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled() && m_pipelineRunning && !m_pipelineDisplaySize.isEmpty()) {
                         QSize newSize = re->size();
-                        if (newSize.width() > m_pipelineDisplaySize.width() + 20 || newSize.height() > m_pipelineDisplaySize.height() + 20) {
-                            qCDebug(log_gstreamer_backend) << "Overlay grew from pipeline display size" << m_pipelineDisplaySize << "to" << newSize << "- scheduling pipeline rebuild";
-                            QTimer::singleShot(500, this, [this]() {
-                                if (!m_isDestructing && !m_currentDevicePath.isEmpty() && m_pipelineRunning) {
-                                    qCDebug(log_gstreamer_backend) << "Rebuilding pipeline with current overlay size";
-                                    stopGStreamerPipeline();
-                                    cleanupGStreamer();
-                                    if (createGStreamerPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate)) {
-                                        startGStreamerPipeline();
-                                    }
-                                }
-                            });
+                        if (overlayPipelineSizeChangeRequiresRebuild(newSize)) {
+                            qCDebug(log_gstreamer_backend) << "Overlay resize changed from pipeline display size" << m_pipelineDisplaySize << "to" << newSize << "- scheduling pipeline rebuild";
+                            scheduleOverlayPipelineRebuild(500);
                             return true;
                         }
 
-                        // Also rebuild when the overlay is significantly smaller than the
-                        // pipeline output — can happen if the window is manually resized.
-                        if ((newSize.width() + 20 < m_pipelineDisplaySize.width() || newSize.height() + 20 < m_pipelineDisplaySize.height())
-                            && !m_postLayoutRebuildScheduled) {
-                            qCDebug(log_gstreamer_backend) << "Overlay shrunk from pipeline display size" << m_pipelineDisplaySize << "to" << newSize << "- scheduling pipeline rebuild";
-                            m_postLayoutRebuildScheduled = true;
-                            QTimer::singleShot(500, this, [this]() {
-                                if (!m_isDestructing && !m_currentDevicePath.isEmpty() && m_pipelineRunning) {
-                                    qCDebug(log_gstreamer_backend) << "Rebuilding pipeline with smaller overlay size";
-                                    stopGStreamerPipeline();
-                                    cleanupGStreamer();
-                                    if (createGStreamerPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate)) {
-                                        startGStreamerPipeline();
-                                    }
-                                }
-                            });
-                            return true;
-                        }
-
-                        // One-shot rebuild after initial layout settles (safety net)
                         if (!m_postLayoutRebuildScheduled) {
                             m_postLayoutRebuildScheduled = true;
-                            QTimer::singleShot(1500, this, [this]() {
-                                if (!m_isDestructing && !m_currentDevicePath.isEmpty() && m_pipelineRunning) {
-                                    QSize currentOverlaySize;
-                                    if (m_videoPane && m_videoPane->getOverlayWidget()) {
-                                        currentOverlaySize = m_videoPane->getOverlayWidget()->size();
-                                    }
-                                    if (!currentOverlaySize.isEmpty() && currentOverlaySize != m_pipelineDisplaySize) {
-                                        qCDebug(log_gstreamer_backend) << "Post-layout rebuild: pipeline display size was" << m_pipelineDisplaySize << "overlay is now" << currentOverlaySize;
-                                        stopGStreamerPipeline();
-                                        cleanupGStreamer();
-                                        if (createGStreamerPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate)) {
-                                            startGStreamerPipeline();
-                                        }
-                                    } else {
-                                        qCDebug(log_gstreamer_backend) << "Post-layout rebuild skipped: overlay size" << currentOverlaySize << "same as pipeline display size" << m_pipelineDisplaySize;
-                                    }
-                                }
-                            });
+                            scheduleOverlayPipelineRebuild(1500);
                         }
                     }
 
                     updateVideoRenderRectangle(re->size());
+                }
+                break;
+            }
+            case QEvent::Move:
+            {
+                QMoveEvent* me = static_cast<QMoveEvent*>(event);
+                if (me && ovWidget) {
+                    qCDebug(log_gstreamer_backend) << "VideoPane overlay move event: new pos=" << me->pos();
+                    updateVideoRenderRectangle(ovWidget->size());
                 }
                 break;
             }
@@ -1532,14 +1488,17 @@ QSize GStreamerBackendHandler::getDisplaySizeForPipeline() const
         }
     }
 
-    // If the overlay widget is partially off-screen, use only the visible portion for pipeline size.
+    // If the overlay widget is partially off-screen, keep the full widget size for
+    // pipeline output and rely on the render rectangle / X11 clipping to display the
+    // visible portion. This avoids repeated pipeline rebuilds when the widget is
+    // moved in and out of the visible screen region.
     if (overlayWidget && screen && !targetSize.isEmpty()) {
         QRect overlayGlobalRect(overlayWidget->mapToGlobal(QPoint(0, 0)), targetSize);
         QRect visibleRect = overlayGlobalRect.intersected(screen->availableGeometry());
         if (visibleRect.isValid() && visibleRect.size() != targetSize) {
-            qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] overlay visible region:" << visibleRect
-                                           << "using visible size for pipeline output:" << visibleRect.size();
-            targetSize = visibleRect.size();
+            qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] overlay partially off-screen:" << overlayGlobalRect
+                                           << "visible region:" << visibleRect
+                                           << "keeping full widget size for pipeline output:" << targetSize;
         }
     }
 
@@ -1582,6 +1541,61 @@ QSize GStreamerBackendHandler::getDisplaySizeForPipeline() const
     }
     qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] No valid display size found, returning:" << maxSize;
     return maxSize;
+}
+
+void GStreamerBackendHandler::scheduleOverlayPipelineRebuild(int delayMs)
+{
+    if (!m_videoPane || !m_videoPane->isDirectGStreamerModeEnabled() || !m_pipelineRunning || m_pipelineDisplaySize.isEmpty() || !m_overlayRebuildTimer) {
+        return;
+    }
+
+    if (m_overlayRebuildTimer->isActive()) {
+        qCDebug(log_gstreamer_backend) << "Rescheduling overlay pipeline rebuild in" << delayMs << "ms";
+    } else {
+        qCDebug(log_gstreamer_backend) << "Scheduling overlay pipeline rebuild in" << delayMs << "ms";
+    }
+    m_overlayRebuildTimer->start(delayMs);
+}
+
+bool GStreamerBackendHandler::overlayPipelineSizeChangeRequiresRebuild(const QSize& newSize) const
+{
+    if (m_pipelineDisplaySize.isEmpty()) {
+        return false;
+    }
+    return (newSize.width() > m_pipelineDisplaySize.width() + 20 ||
+            newSize.height() > m_pipelineDisplaySize.height() + 20 ||
+            newSize.width() + 20 < m_pipelineDisplaySize.width() ||
+            newSize.height() + 20 < m_pipelineDisplaySize.height());
+}
+
+void GStreamerBackendHandler::handleOverlayResizeRebuildTimeout()
+{
+    if (m_isDestructing || m_currentDevicePath.isEmpty() || !m_pipelineRunning) {
+        return;
+    }
+
+    if (!m_videoPane || !m_videoPane->getOverlayWidget()) {
+        qCDebug(log_gstreamer_backend) << "Overlay resize rebuild skipped: no overlay widget available";
+        return;
+    }
+
+    QSize currentOverlaySize = m_videoPane->getOverlayWidget()->size();
+    if (currentOverlaySize.isEmpty()) {
+        qCDebug(log_gstreamer_backend) << "Overlay resize rebuild skipped: current overlay size is empty";
+        return;
+    }
+
+    if (!overlayPipelineSizeChangeRequiresRebuild(currentOverlaySize)) {
+        qCDebug(log_gstreamer_backend) << "Overlay resize rebuild skipped: current overlay size" << currentOverlaySize << "matches pipeline display size" << m_pipelineDisplaySize;
+        return;
+    }
+
+    qCDebug(log_gstreamer_backend) << "Overlay resize rebuild timer fired; rebuilding pipeline from" << m_pipelineDisplaySize << "to" << currentOverlaySize;
+    stopGStreamerPipeline();
+    cleanupGStreamer();
+    if (createGStreamerPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate)) {
+        startGStreamerPipeline();
+    }
 }
 
 WId GStreamerBackendHandler::getVideoWidgetWindowId() const
@@ -1790,6 +1804,36 @@ void GStreamerBackendHandler::updateVideoRenderRectangle(const QSize& widgetSize
         return;
     }
 
+    QWidget* overlayWidget = nullptr;
+    if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
+        overlayWidget = m_videoPane->getOverlayWidget();
+    }
+
+    if (overlayWidget) {
+        QRect overlayGlobalRect(overlayWidget->mapToGlobal(QPoint(0, 0)), overlayWidget->size());
+        QScreen* screen = nullptr;
+        if (QWindow* windowHandle = overlayWidget->window() ? overlayWidget->window()->windowHandle() : nullptr) {
+            screen = windowHandle->screen();
+        }
+        if (!screen) {
+            screen = QGuiApplication::primaryScreen();
+        }
+
+        QRect visibleGlobal;
+        if (screen) {
+            visibleGlobal = overlayGlobalRect.intersected(screen->availableGeometry());
+        }
+
+        if (visibleGlobal.isValid() && visibleGlobal.size() != overlayWidget->size()) {
+            QPoint renderOffset = visibleGlobal.topLeft() - overlayGlobalRect.topLeft();
+            QSize renderSize = visibleGlobal.size();
+            qCDebug(log_gstreamer_backend) << "Using localized visible region render rectangle:" << QRect(renderOffset, renderSize)
+                                           << "for overlay widget size:" << overlayWidget->size();
+            updateVideoRenderRectangle(renderOffset.x(), renderOffset.y(), renderSize.width(), renderSize.height());
+            return;
+        }
+    }
+
     // The pipeline output (videoscale add-borders=true) is already scaled and centered
     // to match the widget size passed at pipeline creation time. The render rectangle
     // should simply fill the entire widget — GstVideoOverlay will map the pipeline's
@@ -1868,34 +1912,24 @@ void GStreamerBackendHandler::updateVideoRenderRectangle(int x, int y, int width
 
     if (overlaySink && GST_IS_VIDEO_OVERLAY(overlaySink)) {
         // Bound the render rectangle to the visible screen size if possible.
-        if (QWidget* targetWidget = m_videoPane ? m_videoPane->getOverlayWidget() : nullptr) {
-            if (QWidget* topLevel = targetWidget->window()) {
-                if (QWindow* windowHandle = topLevel->windowHandle()) {
+        // Get the device pixel ratio (DPI scaling) from the overlay widget screen if available.
+        // This handles OS-level display scaling (e.g., 150% scaling on Linux).
+        qreal dpiScale = 1.0;
+        if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
+            if (QWidget* overlayWidget = m_videoPane->getOverlayWidget()) {
+                if (QWindow* windowHandle = overlayWidget->window() ? overlayWidget->window()->windowHandle() : nullptr) {
                     if (QScreen* screen = windowHandle->screen()) {
-                        QSize screenSize = screen->availableGeometry().size();
-                        if (!screenSize.isEmpty()) {
-                            if (width > screenSize.width()) {
-                                qCDebug(log_gstreamer_backend) << "Clamping render rectangle width" << width
-                                                               << "to screen width" << screenSize.width();
-                                width = screenSize.width();
-                            }
-                            if (height > screenSize.height()) {
-                                qCDebug(log_gstreamer_backend) << "Clamping render rectangle height" << height
-                                                               << "to screen height" << screenSize.height();
-                                height = screenSize.height();
-                            }
-                        }
+                        dpiScale = screen->devicePixelRatio();
+                        qCDebug(log_gstreamer_backend) << "DPI scale factor (overlay screen):" << dpiScale;
                     }
                 }
             }
         }
-
-        // Get the device pixel ratio (DPI scaling) from the screen
-        // This handles OS-level display scaling (e.g., 150% scaling on Linux)
-        qreal dpiScale = 1.0;
-        if (QScreen* screen = QGuiApplication::primaryScreen()) {
-            dpiScale = screen->devicePixelRatio();
-            qCDebug(log_gstreamer_backend) << "DPI scale factor:" << dpiScale;
+        if (dpiScale == 1.0) {
+            if (QScreen* screen = QGuiApplication::primaryScreen()) {
+                dpiScale = screen->devicePixelRatio();
+                qCDebug(log_gstreamer_backend) << "DPI scale factor (primary screen):" << dpiScale;
+            }
         }
         
         // Scale render rectangle to account for OS display scaling

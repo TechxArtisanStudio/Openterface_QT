@@ -185,8 +185,8 @@ bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, co
             // For X11 sinks (xvimagesink/ximagesink) that don't have this property, we manually
             // calculate an aspect-ratio-preserving render rectangle below.
             if (g_object_class_find_property(G_OBJECT_GET_CLASS(videoSink), "force-aspect-ratio")) {
-                g_object_set(videoSink, "force-aspect-ratio", TRUE, NULL);
-                qCDebug(log_gstreamer_videooverlaymanager) << "Enabled force-aspect-ratio on video sink for proper centering";
+                g_object_set(videoSink, "force-aspect-ratio", FALSE, NULL);
+                qCDebug(log_gstreamer_videooverlaymanager) << "Disabled force-aspect-ratio on video sink so overlay fills render rectangle";
             }
 
             if (g_object_class_find_property(G_OBJECT_GET_CLASS(videoSink), "pixel-aspect-ratio")) {

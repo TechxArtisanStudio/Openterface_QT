@@ -203,8 +203,9 @@ private:
     QGraphicsVideoItem* m_graphicsVideoItem;  // Support for QGraphicsVideoItem
     VideoPane* m_videoPane;  // Support for VideoPane overlay
     QTimer* m_healthCheckTimer;
+    QTimer* m_overlayRebuildTimer;
     QProcess* m_gstProcess;  // Fallback for process-based approach
-    
+
     // Track all objects with installed event filters for cleanup during destruction
     QSet<QObject*> m_watchedObjects;
     
@@ -269,6 +270,9 @@ protected:
     // Override to track video widget/view lifecycle events and respond to winId/show/resize
     bool eventFilter(QObject *watched, QEvent *event) override;
 
+private slots:
+    void handleOverlayResizeRebuildTimeout();
+
 private:
     // helper to install/uninstall event filter on widgets
     void installVideoWidgetEventFilter();
@@ -281,6 +285,11 @@ private:
     // to the widget size. This ensures video fits the actual screen on small
     // displays like 640x480 Pi touchscreens.
     QSize getDisplaySizeForPipeline() const;
+
+    // Schedule a deferred rebuild of the running pipeline when the overlay size
+    // changes significantly during resize or layout transitions.
+    void scheduleOverlayPipelineRebuild(int delayMs);
+    bool overlayPipelineSizeChangeRequiresRebuild(const QSize& newSize) const;
 
     // Ensure a QWidget has a native window (winId()) by creating the window and waiting up to timeoutMs.
     // Returns true if a native window is available.

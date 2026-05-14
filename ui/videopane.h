@@ -84,6 +84,8 @@ public:
 
     // Mouse position transformation for InputHandler
     QPointF getTransformedMousePosition(const QPoint& viewportPos);
+    void setOriginalVideoSize(const QSize& size) { m_originalVideoSize = size; }
+    QRectF getGStreamerVideoContentRect() const;
     
     // Debug helper to validate coordinate transformation consistency
     void validateMouseCoordinates(const QPoint& original, const QString& eventType);
@@ -115,6 +117,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
 
 private:
     int lastX=0;
@@ -158,6 +161,11 @@ private:
     // rendering quality hint flag (true=antialiasing enabled)
     bool m_highQualityRendering;
     
+    // Zoom hint label and control
+    QLabel* m_zoomHintLabel;
+    bool m_zoomHintShown;
+    QTimer* m_zoomHintTimer;
+    
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);
     MouseEventDTO* calculateMouseEventDto(QMouseEvent *event);
@@ -168,6 +176,8 @@ private:
     void centerVideoItem();
     void setupScene();
     void updateScrollBarsAndSceneRect();
+    void showZoomHint();
+    void startZoomHintFadeOut();
 };
 
 #endif

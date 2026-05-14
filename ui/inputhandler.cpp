@@ -89,6 +89,17 @@ MouseEventDTO* InputHandler::calculateRelativePosition(QMouseEvent *event) {
 }
 
 MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
+    // Convert overlay widget coordinates to VideoPane viewport coordinates in GStreamer mode
+    QPoint rawPos = event->pos();
+    if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
+        QWidget* overlayWidget = m_videoPane->getOverlayWidget();
+        if (overlayWidget && m_videoPane->viewport()) {
+            rawPos = overlayWidget->mapTo(m_videoPane->viewport(), rawPos);
+        } else if (m_videoPane->viewport()) {
+            rawPos = m_videoPane->viewport()->mapFromGlobal(event->globalPos());
+        }
+    }
+
     // Get the effective video widget (overlay or main VideoPane)
     QWidget* effectiveWidget = getEffectiveVideoWidget();
     
@@ -101,7 +112,6 @@ MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
     }
     
     // CRITICAL DEBUG: Log the transformation steps
-    QPoint rawPos = event->pos();
     // qCDebug(log_ui_input) << "    [calcAbsolute] Raw event->pos():" << rawPos;
     
     // CRITICAL FIX: ALWAYS use getTransformedMousePosition to handle:
@@ -117,6 +127,13 @@ MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
     
     int targetWidth = effectiveWidget->width();
     int targetHeight = effectiveWidget->height();
+    if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
+        QSize contentSize = m_videoPane->getGStreamerVideoContentRect().size().toSize();
+        if (contentSize.width() > 0 && contentSize.height() > 0) {
+            targetWidth = contentSize.width();
+            targetHeight = contentSize.height();
+        }
+    }
     
     // qCDebug(log_ui_input) << "    [calcAbsolute] Target size:" << QSize(targetWidth, targetHeight);
     
@@ -326,6 +343,14 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
     if ((watched == m_videoPane || watched == m_currentEventTarget) && event->type() == QEvent::KeyPress) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
         if (!keyEvent->isAutoRepeat()){
+            // SPECIAL CASE: Let Shift + Arrow keys pass through to VideoPane for panning in zoom mode
+            // These keys are used for navigating the zoomed video view, not for target device input
+            if (keyEvent->modifiers() == Qt::ShiftModifier && 
+                (keyEvent->key() == Qt::Key_Up || keyEvent->key() == Qt::Key_Down ||
+                 keyEvent->key() == Qt::Key_Left || keyEvent->key() == Qt::Key_Right)) {
+                return false;  // Let VideoPane handle it
+            }
+            
             handleKeyPressEvent(keyEvent);
             return true;
         }
@@ -333,6 +358,14 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
     if ((watched == m_videoPane || watched == m_currentEventTarget) && event->type() == QEvent::KeyRelease) {
         QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
         if (!keyEvent->isAutoRepeat()){
+            // SPECIAL CASE: Let Shift + Arrow keys pass through to VideoPane for panning in zoom mode
+            // Match the same logic as KeyPress for consistency
+            if (keyEvent->modifiers() == Qt::ShiftModifier && 
+                (keyEvent->key() == Qt::Key_Up || keyEvent->key() == Qt::Key_Down ||
+                 keyEvent->key() == Qt::Key_Left || keyEvent->key() == Qt::Key_Right)) {
+                return false;  // Let VideoPane handle it
+            }
+            
             handleKeyReleaseEvent(keyEvent);
             return true;
         }
