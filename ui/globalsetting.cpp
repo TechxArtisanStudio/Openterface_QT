@@ -248,6 +248,22 @@ double GlobalSetting::getScreenRatio() const {
     return m_settings.value("screen/ratio", 1.7778).toDouble();
 }
 
+void GlobalSetting::setFloatingWindowEnabled(bool enabled) {
+    m_settings.setValue("floatingWindow/show", enabled);
+}
+
+bool GlobalSetting::getFloatingWindowEnabled() const {
+    return m_settings.value("floatingWindow/show", false).toBool();
+}
+
+void GlobalSetting::setFloatingWindowOpacity(double opacity) {
+    m_settings.setValue("floatingWindow/opacity", opacity);
+}
+
+double GlobalSetting::getFloatingWindowOpacity() const {
+    return m_settings.value("floatingWindow/opacity", 0.85).toDouble();
+}
+
 // Persist the time (seconds since epoch) when update was last checked.
 void GlobalSetting::setUpdateLastChecked(qint64 secsSinceEpoch)
 {

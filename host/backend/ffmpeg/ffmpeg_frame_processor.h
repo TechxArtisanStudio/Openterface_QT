@@ -63,6 +63,7 @@ public:
     // Latest frame access (thread-safe)
     QImage GetLatestFrame() const;
     QImage GetLatestOriginalFrame() const;
+    QSize GetNativeJpegSize() const;
     
     // Configuration
     void SetFrameDropThreshold(int display_threshold_ms, int recording_threshold_ms);
@@ -131,6 +132,7 @@ private:
     mutable QMutex mutex_;
     QImage latest_frame_;
     QImage latest_original_frame_;  // Original resolution frame before scaling
+    QSize native_jpeg_size_;         // True JPEG dimensions from header (unaffected by DCT scaling)
     
     // Thread control
     bool stop_requested_;

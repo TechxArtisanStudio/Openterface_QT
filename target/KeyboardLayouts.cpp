@@ -77,16 +77,26 @@ KeyboardLayoutConfig KeyboardLayoutConfig::fromJsonFile(const QString& filePath)
         // Get the Qt key code
         int qtKey = keyNameToQt.value(keyName, Qt::Key_unknown);
         qCDebug(log_keyboard_layouts) << "Converting key name:" << keyName 
-                                    << "to Qt key code:" << qtKey 
+                                    << "to Qt key code: 0x" << QString::number(qtKey, 16)
+                                    << "(" << qtKey << ")"
                                     << "(original name:" << it.key() << ")";
         
         // Convert hex string to integer
         bool ok;
         uint8_t scanCode = valueStr.mid(2).toInt(&ok, 16);
         if (ok && qtKey != Qt::Key_unknown) {
+            // Check if this Qt key already has a mapping
+            if (config.keyMap.contains(qtKey)) {
+                qCWarning(log_keyboard_layouts) << "WARNING: Overwriting existing mapping for Qt key 0x" 
+                                                << QString::number(qtKey, 16)
+                                                << "old HID: 0x" << QString::number(config.keyMap[qtKey], 16)
+                                                << "new HID: 0x" << QString::number(scanCode, 16)
+                                                << "key name:" << keyName;
+            }
             config.keyMap[qtKey] = scanCode;
             qCDebug(log_keyboard_layouts) << "Successfully mapped key" << keyName 
-                                        << "(" << qtKey << ") to scancode 0x" + QString::number(scanCode, 16);
+                                        << "(Qt:0x" << QString::number(qtKey, 16) << ")"
+                                        << "to scancode 0x" << QString::number(scanCode, 16);
         } else{
             qCWarning(log_keyboard_layouts) << "Failed to map key" << keyName 
                                           << "value:" << valueStr 
@@ -97,11 +107,25 @@ KeyboardLayoutConfig KeyboardLayoutConfig::fromJsonFile(const QString& filePath)
 
     // Load char mapping
     QJsonObject charMap = json["char_mapping"].toObject();
+    qCDebug(log_keyboard_layouts) << "Loading" << charMap.size() << "character mappings";
+    
     for (auto it = charMap.begin(); it != charMap.end(); ++it) {
         QString charStr = it.key(); 
         QChar character = charStr[0];
         QString keyName = it.value().toString(); 
-        qCDebug(log_keyboard_layouts) << "Processing char:" << charStr << "mapped to" << keyName;
+        
+        // Special debug for | character
+        if (character.unicode() == 0x7C) {
+            qCWarning(log_keyboard_layouts) << "***** LOADING '|' CHARACTER *****";
+            qCWarning(log_keyboard_layouts) << "  charStr:" << charStr;
+            qCWarning(log_keyboard_layouts) << "  character:" << character;
+            qCWarning(log_keyboard_layouts) << "  character.unicode():" << QString::number(character.unicode(), 16);
+            qCWarning(log_keyboard_layouts) << "  keyName:" << keyName;
+        }
+        
+        qCDebug(log_keyboard_layouts) << "Processing char:" << charStr 
+                                      << "(U+" << QString::number(character.unicode(), 16) << ")"
+                                      << "mapped to" << keyName;
 
         // Remove "Key_" prefix and get Qt key from keyNameToQt
         if (keyName.startsWith("Key_")) {
@@ -113,8 +137,27 @@ KeyboardLayoutConfig KeyboardLayoutConfig::fromJsonFile(const QString& filePath)
             continue;
         }
 
+        // Check if this unicode value already exists in charMapping
+        if (config.charMapping.contains(character.unicode())) {
+            qCWarning(log_keyboard_layouts) << "WARNING: Overwriting charMapping for character" 
+                                           << charStr << "(U+" << QString::number(character.unicode(), 16) << ")"
+                                           << "old Qt key: 0x" << QString::number(config.charMapping[character.unicode()], 16)
+                                           << "new Qt key: 0x" << QString::number(qtKey, 16);
+        }
+
         config.charMapping[character.unicode()] = qtKey;
-        qCDebug(log_keyboard_layouts) << "Mapped char" << charStr << "to QtKey" << QString::number(qtKey, 16);
+        qCDebug(log_keyboard_layouts) << "Mapped char" << charStr 
+                                     << "(U+" << QString::number(character.unicode(), 16) << ")"
+                                     << "to QtKey 0x" << QString::number(qtKey, 16);
+        
+        // Special debug for | character
+        if (character.unicode() == 0x7C) {
+            qCWarning(log_keyboard_layouts) << "***** '|' CHARACTER MAPPED *****";
+            qCWarning(log_keyboard_layouts) << "  charMapping[0x7C] = Qt key 0x" << QString::number(qtKey, 16);
+            qCWarning(log_keyboard_layouts) << "  Now looking up HID for Qt key 0x" << QString::number(qtKey, 16);
+            uint8_t hid = config.keyMap.value(qtKey, 0);
+            qCWarning(log_keyboard_layouts) << "  Result: HID 0x" << QString::number(hid, 16);
+        }
     }
 
     QJsonObject unicodeMap = json["unicode_map"].toObject();
@@ -243,4 +286,217 @@ KeyboardLayoutConfig KeyboardLayoutManager::getLayout(const QString& name) const
 
 QStringList KeyboardLayoutManager::getAvailableLayouts() const {
     return layouts.keys();
+}
+
+// === Custom Layout Support Implementation ===
+
+QString KeyboardLayoutManager::getCustomLayoutsDir() {
+    QString appDataPath;
+    
+#ifdef Q_OS_WIN
+    appDataPath = QDir::fromNativeSeparators(qgetenv("APPDATA"));
+    if (appDataPath.isEmpty()) {
+        appDataPath = QDir::homePath() + "/AppData/Roaming";
+    }
+#elif defined(Q_OS_MAC)
+    appDataPath = QDir::homePath() + "/Library/Application Support";
+#else // Linux
+    appDataPath = QDir::homePath() + "/.config";
+#endif
+    
+    QString customDir = appDataPath + "/Openterface/keyboards/custom";
+    QDir dir;
+    if (!dir.exists(customDir)) {
+        dir.mkpath(customDir);
+        qCDebug(log_keyboard_layouts) << "Created custom layouts directory:" << customDir;
+    }
+    
+    return customDir;
+}
+
+bool KeyboardLayoutManager::createCustomLayout(const QString& baseName, const QString& customName) {
+    if (!layouts.contains(baseName)) {
+        qWarning() << "Base layout not found:" << baseName;
+        return false;
+    }
+    
+    KeyboardLayoutConfig customConfig = layouts[baseName];
+    customConfig.name = customName;
+    
+    return saveCustomLayout(customConfig, customName);
+}
+
+bool KeyboardLayoutManager::saveCustomLayout(const KeyboardLayoutConfig& config, const QString& name) {
+    QString customDir = getCustomLayoutsDir();
+    QString fileName = name;
+    fileName.replace(" ", "_");
+    fileName = fileName.toLower();
+    QString filePath = customDir + "/" + fileName + ".json";
+    
+    QString jsonStr = exportLayoutToJson(config);
+    if (jsonStr.isEmpty()) {
+        qWarning() << "Failed to export layout to JSON";
+        return false;
+    }
+    
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly)) {
+        qWarning() << "Failed to open file for writing:" << filePath;
+        return false;
+    }
+    
+    file.write(jsonStr.toUtf8());
+    file.close();
+    
+    // Add to loaded layouts
+    layouts[config.name] = config;
+    
+    qCDebug(log_keyboard_layouts) << "Saved custom layout:" << config.name << "to" << filePath;
+    return true;
+}
+
+KeyboardLayoutConfig KeyboardLayoutManager::mergeCorrections(
+    const KeyboardLayoutConfig& base,
+    const QMap<int, uint8_t>& keyMapCorrections,
+    const QMap<uint8_t, int>& charMapCorrections)
+{
+    KeyboardLayoutConfig merged = base;
+    
+    // Apply key map corrections
+    for (auto it = keyMapCorrections.begin(); it != keyMapCorrections.end(); ++it) {
+        merged.keyMap[it.key()] = it.value();
+        qCDebug(log_keyboard_layouts) << "Corrected key mapping: Qt key" << it.key() 
+                                     << "-> HID" << QString::number(it.value(), 16);
+    }
+    
+    // Apply char map corrections
+    for (auto it = charMapCorrections.begin(); it != charMapCorrections.end(); ++it) {
+        merged.charMapping[it.key()] = it.value();
+        qCDebug(log_keyboard_layouts) << "Corrected char mapping: char" << QChar(it.key())
+                                     << "-> Qt key" << it.value();
+    }
+    
+    return merged;
+}
+
+QString KeyboardLayoutManager::exportLayoutToJson(const KeyboardLayoutConfig& config) const {
+    QJsonObject root;
+    root["name"] = config.name;
+    root["right_to_left"] = config.isRightToLeft;
+    
+    // Export key_map
+    QJsonObject keyMapObj;
+    for (auto it = config.keyMap.begin(); it != config.keyMap.end(); ++it) {
+        // Find the key name from Qt key code
+        QString keyName;
+        for (auto nameIt = KeyboardLayoutConfig::keyNameToQt.begin(); 
+             nameIt != KeyboardLayoutConfig::keyNameToQt.end(); ++nameIt) {
+            if (nameIt.value() == it.key()) {
+                keyName = "Key_" + nameIt.key();
+                break;
+            }
+        }
+        if (!keyName.isEmpty()) {
+            keyMapObj[keyName] = QString("0x%1").arg(it.value(), 2, 16, QChar('0'));
+        }
+    }
+    root["key_map"] = keyMapObj;
+    
+    // Export char_mapping
+    QJsonObject charMapObj;
+    for (auto it = config.charMapping.begin(); it != config.charMapping.end(); ++it) {
+        QString charStr = QChar(it.key());
+        QString keyName;
+        for (auto nameIt = KeyboardLayoutConfig::keyNameToQt.begin(); 
+             nameIt != KeyboardLayoutConfig::keyNameToQt.end(); ++nameIt) {
+            if (nameIt.value() == it.value()) {
+                keyName = "Key_" + nameIt.key();
+                break;
+            }
+        }
+        if (!keyName.isEmpty()) {
+            charMapObj[charStr] = keyName;
+        }
+    }
+    root["char_mapping"] = charMapObj;
+    
+    // Export unicode_map
+    QJsonObject unicodeMapObj;
+    for (auto it = config.unicodeMap.begin(); it != config.unicodeMap.end(); ++it) {
+        QString unicodeStr = QString("U+%1").arg(it.key(), 4, 16, QChar('0')).toUpper();
+        unicodeMapObj[unicodeStr] = QString("0x%1").arg(it.value(), 2, 16, QChar('0'));
+    }
+    if (!unicodeMapObj.isEmpty()) {
+        root["unicode_map"] = unicodeMapObj;
+    }
+    
+    QJsonDocument doc(root);
+    return doc.toJson(QJsonDocument::Indented);
+}
+
+bool KeyboardLayoutManager::importLayoutFromJson(const QString& jsonPath) {
+    KeyboardLayoutConfig config = KeyboardLayoutConfig::fromJsonFile(jsonPath);
+    if (config.name.isEmpty()) {
+        qWarning() << "Failed to load layout from" << jsonPath;
+        return false;
+    }
+    
+    layouts[config.name] = config;
+    qCDebug(log_keyboard_layouts) << "Imported layout:" << config.name;
+    return true;
+}
+
+QStringList KeyboardLayoutManager::getCustomLayouts() const {
+    QString customDir = getCustomLayoutsDir();
+    QDir dir(customDir);
+    
+    if (!dir.exists()) {
+        return QStringList();
+    }
+    
+    QStringList filters;
+    filters << "*.json";
+    QFileInfoList files = dir.entryInfoList(filters, QDir::Files);
+    
+    QStringList customLayouts;
+    for (const QFileInfo& file : files) {
+        QString baseName = file.baseName();
+        // Convert filename back to layout name
+        baseName.replace("_", " ");
+        
+        // Check if this layout is loaded
+        for (const QString& layoutName : layouts.keys()) {
+            if (layoutName.toLower().replace(" ", "_") == file.baseName()) {
+                customLayouts << layoutName;
+                break;
+            }
+        }
+    }
+    
+    return customLayouts;
+}
+
+bool KeyboardLayoutManager::deleteCustomLayout(const QString& name) {
+    QString customDir = getCustomLayoutsDir();
+    QString fileName = name;
+    fileName.replace(" ", "_");
+    fileName = fileName.toLower();
+    QString filePath = customDir + "/" + fileName + ".json";
+    
+    QFile file(filePath);
+    if (!file.exists()) {
+        qWarning() << "Custom layout file not found:" << filePath;
+        return false;
+    }
+    
+    if (!file.remove()) {
+        qWarning() << "Failed to delete custom layout file:" << filePath;
+        return false;
+    }
+    
+    // Remove from loaded layouts
+    layouts.remove(name);
+    
+    qCDebug(log_keyboard_layouts) << "Deleted custom layout:" << name;
+    return true;
 }

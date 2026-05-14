@@ -12,7 +12,9 @@ class PipelineBuilder
 {
 public:
     // Flexible pipeline - recording-enabled template using v4l2src + jpegdec and scaling
-    static QString buildFlexiblePipeline(const QString& device, const QSize& resolution, int framerate, const QString& videoSink);
+    // widgetSize: optional target display size; if provided and valid, videoscale output
+    // is constrained to fit the widget so video isn't clipped on small screens
+    static QString buildFlexiblePipeline(const QString& device, const QSize& resolution, int framerate, const QString& videoSink, const QSize& widgetSize = QSize());
 
     // Fallback pipelines (videotestsrc, v4l2 + jpeg, v4l2 raw)
     static QString buildVideotestMjpegFallback(const QSize& resolution, int framerate, const QString& videoSink);

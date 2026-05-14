@@ -44,6 +44,7 @@
 #include "ui/advance/updatedisplaysettingsdialog.h"
 #include "ui/advance/devicediagnosticsdialog.h"
 #include "ui/advance/wchflash/WCHFlashDialog.h"
+#include "ui/advance/keyboardmapeditor.h"
 #include "ui/help/versioninfomanager.h"
 #include "ui/toolbar/toolbarmanager.h"
 #include "ui/TaskManager.h"
@@ -106,6 +107,7 @@ class QActionGroup;
 QT_END_NAMESPACE
 
 class MetaDataDialog;
+class FloatingWindow;
 
 #ifdef Q_OS_WIN
 class QtBackendHandler;
@@ -181,6 +183,7 @@ private slots:
     void configureSettings();
     void debugSerialPort();
     void openDeviceSelector();
+    void openKeyboardMapEditor();
 
     void displayCameraError();
 
@@ -359,6 +362,11 @@ private:
     ScreenScale *m_screenScaleDialog = nullptr;
     CornerWidgetManager *m_cornerWidgetManager = nullptr;
     WindowControlManager *m_windowControlManager = nullptr;
+    FloatingWindow *m_floatingWindow = nullptr;
+
+    void showFloatingWindow();
+    void hideFloatingWindow();
+    void ensureFloatingWindowCreated();
     
     ratioType currentRatioType = ratioType::EQUAL;
     void stopServer();

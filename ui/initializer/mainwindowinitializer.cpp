@@ -664,6 +664,13 @@ void MainWindowInitializer::finalize()
         qCDebug(log_ui_mainwindowinitializer) << "Startup: invoking VersionInfoManager::checkForUpdates after initialization";
         m_mainWindow->m_versionInfoManager->checkForUpdates(false);
     });
+
+    // Show floating window at startup if enabled in settings
+    QTimer::singleShot(200, m_mainWindow, [this]() {
+        if (GlobalSetting::instance().getFloatingWindowEnabled()) {
+            m_mainWindow->showFloatingWindow();
+        }
+    });
     
     qCDebug(log_ui_mainwindowinitializer) << "Finalization complete";
 }

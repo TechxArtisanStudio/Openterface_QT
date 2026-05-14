@@ -711,15 +711,57 @@ void FFmpegBackendHandler::processFrame()
     QSize viewportSize;
     if (m_videoPane) {
         viewportSize = m_videoPane->viewport()->size();
-        // Limit viewport size to prevent performance issues with large displays
-        const QSize maxViewportSize(1920, 1080);
-        if (viewportSize.width() > maxViewportSize.width() || viewportSize.height() > maxViewportSize.height()) {
-            viewportSize = maxViewportSize;
+    }
+
+    const QSize maxViewportSize(1920, 1080);
+    if (viewportSize.width() > maxViewportSize.width() || viewportSize.height() > maxViewportSize.height()) {
+        viewportSize = maxViewportSize;
+    }
+
+    QSize targetSize = viewportSize;
+    if (viewportSize.isValid()) {
+        double zoomFactor = 1.0;
+        if (m_videoPane) {
+            zoomFactor = qMax(1.0, m_videoPane->getZoomFactor());
+        }
+
+        if (zoomFactor > 1.0) {
+            targetSize = QSize(qRound(viewportSize.width() * zoomFactor),
+                               qRound(viewportSize.height() * zoomFactor));
+
+            // Use hardware capture resolution first — GetLatestOriginalFrame().size() can
+            // return a TurboJPEG DCT-downscaled size (e.g. 1/2 native) which would
+            // incorrectly cap the zoom decode target and cause blurry upscaling.
+            QSize sourceSize;
+            if (m_captureManager) {
+                sourceSize = m_captureManager->GetCurrentResolution();
+            }
+            if (!sourceSize.isValid() && m_frameProcessor) {
+                // Native JPEG size from header (unaffected by DCT scaling)
+                sourceSize = m_frameProcessor->GetNativeJpegSize();
+            }
+            if (sourceSize.isValid()) {
+                targetSize.setWidth(qMin(targetSize.width(), sourceSize.width()));
+                targetSize.setHeight(qMin(targetSize.height(), sourceSize.height()));
+            }
+
+            // Cap the requested decode size to a reasonable upper bound for performance.
+            targetSize.setWidth(qMin(targetSize.width(), maxViewportSize.width()));
+            targetSize.setHeight(qMin(targetSize.height(), maxViewportSize.height()));
+
+            if (!targetSize.isValid()) {
+                targetSize = viewportSize;
+            }
+
+            qCDebug(log_ffmpeg_backend) << "FFmpeg direct decode target with zoom:" << zoomFactor
+                                        << "viewport:" << viewportSize
+                                        << "target:" << targetSize
+                                        << "source:" << (m_frameProcessor ? m_frameProcessor->GetLatestOriginalFrame().size() : QSize());
         }
     }
-    
+
     // QImage is thread-safe and can be passed across thread boundaries efficiently
-    QImage image = m_frameProcessor->ProcessPacketToImage(packet, codecContext, isRecording, viewportSize);
+    QImage image = m_frameProcessor->ProcessPacketToImage(packet, codecContext, isRecording, targetSize);
     
     // Clean up packet
     av_packet_unref(packet);
