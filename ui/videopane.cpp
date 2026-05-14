@@ -788,12 +788,6 @@ void VideoPane::updateScrollBarsAndSceneRect()
         setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
-        // In FFmpeg mode, updateVideoItemTransform() already sets the scene
-        // rect and centers the item. Don't override it here.
-        if (m_directFFmpegMode) {
-            return;
-        }
-
         if (m_scene) {
             QRectF sceneRect = contentRect;
             if (sceneRect.isEmpty()) {
