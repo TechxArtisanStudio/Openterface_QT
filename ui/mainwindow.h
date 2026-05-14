@@ -44,6 +44,7 @@
 #include "ui/advance/updatedisplaysettingsdialog.h"
 #include "ui/advance/devicediagnosticsdialog.h"
 #include "ui/advance/wchflash/WCHFlashDialog.h"
+#include "ui/advance/keyboardmapeditor.h"
 #include "ui/help/versioninfomanager.h"
 #include "ui/toolbar/toolbarmanager.h"
 #include "ui/TaskManager.h"
@@ -182,6 +183,7 @@ private slots:
     void configureSettings();
     void debugSerialPort();
     void openDeviceSelector();
+    void openKeyboardMapEditor();
 
     void displayCameraError();
 

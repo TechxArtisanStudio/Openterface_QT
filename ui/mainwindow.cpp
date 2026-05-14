@@ -868,6 +868,22 @@ void MainWindow::debugSerialPort() {
     }
 }
 
+void MainWindow::openKeyboardMapEditor() {
+    qDebug() << "Opening keyboard mapping editor";
+    
+    KeyboardMapEditor* editor = new KeyboardMapEditor(this);
+    
+    connect(editor, &QDialog::finished, this, [this, editor](int result) {
+        if (result == QDialog::Accepted) {
+            // Refresh keyboard layouts in main window
+            initializeKeyboardLayouts();
+        }
+        editor->deleteLater();
+    });
+    
+    editor->show();
+}
+
 void MainWindow::purchaseLink(){
     QDesktopServices::openUrl(QUrl("https://www.crowdsupply.com/techxartisan/openterface-mini-kvm"));
 }
