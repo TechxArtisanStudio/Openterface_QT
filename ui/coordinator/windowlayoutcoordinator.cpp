@@ -125,7 +125,7 @@ void WindowLayoutCoordinator::doResize()
     // Update global state
     GlobalVar::instance().setWinWidth(m_mainWindow->width());
     GlobalVar::instance().setWinHeight(m_mainWindow->height());
-
+    
     emit layoutChanged(QSize(m_mainWindow->width(), m_mainWindow->height()));
 }
 

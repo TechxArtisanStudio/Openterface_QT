@@ -270,19 +270,25 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
             QImage turbojpeg_result = DecodeMJPEGWithTurboJPEG(packet, targetSize, handle);
             if (!turbojpeg_result.isNull()) {
                 // qCDebug(log_ffmpeg_backend) << "Successfully decoded with TurboJPEG acceleration";
-                // Don't scale here — the display layer (VideoPane) handles aspect-ratio-
-                // preserving fit with centering (letterboxing/pillarboxing).  Scaling to
-                // a narrow target with KeepAspectRatio would shrink the video unnecessarily.
-
+                // Success with TurboJPEG - store frames and return
+                QImage originalResult = turbojpeg_result;
+                QImage result = turbojpeg_result;
+                
+                // Apply scaling if needed
+                if (targetSize.isValid() && !targetSize.isEmpty() && 
+                    targetSize != QSize(turbojpeg_result.width(), turbojpeg_result.height())) {
+                    result = turbojpeg_result.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+                }
+                
                 // Update frame count and store frames
                 frame_count_++;
                 if (frame_count_ > startup_frames_to_skip_) {
                     QMutexLocker locker(&mutex_);
-                    latest_frame_ = turbojpeg_result.copy();
-                    latest_original_frame_ = turbojpeg_result.copy();
+                    latest_frame_ = result.copy();
+                    latest_original_frame_ = originalResult.copy();
                 }
-
-                return turbojpeg_result;
+                
+                return result;
             }
         }
         qCDebug(log_ffmpeg_backend) << "TurboJPEG failed, falling back to CPU decode";
@@ -553,46 +559,40 @@ QImage FFmpegFrameProcessor::DecodeMJPEGWithTurboJPEG(AVPacket* packet, const QS
         native_jpeg_size_ = QSize(width, height);
     }
     
-    // Determine target size for DCT scaling
+    // Determine target size for scaling
     int target_width = width;
     int target_height = height;
-
+    bool need_scaling = false;
+    
     if (targetSize.isValid() && !targetSize.isEmpty()) {
-        // TurboJPEG supports built-in DCT scaling at discrete ratios:
-        // 1/8, 1/4, 1/2, 1x, 2x, 4x, 8x.
-        //
-        // CRITICAL: Only use DCT downscaling when BOTH dimensions exceed the target.
-        // Using qMin(scale_x, scale_y) on mismatched aspect ratios causes one
-        // dimension to be unnecessarily shrunk. For example, a 960x540 image
-        // targeting a 1315x262 viewport has scale_x=1.37, scale_y=0.49.
-        // qMin picks 0.49 → 1/2 DCT scale → 480x270, making the width half
-        // of what the viewport can display, leaving large black bars.
-        //
-        // Instead: only DCT-downscale when the image is strictly larger than
-        // the target in both dimensions. Otherwise decode at full resolution
-        // and let the caller's Qt rescaler handle the final fit.
-        bool widthExceeds = targetSize.width() < width;
-        bool heightExceeds = targetSize.height() < height;
-
-        if (widthExceeds && heightExceeds) {
-            // Both dimensions need shrinking — pick the DCT scale based on the
-            // more aggressive ratio (the dimension that needs the most reduction).
-            double scale_x = static_cast<double>(targetSize.width()) / width;
-            double scale_y = static_cast<double>(targetSize.height()) / height;
-            double scale = qMin(scale_x, scale_y);
-
-            if (scale <= 0.125) {
-                target_width = width / 8;
-                target_height = height / 8;
-            } else if (scale <= 0.25) {
-                target_width = width / 4;
-                target_height = height / 4;
-            } else if (scale <= 0.5) {
-                target_width = width / 2;
-                target_height = height / 2;
-            }
+        // TurboJPEG supports built-in scaling to 1/8, 1/4, 1/2, 1, 2x, 4x, 8x
+        // Choose the closest scaling factor
+        double scale_x = static_cast<double>(targetSize.width()) / width;
+        double scale_y = static_cast<double>(targetSize.height()) / height;
+        double scale = qMin(scale_x, scale_y);
+        
+        if (scale <= 0.125) {
+            target_width = width / 8;
+            target_height = height / 8;
+        } else if (scale <= 0.25) {
+            target_width = width / 4;
+            target_height = height / 4;
+        } else if (scale <= 0.5) {
+            target_width = width / 2;
+            target_height = height / 2;
+        } else if (scale >= 8.0) {
+            target_width = width * 8;
+            target_height = height * 8;
+        } else if (scale >= 4.0) {
+            target_width = width * 4;
+            target_height = height * 4;
+        } else if (scale >= 2.0) {
+            target_width = width * 2;
+            target_height = height * 2;
         }
-        // else: keep original size — caller will handle final scaling
+        // else keep original size
+        
+        need_scaling = (target_width != width || target_height != height);
     }
     
     // Create QImage for output
@@ -609,11 +609,8 @@ QImage FFmpegFrameProcessor::DecodeMJPEGWithTurboJPEG(AVPacket* packet, const QS
         return QImage();
     }
     
-    // qCDebug(log_ffmpeg_backend) << "TurboJPEG decoded MJPEG:" << width << "x" << height
+    // qCDebug(log_ffmpeg_backend) << "TurboJPEG decoded MJPEG:" << width << "x" << height 
     //                            << "to" << target_width << "x" << target_height;
-    qCDebug(log_ffmpeg_backend) << "TurboJPEG decoded: native" << width << "x" << height
-                               << "-> decoded" << target_width << "x" << target_height
-                               << "(DCT scale applied:" << (target_width != width || target_height != height) << ")";
     
     return image;
 }
