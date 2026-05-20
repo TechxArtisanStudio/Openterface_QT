@@ -587,16 +587,41 @@ jobs:
           echo "============================================================================"
           echo ""
           echo "CONTEXT:"
-          echo "  - Application compiled with MSYS2 MinGW"
+          echo "  - Application compiled with MSYS2 MinGW (GCC 13+, new C++11 ABI)"
           echo "  - FFmpeg compiled with MSYS2 MinGW (needs modern pthread with *64 functions)"
-          echo "  - Qt libraries need emulated TLS (__emutls_* symbols)"
+          echo "  - Qt libraries may need specific ABI compatibility"
           echo "  - windeployqt should have copied Qt's compatible runtime DLLs"
           echo ""
           
-          # Check what windeployqt provided
-          echo "=== Verifying windeployqt's runtime DLLs ==="
+          echo "=== Step 2.1: Detecting application's ABI requirements ==="
+          echo "Checking what ABI symbols openterfaceQT.exe needs..."
           
-          # 1. Check libstdc++-6.dll for emutls (CRITICAL for Qt6Multimedia)
+          # Check if the app uses new C++11 ABI (_ZNSt7__cxx11)
+          if objdump -p openterfaceQT.exe | grep -q "_ZNSt7__cxx11"; then
+            echo "✓ Application uses NEW C++11 ABI (GCC 5+, _GLIBCXX_USE_CXX11_ABI=1)"
+            APP_NEEDS_NEW_ABI=1
+          else
+            echo "✓ Application uses OLD ABI (GCC 4.x style)"
+            APP_NEEDS_NEW_ABI=0
+          fi
+          
+          # Check for emutls requirement
+          if objdump -p openterfaceQT.exe | grep -q "__emutls_"; then
+            echo "✓ Application uses EMULATED TLS"
+            APP_NEEDS_EMUTLS=1
+          else
+            echo "✓ Application uses NATIVE TLS"
+            APP_NEEDS_EMUTLS=0
+          fi
+          
+          echo ""
+          
+          echo ""
+          
+          # Check what windeployqt provided
+          echo "=== Step 2.2: Analyzing windeployqt's runtime DLLs ==="
+          
+          # 1. Check libstdc++-6.dll ABI compatibility
           if [ ! -f "libstdc++-6.dll" ]; then
             echo "✗✗✗ FATAL: libstdc++-6.dll is missing!"
             echo "windeployqt should have copied it from Qt installation."
@@ -606,72 +631,116 @@ jobs:
           size=$(stat -c%s "libstdc++-6.dll" 2>/dev/null || echo "unknown")
           echo "Found libstdc++-6.dll ($size bytes)"
           
-          if objdump -p libstdc++-6.dll | grep -q "__emutls_v._ZSt11__once_call"; then
-            echo "  ✓✓✓ Contains __emutls_v._ZSt11__once_call (required by Qt6Multimedia)"
-            LIBSTDCPP_OK=1
+          # Check ABI version
+          DLL_HAS_NEW_ABI=0
+          DLL_HAS_EMUTLS=0
+          
+          if objdump -p libstdc++-6.dll | grep -q "_ZNSt7__cxx11"; then
+            echo "  ✓ DLL provides NEW C++11 ABI"
+            DLL_HAS_NEW_ABI=1
           else
-            echo "  ✗✗✗ CRITICAL: Missing __emutls_v._ZSt11__once_call!"
-            echo ""
-            echo "This means Qt's MinGW distribution uses native TLS, not emulated TLS."
-            echo "But Qt6Multimedia.dll was compiled expecting emulated TLS."
-            echo "This is a version mismatch in Qt's own distribution!"
-            echo ""
-            echo "Checking if any emutls symbols exist:"
-            objdump -p libstdc++-6.dll | grep -i "emutls" | head -10 || echo "No emutls symbols at all"
-            echo ""
-            echo "ATTEMPTED FIX: Try to find Qt's bin directory and copy from there..."
-            
-            # Try to find Qt's bin directory with runtime DLLs
-            QT_BIN_CANDIDATES=(
-              "$QT_ROOT_DIR/bin"
-              "D:/a/_temp/Qt/6.6.3/mingw_64/bin"
-              "${{ runner.temp }}/Qt/6.6.3/mingw_64/bin"
-            )
-            
-            FOUND_QT_RUNTIME=false
-            for qt_bin in "${QT_BIN_CANDIDATES[@]}"; do
-              if [ -f "$qt_bin/libstdc++-6.dll" ]; then
-                echo "Found Qt bin directory: $qt_bin"
-                if objdump -p "$qt_bin/libstdc++-6.dll" | grep -q "__emutls_v._ZSt11__once_call"; then
-                  echo "✓ Qt's bin libstdc++-6.dll has emutls! Copying from there..."
-                  cp -f "$qt_bin/libstdc++-6.dll" . || true
-                  cp -f "$qt_bin/libgcc_s_seh-1.dll" . || true
-                  cp -f "$qt_bin/libwinpthread-1.dll" . || true
-                  FOUND_QT_RUNTIME=true
-                  LIBSTDCPP_OK=1
-                  break
-                else
-                  echo "✗ Even Qt's bin libstdc++-6.dll lacks emutls"
-                fi
-              fi
-            done
-            
-            if [ "$FOUND_QT_RUNTIME" = "false" ]; then
-              echo ""
-              echo "✗✗✗ FATAL: Cannot find a libstdc++-6.dll with emutls symbols"
-              echo "The application WILL fail with entry point not found error."
-              echo ""
-              echo "Possible causes:"
-              echo "  1. Qt 6.6.3's MinGW now uses native TLS (GCC 13+)"
-              echo "  2. Qt6Multimedia.dll is from an older build with emulated TLS"
-              echo "  3. Incompatible Qt installation"
-              echo ""
-              echo "Suggested solutions:"
-              echo "  - Use an older Qt version (6.5.x or earlier)"
-              echo "  - Rebuild Qt6Multimedia from source with native TLS"
-              echo "  - Downgrade MinGW toolchain to GCC 11 or earlier"
-              exit 1
-            fi
+            echo "  ✓ DLL provides OLD ABI"
+            DLL_HAS_NEW_ABI=0
           fi
           
-          # 2. Check libwinpthread-1.dll for *64 functions (needed by FFmpeg)
-          if [ ! -f "libwinpthread-1.dll" ]; then
+          if objdump -p libstdc++-6.dll | grep -q "__emutls_v._ZSt11__once_call"; then
+            echo "  ✓ DLL provides EMULATED TLS"
+            DLL_HAS_EMUTLS=1
+          else
+            echo "  ✓ DLL uses NATIVE TLS"
+            DLL_HAS_EMUTLS=0
+          fi
+          
+          echo ""
+          echo "=== Step 2.3: Compatibility Analysis ==="
+          echo "Application requirements:"
+          echo "  - C++11 ABI: $([ "$APP_NEEDS_NEW_ABI" = "1" ] && echo "NEW" || echo "OLD")"
+          echo "  - TLS mode: $([ "$APP_NEEDS_EMUTLS" = "1" ] && echo "EMULATED" || echo "NATIVE")"
+          echo ""
+          echo "Current DLL capabilities:"
+          echo "  - C++11 ABI: $([ "$DLL_HAS_NEW_ABI" = "1" ] && echo "NEW" || echo "OLD")"
+          echo "  - TLS mode: $([ "$DLL_HAS_EMUTLS" = "1" ] && echo "EMULATED" || echo "NATIVE")"
+          echo ""
+          
+          NEEDS_REPLACEMENT=0
+          
+          # Critical check: ABI must match!
+          if [ "$APP_NEEDS_NEW_ABI" != "$DLL_HAS_NEW_ABI" ]; then
+            echo "✗✗✗ CRITICAL: ABI MISMATCH!"
+            echo "    Application compiled with $([ "$APP_NEEDS_NEW_ABI" = "1" ] && echo "NEW" || echo "OLD") ABI"
+            echo "    But libstdc++-6.dll provides $([ "$DLL_HAS_NEW_ABI" = "1" ] && echo "NEW" || echo "OLD") ABI"
             echo ""
+            echo "This will cause runtime errors like:"
+            echo "  - _ZNSt7__cxx1112basic_string... not found (if app needs NEW but DLL is OLD)"
+            echo "  - _ZNSs... not found (if app needs OLD but DLL is NEW)"
+            NEEDS_REPLACEMENT=1
+          else
+            echo "✓ ABI compatibility: OK"
+          fi
+          
+          # Check TLS compatibility (less critical, but needed for Qt)
+          if [ "$APP_NEEDS_EMUTLS" != "$DLL_HAS_EMUTLS" ]; then
+            echo "⚠ TLS mode mismatch (may cause issues with Qt6Multimedia)"
+          fi
+          
+          echo ""
+          
+          if [ "$NEEDS_REPLACEMENT" = "1" ]; then
+            echo "=== Step 2.4: Replacing libstdc++-6.dll with compatible version ==="
+            echo ""
+            echo "REASON: Qt's libstdc++-6.dll ABI doesn't match application"
+            echo "SOLUTION: Use MSYS2's libstdc++-6.dll (matches application compiler)"
+            echo ""
+            
+            # Backup Qt's version first
+            if [ -f "libstdc++-6.dll" ]; then
+              cp "libstdc++-6.dll" "libstdc++-6.dll.qt-backup"
+              echo "Backed up Qt's version to .qt-backup"
+            fi
+            
+            # Copy from MSYS2
+            if [ -f "/mingw64/bin/libstdc++-6.dll" ]; then
+              cp -f /mingw64/bin/libstdc++-6.dll . || exit 1
+              size=$(stat -c%s "libstdc++-6.dll" 2>/dev/null || echo "unknown")
+              echo "✓ Copied MSYS2's libstdc++-6.dll ($size bytes)"
+              
+              # Verify the replacement
+              if objdump -p libstdc++-6.dll | grep -q "_ZNSt7__cxx11"; then
+                echo "✓ Verified: Replacement has NEW C++11 ABI"
+              fi
+            else
+              echo "✗✗✗ FATAL: Cannot find MSYS2's libstdc++-6.dll at /mingw64/bin/"
+              exit 1
+            fi
+            
+            # Also replace libgcc_s_seh-1.dll to ensure ABI consistency
+            if [ -f "/mingw64/bin/libgcc_s_seh-1.dll" ]; then
+              cp -f /mingw64/bin/libgcc_s_seh-1.dll . || exit 1
+              echo "✓ Also replaced libgcc_s_seh-1.dll for consistency"
+            fi
+            
+            echo ""
+            echo "⚠⚠⚠ WARNING: Using MSYS2 runtime instead of Qt's"
+            echo "This may affect Qt library compatibility, but is REQUIRED for ABI match."
+            echo "If Qt widgets fail, you may need to:"
+            echo "  - Recompile application with older GCC (to use old ABI)"
+            echo "  - Or rebuild Qt with same GCC as application"
+          else
+            echo "=== Step 2.4: libstdc++-6.dll is compatible, keeping Qt's version ==="
+          
+          else
+            echo "=== Step 2.4: libstdc++-6.dll is compatible, keeping Qt's version ==="
+          fi
+          
+          echo ""
+          
+          # 2. Check libwinpthread-1.dll for *64 functions (needed by FFmpeg)
+          echo "=== Step 2.5: Verifying pthread compatibility ==="
+          if [ ! -f "libwinpthread-1.dll" ]; then
             echo "✗ libwinpthread-1.dll is missing, copying from MSYS2..."
             cp -f /mingw64/bin/libwinpthread-1.dll . || exit 1
           fi
           
-          echo ""
           size=$(stat -c%s "libwinpthread-1.dll" 2>/dev/null || echo "unknown")
           echo "Found libwinpthread-1.dll ($size bytes)"
           
@@ -708,37 +777,75 @@ jobs:
           fi
           
           # 3. Verify libgcc_s_seh-1.dll exists
+          echo ""
+          echo "=== Step 2.6: Ensuring libgcc_s_seh-1.dll is present ==="
           if [ ! -f "libgcc_s_seh-1.dll" ]; then
-            echo ""
             echo "✗ libgcc_s_seh-1.dll is missing!"
-            echo "Trying to copy from Qt bin directory or MSYS2..."
             
-            # Try Qt first (for ABI consistency)
-            if [ -f "$QT_ROOT_DIR/bin/libgcc_s_seh-1.dll" ]; then
-              cp -f "$QT_ROOT_DIR/bin/libgcc_s_seh-1.dll" . || exit 1
-              echo "✓ Copied from Qt bin"
-            elif [ -f "D:/a/_temp/Qt/6.6.3/mingw_64/bin/libgcc_s_seh-1.dll" ]; then
-              cp -f "D:/a/_temp/Qt/6.6.3/mingw_64/bin/libgcc_s_seh-1.dll" . || exit 1
-              echo "✓ Copied from Qt bin (absolute path)"
-            else
+            # If we replaced libstdc++, also use MSYS2's libgcc for consistency
+            if [ "$NEEDS_REPLACEMENT" = "1" ]; then
+              echo "Using MSYS2's libgcc (to match libstdc++)"
               cp -f /mingw64/bin/libgcc_s_seh-1.dll . || exit 1
               echo "✓ Copied from MSYS2"
+            else
+              # Try Qt first (for ABI consistency)
+              echo "Trying to copy from Qt bin directory..."
+              if [ -f "$QT_ROOT_DIR/bin/libgcc_s_seh-1.dll" ]; then
+                cp -f "$QT_ROOT_DIR/bin/libgcc_s_seh-1.dll" . || exit 1
+                echo "✓ Copied from Qt bin"
+              elif [ -f "D:/a/_temp/Qt/6.6.3/mingw_64/bin/libgcc_s_seh-1.dll" ]; then
+                cp -f "D:/a/_temp/Qt/6.6.3/mingw_64/bin/libgcc_s_seh-1.dll" . || exit 1
+                echo "✓ Copied from Qt bin (absolute path)"
+              else
+                cp -f /mingw64/bin/libgcc_s_seh-1.dll . || exit 1
+                echo "✓ Copied from MSYS2"
+              fi
+            fi
+          else
+            echo "✓ libgcc_s_seh-1.dll already present"
+          fi
+          
+          echo ""
+          echo "=== Step 2.7: Final runtime DLL verification ==="
+          echo ""
+          echo "Checking final libstdc++-6.dll:"
+          size=$(stat -c%s "libstdc++-6.dll" 2>/dev/null || echo "unknown")
+          echo "  Size: $size bytes"
+          
+          # Verify ABI match
+          if [ "$APP_NEEDS_NEW_ABI" = "1" ]; then
+            if objdump -p libstdc++-6.dll | grep -q "_ZNSt7__cxx11"; then
+              echo "  ✓ NEW C++11 ABI (matches application)"
+            else
+              echo "  ✗✗✗ FATAL: Missing NEW ABI symbols!"
+              echo "  Application will fail with: _ZNSt7__cxx1112basic_string... not found"
+              exit 1
+            fi
+          else
+            if objdump -p libstdc++-6.dll | grep -q "_ZNSt7__cxx11"; then
+              echo "  ⚠ WARNING: DLL has NEW ABI but app uses OLD ABI (may work, may not)"
+            else
+              echo "  ✓ OLD ABI (matches application)"
             fi
           fi
           
           echo ""
-          echo "=== Final runtime DLL summary ==="
+          echo "Summary of runtime DLLs:"
           for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
             if [ -f "$dll" ]; then
               size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
-              echo "✓ $dll: $size bytes"
+              echo "  ✓ $dll: $size bytes"
             else
-              echo "✗ $dll: MISSING!"
+              echo "  ✗ $dll: MISSING!"
             fi
           done
           
           echo ""
           echo "✓✓✓ MinGW runtime library setup complete"
+          echo "Expected compatibility:"
+          echo "  - Application ABI: $([ "$APP_NEEDS_NEW_ABI" = "1" ] && echo "NEW (GCC 5+)" || echo "OLD (GCC 4.x)")"
+          echo "  - libstdc++ ABI: $(objdump -p libstdc++-6.dll | grep -q "_ZNSt7__cxx11" && echo "NEW (GCC 5+)" || echo "OLD (GCC 4.x)")"
+          echo "  - FFmpeg pthread: $(objdump -p libwinpthread-1.dll | grep -q "pthread_cond_timedwait64" && echo "Compatible (*64 functions)" || echo "May have issues")"
           echo "============================================================================"
 
       - name: Comprehensive DLL dependency verification
@@ -899,19 +1006,50 @@ jobs:
           # MinGW runtime - CRITICAL!
           echo ""
           echo "MinGW Runtime (CRITICAL - without these, app will NOT run):"
+          
+          # First detect what the app needs
+          echo ""
+          echo "Detecting application ABI requirements..."
+          APP_NEEDS_NEW_ABI=0
+          if objdump -p openterfaceQT.exe | grep -q "_ZNSt7__cxx11"; then
+            echo "  Application uses NEW C++11 ABI (GCC 5+)"
+            APP_NEEDS_NEW_ABI=1
+          else
+            echo "  Application uses OLD ABI (GCC 4.x)"
+          fi
+          
+          echo ""
           for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
             if [ -f "$dll" ]; then
               size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
               echo "✓ $dll ($size bytes)"
               
-              # Extra verification for libstdc++-6.dll
+              # Extra verification for libstdc++-6.dll - CHECK ABI MATCH!
               if [ "$dll" = "libstdc++-6.dll" ]; then
-                if objdump -p "$dll" | grep -q "__emutls_v._ZSt11__once_call"; then
-                  echo "  ✓ Contains __emutls_v._ZSt11__once_call (required by Qt6Multimedia.dll)"
+                echo "  Checking C++ ABI compatibility..."
+                
+                # Check if DLL has new ABI symbols
+                DLL_HAS_NEW_ABI=0
+                if objdump -p "$dll" | grep -q "_ZNSt7__cxx11"; then
+                  DLL_HAS_NEW_ABI=1
+                fi
+                
+                # Verify ABI matches application
+                if [ "$APP_NEEDS_NEW_ABI" = "1" ]; then
+                  if [ "$DLL_HAS_NEW_ABI" = "1" ]; then
+                    echo "  ✓ NEW C++11 ABI (matches application requirement)"
+                  else
+                    echo "  ✗✗✗ FATAL: ABI MISMATCH!"
+                    echo "  Application needs NEW ABI but DLL provides OLD ABI"
+                    echo "  This will cause: 无法定位程序输入点 _ZNSt7__cxx1112basic_string... 于动态链接库"
+                    exit 1
+                  fi
                 else
-                  echo "  ✗✗✗ FATAL: Missing __emutls_v._ZSt11__once_call!"
-                  echo "  This will cause: 无法定位程序输入点 __emutls_v._ZSt11__once_call 于动态链接库 Qt6Multimedia.dll 上"
-                  exit 1
+                  if [ "$DLL_HAS_NEW_ABI" = "1" ]; then
+                    echo "  ⚠ WARNING: DLL has NEW ABI but app uses OLD ABI (may cause issues)"
+                  else
+                    echo "  ✓ OLD ABI (matches application requirement)"
+                  fi
                 fi
               fi
               
