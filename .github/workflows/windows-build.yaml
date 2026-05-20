@@ -641,7 +641,37 @@ jobs:
           done
           
           echo ""
-          echo "✓✓✓ All runtime libraries are now from MSYS2 MinGW"
+          echo "=== CRITICAL: Verifying libstdc++-6.dll has required symbols ==="
+          if objdump -p libstdc++-6.dll | grep -q "__emutls_v._ZSt11__once_call"; then
+            echo "✓ libstdc++-6.dll contains __emutls_v._ZSt11__once_call"
+          else
+            echo "✗✗✗ FATAL: libstdc++-6.dll does NOT contain __emutls_v._ZSt11__once_call"
+            echo "This is the symbol Qt6Multimedia.dll needs!"
+            echo "Checking what symbols are available:"
+            objdump -p libstdc++-6.dll | grep -i "emutls" | head -20 || echo "No emutls symbols found"
+            exit 1
+          fi
+          
+          echo ""
+          echo "=== Checking Qt6Multimedia.dll will find its dependencies ==="
+          if [ -f "Qt6Multimedia.dll" ]; then
+            echo "Qt6Multimedia.dll dependencies:"
+            objdump -p Qt6Multimedia.dll | grep "DLL Name:" | sort -u
+            
+            echo ""
+            echo "Verifying critical dependencies are present:"
+            for dep in $(objdump -p Qt6Multimedia.dll | grep "DLL Name:" | awk '{print $3}' | grep -iE "^(libstdc|libgcc|libwinpthread)"); do
+              if [ -f "$dep" ] || [ -f "${dep,,}" ]; then
+                echo "  ✓ $dep"
+              else
+                echo "  ✗✗✗ MISSING: $dep"
+                exit 1
+              fi
+            done
+          fi
+          
+          echo ""
+          echo "✓✓✓ All runtime libraries are now from MSYS2 MinGW and contain required symbols"
           echo "============================================================================"
 
       - name: Comprehensive DLL dependency verification
@@ -799,22 +829,46 @@ jobs:
           # Main executable
           [ -f "openterfaceQT.exe" ] && echo "✓ openterfaceQT.exe" || { echo "✗ openterfaceQT.exe MISSING"; exit 1; }
           
-          # MinGW runtime
+          # MinGW runtime - CRITICAL!
+          echo ""
+          echo "MinGW Runtime (CRITICAL - without these, app will NOT run):"
           for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
-            [ -f "$dll" ] && echo "✓ $dll" || { echo "✗ $dll MISSING"; exit 1; }
+            if [ -f "$dll" ]; then
+              size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
+              echo "✓ $dll ($size bytes)"
+              
+              # Extra verification for libstdc++-6.dll
+              if [ "$dll" = "libstdc++-6.dll" ]; then
+                if objdump -p "$dll" | grep -q "__emutls_v._ZSt11__once_call"; then
+                  echo "  ✓ Contains __emutls_v._ZSt11__once_call (required by Qt6Multimedia.dll)"
+                else
+                  echo "  ✗✗✗ Missing __emutls_v._ZSt11__once_call!"
+                  exit 1
+                fi
+              fi
+            else
+              echo "✗✗✗ $dll MISSING!"
+              exit 1
+            fi
           done
           
           # Qt core DLLs
-          for dll in Qt6Core.dll Qt6Gui.dll Qt6Widgets.dll; do
+          echo ""
+          echo "Qt DLLs:"
+          for dll in Qt6Core.dll Qt6Gui.dll Qt6Widgets.dll Qt6Multimedia.dll; do
             [ -f "$dll" ] && echo "✓ $dll" || { echo "✗ $dll MISSING"; exit 1; }
           done
           
           # FFmpeg DLLs
+          echo ""
+          echo "FFmpeg DLLs:"
           for dll in avcodec-60.dll avformat-60.dll avutil-58.dll; do
             [ -f "$dll" ] && echo "✓ $dll" || { echo "✗ $dll MISSING"; exit 1; }
           done
           
           # LibUSB
+          echo ""
+          echo "Other dependencies:"
           [ -f "libusb-1.0.dll" ] && echo "✓ libusb-1.0.dll" || { echo "✗ libusb-1.0.dll MISSING"; exit 1; }
           
           echo ""
@@ -824,7 +878,83 @@ jobs:
           echo "Package size: $(du -sh . | cut -f1)"
           
           echo ""
-          echo "✓ All critical files present - ready for NSIS packaging"
+          echo "=== All DLLs in root directory (will be in installer) ==="
+          ls -1 *.dll 2>/dev/null | head -30 || echo "No DLLs found"
+          
+          echo ""
+          echo "✓✓✓ All critical files present - ready for NSIS packaging"
+          echo "============================================================================"
+          
+          # Create a manifest file for debugging
+          echo "Creating package manifest..."
+          find . -type f -name "*.dll" | sort > dll_manifest.txt
+          echo "DLL manifest created ($(wc -l < dll_manifest.txt) DLLs)"
+
+      - name: Upload package directory for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-directory-before-nsis
+          path: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+          retention-days: 3
+
+      - name: Runtime dependency test (quick sanity check)
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        shell: msys2 {0}
+        run: |
+          echo "============================================================================"
+          echo "Runtime Dependency Test - Quick Sanity Check"
+          echo "============================================================================"
+          echo ""
+          echo "Testing if openterfaceQT.exe can load its dependencies..."
+          echo "Note: We won't actually run the GUI, just check if DLLs load"
+          echo ""
+          
+          # Use ldd to check if all dependencies can be resolved
+          if command -v ldd >/dev/null 2>&1; then
+            echo "=== Running ldd on openterfaceQT.exe ==="
+            if ldd openterfaceQT.exe > ldd_output.txt 2>&1; then
+              cat ldd_output.txt
+              
+              # Check for "not found" errors
+              if grep -i "not found" ldd_output.txt; then
+                echo ""
+                echo "✗✗✗ FATAL: Some DLLs cannot be found at runtime!"
+                echo "The application will NOT start on user machines."
+                exit 1
+              else
+                echo ""
+                echo "✓ All DLLs can be resolved"
+              fi
+            else
+              echo "ldd failed, but continuing..."
+            fi
+          fi
+          
+          echo ""
+          echo "=== Testing Qt6Multimedia.dll specifically ==="
+          if [ -f "Qt6Multimedia.dll" ]; then
+            if ldd Qt6Multimedia.dll > qt_multimedia_ldd.txt 2>&1; then
+              echo "Qt6Multimedia.dll dependencies:"
+              cat qt_multimedia_ldd.txt | head -20
+              
+              # Check for libstdc++ specifically
+              if grep -q "libstdc++-6.dll" qt_multimedia_ldd.txt; then
+                if grep "libstdc++-6.dll" qt_multimedia_ldd.txt | grep -q "not found"; then
+                  echo ""
+                  echo "✗✗✗ CRITICAL: Qt6Multimedia.dll cannot find libstdc++-6.dll!"
+                  echo "This is why you get '__emutls_v._ZSt11__once_call not found' error!"
+                  exit 1
+                else
+                  resolved_path=$(grep "libstdc++-6.dll" qt_multimedia_ldd.txt | awk '{print $3}')
+                  echo ""
+                  echo "✓ Qt6Multimedia.dll can find libstdc++-6.dll at: $resolved_path"
+                fi
+              fi
+            fi
+          fi
+          
+          echo ""
+          echo "✓✓✓ Runtime dependency test passed"
           echo "============================================================================"
 
       - name: Upload Output folder
