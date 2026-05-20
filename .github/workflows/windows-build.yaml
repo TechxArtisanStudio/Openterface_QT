@@ -750,26 +750,46 @@ jobs:
             echo "✗✗✗ WARNING: libwinpthread-1.dll missing *64 functions"
             echo "FFmpeg may fail to load!"
           fi
+          
+          echo ""
+          echo "=== Checking Qt6Multimedia.dll will find its dependencies ==="
+          if [ -f "Qt6Multimedia.dll" ]; then
+            echo "Qt6Multimedia.dll dependencies:"
+            objdump -p Qt6Multimedia.dll | grep "DLL Name:" | sort -u
+            
+            echo ""
+            echo "Verifying critical dependencies are present:"
+            for dep in $(objdump -p Qt6Multimedia.dll | grep "DLL Name:" | awk '{print $3}' | grep -iE "^(libstdc|libgcc|libwinpthread)"); do
               if [ -f "$dep" ] || [ -f "${dep,,}" ]; then
-        echo "  ✓ $dep (present)"
-      else
-        echo "  ✗✗✗ MISSING: $dep"
-        exit 1
-      fi
-    done
-  fi
-  
-  echo ""
-  echo "=== Listing final runtime DLL versions ==="
-  for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
-    if [ -f "$dll" ]; then
-      size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
-      echo "$dll: $size bytes"
-    fi
-  done
-  
-  echo ""
-  echo "✓✓✓ Runtime library setup complete (HYBRID strategy applied)"
+                echo "  ✓ $dep (present)"
+              else
+                echo "  ✗✗✗ MISSING: $dep"
+                exit 1
+              fi
+            done
+          fi
+          
+          echo ""
+          echo "=== Listing final runtime DLL versions ==="
+          for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
+            if [ -f "$dll" ]; then
+              size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
+              echo "$dll: $size bytes"
+            fi
+          done
+          
+          echo ""
+          echo "✓✓✓ Runtime library setup complete (HYBRID strategy applied)"
+          echo "============================================================================"
+
+      - name: Comprehensive DLL dependency verification
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        shell: msys2 {0}
+        run: |
+          echo "============================================================================"
+          echo "Comprehensive DLL Dependency Verification"
+          echo "============================================================================"
+          
           # Function to check DLL dependencies
           check_dll_deps() {
             local target="$1"
