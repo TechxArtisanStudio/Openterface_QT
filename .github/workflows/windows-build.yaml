@@ -542,146 +542,290 @@ jobs:
           # Note: windeployqt is a Windows executable, so we need to call it from cmd
           # We'll switch back to cmd shell for this step
 
+      - name: Analyze and collect all DLL dependencies
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        shell: msys2 {0}
+        run: |
+          echo "============================================================================"
+          echo "Step 1: Analyzing DLL dependencies before windeployqt"
+          echo "============================================================================"
+          
+          echo ""
+          echo "=== Checking openterfaceQT.exe dependencies ==="
+          if command -v objdump >/dev/null 2>&1; then
+            objdump -p openterfaceQT.exe | grep "DLL Name:" | sort -u > exe_deps.txt
+            cat exe_deps.txt
+          fi
+          
+          echo ""
+          echo "=== Checking FFmpeg DLL dependencies ==="
+          for dll in avcodec-60.dll avformat-60.dll avutil-58.dll; do
+            if [ -f "$dll" ]; then
+              echo "Dependencies of $dll:"
+              objdump -p "$dll" | grep "DLL Name:" | sort -u || true
+            fi
+          done
+          
+          echo ""
+          echo "=== Current MSYS2 MinGW runtime versions ==="
+          ls -lh /mingw64/bin/libstdc++-6.dll /mingw64/bin/libgcc_s_seh-1.dll /mingw64/bin/libwinpthread-1.dll 2>/dev/null || true
+          
+          echo "============================================================================"
+
       - name: Run windeployqt (Windows native tool)
         working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
         run: |
+          echo "Running windeployqt to deploy Qt dependencies..."
           windeployqt ${{ env.EXE_NAME }} --multimedia --network
+          echo "windeployqt completed"
 
-      - name: Force copy MinGW runtime libraries from Qt directory
+      - name: Ensure compatible MinGW runtime libraries
         working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
-        shell: pwsh
+        shell: msys2 {0}
         run: |
-          Write-Host "=== Ensuring MinGW runtime libraries match Qt's requirements ==="
-          Write-Host "Qt was compiled with specific MinGW version - we MUST use the same runtime DLLs"
+          echo "============================================================================"
+          echo "Step 2: Ensuring compatible MinGW runtime libraries"
+          echo "============================================================================"
+          echo ""
+          echo "Strategy:"
+          echo "  - Application compiled with MSYS2 MinGW"
+          echo "  - FFmpeg compiled with MSYS2 MinGW"
+          echo "  - Qt is pre-compiled but generally compatible"
+          echo "  - Solution: Use MSYS2 MinGW runtime for consistency"
+          echo ""
           
-          $QtBinDir = "${{ runner.temp }}\Qt\${{ env.QT_VERSION }}\mingw_64\bin"
-          Write-Host "Qt bin directory: $QtBinDir"
-          
-          if (-not (Test-Path $QtBinDir)) {
-            Write-Host "ERROR: Qt bin directory not found at $QtBinDir"
-            exit 1
-          }
-          
-          # Force copy MinGW runtime DLLs from Qt's bin directory (these match Qt's requirements)
-          Write-Host "`nCopying MinGW runtime DLLs from Qt directory..."
-          $criticalDlls = @('libstdc++-6.dll', 'libgcc_s_seh-1.dll', 'libwinpthread-1.dll')
-          
-          foreach ($dll in $criticalDlls) {
-            $source = Join-Path $QtBinDir $dll
-            if (Test-Path $source) {
-              Copy-Item -Path $source -Destination . -Force
-              Write-Host "✓ Copied $dll from Qt ($(((Get-Item $source).Length / 1KB).ToString('F2')) KB)"
-            } else {
-              Write-Host "✗✗✗ FATAL: $dll not found in Qt bin directory ✗✗✗"
-              exit 1
-            }
-          }
-          
-          Write-Host "`n=== Verifying copied DLLs ==="
-          foreach ($dll in $criticalDlls) {
-            if (Test-Path $dll) {
-              $size = (Get-Item $dll).Length
-              Write-Host "✓ $dll present ($($size / 1KB) KB)"
-            } else {
-              Write-Host "✗ $dll MISSING after copy!"
-              exit 1
-            }
-          }
-
-      - name: Verify DLL dependencies and runtime compatibility
-        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
-        shell: pwsh
-        run: |
-          Write-Host "====================================================="
-          Write-Host "DLL Dependency and Runtime Compatibility Check"
-          Write-Host "====================================================="
-          
-          # Check if executable exists
-          if (-not (Test-Path "${{ env.EXE_NAME }}")) {
-            Write-Host "ERROR: ${{ env.EXE_NAME }} not found!"
-            exit 1
-          }
-          
-          Write-Host "`n=== CRITICAL: MinGW Runtime DLLs Final Verification ==="
-          $criticalDlls = @('libstdc++-6.dll', 'libgcc_s_seh-1.dll', 'libwinpthread-1.dll')
-          $missingCount = 0
-          
-          foreach ($dll in $criticalDlls) {
-            if (Test-Path $dll) {
-              $fileInfo = Get-Item $dll
-              Write-Host "✓ $dll"
-              Write-Host "  Size: $($fileInfo.Length) bytes"
-              Write-Host "  Modified: $($fileInfo.LastWriteTime)"
+          # Check what windeployqt provided
+          echo "=== What windeployqt provided ==="
+          for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
+            if [ -f "$dll" ]; then
+              size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
+              echo "Found $dll ($size bytes) - checking compatibility..."
               
-              # Check file version if available
-              try {
-                $verInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($dll)
-                if ($verInfo.FileVersion) {
-                  Write-Host "  Version: $($verInfo.FileVersion)"
-                }
-              } catch {
-                Write-Host "  Version: (not available)"
-              }
-            } else {
-              Write-Host "✗✗✗ CRITICAL: $dll is MISSING! ✗✗✗"
-              $missingCount++
-            }
-          }
+              # For pthread, check if it has modern *64 functions required by FFmpeg
+              if [ "$dll" = "libwinpthread-1.dll" ]; then
+                if objdump -p "$dll" | grep -q "pthread_cond_timedwait64"; then
+                  echo "  ✓ Has pthread_cond_timedwait64"
+                  PTHREAD_OK=1
+                else
+                  echo "  ✗ Missing pthread_cond_timedwait64 - INCOMPATIBLE with FFmpeg!"
+                  PTHREAD_OK=0
+                fi
+                
+                if objdump -p "$dll" | grep -q "clock_gettime64"; then
+                  echo "  ✓ Has clock_gettime64"
+                else
+                  echo "  ✗ Missing clock_gettime64 - INCOMPATIBLE with FFmpeg!"
+                  PTHREAD_OK=0
+                fi
+              fi
+            else
+              echo "Missing $dll"
+            fi
+          done
           
-          if ($missingCount -gt 0) {
-            Write-Host "`n✗✗✗ FATAL ERROR: $missingCount critical MinGW runtime DLL(s) missing!"
-            Write-Host "The application WILL NOT RUN without these DLLs!"
-            Write-Host "The error '__emutls_v._ZSt11__once_call not found' will occur."
-            exit 1
-          }
+          # If pthread is incompatible, force copy from MSYS2
+          if [ "${PTHREAD_OK:-0}" = "0" ]; then
+            echo ""
+            echo "=== pthread library is incompatible - replacing with MSYS2 version ==="
+            cp -f /mingw64/bin/libwinpthread-1.dll . || { echo "ERROR: Failed to copy libwinpthread-1.dll"; exit 1; }
+            echo "✓ Replaced libwinpthread-1.dll"
+          fi
           
-          Write-Host "`n✓✓✓ All critical MinGW runtime DLLs are present"
-          Write-Host "====================================================="
+          # Also ensure we have MSYS2 versions of other runtime DLLs for consistency
+          echo ""
+          echo "=== Ensuring all runtime DLLs are from MSYS2 for consistency ==="
+          for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
+            cp -f "/mingw64/bin/$dll" . || { echo "ERROR: Failed to copy $dll"; exit 1; }
+            size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
+            echo "✓ Copied $dll from MSYS2 ($size bytes)"
+          done
+          
+          echo ""
+          echo "✓✓✓ All runtime libraries are now from MSYS2 MinGW"
+          echo "============================================================================"
 
-      - name: Inspect package directory before NSIS packaging
-        shell: pwsh
+      - name: Comprehensive DLL dependency verification
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        shell: msys2 {0}
         run: |
-          Write-Host "====================================================="
-          Write-Host "CRITICAL CHECK: Package contents before NSIS build"
-          Write-Host "====================================================="
+          echo "============================================================================"
+          echo "Step 3: Comprehensive DLL Dependency Verification"
+          echo "============================================================================"
           
-          $pkgDir = "${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}"
-          Write-Host "`nPackage directory: $pkgDir"
+          # Function to check DLL dependencies
+          check_dll_deps() {
+            local target="$1"
+            local name=$(basename "$target")
+            echo ""
+            echo "=== Checking $name ==="
+            
+            if [ ! -f "$target" ]; then
+              echo "✗ File not found: $target"
+              return 1
+            fi
+            
+            # Get all DLL dependencies
+            local deps=$(objdump -p "$target" | grep "DLL Name:" | awk '{print $3}' | sort -u)
+            local missing=0
+            
+            for dep in $deps; do
+              # Skip system DLLs
+              if echo "$dep" | grep -qiE "^(KERNEL32|USER32|ADVAPI32|SHELL32|ole32|GDI32|WS2_32|msvcrt|MSVCP|VCRUNTIME)"; then
+                continue
+              fi
+              
+              # Check if DLL exists in package
+              if [ -f "$dep" ]; then
+                echo "  ✓ $dep"
+              elif [ -f "${dep,,}" ]; then
+                echo "  ✓ ${dep,,} (case mismatch)"
+              else
+                # Check in subdirectories (plugins, etc)
+                if find . -iname "$dep" -type f | grep -q .; then
+                  local found_path=$(find . -iname "$dep" -type f | head -1)
+                  echo "  ✓ $dep (found at $found_path)"
+                else
+                  echo "  ✗✗✗ MISSING: $dep"
+                  missing=$((missing + 1))
+                fi
+              fi
+            done
+            
+            if [ $missing -gt 0 ]; then
+              echo "  ✗✗✗ $name has $missing missing dependencies!"
+              return 1
+            else
+              echo "  ✓ All dependencies satisfied for $name"
+              return 0
+            fi
+          }
           
-          if (-not (Test-Path $pkgDir)) {
-            Write-Host "ERROR: Package directory not found!"
+          # Track overall status
+          TOTAL_ISSUES=0
+          
+          # Check main executable
+          check_dll_deps "openterfaceQT.exe" || TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
+          
+          # Check Qt DLLs (sample)
+          for dll in Qt6Core.dll Qt6Gui.dll Qt6Multimedia.dll Qt6MultimediaWidgets.dll; do
+            if [ -f "$dll" ]; then
+              check_dll_deps "$dll" || TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
+            fi
+          done
+          
+          # Check FFmpeg DLLs
+          for dll in avcodec-60.dll avformat-60.dll avutil-58.dll swresample-4.dll swscale-7.dll; do
+            if [ -f "$dll" ]; then
+              check_dll_deps "$dll" || TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
+            fi
+          done
+          
+          echo ""
+          echo "============================================================================"
+          echo "=== Critical MinGW Runtime DLL Verification ==="
+          echo "============================================================================"
+          
+          CRITICAL_DLLS=("libstdc++-6.dll" "libgcc_s_seh-1.dll" "libwinpthread-1.dll")
+          RUNTIME_ISSUES=0
+          
+          for dll in "${CRITICAL_DLLS[@]}"; do
+            if [ -f "$dll" ]; then
+              size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
+              echo "✓ $dll ($size bytes)"
+              
+              # Special checks for pthread
+              if [ "$dll" = "libwinpthread-1.dll" ]; then
+                echo "  Checking for modern POSIX functions..."
+                if objdump -p "$dll" | grep -q "pthread_cond_timedwait64"; then
+                  echo "  ✓ Has pthread_cond_timedwait64"
+                else
+                  echo "  ✗✗✗ Missing pthread_cond_timedwait64 (FFmpeg will fail!)"
+                  RUNTIME_ISSUES=$((RUNTIME_ISSUES + 1))
+                fi
+                
+                if objdump -p "$dll" | grep -q "clock_gettime64"; then
+                  echo "  ✓ Has clock_gettime64"
+                else
+                  echo "  ✗✗✗ Missing clock_gettime64 (FFmpeg will fail!)"
+                  RUNTIME_ISSUES=$((RUNTIME_ISSUES + 1))
+                fi
+              fi
+            else
+              echo "✗✗✗ CRITICAL: $dll is MISSING!"
+              RUNTIME_ISSUES=$((RUNTIME_ISSUES + 1))
+            fi
+          done
+          
+          echo ""
+          echo "============================================================================"
+          echo "=== Verification Summary ==="
+          echo "============================================================================"
+          echo "Total dependency issues: $TOTAL_ISSUES"
+          echo "Critical runtime issues: $RUNTIME_ISSUES"
+          
+          if [ $RUNTIME_ISSUES -gt 0 ]; then
+            echo ""
+            echo "✗✗✗ FATAL: Critical runtime library issues detected!"
+            echo "The application WILL NOT RUN correctly."
+            echo "Expected errors:"
+            echo "  - __emutls_v._ZSt11__once_call not found"
+            echo "  - clock_gettime64 not found"
+            echo "  - pthread_cond_timedwait64 not found"
             exit 1
-          }
+          fi
           
-          Write-Host "`n=== CRITICAL: MinGW Runtime DLLs ==="
-          $criticalDlls = @('libstdc++-6.dll', 'libgcc_s_seh-1.dll', 'libwinpthread-1.dll')
-          foreach ($dll in $criticalDlls) {
-            $path = Join-Path $pkgDir $dll
-            if (Test-Path $path) {
-              $item = Get-Item $path
-              Write-Host "✓ $dll - $($item.Length) bytes - Modified: $($item.LastWriteTime)"
-            } else {
-              Write-Host "✗✗✗ MISSING: $dll ✗✗✗"
-              exit 1
-            }
-          }
+          if [ $TOTAL_ISSUES -gt 0 ]; then
+            echo ""
+            echo "⚠ WARNING: Some dependency issues detected (may not be critical)"
+            echo "Check the log above for details"
+          else
+            echo ""
+            echo "✓✓✓ All dependencies verified successfully!"
+          fi
           
-          Write-Host "`n=== Qt DLLs ==="
-          Get-ChildItem -Path $pkgDir -Filter "Qt6*.dll" | ForEach-Object {
-            Write-Host "  $($_.Name) - $($_.Length) bytes"
-          }
+          echo "============================================================================"
+
+      - name: Final package contents check
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        shell: msys2 {0}
+        run: |
+          echo "============================================================================"
+          echo "Final Package Contents Check (before NSIS)"
+          echo "============================================================================"
           
-          Write-Host "`n=== All DLL files (first 50) ==="
-          Get-ChildItem -Path $pkgDir -Filter "*.dll" -Recurse | Select-Object -First 50 | ForEach-Object {
-            Write-Host "  $($_.FullName.Replace($pkgDir, '.'))"
-          }
+          echo ""
+          echo "=== Critical files checklist ==="
           
-          Write-Host "`n=== Total file count ==="
-          $fileCount = (Get-ChildItem -Path $pkgDir -Recurse -File).Count
-          Write-Host "Total files to be packaged: $fileCount"
+          # Main executable
+          [ -f "openterfaceQT.exe" ] && echo "✓ openterfaceQT.exe" || { echo "✗ openterfaceQT.exe MISSING"; exit 1; }
           
-          Write-Host "`nIf any CRITICAL DLLs are missing above, the installer will NOT work!"
-          Write-Host "====================================================="
+          # MinGW runtime
+          for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
+            [ -f "$dll" ] && echo "✓ $dll" || { echo "✗ $dll MISSING"; exit 1; }
+          done
+          
+          # Qt core DLLs
+          for dll in Qt6Core.dll Qt6Gui.dll Qt6Widgets.dll; do
+            [ -f "$dll" ] && echo "✓ $dll" || { echo "✗ $dll MISSING"; exit 1; }
+          done
+          
+          # FFmpeg DLLs
+          for dll in avcodec-60.dll avformat-60.dll avutil-58.dll; do
+            [ -f "$dll" ] && echo "✓ $dll" || { echo "✗ $dll MISSING"; exit 1; }
+          done
+          
+          # LibUSB
+          [ -f "libusb-1.0.dll" ] && echo "✓ libusb-1.0.dll" || { echo "✗ libusb-1.0.dll MISSING"; exit 1; }
+          
+          echo ""
+          echo "=== Package statistics ==="
+          echo "Total files: $(find . -type f | wc -l)"
+          echo "Total DLLs: $(find . -name '*.dll' | wc -l)"
+          echo "Package size: $(du -sh . | cut -f1)"
+          
+          echo ""
+          echo "✓ All critical files present - ready for NSIS packaging"
+          echo "============================================================================"
 
       - name: Upload Output folder
         uses: actions/upload-artifact@v4
