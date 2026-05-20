@@ -525,19 +525,18 @@ jobs:
           echo "✓✓✓ LibUSB DLL setup completed successfully ✓✓✓"
           echo "Verifying copied files:"
           ls -la ${{ env.PACKAGE_DIR }}/*usb* || echo "Warning: No USB DLLs visible (but copy succeeded)"
-          echo "Copying MSYS2 runtime dependencies..."
+          echo "Copying MSYS2 runtime dependencies (non-C++ runtime)..."
           cp /mingw64/bin/libiconv-2.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libiconv-2.dll not found"
           cp /mingw64/bin/libbz2-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libbz2-1.dll not found"
           cp /mingw64/bin/liblzma-5.dll ${{ env.PACKAGE_DIR }} || echo "Warning: liblzma-5.dll not found"
           cp /mingw64/bin/zlib1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: zlib1.dll not found"
-          cp /mingw64/bin/libwinpthread-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libwinpthread-1.dll not found"
-          cp /mingw64/bin/libgcc_s_seh-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libgcc_s_seh-1.dll not found"
-          cp /mingw64/bin/libstdc++-6.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libstdc++-6.dll not found"
           cp /mingw64/bin/libmfx-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libmfx-1.dll not found"
+          # NOTE: Do NOT copy libwinpthread, libgcc, libstdc++ here!
+          # Let windeployqt copy them from Qt's MinGW installation for ABI compatibility
           echo "Copying translation & keyboard layouts files..."
           cp "${SOURCE_DIR_MSYS}/config/keyboards/"*.json ${{ env.PACKAGE_DIR }}/config/keyboards/
           cp "${SOURCE_DIR_MSYS}/config/languages/"*.qm ${{ env.PACKAGE_DIR }}/config/languages/
-          echo "Running windeployqt..."
+          echo "Build step complete. Proceeding to windeployqt..."
           cd ${{ env.PACKAGE_DIR }}
           # Note: windeployqt is a Windows executable, so we need to call it from cmd
           # We'll switch back to cmd shell for this step
@@ -584,202 +583,162 @@ jobs:
         shell: msys2 {0}
         run: |
           echo "============================================================================"
-          echo "Step 2: Ensuring compatible MinGW runtime libraries"
+          echo "Step 2: Verifying and adjusting MinGW runtime libraries"
           echo "============================================================================"
           echo ""
-          echo "Strategy:"
+          echo "CONTEXT:"
           echo "  - Application compiled with MSYS2 MinGW"
-          echo "  - FFmpeg compiled with MSYS2 MinGW"
-          echo "  - Qt is pre-compiled but generally compatible"
-          echo "  - Solution: Use MSYS2 MinGW runtime for consistency"
+          echo "  - FFmpeg compiled with MSYS2 MinGW (needs modern pthread with *64 functions)"
+          echo "  - Qt libraries need emulated TLS (__emutls_* symbols)"
+          echo "  - windeployqt should have copied Qt's compatible runtime DLLs"
           echo ""
           
           # Check what windeployqt provided
-          echo "=== What windeployqt provided ==="
-          for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
-            if [ -f "$dll" ]; then
-              size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
-              echo "Found $dll ($size bytes) - checking compatibility..."
-              
-              # For pthread, check if it has modern *64 functions required by FFmpeg
-              if [ "$dll" = "libwinpthread-1.dll" ]; then
-                if objdump -p "$dll" | grep -q "pthread_cond_timedwait64"; then
-                  echo "  ✓ Has pthread_cond_timedwait64"
-                  PTHREAD_OK=1
-                else
-                  echo "  ✗ Missing pthread_cond_timedwait64 - INCOMPATIBLE with FFmpeg!"
-                  PTHREAD_OK=0
-                fi
-                
-                if objdump -p "$dll" | grep -q "clock_gettime64"; then
-                  echo "  ✓ Has clock_gettime64"
-                else
-                  echo "  ✗ Missing clock_gettime64 - INCOMPATIBLE with FFmpeg!"
-                  PTHREAD_OK=0
-                fi
-              fi
-            else
-              echo "Missing $dll"
-            fi
-          done
+          echo "=== Verifying windeployqt's runtime DLLs ==="
           
-          # If pthread is incompatible, force copy from MSYS2
-          if [ "${PTHREAD_OK:-0}" = "0" ]; then
-            echo ""
-            echo "=== pthread library is incompatible - replacing with MSYS2 version ==="
-            cp -f /mingw64/bin/libwinpthread-1.dll . || { echo "ERROR: Failed to copy libwinpthread-1.dll"; exit 1; }
-            echo "✓ Replaced libwinpthread-1.dll"
+          # 1. Check libstdc++-6.dll for emutls (CRITICAL for Qt6Multimedia)
+          if [ ! -f "libstdc++-6.dll" ]; then
+            echo "✗✗✗ FATAL: libstdc++-6.dll is missing!"
+            echo "windeployqt should have copied it from Qt installation."
+            exit 1
           fi
           
-          # Also ensure we have MSYS2 versions of other runtime DLLs for consistency
-          echo ""
-          echo "=== HYBRID STRATEGY: Mix Qt and MSYS2 runtimes ==="
-          echo "PROBLEM ANALYSIS:"
-          echo "  - Qt MinGW uses EMULATED TLS (__emutls_* symbols)"
-          echo "  - MSYS2 MinGW uses NATIVE TLS (no emutls symbols)"
-          echo "  - Qt6Multimedia.dll needs emulated TLS"
-          echo "  - FFmpeg needs modern pthread (*64 functions)"
-          echo ""
-          echo "SOLUTION:"
-          echo "  - libstdc++-6.dll & libgcc_s_seh-1.dll: Keep Qt's version (has emutls)"
-          echo "  - libwinpthread-1.dll: Use MSYS2's version (has *64 functions)"
-          echo ""
+          size=$(stat -c%s "libstdc++-6.dll" 2>/dev/null || echo "unknown")
+          echo "Found libstdc++-6.dll ($size bytes)"
           
-          # First, backup what windeployqt provided
-          for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
-            if [ -f "$dll" ]; then
-              cp "$dll" "${dll}.qt-original"
-              echo "Backed up Qt's $dll"
-            fi
-          done
-          
-          # Check if Qt's libstdc++-6.dll has emutls (should have)
-          if [ -f "libstdc++-6.dll.qt-original" ]; then
-            echo ""
-            echo "Checking Qt's libstdc++-6.dll for emutls symbols..."
-            if objdump -p libstdc++-6.dll.qt-original | grep -q "__emutls_v._ZSt11__once_call"; then
-              echo "✓ Qt's libstdc++-6.dll contains __emutls_v._ZSt11__once_call"
-              QT_HAS_EMUTLS=1
-            else
-              echo "✗ Qt's libstdc++-6.dll does NOT contain emutls symbols"
-              objdump -p libstdc++-6.dll.qt-original | grep -i "emutls" | head -10 || echo "No emutls symbols"
-              QT_HAS_EMUTLS=0
-            fi
-          fi
-          
-          # Check if Qt's pthread has *64 functions
-          if [ -f "libwinpthread-1.dll.qt-original" ]; then
-            echo ""
-            echo "Checking Qt's libwinpthread-1.dll for *64 functions..."
-            QT_PTHREAD_OK=1
-            if objdump -p libwinpthread-1.dll.qt-original | grep -q "pthread_cond_timedwait64"; then
-              echo "✓ Qt's pthread has pthread_cond_timedwait64"
-            else
-              echo "✗ Qt's pthread missing pthread_cond_timedwait64"
-              QT_PTHREAD_OK=0
-            fi
-            if objdump -p libwinpthread-1.dll.qt-original | grep -q "clock_gettime64"; then
-              echo "✓ Qt's pthread has clock_gettime64"
-            else
-              echo "✗ Qt's pthread missing clock_gettime64"
-              QT_PTHREAD_OK=0
-            fi
-          fi
-          
-          echo ""
-          echo "=== Applying HYBRID strategy ==="
-          
-          # DECISION LOGIC:
-          # If Qt has emutls AND its pthread is OK → use all Qt runtime (best case)
-          # If Qt has emutls BUT pthread not OK → Qt libstdc++/libgcc + MSYS2 pthread (hybrid)
-          # If Qt doesn't have emutls → ERROR (unexpected!)
-          
-          if [ "${QT_HAS_EMUTLS:-0}" = "1" ]; then
-            if [ "${QT_PTHREAD_OK:-0}" = "1" ]; then
-              echo "SCENARIO A: Qt runtime is fully compatible!"
-              echo "✓ Keeping all Qt runtime libraries (best case)"
-              # Restore Qt versions
-              for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
-                if [ -f "${dll}.qt-original" ]; then
-                  mv "${dll}.qt-original" "$dll"
-                fi
-              done
-            else
-              echo "SCENARIO B: Qt has emutls BUT pthread incompatible with FFmpeg"
-              echo "✓ Using Qt's libstdc++ and libgcc (for emutls)"
-              echo "✓ Replacing libwinpthread with MSYS2 version (for *64 functions)"
-              
-              # Keep Qt's libstdc++ and libgcc
-              for dll in libstdc++-6.dll libgcc_s_seh-1.dll; do
-                if [ -f "${dll}.qt-original" ]; then
-                  mv "${dll}.qt-original" "$dll"
-                  size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
-                  echo "  ✓ Using Qt's $dll ($size bytes) - contains emutls"
-                fi
-              done
-              
-              # Replace pthread with MSYS2's version
-              cp -f "/mingw64/bin/libwinpthread-1.dll" . || { echo "ERROR: Failed to copy pthread"; exit 1; }
-              size=$(stat -c%s "libwinpthread-1.dll" 2>/dev/null || echo "unknown")
-              echo "  ✓ Using MSYS2's libwinpthread-1.dll ($size bytes) - contains *64 functions"
-            fi
-          else
-            echo "✗✗✗ SCENARIO C: Qt runtime doesn't have emutls - UNEXPECTED!"
-            echo "This should not happen. Qt's MinGW should have emulated TLS."
-            echo "Fallback: Try using all MSYS2 runtime and hope for the best..."
-            
-            for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
-              cp -f "/mingw64/bin/$dll" . || { echo "ERROR: Failed to copy $dll"; exit 1; }
-              echo "  ⚠ Using MSYS2's $dll (may cause Qt6Multimedia issues)"
-            done
-          fi
-          
-          echo ""
-          echo "=== FINAL VERIFICATION ==="
           if objdump -p libstdc++-6.dll | grep -q "__emutls_v._ZSt11__once_call"; then
-            echo "✓✓✓ libstdc++-6.dll contains __emutls_v._ZSt11__once_call (Qt6Multimedia will work)"
+            echo "  ✓✓✓ Contains __emutls_v._ZSt11__once_call (required by Qt6Multimedia)"
+            LIBSTDCPP_OK=1
           else
-            echo "✗✗✗ WARNING: libstdc++-6.dll missing __emutls_v._ZSt11__once_call"
-            echo "Qt6Multimedia.dll may fail to load!"
-          fi
-          
-          if objdump -p libwinpthread-1.dll | grep -q "pthread_cond_timedwait64" && \
-             objdump -p libwinpthread-1.dll | grep -q "clock_gettime64"; then
-            echo "✓✓✓ libwinpthread-1.dll has *64 functions (FFmpeg will work)"
-          else
-            echo "✗✗✗ WARNING: libwinpthread-1.dll missing *64 functions"
-            echo "FFmpeg may fail to load!"
-          fi
-          
-          echo ""
-          echo "=== Checking Qt6Multimedia.dll will find its dependencies ==="
-          if [ -f "Qt6Multimedia.dll" ]; then
-            echo "Qt6Multimedia.dll dependencies:"
-            objdump -p Qt6Multimedia.dll | grep "DLL Name:" | sort -u
-            
+            echo "  ✗✗✗ CRITICAL: Missing __emutls_v._ZSt11__once_call!"
             echo ""
-            echo "Verifying critical dependencies are present:"
-            for dep in $(objdump -p Qt6Multimedia.dll | grep "DLL Name:" | awk '{print $3}' | grep -iE "^(libstdc|libgcc|libwinpthread)"); do
-              if [ -f "$dep" ] || [ -f "${dep,,}" ]; then
-                echo "  ✓ $dep (present)"
-              else
-                echo "  ✗✗✗ MISSING: $dep"
-                exit 1
+            echo "This means Qt's MinGW distribution uses native TLS, not emulated TLS."
+            echo "But Qt6Multimedia.dll was compiled expecting emulated TLS."
+            echo "This is a version mismatch in Qt's own distribution!"
+            echo ""
+            echo "Checking if any emutls symbols exist:"
+            objdump -p libstdc++-6.dll | grep -i "emutls" | head -10 || echo "No emutls symbols at all"
+            echo ""
+            echo "ATTEMPTED FIX: Try to find Qt's bin directory and copy from there..."
+            
+            # Try to find Qt's bin directory with runtime DLLs
+            QT_BIN_CANDIDATES=(
+              "$QT_ROOT_DIR/bin"
+              "D:/a/_temp/Qt/6.6.3/mingw_64/bin"
+              "${{ runner.temp }}/Qt/6.6.3/mingw_64/bin"
+            )
+            
+            FOUND_QT_RUNTIME=false
+            for qt_bin in "${QT_BIN_CANDIDATES[@]}"; do
+              if [ -f "$qt_bin/libstdc++-6.dll" ]; then
+                echo "Found Qt bin directory: $qt_bin"
+                if objdump -p "$qt_bin/libstdc++-6.dll" | grep -q "__emutls_v._ZSt11__once_call"; then
+                  echo "✓ Qt's bin libstdc++-6.dll has emutls! Copying from there..."
+                  cp -f "$qt_bin/libstdc++-6.dll" . || true
+                  cp -f "$qt_bin/libgcc_s_seh-1.dll" . || true
+                  cp -f "$qt_bin/libwinpthread-1.dll" . || true
+                  FOUND_QT_RUNTIME=true
+                  LIBSTDCPP_OK=1
+                  break
+                else
+                  echo "✗ Even Qt's bin libstdc++-6.dll lacks emutls"
+                fi
               fi
             done
+            
+            if [ "$FOUND_QT_RUNTIME" = "false" ]; then
+              echo ""
+              echo "✗✗✗ FATAL: Cannot find a libstdc++-6.dll with emutls symbols"
+              echo "The application WILL fail with entry point not found error."
+              echo ""
+              echo "Possible causes:"
+              echo "  1. Qt 6.6.3's MinGW now uses native TLS (GCC 13+)"
+              echo "  2. Qt6Multimedia.dll is from an older build with emulated TLS"
+              echo "  3. Incompatible Qt installation"
+              echo ""
+              echo "Suggested solutions:"
+              echo "  - Use an older Qt version (6.5.x or earlier)"
+              echo "  - Rebuild Qt6Multimedia from source with native TLS"
+              echo "  - Downgrade MinGW toolchain to GCC 11 or earlier"
+              exit 1
+            fi
+          fi
+          
+          # 2. Check libwinpthread-1.dll for *64 functions (needed by FFmpeg)
+          if [ ! -f "libwinpthread-1.dll" ]; then
+            echo ""
+            echo "✗ libwinpthread-1.dll is missing, copying from MSYS2..."
+            cp -f /mingw64/bin/libwinpthread-1.dll . || exit 1
           fi
           
           echo ""
-          echo "=== Listing final runtime DLL versions ==="
+          size=$(stat -c%s "libwinpthread-1.dll" 2>/dev/null || echo "unknown")
+          echo "Found libwinpthread-1.dll ($size bytes)"
+          
+          PTHREAD_OK=1
+          if objdump -p libwinpthread-1.dll | grep -q "pthread_cond_timedwait64"; then
+            echo "  ✓ Has pthread_cond_timedwait64"
+          else
+            echo "  ✗ Missing pthread_cond_timedwait64 (required by FFmpeg)"
+            PTHREAD_OK=0
+          fi
+          
+          if objdump -p libwinpthread-1.dll | grep -q "clock_gettime64"; then
+            echo "  ✓ Has clock_gettime64"
+          else
+            echo "  ✗ Missing clock_gettime64 (required by FFmpeg)"
+            PTHREAD_OK=0
+          fi
+          
+          if [ "$PTHREAD_OK" = "0" ]; then
+            echo ""
+            echo "=== pthread incompatible with FFmpeg - replacing with MSYS2 version ==="
+            cp -f /mingw64/bin/libwinpthread-1.dll . || exit 1
+            size=$(stat -c%s "libwinpthread-1.dll" 2>/dev/null || echo "unknown")
+            echo "✓ Replaced with MSYS2 libwinpthread-1.dll ($size bytes)"
+            
+            # Verify replacement has required functions
+            if objdump -p libwinpthread-1.dll | grep -q "pthread_cond_timedwait64" && \
+               objdump -p libwinpthread-1.dll | grep -q "clock_gettime64"; then
+              echo "✓ Verified: Replacement has required *64 functions"
+            else
+              echo "✗✗✗ FATAL: Even MSYS2's pthread lacks *64 functions!"
+              exit 1
+            fi
+          fi
+          
+          # 3. Verify libgcc_s_seh-1.dll exists
+          if [ ! -f "libgcc_s_seh-1.dll" ]; then
+            echo ""
+            echo "✗ libgcc_s_seh-1.dll is missing!"
+            echo "Trying to copy from Qt bin directory or MSYS2..."
+            
+            # Try Qt first (for ABI consistency)
+            if [ -f "$QT_ROOT_DIR/bin/libgcc_s_seh-1.dll" ]; then
+              cp -f "$QT_ROOT_DIR/bin/libgcc_s_seh-1.dll" . || exit 1
+              echo "✓ Copied from Qt bin"
+            elif [ -f "D:/a/_temp/Qt/6.6.3/mingw_64/bin/libgcc_s_seh-1.dll" ]; then
+              cp -f "D:/a/_temp/Qt/6.6.3/mingw_64/bin/libgcc_s_seh-1.dll" . || exit 1
+              echo "✓ Copied from Qt bin (absolute path)"
+            else
+              cp -f /mingw64/bin/libgcc_s_seh-1.dll . || exit 1
+              echo "✓ Copied from MSYS2"
+            fi
+          fi
+          
+          echo ""
+          echo "=== Final runtime DLL summary ==="
           for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
             if [ -f "$dll" ]; then
               size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
-              echo "$dll: $size bytes"
+              echo "✓ $dll: $size bytes"
+            else
+              echo "✗ $dll: MISSING!"
             fi
           done
           
           echo ""
-          echo "✓✓✓ Runtime library setup complete (HYBRID strategy applied)"
+          echo "✓✓✓ MinGW runtime library setup complete"
           echo "============================================================================"
 
       - name: Comprehensive DLL dependency verification
