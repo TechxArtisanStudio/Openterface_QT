@@ -545,7 +545,22 @@ jobs:
       - name: Run windeployqt (Windows native tool)
         working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
         run: |
-          windeployqt ${{ env.EXE_NAME }} --compiler-runtime --multimedia --network
+          windeployqt ${{ env.EXE_NAME }} --multimedia --network
+
+      - name: Force copy MinGW runtime libraries (after windeployqt)
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        shell: msys2 {0}
+        run: |
+          echo "=== Ensuring MinGW runtime libraries are present ==="
+          echo "These DLLs are CRITICAL for C++ applications built with MinGW"
+          
+          # Force copy MinGW runtime DLLs (overwrite if windeployqt copied wrong versions)
+          cp -f /mingw64/bin/libstdc++-6.dll . || { echo "FATAL: libstdc++-6.dll not found"; exit 1; }
+          cp -f /mingw64/bin/libgcc_s_seh-1.dll . || { echo "FATAL: libgcc_s_seh-1.dll not found"; exit 1; }
+          cp -f /mingw64/bin/libwinpthread-1.dll . || { echo "FATAL: libwinpthread-1.dll not found"; exit 1; }
+          
+          echo "✓ MinGW runtime libraries copied successfully"
+          ls -lh libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll
 
       - name: Verify DLL dependencies
         working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
@@ -572,18 +587,30 @@ jobs:
           echo "Checking Qt DLLs..."
           ls -la Qt*.dll | head -5 || echo "No Qt DLLs found"
           
-          echo "Checking MSYS2 runtime DLLs..."
-          for dll in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll libgcc_s_dw2-1.dll; do
+          echo ""
+          echo "=== CRITICAL: Verifying MinGW Runtime DLLs ==="
+          MISSING_DLLS=0
+          for dll in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll; do
             if [ -f "$dll" ]; then
-              echo "✓ Found $dll"
+              echo "✓ Found $dll ($(stat -c%s "$dll" 2>/dev/null || echo "unknown") bytes)"
               # Check DLL info using objdump
               if command -v objdump >/dev/null 2>&1; then
                 echo "  Architecture: $(objdump -f "$dll" | grep "^architecture" || echo "unknown")"
               fi
             else
-              echo "✗ Missing $dll"
+              echo "✗✗✗ CRITICAL: Missing $dll ✗✗✗"
+              MISSING_DLLS=$((MISSING_DLLS + 1))
             fi
           done
+          
+          if [ $MISSING_DLLS -gt 0 ]; then
+            echo ""
+            echo "✗✗✗ FATAL ERROR: $MISSING_DLLS critical MinGW runtime DLL(s) missing! ✗✗✗"
+            echo "The application will NOT run without these DLLs."
+            exit 1
+          fi
+          
+          echo "✓ All critical MinGW runtime DLLs present"
           
           echo ""
           echo "=== LibUSB DLL Analysis ==="
