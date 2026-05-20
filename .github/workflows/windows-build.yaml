@@ -727,9 +727,6 @@ jobs:
             echo "  - Or rebuild Qt with same GCC as application"
           else
             echo "=== Step 2.4: libstdc++-6.dll is compatible, keeping Qt's version ==="
-          
-          else
-            echo "=== Step 2.4: libstdc++-6.dll is compatible, keeping Qt's version ==="
           fi
           
           echo ""
