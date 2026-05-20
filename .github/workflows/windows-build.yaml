@@ -547,159 +547,141 @@ jobs:
         run: |
           windeployqt ${{ env.EXE_NAME }} --multimedia --network
 
-      - name: Force copy MinGW runtime libraries (after windeployqt)
+      - name: Force copy MinGW runtime libraries from Qt directory
         working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
-        shell: msys2 {0}
-        run: |
-          echo "=== Ensuring MinGW runtime libraries are present ==="
-          echo "These DLLs are CRITICAL for C++ applications built with MinGW"
-          
-          # Force copy MinGW runtime DLLs (overwrite if windeployqt copied wrong versions)
-          cp -f /mingw64/bin/libstdc++-6.dll . || { echo "FATAL: libstdc++-6.dll not found"; exit 1; }
-          cp -f /mingw64/bin/libgcc_s_seh-1.dll . || { echo "FATAL: libgcc_s_seh-1.dll not found"; exit 1; }
-          cp -f /mingw64/bin/libwinpthread-1.dll . || { echo "FATAL: libwinpthread-1.dll not found"; exit 1; }
-          
-          echo "✓ MinGW runtime libraries copied successfully"
-          ls -lh libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll
-
-      - name: Verify DLL dependencies
-        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
-        shell: msys2 {0}
-        run: |
-          echo "=== DLL Dependency Analysis ==="
-          echo "Checking all DLLs in package..."
-          ls -la *.dll || true
-          
-          echo ""
-          echo "=== Checking openterfaceQT.exe dependencies ==="
-          if command -v objdump >/dev/null 2>&1; then
-            echo "Using objdump to check dependencies:"
-            objdump -p openterfaceQT.exe | grep -i "DLL Name" || true
-          fi
-          
-          echo ""
-          echo "=== Checking for LibUSB dependencies ==="
-          ldd openterfaceQT.exe | grep -i usb || echo "No USB dependencies found in ldd output"
-          
-          echo ""
-          echo "=== Runtime Library Compatibility Check ==="
-          # Check for potential ABI conflicts
-          echo "Checking Qt DLLs..."
-          ls -la Qt*.dll | head -5 || echo "No Qt DLLs found"
-          
-          echo ""
-          echo "=== CRITICAL: Verifying MinGW Runtime DLLs ==="
-          MISSING_DLLS=0
-          for dll in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll; do
-            if [ -f "$dll" ]; then
-              echo "✓ Found $dll ($(stat -c%s "$dll" 2>/dev/null || echo "unknown") bytes)"
-              # Check DLL info using objdump
-              if command -v objdump >/dev/null 2>&1; then
-                echo "  Architecture: $(objdump -f "$dll" | grep "^architecture" || echo "unknown")"
-              fi
-            else
-              echo "✗✗✗ CRITICAL: Missing $dll ✗✗✗"
-              MISSING_DLLS=$((MISSING_DLLS + 1))
-            fi
-          done
-          
-          if [ $MISSING_DLLS -gt 0 ]; then
-            echo ""
-            echo "✗✗✗ FATAL ERROR: $MISSING_DLLS critical MinGW runtime DLL(s) missing! ✗✗✗"
-            echo "The application will NOT run without these DLLs."
-            exit 1
-          fi
-          
-          echo "✓ All critical MinGW runtime DLLs present"
-          
-          echo ""
-          echo "=== LibUSB DLL Analysis ==="
-          for dll in libusb-1.0.dll msys-usb-1.0.dll; do
-            if [ -f "$dll" ]; then
-              echo "✓ Found $dll"
-              if command -v objdump >/dev/null 2>&1; then
-                echo "  Architecture: $(objdump -f "$dll" | grep "^architecture" || echo "unknown")"
-                echo "  Imports: $(objdump -p "$dll" | grep -i "DLL Name" | wc -l) DLLs"
-              fi
-            else
-              echo "✗ Missing $dll"
-            fi
-          done
-          
-          echo ""
-          echo "=== Potential ABI Compatibility Issues ==="
-          # Check if we're mixing different compiler runtimes
-          echo "Checking for mixed runtime libraries..."
-          
-          # Check for MinGW libraries only
-          echo "MinGW64 DLLs:"
-          ls -la /mingw64/bin/*.dll 2>/dev/null | head -10 || echo "No MinGW64 DLLs found"
-          
-          echo "Qt DLLs:"
-          ls -la Qt*.dll 2>/dev/null | head -3 || echo "No Qt DLLs found"
-          
-          echo "Qt DLLs:"
-          ls -la Qt*.dll 2>/dev/null | head -3 || echo "No Qt DLLs found"
-          
-          echo ""
-          echo "=== Debug Diagnostics (optional) ==="
-          if [ "${{ github.event.inputs.collect_debug }}" = "true" ]; then
-            echo "Collecting debug build and gdb backtrace..."
-            mkdir -p ${RUNNER_TEMP}/build-debug
-            cd ${RUNNER_TEMP}/build-debug
-            cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug -DFFMPEG_PREFIX=C:/ffmpeg-shared -DUSE_SHARED_FFMPEG=ON "${{ env.SOURCE_DIR_MSYS }}"
-            mingw32-make -j2 || echo "Debug build failed"
-            if [ -f openterfaceQT.exe ]; then
-              echo "Running gdb to capture backtrace..."
-              gdb --batch -ex "set pagination 0" -ex "run" -ex "thread apply all bt full" --args ./openterfaceQT.exe > "${{ github.workspace }}/gdb_bt.log" 2>&1 || true
-            else
-              echo "Debug executable not found; skipping gdb run"
-            fi
-            echo "Collecting objdump info for package DLLs..."
-            mkdir -p "${{ github.workspace }}/dll_info"
-            for f in *.dll ${RUNNER_TEMP}/build-debug/*.dll ${RUNNER_TEMP}/build/${{ env.PACKAGE_DIR }}/*.dll ${RUNNER_TEMP}/build/${{ env.PACKAGE_DIR }}/*/*.dll; do
-              if [ -f "$f" ]; then
-                base=$(basename "$f")
-                objdump -p "$f" > "${{ github.workspace }}/dll_info/${base}.objdump.txt" 2>&1 || true
-              fi
-            done
-          else
-            echo "collect_debug not enabled; skipping debug diagnostics"
-          fi
-          
-          echo ""
-          echo "=== Recommendation ==="
-          echo "If the application crashes with heap corruption (c0000374):"
-          echo "1. Ensure all DLLs use the same runtime (MinGW64 preferred for Qt)"
-          echo "2. Check for missing or mismatched Qt platform plugins"
-          echo "3. Verify LibUSB is compatible with the Qt/MinGW runtime"
-          echo "4. Run the application under gdb to collect a backtrace (enable collect_debug input)"
-          echo ""
-          echo "Verification complete"
-
-      - name: Upload gdb backtrace
-        if: github.event.inputs.collect_debug == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: gdb-backtrace
-          path: ${{ github.workspace }}\gdb_bt.log
-          if-no-files-found: warn
-
-      - name: Upload DLL info (objdump outputs)
-        if: github.event.inputs.collect_debug == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: dll-info
-          path: ${{ github.workspace }}\dll_info
-          if-no-files-found: warn
-
-      - name: Inspect Output and package directories
         shell: pwsh
         run: |
-          Write-Host "Listing Output directory: $env:SOURCE_DIR\Output"
-          if (Test-Path "$env:SOURCE_DIR\Output") { Get-ChildItem "$env:SOURCE_DIR\Output" -Recurse -Force | Select-Object -First 200 } else { Write-Host "Output directory not found" }
-          Write-Host "Listing package directory: $env:SOURCE_DIR\$env:PACKAGE_DIR"
-          if (Test-Path "$env:SOURCE_DIR\$env:PACKAGE_DIR") { Get-ChildItem "$env:SOURCE_DIR\$env:PACKAGE_DIR" -Recurse -Force | Select-Object -First 200 } else { Write-Host "Package directory not found" }
+          Write-Host "=== Ensuring MinGW runtime libraries match Qt's requirements ==="
+          Write-Host "Qt was compiled with specific MinGW version - we MUST use the same runtime DLLs"
+          
+          $QtBinDir = "${{ runner.temp }}\Qt\${{ env.QT_VERSION }}\mingw_64\bin"
+          Write-Host "Qt bin directory: $QtBinDir"
+          
+          if (-not (Test-Path $QtBinDir)) {
+            Write-Host "ERROR: Qt bin directory not found at $QtBinDir"
+            exit 1
+          }
+          
+          # Force copy MinGW runtime DLLs from Qt's bin directory (these match Qt's requirements)
+          Write-Host "`nCopying MinGW runtime DLLs from Qt directory..."
+          $criticalDlls = @('libstdc++-6.dll', 'libgcc_s_seh-1.dll', 'libwinpthread-1.dll')
+          
+          foreach ($dll in $criticalDlls) {
+            $source = Join-Path $QtBinDir $dll
+            if (Test-Path $source) {
+              Copy-Item -Path $source -Destination . -Force
+              Write-Host "✓ Copied $dll from Qt ($(((Get-Item $source).Length / 1KB).ToString('F2')) KB)"
+            } else {
+              Write-Host "✗✗✗ FATAL: $dll not found in Qt bin directory ✗✗✗"
+              exit 1
+            }
+          }
+          
+          Write-Host "`n=== Verifying copied DLLs ==="
+          foreach ($dll in $criticalDlls) {
+            if (Test-Path $dll) {
+              $size = (Get-Item $dll).Length
+              Write-Host "✓ $dll present ($($size / 1KB) KB)"
+            } else {
+              Write-Host "✗ $dll MISSING after copy!"
+              exit 1
+            }
+          }
+
+      - name: Verify DLL dependencies and runtime compatibility
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        shell: pwsh
+        run: |
+          Write-Host "====================================================="
+          Write-Host "DLL Dependency and Runtime Compatibility Check"
+          Write-Host "====================================================="
+          
+          # Check if executable exists
+          if (-not (Test-Path "${{ env.EXE_NAME }}")) {
+            Write-Host "ERROR: ${{ env.EXE_NAME }} not found!"
+            exit 1
+          }
+          
+          Write-Host "`n=== CRITICAL: MinGW Runtime DLLs Final Verification ==="
+          $criticalDlls = @('libstdc++-6.dll', 'libgcc_s_seh-1.dll', 'libwinpthread-1.dll')
+          $missingCount = 0
+          
+          foreach ($dll in $criticalDlls) {
+            if (Test-Path $dll) {
+              $fileInfo = Get-Item $dll
+              Write-Host "✓ $dll"
+              Write-Host "  Size: $($fileInfo.Length) bytes"
+              Write-Host "  Modified: $($fileInfo.LastWriteTime)"
+              
+              # Check file version if available
+              try {
+                $verInfo = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($dll)
+                if ($verInfo.FileVersion) {
+                  Write-Host "  Version: $($verInfo.FileVersion)"
+                }
+              } catch {
+                Write-Host "  Version: (not available)"
+              }
+            } else {
+              Write-Host "✗✗✗ CRITICAL: $dll is MISSING! ✗✗✗"
+              $missingCount++
+            }
+          }
+          
+          if ($missingCount -gt 0) {
+            Write-Host "`n✗✗✗ FATAL ERROR: $missingCount critical MinGW runtime DLL(s) missing!"
+            Write-Host "The application WILL NOT RUN without these DLLs!"
+            Write-Host "The error '__emutls_v._ZSt11__once_call not found' will occur."
+            exit 1
+          }
+          
+          Write-Host "`n✓✓✓ All critical MinGW runtime DLLs are present"
+          Write-Host "====================================================="
+
+      - name: Inspect package directory before NSIS packaging
+        shell: pwsh
+        run: |
+          Write-Host "====================================================="
+          Write-Host "CRITICAL CHECK: Package contents before NSIS build"
+          Write-Host "====================================================="
+          
+          $pkgDir = "${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}"
+          Write-Host "`nPackage directory: $pkgDir"
+          
+          if (-not (Test-Path $pkgDir)) {
+            Write-Host "ERROR: Package directory not found!"
+            exit 1
+          }
+          
+          Write-Host "`n=== CRITICAL: MinGW Runtime DLLs ==="
+          $criticalDlls = @('libstdc++-6.dll', 'libgcc_s_seh-1.dll', 'libwinpthread-1.dll')
+          foreach ($dll in $criticalDlls) {
+            $path = Join-Path $pkgDir $dll
+            if (Test-Path $path) {
+              $item = Get-Item $path
+              Write-Host "✓ $dll - $($item.Length) bytes - Modified: $($item.LastWriteTime)"
+            } else {
+              Write-Host "✗✗✗ MISSING: $dll ✗✗✗"
+              exit 1
+            }
+          }
+          
+          Write-Host "`n=== Qt DLLs ==="
+          Get-ChildItem -Path $pkgDir -Filter "Qt6*.dll" | ForEach-Object {
+            Write-Host "  $($_.Name) - $($_.Length) bytes"
+          }
+          
+          Write-Host "`n=== All DLL files (first 50) ==="
+          Get-ChildItem -Path $pkgDir -Filter "*.dll" -Recurse | Select-Object -First 50 | ForEach-Object {
+            Write-Host "  $($_.FullName.Replace($pkgDir, '.'))"
+          }
+          
+          Write-Host "`n=== Total file count ==="
+          $fileCount = (Get-ChildItem -Path $pkgDir -Recurse -File).Count
+          Write-Host "Total files to be packaged: $fileCount"
+          
+          Write-Host "`nIf any CRITICAL DLLs are missing above, the installer will NOT work!"
+          Write-Host "====================================================="
 
       - name: Upload Output folder
         uses: actions/upload-artifact@v4
