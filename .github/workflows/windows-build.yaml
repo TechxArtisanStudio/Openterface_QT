@@ -158,7 +158,7 @@ jobs:
         run: |
           git fetch --all --tags -f
 
-      - name: Install Qt (with bundled MinGW 11.2.0)
+      - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
@@ -167,26 +167,55 @@ jobs:
           arch: win64_mingw
           dir: ${{ runner.temp }}
           modules: qtmultimedia qtserialport qtimageformats
-          tools: 'tools_mingw1120'
           setup-python: false
 
-      - name: Configure Qt's MinGW as the unified toolchain
+      - name: Cache MinGW 11.2.0 (matches Qt 6.6.3 prebuilt toolchain)
+        id: cache-mingw1120
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/mingw1120_64
+          key: mingw1120-x86_64-posix-seh-rt_v9-rev1
+
+      - name: Download MinGW 11.2.0 (niXman build, same as Qt's bundled one)
+        if: steps.cache-mingw1120.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          # Qt 6.6.3 binaries are built with MinGW 11.2.0 (posix-seh-rt_v9).
+          # niXman publishes the exact same official build on GitHub.
+          $url = "https://github.com/niXman/mingw-builds-binaries/releases/download/11.2.0-rt_v9-rev1/x86_64-11.2.0-release-posix-seh-rt_v9-rev1.7z"
+          $dest = "${{ runner.temp }}\mingw1120.7z"
+          $extractDir = "${{ runner.temp }}\mingw1120_64"
+          Write-Host "Downloading $url ..."
+          Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+          Write-Host "Extracting to $extractDir ..."
+          New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
+          # The 7z archive contains a top-level 'mingw64' folder
+          7z x $dest -o"$extractDir" -y | Out-Null
+          # Sanity check
+          if (-not (Test-Path "$extractDir\mingw64\bin\gcc.exe")) {
+            Write-Error "gcc.exe not found after extraction"
+            Get-ChildItem -Recurse -Depth 2 $extractDir
+            exit 1
+          }
+          Remove-Item $dest
+
+      - name: Configure MinGW 11.2.0 as the unified toolchain
         shell: bash
         run: |
           # Qt 6.6.3 prebuilt binaries are compiled with MinGW 11.2.0.
           # To avoid ABI/TLS/symbol incompatibilities between Qt DLLs and our
-          # application + FFmpeg, we must use the SAME compiler for everything.
-          QT_MINGW_DIR="${{ runner.temp }}/Qt/Tools/mingw1120_64"
-          if [ ! -d "$QT_MINGW_DIR" ]; then
-            echo "ERROR: Qt's MinGW not found at $QT_MINGW_DIR"
-            ls -la "${{ runner.temp }}/Qt/Tools/" || true
+          # application + FFmpeg, we use the SAME compiler for everything.
+          QT_MINGW_DIR="${{ runner.temp }}/mingw1120_64/mingw64"
+          if [ ! -f "$QT_MINGW_DIR/bin/gcc.exe" ]; then
+            echo "ERROR: gcc.exe not found at $QT_MINGW_DIR/bin"
+            ls -la "${{ runner.temp }}/mingw1120_64/" || true
             exit 1
           fi
           echo "QT_MINGW_DIR=$QT_MINGW_DIR" >> $GITHUB_ENV
-          # Convert to MSYS2-style path for use in msys2 shell
+          # Convert Windows path (e.g. D:\a\_temp\...) to MSYS2 path (/d/a/_temp/...)
           QT_MINGW_MSYS="/$(echo "$QT_MINGW_DIR/bin" | sed 's|\\|/|g' | sed 's|:||')"
           echo "QT_MINGW_MSYS=$QT_MINGW_MSYS" >> $GITHUB_ENV
-          echo "Qt's MinGW bin (MSYS2 path): $QT_MINGW_MSYS"
+          echo "MinGW 11.2.0 bin (MSYS2 path): $QT_MINGW_MSYS"
           "$QT_MINGW_DIR/bin/gcc.exe" --version
 
       - name: Cache FFmpeg (shared, built with Qt's MinGW 11.2.0)
