@@ -158,7 +158,7 @@ jobs:
         run: |
           git fetch --all --tags -f
 
-      - name: Install Qt
+      - name: Install Qt (with bundled MinGW 11.2.0)
         uses: jurplel/install-qt-action@v4
         with:
           version: ${{ env.QT_VERSION }}
@@ -167,18 +167,36 @@ jobs:
           arch: win64_mingw
           dir: ${{ runner.temp }}
           modules: qtmultimedia qtserialport qtimageformats
+          tools: 'tools_mingw1120'
           setup-python: false
 
-      - name: Cache FFmpeg (shared)
+      - name: Configure Qt's MinGW as the unified toolchain
+        shell: bash
+        run: |
+          # Qt 6.6.3 prebuilt binaries are compiled with MinGW 11.2.0.
+          # To avoid ABI/TLS/symbol incompatibilities between Qt DLLs and our
+          # application + FFmpeg, we must use the SAME compiler for everything.
+          QT_MINGW_DIR="${{ runner.temp }}/Qt/Tools/mingw1120_64"
+          if [ ! -d "$QT_MINGW_DIR" ]; then
+            echo "ERROR: Qt's MinGW not found at $QT_MINGW_DIR"
+            ls -la "${{ runner.temp }}/Qt/Tools/" || true
+            exit 1
+          fi
+          echo "QT_MINGW_DIR=$QT_MINGW_DIR" >> $GITHUB_ENV
+          # Convert to MSYS2-style path for use in msys2 shell
+          QT_MINGW_MSYS="/$(echo "$QT_MINGW_DIR/bin" | sed 's|\\|/|g' | sed 's|:||')"
+          echo "QT_MINGW_MSYS=$QT_MINGW_MSYS" >> $GITHUB_ENV
+          echo "Qt's MinGW bin (MSYS2 path): $QT_MINGW_MSYS"
+          "$QT_MINGW_DIR/bin/gcc.exe" --version
+
+      - name: Cache FFmpeg (shared, built with Qt's MinGW 11.2.0)
         id: cache-ffmpeg
         uses: actions/cache@v4
         with:
           path: C:\ffmpeg-shared
-          # Key encodes all hardware flags so ANY change forces a full rebuild.
-          # restore-keys is intentionally omitted: a partial key match would restore an
-          # old FFmpeg built without libmfx/QSV support, causing mjpeg_qsv to be missing
-          # at runtime even though ENABLE_LIBMFX=1 is set.
-          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v2-${{ runner.os }}-nvenc${{ env.ENABLE_NVENC || '0' }}-nvdec${{ env.ENABLE_NVDEC || '0' }}-libmfx${{ env.ENABLE_LIBMFX || '0' }}
+          # v3: rebuilt with Qt's bundled MinGW 11.2.0 (instead of MSYS2 GCC 13+)
+          # to ensure ABI compatibility with Qt6Multimedia.dll and other Qt DLLs.
+          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v3-qtmingw1120-${{ runner.os }}-nvenc${{ env.ENABLE_NVENC || '0' }}-nvdec${{ env.ENABLE_NVDEC || '0' }}-libmfx${{ env.ENABLE_LIBMFX || '0' }}
 
       - name: Check Build Scripts Available
         shell: cmd
@@ -188,11 +206,17 @@ jobs:
           dir build-script\*.bat
           dir build-script\*.sh
 
-      - name: Build Shared FFmpeg (using MSYS2 MinGW64)
+      - name: Build Shared FFmpeg (using Qt's bundled MinGW 11.2.0)
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         shell: msys2 {0}
         run: |
-          echo "Building shared FFmpeg using MSYS2 MinGW64..."
+          echo "Building shared FFmpeg using Qt's bundled MinGW 11.2.0..."
+          # CRITICAL: Use Qt's MinGW (matches Qt6 DLLs) instead of MSYS2's GCC 13+
+          # This ensures FFmpeg and Qt use the same C++ runtime / TLS model.
+          export PATH="${QT_MINGW_MSYS}:/mingw64/bin:$PATH"
+          echo "Using gcc: $(which gcc)"
+          gcc --version
+          
           export SKIP_MSYS_MINGW=1
           export EXTERNAL_MINGW_MSYS="/mingw64"
           export FFMPEG_INSTALL_PREFIX="/c/ffmpeg-shared"
@@ -386,10 +410,17 @@ jobs:
           SOURCE_DIR_MSYS="/$(echo '${{ env.SOURCE_DIR }}' | sed 's|\\|/|g' | sed 's|:||')"
           QT_PATH_MSYS="/$(echo '${{ runner.temp }}/Qt/6.6.3/mingw_64/bin' | sed 's|\\|/|g' | sed 's|:||')"
           
-          # Add Qt tools to PATH for MSYS2 environment
-          export PATH="/mingw64/bin:${QT_PATH_MSYS}:$PATH"
+          # CRITICAL: Use Qt's bundled MinGW 11.2.0 (matches Qt6 DLLs).
+          # Qt's MinGW must come FIRST in PATH, before MSYS2's /mingw64/bin,
+          # to avoid using MSYS2's incompatible GCC 13+.
+          export PATH="${QT_MINGW_MSYS}:${QT_PATH_MSYS}:/mingw64/bin:$PATH"
           echo "Updated PATH: $PATH"
           echo "Source directory (MSYS2 format): $SOURCE_DIR_MSYS"
+          echo "Compiler check (should be Qt's MinGW 11.2.0):"
+          which gcc
+          gcc --version
+          which mingw32-make
+          mingw32-make --version | head -1
           
           echo "Checking Qt tools availability..."
           which lupdate || echo "lupdate not found in PATH"
@@ -578,146 +609,66 @@ jobs:
           windeployqt ${{ env.EXE_NAME }} --multimedia --network
           echo "windeployqt completed"
 
-      - name: Ensure compatible MinGW runtime libraries
+      - name: Verify MinGW runtime libraries (Qt's bundled MinGW 11.2.0)
         working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
         shell: msys2 {0}
         run: |
           echo "============================================================================"
-          echo "Step 2: FORCE using MSYS2 MinGW runtime libraries"
+          echo "Step 2: Verifying runtime DLLs from Qt's bundled MinGW 11.2.0"
           echo "============================================================================"
           echo ""
-          echo "STRATEGY: Always use MSYS2's runtime DLLs, because:"
-          echo "  - Application compiled with MSYS2 MinGW (GCC 13+)"
-          echo "  - FFmpeg compiled with MSYS2 MinGW (GCC 13+)"
-          echo "  - Qt's bundled libstdc++ is OLDER (GCC 11.x) and LACKS new symbols like:"
-          echo "    * _M_replace_cold (GCC 12+)"
-          echo "    * pthread_cond_timedwait64 (modern POSIX)"
-          echo "    * clock_gettime64 (modern POSIX)"
-          echo "  - Even if ABI matches, missing newer symbols = runtime failure"
-          echo ""
-          echo "ROOT CAUSE of '_ZNSt7__cxx1112basic_string..._M_replace_cold not found':"
-          echo "  Qt's libstdc++ is GCC 11.x era → does NOT have _M_replace_cold"
-          echo "  App built with GCC 13+ → REQUIRES _M_replace_cold"
+          echo "STRATEGY: App, FFmpeg, and Qt are ALL compiled with Qt's MinGW 11.2.0."
+          echo "windeployqt copies the matching libstdc++/libgcc/libwinpthread from Qt's"
+          echo "MinGW installation. We just need to verify they're present and consistent."
           echo ""
           
-          # ====================================================================
-          # Step 2.1: Detect what application needs (for diagnostic logging only)
-          # ====================================================================
-          echo "=== Step 2.1: Application requirements (diagnostic) ==="
-          
-          if objdump -p openterfaceQT.exe | grep -q "_ZNSt7__cxx11"; then
-            echo "  Application uses NEW C++11 ABI"
-            APP_NEEDS_NEW_ABI=1
-          else
-            echo "  Application uses OLD ABI"
-            APP_NEEDS_NEW_ABI=0
-          fi
-          
-          # Check for specific newer symbols the app needs
-          NEEDS_REPLACE_COLD=0
-          if objdump -p openterfaceQT.exe | grep -q "_M_replace_cold"; then
-            echo "  Application needs _M_replace_cold (GCC 12+ symbol)"
-            NEEDS_REPLACE_COLD=1
-          fi
-          
-          echo ""
-          
-          # ====================================================================
-          # Step 2.2: FORCE replace all MinGW runtime DLLs with MSYS2 versions
-          # ====================================================================
-          echo "=== Step 2.2: Forcing MSYS2 runtime DLLs (overwriting Qt's versions) ==="
-          echo ""
-          
-          # Verify MSYS2 runtime DLLs are available
-          for src in /mingw64/bin/libstdc++-6.dll /mingw64/bin/libgcc_s_seh-1.dll /mingw64/bin/libwinpthread-1.dll; do
-            if [ ! -f "$src" ]; then
-              echo "✗✗✗ FATAL: $src not found in MSYS2"
-              echo "MSYS2 MinGW64 toolchain is not installed correctly"
-              exit 1
-            fi
-          done
-          
-          # Backup Qt's versions for diagnostics
+          # Verify the three critical runtime DLLs exist
+          MISSING=0
           for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
             if [ -f "$dll" ]; then
-              old_size=$(stat -c%s "$dll" 2>/dev/null || echo "?")
-              echo "  Qt's $dll: $old_size bytes (will be replaced)"
+              size=$(stat -c%s "$dll" 2>/dev/null || echo "?")
+              echo "  ✓ $dll ($size bytes)"
             else
-              echo "  $dll not present (will be installed)"
+              echo "  ✗ $dll MISSING"
+              MISSING=1
             fi
           done
           
-          echo ""
-          echo "Copying MSYS2 runtime DLLs (forced overwrite)..."
-          
-          # Force copy all three critical runtime DLLs from MSYS2
-          cp -f /mingw64/bin/libstdc++-6.dll . || { echo "✗ Failed to copy libstdc++-6.dll"; exit 1; }
-          cp -f /mingw64/bin/libgcc_s_seh-1.dll . || { echo "✗ Failed to copy libgcc_s_seh-1.dll"; exit 1; }
-          cp -f /mingw64/bin/libwinpthread-1.dll . || { echo "✗ Failed to copy libwinpthread-1.dll"; exit 1; }
-          
-          echo ""
-          for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
-            new_size=$(stat -c%s "$dll" 2>/dev/null || echo "?")
-            echo "  ✓ $dll: $new_size bytes (MSYS2 GCC 13+)"
-          done
-          
-          echo ""
-          
-          # ====================================================================
-          # Step 2.3: Verify replacements have required symbols
-          # ====================================================================
-          echo "=== Step 2.3: Verifying MSYS2 runtime has all required symbols ==="
-          
-          VERIFY_FAIL=0
-          
-          # Check libstdc++-6.dll
-          echo ""
-          echo "Checking libstdc++-6.dll..."
-          if objdump -p libstdc++-6.dll | grep -q "_ZNSt7__cxx11"; then
-            echo "  ✓ Has NEW C++11 ABI symbols (_ZNSt7__cxx11)"
-          else
-            echo "  ✗ Missing NEW C++11 ABI symbols!"
-            VERIFY_FAIL=1
-          fi
-          
-          if objdump -p libstdc++-6.dll | grep -q "_M_replace_cold"; then
-            echo "  ✓ Has _M_replace_cold (GCC 12+ symbol)"
-          else
-            if [ "$NEEDS_REPLACE_COLD" = "1" ]; then
-              echo "  ✗ Missing _M_replace_cold but app needs it!"
-              VERIFY_FAIL=1
-            else
-              echo "  ⚠ Missing _M_replace_cold (app does not require it)"
-            fi
-          fi
-          
-          # Check libwinpthread-1.dll
-          echo ""
-          echo "Checking libwinpthread-1.dll..."
-          if objdump -p libwinpthread-1.dll | grep -q "pthread_cond_timedwait64"; then
-            echo "  ✓ Has pthread_cond_timedwait64"
-          else
-            echo "  ✗ Missing pthread_cond_timedwait64 (FFmpeg needs it)"
-            VERIFY_FAIL=1
-          fi
-          
-          if objdump -p libwinpthread-1.dll | grep -q "clock_gettime64"; then
-            echo "  ✓ Has clock_gettime64"
-          else
-            echo "  ✗ Missing clock_gettime64 (FFmpeg needs it)"
-            VERIFY_FAIL=1
-          fi
-          
-          if [ "$VERIFY_FAIL" = "1" ]; then
+          # If windeployqt didn't copy them, copy from Qt's MinGW directly
+          if [ "$MISSING" = "1" ]; then
             echo ""
-            echo "✗✗✗ FATAL: MSYS2 runtime is missing required symbols!"
-            echo "This is unexpected. MSYS2 toolchain may be outdated."
-            echo "Try: pacman -Syu mingw-w64-x86_64-gcc"
+            echo "Copying missing runtime DLLs from Qt's bundled MinGW..."
+            for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
+              if [ ! -f "$dll" ] && [ -f "${QT_MINGW_MSYS}/${dll}" ]; then
+                cp -f "${QT_MINGW_MSYS}/${dll}" .
+                echo "  ✓ Copied $dll from Qt's MinGW"
+              fi
+            done
+          fi
+          
+          # Sanity check: the runtime should match what the app expects.
+          # Since both are built with the same compiler, ABI/TLS will match automatically.
+          echo ""
+          echo "=== Compiler consistency check ==="
+          APP_TLS_MODE=$(objdump -p openterfaceQT.exe | grep -q "__emutls_" && echo "EMULATED" || echo "NATIVE")
+          DLL_HAS_EMUTLS=$(objdump -p libstdc++-6.dll | grep -q "__emutls_v" && echo "yes" || echo "no")
+          echo "  App TLS model: $APP_TLS_MODE"
+          echo "  libstdc++-6.dll exports __emutls_*: $DLL_HAS_EMUTLS"
+          
+          # With Qt's bundled MinGW 11.2.0, both should use emulated TLS
+          if [ "$APP_TLS_MODE" = "EMULATED" ] && [ "$DLL_HAS_EMUTLS" = "yes" ]; then
+            echo "  ✓ TLS models match (both EMULATED) - Qt6Multimedia.dll will load correctly"
+          elif [ "$APP_TLS_MODE" = "NATIVE" ] && [ "$DLL_HAS_EMUTLS" = "no" ]; then
+            echo "  ✓ TLS models match (both NATIVE)"
+          else
+            echo "  ✗✗✗ TLS MODEL MISMATCH! Build environment is misconfigured."
+            echo "  App uses $APP_TLS_MODE TLS but libstdc++ exports emutls=$DLL_HAS_EMUTLS"
+            echo "  Make sure the Build step uses Qt's MinGW (QT_MINGW_MSYS in PATH first)"
             exit 1
           fi
           
           echo ""
-          echo "✓✓✓ All MSYS2 runtime DLLs verified - app should run correctly"
+          echo "✓✓✓ Runtime libraries verified - all components use Qt's MinGW 11.2.0"
           echo "============================================================================"
 
       - name: Comprehensive DLL dependency verification
@@ -878,17 +829,14 @@ jobs:
           # MinGW runtime - CRITICAL!
           echo ""
           echo "MinGW Runtime (CRITICAL - without these, app will NOT run):"
+          echo "All components compiled with Qt's bundled MinGW 11.2.0 (emulated TLS, old ABI)"
           
-          # First detect what the app needs
-          echo ""
-          echo "Detecting application ABI requirements..."
-          APP_NEEDS_NEW_ABI=0
-          if objdump -p openterfaceQT.exe | grep -q "_ZNSt7__cxx11"; then
-            echo "  Application uses NEW C++11 ABI (GCC 5+)"
-            APP_NEEDS_NEW_ABI=1
-          else
-            echo "  Application uses OLD ABI (GCC 4.x)"
+          # Detect TLS model used by the app (should match libstdc++)
+          APP_TLS="NATIVE"
+          if objdump -p openterfaceQT.exe | grep -q "__emutls_"; then
+            APP_TLS="EMULATED"
           fi
+          echo "Application TLS model: $APP_TLS (expected: EMULATED for Qt MinGW 11.2.0)"
           
           echo ""
           for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
@@ -896,53 +844,22 @@ jobs:
               size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
               echo "✓ $dll ($size bytes)"
               
-              # Extra verification for libstdc++-6.dll - CHECK ABI MATCH!
+              # Critical: libstdc++-6.dll must match the app's TLS model
               if [ "$dll" = "libstdc++-6.dll" ]; then
-                echo "  Checking C++ ABI compatibility..."
-                
-                # Check if DLL has new ABI symbols
-                DLL_HAS_NEW_ABI=0
-                if objdump -p "$dll" | grep -q "_ZNSt7__cxx11"; then
-                  DLL_HAS_NEW_ABI=1
+                DLL_HAS_EMUTLS="no"
+                if objdump -p "$dll" | grep -q "__emutls_v"; then
+                  DLL_HAS_EMUTLS="yes"
                 fi
                 
-                # Verify ABI matches application
-                if [ "$APP_NEEDS_NEW_ABI" = "1" ]; then
-                  if [ "$DLL_HAS_NEW_ABI" = "1" ]; then
-                    echo "  ✓ NEW C++11 ABI (matches application requirement)"
-                  else
-                    echo "  ✗✗✗ FATAL: ABI MISMATCH!"
-                    echo "  Application needs NEW ABI but DLL provides OLD ABI"
-                    echo "  This will cause: 无法定位程序输入点 _ZNSt7__cxx1112basic_string... 于动态链接库"
-                    exit 1
-                  fi
+                if [ "$APP_TLS" = "EMULATED" ] && [ "$DLL_HAS_EMUTLS" = "yes" ]; then
+                  echo "  ✓ TLS models match (EMULATED) - Qt6Multimedia will load OK"
+                elif [ "$APP_TLS" = "NATIVE" ] && [ "$DLL_HAS_EMUTLS" = "no" ]; then
+                  echo "  ✓ TLS models match (NATIVE)"
                 else
-                  if [ "$DLL_HAS_NEW_ABI" = "1" ]; then
-                    echo "  ⚠ WARNING: DLL has NEW ABI but app uses OLD ABI (may cause issues)"
-                  else
-                    echo "  ✓ OLD ABI (matches application requirement)"
-                  fi
-                fi
-              fi
-              
-              # Extra verification for libwinpthread-1.dll
-              if [ "$dll" = "libwinpthread-1.dll" ]; then
-                PTHREAD_OK=1
-                if objdump -p "$dll" | grep -q "pthread_cond_timedwait64"; then
-                  echo "  ✓ Has pthread_cond_timedwait64 (required by FFmpeg)"
-                else
-                  echo "  ✗✗✗ FATAL: Missing pthread_cond_timedwait64!"
-                  echo "  FFmpeg will fail at runtime"
-                  PTHREAD_OK=0
-                fi
-                if objdump -p "$dll" | grep -q "clock_gettime64"; then
-                  echo "  ✓ Has clock_gettime64 (required by FFmpeg)"
-                else
-                  echo "  ✗✗✗ FATAL: Missing clock_gettime64!"
-                  echo "  FFmpeg will fail at runtime"
-                  PTHREAD_OK=0
-                fi
-                if [ $PTHREAD_OK -eq 0 ]; then
+                  echo "  ✗✗✗ FATAL: TLS MODEL MISMATCH!"
+                  echo "  App uses $APP_TLS TLS, but libstdc++ exports emutls=$DLL_HAS_EMUTLS"
+                  echo "  This will cause: 无法定位程序输入点 __emutls_v... 于动态链接库 Qt6Multimedia.dll"
+                  echo "  Fix: Ensure Build step uses Qt's MinGW (PATH=\$QT_MINGW_MSYS:...)"
                   exit 1
                 fi
               fi
