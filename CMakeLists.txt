@@ -116,6 +116,12 @@ endif()
 # Debug output for linking
 message(STATUS "Hardware acceleration libraries to link: ${HWACCEL_LIBRARIES}")
 
+# Add FFmpeg compatibility shim for static libs built with newer MinGW-w64
+if(WIN32)
+    target_sources(${PROJECT_NAME} PRIVATE host/backend/ffmpeg_compat_shim.c)
+    message(STATUS "Adding FFmpeg compatibility shim for 64-bit time functions")
+endif()
+
 # Link Qt6 image format plugins statically for static builds (only if targets exist)
 if(OPENTERFACE_BUILD_STATIC)
     set(_qt_image_plugins Qt6::QJpegPlugin Qt6::QGifPlugin Qt6::QICOPlugin Qt6::QSvgPlugin)
@@ -138,6 +144,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt
 # Link Windows HID and SetupAPI libraries
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE hid setupapi cfgmgr32 ole32)
+
+    # Link compatibility libraries for FFmpeg static libs built with newer MinGW-w64
+    # These resolve 64-bit time functions and stack protector symbols
+    target_link_libraries(${PROJECT_NAME} PRIVATE ssp)
+    target_link_options(${PROJECT_NAME} PRIVATE -fstack-protector-strong)
+    target_compile_options(${PROJECT_NAME} PRIVATE -fstack-protector-strong)
 endif()
 
 # Link X11 libraries for Linux builds to resolve X11 symbols used in overlay code
@@ -299,6 +311,18 @@ endif()
 # Add GStreamer libraries if available (Linux only)
 if(NOT WIN32)
     link_gstreamer_libraries()
+endif()
+
+# Link Media Foundation libraries on Windows
+if(WIN32)
+    target_link_libraries(openterfaceQT PRIVATE
+        mf
+        mfplat
+        mfreadwrite
+        mfuuid
+        wmcodecdspuuid
+    )
+    message(STATUS "Linked Media Foundation libraries for Windows video capture")
 endif()
 
 # Add DBus on Unix systems (excluding macOS)

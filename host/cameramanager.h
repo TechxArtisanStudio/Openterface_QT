@@ -100,6 +100,9 @@ public:
     bool isGStreamerBackend() const;
     bool isFFmpegBackend() const;
     bool isQtBackend() const;
+#ifdef Q_OS_WIN
+    bool isMediaFoundationBackend() const;
+#endif
     
     // Camera device management and switching
     QList<QCameraDevice> getAvailableCameraDevices() const;

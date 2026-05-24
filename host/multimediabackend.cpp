@@ -27,6 +27,9 @@
 #endif
 #include "backend/qtbackendhandler.h"
 #include "backend/qtmultimediabackendhandler.h"
+#ifdef Q_OS_WIN
+#include "backend/mf/mfbackendhandler.h"
+#endif
 #include <QLoggingCategory>
 #include <QThread>
 #include "../ui/globalsetting.h"
@@ -225,6 +228,9 @@ MultimediaBackendType MultimediaBackendFactory::parseBackendType(const QString& 
     if (backendName.compare("ffmpeg", Qt::CaseInsensitive) == 0) {
         return MultimediaBackendType::FFmpeg;
     }
+    if (backendName.compare("mediafoundation", Qt::CaseInsensitive) == 0) {
+        return MultimediaBackendType::MediaFoundation;
+    }
     return MultimediaBackendType::Unknown;
 }
 
@@ -239,6 +245,8 @@ QString MultimediaBackendFactory::backendTypeToString(MultimediaBackendType type
             return "FFmpeg";
         case MultimediaBackendType::GStreamer:
             return "GStreamer";
+        case MultimediaBackendType::MediaFoundation:
+            return "Media Foundation";
         default:
             return "Unknown";
     }
@@ -257,6 +265,10 @@ std::unique_ptr<MultimediaBackendHandler> MultimediaBackendFactory::createHandle
             return std::make_unique<QtBackendHandler>(parent);
         case MultimediaBackendType::QtMultimedia:
             return std::make_unique<QtMultimediaBackendHandler>(parent);
+#ifdef Q_OS_WIN
+        case MultimediaBackendType::MediaFoundation:
+            return std::make_unique<MfBackendHandler>(parent);
+#endif
         default:
             qCWarning(log_multimedia_backend) << "Unknown backend type requested, falling back to FFmpeg backend.";
             return std::make_unique<FFmpegBackendHandler>(parent);
