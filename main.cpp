@@ -249,14 +249,36 @@ int main(int argc, char *argv[])
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF);
     #endif
     qInfo() << "Start openterface...";
-    
-    // Parse command-line arguments early to check for --skip-env-check
+
+    // Parse command-line arguments early
     bool skipEnvironmentCheck = false;
+    QString overrideBackend;
+    bool listBackends = false;
+
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--skip-env-check") == 0) {
+        QString arg = QString::fromUtf8(argv[i]);
+        if (arg == "--skip-env-check") {
             skipEnvironmentCheck = true;
             qWarning() << "Skip environment check flag detected";
+        } else if (arg == "--backend" && i + 1 < argc) {
+            overrideBackend = QString::fromUtf8(argv[++i]);
+            qInfo() << "Override media backend from command line:" << overrideBackend;
+        } else if (arg == "--list-backends") {
+            listBackends = true;
         }
+    }
+
+    // List available backends and exit
+    if (listBackends) {
+        printf("Available media backends:\n");
+        printf("  ffmpeg          - FFmpeg backend (DirectShow on Windows, V4L2 on Linux)\n");
+#ifdef Q_OS_WIN
+        printf("  mediafoundation - Windows Media Foundation (native)\n");
+#else
+        printf("  gstreamer       - GStreamer backend\n");
+#endif
+        printf("  qt              - Qt Multimedia backend\n");
+        return 0;
     }
     
     setupEnv();
@@ -308,6 +330,13 @@ int main(int argc, char *argv[])
     qInfo() << "Loading settings...";
     GlobalSetting::instance().loadLogSettings();
     GlobalSetting::instance().loadVideoSettings();
+
+    // Override media backend from command line if specified
+    if (!overrideBackend.isEmpty()) {
+        GlobalSetting::instance().setMediaBackend(overrideBackend);
+        qInfo() << "Media backend overridden by command line:" << overrideBackend;
+    }
+
     applyMediaBackendSetting();
     LogHandler::instance().enableLogStore();
     

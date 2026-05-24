@@ -107,7 +107,9 @@ void GlobalSetting::setMediaBackend(const QString &backend) {
 }
 
 QString GlobalSetting::getMediaBackend() const {
-#if defined(Q_PROCESSOR_ARM)
+#ifdef Q_OS_WIN
+    return m_settings.value("video/mediaBackend", "ffmpeg").toString();
+#elif defined(Q_PROCESSOR_ARM)
     return m_settings.value("video/mediaBackend", "gstreamer").toString();
 #else
     return m_settings.value("video/mediaBackend", "ffmpeg").toString();
