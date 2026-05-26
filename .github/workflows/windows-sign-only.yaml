@@ -1,0 +1,48 @@
+name: Windows Code Signing Only
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sign-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Download Windows installer artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT_windows_amd64_installer
+          path: artifacts/windows
+
+      - name: Upload Windows installer artifact
+        id: upload-installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.amd.installer.unsigned
+          path: artifacts/windows
+          if-no-files-found: error
+
+      - name: Submit installer signing request
+        uses: signpath/github-action-submit-signing-request@v1.2
+        with:
+          api-token: ${{ secrets.CI_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: Openterface_QT
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: Openterface_Connect_win_installer_zip
+          github-artifact-id: ${{ steps.upload-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: artifacts/windows/signed
+
+      - name: Upload signed windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.amd.installer
+          path: artifacts/windows/signed/openterfaceQT.windows.amd64.installer.exe

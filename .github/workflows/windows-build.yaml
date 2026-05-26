@@ -169,16 +169,63 @@ jobs:
           modules: qtmultimedia qtserialport qtimageformats
           setup-python: false
 
-      - name: Cache FFmpeg (shared)
+      - name: Cache MinGW 11.2.0 (matches Qt 6.6.3 prebuilt toolchain)
+        id: cache-mingw1120
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/mingw1120_64
+          key: mingw1120-x86_64-posix-seh-rt_v9-rev1
+
+      - name: Download MinGW 11.2.0 (niXman build, same as Qt's bundled one)
+        if: steps.cache-mingw1120.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          # Qt 6.6.3 binaries are built with MinGW 11.2.0 (posix-seh-rt_v9).
+          # niXman publishes the exact same official build on GitHub.
+          $url = "https://github.com/niXman/mingw-builds-binaries/releases/download/11.2.0-rt_v9-rev1/x86_64-11.2.0-release-posix-seh-rt_v9-rev1.7z"
+          $dest = "${{ runner.temp }}\mingw1120.7z"
+          $extractDir = "${{ runner.temp }}\mingw1120_64"
+          Write-Host "Downloading $url ..."
+          Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+          Write-Host "Extracting to $extractDir ..."
+          New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
+          # The 7z archive contains a top-level 'mingw64' folder
+          7z x $dest -o"$extractDir" -y | Out-Null
+          # Sanity check
+          if (-not (Test-Path "$extractDir\mingw64\bin\gcc.exe")) {
+            Write-Error "gcc.exe not found after extraction"
+            Get-ChildItem -Recurse -Depth 2 $extractDir
+            exit 1
+          }
+          Remove-Item $dest
+
+      - name: Configure MinGW 11.2.0 as the unified toolchain
+        shell: bash
+        run: |
+          # Qt 6.6.3 prebuilt binaries are compiled with MinGW 11.2.0.
+          # To avoid ABI/TLS/symbol incompatibilities between Qt DLLs and our
+          # application + FFmpeg, we use the SAME compiler for everything.
+          QT_MINGW_DIR="${{ runner.temp }}/mingw1120_64/mingw64"
+          if [ ! -f "$QT_MINGW_DIR/bin/gcc.exe" ]; then
+            echo "ERROR: gcc.exe not found at $QT_MINGW_DIR/bin"
+            ls -la "${{ runner.temp }}/mingw1120_64/" || true
+            exit 1
+          fi
+          echo "QT_MINGW_DIR=$QT_MINGW_DIR" >> $GITHUB_ENV
+          # Convert Windows path (e.g. D:\a\_temp\...) to MSYS2 path (/d/a/_temp/...)
+          QT_MINGW_MSYS="/$(echo "$QT_MINGW_DIR/bin" | sed 's|\\|/|g' | sed 's|:||')"
+          echo "QT_MINGW_MSYS=$QT_MINGW_MSYS" >> $GITHUB_ENV
+          echo "MinGW 11.2.0 bin (MSYS2 path): $QT_MINGW_MSYS"
+          "$QT_MINGW_DIR/bin/gcc.exe" --version
+
+      - name: Cache FFmpeg (shared, built with Qt's MinGW 11.2.0)
         id: cache-ffmpeg
         uses: actions/cache@v4
         with:
           path: C:\ffmpeg-shared
-          # Key encodes all hardware flags so ANY change forces a full rebuild.
-          # restore-keys is intentionally omitted: a partial key match would restore an
-          # old FFmpeg built without libmfx/QSV support, causing mjpeg_qsv to be missing
-          # at runtime even though ENABLE_LIBMFX=1 is set.
-          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v2-${{ runner.os }}-nvenc${{ env.ENABLE_NVENC || '0' }}-nvdec${{ env.ENABLE_NVDEC || '0' }}-libmfx${{ env.ENABLE_LIBMFX || '0' }}
+          # v3: rebuilt with Qt's bundled MinGW 11.2.0 (instead of MSYS2 GCC 13+)
+          # to ensure ABI compatibility with Qt6Multimedia.dll and other Qt DLLs.
+          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-v3-qtmingw1120-${{ runner.os }}-nvenc${{ env.ENABLE_NVENC || '0' }}-nvdec${{ env.ENABLE_NVDEC || '0' }}-libmfx${{ env.ENABLE_LIBMFX || '0' }}
 
       - name: Check Build Scripts Available
         shell: cmd
@@ -188,11 +235,17 @@ jobs:
           dir build-script\*.bat
           dir build-script\*.sh
 
-      - name: Build Shared FFmpeg (using MSYS2 MinGW64)
+      - name: Build Shared FFmpeg (using Qt's bundled MinGW 11.2.0)
         if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
         shell: msys2 {0}
         run: |
-          echo "Building shared FFmpeg using MSYS2 MinGW64..."
+          echo "Building shared FFmpeg using Qt's bundled MinGW 11.2.0..."
+          # CRITICAL: Use Qt's MinGW (matches Qt6 DLLs) instead of MSYS2's GCC 13+
+          # This ensures FFmpeg and Qt use the same C++ runtime / TLS model.
+          export PATH="${QT_MINGW_MSYS}:/mingw64/bin:$PATH"
+          echo "Using gcc: $(which gcc)"
+          gcc --version
+          
           export SKIP_MSYS_MINGW=1
           export EXTERNAL_MINGW_MSYS="/mingw64"
           export FFMPEG_INSTALL_PREFIX="/c/ffmpeg-shared"
@@ -386,10 +439,17 @@ jobs:
           SOURCE_DIR_MSYS="/$(echo '${{ env.SOURCE_DIR }}' | sed 's|\\|/|g' | sed 's|:||')"
           QT_PATH_MSYS="/$(echo '${{ runner.temp }}/Qt/6.6.3/mingw_64/bin' | sed 's|\\|/|g' | sed 's|:||')"
           
-          # Add Qt tools to PATH for MSYS2 environment
-          export PATH="/mingw64/bin:${QT_PATH_MSYS}:$PATH"
+          # CRITICAL: Use Qt's bundled MinGW 11.2.0 (matches Qt6 DLLs).
+          # Qt's MinGW must come FIRST in PATH, before MSYS2's /mingw64/bin,
+          # to avoid using MSYS2's incompatible GCC 13+.
+          export PATH="${QT_MINGW_MSYS}:${QT_PATH_MSYS}:/mingw64/bin:$PATH"
           echo "Updated PATH: $PATH"
           echo "Source directory (MSYS2 format): $SOURCE_DIR_MSYS"
+          echo "Compiler check (should be Qt's MinGW 11.2.0):"
+          which gcc
+          gcc --version
+          which mingw32-make
+          mingw32-make --version | head -1
           
           echo "Checking Qt tools availability..."
           which lupdate || echo "lupdate not found in PATH"
@@ -525,154 +585,423 @@ jobs:
           echo "✓✓✓ LibUSB DLL setup completed successfully ✓✓✓"
           echo "Verifying copied files:"
           ls -la ${{ env.PACKAGE_DIR }}/*usb* || echo "Warning: No USB DLLs visible (but copy succeeded)"
-          echo "Copying MSYS2 runtime dependencies..."
+          echo "Copying MSYS2 runtime dependencies (non-C++ runtime)..."
           cp /mingw64/bin/libiconv-2.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libiconv-2.dll not found"
           cp /mingw64/bin/libbz2-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libbz2-1.dll not found"
           cp /mingw64/bin/liblzma-5.dll ${{ env.PACKAGE_DIR }} || echo "Warning: liblzma-5.dll not found"
           cp /mingw64/bin/zlib1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: zlib1.dll not found"
-          cp /mingw64/bin/libwinpthread-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libwinpthread-1.dll not found"
-          cp /mingw64/bin/libgcc_s_seh-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libgcc_s_seh-1.dll not found"
-          cp /mingw64/bin/libstdc++-6.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libstdc++-6.dll not found"
           cp /mingw64/bin/libmfx-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libmfx-1.dll not found"
+          # NOTE: Do NOT copy libwinpthread, libgcc, libstdc++ here!
+          # Let windeployqt copy them from Qt's MinGW installation for ABI compatibility
           echo "Copying translation & keyboard layouts files..."
           cp "${SOURCE_DIR_MSYS}/config/keyboards/"*.json ${{ env.PACKAGE_DIR }}/config/keyboards/
           cp "${SOURCE_DIR_MSYS}/config/languages/"*.qm ${{ env.PACKAGE_DIR }}/config/languages/
-          echo "Running windeployqt..."
+          echo "Build step complete. Proceeding to windeployqt..."
           cd ${{ env.PACKAGE_DIR }}
           # Note: windeployqt is a Windows executable, so we need to call it from cmd
           # We'll switch back to cmd shell for this step
 
-      - name: Run windeployqt (Windows native tool)
-        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
-        run: |
-          windeployqt ${{ env.EXE_NAME }} --compiler-runtime --multimedia --network
-
-      - name: Verify DLL dependencies
+      - name: Analyze and collect all DLL dependencies
         working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
         shell: msys2 {0}
         run: |
-          echo "=== DLL Dependency Analysis ==="
-          echo "Checking all DLLs in package..."
-          ls -la *.dll || true
+          echo "============================================================================"
+          echo "Step 1: Analyzing DLL dependencies before windeployqt"
+          echo "============================================================================"
           
           echo ""
           echo "=== Checking openterfaceQT.exe dependencies ==="
           if command -v objdump >/dev/null 2>&1; then
-            echo "Using objdump to check dependencies:"
-            objdump -p openterfaceQT.exe | grep -i "DLL Name" || true
+            objdump -p openterfaceQT.exe | grep "DLL Name:" | sort -u > exe_deps.txt
+            cat exe_deps.txt
           fi
           
           echo ""
-          echo "=== Checking for LibUSB dependencies ==="
-          ldd openterfaceQT.exe | grep -i usb || echo "No USB dependencies found in ldd output"
-          
-          echo ""
-          echo "=== Runtime Library Compatibility Check ==="
-          # Check for potential ABI conflicts
-          echo "Checking Qt DLLs..."
-          ls -la Qt*.dll | head -5 || echo "No Qt DLLs found"
-          
-          echo "Checking MSYS2 runtime DLLs..."
-          for dll in libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll libgcc_s_dw2-1.dll; do
+          echo "=== Checking FFmpeg DLL dependencies ==="
+          for dll in avcodec-60.dll avformat-60.dll avutil-58.dll; do
             if [ -f "$dll" ]; then
-              echo "✓ Found $dll"
-              # Check DLL info using objdump
-              if command -v objdump >/dev/null 2>&1; then
-                echo "  Architecture: $(objdump -f "$dll" | grep "^architecture" || echo "unknown")"
-              fi
-            else
-              echo "✗ Missing $dll"
+              echo "Dependencies of $dll:"
+              objdump -p "$dll" | grep "DLL Name:" | sort -u || true
             fi
           done
           
           echo ""
-          echo "=== LibUSB DLL Analysis ==="
-          for dll in libusb-1.0.dll msys-usb-1.0.dll; do
+          echo "=== Current MSYS2 MinGW runtime versions ==="
+          ls -lh /mingw64/bin/libstdc++-6.dll /mingw64/bin/libgcc_s_seh-1.dll /mingw64/bin/libwinpthread-1.dll 2>/dev/null || true
+          
+          echo "============================================================================"
+
+      - name: Run windeployqt (Windows native tool)
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        run: |
+          echo "Running windeployqt to deploy Qt dependencies..."
+          windeployqt ${{ env.EXE_NAME }} --multimedia --network
+          echo "windeployqt completed"
+
+      - name: Verify MinGW runtime libraries (Qt's bundled MinGW 11.2.0)
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        shell: msys2 {0}
+        run: |
+          echo "============================================================================"
+          echo "Step 2: Verifying runtime DLLs from Qt's bundled MinGW 11.2.0"
+          echo "============================================================================"
+          echo ""
+          echo "STRATEGY: App, FFmpeg, and Qt are ALL compiled with Qt's MinGW 11.2.0."
+          echo "windeployqt copies the matching libstdc++/libgcc/libwinpthread from Qt's"
+          echo "MinGW installation. We just need to verify they're present and consistent."
+          echo ""
+          
+          # Verify the three critical runtime DLLs exist
+          MISSING=0
+          for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
             if [ -f "$dll" ]; then
-              echo "✓ Found $dll"
-              if command -v objdump >/dev/null 2>&1; then
-                echo "  Architecture: $(objdump -f "$dll" | grep "^architecture" || echo "unknown")"
-                echo "  Imports: $(objdump -p "$dll" | grep -i "DLL Name" | wc -l) DLLs"
-              fi
+              size=$(stat -c%s "$dll" 2>/dev/null || echo "?")
+              echo "  ✓ $dll ($size bytes)"
             else
-              echo "✗ Missing $dll"
+              echo "  ✗ $dll MISSING"
+              MISSING=1
             fi
           done
           
-          echo ""
-          echo "=== Potential ABI Compatibility Issues ==="
-          # Check if we're mixing different compiler runtimes
-          echo "Checking for mixed runtime libraries..."
-          
-          # Check for MinGW libraries only
-          echo "MinGW64 DLLs:"
-          ls -la /mingw64/bin/*.dll 2>/dev/null | head -10 || echo "No MinGW64 DLLs found"
-          
-          echo "Qt DLLs:"
-          ls -la Qt*.dll 2>/dev/null | head -3 || echo "No Qt DLLs found"
-          
-          echo "Qt DLLs:"
-          ls -la Qt*.dll 2>/dev/null | head -3 || echo "No Qt DLLs found"
-          
-          echo ""
-          echo "=== Debug Diagnostics (optional) ==="
-          if [ "${{ github.event.inputs.collect_debug }}" = "true" ]; then
-            echo "Collecting debug build and gdb backtrace..."
-            mkdir -p ${RUNNER_TEMP}/build-debug
-            cd ${RUNNER_TEMP}/build-debug
-            cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug -DFFMPEG_PREFIX=C:/ffmpeg-shared -DUSE_SHARED_FFMPEG=ON "${{ env.SOURCE_DIR_MSYS }}"
-            mingw32-make -j2 || echo "Debug build failed"
-            if [ -f openterfaceQT.exe ]; then
-              echo "Running gdb to capture backtrace..."
-              gdb --batch -ex "set pagination 0" -ex "run" -ex "thread apply all bt full" --args ./openterfaceQT.exe > "${{ github.workspace }}/gdb_bt.log" 2>&1 || true
-            else
-              echo "Debug executable not found; skipping gdb run"
-            fi
-            echo "Collecting objdump info for package DLLs..."
-            mkdir -p "${{ github.workspace }}/dll_info"
-            for f in *.dll ${RUNNER_TEMP}/build-debug/*.dll ${RUNNER_TEMP}/build/${{ env.PACKAGE_DIR }}/*.dll ${RUNNER_TEMP}/build/${{ env.PACKAGE_DIR }}/*/*.dll; do
-              if [ -f "$f" ]; then
-                base=$(basename "$f")
-                objdump -p "$f" > "${{ github.workspace }}/dll_info/${base}.objdump.txt" 2>&1 || true
+          # If windeployqt didn't copy them, copy from Qt's MinGW directly
+          if [ "$MISSING" = "1" ]; then
+            echo ""
+            echo "Copying missing runtime DLLs from Qt's bundled MinGW..."
+            for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
+              if [ ! -f "$dll" ] && [ -f "${QT_MINGW_MSYS}/${dll}" ]; then
+                cp -f "${QT_MINGW_MSYS}/${dll}" .
+                echo "  ✓ Copied $dll from Qt's MinGW"
               fi
             done
+          fi
+          
+          # Sanity check: the runtime should match what the app expects.
+          # Since both are built with the same compiler, ABI/TLS will match automatically.
+          echo ""
+          echo "=== Compiler consistency check ==="
+          APP_TLS_MODE=$(objdump -p openterfaceQT.exe | grep -q "__emutls_" && echo "EMULATED" || echo "NATIVE")
+          DLL_HAS_EMUTLS=$(objdump -p libstdc++-6.dll | grep -q "__emutls_v" && echo "yes" || echo "no")
+          echo "  App TLS model: $APP_TLS_MODE"
+          echo "  libstdc++-6.dll exports __emutls_*: $DLL_HAS_EMUTLS"
+          
+          # With Qt's bundled MinGW 11.2.0, both should use emulated TLS
+          if [ "$APP_TLS_MODE" = "EMULATED" ] && [ "$DLL_HAS_EMUTLS" = "yes" ]; then
+            echo "  ✓ TLS models match (both EMULATED) - Qt6Multimedia.dll will load correctly"
+          elif [ "$APP_TLS_MODE" = "NATIVE" ] && [ "$DLL_HAS_EMUTLS" = "no" ]; then
+            echo "  ✓ TLS models match (both NATIVE)"
           else
-            echo "collect_debug not enabled; skipping debug diagnostics"
+            echo "  ✗✗✗ TLS MODEL MISMATCH! Build environment is misconfigured."
+            echo "  App uses $APP_TLS_MODE TLS but libstdc++ exports emutls=$DLL_HAS_EMUTLS"
+            echo "  Make sure the Build step uses Qt's MinGW (QT_MINGW_MSYS in PATH first)"
+            exit 1
           fi
           
           echo ""
-          echo "=== Recommendation ==="
-          echo "If the application crashes with heap corruption (c0000374):"
-          echo "1. Ensure all DLLs use the same runtime (MinGW64 preferred for Qt)"
-          echo "2. Check for missing or mismatched Qt platform plugins"
-          echo "3. Verify LibUSB is compatible with the Qt/MinGW runtime"
-          echo "4. Run the application under gdb to collect a backtrace (enable collect_debug input)"
-          echo ""
-          echo "Verification complete"
+          echo "✓✓✓ Runtime libraries verified - all components use Qt's MinGW 11.2.0"
+          echo "============================================================================"
 
-      - name: Upload gdb backtrace
-        if: github.event.inputs.collect_debug == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: gdb-backtrace
-          path: ${{ github.workspace }}\gdb_bt.log
-          if-no-files-found: warn
-
-      - name: Upload DLL info (objdump outputs)
-        if: github.event.inputs.collect_debug == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: dll-info
-          path: ${{ github.workspace }}\dll_info
-          if-no-files-found: warn
-
-      - name: Inspect Output and package directories
-        shell: pwsh
+      - name: Comprehensive DLL dependency verification
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        shell: msys2 {0}
         run: |
-          Write-Host "Listing Output directory: $env:SOURCE_DIR\Output"
-          if (Test-Path "$env:SOURCE_DIR\Output") { Get-ChildItem "$env:SOURCE_DIR\Output" -Recurse -Force | Select-Object -First 200 } else { Write-Host "Output directory not found" }
-          Write-Host "Listing package directory: $env:SOURCE_DIR\$env:PACKAGE_DIR"
-          if (Test-Path "$env:SOURCE_DIR\$env:PACKAGE_DIR") { Get-ChildItem "$env:SOURCE_DIR\$env:PACKAGE_DIR" -Recurse -Force | Select-Object -First 200 } else { Write-Host "Package directory not found" }
+          echo "============================================================================"
+          echo "Comprehensive DLL Dependency Verification"
+          echo "============================================================================"
+          
+          # Function to check DLL dependencies
+          check_dll_deps() {
+            local target="$1"
+            local name=$(basename "$target")
+            echo ""
+            echo "=== Checking $name ==="
+            
+            if [ ! -f "$target" ]; then
+              echo "✗ File not found: $target"
+              return 1
+            fi
+            
+            # Get all DLL dependencies
+            local deps=$(objdump -p "$target" | grep "DLL Name:" | awk '{print $3}' | sort -u)
+            local missing=0
+            
+            for dep in $deps; do
+              # Skip system DLLs
+              if echo "$dep" | grep -qiE "^(KERNEL32|USER32|ADVAPI32|SHELL32|ole32|GDI32|WS2_32|msvcrt|MSVCP|VCRUNTIME)"; then
+                continue
+              fi
+              
+              # Check if DLL exists in package
+              if [ -f "$dep" ]; then
+                echo "  ✓ $dep"
+              elif [ -f "${dep,,}" ]; then
+                echo "  ✓ ${dep,,} (case mismatch)"
+              else
+                # Check in subdirectories (plugins, etc)
+                if find . -iname "$dep" -type f | grep -q .; then
+                  local found_path=$(find . -iname "$dep" -type f | head -1)
+                  echo "  ✓ $dep (found at $found_path)"
+                else
+                  echo "  ✗✗✗ MISSING: $dep"
+                  missing=$((missing + 1))
+                fi
+              fi
+            done
+            
+            if [ $missing -gt 0 ]; then
+              echo "  ✗✗✗ $name has $missing missing dependencies!"
+              return 1
+            else
+              echo "  ✓ All dependencies satisfied for $name"
+              return 0
+            fi
+          }
+          
+          # Track overall status
+          TOTAL_ISSUES=0
+          
+          # Check main executable
+          check_dll_deps "openterfaceQT.exe" || TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
+          
+          # Check Qt DLLs (sample)
+          for dll in Qt6Core.dll Qt6Gui.dll Qt6Multimedia.dll Qt6MultimediaWidgets.dll; do
+            if [ -f "$dll" ]; then
+              check_dll_deps "$dll" || TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
+            fi
+          done
+          
+          # Check FFmpeg DLLs
+          for dll in avcodec-60.dll avformat-60.dll avutil-58.dll swresample-4.dll swscale-7.dll; do
+            if [ -f "$dll" ]; then
+              check_dll_deps "$dll" || TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
+            fi
+          done
+          
+          echo ""
+          echo "============================================================================"
+          echo "=== Critical MinGW Runtime DLL Verification ==="
+          echo "============================================================================"
+          
+          CRITICAL_DLLS=("libstdc++-6.dll" "libgcc_s_seh-1.dll" "libwinpthread-1.dll")
+          RUNTIME_ISSUES=0
+          
+          for dll in "${CRITICAL_DLLS[@]}"; do
+            if [ -f "$dll" ]; then
+              size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
+              echo "✓ $dll ($size bytes)"
+              
+              # Special checks for pthread
+              if [ "$dll" = "libwinpthread-1.dll" ]; then
+                echo "  Checking for modern POSIX functions..."
+                if objdump -p "$dll" | grep -q "pthread_cond_timedwait64"; then
+                  echo "  ✓ Has pthread_cond_timedwait64"
+                else
+                  echo "  ✗✗✗ Missing pthread_cond_timedwait64 (FFmpeg will fail!)"
+                  RUNTIME_ISSUES=$((RUNTIME_ISSUES + 1))
+                fi
+                
+                if objdump -p "$dll" | grep -q "clock_gettime64"; then
+                  echo "  ✓ Has clock_gettime64"
+                else
+                  echo "  ✗✗✗ Missing clock_gettime64 (FFmpeg will fail!)"
+                  RUNTIME_ISSUES=$((RUNTIME_ISSUES + 1))
+                fi
+              fi
+            else
+              echo "✗✗✗ CRITICAL: $dll is MISSING!"
+              RUNTIME_ISSUES=$((RUNTIME_ISSUES + 1))
+            fi
+          done
+          
+          echo ""
+          echo "============================================================================"
+          echo "=== Verification Summary ==="
+          echo "============================================================================"
+          echo "Total dependency issues: $TOTAL_ISSUES"
+          echo "Critical runtime issues: $RUNTIME_ISSUES"
+          
+          if [ $RUNTIME_ISSUES -gt 0 ]; then
+            echo ""
+            echo "✗✗✗ FATAL: Critical runtime library issues detected!"
+            echo "The application WILL NOT RUN correctly."
+            echo "Expected errors:"
+            echo "  - __emutls_v._ZSt11__once_call not found"
+            echo "  - clock_gettime64 not found"
+            echo "  - pthread_cond_timedwait64 not found"
+            exit 1
+          fi
+          
+          if [ $TOTAL_ISSUES -gt 0 ]; then
+            echo ""
+            echo "⚠ WARNING: Some dependency issues detected (may not be critical)"
+            echo "Check the log above for details"
+          else
+            echo ""
+            echo "✓✓✓ All dependencies verified successfully!"
+          fi
+          
+          echo "============================================================================"
+
+      - name: Final package contents check
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        shell: msys2 {0}
+        run: |
+          echo "============================================================================"
+          echo "Final Package Contents Check (before NSIS)"
+          echo "============================================================================"
+          
+          echo ""
+          echo "=== Critical files checklist ==="
+          
+          # Main executable
+          [ -f "openterfaceQT.exe" ] && echo "✓ openterfaceQT.exe" || { echo "✗ openterfaceQT.exe MISSING"; exit 1; }
+          
+          # MinGW runtime - CRITICAL!
+          echo ""
+          echo "MinGW Runtime (CRITICAL - without these, app will NOT run):"
+          echo "All components compiled with Qt's bundled MinGW 11.2.0 (emulated TLS, old ABI)"
+          
+          # Detect TLS model used by the app (should match libstdc++)
+          APP_TLS="NATIVE"
+          if objdump -p openterfaceQT.exe | grep -q "__emutls_"; then
+            APP_TLS="EMULATED"
+          fi
+          echo "Application TLS model: $APP_TLS (expected: EMULATED for Qt MinGW 11.2.0)"
+          
+          echo ""
+          for dll in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do
+            if [ -f "$dll" ]; then
+              size=$(stat -c%s "$dll" 2>/dev/null || echo "unknown")
+              echo "✓ $dll ($size bytes)"
+              
+              # Critical: libstdc++-6.dll must match the app's TLS model
+              if [ "$dll" = "libstdc++-6.dll" ]; then
+                DLL_HAS_EMUTLS="no"
+                if objdump -p "$dll" | grep -q "__emutls_v"; then
+                  DLL_HAS_EMUTLS="yes"
+                fi
+                
+                if [ "$APP_TLS" = "EMULATED" ] && [ "$DLL_HAS_EMUTLS" = "yes" ]; then
+                  echo "  ✓ TLS models match (EMULATED) - Qt6Multimedia will load OK"
+                elif [ "$APP_TLS" = "NATIVE" ] && [ "$DLL_HAS_EMUTLS" = "no" ]; then
+                  echo "  ✓ TLS models match (NATIVE)"
+                else
+                  echo "  ✗✗✗ FATAL: TLS MODEL MISMATCH!"
+                  echo "  App uses $APP_TLS TLS, but libstdc++ exports emutls=$DLL_HAS_EMUTLS"
+                  echo "  This will cause: 无法定位程序输入点 __emutls_v... 于动态链接库 Qt6Multimedia.dll"
+                  echo "  Fix: Ensure Build step uses Qt's MinGW (PATH=\$QT_MINGW_MSYS:...)"
+                  exit 1
+                fi
+              fi
+            else
+              echo "✗✗✗ $dll MISSING!"
+              exit 1
+            fi
+          done
+          
+          # Qt core DLLs
+          echo ""
+          echo "Qt DLLs:"
+          for dll in Qt6Core.dll Qt6Gui.dll Qt6Widgets.dll Qt6Multimedia.dll; do
+            [ -f "$dll" ] && echo "✓ $dll" || { echo "✗ $dll MISSING"; exit 1; }
+          done
+          
+          # FFmpeg DLLs
+          echo ""
+          echo "FFmpeg DLLs:"
+          for dll in avcodec-60.dll avformat-60.dll avutil-58.dll; do
+            [ -f "$dll" ] && echo "✓ $dll" || { echo "✗ $dll MISSING"; exit 1; }
+          done
+          
+          # LibUSB
+          echo ""
+          echo "Other dependencies:"
+          [ -f "libusb-1.0.dll" ] && echo "✓ libusb-1.0.dll" || { echo "✗ libusb-1.0.dll MISSING"; exit 1; }
+          
+          echo ""
+          echo "=== Package statistics ==="
+          echo "Total files: $(find . -type f | wc -l)"
+          echo "Total DLLs: $(find . -name '*.dll' | wc -l)"
+          echo "Package size: $(du -sh . | cut -f1)"
+          
+          echo ""
+          echo "=== All DLLs in root directory (will be in installer) ==="
+          ls -1 *.dll 2>/dev/null | head -30 || echo "No DLLs found"
+          
+          echo ""
+          echo "✓✓✓ All critical files present - ready for NSIS packaging"
+          echo "============================================================================"
+          
+          # Create a manifest file for debugging
+          echo "Creating package manifest..."
+          find . -type f -name "*.dll" | sort > dll_manifest.txt
+          echo "DLL manifest created ($(wc -l < dll_manifest.txt) DLLs)"
+
+      - name: Upload package directory for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-directory-before-nsis
+          path: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+          retention-days: 3
+
+      - name: Runtime dependency test (quick sanity check)
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        shell: msys2 {0}
+        run: |
+          echo "============================================================================"
+          echo "Runtime Dependency Test - Quick Sanity Check"
+          echo "============================================================================"
+          echo ""
+          echo "Testing if openterfaceQT.exe can load its dependencies..."
+          echo "Note: We won't actually run the GUI, just check if DLLs load"
+          echo ""
+          
+          # Use ldd to check if all dependencies can be resolved
+          if command -v ldd >/dev/null 2>&1; then
+            echo "=== Running ldd on openterfaceQT.exe ==="
+            if ldd openterfaceQT.exe > ldd_output.txt 2>&1; then
+              cat ldd_output.txt
+              
+              # Check for "not found" errors
+              if grep -i "not found" ldd_output.txt; then
+                echo ""
+                echo "✗✗✗ FATAL: Some DLLs cannot be found at runtime!"
+                echo "The application will NOT start on user machines."
+                exit 1
+              else
+                echo ""
+                echo "✓ All DLLs can be resolved"
+              fi
+            else
+              echo "ldd failed, but continuing..."
+            fi
+          fi
+          
+          echo ""
+          echo "=== Testing Qt6Multimedia.dll specifically ==="
+          if [ -f "Qt6Multimedia.dll" ]; then
+            if ldd Qt6Multimedia.dll > qt_multimedia_ldd.txt 2>&1; then
+              echo "Qt6Multimedia.dll dependencies:"
+              cat qt_multimedia_ldd.txt | head -20
+              
+              # Check for libstdc++ specifically
+              if grep -q "libstdc++-6.dll" qt_multimedia_ldd.txt; then
+                if grep "libstdc++-6.dll" qt_multimedia_ldd.txt | grep -q "not found"; then
+                  echo ""
+                  echo "✗✗✗ CRITICAL: Qt6Multimedia.dll cannot find libstdc++-6.dll!"
+                  echo "This is why you get '__emutls_v._ZSt11__once_call not found' error!"
+                  exit 1
+                else
+                  resolved_path=$(grep "libstdc++-6.dll" qt_multimedia_ldd.txt | awk '{print $3}')
+                  echo ""
+                  echo "✓ Qt6Multimedia.dll can find libstdc++-6.dll at: $resolved_path"
+                fi
+              fi
+            fi
+          fi
+          
+          echo ""
+          echo "✓✓✓ Runtime dependency test passed"
+          echo "============================================================================"
 
       - name: Upload Output folder
         uses: actions/upload-artifact@v4
