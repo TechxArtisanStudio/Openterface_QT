@@ -197,6 +197,7 @@ void CameraManager::initializeBackendHandler()
                 connect(ffmpegHandler, &FFmpegBackendHandler::captureError,
                         this, [this](const QString& error) {
                             qCWarning(log_ui_camera) << "FFmpeg capture error:" << error;
+                            emit cameraActiveChanged(false);
                             emit cameraError("FFmpeg: " + error);
                         });
 
@@ -296,11 +297,17 @@ void CameraManager::startCamera()
         }
 #endif
         
-        // Start FFmpeg backend camera
+        // Start backend camera
         m_backendHandler->startCamera();
-        
-        emit cameraActiveChanged(true);
-        qCDebug(log_backend) << "Camera started successfully";
+
+        // FFmpeg reports real readiness asynchronously via deviceActivated.
+        // Avoid optimistic success state that can produce a black screen with "active=true".
+        if (!isFFmpegBackend()) {
+            emit cameraActiveChanged(true);
+            qCDebug(log_backend) << "Camera started successfully";
+        } else {
+            qCDebug(log_backend) << "FFmpeg start requested, waiting for device activation signal";
+        }
         
     } catch (const std::exception& e) {
         qCritical() << "Exception starting camera:" << e.what();
@@ -1425,6 +1432,7 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
                 connect(ffmpegHandler, &FFmpegBackendHandler::captureError,
                         this, [this](const QString& error) {
                             qCWarning(log_ui_camera) << "FFmpeg capture error:" << error;
+                            emit cameraActiveChanged(false);
                             emit cameraError(error);
                         }, Qt::UniqueConnection);
 

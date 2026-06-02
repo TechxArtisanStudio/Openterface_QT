@@ -338,6 +338,7 @@ export PKG_CONFIG_PATH="${FFMPEG_INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH
     --enable-swresample \
     --enable-swscale \
     --enable-avdevice \
+    --enable-indev=dshow \
     --enable-avfilter \
     --enable-postproc \
     --enable-network \
