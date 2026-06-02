@@ -126,6 +126,7 @@ void VideoPage::setupUI()
     pixelFormatBox->setObjectName("pixelFormatBox");
 
     QLabel *hintLabel = new QLabel(tr("Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable."));
+    hintLabel->setWordWrap(true);
 
     // Add another separator
     QFrame *separatorLine2 = new QFrame();
@@ -150,6 +151,7 @@ void VideoPage::setupUI()
 
     QLabel *backendHintLabel = new QLabel(tr("Note: Changing media backend requires application restart to take effect."));
     backendHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    backendHintLabel->setWordWrap(true);
 
     // GStreamer Sink Priority Setting
     QLabel *gstSinkLabel = new QLabel(tr("GStreamer Sink Priority: "));
@@ -163,6 +165,7 @@ void VideoPage::setupUI()
     
     QLabel *gstSinkHintLabel = new QLabel(tr("Comma-separated list of sinks to try in order."));
     gstSinkHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    gstSinkHintLabel->setWordWrap(true);
     gstSinkHintLabel->setObjectName("gstSinkHintLabel");
 
     // Connect the media backend change signal
@@ -178,6 +181,7 @@ void VideoPage::setupUI()
 
     QLabel *hwAccelHintLabel = new QLabel(tr("Note: Hardware acceleration improves performance but may not be available on all systems. Changing this setting requires application restart to take effect."));
     hwAccelHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    hwAccelHintLabel->setWordWrap(true);
     hwAccelHintLabel->setObjectName("hwAccelHintLabel");
 
     // Set initial visibility based on backend
@@ -249,6 +253,7 @@ void VideoPage::setupUI()
 
     QLabel *scalingQualityHintLabel = new QLabel(tr("Note: Higher quality settings provide sharper images but may use slightly more CPU."));
     scalingQualityHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    scalingQualityHintLabel->setWordWrap(true);
 
     // Add Capture Resolution elements to the layout
     videoLayout->addWidget(hintLabel);
@@ -296,6 +301,7 @@ void VideoPage::setupUI()
     
     QLabel *renderingQualityHintLabel = new QLabel(tr("Note: These settings control video display quality. Disabling may improve performance on slower systems."));
     renderingQualityHintLabel->setStyleSheet("color: #666666; font-style: italic;");
+    renderingQualityHintLabel->setWordWrap(true);
     
     videoLayout->addWidget(renderingQualityLabel);
     videoLayout->addWidget(antialiasingCheckBox);

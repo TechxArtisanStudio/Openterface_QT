@@ -565,3 +565,14 @@ bool GlobalSetting::getVideoSmoothTransform() const
 {
     return m_settings.value("video/smoothTransform", true).toBool();
 }
+
+// Custom key import path settings
+void GlobalSetting::setLastCustomKeyImportPath(const QString& path)
+{
+    m_settings.setValue("customkeys/lastImportPath", path);
+}
+
+QString GlobalSetting::getLastCustomKeyImportPath() const
+{
+    return m_settings.value("customkeys/lastImportPath", QString()).toString();
+}

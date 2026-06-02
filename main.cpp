@@ -28,6 +28,8 @@
 #include "global.h"
 #include "target/KeyboardLayouts.h"
 #include "ui/languagemanager.h"
+#include "ui/customkey/customkeymanager.h"
+#include <QMetaType>
 #include <QCoreApplication>
 #include <QtPlugin>
 #include <QPixmap>
@@ -261,6 +263,10 @@ int main(int argc, char *argv[])
     
     qInfo() << "Creating QApplication...";
     QApplication app(argc, argv);
+
+    // Register custom types for QVariant
+    qRegisterMetaType<QList<KeyStep>>("QList<KeyStep>");
+    qRegisterMetaType<QList<int>>("QList<int>");
 
     // set style accroding to system palette
     QPalette systemPalette = QApplication::palette();

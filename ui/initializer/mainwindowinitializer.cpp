@@ -343,7 +343,10 @@ void MainWindowInitializer::setupToolbar()
     qCDebug(log_ui_mainwindowinitializer) << "Setting up toolbar...";
     m_mainWindow->addToolBar(Qt::TopToolBarArea, m_toolbarManager->getToolbar());
     m_toolbarManager->getToolbar()->setVisible(false);
-    
+
+    // Connect toolbar config button to open custom key dialog
+    connect(m_toolbarManager, &ToolbarManager::openCustomKeyConfig, m_mainWindow, &MainWindow::openCustomKeyDialog);
+
     if (m_windowLayoutCoordinator) {
         m_windowLayoutCoordinator->setToolbarManager(m_toolbarManager);
     }

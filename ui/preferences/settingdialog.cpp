@@ -43,6 +43,8 @@
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QStackedWidget>
+#include <QScrollArea>
+#include <QSplitter>
 #include <QDebug>
 #include <QLoggingCategory>
 #include <QSettings>
@@ -76,6 +78,15 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     createButtons();
     createLayout();
 
+    // Set dialog size and allow free resizing
+    resize(800, 600);
+
+    // Set initial splitter sizes: 4/27 tree (~15%), 23/27 content
+    QList<int> sizes;
+    int totalWidth = width();
+    sizes << totalWidth * 4 / 27 << totalWidth * 23 / 27;
+    splitter->setSizes(sizes);
+
     setWindowTitle(tr("Preferences"));
     logPage->initLogSettings();
     videoPage->initVideoSettings();
@@ -108,8 +119,6 @@ void SettingDialog::createSettingTree() {
     settingTree->setHeaderHidden(true);
     settingTree->setSelectionMode(QAbstractItemView::SingleSelection);
 
-    settingTree->setMaximumSize(QSize(200, 900));
-    settingTree->setMinimumWidth(110);
     settingTree->setRootIsDecorated(false);
 
     // QStringList names = {"Log"};
@@ -122,11 +131,20 @@ void SettingDialog::createSettingTree() {
 
 
 void SettingDialog::createPages() {
-    // Add pages to the stacked widget
-    stackedWidget->addWidget(logPage);
-    stackedWidget->addWidget(videoPage);
-    stackedWidget->addWidget(audioPage);
-    stackedWidget->addWidget(targetControlPage);
+    // Wrap each page in a QScrollArea so content can scroll both vertically and horizontally
+    auto addScrollablePage = [this](QWidget *page) {
+        QScrollArea *scrollArea = new QScrollArea(this);
+        scrollArea->setWidget(page);
+        scrollArea->setWidgetResizable(true);
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        stackedWidget->addWidget(scrollArea);
+    };
+
+    addScrollablePage(logPage);
+    addScrollablePage(videoPage);
+    addScrollablePage(audioPage);
+    addScrollablePage(targetControlPage);
 }
 
 void SettingDialog::createButtons(){
@@ -151,12 +169,14 @@ void SettingDialog::createButtons(){
 
 void SettingDialog::createLayout() {
     qDebug() << "createLayout";
-    QHBoxLayout *selectLayout = new QHBoxLayout;
-    selectLayout->addWidget(settingTree);
-    selectLayout->addWidget(stackedWidget);
-    
-    QVBoxLayout *mainLayout = new QVBoxLayout;
-    mainLayout->addLayout(selectLayout);
+    splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->addWidget(settingTree);
+    splitter->addWidget(stackedWidget);
+    splitter->setStretchFactor(1, 1);
+    splitter->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    mainLayout->addWidget(splitter, 1);
     mainLayout->addWidget(buttonWidget);
 
     setLayout(mainLayout);

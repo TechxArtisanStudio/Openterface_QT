@@ -316,10 +316,20 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
 
         // [Phase 3] Accumulate AHK modifier prefixes: ^=Ctrl, !=Alt, +=Shift, #=Win
         // Multiple modifiers may be combined (e.g. "^+c" = Ctrl+Shift+C)
+        int modifierStartPos = pos;  // Record position for error reporting
         while (pos < tmpKeys.length() && controldata.contains(QString(tmpKeys[pos]))) {
             control |= controldata.value(QString(tmpKeys[pos]));
+            qCDebug(log_script) << "Added modifier prefix at pos" << pos << ":" << tmpKeys[pos] << "(control now:" << QString("0x%1").arg(control, 2, 16, QChar('0')) << ")";
             pos++;
         }
+        
+        // Check if we have modifiers but no key to apply them to
+        if (pos >= tmpKeys.length() && control != 0x00) {
+            qCDebug(log_script) << "Send: ERROR - modifier prefix(es) at position" << modifierStartPos 
+                                << "with no key to modify. Use backtick escape for literal symbols: `^, `!, `+, `#";
+            break;  // Stop processing
+        }
+        
         if (pos >= tmpKeys.length()) break;
 
         // Check brace key (e.g., {Enter}, {Tab}) — re-evaluated after modifier advance
@@ -365,7 +375,9 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
                 keyPacket pack(general, control);
                 keyboardMouse->addKeyPacket(pack);
                 packetCount++;
-                qCDebug(log_script) << "Added brace key press:" << keyName;
+                qCDebug(log_script) << "Added brace key press:" << keyName 
+                                   << "(HID:" << QString("0x%1").arg(general[0], 2, 16, QChar('0')) 
+                                   << ", modifiers:" << QString("0x%1").arg(control, 2, 16, QChar('0')) << ")";
 
                 // Send key release
                 std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
@@ -391,7 +403,9 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
             keyPacket pack(general, control);
             keyboardMouse->addKeyPacket(pack);
             packetCount++;
-            qCDebug(log_script) << "Added char press:" << ch;
+            qCDebug(log_script) << "Added char press:" << ch 
+                               << "(HID:" << QString("0x%1").arg(general[0], 2, 16, QChar('0')) 
+                               << ", modifiers:" << QString("0x%1").arg(control, 2, 16, QChar('0')) << ")";
 
             // Send key release
             std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};

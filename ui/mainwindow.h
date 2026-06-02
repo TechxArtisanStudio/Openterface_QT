@@ -272,6 +272,7 @@ protected:
     void onActionPasteToTarget();
     void onActionScreensaver();
     void onToggleVirtualKeyboard();
+    void openCustomKeyDialog();
 
     void onResolutionChange(const int& width, const int& height, const float& fps, const float& pixelClk);
     void onGpio0StatusChanged(bool isToTarget);

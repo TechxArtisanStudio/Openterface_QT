@@ -34,6 +34,7 @@
 #include "../target/mouseeventdto.h"
 #include "../ui/statusevents.h"
 #include "../target/KeyboardLayouts.h"
+#include "../ui/customkey/customkeymanager.h"
 
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_host)
@@ -70,6 +71,10 @@ public:
     void sendCtrlAltDel();
 
     void handleFunctionKey(int keyCode, int modifiers);
+
+    void handleKeySequence(const QList<KeyStep>& steps);
+
+    void handleKeyCombo(const QList<int>& keyCodes);
 
     void setRepeatingKeystroke(int interval);
 
