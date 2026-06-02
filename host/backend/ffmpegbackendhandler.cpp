@@ -397,9 +397,7 @@ bool FFmpegBackendHandler::initializeFFmpeg()
     
     // Initialize FFmpeg
     av_log_set_level(AV_LOG_WARNING); // Reduce FFmpeg log noise
-#if LIBAVDEVICE_VERSION_MAJOR < 59
     avdevice_register_all();
-#endif
     
     qCDebug(log_ffmpeg_backend) << "FFmpeg initialization completed";
     return true;

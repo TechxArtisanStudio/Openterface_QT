@@ -42,31 +42,33 @@ void CaptureThread::run()
     qCInfo(log_ffmpeg_backend) << "=== CAPTURE THREAD STARTED ===";
     qCInfo(log_ffmpeg_backend) << "Expected framerate: 60 FPS";
     qCInfo(log_ffmpeg_backend) << "Frame interval: 16.67 ms";
-    
+
     QElapsedTimer performanceTimer;
     performanceTimer.start();
-    
+
     int consecutiveFailures = 0;
     int framesProcessed = 0;
+    int startupRetryCount = 0;  // Tracks retries before first frame received
     const int maxConsecutiveFailures = 20; // Reduced from 100 - stop faster on device disconnect
-    
+
     while (isRunning()) {
         // Check for interruption request
         if (isInterruptionRequested()) {
             qCDebug(log_ffmpeg_backend) << "Capture thread interrupted";
             break;
         }
-        
+
         if (m_frameReader && m_frameReader->readFrame()) {
             // Reset failure counter on successful read
             consecutiveFailures = 0;
-            
+            startupRetryCount = 0;  // Reset startup counter — device is producing frames
+
             // Process frame directly in capture thread to avoid packet invalidation
             // This ensures packet data remains valid during processing
             // Notify main handler that a frame is available for processing
             emit frameAvailable();
             framesProcessed++;
-            
+
             // Log performance periodically (every 60 frames = 1 second at 60fps)
             if (framesProcessed % 60 == 0) {
                 qint64 elapsed = performanceTimer.elapsed();
@@ -77,34 +79,54 @@ void CaptureThread::run()
                                           << "Elapsed:" << elapsed << "ms";
             }
         } else {
-            // Track consecutive failures
-            consecutiveFailures++;
-            
+            // readFrame returned false — this can happen for several reasons:
+            //   • EAGAIN: DirectShow has no frame data yet (normal during startup)
+            //   • Real errors: device disconnected, codec failure, etc.
+            //
+            // During startup (before any frames received), EAGAIN is expected as the
+            // DirectShow filter graph takes time to initialize and start producing frames.
+            // We use a much higher threshold during this phase to avoid premature exit.
+
+            bool hadPriorSuccess = (framesProcessed > 0);
+
+            if (hadPriorSuccess) {
+                // Device was working but now returns errors — more likely a real issue
+                consecutiveFailures++;
+            } else {
+                // Device hasn't produced any frames yet. EAGAIN is normal during
+                // DirectShow initialization. Only increment failure counter every 5th
+                // retry to give the device up to ~500ms to start producing frames
+                // (100 retries × 1ms / 5 = 500ms before maxConsecutiveFailures trips).
+                startupRetryCount++;
+                if (startupRetryCount % 5 == 0) {
+                    consecutiveFailures++;
+                }
+                if (startupRetryCount == 1 || startupRetryCount % 50 == 0) {
+                    qCDebug(log_ffmpeg_backend) << "CaptureThread: waiting for first frame from device (attempt" << startupRetryCount << ")";
+                }
+            }
+
             // Be more aggressive about detecting device disconnections
-            // Check device availability after fewer failures, especially for I/O errors
-            if (consecutiveFailures >= 10 && consecutiveFailures % 10 == 0) { // Reduced from 50/25 - check every 10 failures
+            // Only trigger after we've had prior success (device was working)
+            if (hadPriorSuccess && consecutiveFailures >= 10 && consecutiveFailures % 10 == 0) {
                 qCDebug(log_ffmpeg_backend) << "Checking device availability due to consecutive failures:" << consecutiveFailures;
-                // If the handler can still be queried for availability, skip here and let the handler decide;
-                // at minimum emit deviceDisconnected so the handler can decide how to react.
                 qCWarning(log_ffmpeg_backend) << "Device availability check failed - notifying handler";
                 emit readError(QString("Consecutive frame read failures: %1").arg(consecutiveFailures));
                 emit deviceDisconnected();
                 break; // Exit the capture loop
             }
-            
+
             if (consecutiveFailures >= maxConsecutiveFailures) {
                 qCWarning(log_ffmpeg_backend) << "Too many consecutive frame read failures (" << consecutiveFailures << "), may indicate device issue";
-                // Also trigger device disconnection handling asynchronously
                 if (m_frameReader) {
                     qCWarning(log_ffmpeg_backend) << "Triggering device disconnection due to persistent failures";
-                    // Notify the handler asynchronously: it will evaluate and deactivate device if necessary
                     emit readError(QString("Persistent frame read failures: %1").arg(consecutiveFailures));
                     emit deviceDisconnected();
                     break;
                 }
                 consecutiveFailures = 0; // Reset to avoid spam
             }
-            
+
             // Adaptive sleep - longer sleep for repeated failures
             if (consecutiveFailures < 10) {
                 msleep(1); // Short sleep for occasional failures
@@ -115,6 +137,6 @@ void CaptureThread::run()
             }
         }
     }
-    
+
     qCDebug(log_ffmpeg_backend) << "FFmpeg capture thread finished, processed" << framesProcessed << "frames total";
 }

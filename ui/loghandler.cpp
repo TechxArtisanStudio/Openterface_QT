@@ -116,6 +116,17 @@ void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &co
 
 void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
 {
+    // TEMP: Always write to file for debugging
+    static QFile debugFile("C:/openterface_debug.log");
+    if (!debugFile.isOpen()) {
+        debugFile.open(QIODevice::WriteOnly | QIODevice::Append);
+    }
+    if (debugFile.isOpen()) {
+        QTextStream ds(&debugFile);
+        ds << msg << "\n";
+        ds.flush();
+    }
+
     // Q_UNUSED(context)
 
     // Suppress specific Qt warnings that are not useful
