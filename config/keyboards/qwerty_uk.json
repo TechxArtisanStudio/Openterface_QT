@@ -134,19 +134,19 @@
         ",": "Key_Comma", "<": "Key_Comma",
         ".": "Key_Period", ">": "Key_Period",
         "/": "Key_Slash", "?": "Key_Slash",
-        "`": "Key_QuoteLeft", "¦": "Key_QuoteLeft",
+        "`": "Key_QuoteLeft", "¬": "Key_QuoteLeft", "¦": "Key_QuoteLeft",
         " ": "Key_Space",
         "\t": "Key_Tab",
         "\n": "Key_Return", "\r": "Key_Return"
     },
     "need_shift_keys": [
         "!", "\"", "£", "$", "%", "^", "&", "*", "(", ")",
-        "_", "+", "{", "}", "~", ":", "@", "<", ">", "?", "|",
+        "_", "+", "{", "}", "~", ":", "@", "<", ">", "?", "|", "¬",
         "A", "B", "C", "D", "E", "F", "G", "H", "I",
         "J", "K", "L", "M", "N", "O", "P", "Q", "R",
         "S", "T", "U", "V", "W", "X", "Y", "Z"
     ],
     "need_altgr_keys": [
-        "€", "¦", "[", "]", "{", "}", "@", "~"
+        "€", "¦"
     ]
 }
