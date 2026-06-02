@@ -45,6 +45,7 @@
 #include "ui/advance/envdialog.h"
 #include "ui/advance/updatedisplaysettingsdialog.h"
 #include "ui/advance/devicediagnosticsdialog.h"
+#include "ui/customkey/customkeydialog.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -570,7 +571,13 @@ void MainWindow::onActionScreensaver()
 
 void MainWindow::onToggleVirtualKeyboard()
 {
-    toolbarManager->toggleToolbar();    
+    toolbarManager->toggleToolbar();
+}
+
+void MainWindow::openCustomKeyDialog()
+{
+    CustomKeyDialog dialog(this);
+    dialog.exec();
 }
 
 void MainWindow::popupMessage(QString message)

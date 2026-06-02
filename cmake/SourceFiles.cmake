@@ -259,6 +259,12 @@ set(UI_FLOATING_WINDOW_SOURCES
     ui/floatingwindow/floatingwindow.cpp ui/floatingwindow/floatingwindow.h
 )
 
+# UI custom key sources
+set(UI_CUSTOMKEY_SOURCES
+    ui/customkey/customkeymanager.cpp ui/customkey/customkeymanager.h
+    ui/customkey/customkeydialog.cpp ui/customkey/customkeydialog.h
+)
+
 # UI preferences sources
 set(UI_PREFERENCES_SOURCES
     ui/preferences/cameraadjust.cpp ui/preferences/cameraadjust.h
@@ -294,6 +300,7 @@ set(SOURCE_FILES
     ${UI_RECORDING_SOURCES}
     ${UI_PREFERENCES_SOURCES}
     ${UI_FLOATING_WINDOW_SOURCES}
+    ${UI_CUSTOMKEY_SOURCES}
     ${WCH_SOURCES}
 )
 

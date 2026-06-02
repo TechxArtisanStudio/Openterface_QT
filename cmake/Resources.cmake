@@ -104,6 +104,21 @@ qt_add_resources(openterfaceQT "languages"
         --compress 2
 )
 
+set(customkeys_resource_files
+    "config/customkeys/default.json"
+)
+
+qt_add_resources(openterfaceQT "customkeys"
+    PREFIX
+        "/config/customkeys"
+    BASE
+        "config/customkeys"
+    FILES
+        ${customkeys_resource_files}
+    OPTIONS
+        --compress 2
+)
+
 set(qmake_immediate_resource_files
     "openterfaceQT.rc"
 )
