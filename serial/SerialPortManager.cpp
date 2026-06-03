@@ -236,9 +236,10 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     // Connect hardware setting application signal to worker thread slot
     connect(this, &SerialPortManager::requestApplyHardwareSetting, this, &SerialPortManager::applyHardwareSettingInternal, Qt::QueuedConnection);
 
-    // Initialize FactoryResetManager and forward its signals for backward compatibility
-    // Create without a QObject parent to avoid cross-thread parent/child creation warnings.
-    m_factoryResetManager = std::make_unique<FactoryResetManager>(this);
+    // Initialize FactoryResetManager and forward its signals for backward compatibility.
+    // Create without a QObject parent to avoid cross-thread parent/child creation warnings
+    // (SerialPortManager is in worker thread, but constructor runs on main thread).
+    m_factoryResetManager = std::make_unique<FactoryResetManager>(this, nullptr);
     // CRITICAL: Move FactoryResetManager to the worker thread so that all its
     // QTimer::singleShot callbacks fire in SerialWorkerThread.  Without this,
     // the timers run on the MainThread and access serialPort (owned by the
@@ -247,9 +248,9 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     connect(m_factoryResetManager.get(), &FactoryResetManager::factoryReset, this, &SerialPortManager::factoryReset, Qt::QueuedConnection);
     connect(m_factoryResetManager.get(), &FactoryResetManager::factoryResetCompleted, this, &SerialPortManager::factoryResetCompleted, Qt::QueuedConnection);
 
-    // Initialize and hook up the serial hotplug handler (abstracted from inline hotplug lambdas)
+    // Initialize and hook up the serial hotplug handler (abstracted from inline hotplug lambdas).
     // Create without a QObject parent to avoid cross-thread parent/child creation warnings.
-    m_hotplugHandler = std::make_unique<SerialHotplugHandler>(this);
+    m_hotplugHandler = std::make_unique<SerialHotplugHandler>(nullptr);
 
     // When the serial device matching our current port chain is unplugged, close and clear
     connect(m_hotplugHandler.get(), &SerialHotplugHandler::SerialPortUnplugged, this, [this](const QString& portChain) {
@@ -323,10 +324,11 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
     // Initialize asynchronous logging
     QString logPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + "/serial_log.txt";
     m_logFilePath = logPath;
-    m_logThread = new QThread(this);
+    m_logThread = new QThread(nullptr);
     // Log writer runs in its own thread; do not parent to this to avoid cross-thread warnings.
     m_logWriter = new LogWriter(logPath, nullptr);
     m_logWriter->moveToThread(m_logThread);
+    connect(m_logThread, &QThread::finished, m_logWriter, &QObject::deleteLater);
     connect(this, &SerialPortManager::logMessage, m_logWriter, &LogWriter::writeLog);
     m_logThread->start();
 
