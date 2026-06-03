@@ -3,6 +3,8 @@
 
 #include <QObject>
 #include <memory>
+#include <atomic>
+#include <QMutex>
 #include <QLoggingCategory>
 
 class ScriptTool;
@@ -23,6 +25,8 @@ signals:
 private:
     ScriptTool* m_tool;
     ScriptExecutor* m_executor;
+    std::atomic<bool> isRunning{false};
+    QMutex runMutex;
 };
 
 #endif // SCRIPTRUNNER_H

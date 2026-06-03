@@ -28,6 +28,8 @@
 #include "global.h"
 #include "target/KeyboardLayouts.h"
 #include "ui/languagemanager.h"
+#include "ui/customkey/customkeymanager.h"
+#include <QMetaType>
 #include <QCoreApplication>
 #include <QtPlugin>
 #include <QPixmap>
@@ -234,6 +236,15 @@ void applyMediaBackendSetting(){
 
 int main(int argc, char *argv[])
 {
+    // TEMP: Early startup logging
+    QFile earlyLog("C:/openterface_startup.log");
+    earlyLog.open(QIODevice::WriteOnly | QIODevice::Append);
+    if (earlyLog.isOpen()) {
+        QTextStream outs(&earlyLog);
+        outs << "[EARLY] main() entered\n";
+        outs.flush();
+    }
+
     #ifdef Q_OS_WIN
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF);
     #endif
@@ -252,6 +263,10 @@ int main(int argc, char *argv[])
     
     qInfo() << "Creating QApplication...";
     QApplication app(argc, argv);
+
+    // Register custom types for QVariant
+    qRegisterMetaType<QList<KeyStep>>("QList<KeyStep>");
+    qRegisterMetaType<QList<int>>("QList<int>");
 
     // set style accroding to system palette
     QPalette systemPalette = QApplication::palette();

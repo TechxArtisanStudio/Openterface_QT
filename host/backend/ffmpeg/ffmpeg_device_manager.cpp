@@ -188,6 +188,9 @@ bool FFmpegDeviceManager::InitializeInputStream(const QString& device_path, cons
 #ifdef Q_OS_WIN
     // WINDOWS: Use DirectShow for video capture
     qCDebug(log_ffmpeg_backend) << "Windows platform detected - using DirectShow input";
+
+    // Defensive registration for FFmpeg 6.x / static-link scenarios.
+    avdevice_register_all();
     
     // Allocate format context
     format_context_ = avformat_alloc_context();

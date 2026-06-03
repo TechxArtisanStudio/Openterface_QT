@@ -11,11 +11,15 @@ REM Usage: build-debug.bat [static|shared]
 REM Default: static
 
 REM Parse first argument to select FFmpeg type
-set USE_SHARED=1
+set USE_SHARED=0
 if /I "%~1"=="shared" set USE_SHARED=1
 if /I "%~1"=="-shared" set USE_SHARED=1
 if /I "%~1"=="/shared" set USE_SHARED=1
 if /I "%~1"=="s" set USE_SHARED=1
+if /I "%~1"=="static" set USE_SHARED=0
+if /I "%~1"=="-static" set USE_SHARED=0
+if /I "%~1"=="/static" set USE_SHARED=0
+if /I "%~1"=="t" set USE_SHARED=0
 
 REM Set default FFmpeg prefix based on selection (can be overridden by environment)
 if "%USE_SHARED%"=="1" (
@@ -24,10 +28,22 @@ if "%USE_SHARED%"=="1" (
     if not defined FFMPEG_PREFIX set FFMPEG_PREFIX=C:\ffmpeg-static
 )
 
+REM Set Qt path (used by windeployqt)
+if not defined QT_DIR (
+    if exist "E:\Qt\6.5.3\mingw_64\bin\windeployqt.exe" (
+        set QT_DIR=E:\Qt\6.5.3\mingw_64
+    ) else if exist "E:\Qt\6.6.3\mingw_64\bin\windeployqt.exe" (
+        set QT_DIR=E:\Qt\6.6.3\mingw_64
+    )
+)
+
 REM Set MinGW path (adjust if Qt is installed elsewhere)
 REM If the environment variable is already defined, keep it; otherwise use default
 if not defined MINGW_PATH set MINGW_PATH=E:\Qt\Tools\mingw1120_64
 if not defined CMAKE_PATH set CMAKE_PATH=E:\Qt\Tools\CMake_64\bin
+
+REM Align with CI workflow: always prefer Qt-compatible MinGW 11.2.0 toolchain.
+if exist "E:\Qt\Tools\mingw1120_64\bin\gcc.exe" set MINGW_PATH=E:\Qt\Tools\mingw1120_64
 
 REM Add MinGW and CMake to PATH
 set PATH=%MINGW_PATH%\bin;%CMAKE_PATH%;%PATH%
@@ -63,7 +79,7 @@ goto :CHECK_STATIC
 echo Checking for shared FFmpeg libraries...
 if exist "%FFMPEG_PREFIX%\lib\libavformat.dll.a" (
     echo ✓ Found import lib: %FFMPEG_PREFIX%\lib\libavformat.dll.a
-    goto :CHECK_LIBUSB
+    goto :CHECK_SHARED_COMPAT
 )
 
 rem Try to find DLLs under bin
@@ -72,7 +88,7 @@ dir /b "%FFMPEG_PREFIX%\bin\avformat-*.dll" >nul 2>nul
 if errorlevel 0 set FOUND_DLLS=1
 if "%FOUND_DLLS%"=="1" (
     echo ✓ Found FFmpeg DLL(s) under %FFMPEG_PREFIX%\bin
-    goto :CHECK_LIBUSB
+    goto :CHECK_SHARED_COMPAT
 ) else (
     echo Error: FFmpeg shared libraries not found at %FFMPEG_PREFIX%
     echo.
@@ -80,6 +96,28 @@ if "%FOUND_DLLS%"=="1" (
     echo.
     exit /b 1
 )
+
+:CHECK_SHARED_COMPAT
+rem Guard against Qt MinGW + MSYS2 shared FFmpeg runtime mismatch.
+rem If avutil needs clock_gettime64, shared mode usually requires newer
+rem libwinpthread that conflicts with Qt6Multimedia (__emutls). Fallback to static.
+set NEEDS_64TIME=0
+for %%F in ("%FFMPEG_PREFIX%\bin\avutil-*.dll") do (
+    "%MINGW_PATH%\bin\objdump.exe" -p "%%~fF" | findstr /I "clock_gettime64" >nul 2>nul
+    if not errorlevel 1 set NEEDS_64TIME=1
+)
+if "%NEEDS_64TIME%"=="1" (
+    echo.
+    echo ============================================================================
+    echo WARNING: Detected shared FFmpeg requiring clock_gettime64.
+    echo This conflicts with Qt MinGW runtime used by Qt6Multimedia (__emutls).
+    echo Auto-fallback to STATIC FFmpeg mode to avoid startup entry-point errors.
+    echo ============================================================================
+    set USE_SHARED=0
+    set FFMPEG_PREFIX=C:\ffmpeg-static
+    goto :CHECK_STATIC
+)
+goto :CHECK_LIBUSB
 
 :CHECK_STATIC
 echo Checking for static FFmpeg libraries...
@@ -92,6 +130,7 @@ if not exist "%FFMPEG_PREFIX%\lib\libavformat.a" (
     exit /b 1
 )
 echo ✓ FFmpeg static libraries found
+goto :CHECK_LIBUSB
 
 :CHECK_LIBUSB
 echo Checking for libusb installation...
@@ -171,7 +210,7 @@ if "%USE_SHARED%"=="1" (
     echo ============================================================================
     echo Copying required DLLs to %OUTPUT_DIR%...
     echo ============================================================================
-    
+
     REM Copy all FFmpeg DLLs
     echo Copying FFmpeg DLLs...
     if exist "%FFMPEG_PREFIX%\bin\avcodec-*.dll" xcopy /Y "%FFMPEG_PREFIX%\bin\avcodec-*.dll" "%OUTPUT_DIR%\" >nul 2>nul
@@ -182,59 +221,69 @@ if "%USE_SHARED%"=="1" (
     if exist "%FFMPEG_PREFIX%\bin\swscale-*.dll" xcopy /Y "%FFMPEG_PREFIX%\bin\swscale-*.dll" "%OUTPUT_DIR%\" >nul 2>nul
     if exist "%FFMPEG_PREFIX%\bin\swresample-*.dll" xcopy /Y "%FFMPEG_PREFIX%\bin\swresample-*.dll" "%OUTPUT_DIR%\" >nul 2>nul
     if exist "%FFMPEG_PREFIX%\bin\postproc-*.dll" xcopy /Y "%FFMPEG_PREFIX%\bin\postproc-*.dll" "%OUTPUT_DIR%\" >nul 2>nul
-    
+
     REM Copy libjpeg-turbo DLLs if they exist
     echo Copying libjpeg-turbo DLLs if available...
     if exist "%FFMPEG_PREFIX%\bin\libturbojpeg.dll" xcopy /Y "%FFMPEG_PREFIX%\bin\libturbojpeg.dll" "%OUTPUT_DIR%\" >nul 2>nul
     if exist "%FFMPEG_PREFIX%\bin\*jpeg*.dll" xcopy /Y "%FFMPEG_PREFIX%\bin\*jpeg*.dll" "%OUTPUT_DIR%\" >nul 2>nul
-    
+
     REM Copy libusb DLL if it exists
     echo Copying libusb DLL...
     if exist "C:\libusb\bin\libusb-1.0.dll" xcopy /Y "C:\libusb\bin\libusb-1.0.dll" "%OUTPUT_DIR%\" >nul 2>nul
     if exist "C:\libusb\lib\libusb-1.0.dll" xcopy /Y "C:\libusb\lib\libusb-1.0.dll" "%OUTPUT_DIR%\" >nul 2>nul
     if exist "%CD%\lib\libusb-1.0.dll" xcopy /Y "%CD%\lib\libusb-1.0.dll" "%OUTPUT_DIR%\" >nul 2>nul
-    
-    REM Copy MSYS2/MinGW compression and runtime dependencies
+
+    REM Copy MSYS2/MinGW compression dependencies (non-C++ runtime)
     echo Copying compression and runtime libraries...
     if exist "C:\msys64\mingw64\bin\libiconv-2.dll" xcopy /Y "C:\msys64\mingw64\bin\libiconv-2.dll" "%OUTPUT_DIR%\" >nul 2>nul
     if exist "C:\msys64\mingw64\bin\libbz2-1.dll" xcopy /Y "C:\msys64\mingw64\bin\libbz2-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
     if exist "C:\msys64\mingw64\bin\liblzma-5.dll" xcopy /Y "C:\msys64\mingw64\bin\liblzma-5.dll" "%OUTPUT_DIR%\" >nul 2>nul
     if exist "C:\msys64\mingw64\bin\zlib1.dll" xcopy /Y "C:\msys64\mingw64\bin\zlib1.dll" "%OUTPUT_DIR%\" >nul 2>nul
-    
+
     REM Copy hardware acceleration libraries (Intel QSV, etc.)
     echo Copying hardware acceleration libraries...
     if exist "C:\msys64\mingw64\bin\libmfx-1.dll" xcopy /Y "C:\msys64\mingw64\bin\libmfx-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
-    
-    REM Copy MinGW runtime DLLs - CRITICAL: Use MSYS2 MinGW64 versions for FFmpeg compatibility
-    echo Copying MinGW runtime DLLs from MSYS2 for FFmpeg compatibility...
-    if exist "C:\msys64\mingw64\bin\libwinpthread-1.dll" (
-        xcopy /Y "C:\msys64\mingw64\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
-        echo   Copied libwinpthread-1.dll from MSYS2
-    ) else (
-        if exist "%MINGW_PATH%\bin\libwinpthread-1.dll" (
-            xcopy /Y "%MINGW_PATH%\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
-            echo   Copied libwinpthread-1.dll from Qt MinGW
-        )
+
+    REM Use Qt MinGW runtime to stay ABI/TLS-compatible with deployed Qt DLLs.
+    echo Copying MinGW runtime DLLs from Qt MinGW - ABI matched to Qt DLLs...
+    if exist "%MINGW_PATH%\bin\libwinpthread-1.dll" (
+        xcopy /Y "%MINGW_PATH%\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
+        echo   Copied libwinpthread-1.dll from Qt MinGW
     )
-    
-    if exist "C:\msys64\mingw64\bin\libgcc_s_seh-1.dll" (
-        xcopy /Y "C:\msys64\mingw64\bin\libgcc_s_seh-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
-        echo   Copied libgcc_s_seh-1.dll from MSYS2
-    ) else (
-        if exist "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" (
-            xcopy /Y "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
-            echo   Copied libgcc_s_seh-1.dll from Qt MinGW
-        )
+    if exist "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" (
+        xcopy /Y "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
+        echo   Copied libgcc_s_seh-1.dll from Qt MinGW
     )
-    
-    if exist "C:\msys64\mingw64\bin\libstdc++-6.dll" (
-        xcopy /Y "C:\msys64\mingw64\bin\libstdc++-6.dll" "%OUTPUT_DIR%\" >nul 2>nul
-        echo   Copied libstdc++-6.dll from MSYS2
-    ) else (
-        if exist "%MINGW_PATH%\bin\libstdc++-6.dll" (
-            xcopy /Y "%MINGW_PATH%\bin\libstdc++-6.dll" "%OUTPUT_DIR%\" >nul 2>nul
-            echo   Copied libstdc++-6.dll from Qt MinGW
+    if exist "%MINGW_PATH%\bin\libstdc++-6.dll" (
+        xcopy /Y "%MINGW_PATH%\bin\libstdc++-6.dll" "%OUTPUT_DIR%\" >nul 2>nul
+        echo   Copied libstdc++-6.dll from Qt MinGW
+    )
+
+    REM ============================================================
+    REM Deploy Qt DLLs, platform plugins, and multimedia plugins
+    REM This is the same step the CI workflow performs via windeployqt.
+    REM Without it, Windows falls back to loading Qt DLLs from the
+    REM Qt installation dir via PATH, which may not have the matching
+    REM runtime DLLs in the same folder.
+    REM ============================================================
+    echo.
+    echo ============================================================================
+    echo Running windeployqt to deploy Qt DLLs and plugins...
+    echo ============================================================================
+    if exist "%QT_DIR%\bin\windeployqt.exe" (
+        echo   Using windeployqt from %QT_DIR%\bin
+        "%QT_DIR%\bin\windeployqt.exe" "%OUTPUT_DIR%\openterfaceQT.exe" --multimedia --network
+        if errorlevel 1 (
+            echo   WARNING: windeployqt returned error code %errorlevel%
+        ) else (
+            echo   windeployqt completed successfully
         )
+    ) else (
+        echo   WARNING: windeployqt.exe not found at %QT_DIR%\bin\windeployqt.exe
+        echo   Qt DLLs will NOT be deployed. Application may fail to start if
+        echo   Qt DLLs are not available via PATH or system directories.
+        echo   Consider running windeployqt manually:
+        echo     windeployqt %OUTPUT_DIR%\openterfaceQT.exe --multimedia --network
     )
     
     echo.
@@ -311,6 +360,32 @@ if "%USE_SHARED%"=="1" (
     echo.
 )
 
+rem Static mode deployment/cleanup: ensure no stale shared FFmpeg or mismatched runtime DLLs.
+if "%USE_SHARED%"=="0" (
+    echo.
+    echo ============================================================================
+    echo Static mode: cleaning stale shared FFmpeg DLLs and deploying Qt runtime...
+    echo ============================================================================
+
+    del /Q "%OUTPUT_DIR%\av*.dll" >nul 2>nul
+    del /Q "%OUTPUT_DIR%\sw*.dll" >nul 2>nul
+    del /Q "%OUTPUT_DIR%\postproc*.dll" >nul 2>nul
+
+    if exist "%QT_DIR%\bin\windeployqt.exe" (
+        "%QT_DIR%\bin\windeployqt.exe" "%OUTPUT_DIR%\openterfaceQT.exe" --multimedia --network
+        if errorlevel 1 (
+            echo WARNING: windeployqt returned error code %errorlevel% in static mode
+        )
+    )
+
+    del /Q "%OUTPUT_DIR%\libwinpthread-1.dll" >nul 2>nul
+    del /Q "%OUTPUT_DIR%\libgcc_s_seh-1.dll" >nul 2>nul
+    del /Q "%OUTPUT_DIR%\libstdc++-6.dll" >nul 2>nul
+    if exist "%MINGW_PATH%\bin\libwinpthread-1.dll" xcopy /Y "%MINGW_PATH%\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
+    if exist "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" xcopy /Y "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
+    if exist "%MINGW_PATH%\bin\libstdc++-6.dll" xcopy /Y "%MINGW_PATH%\bin\libstdc++-6.dll" "%OUTPUT_DIR%\" >nul 2>nul
+)
+
 echo.
 echo ============================================================================
 echo Build completed successfully!
@@ -318,30 +393,5 @@ echo ===========================================================================
 echo.
 echo Executable location: %OUTPUT_DIR%\openterfaceQT.exe
 echo.
-
-if "%USE_SHARED%"=="1" (
-    echo NOTE: When using shared FFmpeg, ensure all DLL dependencies are available.
-    echo Required DLLs should be in the same directory as the executable or in PATH.
-    echo.
-    echo IMPORTANT - Runtime Compatibility:
-    echo ===============================================================================
-    echo FFmpeg DLLs were built with MSYS2 MinGW64 and require matching runtime libraries.
-    echo.
-    echo If you encounter errors like:
-    echo   - "Unable to locate procedure entry point clock_gettime64"
-    echo   - "The application failed to start (0xc000007b)"
-    echo   - Heap corruption errors
-    echo.
-    echo Solutions:
-    echo   1. Ensure MSYS2 MinGW64 runtime DLLs are used (already copied by this script)
-    echo   2. Run the application from this directory: %OUTPUT_DIR%
-    echo   3. Do NOT add other MinGW bin directories to PATH that might conflict
-    echo   4. If Qt platform plugins fail, ensure qwindows.dll is compatible
-    echo.
-    echo Runtime DLLs source priority (by this script):
-    echo   1st: MSYS2 MinGW64 (C:\msys64\mingw64\bin) - RECOMMENDED for FFmpeg
-    echo   2nd: Qt MinGW (%MINGW_PATH%\bin) - fallback only
-    echo.
-)
 
 exit /b 0

@@ -46,6 +46,7 @@ QT_BEGIN_NAMESPACE
 class QCameraFormat;
 class QComboBox;
 class QCamera;
+class QSplitter;
 namespace Ui {
 class SettingDialog;
 }
@@ -79,6 +80,7 @@ private:
     TargetControlPage *targetControlPage;
 
     QWidget *buttonWidget;
+    QSplitter *splitter;
     int m_currentPageIndex;
     bool m_changingPage;
     QTimer *m_pageChangeTimer;

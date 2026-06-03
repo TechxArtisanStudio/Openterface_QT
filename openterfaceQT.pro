@@ -130,7 +130,9 @@ SOURCES += main.cpp \
     ui/preferences/videopage.cpp \
     ui/preferences/audiopage.cpp \
     ui/preferences/targetcontrolpage.cpp \
-    ui/floatingwindow/floatingwindow.cpp
+    ui/floatingwindow/floatingwindow.cpp \
+    ui/customkey/customkeymanager.cpp \
+    ui/customkey/customkeydialog.cpp
 
 # Platform-specific backend handlers (exclude on Windows)
 !win32 {
@@ -281,7 +283,9 @@ HEADERS  += \
     ui/preferences/targetcontrolpage.h \
     ui/preferences/videopage.h \
     ui/preferences/audiopage.h \
-    ui/floatingwindow/floatingwindow.h
+    ui/floatingwindow/floatingwindow.h \
+    ui/customkey/customkeymanager.h \
+    ui/customkey/customkeydialog.h
 
 FORMS    += \
     ui/mainwindow.ui \
@@ -291,7 +295,8 @@ FORMS    += \
 RESOURCES += \
     ui/mainwindow.qrc \
     config/keyboards/keyboard_layouts.qrc \
-    config/languages/language.qrc
+    config/languages/language.qrc \
+    config/customkeys/customkeys.qrc
 
 
 # Link against the HID library

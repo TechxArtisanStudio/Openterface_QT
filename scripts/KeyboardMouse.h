@@ -39,6 +39,8 @@
 #include <QString>
 #include <QDebug>
 #include <QObject>
+#include <QMutex>
+#include <QMutexLocker>
 #include "serial/SerialPortManager.h"
 #include "AST.h"
 
@@ -137,11 +139,12 @@ public:
     int getMouseSpeed();
     
     // Testing/debugging helpers
-    int getKeyDataSize() const { return keyData.size(); }
+    int getKeyDataSize() const { QMutexLocker locker(&queueMutex); return keyData.size(); }
 
 
 private:
     std::queue<keyPacket> keyData;
+    mutable QMutex queueMutex;  // Protects keyData queue from concurrent access
     int mouseSpeed;
     int clickInterval = 50;
     int keyInterval = 40;
@@ -315,11 +318,15 @@ const QMap<QString, uint8_t> keydata = {
     {"Less", 0x36}, // key ,
     {"Greater", 0x37}, // key .
     {"Question", 0x38}, // key /
-    {"Win", 0xE3}, // win
-    {"^", 0xE0}, // Ctrl
-    {"+", 0xE5}, // Shift
-    {"!", 0xE2}, // Alt
-    {"#", 0xE3}  // Win
+    {"Win", 0xE3} // win
+    // REMOVED: Conflicting definitions that would never be used correctly
+    // {"^", 0xE0}, // This was WRONG: 0xE0 is Left Ctrl key, not ^ character
+    // {"+", 0xE5}, // This was WRONG: 0xE5 is Right Shift key, not + character
+    // {"!", 0xE2}, // This was WRONG: 0xE2 is Left Alt key, not ! character
+    // {"#", 0xE3}  // This was WRONG: Same as Win key above
+    // These symbols should ONLY be used as modifier prefixes in controldata,
+    // or as backtick escapes via backtickEscapeMap. To send literal symbols,
+    // use backtick escape: Send "`^" for ^, Send "`!" for !, etc.
 };
 
 

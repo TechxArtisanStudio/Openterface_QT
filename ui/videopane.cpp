@@ -631,14 +631,14 @@ void VideoPane::updateVideoItemTransform()
 
     QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
 
-    if (m_directFFmpegMode) {
-        qCDebug(log_ui_video) << "DEBUG transform: itemRect=" << itemRect
-                             << "viewRect=" << viewRect
-                             << "currentPos=" << targetItem->pos()
-                             << "currentTransform=" << targetItem->transform()
-                             << "scaleFactor=" << m_scaleFactor
-                             << "frameIsViewportSized=" << m_frameIsViewportSized;
-    }
+    // if (m_directFFmpegMode) {
+    //     qCDebug(log_ui_video) << "DEBUG transform: itemRect=" << itemRect
+    //                          << "viewRect=" << viewRect
+    //                          << "currentPos=" << targetItem->pos()
+    //                          << "currentTransform=" << targetItem->transform()
+    //                          << "scaleFactor=" << m_scaleFactor
+    //                          << "frameIsViewportSized=" << m_frameIsViewportSized;
+    // }
 
     // Compute scale to fit video within viewport while maintaining aspect ratio
     double scaleX = viewRect.width() / normalizedRect.width();
@@ -672,13 +672,13 @@ void VideoPane::updateVideoItemTransform()
         targetItem->setTransform(transform);
         targetItem->setPos(0, 0);
 
-        if (m_directFFmpegMode) {
-            qCDebug(log_ui_video) << "DEBUG FFmpeg centering: scale=" << scale
-                                 << "scaledSize=" << QSizeF(scaledWidth, scaledHeight)
-                                 << "itemPos=" << QPointF(x, y)
-                                 << "sceneRect=" << m_scene->sceneRect()
-                                 << "viewport=" << viewRect;
-        }
+        // if (m_directFFmpegMode) {
+        //     qCDebug(log_ui_video) << "DEBUG FFmpeg centering: scale=" << scale
+        //                          << "scaledSize=" << QSizeF(scaledWidth, scaledHeight)
+        //                          << "itemPos=" << QPointF(x, y)
+        //                          << "sceneRect=" << m_scene->sceneRect()
+        //                          << "viewport=" << viewRect;
+        // }
     } else if (m_maintainAspectRatio) {
         QTransform transform;
         transform.scale(scale, scale);
@@ -795,10 +795,10 @@ void VideoPane::updateScrollBarsAndSceneRect()
             }
             m_scene->setSceneRect(sceneRect);
 
-            qCDebug(log_ui_video) << "Scene rect (fit):" << sceneRect
-                                 << "viewport:" << viewport()->rect()
-                                 << "contentRect:" << contentRect
-                                 << "alignment:" << alignment();
+            // qCDebug(log_ui_video) << "Scene rect (fit):" << sceneRect
+            //                      << "viewport:" << viewport()->rect()
+            //                      << "contentRect:" << contentRect
+            //                      << "alignment:" << alignment();
         }
     }
 }
@@ -1417,9 +1417,9 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
     m_frameIsViewportSized = (qAbs(qRound(logicalFrameSizeF.width()) - viewportLogical.width()) <= tolerance &&
                               qAbs(qRound(logicalFrameSizeF.height()) - viewportLogical.height()) <= tolerance);
 
-    qCDebug(log_ui_video) << "updateVideoFrame: frame=" << logicalFrameSize
-                         << "viewport=" << viewportLogical
-                         << "isViewportSized=" << m_frameIsViewportSized;
+    // qCDebug(log_ui_video) << "updateVideoFrame: frame=" << logicalFrameSize
+    //                      << "viewport=" << viewportLogical
+    //                      << "isViewportSized=" << m_frameIsViewportSized;
 
     // FAST PATH: 1:1 mapping of logical pixels (no runtime resampling)
     if (m_frameIsViewportSized) {

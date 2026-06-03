@@ -157,6 +157,10 @@ public:
     void setVideoSmoothTransform(bool enabled);
     bool getVideoSmoothTransform() const;
 
+    // Custom key import path persistence
+    void setLastCustomKeyImportPath(const QString& path);
+    QString getLastCustomKeyImportPath() const;
+
     // Floating window
     void setFloatingWindowEnabled(bool enabled);
     bool getFloatingWindowEnabled() const;
