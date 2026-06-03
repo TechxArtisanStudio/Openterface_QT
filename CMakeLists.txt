@@ -299,6 +299,11 @@ endif()
 # Add GStreamer libraries if available (Linux only)
 if(NOT WIN32)
     link_gstreamer_libraries()
+
+    # dlopen wrapper for static builds - requires --wrap=dlopen on the linker
+    if(OPENTERFACE_BUILD_STATIC)
+        target_link_options(openterfaceQT PRIVATE -Wl,--wrap=dlopen)
+    endif()
 endif()
 
 # Add DBus on Unix systems (excluding macOS)

@@ -509,7 +509,6 @@ function(link_gstreamer_libraries)
                     -static-libgcc
                     -static-libstdc++
                     -Wl,--no-undefined-version
-                    -Wl,--wrap=dlopen
                 )
             endif()
             

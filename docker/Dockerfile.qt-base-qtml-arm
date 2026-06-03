@@ -1,0 +1,105 @@
+# Build Qt base components (qtbase + qtshadertools + qtwayland) for ARM64
+ARG BASE_IMAGE=docker.io/library/openterface-qtbuild-ffmpeg:arm64
+ARG UBUNTU_VERSION=22.04
+ARG TARGETARCH=arm64
+FROM ${BASE_IMAGE}
+
+ARG BUILD_DIR=/workspace/qt-build
+ARG INSTALL_PREFIX=/opt/Qt6
+ARG BUILD_SHARED_LIBS=ON
+
+ARG http_proxy
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+
+WORKDIR ${BUILD_DIR}
+
+ENV MODULES="qtbase qtshadertools qtwayland"
+ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
+ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
+
+# Download and extract Qt base modules
+RUN echo "Downloading Qt base modules..." && \
+    for module in ${MODULES}; do \
+        echo "Downloading $module..."; \
+        curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip"; \
+        if [ ! -s "$module.zip" ]; then echo "Failed to download $module"; exit 1; fi; \
+        unzip -q "$module.zip"; \
+        mv "$module-everywhere-src-${QT_VERSION}" "$module"; \
+        rm -f "$module.zip"; \
+    done
+
+# Build qtbase
+RUN echo "Building qtbase for ARM64..." && \
+    cd ${BUILD_DIR}/qtbase && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        -DFEATURE_dbus=ON \
+        -DFEATURE_sql=OFF \
+        -DFEATURE_testlib=OFF \
+        -DFEATURE_icu=OFF \
+        -DFEATURE_opengl=ON \
+        -DTEST_xcb_syslibs=ON \
+        -DFEATURE_xlib=ON \
+        -DFEATURE_xcb_xlib=ON \
+        -DFEATURE_xkbcommon=ON \
+        -DFEATURE_xkbcommon_x11=ON \
+        -DFEATURE_xcb=ON \
+        -DFEATURE_openssl=ON \
+        -DFEATURE_openssl_linked=ON \
+        .. && \
+    ninja -j$(nproc) && \
+    ninja install
+
+# Build qtshadertools
+RUN echo "Building qtshadertools..." && \
+    cd ${BUILD_DIR}/qtshadertools && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        .. && \
+    ninja -j$(nproc) && \
+    ninja install
+
+# Build qtwayland (client-only)
+RUN echo "Building qtwayland (client)..." && \
+    cd ${BUILD_DIR}/qtwayland && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        -DQT_FEATURE_wayland_server=OFF \
+        -DQT_FEATURE_wayland_client=ON \
+        .. && \
+    ninja -j$(nproc) && \
+    ninja install
+
+# Cleanup source files
+RUN cd ${BUILD_DIR} && \
+    for module in ${MODULES}; do \
+        rm -rf "$module"; \
+    done
+
+ENV PATH="${INSTALL_PREFIX}/bin:${PATH}"
+ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
+ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
+ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
+ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:${PKG_CONFIG_PATH}"
+
+WORKDIR /workspace

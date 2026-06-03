@@ -1,0 +1,109 @@
+# Build libusb and FFmpeg for ARM64 (Raspberry Pi / aarch64)
+# Target: ARM SBCs with V4L2-M2M hardware video decoding
+# Slimmed: removed Intel VAAPI, NVIDIA, x264/x265 encoder deps not used by Openterface
+ARG BASE_IMAGE=docker.io/library/openterface-qtbuild-setup:arm64-slim
+ARG UBUNTU_VERSION=22.04
+ARG TARGETARCH=arm64
+
+FROM ${BASE_IMAGE}
+
+# Define build paths and versions
+ARG BUILD_DIR=/workspace/qt-build
+ARG FFMPEG_PREFIX=/opt/ffmpeg
+ARG FFMPEG_VERSION=6.1.1
+ARG LIBUSB_VERSION=1.0.27
+
+# Proxy settings (optional)
+ARG http_proxy
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+
+WORKDIR ${BUILD_DIR}
+
+# Install only the deps Openterface actually needs on ARM:
+#   libpulse-dev  - PulseAudio (Qt Multimedia backend)
+#   libv4l-dev    - V4L2 capture (KVM HDMI input)
+#   libx11-dev    - X11 (Qt XCB platform plugin)
+#   libgl1-mesa-dev - OpenGL (Qt OpenGL widgets)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    pkg-config \
+    yasm \
+    nasm \
+    git \
+    cmake \
+    libpulse-dev \
+    libv4l-dev \
+    libx11-dev \
+    libgl1-mesa-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Step 1: Build libusb (USB HID/serial for KVM device control)
+RUN echo "Building libusb ${LIBUSB_VERSION} from source..." && \
+    curl -L -o libusb.tar.bz2 "https://github.com/libusb/libusb/releases/download/v${LIBUSB_VERSION}/libusb-${LIBUSB_VERSION}.tar.bz2" && \
+    tar xf libusb.tar.bz2 && \
+    mv "libusb-${LIBUSB_VERSION}" libusb && \
+    rm libusb.tar.bz2 && \
+    cd libusb && \
+    ./configure --prefix="${FFMPEG_PREFIX}" --enable-static --enable-shared --disable-udev && \
+    make -j$(nproc) && \
+    make install && \
+    cd ${BUILD_DIR} && \
+    rm -rf libusb
+
+# Step 2: Build libjpeg-turbo (Qt image format plugins)
+RUN echo "Building libjpeg-turbo from source..." && \
+    curl -L -o libjpeg-turbo.tar.gz "https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/3.0.4.tar.gz" && \
+    tar xzf libjpeg-turbo.tar.gz && \
+    rm libjpeg-turbo.tar.gz && \
+    cd libjpeg-turbo-3.0.4 && \
+    mkdir build && \
+    cd build && \
+    cmake .. \
+        -DCMAKE_INSTALL_PREFIX="${FFMPEG_PREFIX}" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DENABLE_STATIC=ON \
+        -DENABLE_SHARED=ON \
+        -DWITH_JPEG8=ON \
+        -DWITH_TURBOJPEG=ON \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON && \
+    make -j$(nproc) && \
+    make install && \
+    cd ${BUILD_DIR} && \
+    rm -rf libjpeg-turbo-3.0.4
+
+# Step 3: Build FFmpeg for ARM64
+#   - V4L2-M2M: Pi hardware video decode (H.264/HEVC)
+#   - No Intel VAAPI/QSV, no NVIDIA NVENC, no VDPAU (not available on Pi)
+#   - No libx264/libx265 (app only decodes, doesn't re-encode)
+RUN echo "Building FFmpeg ${FFMPEG_VERSION} for ARM64..." && \
+    curl -L -o ffmpeg.tar.bz2 "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2" && \
+    tar xjf ffmpeg.tar.bz2 && \
+    rm ffmpeg.tar.bz2 && \
+    cd "ffmpeg-${FFMPEG_VERSION}" && \
+    PKG_CONFIG_PATH="${FFMPEG_PREFIX}/lib/pkgconfig" ./configure \
+        --prefix="${FFMPEG_PREFIX}" \
+        --enable-static \
+        --enable-shared \
+        --enable-pic \
+        --enable-gpl \
+        --enable-version3 \
+        --disable-doc \
+        --enable-libpulse \
+        --enable-v4l2-m2m \
+        --extra-cflags="-I${FFMPEG_PREFIX}/include" \
+        --extra-ldflags="-L${FFMPEG_PREFIX}/lib" && \
+    make -j$(nproc) && \
+    make install && \
+    cd ${BUILD_DIR} && \
+    rm -rf "ffmpeg-${FFMPEG_VERSION}"
+
+# Verify installation
+RUN echo "Verifying FFmpeg..." && \
+    ls -la "${FFMPEG_PREFIX}/lib/libavcodec.a" && \
+    LD_LIBRARY_PATH="${FFMPEG_PREFIX}/lib" "${FFMPEG_PREFIX}/bin/ffmpeg" -version && \
+    echo "=== V4L2-M2M decoders ===" && \
+    LD_LIBRARY_PATH="${FFMPEG_PREFIX}/lib" "${FFMPEG_PREFIX}/bin/ffmpeg" -hide_banner -decoders 2>/dev/null | grep v4l2m2m
+
+WORKDIR /workspace

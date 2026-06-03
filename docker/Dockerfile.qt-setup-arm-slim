@@ -1,0 +1,111 @@
+# Slim Qt build environment for ARM64 (Raspberry Pi / aarch64)
+# Only the packages actually needed to build OpenterfaceQT on Pi
+ARG UBUNTU_VERSION=22.04
+ARG TARGETARCH=arm64
+FROM ubuntu:${UBUNTU_VERSION}
+
+ARG TARGETARCH=arm64
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TARGETARCH=${TARGETARCH}
+
+ARG http_proxy
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+
+# All deps in one layer for minimal image size:
+#   build tools: gcc/g++, cmake, ninja, pkg-config, meson, git
+#   X11/XCB: needed by Qt XCB platform plugin
+#   Wayland: needed by Qt Wayland platform plugin
+#   OpenGL: needed by Qt OpenGL widgets
+#   Qt prereqs: dbus, fontconfig, freetype, openssl, libssl
+#   Multimedia: libpulse, libv4l (camera capture)
+# Removed from original: clang/llvm (using GCC), VAAPI/VDPAU (Intel/NVIDIA),
+#   libvorbis/libtheora (legacy codecs), desktop-file-utils, patchelf, file
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential gcc g++ \
+        cmake ninja-build pkg-config \
+        autoconf automake libtool meson \
+        bison flex python3-pip \
+        git curl wget unzip \
+        ca-certificates \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libssl-dev zlib1g-dev \
+        libdbus-1-dev \
+        libfontconfig1-dev libfreetype6-dev \
+        libx11-dev libx11-xcb-dev libxext-dev \
+        libxfixes-dev libxi-dev libxrandr-dev libxrender-dev \
+        libxcb1-dev libxcb-render0-dev libxcb-shm0-dev \
+        libxcb-randr0-dev libxcb-shape0-dev libxcb-sync-dev \
+        libxcb-xfixes0-dev libxcb-xkb-dev \
+        libxcb-cursor-dev libxcb-icccm4-dev libxcb-image0-dev \
+        libxcb-keysyms1-dev libxcb-render-util0-dev libxcb-util-dev \
+        libwayland-dev wayland-protocols \
+        libxkbcommon-dev libxkbcommon-x11-dev \
+        libgl1-mesa-dev libegl1-mesa-dev libdrm-dev libgbm-dev \
+        libpulse-dev \
+        libv4l-dev \
+        libudev-dev \
+        # GStreamer runtime + dev headers (Qt Multimedia uses GStreamer backend)
+        libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+        gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+        # GUdev for GStreamer device detection
+        libgudev-1.0-dev \
+        # ORC for GStreamer optimizations
+        liborc-0.4-dev \
+        # Xv extension (required by GStreamer X11 video sinks)
+        libxv-dev \
+        # bzip2 dev (required by FFmpeg static linking)
+        libbz2-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Pre-install linuxdeploy, linuxdeploy-plugin-qt, appimagetool and AppImage runtimes
+RUN set -eux; \
+        case "${TARGETARCH}" in \
+            amd64) APPIMAGE_ARCH=x86_64 ;; \
+            arm64) APPIMAGE_ARCH=aarch64 ;; \
+            arm) APPIMAGE_ARCH=armhf ;; \
+            *) APPIMAGE_ARCH=x86_64 ;; \
+        esac; \
+        LDEPLOY_URL="https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${APPIMAGE_ARCH}.AppImage"; \
+        LDEPLOY_QT_URL="https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${APPIMAGE_ARCH}.AppImage"; \
+        APPIMAGETOOL_URL="https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${APPIMAGE_ARCH}.AppImage"; \
+        RUNTIME_URL="https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${APPIMAGE_ARCH}"; \
+        echo "Fetching linuxdeploy from ${LDEPLOY_URL}"; \
+        curl -fL "${LDEPLOY_URL}" -o /usr/local/bin/linuxdeploy; \
+        echo "Fetching linuxdeploy-plugin-qt from ${LDEPLOY_QT_URL}"; \
+        curl -fL "${LDEPLOY_QT_URL}" -o /usr/local/bin/linuxdeploy-plugin-qt; \
+        echo "Fetching appimagetool from ${APPIMAGETOOL_URL}"; \
+        curl -fL "${APPIMAGETOOL_URL}" -o /usr/local/bin/appimagetool; \
+        echo "Fetching AppImage runtime from ${RUNTIME_URL}"; \
+        mkdir -p /opt/appimage-runtime; \
+        if curl -fL "${RUNTIME_URL}" -o "/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"; then \
+            chmod +x "/opt/appimage-runtime/runtime-${APPIMAGE_ARCH}"; \
+            echo "AppImage runtime downloaded successfully"; \
+        else \
+            echo "Error: Failed to download AppImage runtime from ${RUNTIME_URL}" >&2; \
+            exit 1; \
+        fi; \
+        chmod +x /usr/local/bin/linuxdeploy /usr/local/bin/linuxdeploy-plugin-qt /usr/local/bin/appimagetool
+
+# Ensure AppImages can run in containers without FUSE
+ENV APPIMAGE_EXTRACT_AND_RUN=1
+
+# Build environment variables
+ENV INSTALL_PREFIX=/opt/Qt6
+ENV BUILD_DIR=/workspace/qt-build
+ENV WORK_DIR=/workspace/qt-${TARGETARCH}-build
+ENV QT_VERSION=6.6.3
+ENV QT_MAJOR_VERSION=6.6
+ENV LIBUSB_VERSION=1.0.27
+ENV FFMPEG_PREFIX=/opt/ffmpeg
+ENV FFMPEG_VERSION=6.1.1
+ENV GSTREAMER_PREFIX=/opt/gstreamer
+ENV GSTREAMER_VERSION=1.26.6
+
+RUN mkdir -p ${BUILD_DIR} ${WORK_DIR}
+
+WORKDIR /workspace

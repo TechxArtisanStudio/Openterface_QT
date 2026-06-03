@@ -1,0 +1,135 @@
+# Build remaining Qt modules for ARM64 (qtmultimedia, qtsvg, qtserialport, qttools)
+# This is the final step - produces the complete build environment
+ARG BASE_IMAGE=docker.io/library/openterface-qtbuild-qt-declarative:arm64
+ARG UBUNTU_VERSION=22.04
+ARG TARGETARCH=arm64
+FROM ${BASE_IMAGE}
+
+ARG BUILD_SHARED_LIBS=ON
+
+ARG http_proxy
+ARG https_proxy
+ENV http_proxy=$http_proxy \
+    https_proxy=$https_proxy
+
+WORKDIR ${BUILD_DIR}
+
+ENV MODULES="qtmultimedia qtsvg qtserialport qttools"
+ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
+ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
+
+# Download Qt modules
+RUN for module in ${MODULES}; do \
+        echo "Downloading $module..."; \
+        curl -L -o "$module.zip" "${DOWNLOAD_BASE_URL}/$module-everywhere-src-${QT_VERSION}.zip" && \
+        unzip -q "$module.zip" && \
+        mv "$module-everywhere-src-${QT_VERSION}" "$module" && \
+        rm "$module.zip"; \
+    done
+
+# Build qtmultimedia
+RUN echo "Building qtmultimedia..." && \
+    cd ${BUILD_DIR}/qtmultimedia && \
+    mkdir -p build && \
+    cd build && \
+    PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:${FFMPEG_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX};${FFMPEG_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        -DFEATURE_gstreamer=OFF \
+        -DFEATURE_pulseaudio=ON \
+        -DFEATURE_ffmpeg=ON \
+        -DFEATURE_avfoundation=OFF \
+        -DFEATURE_opengl=ON \
+        .. && \
+    ninja -j$(nproc) && \
+    ninja install
+
+# Build qtsvg
+RUN echo "Building qtsvg..." && \
+    cd ${BUILD_DIR}/qtsvg && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        .. && \
+    ninja -j$(nproc) && \
+    ninja install
+
+# Build qtserialport
+RUN echo "Building qtserialport..." && \
+    cd ${BUILD_DIR}/qtserialport && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        .. && \
+    ninja -j$(nproc) && \
+    ninja install
+
+# Build qttools
+RUN echo "Building qttools..." && \
+    cd ${BUILD_DIR}/qttools && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        -DFEATURE_linguist=ON \
+        -DFEATURE_lupdate=ON \
+        -DFEATURE_lrelease=ON \
+        -DFEATURE_designer=OFF \
+        -DFEATURE_assistant=OFF \
+        .. && \
+    ninja -j$(nproc) && \
+    ninja install
+
+# Qt6 pkg-config files for GStreamer detection
+RUN mkdir -p ${INSTALL_PREFIX}/lib/pkgconfig && \
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Core\nDescription: Qt6 Core Library\nVersion: 6.6.3\nLibs: -L\${libdir} -lQt6Core\nCflags: -I\${includedir} -I\${includedir}/QtCore\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Core.pc && \
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Gui\nDescription: Qt6 GUI Library\nVersion: 6.6.3\nRequires: Qt6Core\nLibs: -L\${libdir} -lQt6Gui\nCflags: -I\${includedir} -I\${includedir}/QtGui\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Gui.pc && \
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Widgets\nDescription: Qt6 Widgets Library\nVersion: 6.6.3\nRequires: Qt6Core Qt6Gui\nLibs: -L\${libdir} -lQt6Widgets\nCflags: -I\${includedir} -I\${includedir}/QtWidgets\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Widgets.pc && \
+    printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Multimedia\nDescription: Qt6 Multimedia Library\nVersion: 6.6.3\nRequires: Qt6Core Qt6Gui Qt6MultimediaWidgets\nLibs: -L\${libdir} -lQt6Multimedia\nCflags: -I\${includedir} -I\${includedir}/QtMultimedia\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Multimedia.pc
+
+# Tool aliases
+RUN set -eu; \
+    mkdir -p /usr/local/bin; \
+    if [ -x "${INSTALL_PREFIX}/bin/qmake6" ]; then ln -sf "${INSTALL_PREFIX}/bin/qmake6" /usr/local/bin/qmake6; \
+    elif [ -x "${INSTALL_PREFIX}/bin/qmake" ]; then ln -sf "${INSTALL_PREFIX}/bin/qmake" /usr/local/bin/qmake6; fi; \
+    if [ -x "${INSTALL_PREFIX}/bin/qtpaths6" ]; then ln -sf "${INSTALL_PREFIX}/bin/qtpaths6" /usr/local/bin/qtpaths6; \
+    elif [ -x "${INSTALL_PREFIX}/bin/qtpaths" ]; then ln -sf "${INSTALL_PREFIX}/bin/qtpaths" /usr/local/bin/qtpaths6; fi; \
+    if [ -x "${INSTALL_PREFIX}/libexec/moc" ]; then ln -sf "${INSTALL_PREFIX}/libexec/moc" /usr/local/bin/moc-qt6; fi; \
+    if [ -x "${INSTALL_PREFIX}/libexec/uic" ]; then ln -sf "${INSTALL_PREFIX}/libexec/uic" /usr/local/bin/uic-qt6; fi; \
+    if [ -x "${INSTALL_PREFIX}/libexec/rcc" ]; then ln -sf "${INSTALL_PREFIX}/libexec/rcc" /usr/local/bin/rcc-qt6; fi
+
+# Cleanup source
+RUN cd ${BUILD_DIR} && \
+    for module in ${MODULES}; do \
+        rm -rf "$module"; \
+    done
+
+ENV PATH="${INSTALL_PREFIX}/bin:${INSTALL_PREFIX}/libexec:${PATH}"
+ENV QT_PLUGIN_PATH="${INSTALL_PREFIX}/plugins"
+ENV QML2_IMPORT_PATH="${INSTALL_PREFIX}/qml"
+ENV LD_LIBRARY_PATH="${INSTALL_PREFIX}/lib"
+ENV PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH}"
+ENV CMAKE_PREFIX_PATH="${INSTALL_PREFIX}"
+
+WORKDIR /workspace
