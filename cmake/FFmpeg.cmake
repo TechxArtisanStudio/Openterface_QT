@@ -509,6 +509,7 @@ if(NOT WIN32)
     # Linux libraries
     list(APPEND HWACCEL_LIBRARIES
         X11
+        Xv
         atomic
         pthread
         m
