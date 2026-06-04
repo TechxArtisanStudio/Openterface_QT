@@ -18,7 +18,15 @@ if ! command -v rpmbuild >/dev/null 2>&1; then
 fi
 
 SRC=/workspace/src
-BUILD=/workspace/build
+# Try multiple possible build output locations (host vs container mounts)
+if [ -f "/workspace/build/openterfaceQT" ]; then
+	BUILD=/workspace/build
+elif [ -f "${SRC}/build/openterfaceQT" ]; then
+	BUILD=${SRC}/build
+else
+	echo "Error: openterfaceQT binary not found in any expected location" >&2
+	exit 1
+fi
 RPMTOP=/workspace/rpmbuild-shared
 
 mkdir -p "${RPMTOP}/SPECS" "${RPMTOP}/SOURCES" "${RPMTOP}/BUILD" "${RPMTOP}/RPMS" "${RPMTOP}/SRPMS"
