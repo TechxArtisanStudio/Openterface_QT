@@ -32,7 +32,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN echo "deb http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse" > /etc/apt/sources.list && \
+    echo "deb http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse" >> /etc/apt/sources.list && \
+    apt-get update && apt-get install -y --no-install-recommends \
         libssl-dev zlib1g-dev \
         libdbus-1-dev \
         libfontconfig1-dev libfreetype6-dev \
@@ -60,6 +63,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxv-dev \
         # bzip2 dev (required by FFmpeg static linking)
         libbz2-dev \
+        # RPM build tools (required by docker-build-rpm.sh)
+        rpm \
+        # Flatpak build tools (required by docker-build-flatpak.sh)
+        flatpak-builder \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Pre-install linuxdeploy, linuxdeploy-plugin-qt, appimagetool and AppImage runtimes

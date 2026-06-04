@@ -7,7 +7,11 @@ set -e
 # =========================
 echo "Preparing RPM package..."
 
-apt install -y rpm
+# Install rpm only if not already present (e.g., pre-installed in arm64-rpm image)
+if ! command -v rpmbuild >/dev/null 2>&1; then
+	echo "Installing rpm package..."
+	apt install -y rpm
+fi
 if ! command -v rpmbuild >/dev/null 2>&1; then
 	echo "Error: rpmbuild not found in the container. Please ensure 'rpm' is installed in the image." >&2
 	exit 1
