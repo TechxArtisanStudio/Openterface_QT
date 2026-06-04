@@ -8,9 +8,17 @@ set -e
 echo "Preparing Debian package..."
 
 PKG_ROOT=/workspace/pkgroot
-PKG_OUT=/workspace/build
 SRC=/workspace/src
-BUILD=/workspace/build
+# Try multiple possible build output locations (host vs container mounts)
+if [ -f "/workspace/build/openterfaceQT" ]; then
+	BUILD=/workspace/build
+elif [ -f "${SRC}/build/openterfaceQT" ]; then
+	BUILD=${SRC}/build
+else
+	echo "Error: openterfaceQT binary not found in any expected location" >&2
+	exit 1
+fi
+PKG_OUT=${BUILD}
 
 rm -rf "${PKG_ROOT}"
 mkdir -p "${PKG_ROOT}/DEBIAN"
