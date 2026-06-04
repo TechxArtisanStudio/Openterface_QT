@@ -65,6 +65,8 @@ RUN echo "deb http://ports.ubuntu.com/ubuntu-ports jammy main restricted univers
         libbz2-dev \
         # RPM build tools (required by docker-build-rpm.sh)
         rpm \
+        # Patchelf (required by docker-build-rpm.sh to set RPATH)
+        patchelf \
         # Flatpak build tools (required by docker-build-flatpak.sh)
         flatpak-builder \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
