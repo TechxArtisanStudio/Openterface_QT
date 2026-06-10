@@ -87,12 +87,19 @@ std::unique_ptr<ASTNode> Parser::parseCommandStatement() {
     advance(); // Move past the COMMAND token
 
     std::vector<std::string> options;
+    bool insideQuotes = false;  // Track whether we are inside quoted string
     while (currentToken().type != AHKTokenType::NEWLINE &&
            currentToken().type != AHKTokenType::ENDOFFILE) {
-        // Skip whitespace tokens - they are delimiters, not content
-        if (currentToken().type != AHKTokenType::WHITESPACE) {
-            options.push_back(currentToken().value);
+        // Toggle insideQuotes flag when encountering a double quote
+        if (currentToken().type == AHKTokenType::SYMBOL && currentToken().value == "\"") {
+            insideQuotes = !insideQuotes;
         }
+        // Skip whitespace ONLY when outside quotes
+        if (currentToken().type == AHKTokenType::WHITESPACE && !insideQuotes) {
+            advance();
+            continue;
+        }
+        options.push_back(currentToken().value);
         advance();
     }
     auto commandStatementNode = std::make_unique<CommandStatementNode>(options);
