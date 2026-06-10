@@ -316,7 +316,8 @@ const QMap<QString, uint8_t> keydata = {
     {"BraceRight", 0x30}, // key ]
     {"Colon", 0x33}, // key ;
     {"QuoteDbl", 0x34}, // key '
-    {"Bar", 0x31}, // Backslash
+    {"Bar", 0x31}, // | = Shift+Backslash
+    {"|", 0x31}, // | character (Shift+Backslash)
     {"Less", 0x36}, // key ,
     {"Greater", 0x37}, // key .
     {"Question", 0x38}, // key /
