@@ -247,6 +247,7 @@ const QMap<QString, uint8_t> keydata = {
     {"Slash", 0x38}, // /
     {"/", 0x38}, // slash character
     {";", 0x33}, // semicolon character
+    {":", 0x33}, // colon character (Shift+;)
     {"'", 0x34}, // apostrophe character
     {"`", 0x35}, // backtick character
     {"-", 0x2D}, // minus/dash character

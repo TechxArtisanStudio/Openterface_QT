@@ -49,7 +49,7 @@ const QMap<QChar, QPair<uint8_t, bool>> backtickEscapeMap = {
 // Does not include ^, !, +, # — those are AHK modifier prefix characters
 // handled separately via controldata.
 const QSet<QChar> shiftRequiredChars = {
-    '@', '$', '%', '&', '*', '(', ')'
+    '@', '$', '%', '&', '*', '(', ')', ':'
 };
 
 #endif // SENDKEYMAPS_H

@@ -272,10 +272,8 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
 
     // Build the key string from options
     QString tmpKeys;
-    bool append = false;
     for (const auto& token : options) {
-        if (token == "\"") append = true;
-        if (append) tmpKeys.append(QString::fromStdString(token));
+        if (token != "\"") tmpKeys.append(QString::fromStdString(token));
     }
     tmpKeys.replace(QRegularExpression("^\"|\"$"), "");
     qCDebug(log_script) << "Processing keys:" << tmpKeys;
