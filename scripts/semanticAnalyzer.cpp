@@ -271,15 +271,17 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
     }
 
     // Build the key string from options
-    // Collect all tokens, then strip wrapper quotes if present (first and last are both ")
+    // Strip wrapper quotes: if first and last tokens are both ", remove them as delimiters
     // Inner quotes are preserved as content characters.
     QString tmpKeys;
-    for (const auto& token : options) {
-        tmpKeys.append(QString::fromStdString(token));
+    int start = 0, end = static_cast<int>(options.size());
+
+    if (end >= 2 && options[0] == "\"" && options[end - 1] == "\"") {
+        start = 1;
+        end = end - 1;
     }
-    // Strip wrapper quotes: if the string starts and ends with ", remove them
-    if (tmpKeys.length() >= 2 && tmpKeys.startsWith('"') && tmpKeys.endsWith('"')) {
-        tmpKeys = tmpKeys.mid(1, tmpKeys.length() - 2);
+    for (int i = start; i < end; i++) {
+        tmpKeys.append(QString::fromStdString(options[i]));
     }
     qCDebug(log_script) << "Processing keys:" << tmpKeys;
 
