@@ -85,11 +85,14 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
 std::unique_ptr<ASTNode> Parser::parseCommandStatement() {
     QString tmp = QString::fromStdString(currentToken().value);
     advance(); // Move past the COMMAND token
-    
+
     std::vector<std::string> options;
     while (currentToken().type != AHKTokenType::NEWLINE &&
            currentToken().type != AHKTokenType::ENDOFFILE) {
-        options.push_back(currentToken().value);
+        // Skip whitespace tokens - they are delimiters, not content
+        if (currentToken().type != AHKTokenType::WHITESPACE) {
+            options.push_back(currentToken().value);
+        }
         advance();
     }
     auto commandStatementNode = std::make_unique<CommandStatementNode>(options);
