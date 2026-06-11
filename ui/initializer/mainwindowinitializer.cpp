@@ -300,6 +300,19 @@ void MainWindowInitializer::connectDeviceManagerSignals()
                     if (switchSuccess) {
                         qCInfo(log_ui_mainwindowinitializer) << "✓ Camera auto-switched to port:" << device.portChain;
                         stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
+                    } else {
+                        // Fallback retry: CameraManager's built-in retry may be in progress,
+                        // but as a safety net, schedule one more retry attempt in 1000ms
+                        QTimer::singleShot(1000, [cameraManager, stackedLayout, videoPane, device]() {
+                            if (cameraManager && !cameraManager->hasActiveCameraDevice()) {
+                                qCDebug(log_ui_mainwindowinitializer) << "Fallback retry: attempting auto-switch again for port:" << device.portChain;
+                                bool retrySuccess = cameraManager->tryAutoSwitchToNewDevice(device.portChain);
+                                if (retrySuccess && stackedLayout && videoPane) {
+                                    qCInfo(log_ui_mainwindowinitializer) << "✓ Camera auto-switched on fallback retry for port:" << device.portChain;
+                                    stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
+                                }
+                            }
+                        });
                     }
                 });
         qCDebug(log_ui_mainwindowinitializer) << "Connected hotplug monitor signals";

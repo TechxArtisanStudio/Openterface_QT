@@ -21,6 +21,7 @@ set(DEVICE_SOURCES
     device/DeviceInfo.cpp device/DeviceInfo.h
     device/DeviceManager.cpp device/DeviceManager.h
     device/HotplugMonitor.cpp device/HotplugMonitor.h
+    device/HotplugDebounceManager.cpp device/HotplugDebounceManager.h
     device/platform/AbstractPlatformDeviceManager.cpp device/platform/AbstractPlatformDeviceManager.h
     device/platform/DeviceFactory.cpp device/platform/DeviceFactory.h
     device/platform/windows/WinDeviceEnumerator.h device/platform/windows/WinDeviceEnumerator.cpp

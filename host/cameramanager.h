@@ -172,6 +172,11 @@ private:
     void connectToHotplugMonitor();
     void disconnectFromHotplugMonitor();
     void setupWindowsHotplugMonitoring();
+
+    // Retry mechanism for auto-switch
+    void startAutoSwitchRetry(const QString& devicePath);
+    void cancelAutoSwitchRetry();
+    void executeAutoSwitchRetry();
     
     // Member variables - FFmpeg backend only
     std::unique_ptr<MultimediaBackendHandler> m_backendHandler;
@@ -190,7 +195,26 @@ private:
     
     // Recording management
     QString m_currentRecordingPath;  // Path to the current recording file
-    
+
+    // Auto-switch retry state
+    struct AutoSwitchRetryState {
+        int retryCount = 0;
+        int maxRetries = 5;
+        QString targetDevicePath;
+        QTimer* retryTimer = nullptr;
+        bool isActive = false;
+
+        int getNextInterval() const {
+            switch (retryCount) {
+                case 0: return 500;
+                case 1: return 1000;
+                case 2: return 2000;
+                case 3: return 3000;
+                default: return 5000;
+            }
+        }
+    } m_autoSwitchRetry;
+
 private slots:
     void onVideoInputsChanged();
 };

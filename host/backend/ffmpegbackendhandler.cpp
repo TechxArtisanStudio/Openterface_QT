@@ -542,37 +542,71 @@ void FFmpegBackendHandler::stopDirectCapture()
 {
     {
         QMutexLocker locker(&m_mutex);
-        
+
         if (!m_captureRunning) {
             return;
         }
-        
+
         qCDebug(log_ffmpeg_backend) << "Stopping direct FFmpeg capture";
-        
+
         m_captureRunning = false;
-        
+
         // Signal frame processor to stop processing
         if (m_frameProcessor) {
             m_frameProcessor->StopCaptureGracefully();
         }
-        
+
         // Notify hotplug handler that capture is stopping
         if (m_hotplugHandler) {
             m_hotplugHandler->SetCaptureRunning(false);
         }
-        
+
         // Delegate to capture manager
         if (m_captureManager) {
             m_captureManager->StopCapture();
         }
     } // Release mutex
-    
+
     // Stop performance monitoring
     if (m_performanceTimer) {
         m_performanceTimer->stop();
     }
-    
-    qCDebug(log_ffmpeg_backend) << "Direct FFmpeg capture stopped";
+
+    // Sync wait: poll until capture thread fully stops (max 2s, 50ms intervals)
+    if (!waitForCaptureStop(2000)) {
+        qCWarning(log_ffmpeg_backend) << "Capture thread did not stop within timeout - may cause device conflict";
+    }
+
+    // Platform-specific settling delay before opening new device
+#ifdef Q_OS_LINUX
+    QThread::msleep(100);  // Linux needs extra time for /dev/video* release
+#elif defined(Q_OS_WIN)
+    QThread::msleep(200);  // Windows needs time for DirectShow filter graph cleanup
+#endif
+
+    qCDebug(log_ffmpeg_backend) << "Direct FFmpeg capture stopped (sync wait complete)";
+}
+
+bool FFmpegBackendHandler::waitForCaptureStop(int timeoutMs)
+{
+    const int checkInterval = 50;
+    int waited = 0;
+
+    while (waited < timeoutMs) {
+        // Check if capture manager and frame processor are fully stopped
+        bool managerStopped = (!m_captureManager) || !m_captureManager->IsRunning();
+        bool processorStopped = true; // FrameProcessor doesn't expose running state
+
+        if (managerStopped && processorStopped) {
+            qCDebug(log_ffmpeg_backend) << "Capture confirmed stopped after" << waited << "ms";
+            return true;
+        }
+        QThread::msleep(checkInterval);
+        waited += checkInterval;
+    }
+
+    qCWarning(log_ffmpeg_backend) << "Capture stop wait timeout after" << timeoutMs << "ms";
+    return false;
 }
 
 // Static interrupt callback for FFmpeg operations to prevent blocking
