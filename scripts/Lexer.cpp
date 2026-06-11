@@ -38,6 +38,10 @@ char Lexer::currentChar() {
     return currentIndex < source.size() ? source[currentIndex] : '\0';
 }
 
+char Lexer::nextChar() {
+    return currentIndex + 1 < source.size() ? source[currentIndex + 1] : '\0';
+}
+
 void Lexer::advance() {
     if (currentIndex < source.size()) {
         currentIndex++;
@@ -73,6 +77,11 @@ Token Lexer::nextToken() {
 
     if (std::isdigit(currentChar())) {
         return number();
+    }
+
+    // Handle string literals (double-quoted strings)
+    if (currentChar() == '"') {
+        return string_literal();
     }
 
     for (const auto& op : operators) {
@@ -124,4 +133,27 @@ Token Lexer::symbol() {
     char current = currentChar();
     advance();
     return {AHKTokenType::SYMBOL, std::string(1, current)};
+}
+
+Token Lexer::string_literal() {
+    std::string result;
+    advance(); // Skip opening quote
+
+    while (currentChar() != '\0' && currentChar() != '"') {
+        // Handle backtick escape: `\" → literal "
+        if (currentChar() == '`' && nextChar() == '"') {
+            result += '"';
+            advance();
+            advance();
+        } else {
+            result += currentChar();
+            advance();
+        }
+    }
+
+    if (currentChar() == '"') {
+        advance(); // Skip closing quote
+    }
+
+    return {AHKTokenType::STRING, result};
 }

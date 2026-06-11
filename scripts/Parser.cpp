@@ -87,15 +87,12 @@ std::unique_ptr<ASTNode> Parser::parseCommandStatement() {
     advance(); // Move past the COMMAND token
 
     std::vector<std::string> options;
-    bool insideQuotes = false;  // Track whether we are inside quoted string
     while (currentToken().type != AHKTokenType::NEWLINE &&
            currentToken().type != AHKTokenType::ENDOFFILE) {
-        // Toggle insideQuotes flag when encountering a double quote
-        if (currentToken().type == AHKTokenType::SYMBOL && currentToken().value == "\"") {
-            insideQuotes = !insideQuotes;
-        }
-        // Skip whitespace ONLY when outside quotes
-        if (currentToken().type == AHKTokenType::WHITESPACE && !insideQuotes) {
+        // Skip whitespace tokens (structural separators, not content)
+        // String literals are now handled by Lexer as single STRING tokens
+        // with internal spaces preserved, so no need for insideQuotes tracking
+        if (currentToken().type == AHKTokenType::WHITESPACE) {
             advance();
             continue;
         }

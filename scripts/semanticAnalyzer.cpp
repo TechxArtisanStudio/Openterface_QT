@@ -271,17 +271,12 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
     }
 
     // Build the key string from options
-    // Strip wrapper quotes: if first and last tokens are both ", remove them as delimiters
-    // Inner quotes are preserved as content characters.
+    // String literals are now handled by Lexer as single STRING tokens
+    // with internal spaces preserved; wrapper quotes are stripped by Lexer.
+    // No need for quote-stripping logic here.
     QString tmpKeys;
-    int start = 0, end = static_cast<int>(options.size());
-
-    if (end >= 2 && options[0] == "\"" && options[end - 1] == "\"") {
-        start = 1;
-        end = end - 1;
-    }
-    for (int i = start; i < end; i++) {
-        tmpKeys.append(QString::fromStdString(options[i]));
+    for (const auto& option : options) {
+        tmpKeys.append(QString::fromStdString(option));
     }
     qCDebug(log_script) << "Processing keys:" << tmpKeys;
 
