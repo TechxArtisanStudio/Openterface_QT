@@ -89,13 +89,9 @@ std::unique_ptr<ASTNode> Parser::parseCommandStatement() {
     std::vector<std::string> options;
     while (currentToken().type != AHKTokenType::NEWLINE &&
            currentToken().type != AHKTokenType::ENDOFFILE) {
-        // Skip whitespace tokens (structural separators, not content)
-        // String literals are now handled by Lexer as single STRING tokens
-        // with internal spaces preserved, so no need for insideQuotes tracking
-        if (currentToken().type == AHKTokenType::WHITESPACE) {
-            advance();
-            continue;
-        }
+        // Keep ALL tokens including WHITESPACE — spaces between unquoted
+        // arguments must be preserved for Send command character concatenation.
+        // Commands that parse numeric params (Click, Sleep) ignore non-numeric tokens.
         options.push_back(currentToken().value);
         advance();
     }

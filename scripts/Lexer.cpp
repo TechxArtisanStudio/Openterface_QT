@@ -139,7 +139,9 @@ Token Lexer::string_literal() {
     std::string result;
     advance(); // Skip opening quote
 
-    while (currentChar() != '\0' && currentChar() != '"') {
+    // AHK rule: first " is start delimiter, last " is end delimiter
+    // Internal " characters are content. Read to end of line, then strip trailing ".
+    while (currentChar() != '\0' && currentChar() != '\n') {
         // Handle backtick escape: `\" → literal "
         if (currentChar() == '`' && nextChar() == '"') {
             result += '"';
@@ -151,8 +153,9 @@ Token Lexer::string_literal() {
         }
     }
 
-    if (currentChar() == '"') {
-        advance(); // Skip closing quote
+    // Remove trailing quote (AHK closing delimiter)
+    if (!result.empty() && result.back() == '"') {
+        result.pop_back();
     }
 
     return {AHKTokenType::STRING, result};
