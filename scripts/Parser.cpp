@@ -86,6 +86,11 @@ std::unique_ptr<ASTNode> Parser::parseCommandStatement() {
     QString tmp = QString::fromStdString(currentToken().value);
     advance(); // Move past the COMMAND token
 
+    // Skip leading whitespace immediately after command name
+    while (currentToken().type == AHKTokenType::WHITESPACE) {
+        advance();
+    }
+
     std::vector<std::string> options;
     while (currentToken().type != AHKTokenType::NEWLINE &&
            currentToken().type != AHKTokenType::ENDOFFILE) {

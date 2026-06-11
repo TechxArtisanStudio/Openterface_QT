@@ -282,7 +282,7 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
 
     int pos = 0;
     int packetCount = 0;
-    const int MAX_PACKETS = 50;
+    const int MAX_PACKETS = tmpKeys.length() * 2 + 10;  // 2 packets per char (press+release) + margin
 
     // backtickEscapeMap and shiftRequiredChars are defined in SendKeyMaps.h
 
