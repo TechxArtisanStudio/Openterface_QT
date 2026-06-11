@@ -271,18 +271,18 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
     }
 
     // Build the key string from options
+    // String literals are now handled by Lexer as single STRING tokens
+    // with internal spaces preserved; wrapper quotes are stripped by Lexer.
+    // No need for quote-stripping logic here.
     QString tmpKeys;
-    bool append = false;
-    for (const auto& token : options) {
-        if (token == "\"") append = true;
-        if (append) tmpKeys.append(QString::fromStdString(token));
+    for (const auto& option : options) {
+        tmpKeys.append(QString::fromStdString(option));
     }
-    tmpKeys.replace(QRegularExpression("^\"|\"$"), "");
     qCDebug(log_script) << "Processing keys:" << tmpKeys;
 
     int pos = 0;
     int packetCount = 0;
-    const int MAX_PACKETS = 50;
+    const int MAX_PACKETS = tmpKeys.length() * 2 + 10;  // 2 packets per char (press+release) + margin
 
     // backtickEscapeMap and shiftRequiredChars are defined in SendKeyMaps.h
 
