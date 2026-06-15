@@ -274,7 +274,7 @@ public:
 
     bool nativeEventFilter(const QByteArray &eventType,
                            void *message,
-                           long * /*result*/) override
+                           qintptr * /*result*/) override
     {
         if (eventType != QByteArrayLiteral("xcb_generic_event_t"))
             return false;
