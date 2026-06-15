@@ -24,11 +24,17 @@
 
 #include <QLoggingCategory>
 #include <QAbstractEventDispatcher>
+#include <QAbstractNativeEventFilter>
 #include <QCoreApplication>
 #include <QGuiApplication>
 #include <QWindow>
 #include <QWindowList>
+#include <QVector>
 
+#include <QtGui/qnativeinterface.h>
+
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
 #include <xcb/xcb.h>
 #include <X11/XKBlib.h>
 #include <X11/keysym.h>
@@ -115,13 +121,15 @@ private:
 
 // ---------------------------------------------------------------------------
 
-X11KeyGrabber::X11KeyGrabber()
+SystemKeyBlocker::X11KeyGrabber::X11KeyGrabber()
 {
     // Obtain the X11 Display* from Qt's platform integration
     if (auto *app = qobject_cast<QGuiApplication *>(QCoreApplication::instance())) {
-        m_dpy = reinterpret_cast<Display *>(
-            app->platformNativeInterface()->nativeResourceForScreen("display", nullptr));
+        if (auto *x11App = app->nativeInterface<QNativeInterface::QX11Application>()) {
+            m_dpy = x11App->display();
+        }
     }
+
     if (!m_dpy) {
         qCWarning(log_syskey_x11) << "X11KeyGrabber: cannot obtain X11 Display";
         return;
@@ -141,13 +149,13 @@ X11KeyGrabber::X11KeyGrabber()
     }
 }
 
-X11KeyGrabber::~X11KeyGrabber()
+SystemKeyBlocker::X11KeyGrabber::~X11KeyGrabber()
 {
     if (m_grabbed)
         ungrabSystemKeys();
 }
 
-QVector<int> X11KeyGrabber::systemKeysyms()
+QVector<int> SystemKeyBlocker::X11KeyGrabber::systemKeysyms()
 {
     return {
         // Super / Meta keys (WM app launcher, overview, etc.)
@@ -183,7 +191,7 @@ QVector<int> X11KeyGrabber::systemKeysyms()
     };
 }
 
-bool X11KeyGrabber::grabSystemKeys()
+bool SystemKeyBlocker::X11KeyGrabber::grabSystemKeys()
 {
     if (!m_dpy || !m_tlw) {
         qCWarning(log_syskey_x11) << "X11KeyGrabber: cannot grab — no display or window";
@@ -232,7 +240,7 @@ bool X11KeyGrabber::grabSystemKeys()
     return (failed < keys.size());   // succeed if at least some keys were grabbed
 }
 
-void X11KeyGrabber::ungrabSystemKeys()
+void SystemKeyBlocker::X11KeyGrabber::ungrabSystemKeys()
 {
     if (!m_dpy || !m_tlw)
         return;
@@ -287,8 +295,9 @@ public:
         // ---- Resolve keysym ----
         Display *dpy = nullptr;
         if (auto *app = qobject_cast<QGuiApplication *>(QCoreApplication::instance())) {
-            dpy = reinterpret_cast<Display *>(
-                app->platformNativeInterface()->nativeResourceForScreen("display", nullptr));
+            if (auto *x11App = app->nativeInterface<QNativeInterface::QX11Application>()) {
+                dpy = x11App->display();
+            }
         }
         if (!dpy) {
             qCWarning(log_syskey_x11) << "Cannot get X11 Display — event dropped";

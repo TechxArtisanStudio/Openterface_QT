@@ -137,13 +137,13 @@ private:
     static LRESULT CALLBACK lowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 #endif // Q_OS_WIN
 
-    /* ---- Linux X11 ---- */
-#ifdef Q_OS_LINUX
+    /* ---- Linux/Unix (X11) ---- */
+#if defined(Q_OS_UNIX) && !defined(Q_OS_APPLE)
     class X11KeyCaptureFilter;
     class X11KeyGrabber;
     X11KeyCaptureFilter *m_x11Filter  = nullptr;
     X11KeyGrabber       *m_x11Grabber = nullptr;
-#endif // Q_OS_LINUX
+#endif // Q_OS_UNIX && !Q_OS_APPLE
 };
 
 #endif // SYSTEMKEYBLOCKER_H
