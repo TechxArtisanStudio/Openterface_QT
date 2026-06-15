@@ -1700,63 +1700,59 @@ bool CameraManager::tryAutoSwitchToNewDevice(const QString& portChain)
     qCDebug(log_ui_camera) << "tryAutoSwitchToNewDevice called";
     qCDebug(log_ui_camera) << "  Target port chain:" << portChain;
     qCDebug(log_ui_camera) << "========================================";
-    
+
     // Check if we currently have an active camera device
     if (hasActiveCameraDevice()) {
         qCWarning(log_ui_camera) << "!!! Active camera device detected, skipping auto-switch to preserve user selection";
         qCWarning(log_ui_camera) << "!!! Current device:" << m_currentCameraDevice.description();
         qCWarning(log_ui_camera) << "!!! Current port chain:" << m_currentCameraPortChain;
+        cancelAutoSwitchRetry();
         return false;
     }
-    
+
     qCDebug(log_ui_camera) << "✓ No active camera device found, attempting to switch to new device";
-    
+
+    // Cancel any pending retry since we're trying now
+    cancelAutoSwitchRetry();
+
     // IMPORTANT: Refresh available camera devices to ensure the list is up-to-date
-    // This is critical for hotplug scenarios where QMediaDevices::videoInputs() might not
-    // be immediately updated when a device is plugged in
-    qCDebug(log_ui_camera) << "Refreshing available camera devices before auto-switch (1st refresh)";
+    qCDebug(log_ui_camera) << "Refreshing available camera devices before auto-switch";
     refreshAvailableCameraDevices();
-    qCDebug(log_ui_camera) << "  Available cameras after 1st refresh:" << m_availableCameraDevices.size();
-    
-    // Add a small delay to allow the system to fully enumerate the new camera device
-    // This is especially important on Windows where device enumeration can take time
-    qCDebug(log_ui_camera) << "Waiting 500ms for system to fully enumerate camera device...";
-    QThread::msleep(500);
-    
-    // Refresh again after the delay to ensure we have the latest device list
-    qCDebug(log_ui_camera) << "Refreshing available camera devices before auto-switch (2nd refresh)";
-    refreshAvailableCameraDevices();
-    qCDebug(log_ui_camera) << "  Available cameras after 2nd refresh:" << m_availableCameraDevices.size();
-    
+    qCDebug(log_ui_camera) << "  Available cameras after refresh:" << m_availableCameraDevices.size();
+
     // Try to find a matching camera device for the port chain
     qCDebug(log_ui_camera) << "Attempting to find matching camera device for port chain:" << portChain;
     QCameraDevice matchedCamera = findMatchingCameraDevice(portChain);
-    
+
     if (matchedCamera.isNull()) {
         qCWarning(log_ui_camera) << "✗ No matching camera device found for port chain:" << portChain;
-        qCWarning(log_ui_camera) << "  This could mean:";
-        qCWarning(log_ui_camera) << "  1. QMediaDevices hasn't updated yet";
-        qCWarning(log_ui_camera) << "  2. Device info doesn't match Qt camera device";
-        qCWarning(log_ui_camera) << "  3. Camera device path/ID mismatch";
+        // Start exponential backoff retry if we haven't exceeded max retries
+        if (m_autoSwitchRetry.retryCount < m_autoSwitchRetry.maxRetries) {
+            qCInfo(log_ui_camera) << "Starting exponential backoff retry mechanism";
+            startAutoSwitchRetry(portChain);
+            return false; // Retry in progress
+        }
+        qCWarning(log_ui_camera) << "  Max retries exceeded, giving up";
         return false;
     }
-    
+
     qCDebug(log_ui_camera) << "✓ Found matching camera device:" << matchedCamera.description() << "for port chain:" << portChain;
-    
+
     // Ensure video output is connected before switching
     if (m_graphicsVideoOutput) {
         qCDebug(log_ui_camera) << "Video output available for camera switch";
     } else {
         qCWarning(log_ui_camera) << "!!! No graphics video output available";
     }
-    
+
     // Switch to the new camera device
     qCDebug(log_ui_camera) << "Calling switchToCameraDevice...";
     bool switchSuccess = switchToCameraDevice(matchedCamera, portChain);
-    
+
     if (switchSuccess) {
         qCInfo(log_ui_camera) << "✓ Successfully auto-switched to new camera device:" << matchedCamera.description() << "at port chain:" << portChain;
-        
+        cancelAutoSwitchRetry();
+
         // Start the camera if video output is available
         if (m_graphicsVideoOutput) {
             qCDebug(log_ui_camera) << "Starting camera after successful switch";
@@ -1764,12 +1760,16 @@ bool CameraManager::tryAutoSwitchToNewDevice(const QString& portChain)
         } else {
             qCWarning(log_ui_camera) << "!!! Cannot start camera - no video output available";
         }
-        
+
         emit newDeviceAutoConnected(matchedCamera, portChain);
     } else {
         qCWarning(log_ui_camera) << "✗ Failed to auto-switch to new camera device:" << matchedCamera.description();
+        // Retry if switch failed but device was found
+        if (m_autoSwitchRetry.retryCount < m_autoSwitchRetry.maxRetries) {
+            startAutoSwitchRetry(portChain);
+        }
     }
-    
+
     qCDebug(log_ui_camera) << "========================================";
     return switchSuccess;
 }
@@ -2195,5 +2195,69 @@ void CameraManager::handleFFmpegDeviceDisconnection(const QString& devicePath)
         }
     } else {
         qCDebug(log_ui_camera) << "Disconnected device is not our current device, ignoring";
+    }
+}
+
+// ===== Auto-switch retry mechanism (exponential backoff) =====
+
+void CameraManager::startAutoSwitchRetry(const QString& portChain)
+{
+    cancelAutoSwitchRetry();
+
+    m_autoSwitchRetry.retryCount = 0;
+    m_autoSwitchRetry.targetDevicePath = portChain;
+    m_autoSwitchRetry.isActive = true;
+
+    if (!m_autoSwitchRetry.retryTimer) {
+        m_autoSwitchRetry.retryTimer = new QTimer(this);
+        m_autoSwitchRetry.retryTimer->setSingleShot(true);
+        connect(m_autoSwitchRetry.retryTimer, &QTimer::timeout,
+                this, &CameraManager::executeAutoSwitchRetry);
+    }
+
+    int interval = m_autoSwitchRetry.getNextInterval();
+    qCInfo(log_ui_camera) << "Starting auto-switch retry - max retries:" << m_autoSwitchRetry.maxRetries
+                          << "first retry in:" << interval << "ms";
+    m_autoSwitchRetry.retryTimer->start(interval);
+}
+
+void CameraManager::cancelAutoSwitchRetry()
+{
+    if (m_autoSwitchRetry.retryTimer && m_autoSwitchRetry.retryTimer->isActive()) {
+        m_autoSwitchRetry.retryTimer->stop();
+    }
+    m_autoSwitchRetry.isActive = false;
+    m_autoSwitchRetry.retryCount = 0;
+}
+
+void CameraManager::executeAutoSwitchRetry()
+{
+    if (!m_autoSwitchRetry.isActive) return;
+
+    m_autoSwitchRetry.retryCount++;
+    qCInfo(log_ui_camera) << "Auto-switch retry attempt" << m_autoSwitchRetry.retryCount
+                          << "/" << m_autoSwitchRetry.maxRetries;
+
+    // Refresh devices before retry
+    refreshAvailableCameraDevices();
+
+    // Try to switch
+    bool success = tryAutoSwitchToNewDevice(m_autoSwitchRetry.targetDevicePath);
+
+    if (success) {
+        qCInfo(log_ui_camera) << "Auto-switch succeeded on retry" << m_autoSwitchRetry.retryCount;
+        cancelAutoSwitchRetry();
+        return;
+    }
+
+    // Not found - schedule next retry
+    if (m_autoSwitchRetry.retryCount < m_autoSwitchRetry.maxRetries) {
+        int nextInterval = m_autoSwitchRetry.getNextInterval();
+        qCDebug(log_ui_camera) << "Scheduling next retry in" << nextInterval << "ms";
+        m_autoSwitchRetry.retryTimer->start(nextInterval);
+    } else {
+        qCWarning(log_ui_camera) << "Auto-switch FAILED after" << m_autoSwitchRetry.maxRetries << "retries for" << m_autoSwitchRetry.targetDevicePath;
+        m_autoSwitchRetry.isActive = false;
+        m_autoSwitchRetry.retryCount = 0;
     }
 }

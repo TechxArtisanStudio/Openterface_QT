@@ -208,6 +208,14 @@ bool GlobalSetting::getHideKeyboardInput() const {
 }
 
 
+void GlobalSetting::setSystemKeyBlockerEnabled(bool enabled) {
+    m_settings.setValue("keyboard/systemKeyBlocker", enabled);
+}
+
+bool GlobalSetting::getSystemKeyBlockerEnabled() const {
+    return m_settings.value("keyboard/systemKeyBlocker", false).toBool();
+}
+
 void GlobalSetting::setMouseAutoHideEnable(bool enable){
     m_settings.setValue("mouse/autoHide", enable);
 }

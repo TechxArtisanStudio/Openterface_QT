@@ -115,11 +115,11 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     // CacheBackground can hold old frames and prevent updates
     setCacheMode(QGraphicsView::CacheNone);
 
-    // Use top-left alignment so the scene origin always maps to viewport (0,0).
-    // Item centering is handled explicitly via setPos() in updateVideoItemTransform(),
-    // so relying on AlignCenter (the Qt default) would double-center the content and
-    // cause display shifts whenever the scene rect doesn't exactly match the viewport.
-    setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    // Use center alignment so video content is always centered in the viewport.
+    // When the scene rect is smaller than the viewport, AlignCenter places the
+    // scene content in the center of the view — eliminating black bars on the
+    // right/bottom when the video aspect ratio doesn't match the window aspect ratio.
+    setAlignment(Qt::AlignCenter);
 
     this->setMouseTracking(true);
     this->installEventFilter(m_inputHandler);
@@ -652,33 +652,17 @@ void VideoPane::updateVideoItemTransform()
         scaleY = viewRect.height() / normalizedRect.height();
     }
 
-    // In FFmpeg mode, use a large fixed scene rect and center the item manually.
-    // This avoids QGraphicsView::AlignCenter subtleties and ensures centering
-    // works consistently regardless of viewport size or timing.
+    // With AlignCenter set on the view, Qt handles content centering automatically.
+    // We only need to set the scale in the item transform — no manual translation needed.
+    // The scene rect (set by updateScrollBarsAndSceneRect) matches the content size,
+    // and AlignCenter places it in the center of the viewport.
     if (m_directFFmpegMode) {
-        // Use a large fixed scene rect (4096x4096) so there's always room
-        // for centering the video item.
-        const qreal sceneSize = 4096.0;
-        qreal scaledWidth = normalizedRect.width() * scale;
-        qreal scaledHeight = normalizedRect.height() * scale;
-        qreal x = (sceneSize - scaledWidth) / 2.0;
-        qreal y = (sceneSize - scaledHeight) / 2.0;
-
-        m_scene->setSceneRect(0, 0, sceneSize, sceneSize);
-
+        // FFmpeg mode: use content-sized scene rect (updateScrollBarsAndSceneRect
+        // will set it from the item's scene-space bounds), and just scale.
         QTransform transform;
-        transform.translate(x, y);
         transform.scale(scale, scale);
         targetItem->setTransform(transform);
         targetItem->setPos(0, 0);
-
-        // if (m_directFFmpegMode) {
-        //     qCDebug(log_ui_video) << "DEBUG FFmpeg centering: scale=" << scale
-        //                          << "scaledSize=" << QSizeF(scaledWidth, scaledHeight)
-        //                          << "itemPos=" << QPointF(x, y)
-        //                          << "sceneRect=" << m_scene->sceneRect()
-        //                          << "viewport=" << viewRect;
-        // }
     } else if (m_maintainAspectRatio) {
         QTransform transform;
         transform.scale(scale, scale);
@@ -694,44 +678,9 @@ void VideoPane::updateVideoItemTransform()
 
 void VideoPane::centerVideoItem()
 {
-    // In FFmpeg mode, centering is handled by QGraphicsView::AlignCenter
-    // with the scene rect set to the scaled content size. Manual positioning
-    // would conflict with the view's automatic centering.
-    if (m_directFFmpegMode) {
-        return;
-    }
-
-    // For QGraphicsVideoItem (non-FFmpeg path), manually center the item.
-    QGraphicsItem* targetItem = nullptr;
-    QRectF itemRect;
-    
-    if (m_directFFmpegMode && m_pixmapItem) {
-        targetItem = m_pixmapItem;
-        itemRect = m_pixmapItem->boundingRect();
-        //qDebug(log_ui_video) << "VideoPane: Centering FFmpeg pixmap item";
-    } else if (m_videoItem) {
-        targetItem = m_videoItem;
-        itemRect = m_videoItem->boundingRect();
-        //qDebug() << "VideoPane: Centering Qt video item";
-    }
-    
-    if (!targetItem) return;
-
-    QRectF viewRect = viewport()->rect();
-
-    // Normalize the item rectangle and get the original offset
-    QRectF normalizedRect(0, 0, itemRect.width(), itemRect.height());
-    QPointF itemOffset = itemRect.topLeft();
-
-    // Get the current transform to calculate the scaled size
-    QTransform transform = targetItem->transform();
-    QRectF scaledRect = transform.mapRect(normalizedRect);
-
-    // Center the item accounting for the original offset
-    double x = (viewRect.width() - scaledRect.width()) / 2.0 - (itemOffset.x() * transform.m11());
-    double y = (viewRect.height() - scaledRect.height()) / 2.0 - (itemOffset.y() * transform.m22());
-
-    targetItem->setPos(x, y);
+    // With Qt::AlignCenter set on the view, QGraphicsView automatically centers
+    // the scene content within the viewport. Manual centering via setPos() would
+    // double-center and cause offsets, so this function is intentionally a no-op.
 }
 
 void VideoPane::setupScene()
@@ -1449,33 +1398,11 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
 
         if (m_videoItem) m_videoItem->setVisible(false);
 
-        // Use the same manual centering transform as the non-FAST path.
-        // Setting scene rect = viewport size would make AlignCenter a no-op.
-        if (m_directFFmpegMode) {
-            const qreal sceneSize = 4096.0;
-            qreal scaledWidth = viewportLogical.width();
-            qreal scaledHeight = viewportLogical.height();
-            qreal x = (sceneSize - scaledWidth) / 2.0;
-            qreal y = (sceneSize - scaledHeight) / 2.0;
-
-            m_scene->setSceneRect(0, 0, sceneSize, sceneSize);
-
-            QTransform transform;
-            transform.translate(x, y);
-            transform.scale(1.0, 1.0);
-            m_pixmapItem->setTransform(transform);
-            m_pixmapItem->setPos(0, 0);
-
-            qCDebug(log_ui_video) << "DEBUG FFmpeg FAST PATH centering: scale=1.0"
-                                 << "scaledSize=" << QSizeF(scaledWidth, scaledHeight)
-                                 << "itemPos=" << QPointF(x, y)
-                                 << "sceneRect=" << m_scene->sceneRect()
-                                 << "viewport=" << viewportLogical;
-        } else {
-            m_pixmapItem->setTransform(QTransform());
-            m_pixmapItem->setPos(0, 0);
-            m_scene->setSceneRect(QRectF(0, 0, viewportLogical.width(), viewportLogical.height()));
-        }
+        // Use AlignCenter-based centering: set scene rect to content size,
+        // reset item transform to identity, and let QGraphicsView center it.
+        m_pixmapItem->setTransform(QTransform());
+        m_pixmapItem->setPos(0, 0);
+        m_scene->setSceneRect(QRectF(0, 0, viewportLogical.width(), viewportLogical.height()));
         
         // CRITICAL FIX: Force immediate updates to prevent freezing
         QRectF updateRect = m_pixmapItem->boundingRect();

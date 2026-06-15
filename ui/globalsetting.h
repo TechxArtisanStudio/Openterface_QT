@@ -167,6 +167,10 @@ public:
     void setFloatingWindowOpacity(double opacity);
     double getFloatingWindowOpacity() const;
 
+    // System key blocker
+    void setSystemKeyBlockerEnabled(bool enabled);
+    bool getSystemKeyBlockerEnabled() const;
+
     // Update reminder settings
     // Stores the epoch seconds of the last update check (used for 30-day throttle)
     void setUpdateLastChecked(qint64 secsSinceEpoch);

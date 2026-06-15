@@ -50,6 +50,7 @@
 #include "../../scripts/scriptExecutor.h"
 #include "../../host/audiomanager.h"
 #include "../../server/tcpServer.h"
+#include "../../SysKeyBlocker/SystemKeyBlocker.h"
 
 #include <QTimer>
 #include <QStackedLayout>
@@ -324,6 +325,19 @@ void MainWindowInitializer::connectDeviceManagerSignals()
                     if (switchSuccess) {
                         qCInfo(log_ui_mainwindowinitializer) << "✓ Camera auto-switched to port:" << device.portChain;
                         stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
+                    } else {
+                        // Fallback retry: CameraManager's built-in retry may be in progress,
+                        // but as a safety net, schedule one more retry attempt in 1000ms
+                        QTimer::singleShot(1000, [cameraManager, stackedLayout, videoPane, device]() {
+                            if (cameraManager && !cameraManager->hasActiveCameraDevice()) {
+                                qCDebug(log_ui_mainwindowinitializer) << "Fallback retry: attempting auto-switch again for port:" << device.portChain;
+                                bool retrySuccess = cameraManager->tryAutoSwitchToNewDevice(device.portChain);
+                                if (retrySuccess && stackedLayout && videoPane) {
+                                    qCInfo(log_ui_mainwindowinitializer) << "✓ Camera auto-switched on fallback retry for port:" << device.portChain;
+                                    stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
+                                }
+                            }
+                        });
                     }
                 });
         qCDebug(log_ui_mainwindowinitializer) << "Connected hotplug monitor signals";
@@ -676,10 +690,22 @@ void MainWindowInitializer::finalize()
     connect(m_mainWindow->mouseEdgeTimer, &QTimer::timeout, m_mainWindow, &MainWindow::checkMousePosition);
 
     connect(m_languageManager, &LanguageManager::languageChanged, m_mainWindow, &MainWindow::updateUI);
-    
-    // connectedPortChanged already connected with QueuedConnection in connectCornerWidgetSignals()
-    // No need for duplicate connection here
-    connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, m_mainWindow, &MainWindow::onArmBaudratePerformanceRecommendation, Qt::QueuedConnection);
+
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, m_mainWindow, &MainWindow::onPortConnected);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, m_mainWindow, &MainWindow::onArmBaudratePerformanceRecommendation);
+
+    // Connect SystemKeyBlocker keyCaptured signal to HostManager
+    connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::keyCaptured,
+            &HostManager::getInstance(), &HostManager::handleKeyboardAction);
+    qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to HostManager";
+
+    // Restore SystemKeyBlocker state from previous session
+    if (GlobalSetting::instance().getSystemKeyBlockerEnabled()) {
+        quintptr hwnd = m_videoPane ? m_videoPane->winId() : 0;
+        if (SystemKeyBlocker::instance().start(hwnd)) {
+            qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker restored to active state";
+        }
+    }
 
     m_mainWindow->onLastKeyPressed("");
     m_mainWindow->onLastMouseLocation(QPoint(0, 0), "");

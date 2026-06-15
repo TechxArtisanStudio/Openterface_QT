@@ -153,7 +153,7 @@ void WindowLayoutCoordinator::handleScreenBoundsResize(int &currentWidth, int &c
 
     // Apply changes to video pane
     m_videoPane->resize(newVideoWidth, newVideoHeight);
-    
+
     // Resize main window if necessary
     if (currentWidth != availableWidth && currentHeight != availableHeight) {
         qCDebug(log_ui_windowlayoutcoordinator) << "Resize to Width:" << currentWidth 
@@ -200,9 +200,9 @@ void WindowLayoutCoordinator::handleAspectRatioResize(int currentWidth, int curr
         }
         
         m_videoPane->resize(videoWidth, videoHeight);
-        qCDebug(log_ui_windowlayoutcoordinator) << "Maximized window - VideoPane resized to:" 
+        qCDebug(log_ui_windowlayoutcoordinator) << "Maximized window - VideoPane resized to:"
                                                 << videoWidth << "x" << videoHeight;
-        
+
     } else if (aspectRatio < 1.0) {
         // Portrait orientation
         int newWidth = static_cast<int>(currentHeight * aspectRatio);

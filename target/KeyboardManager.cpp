@@ -198,7 +198,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     qCDebug(log_keyboard) << "Current layout name:" << currentLayout.name;
     qCDebug(log_keyboard) << "Layout has" << currentLayout.keyMap.size() << "mappings";
 
-    if(isModiferKeys(keyCode)){
+    if(isModiferKeys(keyCode) || keyCode == Qt::Key_Meta){
         // Distinguish the left or right modifiers using nativeVirtualKey where available
         if (nativeVirtualKey != 0) {
             switch (nativeVirtualKey) {
@@ -238,6 +238,18 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
                     combinedModifiers = isKeyDown ? 0x40 : 0x00;
                     qCDebug(log_keyboard) << "Detected Right Alt (VK 0xA5)";
                     break;
+                case 0x5B: // VK_LWIN (Left Windows/GUI)
+                    mappedKeyCode = 0xE3; // left GUI
+                    if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
+                    combinedModifiers = isKeyDown ? 0x08 : 0x00;
+                    qCDebug(log_keyboard) << "Detected Left Win/GUI (VK 0x5B)";
+                    break;
+                case 0x5C: // VK_RWIN (Right Windows/GUI)
+                    mappedKeyCode = 0xE7; // right GUI
+                    if (isKeyDown) currentModifiers |= 0x80; else currentModifiers &= ~0x80;
+                    combinedModifiers = isKeyDown ? 0x80 : 0x00;
+                    qCDebug(log_keyboard) << "Detected Right Win/GUI (VK 0x5C)";
+                    break;
                 default:
                     qCDebug(log_keyboard) << "Unknown native VK, falling back to legacy detection";
             }
@@ -261,6 +273,10 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
                 mappedKeyCode = 0xE6;
                 if (isKeyDown) currentModifiers |= 0x40; else currentModifiers &= ~0x40;
                 combinedModifiers = isKeyDown ? 0x40 : 0x00;
+            } else if(keyCode == Qt::Key_Meta){ // Windows/GUI key
+                mappedKeyCode = 0xE3; // left GUI (default, since we can't distinguish L/R without native VK)
+                if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
+                combinedModifiers = isKeyDown ? 0x08 : 0x00;
             }
         }
     }else if(nativeVirtualKey == 0 && isKeypadKeys(keyCode, modifiers)){

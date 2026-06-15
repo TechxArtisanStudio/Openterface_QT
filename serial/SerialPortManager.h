@@ -380,6 +380,16 @@ private:
     QByteArray m_incompleteDataBuffer;
     QMutex m_bufferMutex;
     static const int MAX_BUFFER_SIZE = 256; // Maximum buffer size to prevent memory issues
+
+    // Hotplug recovery state
+    int m_initRetryCount = 0;
+    static constexpr int MAX_INIT_RETRIES = 3;
+    QString m_pendingInitPortName;
+    int m_pendingInitBaudrate = 0;
+
+    // Port chain delayed clear to prevent race conditions during rapid hotplug
+    QTimer* m_portChainClearTimer = nullptr;
+    QString m_pendingPortChainClear;
     
     // Sync command handling to prevent race conditions
     std::atomic<bool> m_pendingSyncCommand = false;
@@ -433,6 +443,13 @@ private:
     void initializeCH9329Async(const QString &portName, int tryBaudrate);
     void initializeCH32V208Sync(const QString &portName);
     void attemptCH9329Connection(const QString &portName, const QList<int> &baudOrder, int baudIndex, int cycle, int maxCycles);
+
+    // Hotplug recovery: delayed retry when initialization fails during rapid plug/unplug
+    void scheduleInitRetry(const QString& portName, int baudrate);
+    void attemptInitRetry();
+
+    // Port chain protection: cancel pending clear when a new device connects
+    void cancelPendingPortChainClear();
     
     QString statusCodeToString(uint8_t status) {
         switch (status) {

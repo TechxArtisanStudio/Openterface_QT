@@ -83,6 +83,7 @@
 #ifdef Q_OS_WIN
 #include "host/backend/qtbackendhandler.h"
 #endif
+#include "SysKeyBlocker/SystemKeyBlocker.h"
 
 Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
@@ -721,6 +722,20 @@ void MainWindow::configureSettings() {
         });
         connect(logPage, &LogPage::floatingWindowOpacityChanged, this, [this](double opacity) {
             if (m_floatingWindow) m_floatingWindow->setWindowOpacityValue(opacity);
+        });
+        connect(logPage, &LogPage::systemKeyBlockerToggled, this, [this](bool enabled) {
+            if (enabled) {
+                quintptr hwnd = videoPane ? videoPane->winId() : 0;
+                bool ok = SystemKeyBlocker::instance().start(hwnd);
+                if (ok) {
+                    qCDebug(log_ui_mainwindow) << "SystemKeyBlocker started successfully";
+                } else {
+                    qCWarning(log_ui_mainwindow) << "SystemKeyBlocker failed to start";
+                }
+            } else {
+                SystemKeyBlocker::instance().stop();
+                qCDebug(log_ui_mainwindow) << "SystemKeyBlocker stopped";
+            }
         });
         m_statusBarManager->setHideKeyboardInput(GlobalSetting::instance().getHideKeyboardInput());
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);

@@ -200,9 +200,10 @@ void VideoHid::start() {
         return;
     }
 
-    // Add longer delay to allow device to fully stabilize after opening
-    qCDebug(log_host_hid) << "Waiting for device stabilization before starting timer...";
-    QThread::msleep(500);
+    // Reduced stabilization delay: 50ms instead of 500ms
+    // The PollingThread's startupRetryCount handles any initial failures
+    qCDebug(log_host_hid) << "Brief device stabilization (50ms) before starting polling thread...";
+    QThread::msleep(50);
 
     // Log the detected chip type
     qCDebug(log_host_hid) << "Starting polling thread with chip type:" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));

@@ -21,6 +21,7 @@ set(DEVICE_SOURCES
     device/DeviceInfo.cpp device/DeviceInfo.h
     device/DeviceManager.cpp device/DeviceManager.h
     device/HotplugMonitor.cpp device/HotplugMonitor.h
+    device/HotplugDebounceManager.cpp device/HotplugDebounceManager.h
     device/platform/AbstractPlatformDeviceManager.cpp device/platform/AbstractPlatformDeviceManager.h
     device/platform/DeviceFactory.cpp device/platform/DeviceFactory.h
     device/platform/windows/WinDeviceEnumerator.h device/platform/windows/WinDeviceEnumerator.cpp
@@ -111,6 +112,21 @@ set(SCRIPT_SOURCES
     scripts/scriptRunner.cpp scripts/scriptRunner.h
     scripts/scriptEditor.cpp scripts/scriptEditor.h
 )
+
+# SysKeyBlocker — system keyboard capture
+set(SYSKEYBLOCKER_SOURCES
+    SysKeyBlocker/SystemKeyBlocker.cpp SysKeyBlocker/SystemKeyBlocker.h
+)
+
+if(WIN32)
+    list(APPEND SYSKEYBLOCKER_SOURCES
+        SysKeyBlocker/SystemKeyBlocker_win.cpp
+    )
+elseif(UNIX AND NOT APPLE)
+    list(APPEND SYSKEYBLOCKER_SOURCES
+        SysKeyBlocker/SystemKeyBlocker_x11.cpp
+    )
+endif()
 
 # Serial sources
 set(SERIAL_SOURCES
@@ -265,6 +281,12 @@ set(UI_CUSTOMKEY_SOURCES
     ui/customkey/customkeydialog.cpp ui/customkey/customkeydialog.h
 )
 
+# UI custom key sources
+set(UI_CUSTOMKEY_SOURCES
+    ui/customkey/customkeymanager.cpp ui/customkey/customkeymanager.h
+    ui/customkey/customkeydialog.cpp ui/customkey/customkeydialog.h
+)
+
 # UI preferences sources
 set(UI_PREFERENCES_SOURCES
     ui/preferences/cameraadjust.cpp ui/preferences/cameraadjust.h
@@ -301,6 +323,7 @@ set(SOURCE_FILES
     ${UI_PREFERENCES_SOURCES}
     ${UI_FLOATING_WINDOW_SOURCES}
     ${UI_CUSTOMKEY_SOURCES}
+    ${SYSKEYBLOCKER_SOURCES}
     ${WCH_SOURCES}
 )
 
