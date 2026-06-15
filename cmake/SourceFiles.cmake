@@ -281,6 +281,12 @@ set(UI_CUSTOMKEY_SOURCES
     ui/customkey/customkeydialog.cpp ui/customkey/customkeydialog.h
 )
 
+# UI custom key sources
+set(UI_CUSTOMKEY_SOURCES
+    ui/customkey/customkeymanager.cpp ui/customkey/customkeymanager.h
+    ui/customkey/customkeydialog.cpp ui/customkey/customkeydialog.h
+)
+
 # UI preferences sources
 set(UI_PREFERENCES_SOURCES
     ui/preferences/cameraadjust.cpp ui/preferences/cameraadjust.h

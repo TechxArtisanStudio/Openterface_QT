@@ -50,7 +50,13 @@ if(FFMPEG_PREFIX)
 endif()
 
 # Option to control hardware acceleration libraries
-option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ON)
+# VA-API and VDPAU are Intel/NVIDIA-specific, not available on ARM
+if(OPENTERFACE_IS_ARM64)
+    set(HWACCEL_DEFAULT OFF)
+else()
+    set(HWACCEL_DEFAULT ON)
+endif()
+option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ${HWACCEL_DEFAULT})
 
 # Option to use shared FFmpeg libraries instead of static
 option(USE_SHARED_FFMPEG "Use shared FFmpeg libraries instead of static" OFF)
@@ -503,6 +509,7 @@ if(NOT WIN32)
     # Linux libraries
     list(APPEND HWACCEL_LIBRARIES
         X11
+        Xv
         atomic
         pthread
         m
@@ -794,9 +801,21 @@ function(link_ffmpeg_libraries)
                     ${TURBOJPEG_LINK}
                     # Core system libs
                     -lpthread -lm -ldl -lz -llzma -lbz2
-                    # DRM/VA/VDPAU/X11 stack (vdpa_device_create_x11 lives in libvdpau and needs X11)
-                    -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11 -lXext
-                    # XCB is required by avdevice xcbgrab; ensure core xcb gets linked
+                )
+
+                # VA-API and VDPAU are Intel/NVIDIA-specific - skip on ARM
+                if(NOT OPENTERFACE_IS_ARM64)
+                    list(APPEND _FFMPEG_STATIC_DEPS
+                        -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11 -lXext
+                    )
+                else()
+                    list(APPEND _FFMPEG_STATIC_DEPS
+                        -lX11 -lXext
+                    )
+                endif()
+
+                # XCB is required by avdevice xcbgrab; ensure core xcb gets linked
+                list(APPEND _FFMPEG_STATIC_DEPS
                     -lxcb
                     # XCB extensions used by xcbgrab (shared memory, xfixes for cursor, shape for OSD)
                     -lxcb-shm -lxcb-xfixes -lxcb-shape -lxcb-image

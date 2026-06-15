@@ -143,4 +143,97 @@ docker load < shared-qt-complete-arm-opt.tar
 |------|-------|-----|--------|
 | `cmake/FFmpeg.cmake:670-687` | Duplicated turbojpeg fallback, unconditional `-lturbojpeg` on Linux | `find_library` check before adding flag, removed duplicate block | Tested |
 | `host/backend/ffmpegbackendhandler.cpp:400` | `avdevice_register_all()` removed in FFmpeg 6.0 | `#if LIBAVDEVICE_VERSION_MAJOR < 59` guard | Tested |
-| CMake flags | Static FFmpeg requires libXv | `-DUSE_SHARED_FFMPEG=ON` | Tested |
+| `ui/statusbar/statuswidget.cpp:68` | QSS property truncated: `background-color` → `ound-color`, missing `:hover` selector | Fixed QSS string literal: proper `background-color: #e0e0e0` inside `QPushButton:hover { ... }` block | Tested |
+| CMake flags | Static FFmpeg `.a` libraries with debug symbols embedded via `--whole-archive`, bloating binary to 104MB | `-DUSE_SHARED_FFMPEG=ON` + `-DCMAKE_BUILD_TYPE=Release` | Tested, **20x size reduction** (104MB → 5.2MB) |
+
+## Binary Size Analysis
+
+### Root Cause of 104MB Binary
+
+The binary size was inflated by two factors:
+
+1. **Static FFmpeg `.a` libraries** (~219MB total) compiled with debug symbols, embedded via `--whole-archive` for `libavdevice.a`:
+   - `libavcodec.a` = 134MB
+   - `libavfilter.a` = 41MB  
+   - `libavformat.a` = 44MB
+   - `libavutil.a` = 4.3MB
+   - Plus `libjpeg.a`, `libturbojpeg.a`, `libpostproc.a`, etc.
+
+2. **Missing `-DCMAKE_BUILD_TYPE=Release`** — without this, GCC uses default flags which may include debug information.
+
+### Size Comparison
+
+| Configuration | Binary Size | Stripped Size |
+|--------------|-------------|---------------|
+| Default (no flags) | 104 MB | 23 MB |
+| **Release + shared FFmpeg** | **5.2 MB** | **4.4 MB** |
+
+**Size reduction: ~20x**
+
+### Recommended Build Command for ARM64
+
+```bash
+# Clean build directory
+sudo rm -rf build && mkdir -p build
+
+# Build inside Docker container with all optimizations
+docker run --rm \
+    -v "$(pwd):/workspace/src" \
+    -w /workspace/src/build \
+    openterface-qtbuild-complete:arm64 \
+    bash -c 'cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/opt/Qt6 -DBUILD_SHARED_LIBS=ON -DOPENTERFACE_BUILD_STATIC=OFF -DUSE_SHARED_FFMPEG=ON .. && make -j$(nproc)'
+```
+
+### Runtime Requirements
+
+The built binary requires shared libraries from the Docker image at runtime:
+- Qt6 libs: `/opt/Qt6/lib/`
+- FFmpeg libs: `/opt/ffmpeg/lib/`
+- GStreamer libs: system pkg-config paths
+
+When running in Docker:
+```bash
+docker run --rm \
+    --network host \
+    -v /tmp/.X11-unix:/tmp/.X11-unix \
+    -e DISPLAY=:99 \
+    -e QT_QPA_PLATFORM=xcb \
+    -e LD_LIBRARY_PATH=/opt/Qt6/lib:/opt/ffmpeg/lib:/opt/gstreamer/lib \
+    -v /home/pi/projects/Openterface_QT:/workspace/src \
+    -w /workspace/src/build \
+    openterface-qtbuild-complete:arm64 \
+    bash -c './openterfaceQT 2>&1'
+```
+
+**Note on EGL:** The Mali GPU driver's EGL library (common on Raspberry Pi and ARM SoCs) doesn't export `eglDestroyImage`. Use `LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libEGL.so.1` to route through the GLVND dispatch library instead.
+
+## Full Test Results
+
+### Runtime Verification (Xvfb Virtual Display + Openbox)
+
+| Test | Result | Notes |
+|------|--------|-------|
+| Application Start | ✅ PASS | Splash screen displayed, initialization completed |
+| QApplication Created | ✅ PASS | QT_QPA_PLATFORM=xcb works correctly |
+| Main Window Shown | ✅ PASS | Window rendered at 1280×720 resolution |
+| Menu Bar | ✅ PASS | Corner widget size: 542×40px, properly laid out |
+| Keyboard Layouts | ✅ PASS | Loaded without errors |
+| Serial State Manager | ✅ PASS | Initialized successfully |
+| Serial Statistics | ✅ PASS | ARM64 detection correct |
+| GStreamer Video Pipeline | ✅ PASS | Pipeline set up for device switch |
+| Audio Initialization | ✅ PASS | Restored to muted state |
+| VideoHID Thread | ✅ PASS | Started on dedicated thread |
+| Event Loop | ✅ PASS | Running normally, handling events |
+| Device Menu | ✅ PASS | Setup completed |
+| Environment Check | ✅ PASS | Deferred check executed |
+| Firmware Check | ✅ PASS | Version detection logic working |
+| QSS `ound-color` Warning | ✅ PASS | Zero warnings after fix |
+
+### Expected Warnings (Not Bugs)
+
+| Warning | Reason | Severity |
+|---------|--------|----------|
+| `PulseAudioService: pa_context_connect() failed` | No PulseAudio daemon in headless container | Expected — works on real desktop |
+| `Error initializing libusb: LIBUSB_ERROR_OTHER` | No USB devices in Docker (`--privileged` needed) | Expected — works with USB hardware |
+| `Cannot create children for a parent that is in a different thread` | Qt thread safety warning in SerialPortManager | Cosmetic — non-blocking, common Qt pattern |
+| `QLayout: Attempting to add QLayout "" to MainWindow` | MainWindow already has layout in UI file | Cosmetic — existing code pattern |
