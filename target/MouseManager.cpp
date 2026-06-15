@@ -135,27 +135,30 @@ void MouseManager::scrollWheel(int direction, int lines) {
         lines = 1;
     }
 
-    // Each line is ~100 delta units (matching mapScrollWheel's granularity)
-    int delta = direction * lines * 100;
-
     qCDebug(log_core_mouse) << "Scroll wheel - direction:" << direction
-                            << "lines:" << lines << "delta:" << delta;
+                            << "lines:" << lines;
 
     // Reuse last known coordinates; fall back to (0, 0) if never moved
     int x = lastX;
     int y = lastY;
 
-    QByteArray data;
-    uint8_t mappedWheel = mapScrollWheel(delta);
-    data.append(MOUSE_ABS_ACTION_PREFIX);
-    data.append(static_cast<char>(0));  // no button
-    data.append(static_cast<char>(x & 0xFF));
-    data.append(static_cast<char>((x >> 8) & 0xFF));
-    data.append(static_cast<char>(y & 0xFF));
-    data.append(static_cast<char>((y >> 8) & 0xFF));
-    data.append(static_cast<char>(mappedWheel & 0xFF));
+    // Send one packet per line. Some HID firmware ignores the magnitude
+    // of the wheel byte and only reacts to its sign, so we emit multiple
+    // single-step packets instead of a single large-delta packet.
+    uint8_t wheelByte = (direction > 0) ? static_cast<uint8_t>(1) : static_cast<uint8_t>(0xFF);
 
-    SerialPortManager::getInstance().sendCommandAsync(data, false);
+    for (int i = 0; i < lines; ++i) {
+        QByteArray data;
+        data.append(MOUSE_ABS_ACTION_PREFIX);
+        data.append(static_cast<char>(0));  // no button
+        data.append(static_cast<char>(x & 0xFF));
+        data.append(static_cast<char>((x >> 8) & 0xFF));
+        data.append(static_cast<char>(y & 0xFF));
+        data.append(static_cast<char>((y >> 8) & 0xFF));
+        data.append(static_cast<char>(wheelByte));
+
+        SerialPortManager::getInstance().sendCommandAsync(data, false);
+    }
 }
 
 void MouseManager::startAutoMoveMouse() {
