@@ -41,6 +41,10 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
     // stop auto move if it is running
     stopAutoMoveMouse();
 
+    // Remember last known coordinates for scroll-wheel reuse
+    lastX = x;
+    lastY = y;
+
     // Update current mouse button state
     // If wheelMovement is provided and mouse_event is 0, preserve current button state
     if (wheelMovement != 0 && mouse_event == 0) {
@@ -122,6 +126,36 @@ uint8_t MouseManager::mapScrollWheel(int delta){
     }else{
         return 0xFF - uint8_t(-1*delta / 100)+1;
     }
+}
+
+void MouseManager::scrollWheel(int direction, int lines) {
+    // direction: positive = scroll up, negative = scroll down
+    // lines: number of scroll lines (default 1)
+    if (lines <= 0) {
+        lines = 1;
+    }
+
+    // Each line is ~100 delta units (matching mapScrollWheel's granularity)
+    int delta = direction * lines * 100;
+
+    qCDebug(log_core_mouse) << "Scroll wheel - direction:" << direction
+                            << "lines:" << lines << "delta:" << delta;
+
+    // Reuse last known coordinates; fall back to (0, 0) if never moved
+    int x = lastX;
+    int y = lastY;
+
+    QByteArray data;
+    uint8_t mappedWheel = mapScrollWheel(delta);
+    data.append(MOUSE_ABS_ACTION_PREFIX);
+    data.append(static_cast<char>(0));  // no button
+    data.append(static_cast<char>(x & 0xFF));
+    data.append(static_cast<char>((x >> 8) & 0xFF));
+    data.append(static_cast<char>(y & 0xFF));
+    data.append(static_cast<char>((y >> 8) & 0xFF));
+    data.append(static_cast<char>(mappedWheel & 0xFF));
+
+    SerialPortManager::getInstance().sendCommandAsync(data, false);
 }
 
 void MouseManager::startAutoMoveMouse() {
