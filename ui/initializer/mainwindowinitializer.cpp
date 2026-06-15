@@ -50,6 +50,7 @@
 #include "../../scripts/scriptExecutor.h"
 #include "../../host/audiomanager.h"
 #include "../../server/tcpServer.h"
+#include "../../SysKeyBlocker/SystemKeyBlocker.h"
 
 #include <QTimer>
 #include <QStackedLayout>
@@ -660,9 +661,22 @@ void MainWindowInitializer::finalize()
     connect(m_mainWindow->mouseEdgeTimer, &QTimer::timeout, m_mainWindow, &MainWindow::checkMousePosition);
 
     connect(m_languageManager, &LanguageManager::languageChanged, m_mainWindow, &MainWindow::updateUI);
-    
+
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, m_mainWindow, &MainWindow::onPortConnected);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, m_mainWindow, &MainWindow::onArmBaudratePerformanceRecommendation);
+
+    // Connect SystemKeyBlocker keyCaptured signal to HostManager
+    connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::keyCaptured,
+            &HostManager::getInstance(), &HostManager::handleKeyboardAction);
+    qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to HostManager";
+
+    // Restore SystemKeyBlocker state from previous session
+    if (GlobalSetting::instance().getSystemKeyBlockerEnabled()) {
+        quintptr hwnd = m_videoPane ? m_videoPane->winId() : 0;
+        if (SystemKeyBlocker::instance().start(hwnd)) {
+            qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker restored to active state";
+        }
+    }
 
     m_mainWindow->onLastKeyPressed("");
     m_mainWindow->onLastMouseLocation(QPoint(0, 0), "");

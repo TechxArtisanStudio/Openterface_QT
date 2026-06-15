@@ -209,7 +209,18 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
         
         connect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
         connect(m_getInfoTimer, &QTimer::timeout, this, &SerialPortManager::onGetInfoTimeout);
-        
+
+        // Create port chain delayed clear timer for hotplug protection
+        m_portChainClearTimer = new QTimer(this);
+        m_portChainClearTimer->setSingleShot(true);
+        connect(m_portChainClearTimer, &QTimer::timeout, this, [this]() {
+            if (!m_pendingPortChainClear.isEmpty()) {
+                qCDebug(log_core_serial) << "Port chain delayed clear timeout: clearing" << m_pendingPortChainClear;
+                m_currentSerialPortChain.clear();
+                m_pendingPortChainClear.clear();
+            }
+        });
+
         setupConnectionWatchdog();
         
         qCDebug(log_core_serial) << "Timers created successfully in worker thread";
@@ -293,11 +304,39 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
             return;
         }
 
+        // HOTPLUG FIX: If previous initialization state is stale (ready=false but port was opened),
+        // force-clean the state before attempting a new connection. This prevents "not ready"
+        // errors from blocking subsequent auto-connect attempts after rapid hotplug.
         if (m_openInProgress.load()) {
-            qCDebug(log_core_serial) << "Skipping auto-connect because an open is already in progress for another request:" << portChain;
-            return;
+            // Check if we're stuck in a stale open state (ready=false and previous init failed)
+            // This can happen when device was unplugged during CH9329 initialization
+            if (!ready && m_currentSerialPortChain == portChain) {
+                qCWarning(log_core_serial) << "Stale open state detected (ready=false but open in progress)"
+                                           << "- forcing state reset for port chain:" << portChain;
+
+                // Reset the open-in-progress flag to allow a fresh attempt
+                m_openInProgress.store(false);
+
+                // Force-close any stale serial port that may still be open
+                if (serialPort && serialPort->isOpen()) {
+                    qCWarning(log_core_serial) << "Force-closing stale serial port connection";
+                    closePort();
+                }
+
+                // Clear pending retries since we're starting fresh
+                m_initRetryCount = 0;
+                m_pendingInitPortName.clear();
+                m_pendingInitBaudrate = 0;
+
+                qCInfo(log_core_serial) << "State reset complete, proceeding with fresh auto-connect";
+            } else {
+                qCDebug(log_core_serial) << "Skipping auto-connect because an open is already in progress for another request:" << portChain;
+                return;
+            }
         }
 
+        // HOTPLUG FIX: If the serial port is not open and we're below max retries,
+        // always attempt a fresh switch even if previous ones failed
         bool switchSuccess = switchSerialPortByPortChain(portChain);
         if (switchSuccess) {
             qCInfo(log_core_serial) << "✓ Serial port auto-switched to new device at portChain:" << portChain;
@@ -581,6 +620,9 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
             closePort();
         }
 
+        // HOTPLUG FIX: Cancel any pending port chain clear - we're about to use this chain
+        cancelPendingPortChainClear();
+
         // Update current device tracking in state manager
         if (m_stateManager) {
             SerialPortInfo newPortInfo;
@@ -590,7 +632,7 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
             newPortInfo.chipType = m_currentChipType;
             m_stateManager->setSerialPortInfo(newPortInfo);
         }
-        
+
         // Update legacy tracking for backward compatibility
         m_currentSerialPortPath = selectedDevice.serialPortPath;
         m_currentSerialPortChain = portChain;
@@ -599,15 +641,27 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
         // This ensures the same initialization process as during normal connection
         qCDebug(log_core_serial) << "Initializing serial port with HID chip configuration";
         emit serialPortConnected(selectedDevice.serialPortPath);
-        
+
         if (!ready) {
             // Use async approach instead of blocking event loop
             QTimer::singleShot(2000, this, [this, selectedDevice, previousPortPath, previousPortChain, portChain]() {
                 if (!ready) {
                     qCWarning(log_core_serial) << "Serial port initialization did not complete within timeout after switch";
-                    // Revert to previous device info on failure
-                    m_currentSerialPortPath = previousPortPath;
-                    m_currentSerialPortChain = previousPortChain;
+
+                    // HOTPLUG FIX: Don't blindly revert to previous chain - check if a new device has connected
+                    // If m_currentSerialPortChain has changed (e.g., by a new hotplug event), don't revert
+                    if (m_currentSerialPortChain == portChain || m_currentSerialPortChain.isEmpty()) {
+                        qCDebug(log_core_serial) << "Reverting to previous port chain:" << previousPortChain;
+                        m_currentSerialPortPath = previousPortPath;
+                        m_currentSerialPortChain = previousPortChain;
+
+                        if (m_hotplugHandler) {
+                            m_hotplugHandler->SetCurrentSerialPortPortChain(previousPortChain);
+                        }
+                    } else {
+                        qCInfo(log_core_serial) << "Port chain changed during timeout (new device detected?), keeping current chain:"
+                                                << m_currentSerialPortChain << "instead of reverting to" << portChain;
+                    }
                 } else {
                     // Success - finalize the switch
                     completeSwitchSerialPort(selectedDevice, previousPortPath, previousPortChain, portChain);
@@ -832,59 +886,78 @@ void SerialPortManager::initializeCH32V208Sync(const QString &portName) {
 
 // Improved async CH9329 connection attempt
 void SerialPortManager::attemptCH9329Connection(const QString &portName, const QList<int> &baudOrder, int baudIndex, int cycle, int maxCycles) {
+    qCDebug(log_core_serial) << "attemptCH9329Connection: port=" << portName
+                             << " baudIndex=" << baudIndex
+                             << " cycle=" << cycle
+                             << " maxCycles=" << maxCycles;
+
     if (cycle >= maxCycles) {
         qCWarning(log_core_serial) << "CH9329 initialization failed after" << maxCycles << "cycles";
+
+        // HOTPLUG FIX: Instead of leaving ready=false permanently, schedule a delayed retry
+        // This gives the USB stack time to stabilize after rapid plug/unplug
+        if (m_initRetryCount < MAX_INIT_RETRIES) {
+            scheduleInitRetry(portName, baudOrder.first());
+            return;
+        }
+
+        qCCritical(log_core_serial) << "CH9329 initialization failed after" << MAX_INIT_RETRIES << "retries, giving up";
         ready = false;
         if (m_commandCoordinator) {
             m_commandCoordinator->setReady(false);
         }
         return;
     }
-    
+
     if (baudIndex >= baudOrder.size()) {
         // Move to next cycle
         qCDebug(log_core_serial) << "Starting cycle" << (cycle + 1) << "of CH9329 initialization";
         attemptCH9329Connection(portName, baudOrder, 0, cycle + 1, maxCycles);
         return;
     }
-    
+
     int currentBaud = baudOrder[baudIndex];
     qCDebug(log_core_serial) << "Attempting to open port" << portName << "at baud" << currentBaud << "(cycle" << (cycle + 1) << "of" << maxCycles << ")";
-    
+
     if (openPort(portName, currentBaud)) {
         // Give the port a moment to stabilize
         QThread::msleep(50);
-        
+
         qCDebug(log_core_serial) << "Serial port opened, validating with synchronous CMD_GET_INFO:" << portName << "baud" << currentBaud;
         QByteArray getInfoResp = sendSyncCommand(CMD_GET_INFO, true);
-        
+
          if (!getInfoResp.isEmpty() && getInfoResp.size() >= 4) {
             // Valid response received - initialization successful
             qCInfo(log_core_serial) << "CH9329 initialization successful at baudrate" << currentBaud;
-            
+
+            // HOTPLUG FIX: Reset retry counter on success
+            m_initRetryCount = 0;
+            m_pendingInitPortName.clear();
+            m_pendingInitBaudrate = 0;
+
             ConfigResult config = sendAndProcessConfigCommand();
             if (config.success) {
                 handleChipSpecificLogic(config);
                 storeBaudrateIfNeeded(config.workingBaudrate);
-                
+
                 // Set ready state and sync with command coordinator
                 ready = true;
                 if (m_commandCoordinator) {
                     m_commandCoordinator->setReady(true);
                 }
-                
+
                 emit serialPortConnectionSuccess(portName);
                 return;
             }
         }
-        
+
         qCWarning(log_core_serial) << "No valid CMD_GET_INFO response received after opening port" << portName << "at baud" << currentBaud << "- closing and will try the next baud/attempt";
         closePortInternal();
-        
+
         // Small delay before next attempt
         QThread::msleep(100);
     }
-    
+
     // Try next baudrate
     attemptCH9329Connection(portName, baudOrder, baudIndex + 1, cycle, maxCycles);
 }
@@ -939,7 +1012,15 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     }
     
     // Re-establish timer signal connections in case they were disconnected during port close
-    reconnectTimerSignals();
+    // CRITICAL: Must be done in worker thread to avoid cross-thread timer issues
+    if (QThread::currentThread() == m_serialWorkerThread) {
+        reconnectTimerSignals();
+    } else {
+        qCDebug(log_core_serial) << "onSerialPortConnectionSuccess called from different thread, delegating timer reconnect to worker thread";
+        QMetaObject::invokeMethod(this, [this]() {
+            reconnectTimerSignals();
+        }, Qt::QueuedConnection);
+    }
     
     ready = true;
     // Sync the command coordinator ready state
@@ -1519,6 +1600,20 @@ void SerialPortManager::completePortCloseCleanup() {
     m_errorHandlerDisconnected = false;
     m_errorTrackingTimer.restart();
 
+    // HOTPLUG FIX: Don't immediately clear the port chain - use delayed clear instead
+    // This prevents race conditions where the device is unplugged and immediately replugged
+    // The delayed timer gives the USB stack time to re-enumerate before we clear state
+    if (!m_currentSerialPortChain.isEmpty()) {
+        qCDebug(log_core_serial) << "Scheduling delayed port chain clear for" << m_currentSerialPortChain
+                                 << "(will clear after 2s if no new device connects)";
+        m_pendingPortChainClear = m_currentSerialPortChain;
+        if (m_portChainClearTimer) {
+            // Stop any previous timer and start fresh
+            m_portChainClearTimer->stop();
+            m_portChainClearTimer->start(2000);  // 2 second delay
+        }
+    }
+
     // Inform hotplug handler that serial is closed and cancel any pending auto-connect attempts
     if (m_hotplugHandler) {
         m_hotplugHandler->SetSerialOpen(false);
@@ -1736,29 +1831,35 @@ void SerialPortManager::stopAllTimers(bool disconnectSignals) {
 }
 
 void SerialPortManager::reconnectTimerSignals() {
+    // CRITICAL: Ensure we're executing in the worker thread to avoid cross-thread timer issues
+    // This is the root cause of "QObject::killTimer: Timers cannot be stopped from another thread"
+    if (QThread::currentThread() != m_serialWorkerThread) {
+        qCWarning(log_core_serial) << "reconnectTimerSignals called from wrong thread, delegating to worker thread";
+        QMetaObject::invokeMethod(this, [this]() {
+            reconnectTimerSignals();
+        }, Qt::QueuedConnection);
+        return;
+    }
+
     // Re-establish timer signal connections that may have been disconnected during port close
+    // CRITICAL: Always disconnect first to prevent duplicate connections during rapid hotplug
     if (m_usbStatusCheckTimer) {
-        // Disconnect any existing connections to avoid duplicates
-        disconnect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
-        // Re-connect the signal
+        disconnect(m_usbStatusCheckTimer, nullptr, this, nullptr);
         connect(m_usbStatusCheckTimer, &QTimer::timeout, this, &SerialPortManager::onUsbStatusCheckTimeout);
-        qCDebug(log_core_serial) << "USB status check timer signal reconnected";
+        qCDebug(log_core_serial) << "USB status check timer signal reconnected (cleaned first)";
     }
-    
+
     if (m_getInfoTimer) {
-        // Disconnect any existing connections to avoid duplicates
-        disconnect(m_getInfoTimer, &QTimer::timeout, this, &SerialPortManager::onGetInfoTimeout);
-        // Re-connect the signal
+        disconnect(m_getInfoTimer, nullptr, this, nullptr);
         connect(m_getInfoTimer, &QTimer::timeout, this, &SerialPortManager::onGetInfoTimeout);
-        qCDebug(log_core_serial) << "GET_INFO timer signal reconnected";
+        qCDebug(log_core_serial) << "GET_INFO timer signal reconnected (cleaned first)";
     }
-    
+
     if (m_connectionWatchdog) {
-        // For connection watchdog, we may need to reconnect its timeout signal as well
-        // Note: The actual reconnection logic depends on how the watchdog is implemented
-        qCDebug(log_core_serial) << "Connection watchdog timer signals checked";
+        disconnect(m_connectionWatchdog, nullptr, this, nullptr);
+        qCDebug(log_core_serial) << "Connection watchdog timer signals checked (cleaned first)";
     }
-    
+
     qCDebug(log_core_serial) << "Timer signal connections restored after port reconnection";
 }
 
@@ -3621,4 +3722,89 @@ void SerialPortManager::applyHardwareSettingInternal(int baudrate, uint8_t mode,
     }
     
     qCDebug(log_core_serial) << "================== applyHardwareSettingInternal END ==================";
+}
+
+// Hotplug recovery: Schedule a delayed retry when CH9329 initialization fails
+void SerialPortManager::scheduleInitRetry(const QString& portName, int baudrate)
+{
+    m_initRetryCount++;
+    m_pendingInitPortName = portName;
+    m_pendingInitBaudrate = baudrate;
+
+    qCWarning(log_core_serial) << "CH9329 initialization failed, scheduling delayed retry"
+                               << m_initRetryCount << "of" << MAX_INIT_RETRIES
+                               << "after 500ms delay (giving USB stack time to stabilize)";
+
+    // Use a timer to delay the retry, giving the USB stack time to stabilize after rapid hotplug
+    QTimer::singleShot(500, this, [this]() {
+        attemptInitRetry();
+    });
+}
+
+// Hotplug recovery: Attempt the delayed initialization retry
+void SerialPortManager::attemptInitRetry()
+{
+    if (m_pendingInitPortName.isEmpty()) {
+        qCDebug(log_core_serial) << "attemptInitRetry: No pending port name, skipping";
+        return;
+    }
+
+    // Check if we're in the worker thread
+    if (QThread::currentThread() != m_serialWorkerThread) {
+        QMetaObject::invokeMethod(this, [this]() {
+            attemptInitRetry();
+        }, Qt::QueuedConnection);
+        return;
+    }
+
+    qCInfo(log_core_serial) << "Attempting CH9329 initialization retry"
+                            << m_initRetryCount << "of" << MAX_INIT_RETRIES
+                            << "for port" << m_pendingInitPortName;
+
+    // Check if the device is still available at this port
+    DeviceManager& deviceManager = DeviceManager::getInstance();
+    QList<DeviceInfo> devices = deviceManager.getDevicesByPortChain(m_currentSerialPortChain);
+    bool deviceStillAvailable = false;
+    for (const DeviceInfo& device : devices) {
+        if (device.serialPortPath == m_pendingInitPortName) {
+            deviceStillAvailable = true;
+            break;
+        }
+    }
+
+    // Also check available ports directly
+    if (!deviceStillAvailable) {
+        for (const QSerialPortInfo& info : QSerialPortInfo::availablePorts()) {
+            if (info.portName() == m_pendingInitPortName) {
+                deviceStillAvailable = true;
+                break;
+            }
+        }
+    }
+
+    if (!deviceStillAvailable) {
+        qCWarning(log_core_serial) << "Device no longer available at port" << m_pendingInitPortName
+                                   << ", aborting retry";
+        m_initRetryCount = MAX_INIT_RETRIES;  // Stop further retries
+        m_pendingInitPortName.clear();
+        m_pendingInitBaudrate = 0;
+        return;
+    }
+
+    // Clear any stale state before retry
+    m_openInProgress.store(false);
+
+    // Re-attempt initialization from scratch
+    qCInfo(log_core_serial) << "Re-initializing serial port for retry";
+    initializeCH9329Async(m_pendingInitPortName, m_pendingInitBaudrate);
+}
+
+// HOTPLUG FIX: Cancel any pending port chain clear - called when a new device connects
+void SerialPortManager::cancelPendingPortChainClear()
+{
+    if (m_portChainClearTimer && m_portChainClearTimer->isActive()) {
+        m_portChainClearTimer->stop();
+        qCDebug(log_core_serial) << "Cancelled pending port chain clear for" << m_pendingPortChainClear;
+    }
+    m_pendingPortChainClear.clear();
 }

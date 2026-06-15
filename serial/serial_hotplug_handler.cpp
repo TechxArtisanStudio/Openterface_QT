@@ -105,15 +105,26 @@ void SerialHotplugHandler::SetAllowAutoConnect(bool allow)
 
     if (allow_auto_connect_ && pending_auto_connect_ && !pending_port_chain_.isEmpty()) {
         qCInfo(log_core_serial) << "SerialHotplugHandler: Processing deferred auto-connect for port chain:" << pending_port_chain_;
-        // Schedule the auto-connect attempts now using the stored pending port chain
-        // Use same scheduling as OnDevicePluggedIn
-        const int initialDelayMs = 250;
+
+        // Check if we're still within debounce window for deferred requests
+        int actualDelayMs = 250;
+        if (m_debounceActive.load()) {
+            qint64 msSinceUnplug = m_lastUnplugTime.msecsTo(QDateTime::currentDateTime());
+            if (msSinceUnplug < DEBOUNCE_WINDOW_MS) {
+                actualDelayMs = qMax(static_cast<int>(STABILIZATION_DELAY_MS - msSinceUnplug), 500);
+                qCInfo(log_core_serial) << "SerialHotplugHandler: Deferred auto-connect also within debounce, delaying by" << actualDelayMs << "ms";
+            } else {
+                m_debounceActive.store(false);
+                m_hotplugFailCount = 0;
+            }
+        }
+
         const int retryDelayMs = 750;
 
         CancelAutoConnectAttempts();
         current_port_chain_ = pending_port_chain_;
-        auto_connect_timer_1_->start(initialDelayMs);
-        auto_connect_timer_2_->setInterval(initialDelayMs + retryDelayMs);
+        auto_connect_timer_1_->start(actualDelayMs);
+        auto_connect_timer_2_->setInterval(actualDelayMs + retryDelayMs);
 
         // Clear pending state
         pending_auto_connect_ = false;
@@ -144,6 +155,12 @@ void SerialHotplugHandler::OnDeviceUnplugged(const DeviceInfo& device)
     qCInfo(log_core_serial) << "  Port Chain:" << device.portChain;
     qCInfo(log_core_serial) << "  Current port chain:" << current_port_chain_;
     qCInfo(log_core_serial) << "  Serial open:" << serial_open_;
+
+    // Record unplug time and activate debounce to detect rapid plug/unplug cycles
+    m_lastUnplugTime = QDateTime::currentDateTime();
+    m_debounceActive.store(true);
+    qCDebug(log_core_serial) << "SerialHotplugHandler: Debounce activated, last unplug at"
+                             << m_lastUnplugTime.toString("hh:mm:ss.zzz");
 
     if (!current_port_chain_.isEmpty() && current_port_chain_ == device.portChain) {
         qCInfo(log_core_serial) << "  → Our current serial device was unplugged, notifying manager";
@@ -183,9 +200,42 @@ void SerialHotplugHandler::OnDevicePluggedIn(const DeviceInfo& device)
             return;
         }
 
+        // Check if we're within the debounce window after a recent unplug
+        bool needsDelayedRetry = false;
+        int debounceMsRemaining = 0;
+        if (m_debounceActive.load()) {
+            qint64 msSinceUnplug = m_lastUnplugTime.msecsTo(QDateTime::currentDateTime());
+            if (msSinceUnplug < DEBOUNCE_WINDOW_MS) {
+                needsDelayedRetry = true;
+                debounceMsRemaining = static_cast<int>(STABILIZATION_DELAY_MS - msSinceUnplug);
+                debounceMsRemaining = qMax(debounceMsRemaining, 500);  // Minimum 500ms delay
+                qCInfo(log_core_serial) << "SerialHotplugHandler: Within debounce window ("
+                                        << msSinceUnplug << "ms since unplug), will delay auto-connect by"
+                                        << debounceMsRemaining << "ms for USB stabilization"
+                                        << "(hotplug fail count:" << m_hotplugFailCount << ")";
+                m_hotplugFailCount++;
+            } else {
+                // Debounce window expired, reset state
+                m_debounceActive.store(false);
+                m_hotplugFailCount = 0;
+            }
+        }
+
         // Schedule two attempts like existing SerialPortManager behavior
         const int initialDelayMs = 250;
         const int retryDelayMs = 750;
+        int actualInitialDelay = initialDelayMs;
+
+        if (needsDelayedRetry) {
+            actualInitialDelay = debounceMsRemaining;
+
+            // If consecutive failures exceed threshold, use exponential backoff (capped at 5s)
+            if (m_hotplugFailCount > 3) {
+                actualInitialDelay = qMin(actualInitialDelay * (m_hotplugFailCount - 2), 5000);
+                qCWarning(log_core_serial) << "SerialHotplugHandler: Multiple hotplug failures, using exponential backoff:"
+                                           << actualInitialDelay << "ms (fail count:" << m_hotplugFailCount << ")";
+            }
+        }
 
         // Cancel previous attempts if any
         CancelAutoConnectAttempts();
@@ -193,14 +243,15 @@ void SerialHotplugHandler::OnDevicePluggedIn(const DeviceInfo& device)
         // Mark that an auto-connect flow is now in progress
         auto_connect_in_progress_.store(true);
 
-        auto_connect_timer_1_->start(initialDelayMs);
+        auto_connect_timer_1_->start(actualInitialDelay);
         // timer 2 will be started when timer1 fires to preserve same spacing behavior
-        auto_connect_timer_2_->setInterval(initialDelayMs + retryDelayMs);
+        auto_connect_timer_2_->setInterval(actualInitialDelay + retryDelayMs);
 
         // For safety, store last seen port chain
         current_port_chain_ = device.portChain;
 
-        qCInfo(log_core_serial) << "  → Scheduled auto-connect attempts for port chain:" << device.portChain;
+        qCInfo(log_core_serial) << "  → Scheduled auto-connect attempts for port chain:" << device.portChain
+                                << " (initial delay:" << actualInitialDelay << "ms, retry delay:" << retryDelayMs << "ms)";
     } else {
         qCDebug(log_core_serial) << "  → Serial already open, not auto-connecting";
     }

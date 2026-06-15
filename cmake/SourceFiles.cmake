@@ -113,6 +113,21 @@ set(SCRIPT_SOURCES
     scripts/scriptEditor.cpp scripts/scriptEditor.h
 )
 
+# SysKeyBlocker — system keyboard capture
+set(SYSKEYBLOCKER_SOURCES
+    SysKeyBlocker/SystemKeyBlocker.cpp SysKeyBlocker/SystemKeyBlocker.h
+)
+
+if(WIN32)
+    list(APPEND SYSKEYBLOCKER_SOURCES
+        SysKeyBlocker/SystemKeyBlocker_win.cpp
+    )
+elseif(UNIX AND NOT APPLE)
+    list(APPEND SYSKEYBLOCKER_SOURCES
+        SysKeyBlocker/SystemKeyBlocker_x11.cpp
+    )
+endif()
+
 # Serial sources
 set(SERIAL_SOURCES
     serial/SerialPortManager.cpp serial/SerialPortManager.h
@@ -302,6 +317,7 @@ set(SOURCE_FILES
     ${UI_PREFERENCES_SOURCES}
     ${UI_FLOATING_WINDOW_SOURCES}
     ${UI_CUSTOMKEY_SOURCES}
+    ${SYSKEYBLOCKER_SOURCES}
     ${WCH_SOURCES}
 )
 

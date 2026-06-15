@@ -22,3 +22,4 @@ build-script/libusb-build-temp/*
 # Docker image exports (very large)
 shared-qt-complete-arm-opt.tar*
 email_service/*
+.codegraph/*
