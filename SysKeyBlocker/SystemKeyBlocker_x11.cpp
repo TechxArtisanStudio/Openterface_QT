@@ -31,8 +31,6 @@
 #include <QWindowList>
 #include <QVector>
 
-#include <QtGui/qnativeinterface.h>
-
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <xcb/xcb.h>
@@ -114,7 +112,7 @@ public:
 private:
     static QVector<int> systemKeysyms();
 
-    Display    *m_dpy  = nullptr;   // borrowed — do not free
+    Display    *m_dpy  = nullptr;   // owned — closed in dtor
     ::Window    m_tlw  = 0;         // our top-level X11 window
     bool        m_grabbed = false;
 };
@@ -123,12 +121,8 @@ private:
 
 SystemKeyBlocker::X11KeyGrabber::X11KeyGrabber()
 {
-    // Obtain the X11 Display* from Qt's platform integration
-    if (auto *app = qobject_cast<QGuiApplication *>(QCoreApplication::instance())) {
-        if (auto *x11App = app->nativeInterface<QNativeInterface::QX11Application>()) {
-            m_dpy = x11App->display();
-        }
-    }
+    // Open a dedicated X11 connection to avoid Qt native-interface header/version issues.
+    m_dpy = XOpenDisplay(nullptr);
 
     if (!m_dpy) {
         qCWarning(log_syskey_x11) << "X11KeyGrabber: cannot obtain X11 Display";
@@ -153,6 +147,11 @@ SystemKeyBlocker::X11KeyGrabber::~X11KeyGrabber()
 {
     if (m_grabbed)
         ungrabSystemKeys();
+
+    if (m_dpy) {
+        XCloseDisplay(m_dpy);
+        m_dpy = nullptr;
+    }
 }
 
 QVector<int> SystemKeyBlocker::X11KeyGrabber::systemKeysyms()
@@ -293,18 +292,14 @@ public:
         const bool isDown = (type == XCB_KEY_PRESS);
 
         // ---- Resolve keysym ----
-        Display *dpy = nullptr;
-        if (auto *app = qobject_cast<QGuiApplication *>(QCoreApplication::instance())) {
-            if (auto *x11App = app->nativeInterface<QNativeInterface::QX11Application>()) {
-                dpy = x11App->display();
-            }
-        }
+        Display *dpy = XOpenDisplay(nullptr);
         if (!dpy) {
             qCWarning(log_syskey_x11) << "Cannot get X11 Display — event dropped";
             return false;
         }
 
         KeySym ks = XkbKeycodeToKeysym(dpy, ke->detail, 0, 0);
+        XCloseDisplay(dpy);
 
         // ---- Update modifier state tracking (matches Windows approach) ----
         switch (ks) {
