@@ -113,6 +113,9 @@ void SemanticAnalyzer::analyzeCommandStatement(const CommandStatementNode* node)
     if(commandName == "MouseMove"){
         analyzeMouseMove(node);
     }
+    if(commandName == "Scroll"){
+        analyzeScrollStatement(node);
+    }
     if(commandName == "Send"){
         analyzeSendStatement(node);
     }
@@ -271,18 +274,18 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
     }
 
     // Build the key string from options
+    // String literals are now handled by Lexer as single STRING tokens
+    // with internal spaces preserved; wrapper quotes are stripped by Lexer.
+    // No need for quote-stripping logic here.
     QString tmpKeys;
-    bool append = false;
-    for (const auto& token : options) {
-        if (token == "\"") append = true;
-        if (append) tmpKeys.append(QString::fromStdString(token));
+    for (const auto& option : options) {
+        tmpKeys.append(QString::fromStdString(option));
     }
-    tmpKeys.replace(QRegularExpression("^\"|\"$"), "");
     qCDebug(log_script) << "Processing keys:" << tmpKeys;
 
     int pos = 0;
     int packetCount = 0;
-    const int MAX_PACKETS = 50;
+    const int MAX_PACKETS = tmpKeys.length() * 2 + 10;  // 2 packets per char (press+release) + margin
 
     // backtickEscapeMap and shiftRequiredChars are defined in SendKeyMaps.h
 
@@ -632,4 +635,44 @@ MouseParams SemanticAnalyzer::parserClickParam(const QString& command) {
     // keyPacket pack(Mode, _mouseButton, 0x00, coord); // Last param 0x00 is mouseRollWheel
     // qCDebug(log_script) << "after key packet";
     // keyboardMouse->addKeyPacket(pack);
+}
+
+void SemanticAnalyzer::analyzeScrollStatement(const CommandStatementNode* node) {
+    const auto& options = node->getOptions();
+    if (options.empty()) {
+        qCDebug(log_script) << "Scroll: no parameters provided. Usage: Scroll up|down [, lines]";
+        return;
+    }
+
+    if (!mouseManager) {
+        qCDebug(log_script) << "Scroll: MouseManager is not initialized";
+        return;
+    }
+
+    // Parse direction: first token should be "up" or "down"
+    QString direction = QString::fromStdString(options[0]).toLower();
+    int scrollDirection = 1;  // default: up
+
+    if (direction == "down") {
+        scrollDirection = -1;
+    } else if (direction != "up") {
+        qCDebug(log_script) << "Scroll: unknown direction" << direction << "(defaulting to up)";
+    }
+
+    // Parse lines: second token (optional, default 1)
+    int lines = 1;
+    if (options.size() >= 2) {
+        bool ok = false;
+        int value = QString::fromStdString(options[1]).toInt(&ok);
+        if (ok && value > 0) {
+            lines = value;
+        } else {
+            qCDebug(log_script) << "Scroll: invalid lines value" << options[1] << "(defaulting to 1)";
+        }
+    }
+
+    qCDebug(log_script) << "Scroll: direction=" << (scrollDirection > 0 ? "up" : "down")
+                        << "lines=" << lines;
+
+    mouseManager->scrollWheel(scrollDirection, lines);
 }
