@@ -142,22 +142,14 @@ void MouseManager::scrollWheel(int direction, int lines) {
     int x = lastX;
     int y = lastY;
 
-    // Send one packet per line. Some HID firmware ignores the magnitude
-    // of the wheel byte and only reacts to its sign, so we emit multiple
-    // single-step packets instead of a single large-delta packet.
-    uint8_t wheelByte = (direction > 0) ? static_cast<uint8_t>(1) : static_cast<uint8_t>(0xFF);
-
+    // Route through handleAbsoluteMouseAction to ensure the exact same
+    // packet assembly as the UI wheel path (button byte, stopAutoMoveMouse, etc.).
+    // Each line uses delta=100 so mapScrollWheel(100) → 1.
+    // Add a short delay between packets so the firmware can process each one.
+    int deltaPerLine = direction * 100;
     for (int i = 0; i < lines; ++i) {
-        QByteArray data;
-        data.append(MOUSE_ABS_ACTION_PREFIX);
-        data.append(static_cast<char>(0));  // no button
-        data.append(static_cast<char>(x & 0xFF));
-        data.append(static_cast<char>((x >> 8) & 0xFF));
-        data.append(static_cast<char>(y & 0xFF));
-        data.append(static_cast<char>((y >> 8) & 0xFF));
-        data.append(static_cast<char>(wheelByte));
-
-        SerialPortManager::getInstance().sendCommandAsync(data, false);
+        handleAbsoluteMouseAction(x, y, 0, deltaPerLine);
+        QThread::msleep(30);
     }
 }
 
