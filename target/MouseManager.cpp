@@ -122,9 +122,9 @@ uint8_t MouseManager::mapScrollWheel(int delta){
     if(delta == 0){
         return 0;
     }else if(delta > 0){
-        return uint8_t(delta / 100);
+        return uint8_t(delta / 50);
     }else{
-        return 0xFF - uint8_t(-1*delta / 100)+1;
+        return 0xFF - uint8_t(-1*delta / 50)+1;
     }
 }
 
