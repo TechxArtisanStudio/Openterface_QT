@@ -125,14 +125,18 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     // Use current layout's keyMap instead of the static one
     mappedKeyCode = currentLayout.keyMap.value(keyCode, 0);
 
+    qCInfo(log_keyboard) << "Initial keyMap lookup: keyCode=" << keyCode << "(0x" << QString::number(keyCode, 16) << ")"
+                        << "-> mappedKeyCode=" << mappedKeyCode << "(0x" << QString::number(mappedKeyCode, 16) << ")"
+                        << "keyMap size=" << currentLayout.keyMap.size();
+
 #ifdef Q_OS_WIN
     // Handle Japanese IME keys using Windows Virtual Key codes
     // Only apply for Japanese keyboard layouts (JIS)
     if (currentLayout.name.contains("Japanese") || currentLayout.name.contains("JIS")) {
         // Windows Virtual Key codes for Japanese IME:
-        // VK_NONCONVERT (0x1D / 29) = 無変換 (Muhenkan)
-        // VK_CONVERT    (0x1C / 28) = 変換 (Henkan)
-        // VK_OEM_ATTN   (0xF0 / 240) and related = 半角/全角 (Zenkaku/Hankaku)
+        // VK_NONCONVERT (0x1D / 29) = Muhenkan (non-conversion key)
+        // VK_CONVERT    (0x1C / 28) = Henkan (conversion key)
+        // VK_OEM_ATTN   (0xF0 / 240) and related = Zenkaku/Hankaku (full-width/half-width toggle)
         constexpr unsigned int VK_NONCONVERT = 0x1D;  // 29
         constexpr unsigned int VK_CONVERT = 0x1C;     // 28
         constexpr unsigned int VK_OEM_AUTO = 0xF3;    // 243
@@ -182,7 +186,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         }
         else{
             mappedKeyCode = currentLayout.unicodeMap.value(unicodeValue, 0);
-            qDebug() << "Trying Unicode mapping for U+" << QString::number(unicodeValue, 16) 
+            qDebug() << "Trying Unicode mapping for U+" << QString::number(unicodeValue, 16)
                                 << "-> scancode: 0x" << QString::number(mappedKeyCode, 16);
 
             if (mappedKeyCode != 0) {
@@ -194,13 +198,104 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             }
         }
     }
+
+    // X11 keysym fallback for common keys when nativeVirtualKey is set
+    // This handles keys coming from X11KeyGrabber that weren't in the layout keyMap
+    if (mappedKeyCode == 0 && nativeVirtualKey != 0) {
+        switch (nativeVirtualKey) {
+            case 0xFF09: // XK_Tab
+                mappedKeyCode = 0x2B;
+                qCDebug(log_keyboard) << "X11 Tab key detected, scancode: 0x2B";
+                break;
+            case 0xFF0D: // XK_Return
+                mappedKeyCode = 0x28;
+                qCDebug(log_keyboard) << "X11 Return key detected, scancode: 0x28";
+                break;
+            case 0xFF1B: // XK_Escape
+                mappedKeyCode = 0x29;
+                qCDebug(log_keyboard) << "X11 Escape key detected, scancode: 0x29";
+                break;
+            case 0xFF08: // XK_BackSpace
+                mappedKeyCode = 0x2A;
+                qCDebug(log_keyboard) << "X11 BackSpace key detected, scancode: 0x2A";
+                break;
+            case 0xFF0C: // XK_Print (PrintScreen)
+                mappedKeyCode = 0x46;
+                qCDebug(log_keyboard) << "X11 PrintScreen key detected, scancode: 0x46";
+                break;
+            case 0xFF13: // XK_Scroll_Lock
+                mappedKeyCode = 0x47;
+                qCDebug(log_keyboard) << "X11 ScrollLock key detected, scancode: 0x47";
+                break;
+            case 0xFF14: // XK_Pause
+                mappedKeyCode = 0x48;
+                qCDebug(log_keyboard) << "X11 Pause key detected, scancode: 0x48";
+                break;
+            case 0xFF61: // XK_Insert
+                mappedKeyCode = 0x49;
+                qCDebug(log_keyboard) << "X11 Insert key detected, scancode: 0x49";
+                break;
+            case 0xFF50: // XK_Home
+                mappedKeyCode = 0x4A;
+                qCDebug(log_keyboard) << "X11 Home key detected, scancode: 0x4A";
+                break;
+            case 0xFF55: // XK_Page_Up
+                mappedKeyCode = 0x4B;
+                qCDebug(log_keyboard) << "X11 PageUp key detected, scancode: 0x4B";
+                break;
+            case 0xFF57: // XK_End
+                mappedKeyCode = 0x4D;
+                qCDebug(log_keyboard) << "X11 End key detected, scancode: 0x4D";
+                break;
+            case 0xFF56: // XK_Page_Down
+                mappedKeyCode = 0x4E;
+                qCDebug(log_keyboard) << "X11 PageDown key detected, scancode: 0x4E";
+                break;
+            case 0xFF53: // XK_Right
+                mappedKeyCode = 0x4F;
+                qCDebug(log_keyboard) << "X11 Right key detected, scancode: 0x4F";
+                break;
+            case 0xFF51: // XK_Left
+                mappedKeyCode = 0x50;
+                qCDebug(log_keyboard) << "X11 Left key detected, scancode: 0x50";
+                break;
+            case 0xFF54: // XK_Down
+                mappedKeyCode = 0x51;
+                qCDebug(log_keyboard) << "X11 Down key detected, scancode: 0x51";
+                break;
+            case 0xFF52: // XK_Up
+                mappedKeyCode = 0x52;
+                qCDebug(log_keyboard) << "X11 Up key detected, scancode: 0x52";
+                break;
+            default:
+                // For other keys, try to map from nativeVirtualKey directly
+                // ASCII printable keys (0x20-0x7E) map to their HID codes
+                if (nativeVirtualKey >= 0x20 && nativeVirtualKey <= 0x7E) {
+                    // Convert X11 keysym to lowercase if needed
+                    uint32_t ch = nativeVirtualKey;
+                    if (ch >= 'A' && ch <= 'Z') ch += 32; // Convert to lowercase
+                    mappedKeyCode = currentLayout.keyMap.value(ch, 0);
+                    if (mappedKeyCode != 0) {
+                        qCDebug(log_keyboard) << "X11 ASCII key mapped: keysym" << Qt::hex << nativeVirtualKey
+                                              << "-> scancode:" << Qt::hex << mappedKeyCode;
+                    }
+                }
+                break;
+        }
+    }
+
     qCDebug(log_keyboard) << "Mapped to scancode: 0x" + QString::number(mappedKeyCode, 16);
     qCDebug(log_keyboard) << "Current layout name:" << currentLayout.name;
     qCDebug(log_keyboard) << "Layout has" << currentLayout.keyMap.size() << "mappings";
 
     if(isModiferKeys(keyCode) || keyCode == Qt::Key_Meta){
+        qCDebug(log_keyboard) << "Entering modifier branch for keyCode:" << keyCode << "nativeVK:" << QString::number(nativeVirtualKey, 16);
+        // Reset mappedKeyCode to ensure X11 fallback logic can execute
+        mappedKeyCode = 0;
+
         // Distinguish the left or right modifiers using nativeVirtualKey where available
         if (nativeVirtualKey != 0) {
+            qCDebug(log_keyboard) << "Checking nativeVirtualKey switch...";
             switch (nativeVirtualKey) {
                 case 0xA0: // VK_LSHIFT
                     mappedKeyCode = 0xE1; // left shift
@@ -257,7 +352,35 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
 
         // Fallback for platforms where nativeVirtualKey is unavailable or unknown
         if (mappedKeyCode == 0) {
-            if( modifiers == 1537){ // left shift
+            // X11 keysym modifier detection (Linux)
+            if (nativeVirtualKey == 0xFFE1 || nativeVirtualKey == 0xFFE2) { // XK_Shift_L/R
+                mappedKeyCode = (nativeVirtualKey == 0xFFE1) ? 0xE1 : 0xE5;
+                if (isKeyDown) currentModifiers |= 0x02; else currentModifiers &= ~0x02;
+                combinedModifiers = isKeyDown ? 0x02 : 0x00;
+                qCDebug(log_keyboard) << "Detected X11 Shift modifier";
+            } else if (nativeVirtualKey == 0xFFE3 || nativeVirtualKey == 0xFFE4) { // XK_Control_L/R
+                mappedKeyCode = (nativeVirtualKey == 0xFFE3) ? 0xE0 : 0xE4;
+                if (isKeyDown) currentModifiers |= 0x01; else currentModifiers &= ~0x01;
+                combinedModifiers = isKeyDown ? 0x01 : 0x00;
+                qCDebug(log_keyboard) << "Detected X11 Control modifier";
+            } else if (nativeVirtualKey == 0xFFE9 || nativeVirtualKey == 0xFFEA) { // XK_Alt_L/R
+                mappedKeyCode = (nativeVirtualKey == 0xFFE9) ? 0xE2 : 0xE6;
+                if (isKeyDown) currentModifiers |= 0x04; else currentModifiers &= ~0x04;
+                combinedModifiers = isKeyDown ? 0x04 : 0x00;
+                qCDebug(log_keyboard) << "Detected X11 Alt modifier, currentModifiers now:" << Qt::hex << currentModifiers << "combinedModifiers:" << combinedModifiers;
+            } else if (nativeVirtualKey == 0xFFEB || nativeVirtualKey == 0xFFEC) { // XK_Super_L/R (Win key)
+                mappedKeyCode = (nativeVirtualKey == 0xFFEB) ? 0xE3 : 0xE7;
+                if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
+                combinedModifiers = isKeyDown ? 0x08 : 0x00;
+                qCDebug(log_keyboard) << "Detected X11 Super/Win modifier";
+            } else if (nativeVirtualKey == 0xFFED || nativeVirtualKey == 0xFFEE) { // XK_Hyper_L/R (also used for Win)
+                mappedKeyCode = (nativeVirtualKey == 0xFFED) ? 0xE3 : 0xE7;
+                if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
+                combinedModifiers = isKeyDown ? 0x08 : 0x00;
+                qCDebug(log_keyboard) << "Detected X11 Hyper/Win modifier";
+            }
+            // Windows-specific fallback (legacy code)
+            else if( modifiers == 1537){ // left shift
                 mappedKeyCode = 0xe1;
                 if (isKeyDown) currentModifiers |= 0x02; else currentModifiers &= ~0x02;
                 combinedModifiers = isKeyDown ? 0x02 : 0x00;
@@ -327,23 +450,36 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             return;
         }
 
-        combinedModifiers = handleKeyModifiers(modifiers, isKeyDown);
+        // For non-modifier keys, use currentModifiers directly without modification.
+        // We don't call handleKeyModifiers because the modifiers parameter from X11
+        // interceptor may be incorrect (e.g., reporting MetaModifier instead of AltModifier).
+        // The modifier state should only be updated when actual modifier keys are pressed/released.
+        combinedModifiers = currentModifiers;
+        qCDebug(log_keyboard) << "Non-modifier key, using currentModifiers:" << Qt::hex << currentModifiers;
     }
 
 
     if (mappedKeyCode != 0) {
         // Phantom release: Windows IME consumed the key-down, only key-up arrived.
-        if (!isKeyDown && !currentMappedKeyCodes.contains(mappedKeyCode)) {
+        // For modifier keys, we don't add them to currentMappedKeyCodes, so skip this check.
+        if (!isKeyDown && !currentMappedKeyCodes.contains(mappedKeyCode) && !isModiferKeys(keyCode) && keyCode != Qt::Key_Meta) {
             sendKeyToTarget(mappedKeyCode, true);
         }
 
         // Update currentMappedKeyCodes: add on press, remove on release
-        if (isKeyDown) {
-            if (!currentMappedKeyCodes.contains(mappedKeyCode) && currentMappedKeyCodes.size() < 6) {
-                currentMappedKeyCodes.insert(mappedKeyCode);
-            }
+        // Modifier keys are NOT added to currentMappedKeyCodes - they're only in the modifier byte
+        if (isModiferKeys(keyCode) || keyCode == Qt::Key_Meta) {
+            // Modifier keys: only update currentModifiers, don't touch currentMappedKeyCodes
+            // currentModifiers was already updated above in the modifier branch
         } else {
-            currentMappedKeyCodes.remove(mappedKeyCode);
+            // Non-modifier keys: update currentMappedKeyCodes
+            if (isKeyDown) {
+                if (!currentMappedKeyCodes.contains(mappedKeyCode) && currentMappedKeyCodes.size() < 6) {
+                    currentMappedKeyCodes.insert(mappedKeyCode);
+                }
+            } else {
+                currentMappedKeyCodes.remove(mappedKeyCode);
+            }
         }
 
         // Always use currentModifiers for the modifier byte
@@ -427,8 +563,11 @@ int KeyboardManager::handleKeyModifiers(int modifier, bool isKeyDown) {
         // If the key is down, add the modifier to currentModifiers
         currentModifiers |= combinedModifiers;
     } else {
-        // If the key is up, remove the modifier from currentModifiers
-        currentModifiers &= ~combinedModifiers;
+        // If a non-modifier key is up, sync currentModifiers to the actual modifier state.
+        // The 'modifiers' parameter reflects what's currently held, so we should match it.
+        // This is different from modifier key release (handled elsewhere), which should clear
+        // the specific modifier being released.
+        currentModifiers = combinedModifiers;
     }
 
     qCDebug(log_keyboard) << "Key" << (isKeyDown?"down":"up") << "currentModifiers:" << currentModifiers << ", combinedModifiers:" << combinedModifiers;
