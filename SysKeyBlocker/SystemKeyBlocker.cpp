@@ -216,9 +216,12 @@ int SystemKeyBlocker::nativeToQtKey(quint32 nativeVk, bool /*extended*/) const
 
 int SystemKeyBlocker::nativeToQtKey(quint32 nativeVk, bool /*extended*/) const
 {
+    // nativeVk is an X11 keysym (e.g. 0xFF08 for XK_BackSpace)
     switch (nativeVk) {
     case XK_Super_L: // fall through
     case XK_Super_R: return Qt::Key_Meta;
+    case XK_Meta_L:  // fall through
+    case XK_Meta_R:  return Qt::Key_Meta;
     case XK_Print:   return Qt::Key_Print;
     case XK_Escape:  return Qt::Key_Escape;
     case XK_Tab:     return Qt::Key_Tab;
@@ -292,8 +295,13 @@ int SystemKeyBlocker::nativeToQtKey(quint32 nativeVk, bool /*extended*/) const
 
     default:
         // ASCII range 0x20 - 0x7E maps directly
-        if (nativeVk >= 0x20 && nativeVk <= 0x7E)
+        if (nativeVk >= 0x20 && nativeVk <= 0x7E) {
+            // X11 keysym uses lowercase for letters (0x61-0x7A), but Qt uses uppercase (0x41-0x5A)
+            // Convert lowercase to uppercase to match Qt key codes
+            if (nativeVk >= 'a' && nativeVk <= 'z')
+                return static_cast<int>(nativeVk - 32);
             return static_cast<int>(nativeVk);
+        }
         return static_cast<int>(nativeVk);
     }
 }

@@ -128,6 +128,7 @@ public:
 
     void handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement);
     void handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement);
+    void scrollWheel(int direction, int lines);
     void setEventCallback(StatusEventCallback* callback);
     void startAutoMoveMouse();
     void stopAutoMoveMouse();
@@ -140,9 +141,11 @@ public:
     }
 
 private:
-    bool isDragging = false; 
+    bool isDragging = false;
     StatusEventCallback* statusEventCallback = nullptr;
     int currentMouseButton = 0;  // Track current mouse button state
+    int lastX = 0;              // Last known absolute X coordinate
+    int lastY = 0;              // Last known absolute Y coordinate
 
     uint8_t mapScrollWheel(int delta);
     MouseMoverThread* mouseMoverThread = nullptr;

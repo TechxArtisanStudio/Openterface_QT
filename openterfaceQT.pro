@@ -11,7 +11,7 @@ MOC_DIR = moc
 OBJECTS_DIR = obj
 RCC_DIR = rcc
 
-QT       += core gui multimedia multimediawidgets serialport concurrent svg svgwidgets network opengl openglwidgets xml dbus
+QT       += core gui gui-private multimedia multimediawidgets serialport concurrent svg svgwidgets network opengl openglwidgets xml dbus
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 INCLUDEPATH += $$PWD
@@ -20,6 +20,7 @@ SOURCES += main.cpp \
     device/DeviceInfo.cpp \
     device/DeviceManager.cpp \
     device/HotplugMonitor.cpp \
+    device/HotplugDebounceManager.cpp \
     device/platform/AbstractPlatformDeviceManager.cpp \
     device/platform/DeviceFactory.cpp \
     host/HostManager.cpp \
@@ -132,7 +133,8 @@ SOURCES += main.cpp \
     ui/preferences/targetcontrolpage.cpp \
     ui/floatingwindow/floatingwindow.cpp \
     ui/customkey/customkeymanager.cpp \
-    ui/customkey/customkeydialog.cpp
+    ui/customkey/customkeydialog.cpp \
+    SysKeyBlocker/SystemKeyBlocker.cpp
 
 # Platform-specific backend handlers (exclude on Windows)
 !win32 {
@@ -164,6 +166,7 @@ HEADERS  += \
     device/DeviceInfo.h \
     device/DeviceManager.h \
     device/HotplugMonitor.h \
+    device/HotplugDebounceManager.h \
     device/platform/AbstractPlatformDeviceManager.h \
     device/platform/DeviceFactory.h \
     device/platform/windows/WinDeviceEnumerator.h \
@@ -285,7 +288,8 @@ HEADERS  += \
     ui/preferences/audiopage.h \
     ui/floatingwindow/floatingwindow.h \
     ui/customkey/customkeymanager.h \
-    ui/customkey/customkeydialog.h
+    ui/customkey/customkeydialog.h \
+    SysKeyBlocker/SystemKeyBlocker.h
 
 FORMS    += \
     ui/mainwindow.ui \
@@ -313,7 +317,8 @@ win32 {
         device/platform/windows/discoverers/BotherDeviceDiscoverer.cpp \
         device/platform/windows/discoverers/Generation3Discoverer.cpp \
         device/platform/windows/discoverers/DeviceDiscoveryManager.cpp \
-        video/transport/WindowsHIDTransport.cpp
+        video/transport/WindowsHIDTransport.cpp \
+        SysKeyBlocker/SystemKeyBlocker_win.cpp
     HEADERS += device/platform/WindowsDeviceManager.h \
         video/transport/WindowsHIDTransport.h \
         device/platform/windows/discoverers/IDeviceDiscoverer.h \
@@ -367,7 +372,8 @@ win32 {
 unix {
     # Add Linux-specific sources if any
     SOURCES += device/platform/LinuxDeviceManager.cpp \
-               video/transport/LinuxHIDTransport.cpp
+               video/transport/LinuxHIDTransport.cpp \
+               SysKeyBlocker/SystemKeyBlocker_x11.cpp
     HEADERS += device/platform/LinuxDeviceManager.h \
                video/transport/LinuxHIDTransport.h
 

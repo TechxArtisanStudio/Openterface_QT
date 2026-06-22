@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 if(UNIX AND NOT APPLE)
     find_package(X11 REQUIRED)
 endif()
@@ -31,7 +31,7 @@ endif()
 add_library(SysKeyBlocker STATIC ${SOURCES} ${HEADERS})
 
 target_include_directories(SysKeyBlocker PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(SysKeyBlocker PUBLIC Qt6::Core Qt6::Widgets)
+target_link_libraries(SysKeyBlocker PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets)
 
 # Platform-specific libraries
 if(WIN32)
