@@ -58,9 +58,14 @@ echo ""
 # Default to SKIP_PACKAGE_MINGW=1 (use external MinGW) unless explicitly overridden
 if [ "${SKIP_PACKAGE_MINGW:-1}" = "1" ]; then
     echo "Step 1/8: SKIP_PACKAGE_MINGW set (or default) - using external MinGW build environment"
-    # Prefer MSYS2 mingw64 if present and user didn't set EXTERNAL_MINGW_POSIX
-    if [ -z "${EXTERNAL_MINGW_POSIX:-}" ] && [ -d "/c/msys64/mingw64" ]; then
-        EXTERNAL_MINGW_POSIX="/c/msys64/mingw64"
+    # Prefer MSYS2 mingw64 if present and user didn't set EXTERNAL_MINGW_POSIX.
+    # On ARM64, default to /clangarm64 (NOT /c/msys64/mingw64, which is x86_64).
+    if [ -z "${EXTERNAL_MINGW_POSIX:-}" ]; then
+        if [ "$ARCH" = "arm64" ] && [ -d "/clangarm64" ]; then
+            EXTERNAL_MINGW_POSIX="/clangarm64"
+        elif [ -d "/c/msys64/mingw64" ]; then
+            EXTERNAL_MINGW_POSIX="/c/msys64/mingw64"
+        fi
     fi
     echo "External MinGW (posix style): ${EXTERNAL_MINGW_POSIX:-/c/mingw64}"
     # Prepend external mingw to PATH so the toolchain is used
@@ -68,24 +73,25 @@ if [ "${SKIP_PACKAGE_MINGW:-1}" = "1" ]; then
     if [ -d "${EXTERNAL_MINGW_BIN}" ]; then
         export PATH="${EXTERNAL_MINGW_BIN}:$PATH"
         echo "PATH updated to prefer external MinGW: ${EXTERNAL_MINGW_BIN}"
-        if [ -n "${EXTERNAL_MINGW_POSIX:-}" ] && [ "${EXTERNAL_MINGW_POSIX}" = "/c/msys64/mingw64" ]; then
-            echo "Note: Using MSYS2 MinGW64 at ${EXTERNAL_MINGW_POSIX}"
-        fi
     else
         echo "WARNING: External MinGW bin directory not found: ${EXTERNAL_MINGW_BIN}"
-        echo "Please ensure your external MinGW (gcc, make, cmake, nasm/yasm) are on PATH."
+        echo "Please ensure your external MinGW (gcc/clang, make/cmake, nasm/yasm) are on PATH."
     fi
 
-    # Sanity checks for mandatory tools (gcc, make/cmake, nasm/yasm, tar, wget/git)
+    # Sanity checks for mandatory tools (gcc OR clang, make/cmake, nasm/yasm, tar, wget/curl)
     MISSING=0
-    command -v gcc >/dev/null 2>&1 || { echo "ERROR: gcc not found on PATH"; MISSING=1; }
+    if [ "$ARCH" = "arm64" ]; then
+        command -v clang >/dev/null 2>&1 || { echo "ERROR: clang not found on PATH"; MISSING=1; }
+    else
+        command -v gcc >/dev/null 2>&1 || { echo "ERROR: gcc not found on PATH"; MISSING=1; }
+    fi
     command -v cmake >/dev/null 2>&1 || { echo "ERROR: cmake not found on PATH"; MISSING=1; }
     command -v make >/dev/null 2>&1 || command -v mingw32-make >/dev/null 2>&1 || { echo "ERROR: make (or mingw32-make) not found on PATH"; MISSING=1; }
     command -v nasm >/dev/null 2>&1 || command -v yasm >/dev/null 2>&1 || { echo "ERROR: nasm or yasm not found on PATH"; MISSING=1; }
     command -v tar >/dev/null 2>&1 || { echo "ERROR: tar not found on PATH"; MISSING=1; }
     command -v wget >/dev/null 2>&1 || command -v curl >/dev/null 2>&1 || { echo "ERROR: wget or curl not found on PATH"; MISSING=1; }
     if [ "$MISSING" -eq 1 ]; then
-        echo "One or more required tools are missing. Install the missing tools (gcc, cmake, make/mingw32-make, nasm/yasm, tar, wget/curl, git, bash) and ensure they are on PATH."
+        echo "One or more required tools are missing. Install the missing tools and ensure they are on PATH."
         exit 1
     fi
 else

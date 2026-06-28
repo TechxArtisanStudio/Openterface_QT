@@ -40,8 +40,8 @@ case "$uname_s" in
       VCPKG_ROOT="${VCPKG_ROOT:-}"
       VCPKG_TRIPLET=""
       MINGW_PATH="${MINGW_PATH:-/clangarm64}"
-      CC_BIN="/clangarm64/bin/clang"
-      CXX_BIN="/clangarm64/bin/clang++"
+      CC_BIN="/clangarm64/bin/clang.exe"
+      CXX_BIN="/clangarm64/bin/clang++.exe"
       PACMAN_PREFIX="mingw-w64-clang-aarch64"
     else
       # x86_64 Windows (MSYS2 MINGW64)
