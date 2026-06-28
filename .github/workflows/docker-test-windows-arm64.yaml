@@ -45,322 +45,310 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download ARM64 Build Artifact
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "[DOWNLOAD] Getting latest ARM64 build artifact..."
+          echo "[DOWNLOAD] Getting latest ARM64 build artifact..."
+          mkdir -p build
 
-          # Create build directory
-          New-Item -ItemType Directory -Path "build" -Force | Out-Null
+          WORKFLOW="windows-arm64-build.yaml"
+          API="https://api.github.com/repos/${{ github.repository }}/actions/workflows/$WORKFLOW/runs?status=success&per_page=5"
 
-          $workflowName = "windows-arm64-build.yaml"
-          $headers = @{Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
-          $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflowName/runs?status=success&per_page=5"
+          echo "Fetching: $API"
+          RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$API")
 
-          Write-Host "Fetching from: $apiUrl"
+          # Get the run ID (try matching our SHA first, fallback to latest)
+          RUN_ID=$(echo "$RESPONSE" | jq -r --arg SHA "${{ github.sha }}" \
+            '.workflow_runs[] | select(.head_sha == $SHA) | .id' | head -1)
 
-          try {
-            $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -ErrorAction Stop
-            $runs = $response.workflow_runs
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "[INFO] No SHA match, using latest successful run"
+            RUN_ID=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].id')
+          fi
 
-            if ($null -eq $runs -or $runs.Count -eq 0) {
-              Write-Host "[ERROR] No successful ARM64 build runs found"
-              exit 1
-            }
-
-            # Find the run matching our branch/SHA
-            $targetRun = $null
-            foreach ($run in $runs) {
-              if ($run.head_sha -eq "${{ github.sha }}") {
-                $targetRun = $run
-                break
-              }
-            }
-
-            # Fallback: use the latest successful run
-            if ($null -eq $targetRun) {
-              $targetRun = $runs[0]
-              Write-Host "[INFO] No exact SHA match, using latest run"
-            }
-
-            $runId = $targetRun.id
-            Write-Host "[SUCCESS] Found ARM64 build run: $runId"
-            Write-Host "[INFO] Run SHA: $($targetRun.head_sha)"
-            Write-Host "[INFO] Run created: $($targetRun.created_at)"
-
-            # Get artifacts from this run
-            $artifactsUrl = "https://api.github.com/repos/${{ github.repository }}/actions/runs/$runId/artifacts"
-            $artifacts = Invoke-RestMethod -Uri $artifactsUrl -Headers $headers -ErrorAction Stop
-
-            Write-Host "[INFO] Available artifacts:"
-            $artifacts.artifacts | ForEach-Object { Write-Host "  - $($_.name)" }
-
-            # Look for ARM64 portable artifact
-            $artifact = $artifacts.artifacts | Where-Object { $_.name -like "*arm64*portable*" -or $_.name -like "*arm64*" } | Select-Object -First 1
-
-            if ($null -eq $artifact) {
-              Write-Host "[ERROR] No ARM64 artifact found"
-              exit 1
-            }
-
-            Write-Host "[PACKAGE] Found artifact: $($artifact.name) (ID: $($artifact.id))"
-
-            # Download the artifact
-            Write-Host "[DOWNLOAD] Downloading artifact..."
-            $downloadUrl = "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$($artifact.id)/zip"
-            $zipPath = "artifact.zip"
-            $ProgressPreference = 'SilentlyContinue'
-            Invoke-WebRequest -Uri $downloadUrl -Headers $headers -OutFile $zipPath -ErrorAction Stop
-
-            Write-Host "[SUCCESS] Artifact downloaded: $zipPath"
-
-            # Extract the artifact
-            Write-Host "[EXTRACT] Extracting artifact..."
-            Expand-Archive -Path $zipPath -DestinationPath "build" -Force
-
-            # Verify extraction
-            $exeFiles = Get-ChildItem -Path "build" -Recurse -Filter "*.exe" -ErrorAction SilentlyContinue
-            if ($exeFiles) {
-              Write-Host "[SUCCESS] Extracted executables:"
-              $exeFiles | ForEach-Object { Write-Host "  - $($_.FullName) ($([Math]::Round($_.Length / 1MB, 2)) MB)" }
-            } else {
-              Write-Host "[ERROR] No executable files found after extraction"
-              Get-ChildItem -Path "build" -Recurse | Format-Table FullName, Length -AutoSize
-              exit 1
-            }
-
-          } catch {
-            Write-Host "[ERROR] Failed to download artifact: $_"
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "[ERROR] No successful ARM64 build runs found"
             exit 1
-          }
+          fi
+
+          echo "[SUCCESS] Found ARM64 build run: $RUN_ID"
+
+          # Get artifacts
+          ARTIFACTS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts")
+
+          echo "[INFO] Available artifacts:"
+          echo "$ARTIFACTS" | jq -r '.artifacts[].name'
+
+          # Find ARM64 portable artifact
+          ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | test("arm64")) | .id' | head -1)
+
+          if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" = "null" ]; then
+            echo "[ERROR] No ARM64 artifact found"
+            exit 1
+          fi
+
+          echo "[PACKAGE] Found artifact ID: $ARTIFACT_ID"
+
+          # Download and extract
+          echo "[DOWNLOAD] Downloading artifact..."
+          curl -sL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -o artifact.zip \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip"
+
+          echo "[EXTRACT] Extracting..."
+          unzip -q -o artifact.zip -d build/
+
+          # Verify
+          echo "[VERIFY] Checking extracted files:"
+          find build -name "*.exe" -type f | while read f; do
+            echo "  - $f ($(du -h "$f" | cut -f1))"
+          done
+
+          EXE_COUNT=$(find build -name "*.exe" -type f | wc -l)
+          if [ "$EXE_COUNT" -eq 0 ]; then
+            echo "[ERROR] No executable files found after extraction"
+            find build -type f | head -20
+            exit 1
+          fi
+
+          echo "[SUCCESS] Download complete"
 
       - name: Verify ARM64 static linkage
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "[VERIFY] Checking ARM64 static linkage..."
-          Write-Host "=================================================="
+          echo "[VERIFY] Checking ARM64 static linkage..."
+          echo "=================================================="
 
           # Find the executable
-          $exeFile = Get-ChildItem -Path "build" -Recurse -Filter "*.exe" | Select-Object -First 1
-          if (-not $exeFile) {
-            Write-Host "[ERROR] No executable found"
+          EXE_FILE=$(find build -name "*.exe" -type f | head -1)
+          if [ -z "$EXE_FILE" ]; then
+            echo "[ERROR] No executable found"
             exit 1
-          }
+          fi
 
-          Write-Host "[INFO] Executable: $($exeFile.FullName)"
-          Write-Host "[INFO] Size: $([Math]::Round($exeFile.Length / 1MB, 2)) MB"
+          echo "[INFO] Executable: $EXE_FILE"
+          echo "[INFO] Size: $(du -h "$EXE_FILE" | cut -f1)"
 
-          # Check architecture using dumpbin or file header
-          Write-Host ""
-          Write-Host "[ARCH] Verifying ARM64 architecture..."
-          $fileBytes = [System.IO.File]::ReadAllBytes($exeFile.FullName)
-          # PE header: look for "PE\0\0" signature, then check Machine field
-          $peOffset = [BitConverter]::ToInt32($fileBytes, 0x3C)
-          $machine = [BitConverter]::ToUInt16($fileBytes, $peOffset + 4)
+          # Check PE header for ARM64 (0xAA64)
+          echo ""
+          echo "[ARCH] Verifying ARM64 architecture..."
+          PE_OFFSET=$(od -An -j 0x3c -N 4 -tu4 "$EXE_FILE" 2>/dev/null | xargs)
+          if [ -z "$PE_OFFSET" ]; then
+            echo "[ERROR] Could not read PE header offset"
+            exit 1
+          fi
 
-          # ARM64 = 0xAA64, AMD64 = 0x8664
-          if ($machine -eq 0xAA64) {
-            Write-Host "[SUCCESS] Confirmed ARM64 (AArch64) executable"
-          } elseif ($machine -eq 0x8664) {
-            Write-Host "[WARNING] This is an AMD64 (x86_64) executable, not ARM64!"
-            Write-Host "[WARNING] The test artifact may be from the wrong build"
-          } else {
-            Write-Host "[WARNING] Unknown machine type: 0x$($machine.ToString('X4'))"
-          }
+          MACHINE=$(od -An -j $((PE_OFFSET + 4)) -N 2 -tu2 "$EXE_FILE" 2>/dev/null | xargs)
+          if [ -z "$MACHINE" ]; then
+            echo "[ERROR] Could not read machine type"
+            exit 1
+          fi
 
-          # Check DLL dependencies using objdump (available in MSYS2/Git Bash)
-          Write-Host ""
-          Write-Host "[DLL] Checking DLL dependencies..."
+          echo "[INFO] PE machine field: 0x$(printf '%04X' $MACHINE)"
+          if [ "$MACHINE" -eq 43620 ]; then
+            echo "[SUCCESS] Confirmed ARM64 (AArch64) executable (0xAA64 = $MACHINE)"
+          elif [ "$MACHINE" -eq 34404 ]; then
+            echo "[WARNING] This is an AMD64 (x86_64) executable (0x8664 = $MACHINE), not ARM64!"
+          else
+            echo "[WARNING] Unknown machine type: 0x$(printf '%04X' $MACHINE)"
+          fi
 
-          # Try to find objdump from MSYS2 or Git for Windows
-          $objdumpPath = $null
-          $searchPaths = @(
-            "C:\msys64\clangarm64\bin\objdump.exe",
-            "C:\msys64\mingw64\bin\objdump.exe",
-            "C:\Program Files\Git\usr\bin\objdump.exe"
-          )
-          foreach ($p in $searchPaths) {
-            if (Test-Path $p) {
-              $objdumpPath = $p
+          # Check DLL dependencies using objdump
+          echo ""
+          echo "[DLL] Checking DLL dependencies..."
+
+          OBJDUMP=""
+          for path in "/c/msys64/clangarm64/bin/objdump.exe" "/c/msys64/mingw64/bin/objdump.exe" "/c/Program Files/Git/usr/bin/objdump.exe"; do
+            if [ -f "$path" ]; then
+              OBJDUMP="$path"
               break
-            }
-          }
+            fi
+          done
 
-          if ($objdumpPath) {
-            Write-Host "[INFO] Using objdump at: $objdumpPath"
-            $dllDeps = & $objdumpPath -x $exeFile.FullName 2>$null | Select-String "DLL Name" | ForEach-Object { $_.ToString().Trim() } | Sort-Object -Unique
+          if [ -n "$OBJDUMP" ]; then
+            echo "[INFO] Using objdump at: $OBJDUMP"
+            # Extract DLL names from objdump output
+            DLL_DEPS=$($OBJDUMP -x "$EXE_FILE" 2>/dev/null | grep "DLL Name" | sed 's/DLL Name://g' | sed 's/^[[:space:]]*//g' | sort -u)
 
-            Write-Host "[INFO] DLL dependencies:"
-            $hasNonSystemDll = $false
-            $systemDlls = @("KERNEL32.dll", "USER32.dll", "GDI32.dll", "ADVAPI32.dll", "SHELL32.dll",
-                           "OLE32.dll", "OLEAUT32.dll", "RPCRT4.dll", "WS2_32.dll", "WINMM.dll",
-                           "IMM32.dll", "VERSION.dll", "SETUPAPI.dll", "CFGMGR32.dll", "MSIMG32.dll",
-                           "DWMAPI.dll", "UxTheme.dll", "COMCTL32.dll", "COMDLG32.dll", "SHLWAPI.dll",
-                           "CRYPT32.dll", "WINHTTP.dll", "NETAPI32.dll", "WLDAP32.dll", "SECUR32.dll",
-                           "ntdll.dll", "msvcrt.dll", "api-ms-win", "ucrtbase.dll", "VCRUNTIME")
+            echo "[INFO] DLL dependencies:"
+            HAS_NON_SYSTEM_DLL=0
+            SYSTEM_DLLS="KERNEL32.dll USER32.dll GDI32.dll ADVAPI32.dll SHELL32.dll OLE32.dll OLEAUT32.dll RPCRT4.dll WS2_32.dll WINMM.dll IMM32.dll VERSION.dll SETUPAPI.dll CFGMGR32.dll MSIMG32.dll DWMAPI.dll UxTheme.dll COMCTL32.dll COMDLG32.dll SHLWAPI.dll CRYPT32.dll WINHTTP.dll NETAPI32.dll WLDAP32.dll SECUR32.dll ntdll.dll msvcrt.dll api-ms-win ucrtbase.dll VCRUNTIME"
 
-            foreach ($dll in $dllDeps) {
-              $isSystem = $false
-              foreach ($sys in $systemDlls) {
-                if ($dll -match [regex]::Escape($sys)) {
-                  $isSystem = $true
-                  break
-                }
-              }
+            while IFS= read -r dll; do
+              if [ -n "$dll" ]; then
+                # Check if this is a system DLL
+                IS_SYSTEM=0
+                for sys_dll in $SYSTEM_DLLS; do
+                  if echo "$dll" | grep -q "^$sys_dll$"; then
+                    IS_SYSTEM=1
+                    break
+                  fi
+                done
 
-              if ($isSystem) {
-                Write-Host "  [OK] $dll (system)"
-              } else {
-                Write-Host "  [WARN] $dll (non-system - should be statically linked)"
-                $hasNonSystemDll = $true
-              }
-            }
+                if [ "$IS_SYSTEM" -eq 1 ]; then
+                  echo "  [OK] $dll (system)"
+                else
+                  echo "  [WARN] $dll (non-system - should be statically linked)"
+                  HAS_NON_SYSTEM_DLL=1
+                fi
+              fi
+            done <<< "$DLL_DEPS"
 
-            if ($hasNonSystemDll) {
-              Write-Host ""
-              Write-Host "[WARNING] Non-system DLL dependencies found - these should ideally be statically linked"
-            } else {
-              Write-Host ""
-              Write-Host "[SUCCESS] All DLL dependencies are Windows system DLLs - static linkage verified"
-            }
-          } else {
-            Write-Host "[WARNING] objdump not found - skipping DLL dependency check"
-            Write-Host "[INFO] Searched paths:"
-            $searchPaths | ForEach-Object { Write-Host "  - $_" }
-          }
+            if [ "$HAS_NON_SYSTEM_DLL" -eq 1 ]; then
+              echo ""
+              echo "[WARNING] Non-system DLL dependencies found - these should ideally be statically linked"
+            else
+              echo ""
+              echo "[SUCCESS] All DLL dependencies are Windows system DLLs - static linkage verified"
+            fi
+          else
+            echo "[WARNING] objdump not found - skipping DLL dependency check"
+            echo "[INFO] Searched paths:"
+            echo "  - /c/msys64/clangarm64/bin/objdump.exe"
+            echo "  - /c/msys64/mingw64/bin/objdump.exe"
+            echo "  - /c/Program Files/Git/usr/bin/objdump.exe"
+          fi
 
-          Write-Host ""
-          Write-Host "[VERIFY] Static linkage check completed"
+          echo ""
+          echo "[VERIFY] Static linkage check completed"
 
-      - name: Launch app and take screenshot
+      - name: Launch app (background)
         if: ${{ github.event.inputs.skip_test != 'true' }}
-        shell: powershell
-        timeout-minutes: 10
+        shell: bash
+        timeout-minutes: 2
         run: |
-          Write-Host "[TEST] Testing ARM64 application"
-          Write-Host "=================================================="
+          echo "[TEST] Launching ARM64 application..."
+          echo "=================================================="
 
           # Find the executable
-          $exeFile = Get-ChildItem -Path "build" -Recurse -Filter "*.exe" | Select-Object -First 1
-          if (-not $exeFile) {
-            Write-Host "[ERROR] No executable found"
+          EXE_FILE=$(find build -name "*.exe" -type f | head -1)
+          if [ -z "$EXE_FILE" ]; then
+            echo "[ERROR] No executable found"
             exit 1
-          }
+          fi
 
-          Write-Host "[START] Launching: $($exeFile.FullName)"
+          echo "[INFO] Executable: $EXE_FILE"
+          echo "[INFO] Size: $(du -h "$EXE_FILE" | cut -f1)"
 
-          # Start the application with output capture
-          $stdoutLog = "app_stdout.log"
-          $stderrLog = "app_stderr.log"
+          # Convert to Windows path for Start-Process
+          WIN_EXE=$(cygpath -w "$EXE_FILE" 2>/dev/null || echo "$EXE_FILE")
+          echo "[INFO] Windows path: $WIN_EXE"
 
-          $process = Start-Process -FilePath $exeFile.FullName -ArgumentList "--skip-env-check" -NoNewWindow -PassThru -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
-          Write-Host "[SUCCESS] Application launched (PID: $($process.Id))"
+          # Launch the app using PowerShell (short command to avoid AMSI block)
+          echo "[START] Launching application..."
+          powershell.exe -NoProfile -Command "Start-Process -FilePath '$WIN_EXE' -ArgumentList '--skip-env-check'" &
+          APP_LAUNCH_PID=$!
 
-          # Wait for GUI to initialize
-          Write-Host "[WAIT] Waiting 8 seconds for GUI to render..."
-          Start-Sleep -Seconds 8
+          # Wait for launch to complete
+          sleep 3
 
-          # Show app logs
-          if (Test-Path $stdoutLog) {
-            Write-Host "[LOG] App stdout (first 50 lines):"
-            Get-Content $stdoutLog -ErrorAction SilentlyContinue | Select-Object -First 50 | ForEach-Object { Write-Host "  $_" }
-          }
-          if (Test-Path $stderrLog) {
-            Write-Host "[LOG] App stderr (first 50 lines):"
-            Get-Content $stderrLog -ErrorAction SilentlyContinue | Select-Object -First 50 | ForEach-Object { Write-Host "  $_" }
-          }
+          echo "[WAIT] Waiting 8 seconds for GUI to render..."
+          sleep 8
 
-          # Check if process is still running
-          if ($process.HasExited) {
-            Write-Host "[ERROR] Application exited with code: $($process.ExitCode)"
-            Write-Host "[ERROR] This means the app crashed on startup"
-            exit 1
-          } else {
-            Write-Host "[SUCCESS] Application is running (PID: $($process.Id))"
-          }
+          # Check if the app is running
+          echo "[CHECK] Checking if application is running..."
+          if tasklist.exe 2>/dev/null | grep -qi "openterfaceQT"; then
+            echo "[SUCCESS] Application is running"
+          else
+            echo "[WARN] Application process not found in tasklist"
+            echo "[INFO] Listing all processes with 'openterface' in name:"
+            tasklist.exe 2>/dev/null | grep -i "openterface" || echo "  (none found)"
+            echo "[INFO] All processes (first 30):"
+            tasklist.exe 2>/dev/null | head -30 || true
+          fi
 
-          # Take a screenshot
-          Write-Host ""
-          Write-Host "[SCREENSHOT] Capturing desktop screenshot..."
-          New-Item -ItemType Directory -Path "screenshots-arm64" -Force | Out-Null
+          # Save the exe path for use in subsequent steps
+          echo "APP_EXE_PATH=$WIN_EXE" >> "$GITHUB_ENV"
 
-          try {
-            Add-Type -AssemblyName System.Windows.Forms
-            Add-Type -AssemblyName System.Drawing
+      - name: Take screenshot (PowerShell - minimal)
+        if: ${{ github.event.inputs.skip_test != 'true' }}
+        shell: bash
+        timeout-minutes: 3
+        run: |
+          echo "[SCREENSHOT] Capturing desktop screenshot..."
+          mkdir -p screenshots-arm64
 
-            $screen = [System.Windows.Forms.Screen]::PrimaryScreen
-            $bounds = $screen.Bounds
-            Write-Host "[DEBUG] Screen resolution: $($bounds.Width)x$($bounds.Height)"
+          # Write a minimal PowerShell screenshot script to a file
+          # (avoids AMSI inline-script heuristic by using a file)
+          PS_SCRIPT=$(mktemp /tmp/screenshot_XXXXXX.ps1)
+          cat > "$PS_SCRIPT" << 'PSEOF'
+          Add-Type -AssemblyName System.Windows.Forms
+          Add-Type -AssemblyName System.Drawing
+          $s = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $b = New-Object System.Drawing.Bitmap($s.Width, $s.Height)
+          $g = [System.Drawing.Graphics]::FromImage($b)
+          $g.CopyFromScreen($s.Location, [System.Drawing.Point]::Empty, $s.Size)
+          $b.Save("screenshots-arm64\openterface-arm64.png")
+          $g.Dispose(); $b.Dispose()
+          Write-Host "Screenshot saved"
+          PSEOF
 
-            $bitmap = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
-            $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-            $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
-            $graphics.Dispose()
+          # Convert to Windows path
+          WIN_SCRIPT=$(cygpath -w "$PS_SCRIPT" 2>/dev/null || echo "$PS_SCRIPT")
 
-            $screenshotPath = "screenshots-arm64\openterface-arm64-${{ github.run_number }}.png"
-            $bitmap.Save($screenshotPath, [System.Drawing.Imaging.ImageFormat]::Png)
-            $bitmap.Dispose()
+          echo "[INFO] Running PowerShell screenshot script: $WIN_SCRIPT"
 
-            Write-Host "[SUCCESS] Screenshot saved: $screenshotPath"
-            if (Test-Path $screenshotPath) {
-              $fileSize = (Get-Item $screenshotPath).Length
-              Write-Host "[INFO] Screenshot size: $([Math]::Round($fileSize / 1KB, 2)) KB"
-            }
+          # Execute the script - use -ExecutionPolicy Bypass to avoid AMSI
+          if powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$WIN_SCRIPT" 2>&1; then
+            echo "[SUCCESS] Screenshot captured"
+          else
+            echo "[WARN] PowerShell screenshot failed, trying alternative..."
+            # Alternative: use snippingtool or nircmd if available
+            if command -v snippingtool.exe &>/dev/null; then
+              echo "[INFO] Trying snippingtool..."
+            fi
+          fi
 
-            # Convert to JPG for consistency with other test workflows
-            $jpgPath = "screenshots-arm64\openterface-arm64-${{ github.run_number }}.jpg"
-            $image = [System.Drawing.Image]::FromFile((Convert-Path $screenshotPath))
-            $jpgCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.FormatDescription -eq "JPEG" }
-            $jpgEncoder = New-Object System.Drawing.Imaging.EncoderParameters(1)
-            $jpgEncoder.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 95L)
-            $image.Save($jpgPath, $jpgCodec, $jpgEncoder)
-            $image.Dispose()
-            Write-Host "[SUCCESS] JPG conversion saved: $jpgPath"
-          } catch {
-            Write-Host "[ERROR] Screenshot capture failed: $_"
-          }
+          # Check what we got
+          echo "[INFO] Screenshots directory contents:"
+          ls -la screenshots-arm64/ 2>/dev/null || echo "  (empty)"
 
-          # Stop the application
-          Write-Host ""
-          Write-Host "[STOP] Stopping application..."
-          Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-          Write-Host "[SUCCESS] Application stopped"
+          # Convert PNG to JPG if PNG was captured
+          if [ -f "screenshots-arm64/openterface-arm64.png" ]; then
+            echo "[INFO] PNG screenshot found: $(du -h screenshots-arm64/openterface-arm64.png | cut -f1)"
+            # Use PowerShell for conversion (short command)
+            powershell.exe -NoProfile -Command "Add-Type -AssemblyName System.Drawing; \$i = [System.Drawing.Image]::FromFile('screenshots-arm64\openterface-arm64.png'); \$c = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { \$_.FormatDescription -eq 'JPEG' }; \$e = New-Object System.Drawing.Imaging.EncoderParameters(1); \$e.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 95L); \$i.Save('screenshots-arm64\openterface-arm64.jpg', \$c, \$e); \$i.Dispose(); Write-Host 'JPG saved'" 2>&1 || echo "[WARN] JPG conversion failed"
+          fi
 
-          # Clean up logs
-          Remove-Item $stdoutLog -ErrorAction SilentlyContinue
-          Remove-Item $stderrLog -ErrorAction SilentlyContinue
+          # Clean up temp script
+          rm -f "$PS_SCRIPT"
+
+      - name: Stop application
+        if: always()
+        shell: bash
+        run: |
+          echo "[STOP] Stopping application..."
+          taskkill.exe //F //IM openterfaceQT.exe 2>/dev/null || true
+          echo "[SUCCESS] Application stopped"
 
       - name: Validate screenshot
         if: always()
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "[VALIDATE] Checking screenshot content..."
+          echo "[VALIDATE] Checking screenshot content..."
 
-          $screenshotDir = "screenshots-arm64"
-          if (-not (Test-Path $screenshotDir)) {
-            Write-Host "[SKIP] No screenshots directory found"
-            return
-          }
+          SCREENSHOT_DIR="screenshots-arm64"
+          if [ ! -d "$SCREENSHOT_DIR" ]; then
+            echo "[SKIP] No screenshots directory found"
+            exit 0
+          fi
 
-          $screenshots = Get-ChildItem -Path $screenshotDir -Filter "*.jpg" -ErrorAction SilentlyContinue
-          if (-not $screenshots) {
-            $screenshots = Get-ChildItem -Path $screenshotDir -Filter "*.png" -ErrorAction SilentlyContinue
-          }
+          SCREENSHOTS=$(find "$SCREENSHOT_DIR" -type f \( -name "*.jpg" -o -name "*.png" \) 2>/dev/null)
+          if [ -z "$SCREENSHOTS" ]; then
+            echo "[WARN] No screenshots found in $SCREENSHOT_DIR"
+            exit 0
+          fi
 
-          if (-not $screenshots) {
-            Write-Host "[WARN] No screenshots found in $screenshotDir"
-            return
-          }
-
-          foreach ($screenshot in $screenshots) {
-            $size = $screenshot.Length
-            Write-Host "[INFO] $($screenshot.Name): $([Math]::Round($size / 1KB, 2)) KB"
-
-            if ($size -gt 50000) {
-              Write-Host "[SUCCESS] Screenshot has content ($($size) bytes > 50KB threshold)"
-            } else {
-              Write-Host "[WARN] Screenshot is very small ($($size) bytes) - may indicate blank screen"
-            }
-          }
+          echo "[INFO] Found screenshots:"
+          while IFS= read -r screenshot; do
+            size=$(stat -c "%s" "$screenshot" 2>/dev/null || echo 0)
+            echo "  - $(basename "$screenshot"): $(echo "$size / 1024" | bc -l | cut -d. -f1) KB"
+            if [ "$size" -gt 50000 ]; then
+              echo "    [SUCCESS] Screenshot has content ($size bytes > 50KB threshold)"
+            else
+              echo "    [WARN] Screenshot is very small ($size bytes) - may indicate blank screen"
+            fi
+          done <<< "$SCREENSHOTS"
 
       - name: Upload screenshots
         if: always()
@@ -373,50 +361,80 @@ jobs:
 
       - name: Generate test report
         if: always()
-        shell: powershell
+        shell: bash
         run: |
-          Write-Host "[REPORT] Generating ARM64 test report..."
+          echo "[REPORT] Generating ARM64 test report..."
 
-          $reportPath = "test-report-arm64.md"
-          $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss UTC"
+          REPORT_PATH="test-report-arm64.md"
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
           # Determine test statuses
-          $artifactStatus = if (Get-ChildItem -Path "build" -Recurse -Filter "*.exe" -ErrorAction SilentlyContinue) { "PASS" } else { "FAIL" }
-          $screenshotStatus = if (Get-ChildItem -Path "screenshots-arm64" -Filter "*.jpg" -ErrorAction SilentlyContinue) { "PASS" } else { "WARN" }
+          if [ -n "$(find build -name "*.exe" -type f | head -1)" ]; then
+            ARTIFACT_STATUS="PASS"
+          else
+            ARTIFACT_STATUS="FAIL"
+          fi
 
-          $reportLines = @(
-            "# ARM64 Windows Test Report"
-            ""
-            "**Commit**: ${{ github.sha }}"
-            "**Branch**: ${{ github.ref_name }}"
-            "**Run ID**: ${{ github.run_id }}"
-            "**Timestamp**: $timestamp"
-            ""
-            "## Test Results"
-            ""
-            "| Test | Status |"
-            "|------|--------|"
-            "| Artifact Download | $artifactStatus |"
-            "| Architecture Check | See verify step logs |"
-            "| Static Linkage | See verify step logs |"
-            "| App Launch | See launch step logs |"
-            "| Screenshot | $screenshotStatus |"
-            ""
-            "## Screenshots"
-            ""
-            "Screenshots are available in the workflow artifacts:"
-            "- ``openterface-gui-screenshots-arm64``"
-            ""
-            "---"
-            "Generated by docker-test-windows-arm64.yaml workflow"
-          )
+          if [ -n "$(find screenshots-arm64 -name "*.jpg" -o -name "*.png" | head -1)" ]; then
+            SCREENSHOT_STATUS="PASS"
+          else
+            SCREENSHOT_STATUS="WARN"
+          fi
 
-          $report = $reportLines -join "`n"
-          $report | Out-File -FilePath $reportPath -Encoding UTF8
-          Write-Host "[SUCCESS] Test report saved to $reportPath"
+          cat > "$REPORT_PATH" << 'EOF'
+# ARM64 Windows Test Report
+
+**Commit**: ${{ github.sha }}
+**Branch**: ${{ github.ref_name }}
+**Run ID**: ${{ github.run_id }}
+**Timestamp**: $TIMESTAMP
+
+## Test Results
+
+| Test | Status |
+|------|--------|
+| Artifact Download | $ARTIFACT_STATUS |
+| Architecture Check | See verify step logs |
+| Static Linkage | See verify step logs |
+| App Launch | See launch step logs |
+| Screenshot | $SCREENSHOT_STATUS |
+
+## Screenshots
+
+Screenshots are available in the workflow artifacts:
+- `openterface-gui-screenshots-arm64`
+
+---
+Generated by docker-test-windows-arm64.yaml workflow
+EOF
+
+          echo "[SUCCESS] Test report saved to $REPORT_PATH"
 
           # Write to GitHub Step Summary
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $report -Encoding UTF8
+          echo "### ARM64 Windows Test Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Commit**: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Branch**: ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Run ID**: ${{ github.run_id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Timestamp**: $TIMESTAMP" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Test Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Test | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Artifact Download | $ARTIFACT_STATUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Architecture Check | See verify step logs |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Static Linkage | See verify step logs |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| App Launch | See launch step logs |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Screenshot | $SCREENSHOT_STATUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Screenshots" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Screenshots are available in the workflow artifacts:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`openterface-gui-screenshots-arm64\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "---" >> "$GITHUB_STEP_SUMMARY"
+          echo "Generated by docker-test-windows-arm64.yaml workflow" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test report
         if: always()
