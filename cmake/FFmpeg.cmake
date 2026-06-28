@@ -742,12 +742,11 @@ function(link_ffmpeg_libraries)
                     "${MINGW_ROOT}/lib/libbrotlienc.a"  # Brotli compression
                     "${MINGW_ROOT}/lib/libbrotlicommon.a"  # Brotli common
                 )
-                # GCC-only deps: libmfx (Intel QSV, x86_64), -lmingwex, libwinpthread
+                # x86_64-only static deps: MinGW extensions and Windows pthreads.
                 # Clang on ARM64 uses compiler-rt and native Windows threads, so these
                 # don't exist. Guard with OPENTERFACE_IS_ARM64.
                 if(NOT OPENTERFACE_IS_ARM64)
                     list(APPEND _FFMPEG_STATIC_DEPS
-                        "${MINGW_ROOT}/lib/libmfx.a"    # Intel Media SDK for QSV (optional)
                         -lmingwex       # MinGW extensions for setjmp etc.
                         "${MINGW_ROOT}/lib/libwinpthread.a"  # Windows pthreads for 64-bit time functions
                     )
