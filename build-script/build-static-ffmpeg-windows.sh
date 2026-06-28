@@ -21,7 +21,20 @@ MODE="${1:-full}"
 
 FFMPEG_VERSION="6.1.1"
 LIBJPEG_TURBO_VERSION="3.0.4"
-FFMPEG_INSTALL_PREFIX="/c/ffmpeg-static"
+# Architecture detection. Override via env: ARCH=arm64 or ARCH=x86_64.
+if [ -z "${ARCH:-}" ]; then
+  case "$(uname -m)" in
+    aarch64|arm64|ARM64) ARCH="arm64" ;;
+    *)                   ARCH="x86_64" ;;
+  esac
+fi
+if [ "$ARCH" = "arm64" ]; then
+  FFMPEG_INSTALL_PREFIX="/c/ffmpeg-static-arm64"
+  FF_TARGET_ARCH="aarch64"
+else
+  FFMPEG_INSTALL_PREFIX="/c/ffmpeg-static"
+  FF_TARGET_ARCH="x86_64"
+fi
 BUILD_DIR="$(pwd)/ffmpeg-build-temp"
 DOWNLOAD_URL="https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.bz2"
 LIBJPEG_TURBO_URL="https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/${LIBJPEG_TURBO_VERSION}.tar.gz"
@@ -34,6 +47,7 @@ echo "FFmpeg Static Build - Windows (external MinGW)"
 echo "============================================================================"
 echo "FFmpeg Version: ${FFMPEG_VERSION}"
 echo "libjpeg-turbo Version: ${LIBJPEG_TURBO_VERSION}"
+echo "Architecture: ${ARCH} (FFmpeg --arch=${FF_TARGET_ARCH})"
 echo "Install Prefix: ${FFMPEG_INSTALL_PREFIX}"
 echo "Build Directory: ${BUILD_DIR}"
 echo "CPU Cores: ${NUM_CORES}"
@@ -202,7 +216,11 @@ EXTRA_CFLAGS="-I${FFMPEG_INSTALL_PREFIX}/include"
 # Force static linking with -Wl,-Bstatic for third-party libs
 EXTRA_LDFLAGS="-L${FFMPEG_INSTALL_PREFIX}/lib -Wl,-Bstatic -lz -lzstd -Wl,-Bdynamic -lmingwex -lwinpthread -static -static-libgcc -static-libstdc++"
 # Probe candidate lib dirs for libbz2/liblzma (respect EXTERNAL_MINGW_POSIX if set)
-CANDIDATE_LIB_DIRS="${EXTERNAL_MINGW_POSIX:-/c/mingw64} /c/msys64/mingw64 /mingw64"
+if [ "$ARCH" = "arm64" ]; then
+  CANDIDATE_LIB_DIRS="${EXTERNAL_MINGW_POSIX:-/clangarm64} /clangarm64"
+else
+  CANDIDATE_LIB_DIRS="${EXTERNAL_MINGW_POSIX:-/c/mingw64} /c/msys64/mingw64 /mingw64"
+fi
 for d in $CANDIDATE_LIB_DIRS; do
     if [ -d "$d/lib" ]; then
         if ls "$d/lib"/libbz2.* >/dev/null 2>&1; then
@@ -315,10 +333,59 @@ echo ""
 # Set PKG_CONFIG_PATH to find libjpeg-turbo
 export PKG_CONFIG_PATH="${FFMPEG_INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 
+# ARM64: skip NVIDIA/Intel hardware accel (ARM64 runners don't have NVIDIA/Intel GPUs).
+# x86_64: use whatever CUDA/libmfx/etc. was detected above.
+if [ "$ARCH" = "arm64" ]; then
+  echo "ARM64 build: disabling NVIDIA/Intel hardware accel (no GPU on ARM64 runners)"
+  HWACCEL_ARGS=(
+    --disable-cuda
+    --disable-cuvid
+    --disable-nvdec
+    --disable-nvenc
+    --disable-ffnvcodec
+    --disable-libmfx
+    --disable-dxva2
+  )
+  DECODER_ARGS=(
+    --enable-decoder=mjpeg
+  )
+  # Use clang from MSYS2 CLANGARM64
+  CC_FOR_FF="${CC_FOR_FF:-clang}"
+  CXX_FOR_FF="${CXX_FOR_FF:-clang++}"
+  CROSS_COMPILE_FLAG=""  # native build on ARM64 runner, no cross-compile
+else
+  HWACCEL_ARGS=(
+    ${CUDA_ARG}
+    ${CUVID_ARG}
+    ${NVDEC_ARG}
+    ${NVENC_ARG}
+    ${FFNV_ARG}
+    ${ENABLE_LIBMFX}
+    --enable-dxva2
+  )
+  DECODER_ARGS=(
+    --enable-decoder=mjpeg
+    --enable-decoder=h264_cuvid
+    --enable-decoder=hevc_cuvid
+    --enable-decoder=mjpeg_cuvid
+    --enable-decoder=mpeg1_cuvid
+    --enable-decoder=mpeg2_cuvid
+    --enable-decoder=mpeg4_cuvid
+    --enable-decoder=vc1_cuvid
+    --enable-decoder=vp8_cuvid
+    --enable-decoder=vp9_cuvid
+  )
+  CC_FOR_FF="${CC_FOR_FF:-gcc}"
+  CXX_FOR_FF="${CXX_FOR_FF:-g++}"
+  CROSS_COMPILE_FLAG="--enable-cross-compile"
+fi
+
 ./configure \
     --prefix="${FFMPEG_INSTALL_PREFIX}" \
-    --arch=x86_64 \
+    --arch=${FF_TARGET_ARCH} \
     --target-os=mingw32 \
+    --cc="${CC_FOR_FF}" \
+    --cxx="${CXX_FOR_FF}" \
     --disable-shared \
     --enable-static \
     --enable-gpl \
@@ -348,26 +415,11 @@ export PKG_CONFIG_PATH="${FFMPEG_INSTALL_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH
     --enable-zlib \
     --enable-bzlib \
     --enable-lzma \
-    ${ENABLE_LIBMFX} \
-    --enable-dxva2 \
+    "${HWACCEL_ARGS[@]}" \
     --enable-d3d11va \
     --enable-hwaccels \
-    --enable-decoder=mjpeg \
-    ${CUDA_ARG} \
-    ${CUVID_ARG} \
-    ${NVDEC_ARG} \
-    ${NVENC_ARG} \
-    ${FFNV_ARG} \
-    --enable-decoder=h264_cuvid \
-    --enable-decoder=hevc_cuvid \
-    --enable-decoder=mjpeg_cuvid \
-    --enable-decoder=mpeg1_cuvid \
-    --enable-decoder=mpeg2_cuvid \
-    --enable-decoder=mpeg4_cuvid \
-    --enable-decoder=vc1_cuvid \
-    --enable-decoder=vp8_cuvid \
-    --enable-decoder=vp9_cuvid \
-    --enable-cross-compile \
+    "${DECODER_ARGS[@]}" \
+    ${CROSS_COMPILE_FLAG} \
     --pkg-config-flags="--static" \
     --extra-cflags="${EXTRA_CFLAGS}" \
     --extra-ldflags="${EXTRA_LDFLAGS}"

@@ -10,7 +10,18 @@ VCPKG_ROOT="${2:-${VCPKG_ROOT:-}}"
 
 QT_VERSION="6.6.3"
 QT_MAJOR_VERSION="6.6"
-INSTALL_PREFIX="/c/Qt6"
+# Architecture detection. Override via env: ARCH=arm64 or ARCH=x86_64.
+if [ -z "${ARCH:-}" ]; then
+  case "$(uname -m)" in
+    aarch64|arm64|ARM64) ARCH="arm64" ;;
+    *)                   ARCH="x86_64" ;;
+  esac
+fi
+if [ "$ARCH" = "arm64" ]; then
+  INSTALL_PREFIX="/c/Qt6-arm64"
+else
+  INSTALL_PREFIX="/c/Qt6"
+fi
 BUILD_DIR="${SOURCE_DIR}/qt-build"
 # Keep downloaded zip archives? Set KEEP_ZIPS=0 to remove them after extraction.
 KEEP_ZIPS="${KEEP_ZIPS:-1}"
@@ -24,26 +35,47 @@ uname_s=$(uname -s || echo unknown)
 case "$uname_s" in
   MINGW*|MSYS*|MSYS_NT*)
     PLATFORM="windows"
-    # sensible defaults for MSYS/MinGW environment
-    VCPKG_ROOT="${VCPKG_ROOT:-/c/vcpkg}"
-    VCPKG_TRIPLET="x64-mingw-static"
-    # prefer /mingw64 if present
-    MINGW_PATH="${MINGW_PATH:-/mingw64}"
+    if [ "$ARCH" = "arm64" ]; then
+      # ARM64 Windows (MSYS2 CLANGARM64). No vcpkg — use MSYS2 static libs directly.
+      VCPKG_ROOT="${VCPKG_ROOT:-}"
+      VCPKG_TRIPLET=""
+      MINGW_PATH="${MINGW_PATH:-/clangarm64}"
+      CC_BIN="/clangarm64/bin/clang"
+      CXX_BIN="/clangarm64/bin/clang++"
+      PACMAN_PREFIX="mingw-w64-clang-aarch64"
+    else
+      # x86_64 Windows (MSYS2 MINGW64)
+      VCPKG_ROOT="${VCPKG_ROOT:-/c/vcpkg}"
+      VCPKG_TRIPLET="x64-mingw-static"
+      MINGW_PATH="${MINGW_PATH:-/mingw64}"
+      CC_BIN="/mingw64/bin/gcc.exe"
+      CXX_BIN="/mingw64/bin/g++.exe"
+      PACMAN_PREFIX="mingw-w64-x86_64"
+    fi
     ;;
   Darwin*)
     PLATFORM="darwin"
     VCPKG_ROOT="${VCPKG_ROOT:-/usr/local/vcpkg}"
     VCPKG_TRIPLET="x64-osx"
+    CC_BIN="cc"
+    CXX_BIN="c++"
+    PACMAN_PREFIX=""
     ;;
   Linux*)
     PLATFORM="linux"
     VCPKG_ROOT="${VCPKG_ROOT:-/usr/local/vcpkg}"
     VCPKG_TRIPLET="x64-linux"
+    CC_BIN="cc"
+    CXX_BIN="c++"
+    PACMAN_PREFIX=""
     ;;
   *)
     PLATFORM="unknown"
     VCPKG_ROOT="${VCPKG_ROOT:-/usr/local/vcpkg}"
     VCPKG_TRIPLET="x64"
+    CC_BIN="cc"
+    CXX_BIN="c++"
+    PACMAN_PREFIX=""
     ;;
 esac
 
@@ -56,7 +88,7 @@ if [ "$PLATFORM" = "windows" ]; then
     echo "INFO: lld detected but disabled for Qt builds due to -Wl parameter incompatibility"
     echo "      Qt build system uses -Wl syntax which lld doesn't support"
   else
-    echo "INFO: lld not found; install with: pacman -S mingw-w64-x86_64-lld (optional but not used for Qt builds)"
+    echo "INFO: lld not found; install with: pacman -S ${PACMAN_PREFIX}-lld (optional but not used for Qt builds)"
   fi
 fi
 
@@ -79,6 +111,9 @@ else
     if [ -d "${MSYS_OPENSSL_DIR}/lib" ] && [ -f "${MSYS_OPENSSL_DIR}/lib/libssl.a" ]; then
       OPENSSL_ROOT="${MSYS_OPENSSL_DIR}"
       echo "INFO: Using MSYS OpenSSL at ${OPENSSL_ROOT}"
+    elif [ "$ARCH" = "arm64" ]; then
+      echo "ERROR: No suitable OpenSSL found at ${MSYS_OPENSSL_DIR}. Install MSYS2 CLANGARM64 OpenSSL (pacman -S ${PACMAN_PREFIX}-openssl)." >&2
+      exit 1
     else
       # Try repo-local vcpkg_installed as a fallback but warn (vcpkg is not preferred)
       REPO_VCPKG_INSTALLED="${SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}"
@@ -86,7 +121,7 @@ else
         echo "WARNING: MSYS OpenSSL not found; falling back to repo-local vcpkg installed at $REPO_VCPKG_INSTALLED"
         OPENSSL_ROOT="$REPO_VCPKG_INSTALLED"
       else
-        echo "ERROR: No suitable OpenSSL found. Install MSYS OpenSSL (pacman -S mingw-w64-x86_64-openssl) or set OPENSSL_ROOT to a valid path." >&2
+        echo "ERROR: No suitable OpenSSL found. Install MSYS OpenSSL (pacman -S ${PACMAN_PREFIX}-openssl) or set OPENSSL_ROOT to a valid path." >&2
         exit 1
       fi
     fi
@@ -151,7 +186,7 @@ extract_zip() {
 if [ ! -d "$OPENSSL_LIB_DIR" ]; then
   echo "INFO: OpenSSL lib folder not found at $OPENSSL_LIB_DIR"
   if [ "$PLATFORM" = "windows" ]; then
-    echo "Install MSYS OpenSSL with: pacman -S mingw-w64-x86_64-openssl, or set OPENSSL_ROOT to point to a valid installation."
+    echo "Install MSYS OpenSSL with: pacman -S ${PACMAN_PREFIX}-openssl, or set OPENSSL_ROOT to point to a valid installation."
   else
     echo "You may need to run 'vcpkg install openssl --triplet=${VCPKG_TRIPLET}' or set OPENSSL_ROOT to a folder that contains libssl.a and libcrypto.a"
   fi
@@ -169,9 +204,12 @@ if [ ! -f "$OPENSSL_INCLUDE_DIR/openssl/ssl.h" ]; then
 fi
 
 echo "Using platform: $PLATFORM"
+echo "Using arch: $ARCH"
+echo "Using compiler: CC=$CC_BIN CXX=$CXX_BIN"
 echo "Qt version: $QT_VERSION"
 echo "Source dir: $SOURCE_DIR"
-echo "Vcpkg root: $VCPKG_ROOT"
+echo "Install prefix: $INSTALL_PREFIX"
+echo "Vcpkg root: ${VCPKG_ROOT:-<disabled>}"
 echo "OpenSSL root: $OPENSSL_ROOT"
 echo "KEEP_ZIPS: ${KEEP_ZIPS} (set KEEP_ZIPS=0 to remove archives after extraction)"
 echo "Parallel jobs (JOBS): ${JOBS} (override with JOBS=1 ./build-static-qt-from-source.sh)"
@@ -316,8 +354,8 @@ cmake_args=(
   -G "Ninja"
   -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
   # Explicitly set compilers to avoid path duplication issues in CI
-  -DCMAKE_C_COMPILER="/mingw64/bin/gcc.exe"
-  -DCMAKE_CXX_COMPILER="/mingw64/bin/g++.exe"
+  -DCMAKE_C_COMPILER="${CC_BIN}"
+  -DCMAKE_CXX_COMPILER="${CXX_BIN}"
   -DBUILD_SHARED_LIBS=OFF
   -DFEATURE_dbus=ON
   -DFEATURE_sql=OFF
@@ -332,10 +370,16 @@ cmake_args=(
   -DOPENSSL_SSL_LIBRARY="${OPENSSL_LIB_DIR}/libssl.a"
   -DCMAKE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC"
   -DCMAKE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC"
-  -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
-  -DVCPKG_TARGET_TRIPLET="${VCPKG_TRIPLET}"
   ..
 )
+
+# vcpkg is only used on x86_64 Windows; ARM64 uses MSYS2 static libs directly.
+if [ -n "${VCPKG_ROOT:-}" ] && [ -n "${VCPKG_TRIPLET:-}" ] && [ -f "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" ]; then
+  cmake_args+=(
+    -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+    -DVCPKG_TARGET_TRIPLET="${VCPKG_TRIPLET}"
+  )
+fi
 
 # Add windows-specific linker flags
 if [ "$PLATFORM" = "windows" ]; then
@@ -347,7 +391,7 @@ if [ "$PLATFORM" = "windows" ]; then
   else
     echo "WARNING: Static zstd library not found at $ZSTD_STATIC_LIB"
     echo "Installing zstd static library via pacman..."
-    pacman -S --noconfirm mingw-w64-x86_64-zstd
+    pacman -S --noconfirm ${PACMAN_PREFIX}-zstd
   fi
   
   # Force static linking of all compression libraries (without -Wl for compatibility)
@@ -384,20 +428,28 @@ for m in "${MODULES[@]}"; do
   echo "Building module $m..."
   mkdir -p "$m/build"
   pushd "$m/build" >/dev/null
-  cmake \
-    -G "Ninja" \
-    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS}" \
-    -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}" \
-    -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
-    -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
-    -DBUILD_SHARED_LIBS=OFF \
-    -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT}" \
-    -DOPENSSL_INCLUDE_DIR="${OPENSSL_INCLUDE_DIR}" \
-    -DOPENSSL_CRYPTO_LIBRARY="${OPENSSL_LIB_DIR}/libcrypto.a" \
-    -DOPENSSL_SSL_LIBRARY="${OPENSSL_LIB_DIR}/libssl.a" \
-    -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
-    -DVCPKG_TARGET_TRIPLET="${VCPKG_TRIPLET}" \
+  module_cmake_args=(
+    -G "Ninja"
+    -DCMAKE_C_COMPILER="${CC_BIN}"
+    -DCMAKE_CXX_COMPILER="${CXX_BIN}"
+    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS}"
+    -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}"
+    -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
+    -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}"
+    -DBUILD_SHARED_LIBS=OFF
+    -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT}"
+    -DOPENSSL_INCLUDE_DIR="${OPENSSL_INCLUDE_DIR}"
+    -DOPENSSL_CRYPTO_LIBRARY="${OPENSSL_LIB_DIR}/libcrypto.a"
+    -DOPENSSL_SSL_LIBRARY="${OPENSSL_LIB_DIR}/libssl.a"
     ..
+  )
+  if [ -n "${VCPKG_ROOT:-}" ] && [ -n "${VCPKG_TRIPLET:-}" ] && [ -f "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" ]; then
+    module_cmake_args+=(
+      -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      -DVCPKG_TARGET_TRIPLET="${VCPKG_TRIPLET}"
+    )
+  fi
+  cmake "${module_cmake_args[@]}"
   ninja -v -j"${JOBS}" || { echo "Module build failed—retrying single-threaded (JOBS=1) to work around memory limits"; ninja -v -j1 || { echo "Module build failed again; see output above."; exit 1; } }
   ninja install
   popd >/dev/null
