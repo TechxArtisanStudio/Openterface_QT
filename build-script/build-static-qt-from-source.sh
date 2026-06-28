@@ -366,10 +366,13 @@ cmake_args=(
   -DINPUT_openssl=linked
   # libclang/LLVM lookup is disabled — it's only needed for Qt's clang-based
   # code model (Qt Creator integration) and isn't used by our app. The runner's
-  # system LLVM (20.1.6) doesn't match the clang toolchain (22.1.7), so letting
-  # CMake find it would cause a version mismatch error in FindWrapLibClang.
+  # system LLVM (20.1.6) doesn't match the clang toolchain (22.1.7), and
+  # ClangConfig.cmake internally calls find_package(LLVM), so FEATURE_libclang=OFF
+  # alone doesn't short-circuit the lookup. Hard-block both with CMAKE_DISABLE.
   -DFEATURE_libclang=OFF
   -DINPUT_libclang=no
+  -DCMAKE_DISABLE_FIND_PACKAGE_Clang=TRUE
+  -DCMAKE_DISABLE_FIND_PACKAGE_LLVM=TRUE
   -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT}"
   -DOPENSSL_INCLUDE_DIR="${OPENSSL_INCLUDE_DIR}"
   -DOPENSSL_CRYPTO_LIBRARY="${OPENSSL_LIB_DIR}/libcrypto.a"
@@ -445,9 +448,13 @@ for m in "${MODULES[@]}"; do
     -DBUILD_SHARED_LIBS=OFF
     # libclang/LLVM is only needed for Qt Creator's code model — not for our app.
     # The runner's system LLVM (20.1.6) doesn't match the clang toolchain (22.1.7),
-    # so we must disable the lookup in any module (e.g. qttools) that probes for it.
+    # and clang's own ClangConfig.cmake calls find_package(LLVM) internally, so
+    # FEATURE_libclang=OFF alone doesn't short-circuit the lookup. Use CMake's
+    # CMAKE_DISABLE_FIND_PACKAGE_<pkg> to hard-block both Clang and LLVM lookups.
     -DFEATURE_libclang=OFF
     -DINPUT_libclang=no
+    -DCMAKE_DISABLE_FIND_PACKAGE_Clang=TRUE
+    -DCMAKE_DISABLE_FIND_PACKAGE_LLVM=TRUE
     -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT}"
     -DOPENSSL_INCLUDE_DIR="${OPENSSL_INCLUDE_DIR}"
     -DOPENSSL_CRYPTO_LIBRARY="${OPENSSL_LIB_DIR}/libcrypto.a"
