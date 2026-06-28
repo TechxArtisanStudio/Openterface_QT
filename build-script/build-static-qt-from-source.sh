@@ -443,6 +443,11 @@ for m in "${MODULES[@]}"; do
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
     -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}"
     -DBUILD_SHARED_LIBS=OFF
+    # libclang/LLVM is only needed for Qt Creator's code model — not for our app.
+    # The runner's system LLVM (20.1.6) doesn't match the clang toolchain (22.1.7),
+    # so we must disable the lookup in any module (e.g. qttools) that probes for it.
+    -DFEATURE_libclang=OFF
+    -DINPUT_libclang=no
     -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT}"
     -DOPENSSL_INCLUDE_DIR="${OPENSSL_INCLUDE_DIR}"
     -DOPENSSL_CRYPTO_LIBRARY="${OPENSSL_LIB_DIR}/libcrypto.a"
