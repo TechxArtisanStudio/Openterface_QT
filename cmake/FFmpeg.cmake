@@ -752,9 +752,6 @@ function(link_ffmpeg_libraries)
                         "${MINGW_ROOT}/lib/libwinpthread.a"  # Windows pthreads for 64-bit time functions
                     )
                 endif()
-                list(APPEND _FFMPEG_STATIC_DEPS
-                    # -liconv        # Character encoding conversion
-                )
 
                 # Add Intel Media SDK (libmfx) for QSV support if available (x86_64 only)
                 # ARM64: Intel QSV is not available on ARM64
