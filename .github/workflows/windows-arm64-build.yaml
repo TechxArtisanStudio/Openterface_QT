@@ -428,6 +428,33 @@ jobs:
             fi
           done
 
+          # MSYS2 setup-msys2@v2 with `location: C:\msys64` installs the actual
+          # toolchain to C:\msys64\msys64\clangarm64 (double-nested). The MSYS2
+          # shell mounts /clangarm64 to the double-nested path, but Qt's CMake
+          # configs record the single-level Windows path C:/msys64/clangarm64/...
+          # which doesn't exist on disk. Create a junction so both paths work.
+          echo "=== Fixing MSYS2 path nesting for clangarm64 ==="
+          if [ -d "/c/msys64/msys64/clangarm64" ] && [ ! -f "/c/msys64/clangarm64/lib/libz.a" ]; then
+            echo "Detected double-nested MSYS2 install; creating junction..."
+            if [ -d "/c/msys64/clangarm64" ]; then
+              rm -rf /c/msys64/clangarm64
+            fi
+            cmd //c mklink //J "C:\\msys64\\clangarm64" "C:\\msys64\\msys64\\clangarm64" || {
+              echo "Junction failed; falling back to copying libs"
+              mkdir -p /c/msys64/clangarm64/lib
+              mkdir -p /c/msys64/clangarm64/include
+              cp -r /clangarm64/lib/*.a /c/msys64/clangarm64/lib/ 2>/dev/null || true
+              cp -r /clangarm64/include/* /c/msys64/clangarm64/include/ 2>/dev/null || true
+            }
+            if [ -f "/c/msys64/clangarm64/lib/libz.a" ]; then
+              echo "OK: /c/msys64/clangarm64/lib/libz.a now accessible"
+            else
+              echo "WARN: junction/copy did not produce /c/msys64/clangarm64/lib/libz.a"
+            fi
+          else
+            echo "Path nesting OK or already fixed"
+          fi
+
           echo "=== Configuring OpenterfaceQT (static, ARM64) ==="
           rm -rf build
           mkdir -p build && cd build
