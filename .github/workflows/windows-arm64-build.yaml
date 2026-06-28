@@ -333,7 +333,6 @@ jobs:
             mingw-w64-clang-aarch64-pcre2
             mingw-w64-clang-aarch64-zstd
             mingw-w64-clang-aarch64-lz4
-            # Qt6Gui (and other Qt modules) transitively need these at configure time:
             mingw-w64-clang-aarch64-libpng
             mingw-w64-clang-aarch64-freetype
             mingw-w64-clang-aarch64-fontconfig
