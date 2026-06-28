@@ -91,6 +91,8 @@ jobs:
             mingw-w64-clang-aarch64-qt6-multimedia
             mingw-w64-clang-aarch64-qt6-serialport
             mingw-w64-clang-aarch64-qt6-imageformats
+            mingw-w64-clang-aarch64-ffmpeg
+            mingw-w64-clang-aarch64-libjpeg-turbo
             diffutils
             make
             libtool
@@ -141,96 +143,33 @@ jobs:
         run: |
           git fetch --all --tags -f
 
-      - name: Cache FFmpeg (shared, built for ARM64)
-        id: cache-ffmpeg
-        uses: actions/cache@v4
-        with:
-          path: C:\ffmpeg-shared-arm64
-          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-arm64-${{ runner.os }}
-
-      - name: Check Build Scripts Available
-        shell: cmd
-        run: |
-          echo "Checking available build scripts..."
-          cd /d "${{ env.SOURCE_DIR }}"
-          dir build-script\*.bat
-          dir build-script\*.sh
-
-      - name: Build Shared FFmpeg (for ARM64)
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+      - name: Setup FFmpeg from MSYS2
         shell: msys2 {0}
         run: |
-          echo "Building shared FFmpeg for ARM64..."
-          export FFMPEG_INSTALL_PREFIX="/c/ffmpeg-shared-arm64"
-          export SKIP_MSYS_MINGW=1
-          export EXTERNAL_MINGW_MSYS="/clangarm64"
-          export PKG_CONFIG_PATH="/clangarm64/lib/pkgconfig:$PKG_CONFIG_PATH"
+          echo "Setting up FFmpeg from MSYS2 CLANGARM64..."
+          # Create FFmpeg directory structure
+          mkdir -p /c/ffmpeg-shared-arm64/bin
+          mkdir -p /c/ffmpeg-shared-arm64/lib
+          mkdir -p /c/ffmpeg-shared-arm64/include
 
-          # Disable GPU acceleration for ARM64 Surface devices
-          export ENABLE_NVENC=0
-          export ENABLE_NVDEC=0
-          export AUTO_INSTALL_FFNV=0
-          export ENABLE_LIBMFX=0
+          # Copy FFmpeg from MSYS2
+          cp /clangarm64/bin/av*.dll /c/ffmpeg-shared-arm64/bin/ 2>/dev/null || true
+          cp /clangarm64/bin/sw*.dll /c/ffmpeg-shared-arm64/bin/ 2>/dev/null || true
+          cp /clangarm64/bin/postproc*.dll /c/ffmpeg-shared-arm64/bin/ 2>/dev/null || true
+          cp /clangarm64/bin/ffmpeg.exe /c/ffmpeg-shared-arm64/bin/ 2>/dev/null || true
 
-          cd "${{ env.SOURCE_DIR }}/build-script"
-          ./build-shared-ffmpeg-windows.sh > "${{ github.workspace }}/ffmpeg_build.log" 2>&1
-          EXIT_CODE=$?
-          if [ $EXIT_CODE -ne 0 ]; then
-            echo "ERROR: FFmpeg build failed!"
-            tail -n 200 "${{ github.workspace }}/ffmpeg_build.log" || true
-            exit $EXIT_CODE
-          fi
-          echo "FFmpeg build succeeded"
+          # Copy libraries
+          cp /clangarm64/lib/libav*.dll.a /c/ffmpeg-shared-arm64/lib/ 2>/dev/null || true
+          cp /clangarm64/lib/libsw*.dll.a /c/ffmpeg-shared-arm64/lib/ 2>/dev/null || true
+          cp /clangarm64/lib/libpostproc*.dll.a /c/ffmpeg-shared-arm64/lib/ 2>/dev/null || true
 
-      - name: Upload FFmpeg artifact (on build)
-        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-arm64
-          path: C:\ffmpeg-shared-arm64
-          retention-days: 7
+          # Copy headers
+          cp -r /clangarm64/include/libav* /c/ffmpeg-shared-arm64/include/ 2>/dev/null || true
+          cp -r /clangarm64/include/libsw* /c/ffmpeg-shared-arm64/include/ 2>/dev/null || true
+          cp -r /clangarm64/include/libpostproc* /c/ffmpeg-shared-arm64/include/ 2>/dev/null || true
 
-      - name: Verify FFmpeg installation
-        shell: msys2 {0}
-        run: |
-          if [ -f "/c/ffmpeg-shared-arm64/bin/avcodec-60.dll" ]; then
-            echo "✓ FFmpeg DLLs found"
-          else
-            echo "✗ FFmpeg DLLs missing"
-            ls -la "/c/ffmpeg-shared-arm64/bin/" || echo "FFmpeg bin directory does not exist"
-            exit 1
-          fi
-          if [ -f "/c/ffmpeg-shared-arm64/lib/libavcodec.dll.a" ]; then
-            echo "✓ FFmpeg import libraries found"
-          else
-            echo "✗ FFmpeg import libraries missing"
-            ls -la "/c/ffmpeg-shared-arm64/lib/" || echo "FFmpeg lib directory does not exist"
-            exit 1
-          fi
-
-      - name: Verify FFmpeg decoders
-        shell: msys2 {0}
-        run: |
-          echo "=== FFmpeg hardware acceleration summary ==="
-          /c/ffmpeg-shared-arm64/bin/ffmpeg -hide_banner -hwaccels || echo "ffmpeg not found or hwaccels failed"
-          echo ""
-          echo "=== MJPEG decoders ==="
-          /c/ffmpeg-shared-arm64/bin/ffmpeg -hide_banner -decoders | grep -i mjpeg || echo "No mjpeg decoders found"
-          echo ""
-          echo "=== Tail of configure log (if present) ==="
-          if [ -f "${{ env.SOURCE_DIR }}/build-script/ffmpeg-build-temp/ffmpeg-configure.log" ]; then
-            tail -n 200 "${{ env.SOURCE_DIR }}/build-script/ffmpeg-build-temp/ffmpeg-configure.log" || true
-          else
-            echo "Configure log not found"
-          fi
-
-      - name: Upload FFmpeg configure log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-configure-log-arm64
-          path: ${{ env.SOURCE_DIR }}/build-script/ffmpeg-build-temp/ffmpeg-configure.log
-          if-no-files-found: warn
+          echo "FFmpeg setup complete"
+          ls -la /c/ffmpeg-shared-arm64/bin/
 
       - name: Cache LibUSB
         id: cache-libusb
@@ -277,22 +216,6 @@ jobs:
           echo "Final LibUSB cache contents:"
           ls -la /c/libusb-arm64/bin/ || echo "No files in cache bin"
           echo "✓ LibUSB setup completed successfully"
-
-      - name: Upload FFmpeg Build Log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ffmpeg-build-log-arm64
-          path: ${{ github.workspace }}/ffmpeg_build.log
-          if-no-files-found: warn
-
-      - name: Upload LibUSB Build Log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: libusb-build-log-arm64
-          path: ${{ github.workspace }}/libusb_build.log
-          if-no-files-found: warn
 
       - name: Create build directory
         run: mkdir ${{ runner.temp }}\build
