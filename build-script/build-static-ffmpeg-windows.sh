@@ -163,11 +163,16 @@ fi
 echo ""
 
 # Verify cross-compilation tools are available
-echo "Verifying MinGW64 toolchain..."
-which gcc
+echo "Verifying toolchain..."
+if [ "$ARCH" = "arm64" ]; then
+  which clang
+  which clang++
+else
+  which gcc
+fi
 which nm
 which ar
-echo "✓ MinGW64 toolchain verified"
+echo "✓ Toolchain verified"
 echo ""
 
 # Create build directory
