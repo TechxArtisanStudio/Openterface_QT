@@ -1,0 +1,427 @@
+name: Build / Openterface Windows ARM64 Installer
+
+on:
+  push:
+    branches: ["main", "dev_1223_portable_build"]
+    tags: ["v*"]
+    paths:
+      - '.github/workflows/windows-arm64-build.yaml'
+      - 'vcpkg.json'
+      - 'CMakeLists.txt'
+      - '**/*.bat'
+      - '**/*.cpp'
+  pull_request:
+    branches: ["dev"]
+    paths:
+      - '.github/workflows/windows-arm64-build.yaml'
+      - 'vcpkg.json'
+      - 'CMakeLists.txt'
+      - '**/*.bat'
+      - '**/*.cpp'
+  workflow_dispatch:
+    inputs:
+      increase_version:
+        description: 'Increase the patch version number'
+        required: false
+        type: boolean
+        default: false
+      increase_minor:
+        description: 'Increase the minor version number'
+        required: false
+        type: boolean
+        default: false
+      increase_major:
+        description: 'Increase the major version number'
+        required: false
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    shell: cmd
+
+env:
+  SOURCE_DIR: ${{ github.workspace }}
+  QT_VERSION: 6.6.3
+  FFMPEG_VERSION: 6.1.1
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  QT_CACHE_KEY: qt-6.6.3-mingw-windows-arm64
+  JOM_CACHE_KEY: jom-1.1.3-windows-arm64
+  PACKAGE_DIR: "package_online"
+  EXE_NAME: "openterfaceQT.exe"
+  ARCH: "arm64"
+  # GPU-related build flags (disabled for ARM64 Surface devices)
+  ENABLE_NVENC: 0
+  ENABLE_NVDEC: 0
+  AUTO_INSTALL_FFNV: 0
+  ENABLE_LIBMFX: 0
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    runs-on: windows-11-arm
+    environment: ${{ github.event.inputs.TARGET_ENV || 'Openterface_build' }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup MSYS2 CLANGARM64 environment
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANGARM64
+          update: true
+          install: |
+            mingw-w64-clang-aarch64-clang
+            mingw-w64-clang-aarch64-cmake
+            mingw-w64-clang-aarch64-nasm
+            mingw-w64-clang-aarch64-make
+            mingw-w64-clang-aarch64-pkgconf
+            mingw-w64-clang-aarch64-zlib
+            mingw-w64-clang-aarch64-bzip2
+            mingw-w64-clang-aarch64-xz
+            mingw-w64-clang-aarch64-libjpeg-turbo
+            mingw-w64-clang-aarch64-libiconv
+            mingw-w64-clang-aarch64-libusb
+            mingw-w64-clang-aarch64-qt6-base
+            mingw-w64-clang-aarch64-qt6-multimedia
+            mingw-w64-clang-aarch64-qt6-serialport
+            mingw-w64-clang-aarch64-qt6-imageformats
+            diffutils
+            make
+            libtool
+            git
+            perl
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Update version
+        run: |
+          if [ "${{ github.event.inputs.increase_version }}" = "true" ]; then
+            python "${{ env.SOURCE_DIR }}/build-script/update_version.py" --increase-version
+          elif [ "${{ github.event.inputs.increase_major }}" = "true" ]; then
+            python "${{ env.SOURCE_DIR }}/build-script/update_version.py" --increase-major
+          elif [ "${{ github.event.inputs.increase_minor }}" = "true" ]; then
+            python "${{ env.SOURCE_DIR }}/build-script/update_version.py" --increase-minor
+          else
+            python "${{ env.SOURCE_DIR }}/build-script/update_version.py"
+          fi
+        shell: bash
+
+      - name: Commit and push version bump
+        if: ${{ github.event.inputs.increase_version == 'true' || github.event.inputs.increase_minor == 'true' || github.event.inputs.increase_major == 'true' }}
+        shell: bash
+        run: |
+          echo "Committing updated version.h and creating tag v$GIT_TAG_VERSION"
+          git status --porcelain
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add resources/version.h
+          git commit -m "Bump version to $GIT_TAG_VERSION" || echo "No changes to commit"
+          # Create annotated tag if it doesn't already exist
+          if ! git rev-parse "refs/tags/v$GIT_TAG_VERSION" >/dev/null 2>&1; then
+            git tag -a "v$GIT_TAG_VERSION" -m "Release $GIT_TAG_VERSION"
+          else
+            echo "Tag v$GIT_TAG_VERSION already exists, skipping tag creation"
+          fi
+          # Push branch and tags back to origin
+          git push origin "HEAD:${{ github.ref_name }}" --follow-tags || echo "Push failed; check permissions or branch protection"
+
+      - name: Get all tags for correct version determination
+        working-directory: ${{ github.workspace }}
+        run: |
+          git fetch --all --tags -f
+
+      - name: Cache FFmpeg (shared, built for ARM64)
+        id: cache-ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: C:\ffmpeg-shared-arm64
+          key: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-windows-arm64-${{ runner.os }}
+
+      - name: Check Build Scripts Available
+        shell: cmd
+        run: |
+          echo "Checking available build scripts..."
+          cd /d "${{ env.SOURCE_DIR }}"
+          dir build-script\*.bat
+          dir build-script\*.sh
+
+      - name: Build Shared FFmpeg (for ARM64)
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: |
+          echo "Building shared FFmpeg for ARM64..."
+          export FFMPEG_INSTALL_PREFIX="/c/ffmpeg-shared-arm64"
+          export SKIP_MSYS_MINGW=1
+          export EXTERNAL_MINGW_MSYS="/clangarm64"
+          export PKG_CONFIG_PATH="/clangarm64/lib/pkgconfig:$PKG_CONFIG_PATH"
+
+          # Disable GPU acceleration for ARM64 Surface devices
+          export ENABLE_NVENC=0
+          export ENABLE_NVDEC=0
+          export AUTO_INSTALL_FFNV=0
+          export ENABLE_LIBMFX=0
+
+          cd "${{ env.SOURCE_DIR }}/build-script"
+          ./build-shared-ffmpeg-windows.sh > "${{ github.workspace }}/ffmpeg_build.log" 2>&1
+          EXIT_CODE=$?
+          if [ $EXIT_CODE -ne 0 ]; then
+            echo "ERROR: FFmpeg build failed!"
+            tail -n 200 "${{ github.workspace }}/ffmpeg_build.log" || true
+            exit $EXIT_CODE
+          fi
+          echo "FFmpeg build succeeded"
+
+      - name: Upload FFmpeg artifact (on build)
+        if: steps.cache-ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-shared-${{ env.FFMPEG_VERSION }}-arm64
+          path: C:\ffmpeg-shared-arm64
+          retention-days: 7
+
+      - name: Verify FFmpeg installation
+        shell: msys2 {0}
+        run: |
+          if [ -f "/c/ffmpeg-shared-arm64/bin/avcodec-60.dll" ]; then
+            echo "✓ FFmpeg DLLs found"
+          else
+            echo "✗ FFmpeg DLLs missing"
+            ls -la "/c/ffmpeg-shared-arm64/bin/" || echo "FFmpeg bin directory does not exist"
+            exit 1
+          fi
+          if [ -f "/c/ffmpeg-shared-arm64/lib/libavcodec.dll.a" ]; then
+            echo "✓ FFmpeg import libraries found"
+          else
+            echo "✗ FFmpeg import libraries missing"
+            ls -la "/c/ffmpeg-shared-arm64/lib/" || echo "FFmpeg lib directory does not exist"
+            exit 1
+          fi
+
+      - name: Verify FFmpeg decoders
+        shell: msys2 {0}
+        run: |
+          echo "=== FFmpeg hardware acceleration summary ==="
+          /c/ffmpeg-shared-arm64/bin/ffmpeg -hide_banner -hwaccels || echo "ffmpeg not found or hwaccels failed"
+          echo ""
+          echo "=== MJPEG decoders ==="
+          /c/ffmpeg-shared-arm64/bin/ffmpeg -hide_banner -decoders | grep -i mjpeg || echo "No mjpeg decoders found"
+          echo ""
+          echo "=== Tail of configure log (if present) ==="
+          if [ -f "${{ env.SOURCE_DIR }}/build-script/ffmpeg-build-temp/ffmpeg-configure.log" ]; then
+            tail -n 200 "${{ env.SOURCE_DIR }}/build-script/ffmpeg-build-temp/ffmpeg-configure.log" || true
+          else
+            echo "Configure log not found"
+          fi
+
+      - name: Upload FFmpeg configure log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-configure-log-arm64
+          path: ${{ env.SOURCE_DIR }}/build-script/ffmpeg-build-temp/ffmpeg-configure.log
+          if-no-files-found: warn
+
+      - name: Cache LibUSB
+        id: cache-libusb
+        uses: actions/cache@v4
+        with:
+          path: C:\libusb-arm64
+          key: libusb-1.0.27-windows-arm64-v1
+          restore-keys: |
+            libusb-1.0.27-windows-arm64-v1
+
+      - name: Verify and Setup LibUSB
+        if: steps.cache-libusb.outputs.cache-hit != 'true' || github.event.inputs.force_rebuild == 'true'
+        shell: msys2 {0}
+        run: |
+          echo "Setting up LibUSB for ARM64..."
+
+          # Update package DB and ensure CLANGARM64 libusb package is installed
+          echo "Updating package database and installing mingw-w64-clang-aarch64-libusb (if needed)..."
+          pacman -Sy --noconfirm --needed mingw-w64-clang-aarch64-libusb || echo "pacman returned non-zero status"
+
+          # Create cache directory structure
+          mkdir -p /c/libusb-arm64/bin /c/libusb-arm64/lib /c/libusb-arm64/include
+
+          LIBUSB_FOUND=false
+
+          # Preferred: CLANGARM64 libusb DLL
+          if [ -f "/clangarm64/bin/libusb-1.0.dll" ]; then
+            echo "✓ Found CLANGARM64 libusb-1.0.dll"
+            cp /clangarm64/bin/libusb-1.0.dll /c/libusb-arm64/bin/ || true
+            cp /clangarm64/bin/libusb-1.0.dll /c/libusb-arm64/bin/msys-usb-1.0.dll || true
+            cp /clangarm64/lib/*usb* /c/libusb-arm64/lib/ 2>/dev/null || echo "No USB libs to copy"
+            cp -r /clangarm64/include/libusb* /c/libusb-arm64/include/ 2>/dev/null || echo "No USB headers to copy"
+            LIBUSB_FOUND=true
+          else
+            echo "CLANGARM64 libusb-1.0.dll not found in /clangarm64/bin"
+          fi
+
+          # If still missing, fail early
+          if [ "$LIBUSB_FOUND" = "false" ]; then
+            echo "ERROR: libusb-1.0.dll not found after installation."
+            exit 1
+          fi
+
+          echo "Final LibUSB cache contents:"
+          ls -la /c/libusb-arm64/bin/ || echo "No files in cache bin"
+          echo "✓ LibUSB setup completed successfully"
+
+      - name: Upload FFmpeg Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-build-log-arm64
+          path: ${{ github.workspace }}/ffmpeg_build.log
+          if-no-files-found: warn
+
+      - name: Upload LibUSB Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: libusb-build-log-arm64
+          path: ${{ github.workspace }}/libusb_build.log
+          if-no-files-found: warn
+
+      - name: Create build directory
+        run: mkdir ${{ runner.temp }}\build
+
+      - name: Build
+        working-directory: ${{ runner.temp }}\build
+        shell: msys2 {0}
+        run: |
+          echo "Setting up build environment for ARM64..."
+          # Convert Windows paths to MSYS2 format
+          SOURCE_DIR_MSYS="/$(echo '${{ env.SOURCE_DIR }}' | sed 's|\\|/|g' | sed 's|:||')"
+          QT_PATH_MSYS="/clangarm64/bin"
+
+          export PATH="/clangarm64/bin:$PATH"
+          echo "Updated PATH: $PATH"
+          echo "Source directory (MSYS2 format): $SOURCE_DIR_MSYS"
+          echo "Compiler check (should be CLANGARM64):"
+          which clang
+          clang --version
+          which mingw32-make
+          mingw32-make --version | head -1
+
+          echo "Checking Qt tools availability..."
+          which lupdate || echo "lupdate not found in PATH"
+          which lrelease || echo "lrelease not found in PATH"
+
+          echo "Updating translations with lupdate..."
+          lupdate "${SOURCE_DIR_MSYS}/openterfaceQT.pro"
+          echo "Generating .qm files with lrelease..."
+          lrelease "${SOURCE_DIR_MSYS}/openterfaceQT.pro"
+
+          echo "Configuring with CMake..."
+          cmake -G "MinGW Makefiles" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_SYSTEM_NAME=Windows \
+            -DCMAKE_SYSTEM_PROCESSOR=ARM64 \
+            -DFFMPEG_PREFIX=C:/ffmpeg-shared-arm64 \
+            -DUSE_SHARED_FFMPEG=ON \
+            -DHAVE_LIBJPEG_TURBO=ON \
+            "$SOURCE_DIR_MSYS"
+          echo "Building with mingw32-make..."
+          mingw32-make -j2
+          if [ ! -f openterfaceQT.exe ]; then
+            echo "Error: Failed to build openterfaceQT.exe"
+            exit 1
+          fi
+          echo "Build directory contents:"
+          ls -la
+
+          # Packaging steps
+          mkdir -p ${{ env.PACKAGE_DIR }}/driver/windows
+          mkdir -p ${{ env.PACKAGE_DIR }}/config/languages
+          mkdir -p ${{ env.PACKAGE_DIR }}/config/keyboards
+          cp openterfaceQT.exe ${{ env.PACKAGE_DIR }}/${{ env.EXE_NAME }}
+          cp "${SOURCE_DIR_MSYS}/LICENSE" ${{ env.PACKAGE_DIR }}
+          cp "${SOURCE_DIR_MSYS}/driver/windows/"* ${{ env.PACKAGE_DIR }}/driver/windows/
+
+          echo "Copying FFmpeg DLLs..."
+          cp /c/ffmpeg-shared-arm64/bin/av*.dll ${{ env.PACKAGE_DIR }}
+          cp /c/ffmpeg-shared-arm64/bin/sw*.dll ${{ env.PACKAGE_DIR }}
+          cp /c/ffmpeg-shared-arm64/bin/postproc-57.dll ${{ env.PACKAGE_DIR }} || echo "Warning: postproc-57.dll not found"
+          cp /c/ffmpeg-shared-arm64/bin/libturbojpeg.dll ${{ env.PACKAGE_DIR }}
+
+          echo "Copying LibUSB DLLs..."
+          if [ -f "/c/libusb-arm64/bin/libusb-1.0.dll" ]; then
+            cp /c/libusb-arm64/bin/libusb-1.0.dll ${{ env.PACKAGE_DIR }}
+            echo "✓ Copied libusb-1.0.dll"
+          fi
+
+          echo "Copying translation & keyboard layouts files..."
+          cp "${SOURCE_DIR_MSYS}/config/keyboards/"*.json ${{ env.PACKAGE_DIR }}/config/keyboards/
+          cp "${SOURCE_DIR_MSYS}/config/languages/"*.qm ${{ env.PACKAGE_DIR }}/config/languages/
+
+          echo "Build step complete. Proceeding to windeployqt..."
+          cd ${{ env.PACKAGE_DIR }}
+
+      - name: Run windeployqt (Windows native tool)
+        working-directory: ${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}
+        run: |
+          echo "Running windeployqt to deploy Qt dependencies..."
+          windeployqt ${{ env.EXE_NAME }} --multimedia --network
+          echo "windeployqt completed"
+
+      - name: Upload Output folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-folder-arm64
+          path: ${{ env.SOURCE_DIR }}\Output
+          if-no-files-found: warn
+
+      - name: Install NSIS (if missing)
+        shell: pwsh
+        run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) {
+            Write-Host "makensis not found; installing NSIS via Chocolatey..."
+            choco install nsis -y
+          } else {
+            Write-Host "makensis already available"
+          }
+
+      - name: Compile .NSI to .EXE Installer
+        shell: pwsh
+        run: |
+          Write-Host "Compiling NSIS installer for ARM64..."
+          $pkg = "${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}"
+          if (-not (Test-Path $pkg)) {
+            Write-Host "Package dir not found: $pkg"; exit 1
+          }
+          New-Item -ItemType Directory -Path "${{ env.SOURCE_DIR }}\Output" -Force | Out-Null
+          # Run makensis with defines used by installer script
+          & makensis /DWorkingDir="$pkg" /DMyAppVersion="${{ env.NEW_VERSION }}" /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" /DMyAppURL="${{ vars.MY_APP_URL }}" /DOutputDir="${{ env.SOURCE_DIR }}\Output" /DOutputBaseFileName=openterfaceQT.windows.arm64.installer /DMyAppExeName=${{ env.EXE_NAME }} "${{ env.SOURCE_DIR }}\installer.nsi"
+          if ($LASTEXITCODE -ne 0) { Write-Host "makensis failed with exit code $LASTEXITCODE"; exit $LASTEXITCODE }
+          Write-Host "Installer build completed. Listing Output directory:"
+          Get-ChildItem "${{ env.SOURCE_DIR }}\Output" -Recurse | Select-Object -First 200
+
+      - name: Upload windows arm64 installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT_windows_arm64_installer
+          path: ${{ env.SOURCE_DIR }}\Output\*.exe
+          if-no-files-found: error
+
+      - name: Copy package to workspace for inspection (optional)
+        shell: pwsh
+        run: |
+          $src = "${{ runner.temp }}\build\${{ env.PACKAGE_DIR }}"
+          $dst = "${{ env.SOURCE_DIR }}\${{ env.PACKAGE_DIR }}"
+          if (Test-Path $src) {
+            Remove-Item -Recurse -Force $dst -ErrorAction SilentlyContinue || true
+            Copy-Item -Recurse -Force $src $dst
+            Write-Host "Copied package to workspace: $dst"
+          } else {
+            Write-Host "Package dir not found: $src"
+          }
