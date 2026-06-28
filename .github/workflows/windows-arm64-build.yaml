@@ -97,10 +97,12 @@ jobs:
             git
             perl
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+      - name: Set up Python (MSYS2)
+        shell: msys2 {0}
+        run: |
+          # MSYS2 CLANGARM64 already has Python installed via mingw-w64-clang-aarch64-python
+          which python
+          python --version
 
       - name: Update version
         run: |
