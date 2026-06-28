@@ -118,7 +118,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.QT_PREFIX }}
-          key: qt-6.6.3-msys2-clangarm64-windows-static-v1-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+          key: qt-6.6.3-msys2-clangarm64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
       - name: Cache FFmpeg static build (ARM64)
         id: cache-ffmpeg
@@ -144,6 +144,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: CLANGARM64
+          location: C:\msys64
           update: true
           install: |
             mingw-w64-clang-aarch64-clang
@@ -215,7 +216,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.QT_PREFIX }}
-          key: qt-6.6.3-msys2-clangarm64-windows-static-v1-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+          key: qt-6.6.3-msys2-clangarm64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
   # ---------------------------------------------------------------------------
   # Job 3: build-ffmpeg
@@ -234,6 +235,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: CLANGARM64
+          location: C:\msys64
           update: true
           install: |
             mingw-w64-clang-aarch64-clang
@@ -311,6 +313,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: CLANGARM64
+          location: C:\msys64
           update: true
           install: |
             mingw-w64-clang-aarch64-clang
@@ -358,7 +361,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.QT_PREFIX }}
-          key: qt-6.6.3-msys2-clangarm64-windows-static-v1-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+          key: qt-6.6.3-msys2-clangarm64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
       - name: Download FFmpeg artifact (from build-ffmpeg job, if ran this run)
         uses: actions/download-artifact@v4
@@ -423,6 +426,11 @@ jobs:
           echo "Qt prefix: ${{ env.QT_PREFIX }}"
           echo "FFmpeg prefix: ${{ env.FFMPEG_PREFIX }}"
 
+          # Help CMake find transitive deps (PNG, ZLIB, etc.) that Qt's static
+          # configs reference. Qt was built against MSYS2's clangarm64 libs, so
+          # those libs must be on the prefix path when the app links against Qt.
+          export PKG_CONFIG_PATH="/clangarm64/lib/pkgconfig:/clangarm64/share/pkgconfig"
+
           cmake -G "MinGW Makefiles" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_SYSTEM_NAME=Windows \
@@ -430,7 +438,7 @@ jobs:
             -DCMAKE_C_COMPILER=/clangarm64/bin/clang.exe \
             -DCMAKE_CXX_COMPILER=/clangarm64/bin/clang++.exe \
             -DCMAKE_MAKE_PROGRAM=/clangarm64/bin/mingw32-make.exe \
-            -DCMAKE_PREFIX_PATH="C:/Qt6-arm64;C:/ffmpeg-static-arm64" \
+            -DCMAKE_PREFIX_PATH="C:/Qt6-arm64;C:/ffmpeg-static-arm64;C:/msys64/clangarm64" \
             -DFFMPEG_PREFIX=C:/ffmpeg-static-arm64 \
             -DUSE_SHARED_FFMPEG=OFF \
             -DQT_BUILD_PATH=C:/Qt6-arm64 \
@@ -448,6 +456,10 @@ jobs:
             -DBROTLI_DEC_LIBRARY="/clangarm64/lib/libbrotlidec.a" \
             -DBROTLI_ENC_LIBRARY="/clangarm64/lib/libbrotlienc.a" \
             -DBROTLI_COMMON_LIBRARY="/clangarm64/lib/libbrotlicommon.a" \
+            -DPNG_PNG_INCLUDE_DIR="/clangarm64/include" \
+            -DPNG_LIBRARY="/clangarm64/lib/libpng.a" \
+            -DZLIB_LIBRARY="/clangarm64/lib/libz.a" \
+            -DZLIB_INCLUDE_DIR="/clangarm64/include" \
             "$SOURCE_DIR_MSYS"
 
           echo "=== Building ==="
