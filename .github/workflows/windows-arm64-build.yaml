@@ -364,10 +364,10 @@ jobs:
         shell: powershell
         run: |
           if (-not (Test-Path "${{ env.QT_PREFIX }}\lib\cmake\Qt6\Qt6Config.cmake")) {
-            throw "Qt artifact missing at ${{ env.QT_PREFIX }} — build-qt job did not produce it"
+            throw "Qt artifact missing at ${{ env.QT_PREFIX }} - build-qt job did not produce it"
           }
           if (-not (Test-Path "${{ env.FFMPEG_PREFIX }}\lib\libavcodec.a")) {
-            throw "FFmpeg artifact missing at ${{ env.FFMPEG_PREFIX }} — build-ffmpeg job did not produce it"
+            throw "FFmpeg artifact missing at ${{ env.FFMPEG_PREFIX }} - build-ffmpeg job did not produce it"
           }
           Write-Host "Qt + FFmpeg artifacts verified"
 
