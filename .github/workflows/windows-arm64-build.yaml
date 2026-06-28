@@ -58,6 +58,10 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: CLANGARM64
+          # Pin MSYS2 to C:\msys64 so paths recorded in Qt's CMake configs
+          # during build-qt (e.g. /clangarm64/lib/libpng.a → C:/msys64/clangarm64/...)
+          # will still resolve in build-project, which runs on a fresh runner.
+          location: C:\msys64
           update: true
           install: |
             mingw-w64-clang-aarch64-clang
@@ -326,6 +330,17 @@ jobs:
             mingw-w64-clang-aarch64-pcre2
             mingw-w64-clang-aarch64-zstd
             mingw-w64-clang-aarch64-lz4
+            # Qt6Gui (and other Qt modules) transitively need these at configure time:
+            mingw-w64-clang-aarch64-libpng
+            mingw-w64-clang-aarch64-freetype
+            mingw-w64-clang-aarch64-fontconfig
+            mingw-w64-clang-aarch64-harfbuzz
+            mingw-w64-clang-aarch64-pixman
+            mingw-w64-clang-aarch64-libxml2
+            mingw-w64-clang-aarch64-glib2
+            mingw-w64-clang-aarch64-gettext-runtime
+            mingw-w64-clang-aarch64-expat
+            mingw-w64-clang-aarch64-libffi
             diffutils
             make
             git
