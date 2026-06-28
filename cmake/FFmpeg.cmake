@@ -715,8 +715,10 @@ function(link_ffmpeg_libraries)
                 set(_REQUIRED_LIBS
                     "${MINGW_ROOT}/lib/libbz2.a"
                     "${MINGW_ROOT}/lib/liblzma.a"
-                    "${MINGW_ROOT}/lib/libwinpthread.a"
                 )
+                if(NOT OPENTERFACE_IS_ARM64)
+                    list(APPEND _REQUIRED_LIBS "${MINGW_ROOT}/lib/libwinpthread.a")
+                endif()
                 foreach(_lib ${_REQUIRED_LIBS})
                     if(NOT EXISTS "${_lib}")
                         message(WARNING "Required library not found: ${_lib}")
@@ -724,7 +726,7 @@ function(link_ffmpeg_libraries)
                         message(STATUS "Found: ${_lib}")
                     endif()
                 endforeach()
-                  
+
                 set(_FFMPEG_STATIC_DEPS
                     ${JPEG_LINK}
                     ${TURBOJPEG_LINK}
@@ -739,11 +741,29 @@ function(link_ffmpeg_libraries)
                     "${MINGW_ROOT}/lib/libbrotlidec.a"  # Brotli decompression
                     "${MINGW_ROOT}/lib/libbrotlienc.a"  # Brotli compression
                     "${MINGW_ROOT}/lib/libbrotlicommon.a"  # Brotli common
-                    "${MINGW_ROOT}/lib/libmfx.a"    # Intel Media SDK for QSV (optional)
-                    -lmingwex       # MinGW extensions for setjmp etc.
-                    "${MINGW_ROOT}/lib/libwinpthread.a"  # Windows pthreads for 64-bit time functions
+                )
+                # GCC-only deps: libmfx (Intel QSV, x86_64), -lmingwex, libwinpthread
+                # Clang on ARM64 uses compiler-rt and native Windows threads, so these
+                # don't exist. Guard with OPENTERFACE_IS_ARM64.
+                if(NOT OPENTERFACE_IS_ARM64)
+                    list(APPEND _FFMPEG_STATIC_DEPS
+                        "${MINGW_ROOT}/lib/libmfx.a"    # Intel Media SDK for QSV (optional)
+                        -lmingwex       # MinGW extensions for setjmp etc.
+                        "${MINGW_ROOT}/lib/libwinpthread.a"  # Windows pthreads for 64-bit time functions
+                    )
+                endif()
+                list(APPEND _FFMPEG_STATIC_DEPS
                     # -liconv        # Character encoding conversion
                 )
+
+                # Add Intel Media SDK (libmfx) for QSV support if available (x86_64 only)
+                # ARM64: Intel QSV is not available on ARM64
+                if(NOT OPENTERFACE_IS_ARM64 AND EXISTS "${MINGW_ROOT}/lib/libmfx.a")
+                    list(APPEND _FFMPEG_STATIC_DEPS "${MINGW_ROOT}/lib/libmfx.a")
+                    message(STATUS "Found Intel QSV library: ${MINGW_ROOT}/lib/libmfx.a")
+                elseif(NOT OPENTERFACE_IS_ARM64)
+                    message(WARNING "Intel QSV library (libmfx.a) not found at ${MINGW_ROOT}/lib/libmfx.a - QSV support unavailable")
+                endif()
                 
                 # Use MSYS2's winpthread for 64-bit time functions
                 # if(EXISTS "C:/msys64/mingw64/lib/libwinpthread.a")
