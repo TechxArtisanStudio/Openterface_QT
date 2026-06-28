@@ -2,7 +2,7 @@ name: Build / Openterface Windows ARM64 (Static)
 
 on:
   push:
-    branches: ["main", "dev_1223_portable_build"]
+    branches: ["main", "dev_1223_portable_build", "dev_260628_arm64_static_qt_build"]
     tags: ["v*"]
     paths:
       - '.github/workflows/windows-arm64-build.yaml'
