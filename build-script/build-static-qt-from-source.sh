@@ -363,13 +363,13 @@ cmake_args=(
   -DFEATURE_icu=OFF
   -DFEATURE_opengl=ON
   -DFEATURE_openssl=ON
-  # Disable libclang/LLVM lookup — it's only needed for Qt's clang-based code model
-  # (qt-creator integration) and isn't used by our app. The runner's system LLVM
-  # (20.1.6) doesn't match the clang toolchain version (22.1.7), so letting CMake
-  # find it would cause a version mismatch error in FindWrapLibClang.
+  -DINPUT_openssl=linked
+  # libclang/LLVM lookup is disabled — it's only needed for Qt's clang-based
+  # code model (Qt Creator integration) and isn't used by our app. The runner's
+  # system LLVM (20.1.6) doesn't match the clang toolchain (22.1.7), so letting
+  # CMake find it would cause a version mismatch error in FindWrapLibClang.
   -DFEATURE_libclang=OFF
   -DINPUT_libclang=no
-  -DINPUT_openssl=linked
   -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT}"
   -DOPENSSL_INCLUDE_DIR="${OPENSSL_INCLUDE_DIR}"
   -DOPENSSL_CRYPTO_LIBRARY="${OPENSSL_LIB_DIR}/libcrypto.a"
