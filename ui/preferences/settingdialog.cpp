@@ -25,6 +25,7 @@
 #include "logpage.h"
 #include "targetcontrolpage.h"
 #include "videopage.h"
+#include "mcppage.h"
 #include "host/cameramanager.h"
 
 #include <QCamera>
@@ -65,6 +66,7 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     , logPage(new LogPage(this))
     , audioPage(new AudioPage(this))
     , videoPage(new VideoPage(cameraManager, this))
+    , mcpPage(new McpPage(this))
     , targetControlPage(new TargetControlPage(this))
     , buttonWidget(new QWidget(this))
     , m_currentPageIndex(-1)
@@ -91,6 +93,7 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     logPage->initLogSettings();
     videoPage->initVideoSettings();
     targetControlPage->initHardwareSetting();
+    mcpPage->initMcpSettings();
     // Connect the tree widget's currentItemChanged signal to a slot
     connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
     
@@ -122,7 +125,7 @@ void SettingDialog::createSettingTree() {
     settingTree->setRootIsDecorated(false);
 
     // QStringList names = {"Log"};
-    QStringList names = {tr("General"), tr("Video"), tr("Audio"), tr("Target Control")};
+    QStringList names = {tr("General"), tr("Video"), tr("Audio"), tr("MCP"), tr("Target Control")};
     for (const QString &name : names) {     // add item to setting tree
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
@@ -144,6 +147,7 @@ void SettingDialog::createPages() {
     addScrollablePage(logPage);
     addScrollablePage(videoPage);
     addScrollablePage(audioPage);
+    addScrollablePage(mcpPage);
     addScrollablePage(targetControlPage);
 }
 
@@ -203,8 +207,10 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
         newPageIndex = 1;
     } else if (itemText == tr("Audio")) {
         newPageIndex = 2;
-    } else if (itemText == tr("Target Control")) {
+    } else if (itemText == tr("MCP")) {
         newPageIndex = 3;
+    } else if (itemText == tr("Target Control")) {
+        newPageIndex = 4;
     }
 
     // Only switch page if it's different from the current page
@@ -225,7 +231,7 @@ void SettingDialog::applyAccrodingPage(){
     int currentPageIndex = stackedWidget->currentIndex();
     switch (currentPageIndex)
     {
-    // sequence Log Video Audio
+    // sequence Log Video Audio MCP TargetControl
     case 0:
         logPage->applyLogsettings();
         break;
@@ -235,6 +241,9 @@ void SettingDialog::applyAccrodingPage(){
     case 2:
         break;
     case 3:
+        mcpPage->applyMcpSettings();
+        break;
+    case 4:
         targetControlPage->applyHardwareSetting();
         break;
     default:
@@ -245,6 +254,7 @@ void SettingDialog::applyAccrodingPage(){
 void SettingDialog::handleOkButton() {
     logPage->applyLogsettings();
     videoPage->applyVideoSettings();
+    mcpPage->applyMcpSettings();
     targetControlPage->applyHardwareSetting();
     accept();
 }
@@ -259,4 +269,8 @@ VideoPage* SettingDialog::getVideoPage() {
 
 LogPage* SettingDialog::getLogPage() {
     return logPage;
+}
+
+McpPage* SettingDialog::getMcpPage() {
+    return mcpPage;
 }

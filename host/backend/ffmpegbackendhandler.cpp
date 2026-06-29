@@ -326,6 +326,7 @@ void FFmpegBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession* s
 void FFmpegBackendHandler::startCamera()
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Starting camera with direct capture";
+    fprintf(stderr, "[DEBUG-FFMPEG] startCamera() called\n");
 
     // Refresh framerate from GlobalVar so that changes made in Preferences take effect.
     // m_currentFramerate is only set during initial setup (selectOptimalFormat / restartCaptureWithDevice),
@@ -345,6 +346,10 @@ void FFmpegBackendHandler::startCamera()
     qCDebug(log_ffmpeg_backend) << "Current device:" << m_currentDevice;
     qCDebug(log_ffmpeg_backend) << "Current resolution:" << m_currentResolution;
     qCDebug(log_ffmpeg_backend) << "Current framerate:" << m_currentFramerate;
+    fprintf(stderr, "[DEBUG-FFMPEG] Device='%s', Resolution=%dx%d, Framerate=%d\n",
+            m_currentDevice.toUtf8().constData(),
+            m_currentResolution.width(), m_currentResolution.height(),
+            m_currentFramerate);
     
     // Skip availability check - just try to open the device directly
     // The checkCameraAvailable() opens the device which can interfere with immediate reopening

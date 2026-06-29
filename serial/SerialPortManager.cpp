@@ -387,8 +387,8 @@ void SerialPortManager::observeSerialPortNotification(){
 
     connect(m_serialWorkerThread, &QThread::finished, serialTimer, &QObject::deleteLater);
     connect(m_serialWorkerThread, &QThread::finished, m_serialWorkerThread, &QObject::deleteLater);
-    connect(this, &SerialPortManager::sendCommandAsync, this, &SerialPortManager::sendCommand);
-    
+    connect(this, &SerialPortManager::sendCommandAsync, this, &SerialPortManager::sendCommand, Qt::QueuedConnection);
+
     m_serialWorkerThread->start();
 }
 
@@ -539,6 +539,11 @@ QString SerialPortManager::getCurrentSerialPortPath() const
 QString SerialPortManager::getCurrentSerialPortChain() const
 {
     return m_stateManager ? m_stateManager->getCurrentPortChain() : QString();
+}
+
+bool SerialPortManager::isPortOpen() const
+{
+    return serialPort && serialPort->isOpen();
 }
 
 int SerialPortManager::getCurrentBaudrate() const
@@ -2118,12 +2123,30 @@ bool SerialPortManager::writeData(const QByteArray &data) {
 }
 
 bool SerialPortManager::writeDataInThread(const QByteArray &data) {
+    // DEBUG: Log to file for MCP keyboard diagnostics
+    {
+        QFile debugLog("/tmp/write-data-debug.log");
+        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+            QTextStream out(&debugLog);
+            out << "=== writeDataInThread called ===\n";
+            out << "data: " << QString::fromLatin1(data.toHex(' ')) << "\n";
+            debugLog.close();
+        }
+    }
+
     // Enhanced serial port validation with detailed diagnostics
     if (!isSerialPortValid()) {
         qCWarning(log_core_serial) << "Serial port not valid for write operation - state:"
                                    << "serialPort=" << static_cast<void*>(serialPort)
                                    << "isOpen=" << (serialPort ? (serialPort->isOpen() ? "true" : "false") : "N/A")
                                    << "portName=" << (serialPort ? serialPort->portName() : "N/A");
+        // Log failure
+        QFile debugLog("/tmp/write-data-debug.log");
+        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+            QTextStream out(&debugLog);
+            out << "⚠️ WRITE FAILED: serial port not valid\n";
+            debugLog.close();
+        }
         ready = false;
         if (m_commandCoordinator) {
             m_commandCoordinator->setReady(false);
@@ -2132,10 +2155,17 @@ bool SerialPortManager::writeDataInThread(const QByteArray &data) {
     }
 
     QMutexLocker locker(&m_serialPortMutex);
-    
+
     // Double-check after acquiring mutex
     if (!serialPort || !serialPort->isOpen()) {
         qCWarning(log_core_serial) << "Serial port became invalid after mutex lock";
+        // Log failure
+        QFile debugLog("/tmp/write-data-debug.log");
+        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+            QTextStream out(&debugLog);
+            out << "⚠️ WRITE FAILED: serial port invalid after mutex\n";
+            debugLog.close();
+        }
         ready = false;
         if (m_commandCoordinator) {
             m_commandCoordinator->setReady(false);
@@ -2147,24 +2177,48 @@ bool SerialPortManager::writeDataInThread(const QByteArray &data) {
         qint64 bytesWritten = serialPort->write(data);
         if (bytesWritten == -1) {
             qCWarning(log_core_serial) << "Failed to write data to serial port:" << serialPort->errorString();
+            // Log failure
+            QFile debugLog("/tmp/write-data-debug.log");
+            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+                QTextStream out(&debugLog);
+                out << "⚠️ WRITE FAILED: " << serialPort->errorString() << "\n";
+                debugLog.close();
+            }
             return false;
         } else if (bytesWritten != data.size()) {
             qCWarning(log_core_serial) << "Partial write: expected" << data.size() << "bytes, wrote" << bytesWritten;
+            // Log failure
+            QFile debugLog("/tmp/write-data-debug.log");
+            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+                QTextStream out(&debugLog);
+                out << "⚠️ PARTIAL WRITE: expected " << data.size() << ", wrote " << bytesWritten << "\n";
+                debugLog.close();
+            }
             return false;
         }
-        
+
         // Ensure data is flushed to OS driver and wait for kernel write completion
         serialPort->flush();
 
         qCDebug(log_core_serial).nospace().noquote() << "Data written (" << serialPort->portName()
                         << "@" << serialPort->baudRate() << "bps): " << data.toHex(' ');
-        
+
         // Also explicitly log TX to file during diagnostics
         if (!m_logFilePath.contains("serial_log.txt")) {
             log(QString("TX (%1): %2").arg(serialPort->baudRate()).arg(QString(data.toHex(' '))));
         }
-            
-        
+
+        // Log success
+        {
+            QFile debugLog("/tmp/write-data-debug.log");
+            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+                QTextStream out(&debugLog);
+                out << "✅ WRITE SUCCESS: " << bytesWritten << " bytes\n";
+                debugLog.close();
+            }
+        }
+
+
         return true;
         
     } catch (...) {

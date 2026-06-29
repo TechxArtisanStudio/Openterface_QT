@@ -16,7 +16,7 @@ BUILD_DIR="${SOURCE_DIR}/qt-build"
 KEEP_ZIPS="${KEEP_ZIPS:-1}"
 # Number of parallel ninja jobs. Override with JOBS env (e.g., JOBS=1 ./script)
 JOBS="${JOBS:-$(nproc 2>/dev/null || echo 1)}"
-MODULES=(qtbase qtshadertools qtmultimedia qtsvg qtserialport qttools)
+MODULES=(qtbase qtshadertools qtmultimedia qtsvg qtserialport qttools qthttpserver)
 DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
 
 # Detect platform

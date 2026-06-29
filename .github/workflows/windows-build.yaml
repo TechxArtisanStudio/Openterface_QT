@@ -166,7 +166,7 @@ jobs:
           target: desktop
           arch: win64_mingw
           dir: ${{ runner.temp }}
-          modules: qtmultimedia qtserialport qtimageformats
+          modules: qtmultimedia qtserialport qtimageformats qthttpserver
           setup-python: false
 
       - name: Cache MinGW 11.2.0 (matches Qt 6.6.3 prebuilt toolchain)

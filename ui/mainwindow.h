@@ -66,6 +66,7 @@
 
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
+#include "server/mcp/mcpServer.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -373,6 +374,15 @@ private:
     void stopServer();
     TcpServer *tcpServer;
     bool m_tcpServerRunning = false;
+
+    // --- MCP Server ---
+    McpServer *m_mcpServer = nullptr;
+
+public:
+    void initMcpServer();
+public slots:
+    void toggleMcpServer(bool enabled);
+    void onMcpSettingsApplied();
 
 };
 #endif // MAINWINDOW_H

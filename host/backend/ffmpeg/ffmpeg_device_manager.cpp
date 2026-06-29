@@ -304,6 +304,8 @@ bool FFmpegDeviceManager::InitializeInputStream(const QString& device_path, cons
 #else
     // LINUX/MACOS: Use V4L2 for video capture
     // RESPONSIVENESS OPTIMIZATION: Configure device for minimal latency
+    fprintf(stderr, "[DEBUG-FFMPEG] Opening video device: %s (%dx%d @ %d fps)\n",
+            device_path.toUtf8().constData(), resolution.width(), resolution.height(), framerate);
     qCDebug(log_ffmpeg_backend) << "Pre-configuring device for low-latency MJPEG capture...";
     
     QString configCommand = QString("v4l2-ctl --device=%1 --set-fmt-video=width=%2,height=%3,pixelformat=MJPG")

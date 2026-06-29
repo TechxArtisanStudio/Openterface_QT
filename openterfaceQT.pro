@@ -11,7 +11,7 @@ MOC_DIR = moc
 OBJECTS_DIR = obj
 RCC_DIR = rcc
 
-QT       += core gui gui-private multimedia multimediawidgets serialport concurrent svg svgwidgets network opengl openglwidgets xml dbus
+QT       += core gui gui-private multimedia multimediawidgets serialport concurrent svg svgwidgets network opengl openglwidgets xml dbus httpserver
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 INCLUDEPATH += $$PWD
@@ -62,6 +62,10 @@ SOURCES += main.cpp \
     serial/serial_hotplug_handler.cpp \
     server/tcpServer.cpp \
     server/tcpResponse.cpp \
+    server/mcp/mcpServer.cpp \
+    server/mcp/mcpProtocol.cpp \
+    server/mcp/mcpToolHandler.cpp \
+    server/mcp/mcpSseTransport.cpp \
     target/KeyboardLayouts.cpp \
     target/KeyboardManager.cpp \
     target/MouseManager.cpp \
@@ -130,6 +134,7 @@ SOURCES += main.cpp \
     ui/preferences/logpage.cpp \
     ui/preferences/videopage.cpp \
     ui/preferences/audiopage.cpp \
+    ui/preferences/mcppage.cpp \
     ui/preferences/targetcontrolpage.cpp \
     ui/floatingwindow/floatingwindow.cpp \
     ui/customkey/customkeymanager.cpp \
@@ -215,6 +220,11 @@ HEADERS  += \
     serial/serial_hotplug_handler.h \
     server/tcpServer.h \
     server/tcpResponse.h \
+    server/mcp/mcpServer.h \
+    server/mcp/mcpProtocol.h \
+    server/mcp/mcpToolHandler.h \
+    server/mcp/mcpConstants.h \
+    server/mcp/mcpSseTransport.h \
     target/KeyboardLayouts.h \
     target/KeyboardManager.h \
     target/MouseManager.h \
@@ -286,6 +296,7 @@ HEADERS  += \
     ui/preferences/targetcontrolpage.h \
     ui/preferences/videopage.h \
     ui/preferences/audiopage.h \
+    ui/preferences/mcppage.h \
     ui/floatingwindow/floatingwindow.h \
     ui/customkey/customkeymanager.h \
     ui/customkey/customkeydialog.h \
