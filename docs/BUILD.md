@@ -6,6 +6,8 @@ This guide provides detailed instructions for building Openterface QT from sourc
 
 ## Table of Contents
 - [Windows](#windows)
+  - [Using QT Creator](#using-qt-creator)
+  - [Using MSYS2 (Windows ARM64)](#using-msys2-windows-arm64)
 - [Linux](#linux)
   - [Option 1: One-Liner Release Installer (Fastest)](#option-1-one-liner-release-installer-fastest)
   - [Option 2: Automated Build Script](#option-2-automated-build-script)
@@ -34,6 +36,60 @@ This guide provides detailed instructions for building Openterface QT from sourc
 4. **Build and Run**
    - Open the project in Qt Creator
    - Build and run the project
+
+### Using MSYS2 (Windows ARM64)
+
+The project includes CI workflows that build a fully static ARM64 executable using MSYS2's **CLANGARM64** environment.
+
+**Prerequisites:**
+
+Set up MSYS2 with the required packages:
+
+```bash
+# Install CLANGARM64 toolchain and static libraries
+pacman -S --needed \
+    mingw-w64-clang-aarch64-clang \
+    mingw-w64-clang-aarch64-compiler-rt \
+    mingw-w64-clang-aarch64-cmake \
+    mingw-w64-clang-aarch64-make \
+    mingw-w64-clang-aarch64-pkgconf \
+    mingw-w64-clang-aarch64-zlib \
+    mingw-w64-clang-aarch64-bzip2 \
+    mingw-w64-clang-aarch64-xz \
+    mingw-w64-clang-aarch64-openssl \
+    mingw-w64-clang-aarch64-libiconv \
+    mingw-w64-clang-aarch64-libb2 \
+    mingw-w64-clang-aarch64-brotli \
+    mingw-w64-clang-aarch64-libjpeg-turbo \
+    mingw-w64-clang-aarch64-libusb \
+    mingw-w64-clang-aarch64-pcre2 \
+    mingw-w64-clang-aarch64-zstd \
+    mingw-w64-clang-aarch64-lz4 \
+    mingw-w64-clang-aarch64-libpng \
+    mingw-w64-clang-aarch64-freetype \
+    mingw-w64-clang-aarch64-fontconfig \
+    mingw-w64-clang-aarch64-harfbuzz \
+    mingw-w64-clang-aarch64-pixman \
+    mingw-w64-clang-aarch64-libxml2 \
+    mingw-w64-clang-aarch64-glib2 \
+    mingw-w64-clang-aarch64-gettext-runtime \
+    mingw-w64-clang-aarch64-expat \
+    mingw-w64-clang-aarch64-libffi \
+    mingw-w64-clang-aarch64-libwinpthread
+```
+
+> `mingw-w64-clang-aarch64-libwinpthread` is **required** — transitive dependencies (glib2, harfbuzz) pull in `libwinpthread-1.dll` at runtime. It must be statically linked; see the `-Wl,-Bstatic,-lwinpthread,-Bdynamic` flag in the CI workflow.
+
+**Build:**
+
+Follow the CMake build steps in the [Linux Manual Build](#option-3-manual-build-process) section with these substitutions:
+- Use `CLANGARM64` MSYS2 shell instead of native Linux
+- Set `-DCMAKE_C_COMPILER=/clangarm64/bin/clang -DCMAKE_CXX_COMPILER=/clangarm64/bin/clang++`
+- Set `-DCMAKE_PREFIX_PATH=C:/Qt6-arm64;C:/ffmpeg-static-arm64`
+- Add `-DOPENTERFACE_ARCH=arm64 -DOPENTERFACE_BUILD_STATIC=ON -DSTATIC_LINKAGE=ON`
+- Add `-DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++ -Wl,-Bstatic,-lzstd,-lwinpthread,-Bdynamic"`
+
+For the full static build including Qt and FFmpeg from source, see the [ARM64 CI workflow](../.github/workflows/windows-arm64-build.yaml).
 
 ---
 
