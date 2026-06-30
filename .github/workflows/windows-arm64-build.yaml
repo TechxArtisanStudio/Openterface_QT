@@ -74,7 +74,7 @@ jobs:
           # during build-qt (e.g. /clangarm64/lib/libpng.a → C:/msys64/clangarm64/...)
           # will still resolve in build-project, which runs on a fresh runner.
           location: C:\msys64
-          update: true
+          update: false
           install: |
             mingw-w64-clang-aarch64-clang
             mingw-w64-clang-aarch64-compiler-rt
@@ -125,6 +125,13 @@ jobs:
             git
             perl
 
+      - name: Refresh MSYS2 PGP keys and update
+        shell: msys2 {0}
+        run: |
+          pacman-key --init || true
+          pacman-key --populate msys2
+          pacman --noconfirm -Syuu --overwrite '*'
+
       - name: Cache Qt static build (ARM64)
         id: cache-qt
         uses: actions/cache@v4
@@ -157,7 +164,7 @@ jobs:
         with:
           msystem: CLANGARM64
           location: C:\msys64
-          update: true
+          update: false
           install: |
             mingw-w64-clang-aarch64-clang
             mingw-w64-clang-aarch64-compiler-rt
@@ -190,6 +197,13 @@ jobs:
             make
             git
             perl
+
+      - name: Refresh MSYS2 PGP keys and update
+        shell: msys2 {0}
+        run: |
+          pacman-key --init || true
+          pacman-key --populate msys2
+          pacman --noconfirm -Syuu --overwrite '*'
 
       - name: Build Qt statically from source (ARM64)
         if: needs.setup-env.outputs.qt-cache-hit != 'true'
@@ -248,7 +262,7 @@ jobs:
         with:
           msystem: CLANGARM64
           location: C:\msys64
-          update: true
+          update: false
           install: |
             mingw-w64-clang-aarch64-clang
             mingw-w64-clang-aarch64-compiler-rt
@@ -269,6 +283,13 @@ jobs:
             make
             git
             wget
+
+      - name: Refresh MSYS2 PGP keys and update
+        shell: msys2 {0}
+        run: |
+          pacman-key --init || true
+          pacman-key --populate msys2
+          pacman --noconfirm -Syuu --overwrite '*'
 
       - name: Build FFmpeg statically from source (ARM64)
         if: needs.setup-env.outputs.ffmpeg-cache-hit != 'true'
@@ -326,7 +347,7 @@ jobs:
         with:
           msystem: CLANGARM64
           location: C:\msys64
-          update: true
+          update: false
           install: |
             mingw-w64-clang-aarch64-clang
             mingw-w64-clang-aarch64-compiler-rt
@@ -358,6 +379,13 @@ jobs:
             diffutils
             make
             git
+
+      - name: Refresh MSYS2 PGP keys and update
+        shell: msys2 {0}
+        run: |
+          pacman-key --init || true
+          pacman-key --populate msys2
+          pacman --noconfirm -Syuu --overwrite '*'
 
       - name: Download Qt artifact (from build-qt job, if ran this run)
         uses: actions/download-artifact@v4
