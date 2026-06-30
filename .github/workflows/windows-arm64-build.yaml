@@ -550,3 +550,80 @@ jobs:
           path: build/openterfaceQT.exe
           if-no-files-found: error
           retention-days: 14
+
+      # -----------------------------------------------------------------------
+      # Installer: package the static exe into an NSIS installer
+      # -----------------------------------------------------------------------
+      - name: Prepare installer package directory
+        shell: powershell
+        run: |
+          $pkg = "${{ github.workspace }}\package"
+          New-Item -ItemType Directory -Force -Path $pkg | Out-Null
+          Copy-Item build\openterfaceQT.exe $pkg\
+          Copy-Item LICENSE $pkg\
+          # NSIS script reads images/icon_128.ico from SourcePackage (repo root) — already there
+          Write-Host "Package directory ready:"
+          Get-ChildItem $pkg -Recurse | ForEach-Object { Write-Host "  $_" }
+
+      - name: Extract version from version.h
+        id: version
+        shell: powershell
+        run: |
+          $content = Get-Content resources\version.h -Raw
+          if ($content -match 'APP_VERSION\s+"(\d+\.\d+\.\d+\.\d+)"') {
+            $ver = $Matches[1]
+          } else {
+            $ver = "0.0.0.0"
+            Write-Warning "Could not extract version from version.h, using $ver"
+          }
+          Write-Host "Version: $ver"
+          "version=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Install NSIS
+        shell: powershell
+        run: |
+          if (Get-Command makensis -ErrorAction SilentlyContinue) {
+            Write-Host "NSIS already installed"
+            makensis /VERSION
+          } else {
+            Write-Host "Installing NSIS via Chocolatey..."
+            choco install nsis -y
+            # Refresh PATH so makensis is found
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+            makensis /VERSION
+          }
+
+      - name: Compile NSIS installer (ARM64)
+        shell: powershell
+        run: |
+          $pkg = "${{ github.workspace }}\package"
+          $outDir = "${{ github.workspace }}\Output"
+          New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+          $ver = "${{ steps.version.outputs.version }}"
+          $nsi = "${{ github.workspace }}\installer.nsi"
+
+          Write-Host "Building installer version=$ver"
+          & makensis `
+            /DWorkingDir="$pkg" `
+            /DMyAppVersion="$ver" `
+            /DMyAppPublisher="${{ vars.MY_APP_PUBLISHER }}" `
+            /DMyAppURL="${{ vars.MY_APP_URL }}" `
+            /DOutputDir="$outDir" `
+            /DOutputBaseFileName="openterfaceQT.windows.arm64.installer" `
+            /DMyAppExeName="openterfaceQT.exe" `
+            "$nsi"
+
+          if (-not (Test-Path "$outDir\openterfaceQT.windows.arm64.installer.exe")) {
+            throw "Installer was not produced"
+          }
+          Write-Host "Installer created:"
+          Get-Item "$outDir\openterfaceQT.windows.arm64.installer.exe" | Select-Object FullName, Length
+
+      - name: Upload ARM64 installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT_windows_arm64_installer
+          path: Output/*.exe
+          if-no-files-found: error
+          retention-days: 14
