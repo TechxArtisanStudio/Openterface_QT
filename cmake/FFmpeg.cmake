@@ -715,10 +715,8 @@ function(link_ffmpeg_libraries)
                 set(_REQUIRED_LIBS
                     "${MINGW_ROOT}/lib/libbz2.a"
                     "${MINGW_ROOT}/lib/liblzma.a"
+                    "${MINGW_ROOT}/lib/libwinpthread.a"
                 )
-                if(NOT OPENTERFACE_IS_ARM64)
-                    list(APPEND _REQUIRED_LIBS "${MINGW_ROOT}/lib/libwinpthread.a")
-                endif()
                 foreach(_lib ${_REQUIRED_LIBS})
                     if(NOT EXISTS "${_lib}")
                         message(WARNING "Required library not found: ${_lib}")
@@ -741,16 +739,9 @@ function(link_ffmpeg_libraries)
                     "${MINGW_ROOT}/lib/libbrotlidec.a"  # Brotli decompression
                     "${MINGW_ROOT}/lib/libbrotlienc.a"  # Brotli compression
                     "${MINGW_ROOT}/lib/libbrotlicommon.a"  # Brotli common
+                    -lmingwex       # MinGW extensions for setjmp etc.
+                    "${MINGW_ROOT}/lib/libwinpthread.a"  # Windows pthreads for 64-bit time functions
                 )
-                # x86_64-only static deps: MinGW extensions and Windows pthreads.
-                # Clang on ARM64 uses compiler-rt and native Windows threads, so these
-                # don't exist. Guard with OPENTERFACE_IS_ARM64.
-                if(NOT OPENTERFACE_IS_ARM64)
-                    list(APPEND _FFMPEG_STATIC_DEPS
-                        -lmingwex       # MinGW extensions for setjmp etc.
-                        "${MINGW_ROOT}/lib/libwinpthread.a"  # Windows pthreads for 64-bit time functions
-                    )
-                endif()
 
                 # Add Intel Media SDK (libmfx) for QSV support if available (x86_64 only)
                 # ARM64: Intel QSV is not available on ARM64

@@ -119,6 +119,7 @@ jobs:
             mingw-w64-clang-aarch64-curl
             mingw-w64-clang-aarch64-ca-certificates
             mingw-w64-clang-aarch64-libunwind
+            mingw-w64-clang-aarch64-libwinpthread
             diffutils
             make
             libtool
@@ -376,6 +377,7 @@ jobs:
             mingw-w64-clang-aarch64-gettext-runtime
             mingw-w64-clang-aarch64-expat
             mingw-w64-clang-aarch64-libffi
+            mingw-w64-clang-aarch64-libwinpthread
             diffutils
             make
             git
@@ -447,7 +449,8 @@ jobs:
               /c/ffmpeg-static-arm64/lib/libturbojpeg.a \
               /clangarm64/lib/libz.a \
               /clangarm64/lib/libzstd.a \
-              /clangarm64/lib/libbz2.a; do
+              /clangarm64/lib/libbz2.a \
+              /clangarm64/lib/libwinpthread.a; do
             if [ -f "$lib" ]; then
               echo "  OK: $lib"
             else
@@ -514,7 +517,7 @@ jobs:
             -DHAVE_LIBJPEG_TURBO=ON \
             -DBUILD_SHARED_LIBS=OFF \
             -DSTATIC_LINKAGE=ON \
-            -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++ -L/clangarm64/lib -L/c/ffmpeg-static-arm64/lib -Wl,-Bstatic,-lzstd,-Bdynamic" \
+            -DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++ -L/clangarm64/lib -L/c/ffmpeg-static-arm64/lib -Wl,-Bstatic,-lzstd,-lwinpthread,-Bdynamic" \
             -DCMAKE_MODULE_LINKER_FLAGS="-Wl,-Bstatic" \
             -DTURBOJPEG_LIBRARY="/c/ffmpeg-static-arm64/lib/libturbojpeg.a" \
             -DZSTD_LIBRARY="/clangarm64/lib/libzstd.a" \
