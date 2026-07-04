@@ -591,6 +591,15 @@ jobs:
           cp /mingw64/bin/liblzma-5.dll ${{ env.PACKAGE_DIR }} || echo "Warning: liblzma-5.dll not found"
           cp /mingw64/bin/zlib1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: zlib1.dll not found"
           cp /mingw64/bin/libmfx-1.dll ${{ env.PACKAGE_DIR }} || echo "Warning: libmfx-1.dll not found"
+          # libssp-0.dll may live outside /mingw64/bin depending on MSYS2 layout — search broadly
+          if [ ! -f "${{ env.PACKAGE_DIR }}/libssp-0.dll" ]; then
+            SSP_DLL=$(find /mingw64 /usr /c -name "libssp-0.dll" 2>/dev/null | head -1)
+            if [ -n "$SSP_DLL" ]; then
+              cp "$SSP_DLL" ${{ env.PACKAGE_DIR }} && echo "✓ Copied libssp-0.dll from $SSP_DLL"
+            else
+              echo "Warning: libssp-0.dll not found anywhere on runner"
+            fi
+          fi
           # NOTE: Do NOT copy libwinpthread, libgcc, libstdc++ here!
           # Let windeployqt copy them from Qt's MinGW installation for ABI compatibility
           echo "Copying translation & keyboard layouts files..."
