@@ -117,9 +117,17 @@ endif()
 message(STATUS "Hardware acceleration libraries to link: ${HWACCEL_LIBRARIES}")
 
 # Add FFmpeg compatibility shim for static libs built with newer MinGW-w64
+# Only needed on older MinGW that doesn't already provide clock_gettime64/nanosleep64
 if(WIN32)
-    target_sources(${PROJECT_NAME} PRIVATE host/backend/ffmpeg_compat_shim.c)
-    message(STATUS "Adding FFmpeg compatibility shim for 64-bit time functions")
+    include(CheckSymbolExists)
+    set(CMAKE_REQUIRED_INCLUDES "")
+    check_symbol_exists(clock_gettime64 "time.h;pthread_time.h" HAVE_CLOCK_GETTIME64)
+    if(NOT HAVE_CLOCK_GETTIME64)
+        target_sources(${PROJECT_NAME} PRIVATE host/backend/ffmpeg_compat_shim.c)
+        message(STATUS "Adding FFmpeg compatibility shim for 64-bit time functions")
+    else()
+        message(STATUS "Skipping FFmpeg compat shim: clock_gettime64 already available")
+    endif()
 endif()
 
 # Link Qt6 image format plugins statically for static builds (only if targets exist)
