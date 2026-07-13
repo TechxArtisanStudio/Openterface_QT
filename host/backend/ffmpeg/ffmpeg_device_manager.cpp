@@ -22,6 +22,7 @@
 
 #include "ffmpeg_device_manager.h"
 #include "ffmpeg_hardware_accelerator.h"
+#include "ffmpeg_amd_detector.h"
 #include "global.h"
 #include "ui/globalsetting.h"
 
@@ -214,6 +215,8 @@ bool FFmpegDeviceManager::InitializeInputStream(const QString& device_path, cons
     AVDictionary* options = nullptr;
     av_dict_set(&options, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
     av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
+    av_dict_set(&options, "input_format", "mjpeg", 0);
+    av_dict_set(&options, "preset", "preview", 0);
     
     // ============ MJPEG QUALITY OPTIMIZATIONS ============
     
@@ -260,11 +263,13 @@ bool FFmpegDeviceManager::InitializeInputStream(const QString& device_path, cons
         format_context_->interrupt_callback.callback = FFmpegDeviceManager::InterruptCallback;
         format_context_->interrupt_callback.opaque = this;
         
-        // Try without codec specification
+        // Try without codec specification (auto-detect)
         AVDictionary* fallbackOptions = nullptr;
         av_dict_set(&fallbackOptions, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
         av_dict_set(&fallbackOptions, "framerate", QString::number(framerate).toUtf8().constData(), 0);
-        av_dict_set(&fallbackOptions, "rtbufsize", "8M", 0);  // Keep low-latency buffer for KVM
+        av_dict_set(&fallbackOptions, "rtbufsize", "16M", 0);
+        av_dict_set(&fallbackOptions, "flags", "low_delay", 0);
+        av_dict_set(&fallbackOptions, "timeout", "5000000", 0);
         
         ret = avformat_open_input(&format_context_, device_path.toUtf8().constData(), inputFormat, &fallbackOptions);
         av_dict_free(&fallbackOptions);
@@ -542,13 +547,27 @@ bool FFmpegDeviceManager::SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator
     codec_context_->skip_loop_filter = AVDISCARD_NONE;     // Full loop filter
     
     // ============ MJPEG-SPECIFIC QUALITY SETTINGS ============
-    
-    // Use optimal thread count based on CPU cores (max 8 for stability)
-    // Dynamic threading for better CPU utilization
-    int optimal_threads = std::min(8, std::max(2, QThread::idealThreadCount()));
+
+    // AMD iGPU OPTIMIZATION: On AMD integrated GPUs, the CPU and GPU share memory bandwidth.
+    // Frame-level threading (FF_THREAD_FRAME) buffers multiple frames, increasing latency
+    // and competing with the display pipeline for memory bandwidth.
+    // Use slice-only threading on AMD iGPUs for lower latency and better system responsiveness.
+    bool isAmdIgpu = FFmpegAmdDetector::isAmdIntegratedGpuDetected();
+    int optimal_threads;
+    int thread_type_flags;
+
+    if (isAmdIgpu) {
+        optimal_threads = std::min(6, std::max(2, QThread::idealThreadCount()));
+        thread_type_flags = FF_THREAD_SLICE;  // Slice-only for lower latency and less memory pressure
+        qCInfo(log_ffmpeg_backend) << "AMD iGPU detected: using slice-only threading for lower latency";
+    } else {
+        optimal_threads = std::min(8, std::max(2, QThread::idealThreadCount()));
+        thread_type_flags = FF_THREAD_FRAME | FF_THREAD_SLICE;  // Hybrid threading on non-iGPU systems
+    }
+
     codec_context_->thread_count = optimal_threads;
-    codec_context_->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;  // Enable both frame and slice threading
-    
+    codec_context_->thread_type = thread_type_flags;
+
     // LATENCY FIX: Hardware decoders (QSV, CUDA) manage their own internal parallelism.
     // Setting FF_THREAD_FRAME at the FFmpeg host level forces it to buffer thread_count frames
     // before yielding the first decoded frame — that is thread_count/fps seconds of added latency.

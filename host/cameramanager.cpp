@@ -13,6 +13,10 @@
 #include "host/backend/qtbackendhandler.h"
 #include "host/backend/qtmultimediabackendhandler.h"
 
+#ifdef Q_OS_WIN
+#include "host/backend/mf/mfbackendhandler.h"
+#endif
+
 #include "ui/videopane.h"
 
 #include <QLoggingCategory>
@@ -87,6 +91,13 @@ bool CameraManager::isQtBackend() const
 {
     return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::Qt;
 }
+
+#ifdef Q_OS_WIN
+bool CameraManager::isMediaFoundationBackend() const
+{
+    return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::MediaFoundation;
+}
+#endif
 
 QImage CameraManager::getLatestOriginalFrame() const
 {
@@ -269,6 +280,16 @@ void CameraManager::setVideoOutput(QGraphicsVideoItem* videoOutput)
             if (gst) {
                 gst->setVideoOutput(videoOutput);
                 qDebug() << "Graphics video output successfully connected to GStreamer backend";
+            }
+        }
+#endif
+
+#ifdef Q_OS_WIN
+        if (m_backendHandler && isMediaFoundationBackend()) {
+            MfBackendHandler* mf = qobject_cast<MfBackendHandler*>(m_backendHandler.get());
+            if (mf) {
+                mf->setVideoOutput(videoOutput);
+                qDebug() << "Graphics video output successfully connected to Media Foundation backend";
             }
         }
 #endif
@@ -1602,6 +1623,53 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
     }
 #endif
 
+#ifdef Q_OS_WIN
+    // Check if we're using Media Foundation backend for direct capture
+    if (isMediaFoundationBackend() && m_backendHandler) {
+        qDebug() << "Using Media Foundation backend for direct capture";
+        auto* mfHandler = qobject_cast<MfBackendHandler*>(m_backendHandler.get());
+        if (mfHandler) {
+            // Enable direct FFmpeg mode in VideoPane for rendering
+            videoPane->enableDirectFFmpegMode(true);
+
+            // Set VideoPane as Media Foundation video output for direct rendering
+            mfHandler->setVideoOutput(videoPane);
+
+            // Connect error signals
+            connect(mfHandler, &MfBackendHandler::backendError,
+                    this, [this](const QString& error) {
+                        qCWarning(log_ui_camera) << "Media Foundation backend error:" << error;
+                        emit cameraError(error);
+                    }, Qt::UniqueConnection);
+
+            // Connect camera active changed to VideoPane
+            connect(this, &CameraManager::cameraActiveChanged, videoPane, &VideoPane::onCameraActiveChanged, Qt::UniqueConnection);
+
+            // Configure resolution and framerate
+            QSize resolution(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
+            int framerate = GlobalVar::instance().getCaptureFps();
+            if (resolution.width() <= 0) resolution = QSize(1920, 1080);
+            if (framerate <= 0) framerate = 30;
+
+            mfHandler->setResolution(resolution);
+            mfHandler->setFramerate(framerate);
+
+            if (startCapture) {
+                qDebug() << "Starting Media Foundation direct capture with resolution:" << resolution << "framerate:" << framerate;
+                mfHandler->startCamera();
+
+                emit cameraActiveChanged(true);
+                return true;
+            } else {
+                qDebug() << "Media Foundation video pipeline set up (capture will start on demand)";
+                return true;
+            }
+        } else {
+            qCWarning(log_ui_camera) << "Failed to cast to MfBackendHandler";
+        }
+    }
+#endif
+
     // Fall back to standard Qt camera approach with QGraphicsVideoItem
     qDebug() << "Using standard Qt camera approach";
     videoPane->enableDirectFFmpegMode(false);
@@ -1667,6 +1735,15 @@ bool CameraManager::deactivateCameraByPortChain(const QString& portChain)
                 gst->setVideoOutput(m_graphicsVideoOutput);
             }
             #endif
+
+#ifdef Q_OS_WIN
+            MfBackendHandler* mf = qobject_cast<MfBackendHandler*>(m_backendHandler.get());
+            if (mf) {
+                mf->setVideoOutput(static_cast<QGraphicsVideoItem*>(nullptr));
+                QThread::msleep(50);
+                mf->setVideoOutput(m_graphicsVideoOutput);
+            }
+#endif
         }
         // Clear device info inside backend handlers
         if (m_backendHandler) {

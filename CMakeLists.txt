@@ -118,6 +118,12 @@ endif()
 # Debug output for linking
 message(STATUS "Hardware acceleration libraries to link: ${HWACCEL_LIBRARIES}")
 
+# Add FFmpeg compatibility shim for static libs built with newer MinGW-w64
+if(WIN32)
+    target_sources(${PROJECT_NAME} PRIVATE host/backend/ffmpeg_compat_shim.c)
+    message(STATUS "Adding FFmpeg compatibility shim for 64-bit time functions")
+endif()
+
 # Link Qt6 image format plugins statically for static builds (only if targets exist)
 if(OPENTERFACE_BUILD_STATIC)
     set(_qt_image_plugins Qt6::QJpegPlugin Qt6::QGifPlugin Qt6::QICOPlugin Qt6::QSvgPlugin)
@@ -149,6 +155,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt
 # Link Windows HID and SetupAPI libraries
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE hid setupapi cfgmgr32 ole32)
+
+    # Link compatibility libraries for FFmpeg static libs built with newer MinGW-w64
+    # These resolve 64-bit time functions and stack protector symbols
+    target_link_libraries(${PROJECT_NAME} PRIVATE ssp)
+    target_link_options(${PROJECT_NAME} PRIVATE -fstack-protector-strong)
+    target_compile_options(${PROJECT_NAME} PRIVATE -fstack-protector-strong)
 endif()
 
 # Link X11 libraries for Linux builds to resolve X11 symbols used in overlay code
@@ -159,7 +171,12 @@ endif()
 # For static Qt builds on Windows with MinGW, link MinGW runtime libraries
 # When building static on Windows, prefer real static libraries (.a) over import libs (.dll.a)
 if(OPENTERFACE_BUILD_STATIC AND WIN32)
-    set(MSYS_MINGW_PATH "/c/msys64/mingw64")
+    if(OPENTERFACE_IS_ARM64)
+        # MSYS2 CLANGARM64 environment
+        set(MSYS_MINGW_PATH "/c/msys64/clangarm64")
+    else()
+        set(MSYS_MINGW_PATH "/c/msys64/mingw64")
+    endif()
     list(INSERT CMAKE_LIBRARY_PATH 0 "${MSYS_MINGW_PATH}/lib")
     list(INSERT CMAKE_INCLUDE_PATH 0 "${MSYS_MINGW_PATH}/include")
     message(STATUS "Using MSYS2 MinGW path: ${MSYS_MINGW_PATH}")
@@ -315,6 +332,18 @@ if(NOT WIN32)
     if(OPENTERFACE_BUILD_STATIC)
         target_link_options(openterfaceQT PRIVATE -Wl,--wrap=dlopen)
     endif()
+endif()
+
+# Link Media Foundation libraries on Windows
+if(WIN32)
+    target_link_libraries(openterfaceQT PRIVATE
+        mf
+        mfplat
+        mfreadwrite
+        mfuuid
+        wmcodecdspuuid
+    )
+    message(STATUS "Linked Media Foundation libraries for Windows video capture")
 endif()
 
 # Add DBus on Unix systems (excluding macOS)
