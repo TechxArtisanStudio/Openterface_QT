@@ -2,7 +2,7 @@ name: Build / Openterface Windows Installer
 
 on:
   push:
-    branches: ["main", "dev_1223_portable_build"]
+    branches: ["main", "dev_260624_MCPserver"]
     tags: ["v*"]
     paths:
       - '.github/workflows/windows-build.yaml'
@@ -166,7 +166,7 @@ jobs:
           target: desktop
           arch: win64_mingw
           dir: ${{ runner.temp }}
-          modules: qtmultimedia qtserialport qtimageformats qthttpserver
+          modules: qtmultimedia qtserialport qtimageformats qthttpserver qtwebsockets
           setup-python: false
 
       - name: Cache MinGW 11.2.0 (matches Qt 6.6.3 prebuilt toolchain)

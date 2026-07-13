@@ -120,7 +120,8 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     // Debug the incoming key code with modifier names and native VK (when available)
     qCDebug(log_keyboard) << "Processing key:" << QString::number(keyCode) + "(0x" + QString::number(keyCode, 16) + ")"
                          << "with modifiers:" << mapModifierKeysToNames(modifiers)
-                         << "isKeyDown:" << isKeyDown << " nativeVK:" << QString::number(nativeVirtualKey, 16);
+                         << "isKeyDown:" << isKeyDown << " nativeVK:" << QString::number(nativeVirtualKey, 16)
+                         << "modifiers bitfield:" << Qt::hex << modifiers;
 
     if(nativeVirtualKey == 0){
         // Check if it's a function key
@@ -151,6 +152,28 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     qCInfo(log_keyboard) << "Initial keyMap lookup: keyCode=" << keyCode << "(0x" << QString::number(keyCode, 16) << ")"
                         << "-> mappedKeyCode=" << mappedKeyCode << "(0x" << QString::number(mappedKeyCode, 16) << ")"
                         << "keyMap size=" << currentLayout.keyMap.size();
+
+    // Log modifier state before processing
+    qCDebug(log_keyboard) << "Modifier state before processing: currentModifiers=0x" << Qt::hex << currentModifiers
+                          << " combinedModifiers=0x" << Qt::hex << combinedModifiers
+                          << " modifiers parameter=0x" << Qt::hex << modifiers;
+
+    // Log key mapping details
+    if (mappedKeyCode != 0) {
+        qCDebug(log_keyboard) << "Key successfully mapped to scancode: 0x" << QString::number(mappedKeyCode, 16);
+    } else {
+        qCWarning(log_keyboard) << "Key not mapped in current layout: keyCode=0x" << QString::number(keyCode, 16)
+                            << " layout='" << currentLayout.name << "'";
+    }
+
+    qCDebug(log_keyboard) << "Current layout name:" << currentLayout.name
+                          << "Layout has" << currentLayout.keyMap.size() << "mappings";
+
+    // Log modifier key detection
+    if(isModiferKeys(keyCode) || keyCode == Qt::Key_Meta){
+        qCDebug(log_keyboard) << "Entering modifier branch for keyCode:" << keyCode << "nativeVK:" << QString::number(nativeVirtualKey, 16)
+                              << "isKeyDown:" << isKeyDown;
+    }
 
 #ifdef Q_OS_WIN
     // Handle Japanese IME keys using Windows Virtual Key codes
@@ -473,6 +496,11 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
                         combinedModifiers = isKeyDown ? 0x04 : 0x00;
                         qCDebug(log_keyboard) << "MCP/direct Alt detected, using left alt 0xE2";
                     }
+                } else if (keyCode == Qt::Key_Meta) {
+                    mappedKeyCode = 0xE3; // left GUI
+                    if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
+                    combinedModifiers = isKeyDown ? 0x08 : 0x00;
+                    qCDebug(log_keyboard) << "MCP/direct Meta detected, using left GUI 0xE3";
                 }
             }
         }
@@ -542,6 +570,27 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         // When called from MCP/API with modifiers parameter, those modifiers must be
         // included in the HID report even though they're not in currentModifiers state.
         combinedModifiers = currentModifiers | modifiers;
+
+        // Ensure modifier state synchronization
+        // If passed modifiers contain a modifier that's not in currentModifiers,
+        // it means Qt detected the modifier but we didn't receive the modifier key event
+        // This can happen due to event ordering issues or platform differences
+        if ((modifiers & Qt::ShiftModifier) && !(currentModifiers & 0x22)) {
+            combinedModifiers |= 0x02; // Add left Shift to modifiers byte
+            qCWarning(log_keyboard) << "Warning: Shift modifier detected but not in currentModifiers, adding temporarily";
+        }
+        if ((modifiers & Qt::ControlModifier) && !(currentModifiers & 0x11)) {
+            combinedModifiers |= 0x01; // Add left Ctrl to modifiers byte
+            qCWarning(log_keyboard) << "Warning: Ctrl modifier detected but not in currentModifiers, adding temporarily";
+        }
+        if ((modifiers & Qt::AltModifier) && !(currentModifiers & 0x44)) {
+            combinedModifiers |= 0x04; // Add left Alt to modifiers byte
+            qCWarning(log_keyboard) << "Warning: Alt modifier detected but not in currentModifiers, adding temporarily";
+        }
+        if ((modifiers & Qt::MetaModifier) && !(currentModifiers & 0x88)) {
+            combinedModifiers |= 0x08; // Add left Win to modifiers byte
+            qCWarning(log_keyboard) << "Warning: Meta modifier detected but not in currentModifiers, adding temporarily";
+        }
         qCDebug(log_keyboard) << "Non-modifier key, combinedModifiers:" << Qt::hex << combinedModifiers
                               << "(currentModifiers:" << Qt::hex << currentModifiers
                               << "passed modifiers:" << Qt::hex << modifiers << ")";
@@ -568,11 +617,25 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
                 }
             } else {
                 currentMappedKeyCodes.remove(mappedKeyCode);
-                // On release, clear any passed modifiers that aren't part of the persistent state
-                // This handles the MCP/API case where modifiers were temporarily merged
-                if (modifiers != 0) {
-                    currentModifiers &= ~modifiers;
-                }
+                // BUG FIX: Do NOT clear modifiers from currentModifiers on non-modifier key release.
+                //
+                // Previous code: currentModifiers &= ~modifiers;
+                // This was clearing persistent modifier state when a regular key was released,
+                // because Qt's event->modifiers() reflects ALL currently-held modifiers.
+                //
+                // Example of the bug:
+                //   1. User presses Shift  → currentModifiers |= 0x02 (left shift)
+                //   2. User presses A      → combinedModifiers = currentModifiers | modifiers = 0x02
+                //   3. User releases A     → modifiers = 0x02 (Shift still held)
+                //     OLD: currentModifiers &= ~0x02 → currentModifiers = 0 ← WRONG! Shift still held!
+                //     NEW: currentModifiers unchanged → currentModifiers = 0x02 ← CORRECT!
+                //
+                // Modifier state should ONLY be tracked through actual modifier key press/release
+                // events (handled in the modifier branch above). Non-modifier key events should
+                // NOT modify currentModifiers.
+                //
+                // For MCP/API transient modifiers: they're already included in combinedModifiers
+                // via (currentModifiers | modifiers) so each HID report is correct regardless.
             }
         }
 

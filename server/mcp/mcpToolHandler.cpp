@@ -261,6 +261,22 @@ QJsonArray McpToolHandler::listTools() const
         tools.append(tool);
     }
 
+    // ---- USB Control Tools ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_USB_SWITCH;
+        tool["description"] = "Switch the USB connection between host (control computer) and target (controlled computer). Use this to ensure keyboard/mouse data is sent to the correct destination.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["target"] = QJsonObject{{"type", "string"}, {"description", "USB target: 'host' for control computer, 'target' for controlled computer"}, {"enum", QJsonArray{"host", "target"}}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray{"target"};
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
     // ---- Script Execution ----
     {
         QJsonObject tool;
@@ -271,6 +287,22 @@ QJsonArray McpToolHandler::listTools() const
         schema["type"] = "object";
         QJsonObject props;
         props["script"] = QJsonObject{{"type", "string"}, {"description", "Script text in AutoHotkey-like syntax"}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray{"script"};
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
+    // ---- Script Validation ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_VALIDATE_SCRIPT;
+        tool["description"] = "Validate an AutoHotkey-like script without executing it. Returns detailed information about syntax errors, invalid commands, and parameter issues.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["script"] = QJsonObject{{"type", "string"}, {"description", "Script text to validate"}};
         schema["properties"] = props;
         schema["required"] = QJsonArray{"script"};
         tool["inputSchema"] = schema;
@@ -298,7 +330,9 @@ QJsonObject McpToolHandler::callTool(const QString& name, const QJsonObject& arg
     if (name == MCP_TOOL_CAPTURE_SCREEN)             return toolCaptureScreen(arguments);
     if (name == MCP_TOOL_CAPTURE_LAST_IMAGE)         return toolCaptureLastImage(arguments);
     if (name == MCP_TOOL_EXECUTE_SCRIPT)             return toolExecuteScript(arguments);
+    if (name == MCP_TOOL_VALIDATE_SCRIPT)             return toolValidateScript(arguments);
     if (name == MCP_TOOL_SYSTEM_STATUS)              return toolSystemStatus(arguments);
+    if (name == MCP_TOOL_USB_SWITCH)                 return toolUsbSwitch(arguments);
 
     return errorResult("Unknown tool: " + name);
 }
@@ -734,6 +768,63 @@ QJsonObject McpToolHandler::toolExecuteScript(const QJsonObject& args)
 }
 
 // ==========================================================================
+// Script Validation Tool
+// ==========================================================================
+
+QJsonObject McpToolHandler::toolValidateScript(const QJsonObject& args)
+{
+    QString scriptText = args.value("script").toString();
+
+    // 1. Check if script is empty
+    if (scriptText.isEmpty()) {
+        return errorResult("Script text is empty");
+    }
+
+    // 2. Try to tokenize (catch lexer errors)
+    try {
+        Lexer lexer;
+        lexer.setSource(scriptText.toStdString());
+        std::vector<Token> tokens = lexer.tokenize();
+
+        // 3. Try to parse (catch parser errors)
+        Parser parser(tokens);
+        std::unique_ptr<ASTNode> tree = parser.parse();
+
+        if (!tree) {
+            return errorResult("Failed to parse script: syntax error");
+        }
+
+        // 4. Return success with validation details
+        QJsonObject result;
+        result["valid"] = true;
+        result["message"] = "Script validation successful";
+        result["tokenCount"] = static_cast<qint64>(tokens.size());
+
+        // Count commands in the AST
+        int commandCount = 0;
+        // Simple traversal to count CommandStatement nodes
+        // This is a basic implementation - could be enhanced later
+        if (auto statementList = dynamic_cast<StatementListNode*>(tree.get())) {
+            for (const auto& stmt : statementList->getChildren()) {
+                if (dynamic_cast<CommandStatementNode*>(stmt.get())) {
+                    commandCount++;
+                }
+            }
+        }
+        result["commandCount"] = commandCount;
+
+        return textResult(QJsonDocument(result).toJson(QJsonDocument::Compact));
+
+    } catch (const std::exception& e) {
+        // Catch lexer/parser errors
+        QJsonObject result;
+        result["valid"] = false;
+        result["error"] = QString::fromStdString(e.what());
+        return textResult(QJsonDocument(result).toJson(QJsonDocument::Compact));
+    }
+}
+
+// ==========================================================================
 // System Status Tool
 // ==========================================================================
 
@@ -799,6 +890,31 @@ QJsonObject McpToolHandler::toolSystemStatus(const QJsonObject& args)
     status["all_ready"] = allOk;
 
     return textResult(QJsonDocument(status).toJson(QJsonDocument::Compact));
+}
+
+// ==========================================================================
+// USB Control Tool
+// ==========================================================================
+
+QJsonObject McpToolHandler::toolUsbSwitch(const QJsonObject& args)
+{
+    QString target = args.value("target").toString().toLower();
+
+    SerialPortManager& spm = SerialPortManager::getInstance();
+
+    if (target == "target") {
+        qCInfo(log_server_mcp_tool) << "Switching USB to TARGET (controlled computer)";
+        spm.switchUsbToTargetViaSerial();
+        QThread::msleep(100);  // Allow time for switch to take effect
+        return textResult("USB switched to target (controlled computer). Keyboard/mouse data will now be sent to the target.");
+    } else if (target == "host") {
+        qCInfo(log_server_mcp_tool) << "Switching USB to HOST (control computer)";
+        spm.switchUsbToHostViaSerial();
+        QThread::msleep(100);
+        return textResult("USB switched to host (control computer).");
+    } else {
+        return errorResult("Invalid USB target: '" + target + "'. Use 'host' or 'target'.");
+    }
 }
 
 // ==========================================================================

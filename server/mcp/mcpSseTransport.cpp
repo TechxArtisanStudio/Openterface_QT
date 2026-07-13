@@ -7,7 +7,7 @@
 *                                                                            *
 *    This program is free software: you can redistribute it and/or modify    *
 *    it under the terms of the GNU General Public License as published by    *
-*    the Free Software Foundation version 3.                                 *
+*    the Free Software Foundation version 3.                                  *
 *                                                                            *
 *    This program is distributed in the hope that it will be useful, but     *
 *    WITHOUT ANY WARRANTY; without even the implied warranty of              *
@@ -15,7 +15,7 @@
 *    General Public License for more details.                                *
 *                                                                            *
 *    You should have received a copy of the GNU General Public License       *
-*    along with this program. If not, see <http://www.gnu.org/licenses/>.    *
+*    along with this program; if not, see <http://www.gnu.org/licenses/>.    *
 *                                                                            *
 * ========================================================================== *
 */
@@ -25,10 +25,8 @@
 #include "mcpToolHandler.h"
 
 #include <QDebug>
-#include <QHttpServerResponse>
 #include <QJsonArray>
 #include <QLoggingCategory>
-#include <QTcpSocket>
 #include <QUrlQuery>
 
 #include <chrono>
@@ -41,9 +39,11 @@ Q_LOGGING_CATEGORY(log_server_mcp_sse, "opf.server.mcp.sse")
 
 McpSseTransport::Session::~Session()
 {
-    // Resetting the unique_ptr closes the chunked stream (sends the
-    // terminating zero-length chunk) before the session struct is destroyed.
-    responder.reset();
+    if (socket) {
+        socket->disconnectFromHost();
+        socket->deleteLater();
+        socket = nullptr;
+    }
     if (timeoutTimer) {
         timeoutTimer->stop();
         delete timeoutTimer;
@@ -77,32 +77,11 @@ bool McpSseTransport::start(quint16 port, const QHostAddress& bindAddress)
         return true;
     }
 
-    // --- HTTP server ---
-    m_httpServer = new QHttpServer(this);
-
-    // Register routes.  The `route()` template deduces ViewHandler from the
-    // member-function pointer; `this` is passed as the context object.
-    m_httpServer->route(QLatin1String(MCP_SSE_PATH_SSE),
-                        QHttpServerRequest::Method::Get,
-                        this,
-                        &McpSseTransport::handleSse);
-
-    m_httpServer->route(QLatin1String(MCP_SSE_PATH_MESSAGES),
-                        QHttpServerRequest::Method::Post,
-                        this,
-                        &McpSseTransport::handleMessages);
-
-    // Any path that does not match the two routes above gets a 404.
-    m_httpServer->setMissingHandler(this,
-        [this](const QHttpServerRequest& request, QHttpServerResponder& responder) {
-            Q_UNUSED(request);
-            sendHttpError(responder,
-                          QHttpServerResponder::StatusCode::NotFound,
-                          "Not Found");
-        });
-
     // --- TCP server ---
     m_tcpServer = new QTcpServer(this);
+    connect(m_tcpServer, &QTcpServer::newConnection,
+            this, &McpSseTransport::onNewConnection);
+
     if (!m_tcpServer->listen(bindAddress, port)) {
         qCCritical(log_server_mcp_sse)
             << "Cannot bind to" << bindAddress << ":" << port
@@ -110,17 +89,8 @@ bool McpSseTransport::start(quint16 port, const QHostAddress& bindAddress)
         emit transportError(
             QString("SSE: cannot bind to port %1: %2")
                 .arg(port).arg(m_tcpServer->errorString()));
-        delete m_httpServer;  m_httpServer = nullptr;
-        delete m_tcpServer;   m_tcpServer  = nullptr;
-        return false;
-    }
-
-    if (!m_httpServer->bind(m_tcpServer)) {
-        qCCritical(log_server_mcp_sse) << "QHttpServer::bind() failed";
-        emit transportError("SSE: QHttpServer::bind() failed");
-        m_tcpServer->close();
-        delete m_httpServer;  m_httpServer = nullptr;
-        delete m_tcpServer;   m_tcpServer  = nullptr;
+        delete m_tcpServer;
+        m_tcpServer = nullptr;
         return false;
     }
 
@@ -150,14 +120,14 @@ bool McpSseTransport::start(quint16 port, const QHostAddress& bindAddress)
 
 void McpSseTransport::stop()
 {
-    if (!m_running && !m_httpServer && !m_tcpServer)
+    if (!m_running && !m_tcpServer)
         return;
 
     // Stop timers first so they don't fire during teardown.
     if (m_keepaliveTimer) { m_keepaliveTimer->stop(); delete m_keepaliveTimer; m_keepaliveTimer = nullptr; }
     if (m_cleanupTimer)   { m_cleanupTimer->stop();   delete m_cleanupTimer;   m_cleanupTimer   = nullptr; }
 
-    // Close every active session (resets the unique_ptr → ends chunked stream).
+    // Close every active session.
     for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
         Session* s = it.value();
         const QString id = s->id;
@@ -165,14 +135,9 @@ void McpSseTransport::stop()
         emit sessionDestroyed(id);
     }
     m_sessions.clear();
+    m_readBuffers.clear();
 
-    // QTcpServer is owned by QHttpServer after bind(); deleting the HTTP
-    // server also cleans up the TCP server.
-    if (m_httpServer) {
-        delete m_httpServer;   // also deletes the bound QTcpServer
-        m_httpServer = nullptr;
-        m_tcpServer  = nullptr;
-    } else if (m_tcpServer) {
+    if (m_tcpServer) {
         m_tcpServer->close();
         delete m_tcpServer;
         m_tcpServer = nullptr;
@@ -183,50 +148,258 @@ void McpSseTransport::stop()
     qCInfo(log_server_mcp_sse) << "SSE transport stopped";
 }
 
-bool     McpSseTransport::isRunning()         const { return m_running; }
-quint16  McpSseTransport::port()              const { return m_port; }
+bool     McpSseTransport::isRunning()          const { return m_running; }
+quint16  McpSseTransport::port()               const { return m_port; }
 int      McpSseTransport::activeSessionCount() const { return m_sessions.size(); }
+
+// ============================================================================
+// TCP connection handling
+// ============================================================================
+
+void McpSseTransport::onNewConnection()
+{
+    while (m_tcpServer && m_tcpServer->hasPendingConnections()) {
+        QTcpSocket* socket = m_tcpServer->nextPendingConnection();
+        if (!socket) continue;
+
+        // Initialize read buffer for this socket.
+        m_readBuffers.insert(socket, QByteArray());
+
+        connect(socket, &QTcpSocket::readyRead,
+                this, &McpSseTransport::onReadyRead);
+        connect(socket, &QTcpSocket::disconnected,
+                this, &McpSseTransport::onSocketDisconnected);
+
+        qCDebug(log_server_mcp_sse) << "New TCP connection from"
+                                     << socket->peerAddress().toString();
+    }
+}
+
+void McpSseTransport::onReadyRead()
+{
+    QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
+    if (!socket) return;
+
+    // Accumulate data in the per-socket read buffer.
+    auto bufIt = m_readBuffers.find(socket);
+    if (bufIt == m_readBuffers.end()) return;
+
+    bufIt.value().append(socket->readAll());
+
+    QByteArray method, path, body;
+    QMap<QByteArray, QByteArray> headers;
+
+    if (parseHttpRequest(socket, bufIt.value(), method, path, headers, body)) {
+        qCInfo(log_server_mcp_sse) << method << path
+                                    << "from" << socket->peerAddress().toString();
+
+        // Determine which endpoint was requested.
+        // Extract path without query string for routing.
+        int queryPos = path.indexOf('?');
+        QByteArray routePath = (queryPos >= 0) ? path.left(queryPos) : path;
+
+        if (method == "GET" && routePath == MCP_SSE_PATH_SSE) {
+            handleSseRequest(socket);
+        } else if (method == "POST" && routePath == MCP_SSE_PATH_MESSAGES) {
+            // Extract sessionId from query string.
+            QUrlQuery query;
+            if (queryPos >= 0)
+                query.setQuery(path.mid(queryPos + 1));
+            QString sessionId = query.queryItemValue("sessionId");
+
+            if (sessionId.isEmpty()) {
+                qCWarning(log_server_mcp_sse) << "POST /messages without sessionId";
+                sendHttpError(socket, 400, "Bad Request",
+                              "Missing sessionId query parameter");
+                socket->disconnectFromHost();
+            } else {
+                handleMessagesRequest(socket, sessionId, body);
+            }
+        } else {
+            sendHttpError(socket, 404, "Not Found", "Not Found");
+            socket->disconnectFromHost();
+        }
+    }
+}
+
+void McpSseTransport::onSocketDisconnected()
+{
+    QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
+    if (!socket) return;
+
+    // Remove from read buffers.
+    m_readBuffers.remove(socket);
+
+    // Find and clean up the session that owns this socket.
+    QString sessionIdToRemove;
+    for (auto it = m_sessions.constBegin(); it != m_sessions.constEnd(); ++it) {
+        if (it.value()->socket == socket) {
+            sessionIdToRemove = it.key();
+            break;
+        }
+    }
+
+    if (!sessionIdToRemove.isEmpty()) {
+        qCInfo(log_server_mcp_sse) << "Client disconnected, cleaning session:"
+                                    << sessionIdToRemove;
+        cleanupSession(sessionIdToRemove);
+    }
+
+    socket->deleteLater();
+}
+
+// ============================================================================
+// HTTP request parser
+// ============================================================================
+
+bool McpSseTransport::parseHttpRequest(QTcpSocket* /*socket*/,
+                                       QByteArray& buffer,
+                                       QByteArray& method,
+                                       QByteArray& path,
+                                       QMap<QByteArray, QByteArray>& headers,
+                                       QByteArray& body)
+{
+    // Look for end of headers (\r\n\r\n).
+    int headerEnd = buffer.indexOf("\r\n\r\n");
+    if (headerEnd < 0) return false;  // incomplete — wait for more data
+
+    // Parse request line: "GET /path HTTP/1.1\r\n"
+    int firstLineEnd = buffer.indexOf("\r\n");
+    QByteArray requestLine = buffer.left(firstLineEnd);
+    QList<QByteArray> parts = requestLine.split(' ');
+    if (parts.size() < 2) return false;
+
+    method = parts[0].toUpper();
+    path   = parts[1];
+
+    // Parse headers.
+    headers.clear();
+    int pos = firstLineEnd + 2;  // skip first \r\n
+    while (pos < headerEnd) {
+        int lineEnd = buffer.indexOf("\r\n", pos);
+        if (lineEnd < 0 || lineEnd > headerEnd) break;
+
+        QByteArray line = buffer.mid(pos, lineEnd - pos);
+        int colonPos = line.indexOf(':');
+        if (colonPos > 0) {
+            QByteArray key   = line.left(colonPos).trimmed();
+            QByteArray value = line.mid(colonPos + 1).trimmed();
+            headers.insert(key.toLower(), value);
+        }
+        pos = lineEnd + 2;
+    }
+
+    int bodyStart = headerEnd + 4;  // skip \r\n\r\n
+
+    // For POST requests, read Content-Length bytes of body.
+    qint64 contentLength = 0;
+    if (headers.contains("content-length")) {
+        contentLength = headers["content-length"].toLongLong();
+    }
+
+    qint64 availableBody = buffer.size() - bodyStart;
+    if (availableBody < contentLength) {
+        return false;  // incomplete body — wait for more data
+    }
+
+    if (contentLength > 0) {
+        body = buffer.mid(bodyStart, contentLength);
+    } else {
+        body.clear();
+    }
+
+    // Consume the parsed request from the buffer.
+    buffer.remove(0, bodyStart + contentLength);
+
+    return true;
+}
+
+// ============================================================================
+// HTTP response helpers
+// ============================================================================
+
+void McpSseTransport::sendHttpResponse(QTcpSocket* socket,
+                                       int statusCode,
+                                       const QByteArray& statusText,
+                                       const QList<QPair<QByteArray, QByteArray>>& extraHeaders,
+                                       const QByteArray& body)
+{
+    if (!socket || socket->state() != QAbstractSocket::ConnectedState) return;
+
+    QByteArray response;
+    response.append("HTTP/1.1 ");
+    response.append(QByteArray::number(statusCode));
+    response.append(" ");
+    response.append(statusText);
+    response.append("\r\n");
+
+    for (const auto& h : extraHeaders) {
+        response.append(h.first);
+        response.append(": ");
+        response.append(h.second);
+        response.append("\r\n");
+    }
+
+    response.append("Content-Length: ");
+    response.append(QByteArray::number(body.size()));
+    response.append("\r\n");
+    response.append("\r\n");
+    response.append(body);
+
+    socket->write(response);
+    socket->flush();
+}
+
+void McpSseTransport::sendHttpError(QTcpSocket* socket,
+                                    int statusCode,
+                                    const QByteArray& statusText,
+                                    const QByteArray& message)
+{
+    QJsonObject bodyObj;
+    bodyObj["error"] = QString::fromUtf8(message);
+    QByteArray json = QJsonDocument(bodyObj).toJson(QJsonDocument::Compact);
+
+    QList<QPair<QByteArray, QByteArray>> headers;
+    headers.append(qMakePair(QByteArrayLiteral("Content-Type"),
+                             QByteArrayLiteral("application/json")));
+    sendHttpResponse(socket, statusCode, statusText, headers, json);
+}
 
 // ============================================================================
 // GET /sse  —  establish SSE stream
 // ============================================================================
 
-void McpSseTransport::handleSse(const QHttpServerRequest& request,
-                                QHttpServerResponder& responder)
+void McpSseTransport::handleSseRequest(QTcpSocket* socket)
 {
-    Q_UNUSED(request);
-    qCInfo(log_server_mcp_sse) << "GET /sse from"
-                                << request.remoteAddress().toString();
-
     if (m_sessions.size() >= MCP_SSE_MAX_SESSIONS) {
         qCWarning(log_server_mcp_sse)
             << "Max sessions (" << MCP_SSE_MAX_SESSIONS << ") reached — rejecting";
-        sendHttpError(responder,
-                      QHttpServerResponder::StatusCode::ServiceUnavailable,
-                      "Too many SSE sessions");
+        sendHttpError(socket, 503, "Service Unavailable", "Too many SSE sessions");
+        socket->disconnectFromHost();
         return;
     }
 
-    // Build HTTP response headers.
-    QHttpHeaders headers;
-    headers.append(QHttpHeaders::WellKnownHeader::ContentType,
-                   QLatin1String(MCP_SSE_CONTENT_TYPE));
-    headers.append(QHttpHeaders::WellKnownHeader::CacheControl,  "no-cache");
-    headers.append(QHttpHeaders::WellKnownHeader::Connection,    "keep-alive");
+    // Write SSE response headers directly (no Content-Length — connection stays open).
+    QByteArray responseHeaders;
+    responseHeaders.append("HTTP/1.1 200 OK\r\n");
+    responseHeaders.append("Content-Type: ");
+    responseHeaders.append(MCP_SSE_CONTENT_TYPE);
+    responseHeaders.append("\r\n");
+    responseHeaders.append("Cache-Control: no-cache\r\n");
+    responseHeaders.append("Connection: keep-alive\r\n");
     // Prevent reverse-proxy (nginx, etc.) from buffering the SSE stream.
-    headers.append(QByteArrayLiteral("X-Accel-Buffering"),       "no");
+    responseHeaders.append("X-Accel-Buffering: no\r\n");
+    responseHeaders.append("\r\n");
 
-    // Begin chunked transfer — this flushes the HTTP 200 + headers
-    // immediately.  The connection stays open until writeEndChunked()
-    // is called or the responder is destroyed.
-    responder.writeBeginChunked(headers, QHttpServerResponder::StatusCode::Ok);
+    socket->write(responseHeaders);
+    socket->flush();
 
-    // Move the responder into a new session BEFORE the local (moved-from)
-    // copy goes out of scope when this function returns.
-    Session* session = createSession(std::move(responder));
+    // Create session with this socket (takes ownership of streaming).
+    Session* session = createSession(socket);
     if (!session) {
         qCCritical(log_server_mcp_sse) << "Failed to create session";
-        return;  // connection will be closed when responder is destroyed
+        socket->disconnectFromHost();
+        return;
     }
 
     // Send the "endpoint" event — tells the client the URL to POST to.
@@ -244,43 +417,31 @@ void McpSseTransport::handleSse(const QHttpServerRequest& request,
 // POST /messages  —  receive JSON-RPC, reply via SSE
 // ============================================================================
 
-void McpSseTransport::handleMessages(const QHttpServerRequest& request,
-                                     QHttpServerResponder& responder)
+void McpSseTransport::handleMessagesRequest(QTcpSocket* socket,
+                                            const QString& sessionId,
+                                            const QByteArray& body)
 {
-    // --- Extract sessionId from query string ---
-    QUrlQuery query(request.url());
-    QString sessionId = query.queryItemValue("sessionId");
-    if (sessionId.isEmpty()) {
-        qCWarning(log_server_mcp_sse) << "POST /messages without sessionId";
-        sendHttpError(responder,
-                      QHttpServerResponder::StatusCode::BadRequest,
-                      "Missing sessionId query parameter");
-        return;
-    }
-
     Session* session = m_sessions.value(sessionId, nullptr);
     if (!session) {
         qCWarning(log_server_mcp_sse) << "Unknown sessionId:" << sessionId;
-        sendHttpError(responder,
-                      QHttpServerResponder::StatusCode::NotFound,
-                      "Unknown or expired session");
+        sendHttpError(socket, 404, "Not Found", "Unknown or expired session");
+        socket->disconnectFromHost();
         return;
     }
 
     // Bump the activity timestamp and reset the idle timer.
     refreshSession(sessionId);
 
-    // --- Send an immediate HTTP 202 Accepted so the client knows we
-    //     received the request.  The actual JSON-RPC response is sent
-    //     asynchronously via the SSE stream. ---
-    QHttpHeaders ackHeaders;
-    ackHeaders.append(QHttpHeaders::WellKnownHeader::ContentType, "application/json");
-    responder.write(QByteArrayLiteral("{\"accepted\":true}"),
-                    ackHeaders,
-                    QHttpServerResponder::StatusCode::Accepted);
+    // Send HTTP 202 Accepted on the POST socket.
+    QList<QPair<QByteArray, QByteArray>> ackHeaders;
+    ackHeaders.append(qMakePair(QByteArrayLiteral("Content-Type"),
+                                QByteArrayLiteral("application/json")));
+    sendHttpResponse(socket, 202, "Accepted", ackHeaders,
+                     QByteArrayLiteral("{\"accepted\":true}"));
+    socket->disconnectFromHost();
 
-    // --- Process the JSON-RPC request and push the response via SSE. ---
-    processRequest(session, request.body());
+    // Process the JSON-RPC request and push the response via SSE.
+    processRequest(session, body);
 }
 
 // ============================================================================
@@ -288,15 +449,13 @@ void McpSseTransport::handleMessages(const QHttpServerRequest& request,
 // ============================================================================
 
 McpSseTransport::Session*
-McpSseTransport::createSession(QHttpServerResponder&& responder)
+McpSseTransport::createSession(QTcpSocket* socket)
 {
-    // Pre-generate the session ID so we can include it in the first SSE
-    // event (the "endpoint" event is sent by the caller after this returns).
     QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
     auto* session   = new Session;
     session->id     = id;
-    session->responder = std::make_unique<QHttpServerResponder>(std::move(responder));
+    session->socket = socket;
     session->lastActivityMs = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
 
@@ -321,8 +480,13 @@ void McpSseTransport::cleanupSession(const QString& sessionId)
     if (!session) return;
 
     qCInfo(log_server_mcp_sse) << "Cleaning up session:" << sessionId;
-    // Resetting the unique_ptr sends the final chunk and closes the stream.
-    session->responder.reset();
+    // Disconnect the SSE socket (but don't delete it — onSocketDisconnected
+    // will handle cleanup via deleteLater).
+    if (session->socket) {
+        m_readBuffers.remove(session->socket);
+        session->socket->disconnectFromHost();
+        session->socket = nullptr;  // prevent double-close in destructor
+    }
     delete session;
     emit sessionDestroyed(sessionId);
 }
@@ -363,8 +527,8 @@ void McpSseTransport::sendKeepalives()
 
     for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
         Session* s = it.value();
-        if (s->responder)
-            s->responder->writeChunk(comment);
+        if (s->socket && s->socket->state() == QAbstractSocket::ConnectedState)
+            s->socket->write(comment);
     }
 }
 
@@ -374,7 +538,7 @@ void McpSseTransport::sendKeepalives()
 
 void McpSseTransport::processRequest(Session* session, const QByteArray& body)
 {
-    if (!session || !session->responder) return;
+    if (!session || !session->socket) return;
 
     McpProtocol::Request req;
     if (!McpProtocol::parseRequest(body, req)) {
@@ -450,7 +614,8 @@ void McpSseTransport::sendSseEvent(Session* session,
                                    const QString& eventType,
                                    const QJsonObject& data)
 {
-    if (!session || !session->responder) return;
+    if (!session || !session->socket) return;
+    if (session->socket->state() != QAbstractSocket::ConnectedState) return;
 
     // SSE wire format:
     //   event: <eventType>\n
@@ -467,25 +632,9 @@ void McpSseTransport::sendSseEvent(Session* session,
     frame.append('\n');
     frame.append('\n');
 
-    session->responder->writeChunk(frame);
+    session->socket->write(frame);
+    session->socket->flush();
     qCDebug(log_server_mcp_sse) << "SSE →" << session->id
                                  << "event=" << eventType
                                  << "bytes=" << frame.size();
-}
-
-// ============================================================================
-// HTTP error response helper
-// ============================================================================
-
-void McpSseTransport::sendHttpError(QHttpServerResponder& responder,
-                                    QHttpServerResponder::StatusCode status,
-                                    const QByteArray& message)
-{
-    QJsonObject body;
-    body["error"] = QString::fromUtf8(message);
-    QByteArray json = QJsonDocument(body).toJson(QJsonDocument::Compact);
-
-    QHttpHeaders headers;
-    headers.append(QHttpHeaders::WellKnownHeader::ContentType, "application/json");
-    responder.write(json, headers, status);
 }

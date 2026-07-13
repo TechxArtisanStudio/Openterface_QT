@@ -694,9 +694,9 @@ void MainWindowInitializer::finalize()
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, m_mainWindow, &MainWindow::onPortConnected);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, m_mainWindow, &MainWindow::onArmBaudratePerformanceRecommendation);
 
-    // Connect SystemKeyBlocker keyCaptured signal to HostManager
+    // Connect SystemKeyBlocker keyCaptured signal to KeyboardManager (fix for modifier keys)
     connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::keyCaptured,
-            &HostManager::getInstance(), &HostManager::handleKeyboardAction);
+            &KeyboardManager::getInstance(), &KeyboardManager::handleKeyboardAction);
     qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to HostManager";
 
     // Defer SystemKeyBlocker startup until window is visible

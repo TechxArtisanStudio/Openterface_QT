@@ -62,8 +62,9 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(Qt6Required REQUIRED)
 
 # Find additional Qt components (Qt6Required already found Core, Widgets, Gui, Multimedia, SerialPort, Svg)
-# HttpServer is required for SSE transport support.
-find_package(Qt6 REQUIRED COMPONENTS Network OpenGL OpenGLWidgets Xml Concurrent DBus HttpServer)
+# Note: HttpServer is NOT required — the SSE transport uses raw QTcpServer (Qt6::Network)
+# for Qt 6.5+ compatibility. See server/mcp/mcpSseTransport.h.
+find_package(Qt6 REQUIRED COMPONENTS Network OpenGL OpenGLWidgets Xml Concurrent DBus)
 
 find_package(Threads REQUIRED)
 
@@ -134,7 +135,16 @@ if(OPENTERFACE_BUILD_STATIC)
     endforeach()
 endif()
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus Qt6::HttpServer Threads::Threads)
+# Qt6::HttpServer is optional (requires Qt 6.6.3+)
+set(QT_HTTPSERVER_LIB)
+if(TARGET Qt6::HttpServer)
+    set(QT_HTTPSERVER_LIB Qt6::HttpServer)
+    message(STATUS "Qt6::HttpServer found - enabling QHttpServer support")
+else()
+    message(STATUS "Qt6::HttpServer not found - using raw QTcpServer for Qt 6.5 compatibility")
+endif()
+
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus ${QT_HTTPSERVER_LIB} Threads::Threads)
 
 # Link Windows HID and SetupAPI libraries
 if(WIN32)

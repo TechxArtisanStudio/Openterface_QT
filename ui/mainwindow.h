@@ -379,6 +379,11 @@ private:
     McpServer *m_mcpServer = nullptr;
 
 public:
+    CameraManager* getCameraManager() const { return m_cameraManager; }
+
+public:
+    McpServer* getMcpServer() { return m_mcpServer; }
+
     void initMcpServer();
 public slots:
     void toggleMcpServer(bool enabled);

@@ -295,7 +295,7 @@ int main(int argc, char *argv[])
     // We use QApplication (not QCoreApplication) because KeyboardManager calls
     // QInputMethod::locale() which requires GUI initialization.
     // We use the offscreen platform so no real display is needed.
-    bool mcpHeadlessMode = mcpStdioMode || (mcpSsePort > 0);
+    bool mcpHeadlessMode = !autoStartMcp && (mcpStdioMode || (mcpSsePort > 0));
     if (mcpHeadlessMode) {
         // Use offscreen platform — provides QInputMethod without needing a real display
         qputenv("QT_QPA_PLATFORM", "offscreen");
@@ -605,10 +605,57 @@ int main(int argc, char *argv[])
 
     // Auto-start MCP Server if --mcp-start flag is present
     if (autoStartMcp) {
-        QTimer::singleShot(300, window, [window]() {
+        // Capture port for the lambda (use 0 to indicate SSE disabled)
+        int capturedSsePort = mcpSsePort;
+        // Wait longer for camera initialization to complete before starting MCP server
+        // Camera initialization happens in deferredInitializeCamera (150ms delay)
+        // and may take additional time for device auto-selection and capture start
+        QTimer::singleShot(1500, window, [window, capturedSsePort]() {
             qInfo() << "Auto-starting MCP Server (--mcp-start)...";
+            
+            // Wait for camera frame to be available (similar to headless mode)
+            const int maxWaitMs = 5000;  // 5 seconds timeout
+            const int pollIntervalMs = 200;
+            int waitedMs = 0;
+            
+            qInfo() << "Waiting for camera frame to be available...";
+            
+            while (waitedMs < maxWaitMs) {
+                // Check if camera has frame
+                if (window->getCameraManager() && 
+                    !window->getCameraManager()->getLatestOriginalFrame().isNull()) {
+                    QImage frame = window->getCameraManager()->getLatestOriginalFrame();
+                    qInfo() << "Camera ready! First frame:" << frame.width() << "x" << frame.height();
+                    break;
+                }
+                
+                QThread::msleep(pollIntervalMs);
+                waitedMs += pollIntervalMs;
+                QCoreApplication::processEvents();
+            }
+            
+            if (waitedMs >= maxWaitMs) {
+                qWarning() << "Timeout waiting for camera frame (" << maxWaitMs << "ms)";
+                qWarning() << "MCP server will start, but capture_screen may return errors initially";
+            }
+            
+            // Now initialize MCP server
             window->initMcpServer();
-            window->toggleMcpServer(true);
+
+            if (capturedSsePort > 0) {
+                // Start SSE transport on specified port
+                qInfo() << "Starting MCP SSE on port" << capturedSsePort;
+                bool ok = window->getMcpServer()->startSse(
+                    static_cast<quint16>(capturedSsePort), QHostAddress::Any);
+                if (ok) {
+                    qInfo() << "MCP SSE server started successfully";
+                } else {
+                    qWarning() << "Failed to start MCP SSE server";
+                }
+            } else {
+                // Default to stdio transport
+                window->toggleMcpServer(true);
+            }
         });
     }
     

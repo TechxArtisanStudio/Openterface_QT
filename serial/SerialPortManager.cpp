@@ -1998,9 +1998,31 @@ void SerialPortManager::readData() {
     if (parsed.status != STATUS_SUCCESS && (parsed.commandCode >= 0xC0 && parsed.commandCode <= 0xCF)) {
         dumpError(parsed.status, packet);
     } else {
-        qCDebug(log_core_serial).nospace().noquote() << "RX (" << serialPort->portName() << "@" 
+        qCDebug(log_core_serial).nospace().noquote() << "RX (" << serialPort->portName() << "@"
             << (serialPort ? serialPort->baudRate() : 0) << "bps): " << packet.toHex(' ');
-        
+
+        // RX-DIAG: fprintf to stderr so responses are visible in sse_server.log
+        {
+            uint8_t cmdCode = packet.size() > 3 ? static_cast<uint8_t>(packet[3]) : 0;
+            uint8_t statusByte = packet.size() > 5 ? static_cast<uint8_t>(packet[5]) : 0xFF;
+            const char* cmdName = "UNKNOWN";
+            switch (cmdCode) {
+                case 0x81: cmdName = "GET_INFO_RSP"; break;
+                case 0x82: cmdName = "KB_RSP"; break;
+                case 0x84: cmdName = "MOUSE_ABS_RSP"; break;
+                case 0x85: cmdName = "MOUSE_REL_RSP"; break;
+                case 0x88: cmdName = "GET_PARA_CFG_RSP"; break;
+                case 0x89: cmdName = "SET_PARA_CFG_RSP"; break;
+                case 0x8F: cmdName = "RESET_RSP"; break;
+                case 0x97: cmdName = "USB_SWITCH_RSP"; break;
+                case 0x99: cmdName = "USB_STATUS_RSP"; break;
+                default: break;
+            }
+            fprintf(stderr, "[RX-DIAG] Received: [%s] cmd=0x%02x(%s) status=0x%02x size=%d\n",
+                    packet.toHex(' ').constData(), cmdCode, cmdName, statusByte, packet.size());
+            fflush(stderr);
+        }
+
         // Also explicitly log RX to file during diagnostics
         if (!m_logFilePath.contains("serial_log.txt")) {
             log(QString("RX (%1): %2").arg(serialPort ? serialPort->baudRate() : 0).arg(QString(packet.toHex(' '))));

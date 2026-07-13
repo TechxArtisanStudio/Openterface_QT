@@ -7,7 +7,7 @@
 *                                                                            *
 *    This program is free software: you can redistribute it and/or modify    *
 *    it under the terms of the GNU General Public License as published by    *
-*    the Free Software Foundation version 3.                                 *
+*    the Free Software Foundation version 3.                                  *
 *                                                                            *
 *    This program is distributed in the hope that it will be useful, but     *
 *    WITHOUT ANY WARRANTY; without even the implied warranty of              *
@@ -15,7 +15,7 @@
 *    General Public License for more details.                                *
 *                                                                            *
 *    You should have received a copy of the GNU General Public License       *
-*    along with this program. If not, see <http://www.gnu.org/licenses/>.    *
+*    along with this program; if not, see <http://www.gnu.org/licenses/>.    *
 *                                                                            *
 * ========================================================================== *
 */
@@ -30,11 +30,8 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QHostAddress>
-#include <QHttpServer>
-#include <QHttpServerRequest>
-#include <QHttpServerResponder>
-#include <QHttpHeaders>
 #include <QTcpServer>
+#include <QTcpSocket>
 
 #include <memory>
 
@@ -53,8 +50,9 @@ class McpToolHandler;
  *                     back through the corresponding SSE stream as an
  *                     "event: message" frame.
  *
- * Uses QHttpServer with chunked transfer encoding (writeBeginChunked /
- * writeChunk) to keep the SSE connection alive indefinitely.
+ * Uses raw QTcpServer + manual HTTP handling for Qt 6.5.3 compatibility.
+ * This avoids QHttpServer's chunked-transfer APIs (writeBeginChunked /
+ * writeChunk) which were only added in Qt 6.7.
  */
 class McpSseTransport : public QObject {
     Q_OBJECT
@@ -77,14 +75,19 @@ signals:
     void sessionDestroyed(const QString& sessionId);
     void transportError(const QString& errorMsg);
 
+private slots:
+    void onNewConnection();
+    void onReadyRead();
+    void onSocketDisconnected();
+
 private:
     // -----------------------------------------------------------------------
-    // Per-SSE-session state.  The responder is heap-allocated because it is
-    // move-only and must outlive the route-handler call frame.
+    // Per-SSE-session state.  The socket is owned by the session and closed
+    // when the session is destroyed.
     // -----------------------------------------------------------------------
     struct Session {
         QString id;
-        std::unique_ptr<QHttpServerResponder> responder;
+        QTcpSocket* socket = nullptr;
         QTimer* timeoutTimer = nullptr;
         qint64 lastActivityMs = 0;
 
@@ -92,19 +95,36 @@ private:
     };
 
     // -----------------------------------------------------------------------
-    // HTTP route handlers (called by QHttpServer routing)
-    // The MVC router expects responder as a non-const lvalue reference; we
-    // std::move() into heap storage from inside the handler.
-    // -----------------------------------------------------------------------
-    void handleSse(const QHttpServerRequest& request,
-                   QHttpServerResponder& responder);
-    void handleMessages(const QHttpServerRequest& request,
-                        QHttpServerResponder& responder);
-
-    // -----------------------------------------------------------------------
     // Internal helpers
     // -----------------------------------------------------------------------
-    Session* createSession(QHttpServerResponder&& responder);
+
+    /// Parse a raw HTTP request from the buffer. Returns true when a full
+    /// request (headers + body) has been received.
+    bool parseHttpRequest(QTcpSocket* socket, QByteArray& buffer,
+                          QByteArray& method, QByteArray& path,
+                          QMap<QByteArray, QByteArray>& headers,
+                          QByteArray& body);
+
+    /// Send a complete HTTP response on the socket.
+    void sendHttpResponse(QTcpSocket* socket,
+                          int statusCode,
+                          const QByteArray& statusText,
+                          const QList<QPair<QByteArray, QByteArray>>& extraHeaders,
+                          const QByteArray& body);
+
+    /// Send an HTTP error response.
+    void sendHttpError(QTcpSocket* socket,
+                       int statusCode,
+                       const QByteArray& statusText,
+                       const QByteArray& message);
+
+    /// Route a parsed HTTP request to the appropriate handler.
+    void handleSseRequest(QTcpSocket* socket);
+    void handleMessagesRequest(QTcpSocket* socket,
+                               const QString& sessionId,
+                               const QByteArray& body);
+
+    Session* createSession(QTcpSocket* socket);
     void cleanupSession(const QString& sessionId);
     void refreshSession(const QString& sessionId);
     void sweepStaleSessions();
@@ -115,19 +135,17 @@ private:
                       const QString& eventType,
                       const QJsonObject& data);
 
-    static void sendHttpError(QHttpServerResponder& responder,
-                              QHttpServerResponder::StatusCode status,
-                              const QByteArray& message);
-
     // -----------------------------------------------------------------------
     // Data members
     // -----------------------------------------------------------------------
     McpToolHandler* m_toolHandler;
 
-    QHttpServer*    m_httpServer  = nullptr;
     QTcpServer*     m_tcpServer   = nullptr;
 
     QMap<QString, Session*> m_sessions;
+
+    /// Per-socket read buffer for accumulating partial HTTP requests.
+    QMap<QTcpSocket*, QByteArray> m_readBuffers;
 
     QTimer* m_keepaliveTimer = nullptr;
     QTimer* m_cleanupTimer   = nullptr;
