@@ -40,7 +40,9 @@ if not defined QT_DIR (
 REM Set MinGW path (adjust if Qt is installed elsewhere)
 REM If the environment variable is already defined, keep it; otherwise use default
 if not defined MINGW_PATH set MINGW_PATH=E:\Qt\Tools\mingw1120_64
-if not defined CMAKE_PATH set CMAKE_PATH=E:\Qt\Tools\CMake_64\bin
+if not defined QT_MINGW_PATH set QT_MINGW_PATH=E:/Qt/Tools/mingw1120_64
+if not defined CMAKE_PATH set CMAKE_PATH=E:/Qt/Tools/CMake_64/bin
+if not defined MINGW_ROOT set MINGW_ROOT=E:/Qt/Tools/mingw1120_64
 
 REM Align with CI workflow: always prefer Qt-compatible MinGW 11.2.0 toolchain.
 if exist "E:\Qt\Tools\mingw1120_64\bin\gcc.exe" set MINGW_PATH=E:\Qt\Tools\mingw1120_64
@@ -184,7 +186,8 @@ cmake -B "%OUTPUT_DIR%" -S . -G "MinGW Makefiles" ^
     -DCMAKE_C_COMPILER=%CMAKE_C_COMPILER% ^
     -DCMAKE_CXX_COMPILER=%CMAKE_CXX_COMPILER% ^
     -DFFMPEG_PREFIX=%FFMPEG_PREFIX% ^
-    -DUSE_SHARED_FFMPEG=%CM_USE_SHARED_FFMPEG%
+    -DUSE_SHARED_FFMPEG=%CM_USE_SHARED_FFMPEG% ^
+    -DQT_MINGW_PATH=%QT_MINGW_PATH%
 
 if %errorlevel% neq 0 (
     echo CMake configuration failed!

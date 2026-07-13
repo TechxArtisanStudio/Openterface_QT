@@ -84,6 +84,11 @@ endif()
 include(cmake/SourceFiles.cmake)
 qt_add_executable(openterfaceQT WIN32 ${SOURCE_FILES})
 
+# Explicitly add Windows resource file with forward slash path
+if(WIN32)
+    target_sources(openterfaceQT PRIVATE "${CMAKE_SOURCE_DIR}/openterfaceQT.rc")
+endif()
+
 # Force static linking of compression libraries (must be done early)
 force_static_compression_libraries(openterfaceQT)
 
@@ -156,9 +161,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE hid setupapi cfgmgr32 ole32)
 
-    # Link compatibility libraries for FFmpeg static libs built with newer MinGW-w64
-    # These resolve 64-bit time functions and stack protector symbols
-    target_link_libraries(${PROJECT_NAME} PRIVATE ssp)
+    # Note: libssp is linked via FFmpeg.cmake's _FFMPEG_STATIC_DEPS
+    # Do NOT add -lssp here to avoid multiple definition conflicts
     target_link_options(${PROJECT_NAME} PRIVATE -fstack-protector-strong)
     target_compile_options(${PROJECT_NAME} PRIVATE -fstack-protector-strong)
 endif()
