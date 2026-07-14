@@ -19,6 +19,15 @@ extern "C" {
 #define SHIM_ATTR
 #endif
 
+/*
+ * Newer MinGW-w64 (>= 12.x) already declares clock_gettime64 / nanosleep64 /
+ * pthread_cond_timedwait64 in <pthread_time.h> and <pthread.h> with
+ * 'struct _timespec64*' parameters. Defining them again with 'struct timespec*'
+ * causes a conflicting-types error.
+ * Skip our shim when the system provides these functions.
+ */
+#if !defined(__MINGW64_VERSION_MAJOR) || (__MINGW64_VERSION_MAJOR < 12)
+
 SHIM_ATTR int clock_gettime64(int clock_id, struct timespec *ts) {
     return clock_gettime(clock_id, ts);
 }
@@ -35,6 +44,8 @@ SHIM_ATTR int pthread_cond_timedwait64(void *cond, void *mutex, const struct tim
     extern int pthread_cond_timedwait(void *cond, void *mutex, const struct timespec *abstime);
     return pthread_cond_timedwait(cond, mutex, abstime);
 }
+
+#endif /* __MINGW64_VERSION_MAJOR < 12 */
 
 #ifdef __cplusplus
 }
