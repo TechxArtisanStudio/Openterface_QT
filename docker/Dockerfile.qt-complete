@@ -14,7 +14,7 @@ ENV http_proxy=$http_proxy \
 WORKDIR ${BUILD_DIR}
 
 # Define modules to build (qtbase, qtshadertools, qtdeclarative already built in base image)
-ENV MODULES="qtmultimedia qtsvg qtserialport qttools"
+ENV MODULES="qtmultimedia qtsvg qtserialport qttools qthttpserver"
 ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
 ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
 
@@ -121,6 +121,23 @@ RUN echo "Building qttools..." && \
     ninja -j1 && \
     ninja install
 
+# Build qthttpserver
+RUN echo "Building qthttpserver..." && \
+    cd ${BUILD_DIR}/qthttpserver && \
+    mkdir -p build && \
+    cd build && \
+    PKG_CONFIG_PATH="${INSTALL_PREFIX}/lib/pkgconfig:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
+        .. && \
+    ninja -j1 && \
+    ninja install
+
 # Generate Qt6 pkg-config files for GStreamer detection
 RUN mkdir -p ${INSTALL_PREFIX}/lib/pkgconfig && \
     printf "prefix=/opt/Qt6\nexec_prefix=\${prefix}\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n\nName: Qt6Core\nDescription: Qt6 Core Library\nVersion: 6.6.3\nLibs: -L\${libdir} -lQt6Core\nCflags: -I\${includedir} -I\${includedir}/QtCore\n" > ${INSTALL_PREFIX}/lib/pkgconfig/Qt6Core.pc && \
@@ -140,7 +157,7 @@ RUN mkdir -p ${INSTALL_PREFIX}/bin && \
     echo 'echo "Qt version: $(${QT_DIR}/bin/qmake -query QT_VERSION)"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo 'echo "Qt installation prefix: $(${QT_DIR}/bin/qmake -query QT_INSTALL_PREFIX)"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo 'echo -e "\nChecking Qt modules:"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
-    echo 'MODULES="Core Widgets Gui Qml Quick QuickWidgets Multimedia MultimediaWidgets SerialPort Svg SvgWidgets OpenGL"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
+    echo 'MODULES="Core Widgets Gui Qml Quick QuickWidgets Multimedia MultimediaWidgets SerialPort Svg SvgWidgets OpenGL HttpServer"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo 'for module in $MODULES; do' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo '    if [ -f "${QT_DIR}/lib/libQt6${module}.a" ]; then' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \
     echo '        echo "✓ Qt${module} static library found"' >> ${INSTALL_PREFIX}/bin/verify-qt-installation.sh && \

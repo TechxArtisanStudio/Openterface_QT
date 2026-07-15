@@ -30,7 +30,7 @@ set QT_VERSION=6.6.3
 set QT_MAJOR_VERSION=6.6
 set INSTALL_PREFIX=C:\Qt6
 set BUILD_DIR=%cd%\qt-build
-set MODULES=qtbase qtshadertools qtmultimedia qtsvg qtserialport qttools
+set MODULES=qtbase qtshadertools qtmultimedia qtsvg qtserialport qttools qthttpserver
 set DOWNLOAD_BASE_URL=https://download.qt.io/archive/qt/%QT_MAJOR_VERSION%/%QT_VERSION%/submodules
 set VCPKG_DIR=D:\vcpkg
 

@@ -14,7 +14,7 @@ ENV http_proxy=$http_proxy \
 
 WORKDIR ${BUILD_DIR}
 
-ENV MODULES="qtmultimedia qtsvg qtserialport qttools"
+ENV MODULES="qtmultimedia qtsvg qtserialport qttools qthttpserver"
 ENV DOWNLOAD_BASE_URL="https://download.qt.io/archive/qt/${QT_MAJOR_VERSION}/${QT_VERSION}/submodules"
 ENV CMAKE_COMMON_FLAGS="-Wno-dev -DCMAKE_POLICY_DEFAULT_CMP0177=NEW -DCMAKE_POLICY_DEFAULT_CMP0174=NEW"
 
@@ -97,6 +97,22 @@ RUN echo "Building qttools..." && \
         -DFEATURE_lrelease=ON \
         -DFEATURE_designer=OFF \
         -DFEATURE_assistant=OFF \
+        .. && \
+    ninja -j$(nproc) && \
+    ninja install
+
+# Build qthttpserver
+RUN echo "Building qthttpserver..." && \
+    cd ${BUILD_DIR}/qthttpserver && \
+    mkdir -p build && \
+    cd build && \
+    cmake -GNinja \
+        ${CMAKE_COMMON_FLAGS} \
+        -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+        -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}" \
+        -DBUILD_SHARED_LIBS="${BUILD_SHARED_LIBS}" \
         .. && \
     ninja -j$(nproc) && \
     ninja install

@@ -62,6 +62,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(Qt6Required REQUIRED)
 
 # Find additional Qt components (Qt6Required already found Core, Widgets, Gui, Multimedia, SerialPort, Svg)
+# Note: HttpServer is NOT required — the SSE transport uses raw QTcpServer (Qt6::Network)
+# for Qt 6.5+ compatibility. See server/mcp/mcpSseTransport.h.
 find_package(Qt6 REQUIRED COMPONENTS Network OpenGL OpenGLWidgets Xml Concurrent DBus)
 
 find_package(Threads REQUIRED)
@@ -81,6 +83,11 @@ endif()
 # Include source files from modular file
 include(cmake/SourceFiles.cmake)
 qt_add_executable(openterfaceQT WIN32 ${SOURCE_FILES})
+
+# Explicitly add Windows resource file with forward slash path
+if(WIN32)
+    target_sources(openterfaceQT PRIVATE "${CMAKE_SOURCE_DIR}/openterfaceQT.rc")
+endif()
 
 # Force static linking of compression libraries (must be done early)
 force_static_compression_libraries(openterfaceQT)
@@ -139,15 +146,23 @@ if(OPENTERFACE_BUILD_STATIC)
     endforeach()
 endif()
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus Threads::Threads)
+# Qt6::HttpServer is optional (requires Qt 6.6.3+)
+set(QT_HTTPSERVER_LIB)
+if(TARGET Qt6::HttpServer)
+    set(QT_HTTPSERVER_LIB Qt6::HttpServer)
+    message(STATUS "Qt6::HttpServer found - enabling QHttpServer support")
+else()
+    message(STATUS "Qt6::HttpServer not found - using raw QTcpServer for Qt 6.5 compatibility")
+endif()
+
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus ${QT_HTTPSERVER_LIB} Threads::Threads)
 
 # Link Windows HID and SetupAPI libraries
 if(WIN32)
     target_link_libraries(${PROJECT_NAME} PRIVATE hid setupapi cfgmgr32 ole32)
 
-    # Link compatibility libraries for FFmpeg static libs built with newer MinGW-w64
-    # These resolve 64-bit time functions and stack protector symbols
-    target_link_libraries(${PROJECT_NAME} PRIVATE ssp)
+    # Note: libssp is linked via FFmpeg.cmake's _FFMPEG_STATIC_DEPS
+    # Do NOT add -lssp here to avoid multiple definition conflicts
     target_link_options(${PROJECT_NAME} PRIVATE -fstack-protector-strong)
     target_compile_options(${PROJECT_NAME} PRIVATE -fstack-protector-strong)
 endif()

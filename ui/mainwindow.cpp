@@ -24,6 +24,7 @@
 #include "global.h"
 #include "ui_mainwindow.h"
 #include "globalsetting.h"
+#include <QHostAddress>
 #include "floatingwindow/floatingwindow.h"
 #include <QTimer>
 #include "ui/statusbar/statusbarmanager.h"
@@ -182,28 +183,114 @@ void MainWindow::startServer(){
         stopServer();
         return;
     }
-    
+
     // 1. create and start TCP server
     tcpServer = new TcpServer(this);
     tcpServer->startServer(SERVER_PORT);
     tcpServer->setCameraManager(m_cameraManager);
-    
+
     connect(m_cameraManager, &CameraManager::lastImagePath, tcpServer, &TcpServer::handleImgPath);
     connect(tcpServer, &TcpServer::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     connect(this, &MainWindow::emitTCPCommandStatus, tcpServer, &TcpServer::recvTCPCommandStatus);
-    
+
     // 6. Mark server as running and update status indicator
     m_tcpServerRunning = true;
     if (m_statusBarManager) {
         m_statusBarManager->setStatusUpdate(QString("TCP Server running on port %1").arg(SERVER_PORT));
     }
-    
+
     // 7. Update menu action to show server is running
     if (ui->actionTCPServer) {
         ui->actionTCPServer->setChecked(true);
     }
-    
+
     qCDebug(log_ui_mainwindow) << "TCP Server started at port 12345 with auto image capture";
+}
+
+void MainWindow::initMcpServer()
+{
+    if (m_mcpServer) return;
+
+    m_mcpServer = new McpServer(this);
+    m_mcpServer->setCameraManager(m_cameraManager);
+    m_mcpServer->setScriptRunner(scriptRunner.get());
+    m_mcpServer->setScriptExecutor(scriptExecutor.get());
+
+    connect(m_mcpServer, &McpServer::logMessage, this, [this](const QString& msg) {
+        qCInfo(log_ui_mainwindow) << "[MCP]" << msg;
+    });
+
+    qCDebug(log_ui_mainwindow) << "MCP Server initialized";
+}
+
+void MainWindow::toggleMcpServer(bool enabled)
+{
+    if (!m_mcpServer) {
+        initMcpServer();
+    }
+
+    if (!m_mcpServer) return;
+
+    if (enabled) {
+        if (!m_mcpServer->isRunning()) {
+            m_mcpServer->startStdio();
+        }
+    } else {
+        if (m_mcpServer->isRunning()) {
+            m_mcpServer->stop();
+        }
+    }
+
+    if (m_statusBarManager) {
+        m_statusBarManager->setStatusUpdate(
+            QString("MCP Server %1").arg(m_mcpServer->isRunning() ? "running" : "stopped"));
+    }
+}
+
+void MainWindow::onMcpSettingsApplied()
+{
+    GlobalSetting &s = GlobalSetting::instance();
+
+    // Ensure the MCP server instance exists
+    if (!m_mcpServer) {
+        initMcpServer();
+    }
+    if (!m_mcpServer) return;
+
+    // Stop all running transports
+    if (m_mcpServer->isRunning()) {
+        m_mcpServer->stop();
+    }
+    if (m_mcpServer->isSseRunning()) {
+        m_mcpServer->stopSse();
+    }
+
+    // Restart if enabled
+    if (s.getMcpEnabled()) {
+        QString transport = s.getMcpTransport();
+        bool ok = false;
+
+        if (transport == QLatin1String("stdio")) {
+            ok = m_mcpServer->startStdio();
+        } else if (transport == QLatin1String("sse")) {
+            QHostAddress addr(s.getMcpSseBindAddress());
+            ok = m_mcpServer->startSse(static_cast<quint16>(s.getMcpSsePort()), addr);
+        }
+
+        if (m_statusBarManager) {
+            if (ok) {
+                m_statusBarManager->setStatusUpdate(
+                    QString("MCP %1 started").arg(transport.toUpper()));
+            } else {
+                m_statusBarManager->setStatusUpdate(
+                    QString("MCP %1 failed to start").arg(transport.toUpper()));
+            }
+        }
+    } else {
+        if (m_statusBarManager) {
+            m_statusBarManager->setStatusUpdate("MCP Server disabled");
+        }
+    }
 }
 
 void MainWindow::stopServer(){
@@ -739,6 +826,9 @@ void MainWindow::configureSettings() {
         });
         m_statusBarManager->setHideKeyboardInput(GlobalSetting::instance().getHideKeyboardInput());
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
+        // MCP settings — restart server with new config
+        McpPage* mcpPage = settingDialog->getMcpPage();
+        connect(mcpPage, &McpPage::mcpSettingsChanged, this, &MainWindow::onMcpSettingsApplied);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingDialog, &QDialog::finished, this, [this](){
             settingDialog->deleteLater();

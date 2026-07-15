@@ -37,6 +37,17 @@
 #include <QEventLoop>
 #include <QThread>
 #include <QObject>
+#include <QFile>
+#include <QFileInfo>
+#include <QTimer>
+#include <cstdio>
+
+// Stdio MCP transport support (headless mode for Claude Code)
+#include "server/mcp/mcpServer.h"
+#include "device/DeviceManager.h"
+#include "serial/SerialPortManager.h"
+#include "host/cameramanager.h"
+#include "video/videohid.h"
 
 
 #ifdef Q_OS_WIN
@@ -70,7 +81,6 @@ QAtomicInteger<int> g_applicationShuttingDown(0);
 #include <glib.h>  // For GLib log handling
 #endif
 
-#include <unistd.h>
 #include <unistd.h>
 
 void writeLog(const QString &message){
@@ -252,6 +262,9 @@ int main(int argc, char *argv[])
 
     // Parse command-line arguments early
     bool skipEnvironmentCheck = false;
+    bool autoStartMcp = false;
+    bool mcpStdioMode = false;
+    int mcpSsePort = 0;  // 0 = disabled
     QString overrideBackend;
     bool listBackends = false;
 
@@ -260,12 +273,245 @@ int main(int argc, char *argv[])
         if (arg == "--skip-env-check") {
             skipEnvironmentCheck = true;
             qWarning() << "Skip environment check flag detected";
+        } else if (strcmp(argv[i], "--mcp-start") == 0) {
+            autoStartMcp = true;
+            qWarning() << "Auto-start MCP Server flag detected";
+        } else if (strcmp(argv[i], "--mcp-stdio") == 0) {
+            mcpStdioMode = true;
+            qWarning() << "MCP stdio transport mode detected";
+        } else if (strcmp(argv[i], "--mcp-sse-port") == 0) {
+            if (i + 1 >= argc) {
+                qCritical() << "--mcp-sse-port requires a port number argument";
+                return 1;
+            }
+            mcpSsePort = atoi(argv[++i]);
+            if (mcpSsePort <= 0 || mcpSsePort > 65535) {
+                qCritical() << "Invalid --mcp-sse-port value:" << argv[i];
+                return 1;
+            }
+            qWarning() << "MCP SSE transport on port" << mcpSsePort;
         } else if (arg == "--backend" && i + 1 < argc) {
             overrideBackend = QString::fromUtf8(argv[++i]);
             qInfo() << "Override media backend from command line:" << overrideBackend;
         } else if (arg == "--list-backends") {
             listBackends = true;
         }
+    }
+
+    // MCP headless mode: if --mcp-stdio or --mcp-sse-port, run a minimal Qt event
+    // loop with the MCP server — no MainWindow, no GUI window.
+    // We use QApplication (not QCoreApplication) because KeyboardManager calls
+    // QInputMethod::locale() which requires GUI initialization.
+    // We use the offscreen platform so no real display is needed.
+    bool mcpHeadlessMode = !autoStartMcp && (mcpStdioMode || (mcpSsePort > 0));
+    if (mcpHeadlessMode) {
+        // Use offscreen platform — provides QInputMethod without needing a real display
+        qputenv("QT_QPA_PLATFORM", "offscreen");
+
+        // Redirect all logging to stderr so we can see what's happening
+        qputenv("QT_LOGGING_RULES", "*.debug=true");
+
+        QApplication app(argc, argv);
+        qInfo() << "Starting MCP server in stdio transport mode (offscreen)...";
+
+        // Load keyboard layouts — required by KeyboardManager (used by MCP tools)
+        qInfo() << "Loading keyboard layouts for stdio mode...";
+        KeyboardLayoutManager::getInstance().loadLayouts(":/config/keyboards");
+        qInfo() << "Keyboard layouts loaded";
+
+        // Create CameraManager on the heap — must outlive McpServer so capture_screen works.
+        // Parented to &app for automatic cleanup on exit.
+        CameraManager* cameraManager = new CameraManager(&app);
+        qInfo() << "CameraManager created for stdio mode";
+
+        // Start VideoHid — required to initialize the video chip (MS2109/MS2130S) HID
+        // interface so the HDMI input is routed to the USB capture device. Without this,
+        // the capture device produces valid but black frames. GUI mode does the same in
+        // MainWindowInitializer::deferredInitializeCamera().
+        fprintf(stderr, "[DEBUG] Starting VideoHid...\n");
+        fprintf(stderr, "[DEBUG] Current port chain: '%s'\n",
+                GlobalSetting::instance().getOpenterfacePortChain().toUtf8().constData());
+        VideoHid::getInstance().start();
+        fprintf(stderr, "[DEBUG] VideoHid started, HID device opened: %s\n",
+                VideoHid::getInstance().isOpen() ? "yes" : "no");
+        fprintf(stderr, "[DEBUG] VideoHid currentHIDDevicePath: '%s'\n",
+                VideoHid::getInstance().getCurrentHIDDevicePath().toUtf8().constData());
+        // Check HDMI connection status
+        QThread::msleep(200);  // Brief delay for HID to stabilize
+        bool hdmiConnected = VideoHid::getInstance().isHdmiConnected();
+        fprintf(stderr, "[DEBUG] HDMI connected: %s\n", hdmiConnected ? "yes" : "no");
+
+        // Read input resolution from MS2109
+        auto resolution = VideoHid::getInstance().getResolution();
+        fprintf(stderr, "[DEBUG] MS2109 detected input resolution: %dx%d\n", resolution.first, resolution.second);
+
+        fprintf(stderr, "[DEBUG] GPIO0 (hard switch): %s\n",
+                VideoHid::getInstance().getGpio0() ? "target" : "host");
+        fprintf(stderr, "[DEBUG] SPDIFOUT (soft switch): %s\n",
+                VideoHid::getInstance().getSpdifout() ? "target" : "host");
+        QString fw = QString::fromStdString(VideoHid::getInstance().getFirmwareVersion());
+        fprintf(stderr, "[DEBUG] Firmware version: %s\n", fw.toUtf8().constData());
+
+        // CRITICAL: Explicitly set the SPDIFOUT register in stdio mode.
+        // GUI mode does this via setupEventCallbacks() -> VideoHid::setEventCallback(m_mainWindow)
+        // which triggers setSpdifout() in the async firmware read block. Without this,
+        // the MS2109 chip may not output valid video.
+        fprintf(stderr, "[DEBUG] Explicitly setting SPDIFOUT register...\n");
+        bool spdifout = VideoHid::getInstance().getSpdifout();
+        fprintf(stderr, "[DEBUG] Current SPDIFOUT=%d\n", spdifout ? 1 : 0);
+        VideoHid::getInstance().setSpdifout(spdifout);
+        fprintf(stderr, "[DEBUG] SPDIFOUT register set\n");
+        QThread::msleep(100);
+
+        qInfo() << "VideoHid started";
+
+        // Discover and connect to device hardware
+        qInfo() << "Discovering Openterface devices...";
+        QList<DeviceInfo> devices = DeviceManager::getInstance().discoverDevices();
+        fprintf(stderr, "[DEBUG] Discovered %d devices\n", devices.size());
+        if (!devices.isEmpty()) {
+            qInfo() << "Found" << devices.size() << "device(s)";
+            DeviceInfo device = devices.first();
+            fprintf(stderr, "[DEBUG] First device: portChain='%s', hidDevicePath='%s', cameraDevicePath='%s'\n",
+                    device.portChain.toUtf8().constData(),
+                    device.hidDevicePath.toUtf8().constData(),
+                    device.cameraDevicePath.toUtf8().constData());
+            qInfo() << "Switching to device:" << device.getInterfaceSummary();
+            auto result = DeviceManager::getInstance().switchToDeviceByPortChainWithCamera(
+                device.portChain, cameraManager);
+            fprintf(stderr, "[DEBUG] switchToDeviceByPortChainWithCamera result: success=%d, message='%s'\n",
+                    result.success, result.statusMessage.toUtf8().constData());
+            if (result.success) {
+                qInfo() << "Device connected successfully:" << result.statusMessage;
+            } else {
+                qWarning() << "Device connection issue:" << result.statusMessage;
+            }
+
+            // Wait a bit for camera to initialize
+            QThread::msleep(1000);
+            fprintf(stderr, "[DEBUG] Checking if camera has frames...\n");
+            QImage testFrame = cameraManager->getLatestOriginalFrame();
+            fprintf(stderr, "[DEBUG] Test frame: isNull=%d, size=%dx%d\n",
+                    testFrame.isNull(), testFrame.width(), testFrame.height());
+
+            // Wait for serial port to be ready (it's initialized asynchronously)
+            qInfo() << "Waiting for serial port to initialize...";
+            QEventLoop waitLoop;
+            QTimer timeoutTimer;
+            timeoutTimer.setSingleShot(true);
+            bool serialReady = false;
+
+            QObject::connect(&SerialPortManager::getInstance(), &SerialPortManager::serialPortConnectionSuccess,
+                           &waitLoop, [&waitLoop, &serialReady]() {
+                               qInfo() << "Serial port is ready!";
+                               serialReady = true;
+                               waitLoop.quit();
+                           });
+
+            QObject::connect(&timeoutTimer, &QTimer::timeout, &waitLoop, [&waitLoop]() {
+                qWarning() << "Timeout waiting for serial port";
+                waitLoop.quit();
+            });
+
+            timeoutTimer.start(5000); // 5 second timeout
+            waitLoop.exec();
+            timeoutTimer.stop();
+
+            if (!serialReady) {
+                qWarning() << "Serial port did not become ready within timeout";
+            } else {
+                // Verify device is responsive by sending CMD_GET_INFO
+                qInfo() << "Verifying device responsiveness...";
+                QByteArray testCmd = QByteArray::fromHex("57 ab 00 01 00");
+                bool deviceReady = false;
+
+                for (int attempt = 0; attempt < 3; attempt++) {
+                    SerialPortManager::getInstance().sendCommandAsync(testCmd, false);
+                    QThread::msleep(200);  // Wait for response
+
+                    // Check if we got a response (device sets ready flag)
+                    if (SerialPortManager::getInstance().isPortReady()) {
+                        qInfo() << "Device is responsive (attempt" << (attempt + 1) << ")";
+                        deviceReady = true;
+                        break;
+                    }
+                    qWarning() << "Device not responsive, retrying... (attempt" << (attempt + 1) << ")";
+                }
+
+                if (!deviceReady) {
+                    qWarning() << "WARNING: Device did not respond to verification command";
+                    qWarning() << "Commands may not work. Check device connection and firmware.";
+                }
+            }
+        } else {
+            qWarning() << "No Openterface devices found - trying direct serial port access...";
+
+            // Fallback: try to open /dev/ttyACM0 directly for CH32V208 devices when
+            // the companion device (1A86:E329) is not recognized by the device discovery.
+            QString directPort = "/dev/ttyACM0";
+            if (QFile::exists(directPort)) {
+                qInfo() << "Found serial port at" << directPort << "- opening directly";
+                bool opened = SerialPortManager::getInstance().openPort(directPort, 115200);
+                if (opened) {
+                    qInfo() << "Serial port opened successfully";
+                    // Force ready state for serial port and command coordinator
+                    // since openPort alone doesn't emit serialPortConnectionSuccess
+                    Q_EMIT SerialPortManager::getInstance().serialPortConnectionSuccess(directPort);
+                    // Give it a moment to process
+                    QThread::msleep(500);
+                } else {
+                    qWarning() << "Failed to open serial port directly";
+                }
+            } else {
+                qWarning() << "No serial port found at /dev/ttyACM0";
+            }
+        }
+
+        // Wait for camera to produce its first frame (FFmpeg backend starts async)
+        qInfo() << "Waiting for camera to produce first frame...";
+        {
+            int maxWaitMs = 5000;
+            int waitedMs = 0;
+            while (waitedMs < maxWaitMs && cameraManager->getLatestOriginalFrame().isNull()) {
+                QThread::msleep(200);
+                waitedMs += 200;
+                QCoreApplication::processEvents();
+            }
+            if (cameraManager->getLatestOriginalFrame().isNull()) {
+                qWarning() << "Camera did not produce a frame within" << maxWaitMs << "ms";
+                qWarning() << "capture_screen tool may return errors until a frame is available";
+            } else {
+                QImage frame = cameraManager->getLatestOriginalFrame();
+                qInfo() << "Camera ready! First frame:" << frame.width() << "x" << frame.height();
+            }
+        }
+
+        McpServer* mcpServer = new McpServer(&app);
+        mcpServer->setCameraManager(cameraManager);
+
+        // Start stdio transport if requested
+        if (mcpStdioMode) {
+            if (!mcpServer->startStdio()) {
+                qCritical() << "Failed to start MCP stdio transport";
+                return 1;
+            }
+        }
+
+        // Start SSE transport if requested
+        if (mcpSsePort > 0) {
+            if (!mcpServer->startSse(static_cast<quint16>(mcpSsePort))) {
+                qCritical() << "Failed to start MCP SSE transport on port" << mcpSsePort;
+                return 1;
+            }
+        }
+
+        // Run forever; the only exit path is stdin EOF (handled by stop()) or
+        // process termination.
+        int result = app.exec();
+
+        // Clean up the MCP server
+        delete mcpServer;
+        return result;
     }
 
     // List available backends and exit
@@ -280,7 +526,6 @@ int main(int argc, char *argv[])
         printf("  qt              - Qt Multimedia backend\n");
         return 0;
     }
-    
     setupEnv();
     
     qInfo() << "Creating QApplication...";
@@ -384,6 +629,62 @@ int main(int argc, char *argv[])
         window->deferredInitializeCamera();
         qInfo() << "Camera and audio initialization started";
     });
+
+    // Auto-start MCP Server if --mcp-start flag is present
+    if (autoStartMcp) {
+        // Capture port for the lambda (use 0 to indicate SSE disabled)
+        int capturedSsePort = mcpSsePort;
+        // Wait longer for camera initialization to complete before starting MCP server
+        // Camera initialization happens in deferredInitializeCamera (150ms delay)
+        // and may take additional time for device auto-selection and capture start
+        QTimer::singleShot(1500, window, [window, capturedSsePort]() {
+            qInfo() << "Auto-starting MCP Server (--mcp-start)...";
+            
+            // Wait for camera frame to be available (similar to headless mode)
+            const int maxWaitMs = 5000;  // 5 seconds timeout
+            const int pollIntervalMs = 200;
+            int waitedMs = 0;
+            
+            qInfo() << "Waiting for camera frame to be available...";
+            
+            while (waitedMs < maxWaitMs) {
+                // Check if camera has frame
+                if (window->getCameraManager() && 
+                    !window->getCameraManager()->getLatestOriginalFrame().isNull()) {
+                    QImage frame = window->getCameraManager()->getLatestOriginalFrame();
+                    qInfo() << "Camera ready! First frame:" << frame.width() << "x" << frame.height();
+                    break;
+                }
+                
+                QThread::msleep(pollIntervalMs);
+                waitedMs += pollIntervalMs;
+                QCoreApplication::processEvents();
+            }
+            
+            if (waitedMs >= maxWaitMs) {
+                qWarning() << "Timeout waiting for camera frame (" << maxWaitMs << "ms)";
+                qWarning() << "MCP server will start, but capture_screen may return errors initially";
+            }
+            
+            // Now initialize MCP server
+            window->initMcpServer();
+
+            if (capturedSsePort > 0) {
+                // Start SSE transport on specified port
+                qInfo() << "Starting MCP SSE on port" << capturedSsePort;
+                bool ok = window->getMcpServer()->startSse(
+                    static_cast<quint16>(capturedSsePort), QHostAddress::Any);
+                if (ok) {
+                    qInfo() << "MCP SSE server started successfully";
+                } else {
+                    qWarning() << "Failed to start MCP SSE server";
+                }
+            } else {
+                // Default to stdio transport
+                window->toggleMcpServer(true);
+            }
+        });
+    }
     
     // Initialize GStreamer before Qt application
     #ifdef HAVE_GSTREAMER

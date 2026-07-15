@@ -160,6 +160,11 @@ set(SERIAL_SOURCES
 set(SERVER_SOURCES
     server/tcpServer.cpp server/tcpServer.h
     server/tcpResponse.cpp server/tcpResponse.h
+    server/mcp/mcpServer.cpp server/mcp/mcpServer.h
+    server/mcp/mcpProtocol.cpp server/mcp/mcpProtocol.h
+    server/mcp/mcpToolHandler.cpp server/mcp/mcpToolHandler.h
+    server/mcp/mcpConstants.h
+    server/mcp/mcpSseTransport.cpp server/mcp/mcpSseTransport.h
 )
 
 # Target sources
@@ -306,6 +311,7 @@ set(UI_PREFERENCES_SOURCES
     ui/preferences/logpage.cpp ui/preferences/logpage.h
     ui/preferences/videopage.cpp ui/preferences/videopage.h
     ui/preferences/audiopage.cpp ui/preferences/audiopage.h
+    ui/preferences/mcppage.cpp ui/preferences/mcppage.h
     ui/preferences/targetcontrolpage.cpp ui/preferences/targetcontrolpage.h
 )
 

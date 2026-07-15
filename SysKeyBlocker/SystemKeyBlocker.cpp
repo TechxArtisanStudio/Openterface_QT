@@ -198,6 +198,19 @@ int SystemKeyBlocker::nativeToQtKey(quint32 nativeVk, bool /*extended*/) const
     case VK_PAUSE:    return Qt::Key_Pause;
     case VK_CLEAR:    return Qt::Key_Clear;
 
+    // Symbol keys (OEM keys)
+    case VK_OEM_1:      return Qt::Key_Semicolon;      // ;:
+    case VK_OEM_PLUS:   return Qt::Key_Plus;           // =+
+    case VK_OEM_COMMA:  return Qt::Key_Comma;          // ,<
+    case VK_OEM_MINUS:  return Qt::Key_Minus;          // -_
+    case VK_OEM_PERIOD: return Qt::Key_Period;         // .>
+    case VK_OEM_2:      return Qt::Key_Slash;          // /?
+    case VK_OEM_3:      return Qt::Key_QuoteLeft;      // `~
+    case VK_OEM_4:      return Qt::Key_BracketLeft;    // [{
+    case VK_OEM_5:      return Qt::Key_Backslash;      // \|
+    case VK_OEM_6:      return Qt::Key_BracketRight;   // ]}
+    case VK_OEM_7:      return Qt::Key_Apostrophe;     // '"
+
     default:
         // For alphabetic and numeric keys the VK code directly maps
         // to the ASCII char, which Qt::Key uses for A-Z / 0-9.

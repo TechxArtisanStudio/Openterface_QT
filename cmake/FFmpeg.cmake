@@ -19,13 +19,40 @@ if(WIN32 AND NOT DEFINED MINGW_ROOT)
     message(STATUS "Using MINGW_ROOT: ${MINGW_ROOT}")
 endif()
 
+# Set Qt MinGW path for finding static libraries like libssp
+if(WIN32 AND NOT DEFINED QT_MINGW_PATH)
+    # Try to read from environment variable first
+    if(DEFINED ENV{QT_MINGW_PATH})
+        set(QT_MINGW_PATH "$ENV{QT_MINGW_PATH}" CACHE PATH "Qt MinGW installation path")
+    endif()
+    # Try to find Qt's MinGW installation
+    if(EXISTS "E:/Qt/Tools/mingw1120_64")
+        set(QT_MINGW_PATH "E:/Qt/Tools/mingw1120_64" CACHE PATH "Qt MinGW installation path")
+    elseif(EXISTS "C:/Qt/Tools/mingw1120_64")
+        set(QT_MINGW_PATH "C:/Qt/Tools/mingw1120_64" CACHE PATH "Qt MinGW installation path")
+    endif()
+    if(DEFINED QT_MINGW_PATH)
+        message(STATUS "Using QT_MINGW_PATH: ${QT_MINGW_PATH}")
+    endif()
+endif()
+
 # Initialize FFmpeg configuration variables
 set(FFMPEG_PKG_CONFIG ${USE_SHARED_FFMPEG})
 
 # Set ZLIB_LIBRARY for static zlib
 if(NOT ZLIB_LIBRARY)
     if(DEFINED MINGW_ROOT AND WIN32)
-        set(ZLIB_LIBRARY "${MINGW_ROOT}/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
+        # Check if zlib exists in MINGW_ROOT
+        if(EXISTS "${MINGW_ROOT}/lib/libz.a")
+            set(ZLIB_LIBRARY "${MINGW_ROOT}/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
+        else()
+            # Fallback to MSYS2 path
+            if(OPENTERFACE_IS_ARM64)
+                set(ZLIB_LIBRARY "C:/msys64/clangarm64/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
+            else()
+                set(ZLIB_LIBRARY "C:/msys64/mingw64/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
+            endif()
+        endif()
     elseif(WIN32)
         if(OPENTERFACE_IS_ARM64)
             set(ZLIB_LIBRARY "C:/msys64/clangarm64/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
@@ -792,14 +819,15 @@ function(link_ffmpeg_libraries)
                 # else()
                 #     message(WARNING "libz.a not found - compression may not work properly")
                 # endif()
-                
-                # Add stack protection library LAST (required by MSYS2-compiled libraries)
-                # Use full path to static library to avoid linking to DLL
+
+                # Find and link libssp.a (static stack protector)
+                # Required to avoid multiple definition of __stack_chk_fail
                 # Try multiple possible locations for libssp.a
                 set(SSP_PATHS
-                    "E:/Qt/Tools/mingw1120_64/lib/gcc/x86_64-w64-mingw32/11.2.0/libssp.a"
-                    "E:/Qt/Tools/mingw1120_64/x86_64-w64-mingw32/lib/libssp.a"
-                    "${MINGW_PATH}/lib/gcc/x86_64-w64-mingw32/11.2.0/libssp.a"
+                    "${QT_MINGW_PATH}/lib/gcc/x86_64-w64-mingw32/11.2.0/libssp.a"
+                    "${QT_MINGW_PATH}/x86_64-w64-mingw32/lib/libssp.a"
+                    "${MINGW_ROOT}/lib/gcc/x86_64-w64-mingw32/11.2.0/libssp.a"
+                    "${MINGW_ROOT}/x86_64-w64-mingw32/lib/libssp.a"
                 )
                 foreach(SSP_PATH ${SSP_PATHS})
                     if(EXISTS "${SSP_PATH}")
@@ -808,7 +836,7 @@ function(link_ffmpeg_libraries)
                         break()
                     endif()
                 endforeach()
-                
+
             else()
                 # Linux-specific FFmpeg dependencies
                 set(_FFMPEG_STATIC_DEPS

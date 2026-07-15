@@ -185,7 +185,7 @@ RUN mkdir -p /opt/verify && \
     echo 'echo "Qt plugin path: $(qmake -query QT_INSTALL_PLUGINS)"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'echo -e "\nChecking Qt 6.6.3 source-built libraries:"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'QT_LIB_PATH="/opt/qt6.6.3/lib"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'MODULES="Core Widgets Gui Multimedia MultimediaWidgets SerialPort Svg SvgWidgets"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'MODULES="Core Widgets Gui Multimedia MultimediaWidgets SerialPort Svg SvgWidgets HttpServer"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'for module in $MODULES; do' >> /opt/verify/verify-qt-shared.sh && \
     echo '    if [ -f "${QT_LIB_PATH}/libQt6${module}.so" ]; then' >> /opt/verify/verify-qt-shared.sh && \
     echo '        echo "✓ Qt6${module} library found"' >> /opt/verify/verify-qt-shared.sh && \
@@ -213,7 +213,7 @@ RUN mkdir -p /opt/verify && \
     echo '    echo "⚠️  Qt6 plugins directory not found at ${QT_PLUGIN_DIR}"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'fi' >> /opt/verify/verify-qt-shared.sh && \
     echo 'echo -e "\nChecking pkg-config modules for Qt 6.6.3:"' >> /opt/verify/verify-qt-shared.sh && \
-    echo 'PKG_MODULES="Qt6Core Qt6Widgets Qt6Gui Qt6Multimedia Qt6SerialPort Qt6Svg"' >> /opt/verify/verify-qt-shared.sh && \
+    echo 'PKG_MODULES="Qt6Core Qt6Widgets Qt6Gui Qt6Multimedia Qt6SerialPort Qt6Svg Qt6HttpServer"' >> /opt/verify/verify-qt-shared.sh && \
     echo 'for module in $PKG_MODULES; do' >> /opt/verify/verify-qt-shared.sh && \
     echo '    if pkg-config --exists "$module"; then' >> /opt/verify/verify-qt-shared.sh && \
     echo '        version=$(pkg-config --modversion "$module")' >> /opt/verify/verify-qt-shared.sh && \

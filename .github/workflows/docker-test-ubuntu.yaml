@@ -1196,8 +1196,9 @@ jobs:
               qt6-multimedia-dev \
               qt6-serialport-dev \
               qt6-svg-dev \
+              libqt6httpserver-dev \
               qmake6 \
-              pkg-config 
+              pkg-config
             
             # Install multimedia libraries
             echo "📦 Installing multimedia libraries..."

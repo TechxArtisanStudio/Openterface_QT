@@ -119,18 +119,8 @@ qt_add_resources(openterfaceQT "customkeys"
         --compress 2
 )
 
-set(qmake_immediate_resource_files
-    "openterfaceQT.rc"
-)
-
-qt_add_resources(openterfaceQT "qmake_immediate"
-    PREFIX
-        "/"
-    FILES
-        ${qmake_immediate_resource_files}
-    OPTIONS
-        --compress 2
-)
+# Windows resource file is handled separately in CMakeLists.txt via target_sources
+# It should NOT be added as a Qt resource
 
 set(app_icons_resource_files
     "images/icon_128.png"
