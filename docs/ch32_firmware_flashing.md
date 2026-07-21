@@ -23,7 +23,7 @@ The CH32V208 is a WCH (WCH-IC) USB-serial/HID controller. Openterface provides a
 
 ## When to Flash
 
-- You downloaded a new firmware release from the [Releases page](https://github.com/TechxArtisanStudio/Openterface_QT/releases)
+- You downloaded a new firmware release from the [Openterface_KM Releases page](https://github.com/TechxArtisanStudio/Openterface_KM/releases)
 - A developer asked you to flash a test/debug firmware
 - Your KeyMod is in a broken state and needs a firmware recovery
 

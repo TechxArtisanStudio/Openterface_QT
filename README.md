@@ -271,7 +271,7 @@ If you need to flash or update the firmware on the CH32V208 controller chip of y
 
 | Step | Action | Details |
 |------|--------|---------|
-| 1️⃣ | **Download firmware** | Get the `.hex` or `.bin` file from [Releases](https://github.com/TechxArtisanStudio/Openterface_QT/releases) |
+| 1️⃣ | **Download firmware** | Get the firmware from [Openterface_KM Releases](https://github.com/TechxArtisanStudio/Openterface_KM/releases) |
 | 2️⃣ | **Enter ISP mode** | ⚠️ **Unplug KeyMod → Hold BOOT button → Plug in USB → Release BOOT** |
 | 3️⃣ | **Open flash tool** | In the app: **Menu → Advanced → WCH ISP Flash** |
 | 4️⃣ | **Scan & Connect** | Click **Scan Devices**, select your device, click **Connect** |
