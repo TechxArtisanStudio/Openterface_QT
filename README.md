@@ -28,6 +28,7 @@ Openterface Mini-KVM is a **compact KVM (Keyboard-Video-Mouse) switch** that let
   - [Linux](#linux-installation)
 - [Build from Source](#build-from-source)
 - [Development](#development)
+- [Firmware Flashing (CH32 KeyMod)](#firmware-flashing-ch32-keymod)
 - [Troubleshooting](#troubleshooting)
 - [Support & Community](#support--community)
 - [License](#license)
@@ -204,6 +205,8 @@ openterfaceQT
 
 > **Note:** You may need to log out and log back in for group permissions to take effect.
 
+> 💡 **Permission issues?** See the [Linux Permission Access Guide](https://github.com/TechxArtisanStudio/Openterface_QT/wiki/Linux-permission-access) on our Wiki for detailed troubleshooting of device permissions.
+
 ---
 
 ## Build from Source
@@ -258,6 +261,34 @@ For detailed contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
+## Firmware Flashing (CH32 KeyMod)
+
+If you need to flash or update the firmware on the CH32V208 controller chip of your KeyMod, Openterface provides a built-in **WCH ISP Flash Tool** — no external programmer needed.
+
+> **📖 Full guide:** [docs/ch32_firmware_flashing.md](docs/ch32_firmware_flashing.md)
+
+### Quick Steps
+
+| Step | Action | Details |
+|------|--------|---------|
+| 1️⃣ | **Download firmware** | Get the firmware from [Openterface_KM Releases](https://github.com/TechxArtisanStudio/Openterface_KM/releases) |
+| 2️⃣ | **Enter ISP mode** | ⚠️ **Unplug KeyMod → Hold BOOT button → Plug in USB → Release BOOT** |
+| 3️⃣ | **Open flash tool** | In the app: **Menu → Advanced → WCH ISP Flash** |
+| 4️⃣ | **Scan & Connect** | Click **Scan Devices**, select your device, click **Connect** |
+| 5️⃣ | **Select firmware** | Click **Browse...** and choose the firmware file |
+| 6️⃣ | **Flash** | Click **Flash, Verify & Reset** and wait for completion |
+| 7️⃣ | **Reconnect** | Unplug and re-plug the KeyMod normally (no BOOT button needed) |
+
+> ⚠️ **Important:** You **MUST** hold the BOOT button on the KeyMod **before** plugging it into the computer to enter ISP/bootloader mode. Otherwise the flash tool will not detect the device.
+
+### Supported Chips
+
+| Chip | VID:PID (Normal) | VID:PID (ISP Mode) |
+|------|-------------------|---------------------|
+| **CH32V208** | `1A86:FE0C` | `1A86:55E0` / `4348:55E0` |
+
+---
+
 ## Troubleshooting
 
 ### Keyboard and Mouse Not Responding
@@ -284,7 +315,7 @@ For detailed contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
    sudo modprobe ch341
    ```
 4. Unplug and reconnect the device
-5. If still not working, check permissions using the [Linux Installation - Manual](#option-3-manual-installation) section
+5. If still not working, check permissions using the [Linux Installation - Manual](#option-3-manual-installation) section or see the [Linux Permission Access Guide](https://github.com/TechxArtisanStudio/Openterface_QT/wiki/Linux-permission-access) on our Wiki
 
 ### Other Issues
 
