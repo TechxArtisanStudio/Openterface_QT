@@ -27,6 +27,7 @@ jobs:
           name: openterfaceQT.windows.amd.installer.unsigned
           path: artifacts/windows
           if-no-files-found: error
+          retention-days: 30
 
       - name: Submit installer signing request
         uses: signpath/github-action-submit-signing-request@v1.2
@@ -46,3 +47,4 @@ jobs:
         with:
           name: openterfaceQT.windows.amd.installer
           path: artifacts/windows/signed/openterfaceQT.windows.amd64.installer.exe
+          retention-days: 30

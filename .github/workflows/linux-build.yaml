@@ -156,6 +156,7 @@ jobs:
           name: openterfaceQT_linux_amd64.deb
           path: ${{ runner.temp }}/build-shared/openterfaceQT_*.deb
           if-no-files-found: error
+          retention-days: 30
 
       - name: Upload shared .AppImage
         uses: actions/upload-artifact@v4
@@ -163,6 +164,7 @@ jobs:
           name: openterfaceQT_linux_amd64.AppImage
           path: ${{ runner.temp }}/build-shared/openterfaceQT_*.AppImage
           if-no-files-found: error
+          retention-days: 30
 
       - name: Upload shared .rpm
         uses: actions/upload-artifact@v4
@@ -170,6 +172,7 @@ jobs:
           name: openterfaceQT_linux_amd64.rpm
           path: ${{ runner.temp }}/build-shared/openterfaceQT_*.rpm
           if-no-files-found: error
+          retention-days: 30
 
   build-static:
     if: false
