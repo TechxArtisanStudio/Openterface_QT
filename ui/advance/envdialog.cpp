@@ -293,7 +293,8 @@ void EnvironmentSetupDialog::accept()
     if(!isDriverInstalled)
         installDriverForWindows();
     #elif defined(__linux__)
-        // Check the current status
+    if (!isDriverInstalled) {
+        // Only prompt for restart if driver was not installed (user needed to install CH340 driver)
         QString statusSummary;
         statusSummary += tr("Driver Installed: ") + QString(isDriverInstalled ? tr("Yes") : tr("No")) + "\n";
         statusSummary += tr("Serial port Permission: ") + QString(isSerialPermission ? tr("Yes") : tr("No")) + "\n";
@@ -318,6 +319,9 @@ void EnvironmentSetupDialog::accept()
                 tr("Please remember to restart your computer and re-plug the device for the driver to work properly.")
             );
         }
+    }
+    // If isDriverInstalled is true (e.g., CH32V208 detected, or ch341 module already loaded),
+    // no restart prompt needed — just close the dialog.
     #endif
     // Call the base class accept method to close the dialog
 
@@ -819,7 +823,8 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
     deviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
     WCHAR hwIdBuffer[256];
     bool captureCardFound = false;
-    bool ch341Found = false;
+    bool ch340Found = false;   // CH9329/CH340 - VID_1A86&PID_7523, requires CH340 driver
+    bool ch32Found = false;    // CH32V208    - VID_1A86&PID_FE0C, does NOT require CH340 driver
 
     for (DWORD i = 0; SetupDiEnumDeviceInfo(deviceInfoSet, i, &deviceInfoData); i++) {
         if (SetupDiGetDeviceRegistryPropertyW(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL,
@@ -829,21 +834,33 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
                 wcsstr(hwIdBuffer, L"USB\\VID_345F&PID_2132") != NULL) {
                 captureCardFound = true;
             }
-            if (wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_7523") != NULL ||
-                wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_CH32V208") != NULL) {
-                ch341Found = true;
+            if (wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_7523") != NULL) {
+                ch340Found = true;
+            }
+            if (wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_FE0C") != NULL) {
+                ch32Found = true;
             }
         }
     }
 
     SetupDiDestroyDeviceInfoList(deviceInfoSet);
 
-    if (!captureCardFound && !ch341Found) {
+    qDebug() << "checkDriverInstalled: captureCardFound=" << captureCardFound
+             << "ch340Found=" << ch340Found << "ch32Found=" << ch32Found;
+
+    // CH32V208 (VID_1A86&PID_FE0C) uses its own driver, no CH340 driver needed
+    if (ch32Found) {
+        qDebug() << "CH32V208 detected (PID_FE0C) - CH340 driver not required";
+        isDriverInstalled = true;
+        return true;
+    }
+
+    if (!captureCardFound && !ch340Found) {
         qDebug() << "Neither device found - skipping driver check";
         return true;
     }
-    if (captureCardFound && !ch341Found) {
-        qDebug() << "Capture card found but CH341 missing - need driver";
+    if (captureCardFound && !ch340Found) {
+        qDebug() << "Capture card found but CH340 (PID_7523) missing - need CH340 driver";
         return false;
     }
     qDebug() << "Devices properly detected";
@@ -853,7 +870,38 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
     // Log the start of the driver check
     qDebug() << "Checking if driver is installed on Linux.";
 
-    // If the device file does not exist, check using cat /proc/modules
+    // First, check if only CH32V208 (VID_1A86, PID_FE0C) is present — it does NOT need the CH340 driver.
+    // CH32 uses a different driver (cdc_acm or ch34x), not ch341.
+    {
+        bool ch32Only = false;
+        bool ch340Present = false;
+        if (context != nullptr) {
+            libusb_device **list = nullptr;
+            ssize_t count = libusb_get_device_list(context, &list);
+            if (count >= 0 && list != nullptr) {
+                for (ssize_t i = 0; i < count; i++) {
+                    libusb_device_descriptor desc;
+                    if (libusb_get_device_descriptor(list[i], &desc) == 0) {
+                        if (desc.idVendor == 0x1A86 && desc.idProduct == 0xFE0C) {
+                            ch32Only = true;
+                        }
+                        if (desc.idVendor == 0x1A86 && desc.idProduct == 0x7523) {
+                            ch340Present = true;
+                        }
+                    }
+                }
+                libusb_free_device_list(list, 1);
+            }
+        }
+        // If CH32 is present but CH340 is not, skip the ch341 driver check entirely
+        if (ch32Only && !ch340Present) {
+            qDebug() << "CH32V208 detected (1A86:FE0C) without CH340 (1A86:7523) — CH340 driver not required";
+            isDriverInstalled = true;
+            return true;
+        }
+    }
+
+    // Check if the ch341 driver module is loaded (required for CH340/CH9329)
     std::string command = "cat /proc/modules | grep 'ch341'";
     int result = system(command.c_str());
     if (result == 0) {
