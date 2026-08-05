@@ -59,6 +59,21 @@ FirmwarePage::~FirmwarePage()
 
 void FirmwarePage::setupUI()
 {
+    // Primary button — orange accent, works on both light and dark themes
+    const QString primaryButtonStyle = R"(
+        QPushButton {
+            background-color: #e8841a;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 14px;
+            color: white;
+            font-weight: bold;
+        }
+        QPushButton:hover { background-color: #d4761a; }
+        QPushButton:pressed { background-color: #c06818; }
+        QPushButton:disabled { background-color: #b89060; color: #eeeeee; }
+    )";
+
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->setSpacing(15);
     mainLayout->setContentsMargins(20, 20, 20, 20);
@@ -93,6 +108,7 @@ void FirmwarePage::setupUI()
 
     QHBoxLayout *cancelLayout = new QHBoxLayout();
     cancelLayout->addStretch();
+    // Secondary buttons (cancel/backup/write) use global QPushButton stylesheet from main.cpp
     cancelButton = new QPushButton(tr("Cancel"), this);
     cancelButton->setFixedSize(80, 30);
     connect(cancelButton, &QPushButton::clicked, this, &FirmwarePage::onCancelClicked);
@@ -110,8 +126,9 @@ void FirmwarePage::setupUI()
     QHBoxLayout *buttonLayout = new QHBoxLayout();
     buttonLayout->setSpacing(15);
 
-    updateButton = new QPushButton(tr("Check for Updates and Install"), this);
+    updateButton = new QPushButton(tr("Firmware Update from Remote"), this);
     updateButton->setToolTip(tr("Check the network for the latest firmware version and install it"));
+    updateButton->setStyleSheet(primaryButtonStyle);
     connect(updateButton, &QPushButton::clicked, this, &FirmwarePage::onCheckForUpdatesClicked);
     buttonLayout->addWidget(updateButton);
 
