@@ -76,6 +76,8 @@ AdvancedSettingsDialog::AdvancedSettingsDialog(QWidget *parent)
         settingTree->setCurrentItem(settingTree->topLevelItem(0));
         m_currentPageIndex = 0;
         stackedWidget->setCurrentIndex(0);
+        // Hide OK/Apply/Cancel buttons on Firmware page
+        buttonWidget->setVisible(false);
     }
 }
 
@@ -168,6 +170,9 @@ void AdvancedSettingsDialog::changePage(QTreeWidgetItem *current, QTreeWidgetIte
 
         stackedWidget->setCurrentIndex(newPageIndex);
         m_currentPageIndex = newPageIndex;
+
+        // Show OK/Apply/Cancel buttons only on MCP page
+        buttonWidget->setVisible(newPageIndex == 1);
 
         m_pageChangeTimer->start(200);
     }
