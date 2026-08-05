@@ -35,6 +35,7 @@
 #include "device/DeviceManager.h"
 #include "device/HotplugMonitor.h"
 #include "ui/preferences/settingdialog.h"
+#include "ui/preferences/mcppage.h"
 #include "ui/help/helppane.h"
 #include "ui/videopane.h"
 #include "video/videohid.h"
@@ -826,9 +827,6 @@ void MainWindow::configureSettings() {
         });
         m_statusBarManager->setHideKeyboardInput(GlobalSetting::instance().getHideKeyboardInput());
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
-        // MCP settings — restart server with new config
-        McpPage* mcpPage = settingDialog->getMcpPage();
-        connect(mcpPage, &McpPage::mcpSettingsChanged, this, &MainWindow::onMcpSettingsApplied);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingDialog, &QDialog::finished, this, [this](){
             settingDialog->deleteLater();
@@ -838,6 +836,27 @@ void MainWindow::configureSettings() {
     }else{
         settingDialog->raise();
         settingDialog->activateWindow();
+    }
+}
+
+void MainWindow::configureAdvancedSettings() {
+    qCDebug(log_ui_mainwindow) << "configureAdvancedSettings";
+    if (!advancedSettingsDialog) {
+        qCDebug(log_ui_mainwindow) << "Creating advanced settings dialog";
+        advancedSettingsDialog = new AdvancedSettingsDialog(this);
+
+        // MCP settings — restart server with new config
+        McpPage* mcpPage = advancedSettingsDialog->getMcpPage();
+        connect(mcpPage, &McpPage::mcpSettingsChanged, this, &MainWindow::onMcpSettingsApplied);
+
+        connect(advancedSettingsDialog, &QDialog::finished, this, [this]() {
+            advancedSettingsDialog->deleteLater();
+            advancedSettingsDialog = nullptr;
+        });
+        advancedSettingsDialog->show();
+    } else {
+        advancedSettingsDialog->raise();
+        advancedSettingsDialog->activateWindow();
     }
 }
 

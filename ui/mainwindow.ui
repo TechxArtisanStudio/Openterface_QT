@@ -138,6 +138,8 @@
     <addaction name="actionRenameDisplay"/>
     <addaction name="actionWCHFlash"/>
     <addaction name="actionKeyboardMapEditor"/>
+    <addaction name="separator"/>
+    <addaction name="actionAdvancedSettings"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -350,6 +352,14 @@
    </property>
    <property name="toolTip">
     <string>Create and edit custom keyboard layouts to correct key mapping issues</string>
+   </property>
+  </action>
+  <action name="actionAdvancedSettings">
+   <property name="text">
+    <string>Settings</string>
+   </property>
+   <property name="toolTip">
+    <string>Configure advanced settings (MCP server, etc.)</string>
    </property>
   </action>
   <actiongroup name="actionGroup">
@@ -661,6 +671,12 @@
    <receiver>MainWindow</receiver>
    <slot>openKeyboardMapEditor()</slot>
   </connection>
+  <connection>
+   <sender>actionAdvancedSettings</sender>
+   <signal>triggered()</signal>
+   <receiver>MainWindow</receiver>
+   <slot>configureAdvancedSettings()</slot>
+  </connection>
  </connections>
  <slots>
   <slot>record()</slot>
@@ -690,5 +706,6 @@
   <slot>showUpdateDisplaySettingsDialog()</slot>
   <slot>showWCHFlashDialog()</slot>
   <slot>openKeyboardMapEditor()</slot>
+  <slot>configureAdvancedSettings()</slot>
  </slots>
 </ui>

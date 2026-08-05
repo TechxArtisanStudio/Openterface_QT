@@ -20,87 +20,55 @@
 * ========================================================================== *
 */
 
-#include "settingdialog.h"
-#include "ui_settingdialog.h"
-#include "logpage.h"
-#include "targetcontrolpage.h"
-#include "videopage.h"
-#include "host/cameramanager.h"
+#include "advancedsettingsdialog.h"
+#include "mcppage.h"
 
-#include <QCamera>
-#include <QCameraDevice>
-#include <QCameraFormat>
-#include <QComboBox>
 #include <QDialogButtonBox>
-#include <QDir>
-#include <QFileDialog>
 #include <QHBoxLayout>
-#include <QLabel>
 #include <QPushButton>
-#include <QCheckBox>
-#include <QRegularExpression>
-#include <QToolButton>
-#include <QTreeWidget>
-#include <QTreeWidgetItem>
-#include <QStackedWidget>
 #include <QScrollArea>
 #include <QSplitter>
+#include <QStackedWidget>
+#include <QTimer>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
+#include <QVBoxLayout>
 #include <QDebug>
-#include <QLoggingCategory>
-#include <QSettings>
-#include <QElapsedTimer>
-#include <qtimer.h>
-#include <QList>
-#include <QSerialPortInfo>
-#include <QLineEdit>
-#include <QByteArray>
 
 
-SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
+AdvancedSettingsDialog::AdvancedSettingsDialog(QWidget *parent)
     : QDialog(parent)
-    , ui(new Ui::SettingDialog)
-    , m_cameraManager(cameraManager)
     , settingTree(new QTreeWidget(this))
     , stackedWidget(new QStackedWidget(this))
-    , logPage(new LogPage(this))
-    , audioPage(new AudioPage(this))
-    , videoPage(new VideoPage(cameraManager, this))
-    , targetControlPage(new TargetControlPage(this))
+    , mcpPage(new McpPage(this))
     , buttonWidget(new QWidget(this))
     , m_currentPageIndex(-1)
     , m_changingPage(false)
     , m_pageChangeTimer(new QTimer(this))
-
 {
-    ui->setupUi(this);
     createSettingTree();
     createPages();
     createButtons();
     createLayout();
 
-    // Set dialog size and allow free resizing
     resize(800, 600);
 
-    // Set initial splitter sizes: 4/27 tree (~15%), 23/27 content
     QList<int> sizes;
     int totalWidth = width();
     sizes << totalWidth * 4 / 27 << totalWidth * 23 / 27;
     splitter->setSizes(sizes);
 
-    setWindowTitle(tr("Preferences"));
-    logPage->initLogSettings();
-    videoPage->initVideoSettings();
-    targetControlPage->initHardwareSetting();
-    // Connect the tree widget's currentItemChanged signal to a slot
-    connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
-    
-    // Connect timer to reset the changing page flag
+    setWindowTitle(tr("Advanced Settings"));
+
+    mcpPage->initMcpSettings();
+
+    connect(settingTree, &QTreeWidget::currentItemChanged, this, &AdvancedSettingsDialog::changePage);
+
     connect(m_pageChangeTimer, &QTimer::timeout, this, [this]() {
         m_changingPage = false;
         m_pageChangeTimer->stop();
     });
-    
-    // Set initial page to General (index 0)
+
     if (settingTree->topLevelItemCount() > 0) {
         settingTree->setCurrentItem(settingTree->topLevelItem(0));
         m_currentPageIndex = 0;
@@ -108,30 +76,24 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     }
 }
 
-SettingDialog::~SettingDialog()
+AdvancedSettingsDialog::~AdvancedSettingsDialog()
 {
-    delete ui;
 }
 
-void SettingDialog::createSettingTree() {
-    // qDebug() << "creating setting Tree";
+void AdvancedSettingsDialog::createSettingTree() {
     settingTree->setColumnCount(1);
     settingTree->setHeaderHidden(true);
     settingTree->setSelectionMode(QAbstractItemView::SingleSelection);
-
     settingTree->setRootIsDecorated(false);
 
-    // QStringList names = {"Log"};
-    QStringList names = {tr("General"), tr("Video"), tr("Audio"), tr("Target Control")};
-    for (const QString &name : names) {     // add item to setting tree
+    QStringList names = {tr("MCP")};
+    for (const QString &name : names) {
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
     }
 }
 
-
-void SettingDialog::createPages() {
-    // Wrap each page in a QScrollArea so content can scroll both vertically and horizontally
+void AdvancedSettingsDialog::createPages() {
     auto addScrollablePage = [this](QWidget *page) {
         QScrollArea *scrollArea = new QScrollArea(this);
         scrollArea->setWidget(page);
@@ -141,13 +103,10 @@ void SettingDialog::createPages() {
         stackedWidget->addWidget(scrollArea);
     };
 
-    addScrollablePage(logPage);
-    addScrollablePage(videoPage);
-    addScrollablePage(audioPage);
-    addScrollablePage(targetControlPage);
+    addScrollablePage(mcpPage);
 }
 
-void SettingDialog::createButtons(){
+void AdvancedSettingsDialog::createButtons() {
     QPushButton *okButton = new QPushButton(tr("OK"));
     QPushButton *applyButton = new QPushButton(tr("Apply"));
     QPushButton *cancelButton = new QPushButton(tr("Cancel"));
@@ -162,13 +121,12 @@ void SettingDialog::createButtons(){
     buttonLayout->addWidget(applyButton);
     buttonLayout->addWidget(cancelButton);
 
-    connect(okButton, &QPushButton::clicked, this, &SettingDialog::handleOkButton);
+    connect(okButton, &QPushButton::clicked, this, &AdvancedSettingsDialog::handleOkButton);
     connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
-    connect(applyButton, &QPushButton::clicked, this, &SettingDialog::applyAccrodingPage);
+    connect(applyButton, &QPushButton::clicked, this, &AdvancedSettingsDialog::applyAccordingPage);
 }
 
-void SettingDialog::createLayout() {
-    qDebug() << "createLayout";
+void AdvancedSettingsDialog::createLayout() {
     splitter = new QSplitter(Qt::Horizontal, this);
     splitter->addWidget(settingTree);
     splitter->addWidget(stackedWidget);
@@ -182,9 +140,7 @@ void SettingDialog::createLayout() {
     setLayout(mainLayout);
 }
 
-void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous) {
-
-    // If we're already changing pages, ignore this call
+void AdvancedSettingsDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous) {
     if (m_changingPage) {
         return;
     }
@@ -193,70 +149,40 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
         current = previous;
         if (!current) return;
     }
-    
+
     QString itemText = current->text(0);
     int newPageIndex = -1;
 
-    if (itemText == tr("General")) {
+    if (itemText == tr("MCP")) {
         newPageIndex = 0;
-    } else if (itemText == tr("Video")) {
-        newPageIndex = 1;
-    } else if (itemText == tr("Audio")) {
-        newPageIndex = 2;
-    } else if (itemText == tr("Target Control")) {
-        newPageIndex = 3;
     }
 
-    // Only switch page if it's different from the current page
     if (newPageIndex != -1 && newPageIndex != m_currentPageIndex) {
-        m_changingPage = true;  // Set guard
-        
+        m_changingPage = true;
+
         stackedWidget->setCurrentIndex(newPageIndex);
         m_currentPageIndex = newPageIndex;
-        
-        // Start timer to reset the guard after a short delay (200ms)
-        // This prevents rapid clicking while allowing the UI to remain responsive
+
         m_pageChangeTimer->start(200);
     }
-
 }
 
-void SettingDialog::applyAccrodingPage(){
+void AdvancedSettingsDialog::applyAccordingPage() {
     int currentPageIndex = stackedWidget->currentIndex();
-    switch (currentPageIndex)
-    {
-    // sequence Log Video Audio TargetControl
+    switch (currentPageIndex) {
     case 0:
-        logPage->applyLogsettings();
-        break;
-    case 1:
-        videoPage->applyVideoSettings();
-        break;
-    case 2:
-        break;
-    case 3:
-        targetControlPage->applyHardwareSetting();
+        mcpPage->applyMcpSettings();
         break;
     default:
         break;
     }
 }
 
-void SettingDialog::handleOkButton() {
-    logPage->applyLogsettings();
-    videoPage->applyVideoSettings();
-    targetControlPage->applyHardwareSetting();
+void AdvancedSettingsDialog::handleOkButton() {
+    mcpPage->applyMcpSettings();
     accept();
 }
 
-TargetControlPage* SettingDialog::getTargetControlPage() {
-    return targetControlPage;
-}
-
-VideoPage* SettingDialog::getVideoPage() {
-    return videoPage;
-}
-
-LogPage* SettingDialog::getLogPage() {
-    return logPage;
+McpPage* AdvancedSettingsDialog::getMcpPage() {
+    return mcpPage;
 }

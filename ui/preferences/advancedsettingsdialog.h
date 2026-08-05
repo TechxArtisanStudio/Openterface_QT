@@ -20,64 +20,32 @@
 * ========================================================================== *
 */
 
-#ifndef SETTINGDIALOG_H
-#define SETTINGDIALOG_H
+#ifndef ADVANCEDSETTINGSDIALOG_H
+#define ADVANCEDSETTINGSDIALOG_H
 
 #include <QDialog>
-#include <QCamera>
-#include <QMediaFormat>
-#include <QCameraDevice>
-#include <QWidget>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QStackedWidget>
-#include <QMediaDevices>
-#include <QByteArray>
-#include <QMap>
-#include <QCheckBox>
-#include <QLineEdit>
-#include <QByteArray>
-#include "host/cameramanager.h"
-#include "logpage.h"
-#include "targetcontrolpage.h"
-#include "videopage.h"
-#include "audiopage.h"
-QT_BEGIN_NAMESPACE
-class QCameraFormat;
-class QComboBox;
-class QCamera;
-class QSplitter;
-namespace Ui {
-class SettingDialog;
-}
-QT_END_NAMESPACE
+#include <QWidget>
+#include <QSplitter>
+#include <QTimer>
+#include "mcppage.h"
 
-class SettingDialog : public QDialog
+class AdvancedSettingsDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    // Change the constructor to accept CameraManager instead of QCamera
-    explicit SettingDialog(CameraManager *cameraManager, QWidget *parent = nullptr);
-    ~SettingDialog();
-    TargetControlPage* getTargetControlPage();
-    VideoPage* getVideoPage();
+    explicit AdvancedSettingsDialog(QWidget *parent = nullptr);
+    ~AdvancedSettingsDialog();
 
-    LogPage* getLogPage();
+    McpPage* getMcpPage();
 
-// signals:
-//     // void serialSettingsApplied();
-    
 private:
-
-    Ui::SettingDialog *ui;
-    CameraManager *m_cameraManager;
     QTreeWidget *settingTree;
     QStackedWidget *stackedWidget;
-    LogPage *logPage;
-    QWidget *audioPage;
-    VideoPage *videoPage;
-    TargetControlPage *targetControlPage;
+    McpPage *mcpPage;
 
     QWidget *buttonWidget;
     QSplitter *splitter;
@@ -88,11 +56,11 @@ private:
     void createSettingTree();
     void createLayout();
     void createPages();
-    
+
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
     void createButtons();
-    void applyAccrodingPage();
+    void applyAccordingPage();
     void handleOkButton();
 };
 
-#endif // SETTINGDIALOG_H
+#endif // ADVANCEDSETTINGSDIALOG_H
