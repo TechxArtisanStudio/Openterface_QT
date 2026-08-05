@@ -927,6 +927,7 @@ jobs:
           name: openterface-gui-screenshots-fedora-${{ matrix.install_type }}-collection
           path: screenshots-fedora/
           if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload individual screenshots as artifacts (Fedora)
         if: always()
@@ -935,6 +936,7 @@ jobs:
           name: openterface-gui-screenshots-fedora-${{ matrix.install_type }}-individual
           path: /tmp/individual_screenshots_fedora/
           if-no-files-found: warn
+          retention-days: 30
 
       - name: Manage Qiniu bucket - Keep max 50 recent images (Fedora)
         if: always()
@@ -1305,6 +1307,7 @@ jobs:
           name: openterface-build-from-source-test
           path: build-artifacts/
           if-no-files-found: warn
+          retention-days: 30
 
       - name: Display screenshots in summary (build-from-source)
         if: always()
@@ -1479,6 +1482,7 @@ jobs:
           name: openterface-gui-screenshots-build-from-source-collection
           path: screenshots-build-from-source/
           if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload individual screenshots as artifacts (build-from-source)
         if: always()
@@ -1487,6 +1491,7 @@ jobs:
           name: openterface-gui-screenshots-build-from-source-individual
           path: /tmp/individual_screenshots_build_from_source/
           if-no-files-found: warn
+          retention-days: 30
 
       - name: Manage Qiniu bucket - Keep max 50 recent images (build-from-source)
         if: always()

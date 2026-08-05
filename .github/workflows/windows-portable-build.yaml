@@ -708,3 +708,4 @@ jobs:
         with:
           name: openterfaceQT-portable.exe
           path: build/openterfaceQT-portable.exe
+          retention-days: 30
