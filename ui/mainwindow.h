@@ -41,7 +41,6 @@
 #include "ui/recording/recordingcontroller.h"
 #include "ui/advance/DeviceSelectorDialog.h"
 #include "ui/advance/scripttool.h"
-#include "ui/advance/firmwaremanagerdialog.h"
 #include "ui/advance/updatedisplaysettingsdialog.h"
 #include "ui/advance/devicediagnosticsdialog.h"
 #include "ui/advance/wchflash/WCHFlashDialog.h"
@@ -228,15 +227,11 @@ private slots:
 
     void showEnvironmentSetupDialog();
 
-    void showFirmwareManagerDialog();
-
     void showWCHFlashDialog();
 
     void showUpdateDisplaySettingsDialog();
 
     void showHardwareDiagnostics();
-
-    void updateFirmware(); 
 
     void onRepeatingKeystrokeChanged(int index);
 
@@ -324,7 +319,6 @@ private:
     RecordingController *m_recordingController = nullptr;
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
     DeviceSelectorDialog *deviceSelectorDialog = nullptr;
-    FirmwareManagerDialog *firmwareManagerDialog = nullptr;
     UpdateDisplaySettingsDialog *updateDisplaySettingsDialog = nullptr;
     WCHFlashDialog *wchFlashDialog = nullptr;
 

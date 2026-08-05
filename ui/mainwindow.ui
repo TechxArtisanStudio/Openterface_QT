@@ -133,8 +133,6 @@
     <addaction name="actionRecordingSettings"/>
     <addaction name="actionTCPServer"/>
     <addaction name="actionDeviceSelector"/>
-    <addaction name="actionFirmwareManager"/>
-    <addaction name="actionUpdateFirmware"/>
     <addaction name="actionRenameDisplay"/>
     <addaction name="actionWCHFlash"/>
     <addaction name="actionKeyboardMapEditor"/>
@@ -298,19 +296,6 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+E</string>
-   </property>
-  </action>
-  <action name="actionFirmwareManager">
-   <property name="text">
-    <string>Firmware Manager</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+Shift+F</string>
-   </property>
-  </action>
-  <action name="actionUpdateFirmware">
-   <property name="text">
-    <string>Firmware Update...</string>
    </property>
   </action>
   <action name="actionDeviceSelector">
@@ -636,18 +621,6 @@
    <slot>showEnvironmentSetupDialog()</slot>
   </connection>
   <connection>
-   <sender>actionFirmwareManager</sender>
-   <signal>triggered()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>showFirmwareManagerDialog()</slot>
-  </connection>
-  <connection>
-   <sender>actionUpdateFirmware</sender>
-   <signal>triggered()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>updateFirmware()</slot>
-  </connection>
-  <connection>
    <sender>actionDeviceSelector</sender>
    <signal>triggered()</signal>
    <receiver>MainWindow</receiver>
@@ -700,8 +673,6 @@
   <slot>showScriptTool()</slot>
   <slot>changeKeyboardLayout(QString)</slot>
   <slot>showEnvironmentSetupDialog()</slot>
-  <slot>showFirmwareManagerDialog()</slot>
-  <slot>updateFirmware()</slot>
   <slot>openDeviceSelector()</slot>
   <slot>showUpdateDisplaySettingsDialog()</slot>
   <slot>showWCHFlashDialog()</slot>

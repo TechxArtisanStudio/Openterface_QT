@@ -22,6 +22,7 @@
 
 #include "advancedsettingsdialog.h"
 #include "mcppage.h"
+#include "firmwarepage.h"
 
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
@@ -40,6 +41,7 @@ AdvancedSettingsDialog::AdvancedSettingsDialog(QWidget *parent)
     : QDialog(parent)
     , settingTree(new QTreeWidget(this))
     , stackedWidget(new QStackedWidget(this))
+    , firmwarePage(new FirmwarePage(this))
     , mcpPage(new McpPage(this))
     , buttonWidget(new QWidget(this))
     , m_currentPageIndex(-1)
@@ -60,6 +62,7 @@ AdvancedSettingsDialog::AdvancedSettingsDialog(QWidget *parent)
 
     setWindowTitle(tr("Advanced Settings"));
 
+    firmwarePage->updateVersionDisplay();
     mcpPage->initMcpSettings();
 
     connect(settingTree, &QTreeWidget::currentItemChanged, this, &AdvancedSettingsDialog::changePage);
@@ -86,7 +89,7 @@ void AdvancedSettingsDialog::createSettingTree() {
     settingTree->setSelectionMode(QAbstractItemView::SingleSelection);
     settingTree->setRootIsDecorated(false);
 
-    QStringList names = {tr("MCP")};
+    QStringList names = {tr("Firmware"), tr("MCP")};
     for (const QString &name : names) {
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
@@ -103,6 +106,7 @@ void AdvancedSettingsDialog::createPages() {
         stackedWidget->addWidget(scrollArea);
     };
 
+    addScrollablePage(firmwarePage);
     addScrollablePage(mcpPage);
 }
 
@@ -153,8 +157,10 @@ void AdvancedSettingsDialog::changePage(QTreeWidgetItem *current, QTreeWidgetIte
     QString itemText = current->text(0);
     int newPageIndex = -1;
 
-    if (itemText == tr("MCP")) {
+    if (itemText == tr("Firmware")) {
         newPageIndex = 0;
+    } else if (itemText == tr("MCP")) {
+        newPageIndex = 1;
     }
 
     if (newPageIndex != -1 && newPageIndex != m_currentPageIndex) {
@@ -170,7 +176,9 @@ void AdvancedSettingsDialog::changePage(QTreeWidgetItem *current, QTreeWidgetIte
 void AdvancedSettingsDialog::applyAccordingPage() {
     int currentPageIndex = stackedWidget->currentIndex();
     switch (currentPageIndex) {
-    case 0:
+    case 0: // Firmware - no apply action needed
+        break;
+    case 1:
         mcpPage->applyMcpSettings();
         break;
     default:
@@ -185,4 +193,8 @@ void AdvancedSettingsDialog::handleOkButton() {
 
 McpPage* AdvancedSettingsDialog::getMcpPage() {
     return mcpPage;
+}
+
+FirmwarePage* AdvancedSettingsDialog::getFirmwarePage() {
+    return firmwarePage;
 }

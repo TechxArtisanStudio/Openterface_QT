@@ -20,50 +20,62 @@
 * ========================================================================== *
 */
 
-#ifndef ADVANCEDSETTINGSDIALOG_H
-#define ADVANCEDSETTINGSDIALOG_H
+#ifndef FIRMWAREPAGE_H
+#define FIRMWAREPAGE_H
 
-#include <QDialog>
-#include <QTreeWidget>
-#include <QTreeWidgetItem>
-#include <QStackedWidget>
 #include <QWidget>
-#include <QSplitter>
-#include <QTimer>
-#include "mcppage.h"
-#include "firmwarepage.h"
+#include <QLabel>
+#include <QPushButton>
+#include <QProgressBar>
+#include <QGroupBox>
+#include <QThread>
 
-class AdvancedSettingsDialog : public QDialog
+class FirmwarePage : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit AdvancedSettingsDialog(QWidget *parent = nullptr);
-    ~AdvancedSettingsDialog();
+    explicit FirmwarePage(QWidget *parent = nullptr);
+    ~FirmwarePage();
 
-    McpPage* getMcpPage();
-    FirmwarePage* getFirmwarePage();
+    void updateVersionDisplay();
+
+signals:
+    void firmwareUpdateCompleted();
+
+private slots:
+    void onCheckForUpdatesClicked();
+    void onBackupFirmwareClicked();
+    void onWriteFirmwareClicked();
+    void onProgressUpdate(int value);
+    void onOperationComplete(bool success);
+    void onCancelClicked();
+    void onLatestVersionFetched();
 
 private:
-    QTreeWidget *settingTree;
-    QStackedWidget *stackedWidget;
-    FirmwarePage *firmwarePage;
-    McpPage *mcpPage;
+    enum OperationType { None, Update, Backup, Write };
 
-    QWidget *buttonWidget;
-    QSplitter *splitter;
-    int m_currentPageIndex;
-    bool m_changingPage;
-    QTimer *m_pageChangeTimer;
+    // UI components
+    QLabel *versionLabel;
+    QLabel *latestVersionLabel;
+    QPushButton *updateButton;
+    QPushButton *backupButton;
+    QPushButton *writeButton;
+    QProgressBar *progressBar;
+    QLabel *statusLabel;
+    QPushButton *cancelButton;
 
-    void createSettingTree();
-    void createLayout();
-    void createPages();
+    // State
+    OperationType currentOperation;
+    QThread *workerThread;
 
-    void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
-    void createButtons();
-    void applyAccordingPage();
-    void handleOkButton();
+    void setupUI();
+    void startOperation(OperationType type);
+    void finishOperation(bool success);
+    void fetchLatestVersionAsync();
+    QByteArray readBinFileToByteArray(const QString &filePath);
+    QString selectFirmwareFile();
+    QString selectSavePath();
 };
 
-#endif // ADVANCEDSETTINGSDIALOG_H
+#endif // FIRMWAREPAGE_H

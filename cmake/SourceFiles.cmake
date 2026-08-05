@@ -230,8 +230,6 @@ set(UI_ADVANCE_SOURCES
     ui/advance/devicediagnosticsdialog.cpp ui/advance/devicediagnosticsdialog.h
     ui/advance/diagnostics/diagnosticsmanager.cpp ui/advance/diagnostics/diagnosticsmanager.h ui/advance/diagnostics/diagnostics_constants.h ui/advance/diagnostics/LogWriter.cpp ui/advance/diagnostics/LogWriter.h ui/advance/diagnostics/SupportEmailDialog.cpp ui/advance/diagnostics/SupportEmailDialog.h
     ui/advance/envdialog.cpp ui/advance/envdialog.h ui/advance/envdialog.ui
-    ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
-    ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h
     ui/advance/renamedisplaydialog.cpp ui/advance/renamedisplaydialog.h
     ui/advance/updatedisplaysettingsdialog.cpp ui/advance/updatedisplaysettingsdialog.h
     ui/advance/edid/edidutils.cpp ui/advance/edid/edidutils.h
@@ -309,6 +307,7 @@ set(UI_PREFERENCES_SOURCES
     ui/preferences/fpsspinbox.cpp ui/preferences/fpsspinbox.h
     ui/preferences/settingdialog.cpp ui/preferences/settingdialog.h ui/preferences/settingdialog.ui
     ui/preferences/advancedsettingsdialog.cpp ui/preferences/advancedsettingsdialog.h
+    ui/preferences/firmwarepage.cpp ui/preferences/firmwarepage.h
     ui/preferences/logpage.cpp ui/preferences/logpage.h
     ui/preferences/videopage.cpp ui/preferences/videopage.h
     ui/preferences/audiopage.cpp ui/preferences/audiopage.h
