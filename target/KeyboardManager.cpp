@@ -170,7 +170,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
                           << "Layout has" << currentLayout.keyMap.size() << "mappings";
 
     // Log modifier key detection
-    if(isModiferKeys(keyCode) || keyCode == Qt::Key_Meta){
+    if(isModiferKeys(keyCode)){
         qCDebug(log_keyboard) << "Entering modifier branch for keyCode:" << keyCode << "nativeVK:" << QString::number(nativeVirtualKey, 16)
                               << "isKeyDown:" << isKeyDown;
     }
@@ -334,7 +334,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     qCDebug(log_keyboard) << "Current layout name:" << currentLayout.name;
     qCDebug(log_keyboard) << "Layout has" << currentLayout.keyMap.size() << "mappings";
 
-    if(isModiferKeys(keyCode) || keyCode == Qt::Key_Meta){
+    if(isModiferKeys(keyCode)){
         qCDebug(log_keyboard) << "Entering modifier branch for keyCode:" << keyCode << "nativeVK:" << QString::number(nativeVirtualKey, 16);
         // Reset mappedKeyCode to ensure X11 fallback logic can execute
         mappedKeyCode = 0;
@@ -467,10 +467,6 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
                 mappedKeyCode = 0xE6;
                 if (isKeyDown) currentModifiers |= 0x40; else currentModifiers &= ~0x40;
                 combinedModifiers = isKeyDown ? 0x40 : 0x00;
-            } else if(keyCode == Qt::Key_Meta){ // Windows/GUI key
-                mappedKeyCode = 0xE3; // left GUI (default, since we can't distinguish L/R without native VK)
-                if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
-                combinedModifiers = isKeyDown ? 0x08 : 0x00;
             } else if (nativeVirtualKey == 0) {
                 // Fallback for MCP and other direct calls where nativeVirtualKey is not available
                 // Use the keyCode itself to determine the modifier
@@ -496,13 +492,35 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
                         combinedModifiers = isKeyDown ? 0x04 : 0x00;
                         qCDebug(log_keyboard) << "MCP/direct Alt detected, using left alt 0xE2";
                     }
-                } else if (keyCode == Qt::Key_Meta) {
-                    mappedKeyCode = 0xE3; // left GUI
-                    if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
-                    combinedModifiers = isKeyDown ? 0x08 : 0x00;
-                    qCDebug(log_keyboard) << "MCP/direct Meta detected, using left GUI 0xE3";
                 }
             }
+        }
+    } else if (keyCode == Qt::Key_Meta) {
+        // ---- GUI / Win key handling ----
+        // Unlike Shift/Ctrl/Alt, the GUI key (HID usage 0xE3-0xE7) MUST appear
+        // in the keycode array of the HID report, not just the modifier byte.
+        // We handle it as a "regular" key that also sets the modifier byte.
+        if (nativeVirtualKey == 0x5B) { // VK_LWIN
+            mappedKeyCode = 0xE3; // left GUI
+            if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
+            qCDebug(log_keyboard) << "Detected Left Win/GUI (VK 0x5B)";
+        } else if (nativeVirtualKey == 0x5C) { // VK_RWIN
+            mappedKeyCode = 0xE7; // right GUI
+            if (isKeyDown) currentModifiers |= 0x80; else currentModifiers &= ~0x80;
+            qCDebug(log_keyboard) << "Detected Right Win/GUI (VK 0x5C)";
+        } else if (nativeVirtualKey == 0xFFEB) { // XK_Super_L
+            mappedKeyCode = 0xE3;
+            if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
+            qCDebug(log_keyboard) << "Detected X11 Left Super/Win";
+        } else if (nativeVirtualKey == 0xFFEC) { // XK_Super_R
+            mappedKeyCode = 0xE7;
+            if (isKeyDown) currentModifiers |= 0x80; else currentModifiers &= ~0x80;
+            qCDebug(log_keyboard) << "Detected X11 Right Super/Win";
+        } else {
+            // MCP/API fallback: default to left GUI
+            mappedKeyCode = 0xE3;
+            if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
+            qCDebug(log_keyboard) << "Meta/GUI key (default left GUI 0xE3)";
         }
     }else if(nativeVirtualKey == 0 && isKeypadKeys(keyCode, modifiers)){
         if (keyCode == Qt::Key_NumLock) {
@@ -599,15 +617,18 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
 
     if (mappedKeyCode != 0) {
         // Phantom release: Windows IME consumed the key-down, only key-up arrived.
-        // For modifier keys, we don't add them to currentMappedKeyCodes, so skip this check.
-        if (!isKeyDown && !currentMappedKeyCodes.contains(mappedKeyCode) && !isModiferKeys(keyCode) && keyCode != Qt::Key_Meta) {
+        // For modifier keys (Shift/Ctrl/Alt), we don't add them to currentMappedKeyCodes,
+        // so skip this check. GUI keys ARE added to currentMappedKeyCodes (handled below),
+        // so they're already protected by the contains() check.
+        if (!isKeyDown && !currentMappedKeyCodes.contains(mappedKeyCode) && !isModiferKeys(keyCode)) {
             sendKeyToTarget(mappedKeyCode, true);
         }
 
         // Update currentMappedKeyCodes: add on press, remove on release
-        // Modifier keys are NOT added to currentMappedKeyCodes - they're only in the modifier byte
-        if (isModiferKeys(keyCode) || keyCode == Qt::Key_Meta) {
-            // Modifier keys: only update currentModifiers, don't touch currentMappedKeyCodes
+        // Shift/Ctrl/Alt are NOT added to currentMappedKeyCodes - they're only in the modifier byte
+        // GUI/Win keys ARE added to currentMappedKeyCodes - they go in the keycode array per HID spec
+        if (isModiferKeys(keyCode)) {
+            // Shift/Ctrl/Alt: only update currentModifiers, don't touch currentMappedKeyCodes
             // currentModifiers was already updated above in the modifier branch
         } else {
             // Non-modifier keys: update currentMappedKeyCodes
