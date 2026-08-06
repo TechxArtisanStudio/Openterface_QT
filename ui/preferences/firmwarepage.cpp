@@ -21,12 +21,12 @@
 */
 
 #include "firmwarepage.h"
-#include "../video/videohid.h"
-#include "../video/firmwarereader.h"
-#include "../video/firmwarewriter.h"
-#include "../video/firmwareoperationmanager.h"
-#include "../video/ms2109.h"
-#include "../serial/SerialPortManager.h"
+#include "../../video/videohid.h"
+#include "../../video/firmwarereader.h"
+#include "../../video/firmwarewriter.h"
+#include "../../video/firmwareoperationmanager.h"
+#include "../../video/ms2109.h"
+#include "../../serial/SerialPortManager.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
