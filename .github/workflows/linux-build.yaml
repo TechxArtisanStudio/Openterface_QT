@@ -11,16 +11,28 @@ on:
       - '.github/workflows/linux-build.yaml'
       - 'vcpkg.json'
       - 'CMakeLists.txt'
+      - '**/*.cmake'
       - '**/*.bat'
       - '**/*.cpp'
+      - '**/*.h'
+      - '**/*.hpp'
+      - '**/*.ui'
+      - '**/*.ts'
+      - '**/*.qrc'
   pull_request:
-    branches: ["dev"]
+    branches: ["main", "dev"]
     paths:
       - '.github/workflows/linux-build.yaml'
       - 'vcpkg.json'
       - 'CMakeLists.txt'
+      - '**/*.cmake'
       - '**/*.bat'
       - '**/*.cpp'
+      - '**/*.h'
+      - '**/*.hpp'
+      - '**/*.ui'
+      - '**/*.ts'
+      - '**/*.qrc'
   workflow_dispatch:
     inputs:
       build_type:
