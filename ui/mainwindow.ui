@@ -134,7 +134,6 @@
     <addaction name="actionTCPServer"/>
     <addaction name="actionDeviceSelector"/>
     <addaction name="actionRenameDisplay"/>
-    <addaction name="actionWCHFlash"/>
     <addaction name="actionKeyboardMapEditor"/>
     <addaction name="separator"/>
     <addaction name="actionAdvancedSettings"/>
@@ -318,17 +317,6 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+U</string>
-   </property>
-  </action>
-  <action name="actionWCHFlash">
-   <property name="text">
-    <string>WCH Flash</string>
-   </property>
-   <property name="toolTip">
-    <string>Flash WCH microcontroller firmware via USB ISP bootloader</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+Shift+W</string>
    </property>
   </action>
   <action name="actionKeyboardMapEditor">
@@ -633,12 +621,6 @@
    <slot>showUpdateDisplaySettingsDialog()</slot>
   </connection>
   <connection>
-   <sender>actionWCHFlash</sender>
-   <signal>triggered()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>showWCHFlashDialog()</slot>
-  </connection>
-  <connection>
    <sender>actionKeyboardMapEditor</sender>
    <signal>triggered()</signal>
    <receiver>MainWindow</receiver>
@@ -675,7 +657,6 @@
   <slot>showEnvironmentSetupDialog()</slot>
   <slot>openDeviceSelector()</slot>
   <slot>showUpdateDisplaySettingsDialog()</slot>
-  <slot>showWCHFlashDialog()</slot>
   <slot>openKeyboardMapEditor()</slot>
   <slot>configureAdvancedSettings()</slot>
  </slots>

@@ -1989,20 +1989,6 @@ void MainWindow::showEnvironmentSetupDialog() {
     dialog.exec();
 }
 
-void MainWindow::showWCHFlashDialog() {
-    if (!wchFlashDialog) {
-        wchFlashDialog = new WCHFlashDialog(this);
-        connect(wchFlashDialog, &QDialog::finished, this, [this]() {
-            wchFlashDialog->deleteLater();
-            wchFlashDialog = nullptr;
-        });
-        wchFlashDialog->show();
-    } else {
-        wchFlashDialog->raise();
-        wchFlashDialog->activateWindow();
-    }
-}
-
 void MainWindow::openDeviceSelector() {
     qDebug() << "Opening device selector dialog";
     if (!deviceSelectorDialog) {
