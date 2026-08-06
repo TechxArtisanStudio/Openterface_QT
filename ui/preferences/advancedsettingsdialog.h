@@ -32,6 +32,7 @@
 #include <QTimer>
 #include "mcppage.h"
 #include "firmwarepage.h"
+#include "controlchipfirmwarepage.h"
 
 class AdvancedSettingsDialog : public QDialog
 {
@@ -48,6 +49,7 @@ private:
     QTreeWidget *settingTree;
     QStackedWidget *stackedWidget;
     FirmwarePage *firmwarePage;
+    ControlChipFirmwarePage *controlChipFirmwarePage;
     McpPage *mcpPage;
 
     QWidget *buttonWidget;

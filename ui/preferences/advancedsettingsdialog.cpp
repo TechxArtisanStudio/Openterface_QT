@@ -23,6 +23,7 @@
 #include "advancedsettingsdialog.h"
 #include "mcppage.h"
 #include "firmwarepage.h"
+#include "controlchipfirmwarepage.h"
 
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
@@ -42,6 +43,7 @@ AdvancedSettingsDialog::AdvancedSettingsDialog(QWidget *parent)
     , settingTree(new QTreeWidget(this))
     , stackedWidget(new QStackedWidget(this))
     , firmwarePage(new FirmwarePage(this))
+    , controlChipFirmwarePage(new ControlChipFirmwarePage(this))
     , mcpPage(new McpPage(this))
     , buttonWidget(new QWidget(this))
     , m_currentPageIndex(-1)
@@ -93,7 +95,7 @@ void AdvancedSettingsDialog::createSettingTree() {
     settingTree->setSelectionMode(QAbstractItemView::SingleSelection);
     settingTree->setRootIsDecorated(false);
 
-    QStringList names = {tr("Firmware"), tr("MCP")};
+    QStringList names = {tr("Video Firmware"), tr("Control Chip Firmware"), tr("MCP")};
     for (const QString &name : names) {
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
@@ -111,6 +113,7 @@ void AdvancedSettingsDialog::createPages() {
     };
 
     addScrollablePage(firmwarePage);
+    addScrollablePage(controlChipFirmwarePage);
     addScrollablePage(mcpPage);
 }
 
@@ -161,10 +164,12 @@ void AdvancedSettingsDialog::changePage(QTreeWidgetItem *current, QTreeWidgetIte
     QString itemText = current->text(0);
     int newPageIndex = -1;
 
-    if (itemText == tr("Firmware")) {
+    if (itemText == tr("Video Firmware")) {
         newPageIndex = 0;
-    } else if (itemText == tr("MCP")) {
+    } else if (itemText == tr("Control Chip Firmware")) {
         newPageIndex = 1;
+    } else if (itemText == tr("MCP")) {
+        newPageIndex = 2;
     }
 
     if (newPageIndex != -1 && newPageIndex != m_currentPageIndex) {
@@ -174,7 +179,7 @@ void AdvancedSettingsDialog::changePage(QTreeWidgetItem *current, QTreeWidgetIte
         m_currentPageIndex = newPageIndex;
 
         // Show OK/Apply/Cancel buttons only on MCP page
-        buttonWidget->setVisible(newPageIndex == 1);
+        buttonWidget->setVisible(newPageIndex == 2);
 
         m_pageChangeTimer->start(200);
     }
@@ -183,9 +188,11 @@ void AdvancedSettingsDialog::changePage(QTreeWidgetItem *current, QTreeWidgetIte
 void AdvancedSettingsDialog::applyAccordingPage() {
     int currentPageIndex = stackedWidget->currentIndex();
     switch (currentPageIndex) {
-    case 0: // Firmware - no apply action needed
+    case 0: // Video Firmware - no apply action needed
         break;
-    case 1:
+    case 1: // Control Chip Firmware - no apply action needed
+        break;
+    case 2:
         mcpPage->applyMcpSettings();
         break;
     default:
