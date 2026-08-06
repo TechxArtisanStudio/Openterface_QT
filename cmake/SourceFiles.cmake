@@ -238,7 +238,6 @@ set(UI_ADVANCE_SOURCES
     ui/advance/edid/resolutionmodel.cpp ui/advance/edid/resolutionmodel.h
     ui/advance/edid/edidprocessor.cpp ui/advance/edid/edidprocessor.h
     ui/advance/recordingsettingsdialog.cpp ui/advance/recordingsettingsdialog.h
-    ui/advance/wchflash/WCHFlashDialog.cpp ui/advance/wchflash/WCHFlashDialog.h
     ui/advance/wchflash/WCHFlashWorker.cpp ui/advance/wchflash/WCHFlashWorker.h
     ui/advance/keyboardmapeditor.cpp ui/advance/keyboardmapeditor.h
 )
@@ -308,6 +307,7 @@ set(UI_PREFERENCES_SOURCES
     ui/preferences/settingdialog.cpp ui/preferences/settingdialog.h ui/preferences/settingdialog.ui
     ui/preferences/advancedsettingsdialog.cpp ui/preferences/advancedsettingsdialog.h
     ui/preferences/firmwarepage.cpp ui/preferences/firmwarepage.h
+    ui/preferences/controlchipfirmwarepage.cpp ui/preferences/controlchipfirmwarepage.h
     ui/preferences/logpage.cpp ui/preferences/logpage.h
     ui/preferences/videopage.cpp ui/preferences/videopage.h
     ui/preferences/audiopage.cpp ui/preferences/audiopage.h

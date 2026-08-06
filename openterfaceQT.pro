@@ -116,7 +116,6 @@ SOURCES += main.cpp \
     ui/advance/edid/edidprocessor.cpp \
     ui/advance/recordingsettingsdialog.cpp \
     ui/advance/diagnostics/SupportEmailDialog.cpp \
-    ui/advance/wchflash/WCHFlashDialog.cpp \
     ui/advance/wchflash/WCHFlashWorker.cpp \
     ui/advance/keyboardmapeditor.cpp \
     ui/initializer/mainwindowinitializer.cpp \
@@ -135,6 +134,7 @@ SOURCES += main.cpp \
     ui/preferences/videopage.cpp \
     ui/preferences/audiopage.cpp \
     ui/preferences/mcppage.cpp \
+    ui/preferences/controlchipfirmwarepage.cpp \
     ui/preferences/targetcontrolpage.cpp \
     ui/floatingwindow/floatingwindow.cpp \
     ui/customkey/customkeymanager.cpp \
@@ -278,7 +278,6 @@ HEADERS  += \
     ui/advance/edid/edidprocessor.h \
     ui/advance/recordingsettingsdialog.h \
     ui/advance/diagnostics/SupportEmailDialog.h \
-    ui/advance/wchflash/WCHFlashDialog.h \
     ui/advance/wchflash/WCHFlashWorker.h \
     ui/advance/keyboardmapeditor.h \
     ui/initializer/mainwindowinitializer.h \
@@ -297,6 +296,7 @@ HEADERS  += \
     ui/preferences/videopage.h \
     ui/preferences/audiopage.h \
     ui/preferences/mcppage.h \
+    ui/preferences/controlchipfirmwarepage.h \
     ui/floatingwindow/floatingwindow.h \
     ui/customkey/customkeymanager.h \
     ui/customkey/customkeydialog.h \
