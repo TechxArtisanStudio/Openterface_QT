@@ -43,6 +43,7 @@ FirmwarePage::FirmwarePage(QWidget *parent)
     : QWidget(parent)
     , currentOperation(None)
     , workerThread(nullptr)
+    , m_fetchThread(nullptr)
 {
     setupUI();
     updateVersionDisplay();
@@ -54,6 +55,16 @@ FirmwarePage::~FirmwarePage()
         workerThread->requestInterruption();
         workerThread->quit();
         workerThread->wait();
+    }
+
+    // Clean up the async version-fetch thread if it's still running.
+    // Use a timeout to avoid blocking the GUI thread indefinitely if
+    // the network call is slow. The thread will clean itself up via
+    // deleteLater when it eventually finishes.
+    if (m_fetchThread && m_fetchThread->isRunning()) {
+        m_fetchThread->requestInterruption();
+        m_fetchThread->quit();
+        m_fetchThread->wait(100); // 100ms timeout max
     }
 }
 
@@ -157,22 +168,37 @@ void FirmwarePage::updateVersionDisplay()
 
 void FirmwarePage::fetchLatestVersionAsync()
 {
-    // Run the network check in a background thread
-    QThread *thread = new QThread();
+    // Run the network check in a background thread.
+    // IMPORTANT: Use QPointer to guard against `this` being destroyed
+    // before the thread finishes — e.g. when the user closes the dialog
+    // while the network call is still in flight. Without this, the queued
+    // invokeMethod would dereference a dangling pointer and crash.
+
+    // Don't start a new fetch if one is already in progress.
+    if (m_fetchThread && m_fetchThread->isRunning()) {
+        return;
+    }
+
+    // Create thread without a parent so it outlives FirmwarePage if needed.
+    // It will clean itself up via deleteLater when it finishes.
+    m_fetchThread = new QThread();
 
     // Use a lambda to perform the check
     QObject *worker = new QObject();
-    connect(thread, &QThread::started, worker, [this, worker]() {
+    QPointer<FirmwarePage> guard(this);
+    connect(m_fetchThread, &QThread::started, worker, [guard, worker]() {
         // Call isLatestFirmware() to populate the latest version
         VideoHid::getInstance().isLatestFirmware();
-        // Emit signal to update the label on the GUI thread
-        QMetaObject::invokeMethod(this, "onLatestVersionFetched", Qt::QueuedConnection);
+        // Only update the UI if the FirmwarePage is still alive
+        if (guard) {
+            QMetaObject::invokeMethod(guard.data(), "onLatestVersionFetched", Qt::QueuedConnection);
+        }
         worker->deleteLater();
     });
-    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
+    connect(m_fetchThread, &QThread::finished, m_fetchThread, &QThread::deleteLater);
 
-    worker->moveToThread(thread);
-    thread->start();
+    worker->moveToThread(m_fetchThread);
+    m_fetchThread->start();
 }
 
 void FirmwarePage::onLatestVersionFetched()

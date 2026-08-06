@@ -8,6 +8,7 @@
 #include <QMenuBar>
 #include <QSvgRenderer>
 #include <QPainter>
+#include <QApplication>
 #include "ui/toolbar/toggleswitch.h"
 
 class CornerWidgetManager : public QObject {
@@ -50,6 +51,8 @@ private:
     void createWidgets();
     void setupConnections();
     void setButtonIcon(QPushButton *button, const QString &iconPath);
+    void updateAllIcons();
+    QColor getIconColor() const;
 
     QWidget *cornerWidget;
     QComboBox *keyboardLayoutComboBox;

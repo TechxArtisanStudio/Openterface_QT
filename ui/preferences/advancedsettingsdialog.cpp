@@ -62,7 +62,9 @@ AdvancedSettingsDialog::AdvancedSettingsDialog(QWidget *parent)
 
     setWindowTitle(tr("Advanced Settings"));
 
-    firmwarePage->updateVersionDisplay();
+    // FirmwarePage's constructor already calls updateVersionDisplay(),
+    // so we don't call it again here to avoid starting duplicate fetch
+    // threads (which would leak the first one and cause crashes on close).
     mcpPage->initMcpSettings();
 
     connect(settingTree, &QTreeWidget::currentItemChanged, this, &AdvancedSettingsDialog::changePage);

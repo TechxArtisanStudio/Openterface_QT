@@ -5,6 +5,7 @@
 #include <QSvgRenderer>
 #include <QPainter>
 #include <QFile>
+#include <QPalette>
 
 CornerWidgetManager::CornerWidgetManager(QWidget *parent)
     : QObject(parent),
@@ -122,37 +123,67 @@ void CornerWidgetManager::createWidgets()
 
 void CornerWidgetManager::setButtonIcon(QPushButton *button, const QString &iconPath)
 {
-    // Use QSvgRenderer to load and render SVG files directly
-    // This ensures SVGs work correctly on Linux even if the SVG image plugin is not available
-    
     // Load the SVG from Qt resources
     QFile svgFile(iconPath);
     if (!svgFile.open(QIODevice::ReadOnly)) {
         qWarning() << "Failed to open SVG resource:" << iconPath;
         return;
     }
-    
+
     QByteArray svgData = svgFile.readAll();
     svgFile.close();
-    
+
     QSvgRenderer svgRenderer(svgData);
     if (!svgRenderer.isValid()) {
         qWarning() << "Failed to parse SVG:" << iconPath;
         return;
     }
-    
+
     QSize iconSize(16, 16);
     QPixmap pixmap(iconSize);
     pixmap.fill(Qt::transparent);
-    
+
     QPainter painter(&pixmap);
     svgRenderer.render(&painter);
+
+    // Apply theme-aware color overlay using CompositionMode_SourceIn.
+    // This replaces all opaque pixels with the icon color while preserving transparency.
+    QColor iconColor = getIconColor();
+    QPixmap colorOverlay(iconSize);
+    colorOverlay.fill(iconColor);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.drawPixmap(0, 0, colorOverlay);
+
     painter.end();
-    
+
     QIcon icon(pixmap);
     button->setIcon(icon);
     button->setIconSize(iconSize);
     button->setFixedSize(30, 30);
+}
+
+QColor CornerWidgetManager::getIconColor() const
+{
+    // Use the WindowText color which automatically contrasts with the Window background.
+    // In light theme: dark text on light background → dark icons.
+    // In dark theme: light text on dark background → light icons.
+    return QApplication::palette().color(QPalette::WindowText);
+}
+
+void CornerWidgetManager::updateAllIcons()
+{
+    // Re-apply all icons with the current theme colors
+    setButtonIcon(screenScaleButton, ":/images/screen_scale.svg");
+    setButtonIcon(zoomInButton, ":/images/zoom_in.svg");
+    setButtonIcon(zoomOutButton, ":/images/zoom_out.svg");
+    setButtonIcon(zoomReductionButton, ":/images/zoom_fit.svg");
+    setButtonIcon(virtualKeyboardButton, ":/images/keyboard.svg");
+    setButtonIcon(captureButton, ":/images/capture.svg");
+    setButtonIcon(fullScreenButton, ":/images/full_screen.svg");
+    setButtonIcon(pasteButton, ":/images/paste.svg");
+    setButtonIcon(screensaverButton, ":/images/screensaver.svg");
+    setButtonIcon(recordingButton, isRecording ? ":/images/stopRecord.svg" : ":/images/startRecord.svg");
+    setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
 }
 
 void CornerWidgetManager::setupConnections()
@@ -177,6 +208,11 @@ void CornerWidgetManager::setupConnections()
     // Connect mute button click to toggle mute state and emit signal
     connect(muteButton, &QPushButton::clicked, this, [this]() {
         emit muteToggled();
+    });
+
+    // Re-color SVG icons when system theme/palette changes
+    connect(qApp, &QApplication::paletteChanged, this, [this]() {
+        updateAllIcons();
     });
 }
 

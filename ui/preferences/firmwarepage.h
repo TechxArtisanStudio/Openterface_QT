@@ -28,6 +28,7 @@
 #include <QPushButton>
 #include <QProgressBar>
 #include <QGroupBox>
+#include <QPointer>
 #include <QThread>
 
 class FirmwarePage : public QWidget
@@ -68,6 +69,7 @@ private:
     // State
     OperationType currentOperation;
     QThread *workerThread;
+    QThread *m_fetchThread;
 
     void setupUI();
     void startOperation(OperationType type);
