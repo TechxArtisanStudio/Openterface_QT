@@ -101,6 +101,23 @@ public:
     /// Whether the capture hook is currently installed.
     bool isActive() const { return m_active; }
 
+    /**
+     * Control whether the hook SWALLOWS events (blocks local OS processing).
+     *
+     * When true (default): hook intercepts all keystrokes AND swallows them
+     *   → local OS does NOT see any key events
+     *
+     * When false: hook intercepts all keystrokes but lets them pass through
+     *   → local OS also sees the key events (normal behavior)
+     *   → keys are STILL forwarded to the target via keyCaptured signal
+     *
+     * This decouples hook installation from event swallowing.
+     * The hook is always installed when the app window is focused,
+     * ensuring ALL keyboard events flow through ONE code path.
+     */
+    void setSwallowEnabled(bool enabled);
+    bool isSwallowEnabled() const { return m_swallowEnabled; }
+
 signals:
     /**
      * Emitted for every keystroke while capture is active.
@@ -131,6 +148,7 @@ private:
 
     /* ---- state ---- */
     bool m_active = false;
+    bool m_swallowEnabled = true;  // when true, hook swallows events; when false, pass-through
 
     /* ---- Windows ---- */
 #ifdef Q_OS_WIN

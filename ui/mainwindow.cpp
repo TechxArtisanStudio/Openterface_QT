@@ -812,18 +812,15 @@ void MainWindow::configureSettings() {
             if (m_floatingWindow) m_floatingWindow->setWindowOpacityValue(opacity);
         });
         connect(logPage, &LogPage::systemKeyBlockerToggled, this, [this](bool enabled) {
-            if (enabled) {
-                quintptr hwnd = videoPane ? videoPane->winId() : 0;
-                bool ok = SystemKeyBlocker::instance().start(hwnd);
-                if (ok) {
-                    qCDebug(log_ui_mainwindow) << "SystemKeyBlocker started successfully";
-                } else {
-                    qCWarning(log_ui_mainwindow) << "SystemKeyBlocker failed to start";
-                }
-            } else {
-                SystemKeyBlocker::instance().stop();
-                qCDebug(log_ui_mainwindow) << "SystemKeyBlocker stopped";
-            }
+            // The hook is always running when the app is focused.
+            // The toggle only controls whether the hook swallows events (Blocker ON)
+            // or passes them through (Blocker OFF). Both states forward keys to target.
+            SystemKeyBlocker::instance().setSwallowEnabled(enabled);
+            GlobalSetting::instance().setSystemKeyBlockerEnabled(enabled);
+            // Re-sync shortcuts: when swallow is OFF and VideoPane has focus,
+            // disable app shortcuts so keys reach the target
+            syncShortcutsState();
+            qCDebug(log_ui_mainwindow) << "SystemKeyBlocker swallow" << (enabled ? "enabled" : "disabled");
         });
         m_statusBarManager->setHideKeyboardInput(GlobalSetting::instance().getHideKeyboardInput());
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
@@ -2097,5 +2094,38 @@ void MainWindow::showHardwareDiagnostics() {
 //         }
 //     }
 // }
+
+void MainWindow::syncShortcutsState()
+{
+    // Check if VideoPane (or its GStreamer overlay) has keyboard focus.
+    // When it does AND SystemBlocker swallow is OFF, disable all app shortcuts
+    // so that keys like Ctrl+V reach VideoPane and get forwarded to the target
+    // instead of being intercepted by the app's own menu actions.
+    //
+    // When SystemBlocker swallow is ON, the OS hook swallows all events before
+    // Qt sees them, so shortcuts never fire regardless — but we still track
+    // state so that turning Blocker off restores the correct behavior.
+    bool videoHasFocus = videoPane && (
+        (focusWidget() == videoPane) ||
+        (focusWidget() == videoPane->getOverlayWidget())
+    );
+
+    bool shouldDisable = videoHasFocus && !SystemKeyBlocker::instance().isSwallowEnabled();
+
+    if (shouldDisable == m_shortcutsDisabled) return; // no change
+
+    for (QAction *action : findChildren<QAction*>()) {
+        if (!action->shortcut().isEmpty()) {
+            action->setEnabled(!shouldDisable);
+        }
+    }
+    for (QShortcut *shortcut : findChildren<QShortcut*>()) {
+        shortcut->setEnabled(!shouldDisable);
+    }
+    m_shortcutsDisabled = shouldDisable;
+    qCDebug(log_ui_mainwindow) << "Shortcuts" << (shouldDisable ? "disabled" : "enabled")
+                                << "(videoHasFocus=" << videoHasFocus
+                                << "swallowEnabled=" << SystemKeyBlocker::instance().isSwallowEnabled() << ")";
+}
 
 

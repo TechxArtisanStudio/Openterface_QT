@@ -247,6 +247,11 @@ private slots:
     void onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps, float pixelClk);
     void onInputResolutionChanged();
 
+    // Focus-based shortcut disabling: when VideoPane has focus and SystemBlocker
+    // swallow is OFF, disable all Qt shortcuts/actions so keys reach VideoPane
+    // and get forwarded to the target instead of being intercepted by the app.
+    void syncShortcutsState();
+
 protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -367,6 +372,7 @@ private:
     void stopServer();
     TcpServer *tcpServer;
     bool m_tcpServerRunning = false;
+    bool m_shortcutsDisabled = false;
 
     // --- MCP Server ---
     McpServer *m_mcpServer = nullptr;

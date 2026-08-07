@@ -694,28 +694,44 @@ void MainWindowInitializer::finalize()
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, m_mainWindow, &MainWindow::onPortConnected);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, m_mainWindow, &MainWindow::onArmBaudratePerformanceRecommendation);
 
-    // Connect SystemKeyBlocker keyCaptured signal to KeyboardManager (fix for modifier keys)
+    // Connect SystemKeyBlocker keyCaptured signal to HostManager
+    // This ensures both HID report building AND status bar updates go through
+    // the same HostManager::keyboardManager instance (not the KeyboardManager singleton)
     connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::keyCaptured,
-            &KeyboardManager::getInstance(), &KeyboardManager::handleKeyboardAction);
+            &HostManager::getInstance(), &HostManager::handleKeyboardAction);
     qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to HostManager";
 
-    // Defer SystemKeyBlocker startup until window is visible
-    // The X11KeyGrabber needs a visible top-level window to grab keys on
-    if (GlobalSetting::instance().getSystemKeyBlockerEnabled()) {
-        // Use a short delay to ensure the window is fully shown and visible
-        QTimer::singleShot(100, m_mainWindow, [this]() {
-            if (!m_mainWindow->isVisible()) {
-                qCWarning(log_ui_mainwindowinitializer) << "SystemKeyBlocker: window not visible yet, cannot start";
-                return;
-            }
-            quintptr hwnd = m_videoPane ? m_videoPane->winId() : 0;
-            if (SystemKeyBlocker::instance().start(hwnd)) {
-                qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker restored to active state";
-            } else {
-                qCWarning(log_ui_mainwindowinitializer) << "SystemKeyBlocker failed to start";
-            }
-        });
-    }
+    // Always install the keyboard hook when the window is shown.
+    // The hook captures ALL keystrokes and forwards them to the target.
+    // The SystemBlocker toggle controls whether the hook also swallows events
+    // (Blocker ON: local OS doesn't see keys) or passes them through
+    // (Blocker OFF: local OS also sees keys).
+    // This ensures ALL keyboard events flow through ONE code path.
+    QTimer::singleShot(100, m_mainWindow, [this]() {
+        if (!m_mainWindow->isVisible()) {
+            qCWarning(log_ui_mainwindowinitializer) << "SystemKeyBlocker: window not visible yet, cannot start";
+            return;
+        }
+        quintptr hwnd = m_videoPane ? m_videoPane->winId() : 0;
+        if (SystemKeyBlocker::instance().start(hwnd)) {
+            // Set initial swallow state from saved settings
+            bool swallowEnabled = GlobalSetting::instance().getSystemKeyBlockerEnabled();
+            SystemKeyBlocker::instance().setSwallowEnabled(swallowEnabled);
+            qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker hook installed, swallow=" << swallowEnabled;
+        } else {
+            qCWarning(log_ui_mainwindowinitializer) << "SystemKeyBlocker hook failed to install";
+        }
+    });
+
+    // Focus-based shortcut disabling: when VideoPane has focus and the
+    // SystemBlocker swallow is OFF, disable all QShortcut/QAction objects
+    // so keys reach VideoPane and get forwarded to the target instead of
+    // being intercepted by the app's own menu shortcuts (e.g. Ctrl+V).
+    connect(qApp, &QApplication::focusChanged,
+            m_mainWindow, &MainWindow::syncShortcutsState);
+    // Also re-sync when capture state changes (e.g. hook start/stop on X11)
+    connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::captureStateChanged,
+            m_mainWindow, &MainWindow::syncShortcutsState);
 
     m_mainWindow->onLastKeyPressed("");
     m_mainWindow->onLastMouseLocation(QPoint(0, 0), "");

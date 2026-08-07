@@ -492,6 +492,12 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
                         combinedModifiers = isKeyDown ? 0x04 : 0x00;
                         qCDebug(log_keyboard) << "MCP/direct Alt detected, using left alt 0xE2";
                     }
+                } else if (keyCode == Qt::Key_Meta) {
+                    // GUI/Win key via MCP/API (no nativeVirtualKey)
+                    mappedKeyCode = 0xE3; // default to left GUI
+                    if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
+                    combinedModifiers = isKeyDown ? 0x08 : 0x00;
+                    qCDebug(log_keyboard) << "MCP/direct Meta/GUI detected, using left GUI 0xE3";
                 }
             }
         }
@@ -622,16 +628,15 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
 
     if (mappedKeyCode != 0) {
         // Phantom release: Windows IME consumed the key-down, only key-up arrived.
-        // For modifier keys (Shift/Ctrl/Alt), we don't add them to currentMappedKeyCodes,
-        // so skip this check. GUI keys ARE added to currentMappedKeyCodes (handled below),
-        // so they're already protected by the contains() check.
+        // For modifier keys (Shift/Ctrl/Alt/GUI), we don't add them to currentMappedKeyCodes,
+        // so skip this check. Modifier keycodes are added via the CH9329 workaround below.
         if (!isKeyDown && !currentMappedKeyCodes.contains(mappedKeyCode) && !isModiferKeys(keyCode)) {
             sendKeyToTarget(mappedKeyCode, true);
         }
 
         // Update currentMappedKeyCodes: add on press, remove on release
-        // Shift/Ctrl/Alt are NOT added to currentMappedKeyCodes - they're only in the modifier byte
-        // GUI/Win keys ARE added to currentMappedKeyCodes - they go in the keycode array per HID spec
+        // Modifier keys (Shift/Ctrl/Alt/GUI) are NOT added to currentMappedKeyCodes
+        // — they're only in the modifier byte, with keycodes added via CH9329 workaround
         if (isModiferKeys(keyCode)) {
             // Shift/Ctrl/Alt: only update currentModifiers, don't touch currentMappedKeyCodes
             // currentModifiers was already updated above in the modifier branch
@@ -665,18 +670,47 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             }
         }
 
-        // Use combinedModifiers for the modifier byte (includes passed modifiers from API)
-        keyData[5] = combinedModifiers;
+        // Build the modifier byte and keycode array with CH9329 workaround.
+        //
+        // CH9329 firmware issue: modifier byte bits 2-7 (Alt=0x04, GUI=0x08) are
+        // not correctly processed by some CH9329 firmware versions on Linux targets.
+        // Bits 0-1 (Ctrl=0x01, Shift=0x02) work correctly.
+        //
+        // Workaround strategy:
+        // - Ctrl (0x01) and Shift (0x02): set in modifier byte ONLY (these work)
+        // - Alt (0x04) and GUI (0x08): put keycodes in keycode array ONLY,
+        //   do NOT set in modifier byte (avoids CH9329 firmware bug)
+        // - This matches how sendCtrlAltDel() works: Ctrl/Alt in both byte and array,
+        //   but Alt is in the array which the target processes correctly.
+        //
+        // USB HID spec: modifier keycodes (0xE0-0xE7) in the keycode array are
+        // treated as modifier state by compliant HID implementations.
 
-        // Set the key array from currentMappedKeyCodes
-        int i = 0;
+        // Only set Ctrl and Shift bits in modifier byte (these are known to work)
+        uint8_t safeModifierByte = combinedModifiers & 0x03; // Only bits 0-1
+        keyData[5] = safeModifierByte;
+
+        // Put ALL active modifier keycodes in the keycode array
+        int keyIndex = 0;
+        if (combinedModifiers & 0x01) keyData[7 + keyIndex++] = 0xE0; // LCtrl
+        if (combinedModifiers & 0x02) keyData[7 + keyIndex++] = 0xE1; // LShift
+        if (combinedModifiers & 0x04) keyData[7 + keyIndex++] = 0xE2; // LAlt
+        if (combinedModifiers & 0x08) keyData[7 + keyIndex++] = 0xE3; // LGUI
+        if (combinedModifiers & 0x10) keyData[7 + keyIndex++] = 0xE4; // RCtrl
+        if (combinedModifiers & 0x20) keyData[7 + keyIndex++] = 0xE5; // RShift
+        if (combinedModifiers & 0x40) keyData[7 + keyIndex++] = 0xE6; // RAlt
+        if (combinedModifiers & 0x80) keyData[7 + keyIndex++] = 0xE7; // RGUI
+
+        // Then add regular keycodes from currentMappedKeyCodes
         for (const auto &key : currentMappedKeyCodes) {
-            keyData[7 + i] = key;
-            i++;
+            if (keyIndex < 6) {
+                keyData[7 + keyIndex] = key;
+                keyIndex++;
+            }
         }
         // Fill remaining slots with 0
-        for (; i < 6; ++i) {
-            keyData[7 + i] = 0;
+        for (; keyIndex < 6; ++keyIndex) {
+            keyData[7 + keyIndex] = 0;
         }
 
         // Send the command
@@ -772,6 +806,9 @@ int KeyboardManager::handleKeyModifiers(int modifier, bool isKeyDown) {
 bool KeyboardManager::isModiferKeys(int keycode){
     if (keycode == Qt::Key_AltGr) {
         return true;
+    }
+    if (keycode == Qt::Key_Meta) {
+        return true;  // GUI/Win keys are modifiers — handled via modifier byte + workaround
     }
     return SHIFT_KEYS.contains(keycode)
            || CTRL_KEYS.contains(keycode)

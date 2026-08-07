@@ -180,10 +180,15 @@ LRESULT CALLBACK SystemKeyBlocker::lowLevelKeyboardProc(
     // ---- Emit signal (cross-thread dispatch by Qt) ----
     emit s_self->keyCaptured(qtKey, modifiers, isKeyDown, vk);
 
-    // ---- Swallow ALL key events (both down and up) ----
-    // When openterfaceQT has focus, ALL keystrokes go to the target machine.
-    // We MUST swallow key-up too, otherwise the OS sees orphaned key-up events
-    // (e.g. Win releases triggering the Start Menu, Alt+Tab switching windows).
-    return 1;
+    // ---- Conditional swallow based on m_swallowEnabled ----
+    // When swallowEnabled (Blocker ON): swallow ALL key events (both down and up).
+    //   The local OS won't see any keystrokes — everything goes to the target.
+    // When !swallowEnabled (Blocker OFF): pass through to local OS.
+    //   Keys are STILL forwarded to the target via the keyCaptured signal above,
+    //   but the local OS also processes them normally.
+    if (s_self->m_swallowEnabled) {
+        return 1;  // swallow — local OS won't see the key
+    }
+    return CallNextHookEx(nullptr, nCode, wParam, lParam);  // pass through
 }
 
