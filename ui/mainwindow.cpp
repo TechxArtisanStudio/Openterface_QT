@@ -2097,35 +2097,14 @@ void MainWindow::showHardwareDiagnostics() {
 
 void MainWindow::syncShortcutsState()
 {
-    // Check if VideoPane (or its GStreamer overlay) has keyboard focus.
-    // When it does AND SystemBlocker swallow is OFF, disable all app shortcuts
-    // so that keys like Ctrl+V reach VideoPane and get forwarded to the target
-    // instead of being intercepted by the app's own menu actions.
+    // User preference: allow app shortcuts (Ctrl+P for Preferences, etc.) to work
+    // even when VideoPane has focus. The user controls key forwarding via SystemBlocker:
+    // - SystemBlocker ON (swallow): all keys go to target, app shortcuts don't fire
+    // - SystemBlocker OFF (pass-through): app shortcuts work normally
     //
-    // When SystemBlocker swallow is ON, the OS hook swallows all events before
-    // Qt sees them, so shortcuts never fire regardless — but we still track
-    // state so that turning Blocker off restores the correct behavior.
-    bool videoHasFocus = videoPane && (
-        (focusWidget() == videoPane) ||
-        (focusWidget() == videoPane->getOverlayWidget())
-    );
-
-    bool shouldDisable = videoHasFocus && !SystemKeyBlocker::instance().isSwallowEnabled();
-
-    if (shouldDisable == m_shortcutsDisabled) return; // no change
-
-    for (QAction *action : findChildren<QAction*>()) {
-        if (!action->shortcut().isEmpty()) {
-            action->setEnabled(!shouldDisable);
-        }
-    }
-    for (QShortcut *shortcut : findChildren<QShortcut*>()) {
-        shortcut->setEnabled(!shouldDisable);
-    }
-    m_shortcutsDisabled = shouldDisable;
-    qCDebug(log_ui_mainwindow) << "Shortcuts" << (shouldDisable ? "disabled" : "enabled")
-                                << "(videoHasFocus=" << videoHasFocus
-                                << "swallowEnabled=" << SystemKeyBlocker::instance().isSwallowEnabled() << ")";
+    // This function is now a no-op — shortcuts are never disabled based on focus.
+    // Kept for API compatibility and potential future use.
+    qCDebug(log_ui_mainwindow) << "syncShortcutsState called (no-op: shortcuts always enabled)";
 }
 
 
