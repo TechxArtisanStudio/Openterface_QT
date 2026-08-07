@@ -503,23 +503,28 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
         if (nativeVirtualKey == 0x5B) { // VK_LWIN
             mappedKeyCode = 0xE3; // left GUI
             if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
+            combinedModifiers = isKeyDown ? 0x08 : 0x00;
             qCDebug(log_keyboard) << "Detected Left Win/GUI (VK 0x5B)";
         } else if (nativeVirtualKey == 0x5C) { // VK_RWIN
             mappedKeyCode = 0xE7; // right GUI
             if (isKeyDown) currentModifiers |= 0x80; else currentModifiers &= ~0x80;
+            combinedModifiers = isKeyDown ? 0x80 : 0x00;
             qCDebug(log_keyboard) << "Detected Right Win/GUI (VK 0x5C)";
         } else if (nativeVirtualKey == 0xFFEB) { // XK_Super_L
             mappedKeyCode = 0xE3;
             if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
+            combinedModifiers = isKeyDown ? 0x08 : 0x00;
             qCDebug(log_keyboard) << "Detected X11 Left Super/Win";
         } else if (nativeVirtualKey == 0xFFEC) { // XK_Super_R
             mappedKeyCode = 0xE7;
             if (isKeyDown) currentModifiers |= 0x80; else currentModifiers &= ~0x80;
+            combinedModifiers = isKeyDown ? 0x80 : 0x00;
             qCDebug(log_keyboard) << "Detected X11 Right Super/Win";
         } else {
             // MCP/API fallback: default to left GUI
             mappedKeyCode = 0xE3;
             if (isKeyDown) currentModifiers |= 0x08; else currentModifiers &= ~0x08;
+            combinedModifiers = isKeyDown ? 0x08 : 0x00;
             qCDebug(log_keyboard) << "Meta/GUI key (default left GUI 0xE3)";
         }
     }else if(nativeVirtualKey == 0 && isKeypadKeys(keyCode, modifiers)){
