@@ -41,7 +41,6 @@
 #include "ui/recording/recordingcontroller.h"
 #include "ui/advance/DeviceSelectorDialog.h"
 #include "ui/advance/scripttool.h"
-#include "ui/advance/updatedisplaysettingsdialog.h"
 #include "ui/advance/devicediagnosticsdialog.h"
 #include "ui/advance/keyboardmapeditor.h"
 #include "ui/help/versioninfomanager.h"
@@ -226,8 +225,6 @@ private slots:
 
     void showEnvironmentSetupDialog();
 
-    void showUpdateDisplaySettingsDialog();
-
     void showHardwareDiagnostics();
 
     void onRepeatingKeystrokeChanged(int index);
@@ -321,7 +318,6 @@ private:
     RecordingController *m_recordingController = nullptr;
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
     DeviceSelectorDialog *deviceSelectorDialog = nullptr;
-    UpdateDisplaySettingsDialog *updateDisplaySettingsDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;
 

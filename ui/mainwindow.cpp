@@ -45,7 +45,6 @@
 #include "ui/advance/serialportdebugdialog.h"
 #include "ui/preferences/firmwarepage.h"
 #include "ui/advance/envdialog.h"
-#include "ui/advance/updatedisplaysettingsdialog.h"
 #include "ui/advance/devicediagnosticsdialog.h"
 #include "ui/customkey/customkeydialog.h"
 
@@ -2002,25 +2001,6 @@ void MainWindow::openDeviceSelector() {
     } else {
         deviceSelectorDialog->raise();
         deviceSelectorDialog->activateWindow();
-    }
-}
-
-void MainWindow::showUpdateDisplaySettingsDialog() {
-    qCDebug(log_ui_mainwindow) << "Opening update display settings dialog";
-    if (!updateDisplaySettingsDialog) {
-        qCDebug(log_ui_mainwindow) << "Creating update display settings dialog";
-        updateDisplaySettingsDialog = new UpdateDisplaySettingsDialog(this);
-        
-        // Connect the finished signal to clean up
-        connect(updateDisplaySettingsDialog, &QDialog::finished, this, [this]() {
-            updateDisplaySettingsDialog->deleteLater();
-            updateDisplaySettingsDialog = nullptr;
-        });
-        
-        updateDisplaySettingsDialog->show();
-    } else {
-        updateDisplaySettingsDialog->raise();
-        updateDisplaySettingsDialog->activateWindow();
     }
 }
 

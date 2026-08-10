@@ -133,7 +133,6 @@
     <addaction name="actionRecordingSettings"/>
     <addaction name="actionTCPServer"/>
     <addaction name="actionDeviceSelector"/>
-    <addaction name="actionRenameDisplay"/>
     <addaction name="actionKeyboardMapEditor"/>
     <addaction name="separator"/>
     <addaction name="actionAdvancedSettings"/>
@@ -306,17 +305,6 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+I</string>
-   </property>
-  </action>
-  <action name="actionRenameDisplay">
-   <property name="text">
-    <string>Update Display Settings</string>
-   </property>
-   <property name="toolTip">
-    <string>Update display name and serial number in EDID</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+Shift+U</string>
    </property>
   </action>
   <action name="actionKeyboardMapEditor">
@@ -615,12 +603,6 @@
    <slot>openDeviceSelector()</slot>
   </connection>
   <connection>
-   <sender>actionRenameDisplay</sender>
-   <signal>triggered()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>showUpdateDisplaySettingsDialog()</slot>
-  </connection>
-  <connection>
    <sender>actionKeyboardMapEditor</sender>
    <signal>triggered()</signal>
    <receiver>MainWindow</receiver>
@@ -656,7 +638,6 @@
   <slot>changeKeyboardLayout(QString)</slot>
   <slot>showEnvironmentSetupDialog()</slot>
   <slot>openDeviceSelector()</slot>
-  <slot>showUpdateDisplaySettingsDialog()</slot>
   <slot>openKeyboardMapEditor()</slot>
   <slot>configureAdvancedSettings()</slot>
  </slots>
