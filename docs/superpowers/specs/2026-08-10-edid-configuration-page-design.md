@@ -149,7 +149,7 @@ private:
 │                                                 │
 │  ┌─ Display Name ────────────────────────────┐  │
 │  │                                           │  │
-│  │  Current name:  [________________]        │  │
+│  │  Current name:  ASUS Monitor              │  │
 │  │                                           │  │
 │  │  ☐ Update display name                    │  │
 │  │  New name:      [________________]        │  │
