@@ -99,8 +99,10 @@ HWACCEL_DEPS=(
     "libva-drm2"
     "libva-x11-2"
     "libvdpau1"
-    "libturbojpeg0"
 )
+
+# libturbojpeg0 is a hard dependency (application links against it)
+TURBOJPEG_DEP="libturbojpeg0"
 
 COMPRESSION_DEPS=(
     "zlib1g"
@@ -211,6 +213,16 @@ for pkg in "${HWACCEL_DEPS[@]}"; do
         echo "    ⚠️  $pkg (OPTIONAL - hardware acceleration may be slower)"
     fi
 done
+
+# Check libturbojpeg0 (hard dependency - application links against it)
+if dpkg -l | grep -q "^ii.*${TURBOJPEG_DEP}"; then
+    echo "    ✅ $TURBOJPEG_DEP"
+    FOUND_DEPS=$((FOUND_DEPS + 1))
+else
+    echo "    ❌ $TURBOJPEG_DEP (MISSING)"
+    MISSING_DEPS+=("$TURBOJPEG_DEP")
+fi
+TOTAL_DEPS=$((TOTAL_DEPS + 1))
 
 # Check Compression dependencies
 print_category "  Compression Libraries:"
