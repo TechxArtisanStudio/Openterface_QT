@@ -188,6 +188,7 @@ Write the complete file below to `ui/preferences/edidconfigpage.cpp`. This inclu
 
 #include "edidconfigpage.h"
 #include "../advance/edid/edidutils.h"
+#include "../advance/edid/firmwareutils.h"
 #include "../../video/videohid.h"
 #include "../../video/firmwareoperationmanager.h"
 #include "../../video/ms2109.h"
