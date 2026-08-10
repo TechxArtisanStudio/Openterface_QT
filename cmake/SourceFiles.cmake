@@ -313,6 +313,7 @@ set(UI_PREFERENCES_SOURCES
     ui/preferences/audiopage.cpp ui/preferences/audiopage.h
     ui/preferences/mcppage.cpp ui/preferences/mcppage.h
     ui/preferences/targetcontrolpage.cpp ui/preferences/targetcontrolpage.h
+    ui/preferences/edidconfigpage.cpp ui/preferences/edidconfigpage.h
 )
 
 # Combine all source files
