@@ -37,6 +37,10 @@
 
 EdidConfigPage::EdidConfigPage(QWidget *parent)
     : QWidget(parent)
+    , deviceStatusGroup(nullptr)
+    , deviceStatusIconLabel(nullptr)
+    , deviceStatusLabel(nullptr)
+    , readButton(nullptr)
     , displayNameGroup(nullptr)
     , currentNameLabel(nullptr)
     , displayNameCheckBox(nullptr)
@@ -54,7 +58,10 @@ EdidConfigPage::EdidConfigPage(QWidget *parent)
     , m_updateMode(false)
 {
     setupUI();
-    loadCurrentEDIDSettings();
+    // Defer the blocking USB read so the dialog renders immediately.
+    // The polling thread will also emit hidDeviceConnected/Disconnected
+    // signals to keep the status up to date.
+    QTimer::singleShot(0, this, &EdidConfigPage::updateDeviceStatus);
 }
 
 EdidConfigPage::~EdidConfigPage()
@@ -74,6 +81,7 @@ void EdidConfigPage::setupUI()
 {
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
 
+    buildDeviceStatusSection();
     buildDisplayNameSection();
     buildProgressSection();
     buildButtonSection();
@@ -81,7 +89,35 @@ void EdidConfigPage::setupUI()
     setLayout(mainLayout);
 
     connectUiSignals();
-    enableApplyButton();
+
+    // Display name section starts disabled until firmware is read manually
+    displayNameGroup->setEnabled(false);
+    applyButton->setEnabled(false);
+}
+
+void EdidConfigPage::buildDeviceStatusSection()
+{
+    deviceStatusGroup = new QGroupBox(tr("Device"), this);
+    QHBoxLayout *layout = new QHBoxLayout(deviceStatusGroup);
+
+    deviceStatusIconLabel = new QLabel(this);
+    deviceStatusIconLabel->setFixedSize(16, 16);
+    layout->addWidget(deviceStatusIconLabel);
+
+    QLabel *statusTextLabel = new QLabel(tr("Device status:"), this);
+    layout->addWidget(statusTextLabel);
+
+    deviceStatusLabel = new QLabel(tr("Checking..."), this);
+    deviceStatusLabel->setStyleSheet("QLabel { font-weight: bold; }");
+    layout->addWidget(deviceStatusLabel);
+
+    layout->addStretch();
+
+    readButton = new QPushButton(tr("Read from Device"), this);
+    readButton->setEnabled(false);
+    layout->addWidget(readButton);
+
+    static_cast<QVBoxLayout*>(this->layout())->addWidget(deviceStatusGroup);
 }
 
 void EdidConfigPage::buildDisplayNameSection()
@@ -98,7 +134,7 @@ void EdidConfigPage::buildDisplayNameSection()
     layout->addWidget(displayNameCheckBox);
 
     displayNameLineEdit = new QLineEdit(this);
-    displayNameLineEdit->setPlaceholderText(tr("Loading current display name..."));
+    displayNameLineEdit->setPlaceholderText(tr("Click \"Read from Device\" to load current name"));
     displayNameLineEdit->setEnabled(false);
     displayNameLineEdit->setMaxLength(13);
     layout->addWidget(displayNameLineEdit);
@@ -160,6 +196,19 @@ void EdidConfigPage::connectUiSignals()
     connect(displayNameCheckBox, &QCheckBox::toggled, this, &EdidConfigPage::onDisplayNameCheckChanged);
     connect(cancelReadingButton, &QPushButton::clicked, this, &EdidConfigPage::onCancelReadingClicked);
     connect(displayNameLineEdit, &QLineEdit::textChanged, this, &EdidConfigPage::enableApplyButton);
+    connect(readButton, &QPushButton::clicked, this, &EdidConfigPage::onReadButtonClicked);
+
+    // Monitor device connection status
+    VideoHid &videoHid = VideoHid::getInstance();
+    connect(&videoHid, &VideoHid::hidDeviceConnected, this, [this](const QString &) {
+        updateDeviceStatus();
+    });
+    connect(&videoHid, &VideoHid::hidDeviceDisconnected, this, [this](const QString &) {
+        updateDeviceStatus();
+    });
+    connect(&videoHid, &VideoHid::hidDeviceChanged, this, [this](const QString &, const QString &) {
+        updateDeviceStatus();
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -170,6 +219,66 @@ void EdidConfigPage::onDisplayNameCheckChanged(bool checked)
 {
     displayNameLineEdit->setEnabled(checked);
     enableApplyButton();
+}
+
+// ---------------------------------------------------------------------------
+// Slot: Read from Device button clicked
+// ---------------------------------------------------------------------------
+
+void EdidConfigPage::onReadButtonClicked()
+{
+    VideoHid &videoHid = VideoHid::getInstance();
+
+    // Fast check first — avoid blocking USB read if device is not open
+    if (!videoHid.isOpen()) {
+        QMessageBox::warning(this, tr("Device Not Connected"),
+                             tr("Please connect the device before reading EDID data."));
+        updateDeviceStatus();
+        return;
+    }
+
+    // Only do the slow USB read if the device is actually open
+    if (!videoHid.isHdmiConnected()) {
+        QMessageBox::warning(this, tr("Device Not Connected"),
+                             tr("Please connect the device before reading EDID data."));
+        updateDeviceStatus();
+        return;
+    }
+
+    readButton->setEnabled(false);
+    loadCurrentEDIDSettings();
+}
+
+// ---------------------------------------------------------------------------
+// Device connection status
+// ---------------------------------------------------------------------------
+
+void EdidConfigPage::updateDeviceStatus()
+{
+    VideoHid &videoHid = VideoHid::getInstance();
+
+    // Fast check first — avoid blocking USB read if device is not open
+    bool deviceOpen = videoHid.isOpen();
+    bool connected = false;
+
+    if (deviceOpen) {
+        // Only do the slow USB read if the device is actually open
+        connected = videoHid.isHdmiConnected();
+    }
+
+    if (connected) {
+        deviceStatusLabel->setText(tr("Connected"));
+        deviceStatusLabel->setStyleSheet("QLabel { font-weight: bold; color: #2e7d32; }");
+        deviceStatusIconLabel->setStyleSheet(
+            "background-color: #2e7d32; border-radius: 8px; min-width: 16px; min-height: 16px;");
+        readButton->setEnabled(true);
+    } else {
+        deviceStatusLabel->setText(tr("Disconnected"));
+        deviceStatusLabel->setStyleSheet("QLabel { font-weight: bold; color: #c62828; }");
+        deviceStatusIconLabel->setStyleSheet(
+            "background-color: #c62828; border-radius: 8px; min-width: 16px; min-height: 16px;");
+        readButton->setEnabled(false);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -422,6 +531,7 @@ void EdidConfigPage::onFirmwareReadError(const QString &errorMessage)
     qWarning() << "Firmware read error:" << errorMessage;
 
     setControlsEnabled(true);
+    updateDeviceStatus();
     applyButton->setEnabled(true);
     displayNameLineEdit->setPlaceholderText(tr("Error reading firmware — enter display name"));
     enableApplyButton();
@@ -446,6 +556,7 @@ void EdidConfigPage::onFirmwareWriteFinished(bool success)
 void EdidConfigPage::processFirmwareReadResult(bool success)
 {
     setControlsEnabled(true);
+    updateDeviceStatus();
 
     if (!success) {
         qWarning() << "Failed to read firmware data, cannot load current EDID settings";
@@ -591,6 +702,7 @@ void EdidConfigPage::onCancelReadingClicked()
     qDebug() << "User cancelled firmware reading";
     shutdownFirmwareOperation();
     setControlsEnabled(true);
+    updateDeviceStatus();
     displayNameLineEdit->setPlaceholderText(tr("Reading cancelled — enter display name"));
     enableApplyButton();
     restartPollingDelayed(tr("user cancellation"));

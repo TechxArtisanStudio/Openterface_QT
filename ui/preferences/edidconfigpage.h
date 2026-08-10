@@ -50,6 +50,7 @@ private slots:
     void onDisplayNameCheckChanged(bool checked);
     void onApplyButtonClicked();
     void onCancelReadingClicked();
+    void onReadButtonClicked();
 
     // Firmware operation signal handlers
     void onFirmwareReadProgress(int percent);
@@ -59,6 +60,11 @@ private slots:
 
 private:
     // ---- UI widgets ----
+    QGroupBox *deviceStatusGroup;
+    QLabel *deviceStatusIconLabel;
+    QLabel *deviceStatusLabel;
+    QPushButton *readButton;
+
     QGroupBox *displayNameGroup;
     QLabel *currentNameLabel;
     QCheckBox *displayNameCheckBox;
@@ -81,10 +87,14 @@ private:
 
     // ---- UI construction ----
     void setupUI();
+    void buildDeviceStatusSection();
     void buildDisplayNameSection();
     void buildProgressSection();
     void buildButtonSection();
     void connectUiSignals();
+
+    // ---- Device status ----
+    void updateDeviceStatus();
 
     // ---- Firmware/EDID logic (ported from UpdateDisplaySettingsDialog) ----
     void ensureFirmwareOperationManager();
