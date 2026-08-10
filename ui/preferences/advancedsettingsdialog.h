@@ -33,6 +33,7 @@
 #include "mcppage.h"
 #include "firmwarepage.h"
 #include "controlchipfirmwarepage.h"
+#include "edidconfigpage.h"
 
 class AdvancedSettingsDialog : public QDialog
 {
@@ -51,6 +52,7 @@ private:
     FirmwarePage *firmwarePage;
     ControlChipFirmwarePage *controlChipFirmwarePage;
     McpPage *mcpPage;
+    EdidConfigPage *edidConfigPage;
 
     QWidget *buttonWidget;
     QSplitter *splitter;

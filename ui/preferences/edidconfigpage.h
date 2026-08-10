@@ -89,6 +89,7 @@ private:
     // ---- Firmware/EDID logic (ported from UpdateDisplaySettingsDialog) ----
     void ensureFirmwareOperationManager();
     void loadCurrentEDIDSettings();
+    void processFirmwareReadResult(bool success);
     bool processFirmwareData(const QByteArray &firmwareData);
     bool parseEdidBlock(const QByteArray &firmwareData, int &edidOffset, QByteArray &edidBlock) const;
     bool updateDisplayName(const QString &newName);

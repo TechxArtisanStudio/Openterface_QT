@@ -24,6 +24,7 @@
 #include "mcppage.h"
 #include "firmwarepage.h"
 #include "controlchipfirmwarepage.h"
+#include "edidconfigpage.h"
 
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
@@ -45,6 +46,7 @@ AdvancedSettingsDialog::AdvancedSettingsDialog(QWidget *parent)
     , firmwarePage(new FirmwarePage(this))
     , controlChipFirmwarePage(new ControlChipFirmwarePage(this))
     , mcpPage(new McpPage(this))
+    , edidConfigPage(new EdidConfigPage(this))
     , buttonWidget(new QWidget(this))
     , m_currentPageIndex(-1)
     , m_changingPage(false)
@@ -95,7 +97,7 @@ void AdvancedSettingsDialog::createSettingTree() {
     settingTree->setSelectionMode(QAbstractItemView::SingleSelection);
     settingTree->setRootIsDecorated(false);
 
-    QStringList names = {tr("Video Firmware"), tr("Control Chip Firmware"), tr("MCP")};
+    QStringList names = {tr("Video Firmware"), tr("Control Chip Firmware"), tr("MCP"), tr("EDID Configuration")};
     for (const QString &name : names) {
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
@@ -115,6 +117,7 @@ void AdvancedSettingsDialog::createPages() {
     addScrollablePage(firmwarePage);
     addScrollablePage(controlChipFirmwarePage);
     addScrollablePage(mcpPage);
+    addScrollablePage(edidConfigPage);
 }
 
 void AdvancedSettingsDialog::createButtons() {
@@ -170,6 +173,8 @@ void AdvancedSettingsDialog::changePage(QTreeWidgetItem *current, QTreeWidgetIte
         newPageIndex = 1;
     } else if (itemText == tr("MCP")) {
         newPageIndex = 2;
+    } else if (itemText == tr("EDID Configuration")) {
+        newPageIndex = 3;
     }
 
     if (newPageIndex != -1 && newPageIndex != m_currentPageIndex) {
@@ -178,7 +183,7 @@ void AdvancedSettingsDialog::changePage(QTreeWidgetItem *current, QTreeWidgetIte
         stackedWidget->setCurrentIndex(newPageIndex);
         m_currentPageIndex = newPageIndex;
 
-        // Show OK/Apply/Cancel buttons only on MCP page
+        // Show OK/Apply/Cancel buttons only on MCP page; EDID page has its own Apply
         buttonWidget->setVisible(newPageIndex == 2);
 
         m_pageChangeTimer->start(200);
