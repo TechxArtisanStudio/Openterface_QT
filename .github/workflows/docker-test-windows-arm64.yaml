@@ -45,10 +45,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download ARM64 Build Artifact
+        id: download
         shell: bash
         run: |
           echo "[DOWNLOAD] Getting ARM64 build artifact for SHA ${{ github.sha }}..."
           mkdir -p build
+
+          # Default: artifact not available (skip subsequent steps)
+          echo "artifact_available=false" >> $GITHUB_OUTPUT
 
           WORKFLOW="windows-arm64-build.yaml"
           API="https://api.github.com/repos/${{ github.repository }}/actions/workflows/$WORKFLOW/runs?status=success&per_page=10"
@@ -136,8 +140,10 @@ jobs:
           fi
 
           echo "[SUCCESS] Download complete"
+          echo "artifact_available=true" >> $GITHUB_OUTPUT
 
       - name: Verify ARM64 static linkage
+        if: steps.download.outputs.artifact_available == 'true'
         shell: bash
         run: |
           echo "[VERIFY] Checking ARM64 static linkage..."
@@ -237,7 +243,7 @@ jobs:
           echo "[VERIFY] Static linkage check completed"
 
       - name: Launch app (background)
-        if: ${{ github.event.inputs.skip_test != 'true' }}
+        if: ${{ github.event.inputs.skip_test != 'true' && steps.download.outputs.artifact_available == 'true' }}
         shell: bash
         timeout-minutes: 2
         run: |
@@ -285,7 +291,7 @@ jobs:
           echo "APP_EXE_PATH=$WIN_EXE" >> "$GITHUB_ENV"
 
       - name: Take screenshot (PowerShell - minimal)
-        if: ${{ github.event.inputs.skip_test != 'true' }}
+        if: ${{ github.event.inputs.skip_test != 'true' && steps.download.outputs.artifact_available == 'true' }}
         shell: bash
         timeout-minutes: 3
         run: |
