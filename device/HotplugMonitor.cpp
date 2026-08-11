@@ -38,9 +38,9 @@ void HotplugMonitor::addCallback(ChangeCallback callback)
     qCDebug(log_hotplug_monitor) << "Added callback, total callbacks:" << m_callbacks.size();
 }
 
-void HotplugMonitor::removeCallback(ChangeCallback callback)
+void HotplugMonitor::removeCallback(ChangeCallback /*callback*/)
 {
-    // Note: This is a simplified removal - in practice you might want to use 
+    // Note: This is a simplified removal - in practice you might want to use
     // a more sophisticated callback management system
     qCDebug(log_hotplug_monitor) << "Callback removal requested (simplified implementation)";
 }
@@ -277,7 +277,8 @@ DeviceChangeEvent HotplugMonitor::getInitialState() const
 void HotplugMonitor::checkForChangesSlot()
 {
     // Run device discovery in background thread to avoid blocking UI
-    QtConcurrent::run([this]() {
+    auto future = QtConcurrent::run([this]() {
         checkForChanges();
     });
+    Q_UNUSED(future);
 }

@@ -379,7 +379,7 @@ void WindowControlManager::onWindowFullScreen()
     // Only menu bar will be hidden/shown based on timer and mouse position
 }
 
-void WindowControlManager::onWindowStateChanged(Qt::WindowStates oldState, Qt::WindowStates newState)
+void WindowControlManager::onWindowStateChanged(Qt::WindowStates /*oldState*/, Qt::WindowStates newState)
 {
     bool wasMaximized = m_isMaximized;
     bool wasFullScreen = m_isFullScreen;

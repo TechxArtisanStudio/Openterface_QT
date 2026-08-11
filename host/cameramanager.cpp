@@ -1584,8 +1584,6 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
 
             // Determine device path and port chain via helper
             QString devicePath;
-            QSize resolution(0, 0);
-            int framerate = 0;
             QString detectedPortChain;
             bool deviceOk = false;
             devicePath = determineDirectCaptureDevicePath(detectedPortChain, deviceOk);

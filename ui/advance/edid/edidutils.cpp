@@ -464,7 +464,7 @@ void EDIDUtils::parseEDIDExtensionBlocks(const QByteArray &firmwareData, int bas
     qDebug() << "=== END EXTENSION BLOCKS ===";
 }
 
-void EDIDUtils::parseCEA861ExtensionBlock(const QByteArray &block, int blockNumber)
+void EDIDUtils::parseCEA861ExtensionBlock(const QByteArray &block, int /*blockNumber*/)
 {
     if (block.size() != 128) {
         qWarning() << "Invalid CEA-861 extension block size:" << block.size();
@@ -508,7 +508,7 @@ void EDIDUtils::parseCEA861ExtensionBlock(const QByteArray &block, int blockNumb
     }
 }
 
-void EDIDUtils::parseVideoTimingExtensionBlock(const QByteArray &block, int blockNumber)
+void EDIDUtils::parseVideoTimingExtensionBlock(const QByteArray &/*block*/, int /*blockNumber*/)
 {
     qDebug() << "Video Timing Extension Block parsing not fully implemented";
     qDebug() << "This block contains additional timing information";

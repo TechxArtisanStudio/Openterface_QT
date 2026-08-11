@@ -167,6 +167,11 @@ if(WIN32)
     target_compile_options(${PROJECT_NAME} PRIVATE -fstack-protector-strong)
 endif()
 
+# Link Windows HID and SetupAPI libraries
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE hid setupapi cfgmgr32 ole32)
+endif()
+
 # Link X11 libraries for Linux builds to resolve X11 symbols used in overlay code
 if(UNIX AND NOT APPLE)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${X11_LIBRARIES})
@@ -396,6 +401,14 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
         endif()
     endif()
 endif()
+
+# Copy local-build launcher to output directory
+add_custom_command(TARGET openterfaceQT POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/build-script/openterfaceQT-local-launcher.sh"
+        "$<TARGET_FILE_DIR:openterfaceQT>/openterfaceQT-launcher.sh"
+    COMMENT "Copying local launcher to build directory"
+)
 
 # Qt components already found above
 # =============================================================================

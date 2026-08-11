@@ -10,7 +10,7 @@ void ResolutionModel::clear()
 void ResolutionModel::addResolution(const QString &description, int width, int height, int refreshRate, quint8 vic,
                                    bool isStandardTiming, bool isEnabled)
 {
-    for (const auto &existing : qAsConst(availableResolutions)) {
+    for (const auto &existing : std::as_const(availableResolutions)) {
         if (existing.width == width && existing.height == height && existing.refreshRate == refreshRate) {
             return;
         }

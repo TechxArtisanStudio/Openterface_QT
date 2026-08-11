@@ -29,7 +29,7 @@ HelpPane::HelpPane(QWidget *parent) : QWidget(parent)
 
 }
 
-void HelpPane::paintEvent(QPaintEvent *event)
+void HelpPane::paintEvent(QPaintEvent */*event*/)
 {
     QPainter painter(this);
     QColor color("#040707");

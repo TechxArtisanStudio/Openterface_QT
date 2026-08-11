@@ -771,7 +771,7 @@ int SerialPortManager::determineBaudrate() const {
     return stored > 0 ? stored : DEFAULT_BAUDRATE;
 }
 
-bool SerialPortManager::openPortWithRetries(const QString &portName, int tryBaudrate) {
+bool SerialPortManager::openPortWithRetries(const QString &/*portName*/, int /*tryBaudrate*/) {
     // This method is now deprecated in favor of the async initialization methods
     // It should not be called in the new flow, but keeping it for backward compatibility
     qCWarning(log_core_serial) << "openPortWithRetries called - this should not happen with new async initialization";
@@ -1414,10 +1414,9 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     QMutexLocker locker(&m_serialPortMutex);
     
     // If there is an existing QSerialPort instance that is not open, delete it to avoid stale internal state (e.g., stale file descriptor / notifiers)
-    QSerialPort* oldSerialPort = nullptr;
     if (serialPort != nullptr && !serialPort->isOpen()) {
         qCDebug(log_core_serial) << "Existing closed QSerialPort instance found - marking for deletion to ensure fresh instance before open.";
-        oldSerialPort = serialPort;
+        delete serialPort;
         serialPort = nullptr;  // Clear pointer temporarily
     }
 
@@ -1998,30 +1997,26 @@ void SerialPortManager::readData() {
     if (parsed.status != STATUS_SUCCESS && (parsed.commandCode >= 0xC0 && parsed.commandCode <= 0xCF)) {
         dumpError(parsed.status, packet);
     } else {
-        qCDebug(log_core_serial).nospace().noquote() << "RX (" << serialPort->portName() << "@"
-            << (serialPort ? serialPort->baudRate() : 0) << "bps): " << packet.toHex(' ');
-
-        // RX-DIAG: fprintf to stderr so responses are visible in sse_server.log
-        {
-            uint8_t cmdCode = packet.size() > 3 ? static_cast<uint8_t>(packet[3]) : 0;
-            uint8_t statusByte = packet.size() > 5 ? static_cast<uint8_t>(packet[5]) : 0xFF;
-            const char* cmdName = "UNKNOWN";
-            switch (cmdCode) {
-                case 0x81: cmdName = "GET_INFO_RSP"; break;
-                case 0x82: cmdName = "KB_RSP"; break;
-                case 0x84: cmdName = "MOUSE_ABS_RSP"; break;
-                case 0x85: cmdName = "MOUSE_REL_RSP"; break;
-                case 0x88: cmdName = "GET_PARA_CFG_RSP"; break;
-                case 0x89: cmdName = "SET_PARA_CFG_RSP"; break;
-                case 0x8F: cmdName = "RESET_RSP"; break;
-                case 0x97: cmdName = "USB_SWITCH_RSP"; break;
-                case 0x99: cmdName = "USB_STATUS_RSP"; break;
-                default: break;
-            }
-            fprintf(stderr, "[RX-DIAG] Received: [%s] cmd=0x%02x(%s) status=0x%02x size=%d\n",
-                    packet.toHex(' ').constData(), cmdCode, cmdName, statusByte, packet.size());
-            fflush(stderr);
+        uint8_t cmdCode = packet.size() > 3 ? static_cast<uint8_t>(packet[3]) : 0;
+        uint8_t statusByte = packet.size() > 5 ? static_cast<uint8_t>(packet[5]) : 0xFF;
+        const char* cmdName = "UNKNOWN";
+        switch (cmdCode) {
+            case 0x81: cmdName = "GET_INFO_RSP"; break;
+            case 0x82: cmdName = "KB_RSP"; break;
+            case 0x84: cmdName = "MOUSE_ABS_RSP"; break;
+            case 0x85: cmdName = "MOUSE_REL_RSP"; break;
+            case 0x88: cmdName = "GET_PARA_CFG_RSP"; break;
+            case 0x89: cmdName = "SET_PARA_CFG_RSP"; break;
+            case 0x8F: cmdName = "RESET_RSP"; break;
+            case 0x97: cmdName = "USB_SWITCH_RSP"; break;
+            case 0x99: cmdName = "USB_STATUS_RSP"; break;
+            default: break;
         }
+        qCDebug(log_core_serial).nospace().noquote() << "RX (" << serialPort->portName() << "@"
+            << (serialPort ? serialPort->baudRate() : 0) << "bps): " << packet.toHex(' ')
+            << " cmd=0x" << Qt::hex << cmdCode << "(" << cmdName << ")"
+            << " status=0x" << statusByte << Qt::dec
+            << " size=" << packet.size();
 
         // Also explicitly log RX to file during diagnostics
         if (!m_logFilePath.contains("serial_log.txt")) {
@@ -3372,7 +3367,6 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
     // Add lightweight consecutive "no-response" detection and automatic escalation:
     // - If we send requests but receive 0 responses for N consecutive 1-second intervals,
     //   trigger recovery (prefer ConnectionWatchdog; fallback to close+reopen).
-    static int s_consecutiveNoResponseIntervals = 0;
     const int NO_RESPONSE_ESCALATION_THRESHOLD = 3; // ~3 seconds of zero replies
     Q_UNUSED(NO_RESPONSE_ESCALATION_THRESHOLD);
     
@@ -3451,7 +3445,6 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
             }
         } else {
             // No activity in this window; be conservative and reset counter
-            s_consecutiveNoResponseIntervals = 0;
         }
         
         // ===== RESET COUNTERS FOR NEXT INTERVAL =====

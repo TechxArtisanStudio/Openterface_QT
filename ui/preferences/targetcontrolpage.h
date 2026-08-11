@@ -64,7 +64,7 @@ private:
     QLineEdit *serialNumberLineEdit;
 
     void addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit);
-    void onCheckBoxStateChanged(int state);
+    void onCheckBoxStateChanged(Qt::CheckState state);
     
     std::array<bool, 4> extractBits(QString hexString);
     QByteArray convertCheckBoxValueToBytes();

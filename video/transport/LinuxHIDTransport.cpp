@@ -15,7 +15,6 @@
 #include <unistd.h>
 #include <cerrno>
 #include <cstring>
-#include <cstdio>
 #include <sys/ioctl.h>
 #include <linux/hid.h>
 #include <linux/hidraw.h>
@@ -43,21 +42,18 @@ bool LinuxHIDTransport::open()
 
     QString devicePath = getHIDDevicePath();
     if (devicePath.isEmpty()) {
-        fprintf(stderr, "[DEBUG-HID] open: no HID device path found\n");
         qCDebug(log_linux_transport) << "open: no HID device path found";
         return false;
     }
 
-    fprintf(stderr, "[DEBUG-HID] Opening device: %s\n", devicePath.toUtf8().constData());
+    qCDebug(log_linux_transport) << "Opening HID device:" << devicePath;
     m_hidFd = ::open(devicePath.toStdString().c_str(), O_RDWR);
     if (m_hidFd < 0) {
-        fprintf(stderr, "[DEBUG-HID] open failed: %s, error: %s\n",
-                devicePath.toUtf8().constData(), strerror(errno));
         qCDebug(log_linux_transport) << "open: failed to open" << devicePath
                                      << "error:" << strerror(errno);
         return false;
     }
-    fprintf(stderr, "[DEBUG-HID] Device opened successfully, fd=%d\n", m_hidFd);
+    qCDebug(log_linux_transport) << "HID device opened, fd=" << m_hidFd;
     return true;
 }
 
@@ -71,40 +67,28 @@ void LinuxHIDTransport::close()
 
 bool LinuxHIDTransport::sendFeatureReport(uint8_t* buf, size_t len)
 {
-    bool opened = false;
-    if (!isOpen()) {
-        if (!open()) return false;
-        opened = true;
-    }
+    if (!isOpen() && !open()) return false;
 
     std::vector<uint8_t> buffer(buf, buf + len);
     int res = ioctl(m_hidFd, HIDIOCSFEATURE(buffer.size()), buffer.data());
     if (res < 0) {
         qCDebug(log_linux_transport) << "sendFeatureReport failed:" << strerror(errno);
-        if (opened) close();
         return false;
     }
-    if (opened) close();
     return true;
 }
 
 bool LinuxHIDTransport::getFeatureReport(uint8_t* buf, size_t len)
 {
-    bool opened = false;
-    if (!isOpen()) {
-        if (!open()) return false;
-        opened = true;
-    }
+    if (!isOpen() && !open()) return false;
 
     std::vector<uint8_t> buffer(len, 0);
     int res = ioctl(m_hidFd, HIDIOCGFEATURE(buffer.size()), buffer.data());
     if (res < 0) {
         qCDebug(log_linux_transport) << "getFeatureReport failed:" << strerror(errno);
-        if (opened) close();
         return false;
     }
     std::copy(buffer.begin(), buffer.end(), buf);
-    if (opened) close();
     return true;
 }
 

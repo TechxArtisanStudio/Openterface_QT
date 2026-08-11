@@ -119,7 +119,7 @@ void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &
     // TEMP: Always write to file for debugging
     static QFile debugFile("C:/openterface_debug.log");
     if (!debugFile.isOpen()) {
-        debugFile.open(QIODevice::WriteOnly | QIODevice::Append);
+        (void)debugFile.open(QIODevice::WriteOnly | QIODevice::Append);
     }
     if (debugFile.isOpen()) {
         QTextStream ds(&debugFile);
