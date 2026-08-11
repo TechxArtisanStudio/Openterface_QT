@@ -47,6 +47,8 @@ public:
     void setupUI();
     void applyHardwareSetting();
     void initHardwareSetting();
+    void captureSnapshot();
+    void revertToSnapshot();
 
 private:
     QLabel *hardwareLabel;
@@ -80,6 +82,18 @@ private:
     const QString bigLabelFontSize = "font-size: 16px;";
 
     int originalOperatingMode;
+
+    // Snapshot members
+    bool m_snap_vidChecked;
+    bool m_snap_pidChecked;
+    QString m_snap_vidText;
+    QString m_snap_pidText;
+    QString m_snap_vidDescriptor;
+    QString m_snap_pidDescriptor;
+    bool m_snap_usbSerialNumberChecked;
+    QString m_snap_serialNumberText;
+    bool m_snap_usbCustomStringChecked;
+    int m_snap_operatingMode;
 };
 
 #endif // TARGETCONTROL_H
