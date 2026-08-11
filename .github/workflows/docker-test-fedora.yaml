@@ -1113,8 +1113,8 @@ jobs:
             # Install multimedia libraries
             echo "📦 Installing multimedia libraries..."
             # RPM Fusion repos may not be available in all environments.
-            # Try to install multimedia packages but don't fail if unavailable —
-            # the build can proceed without them (they're optional for basic functionality).
+            # Try to install multimedia packages but do not fail if unavailable.
+            # The build can proceed without them (they are optional for basic functionality).
             dnf install -y --nogpgcheck \
               ffmpeg-devel \
               gstreamer1-devel \

@@ -1207,6 +1207,7 @@ jobs:
               qt6-multimedia-dev \
               qt6-serialport-dev \
               qt6-svg-dev \
+              qt6-httpserver-dev \
               qmake6 \
               pkg-config; then
               echo "❌ Qt6 package installation failed"
