@@ -97,32 +97,29 @@ jobs:
           try {
             $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -ErrorAction Stop
             $latestRun = $response.workflow_runs[0]
-            
+
+            # Do NOT fall back to main branch — its artifacts may be stale/expired.
+            # When a successful build for this branch exists, the workflow_run trigger
+            # will re-fire this job with a valid artifact available.
             if ($null -eq $latestRun) {
-              Write-Host "[WARNING] No successful build runs found for branch ${{ github.ref_name }}"
-              Write-Host "Trying to get from main branch..."
-              
-              $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflowName/runs?status=success&head_branch=main&per_page=1"
-              $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -ErrorAction Stop
-              $latestRun = $response.workflow_runs[0]
+              Write-Host "[SKIP] No successful build runs found for branch ${{ github.ref_name }}"
+              Write-Host "[SKIP] This job will re-run via workflow_run once the build succeeds."
+              exit 0
             }
-            
-            if ($null -eq $latestRun) {
-              Write-Host "[ERROR] No successful build runs found"
-              exit 1
-            }
-            
+
             $runId = $latestRun.id
             Write-Host "[SUCCESS] Found latest windows-build run: $runId"
             Write-Host "[INFO] Run created: $($latestRun.created_at)"
-            
+
             # Calculate age of the build
             $createdAt = [DateTime]::Parse($latestRun.created_at)
             $age = [DateTime]::UtcNow - $createdAt
             Write-Host "[INFO] Build age: $($age.Days) days, $($age.Hours) hours"
-            
+
             if ($age.Days -gt 85) {
               Write-Host "[WARNING] Build is very old ($($age.Days) days). Artifacts may have expired."
+              Write-Host "[SKIP] Skipping — artifacts likely expired."
+              exit 0
             }
             
             # Get all artifacts from this run

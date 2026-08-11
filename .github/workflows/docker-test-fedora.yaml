@@ -53,34 +53,33 @@ jobs:
       - name: Download Latest Linux Build Artifacts
         run: |
           echo "⬇️ Downloading latest Linux shared build artifacts..."
-          
+
           # Create build directory
           mkdir -p build
-          
-          # Get the latest successful linux-build workflow run
-          LATEST_RUN=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+
+          # Get the latest successful linux-build workflow run for current branch.
+          # Do NOT fall back to other branches — their artifacts may be stale/expired.
+          # When a successful build for this branch exists, the workflow_run trigger
+          # will re-fire this job with a valid artifact available.
+          LATEST_RUN=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yaml/runs?status=success&head_branch=${{ github.ref_name }}" \
             | jq -r '.workflow_runs[0]')
-          
+
           if [ "$LATEST_RUN" = "null" ] || [ -z "$LATEST_RUN" ]; then
             echo "⚠️ No successful linux-build runs found for branch ${{ github.ref_name }}"
-            echo "Trying to get from main branch..."
-            LATEST_RUN=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yaml/runs?status=success&head_branch=main" \
-              | jq -r '.workflow_runs[0]')
+            echo "⚠️ This job will re-run via workflow_run once the build succeeds."
+            exit 0
           fi
-          
-          if [ "$LATEST_RUN" = "null" ] || [ -z "$LATEST_RUN" ]; then
-            echo "❌ No successful linux-build runs found"
-            exit 1
-          fi
-          
+
           RUN_ID=$(echo "$LATEST_RUN" | jq -r '.id')
           echo "✅ Found latest linux-build run: $RUN_ID"
-          
+
           # Get all artifacts from this run
-          ARTIFACTS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts")
+          ARTIFACTS=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts") || {
+            echo "❌ Failed to query artifacts API"
+            exit 1
+          }
           
           # Find and download the appropriate artifact based on install_type
           if [ "${{ matrix.install_type }}" = "appimage" ]; then
@@ -102,11 +101,23 @@ jobs:
           else
             echo "📦 Found artifact: $ARTIFACT_ID"
             
-            # Download the artifact
+            # Download the artifact — use -f so HTTP errors fail loudly
             echo "⬇️ Downloading artifact..."
-            curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            curl -sfL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -o artifact.zip \
-              "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip"
+              "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" || {
+              echo "❌ Artifact download failed (HTTP error or network issue)"
+              ls -la artifact.zip 2>/dev/null
+              exit 1
+            }
+
+            # Validate the download is actually a zip before extracting
+            if ! file artifact.zip | grep -qi "zip"; then
+              echo "❌ Downloaded file is not a valid zip archive"
+              ls -la artifact.zip
+              head -c 200 artifact.zip | xxd | head -5
+              exit 1
+            fi
             
             # Extract the artifact file
             unzip -j artifact.zip -d build/
