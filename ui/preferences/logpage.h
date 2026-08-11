@@ -44,6 +44,8 @@ public:
     void browseLogPath();
     void initLogSettings();
     void applyLogsettings();
+    void captureSnapshot();
+    void revertToSnapshot();
 
 signals:
     void ScreenSaverInhibitedChanged(bool inhibited);
@@ -70,6 +72,22 @@ private:
     QSlider *floatingWindowOpacitySlider;
     QLabel *floatingWindowOpacityLabel;
     QCheckBox *systemKeyBlockerCheckBox;
+
+    // Snapshot members for Revert functionality
+    bool m_snap_coreLog;
+    bool m_snap_serialLog;
+    bool m_snap_uiLog;
+    bool m_snap_hostLog;
+    bool m_snap_deviceLog;
+    bool m_snap_backendLog;
+    bool m_snap_scriptLog;
+    bool m_snap_storeLog;
+    QString m_snap_logFilePath;
+    bool m_snap_screenSaver;
+    bool m_snap_hideKeyboardInput;
+    bool m_snap_floatingWindow;
+    int m_snap_floatingWindowOpacity;
+    bool m_snap_systemKeyBlocker;
 
     QHBoxLayout *logCheckboxLayout;
     QHBoxLayout *logFilePathLayout;

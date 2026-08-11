@@ -36,6 +36,7 @@
 #include <QVBoxLayout>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QDialog>
 
 LogPage::LogPage(QWidget *parent) : QWidget(parent)
 {
@@ -168,8 +169,34 @@ void LogPage::setupUI()
     logLayout->addWidget(systemKeyBlockerDescription);
     logLayout->addWidget(systemKeyBlockerCheckBox);
 
+    // Button bar: Apply / Revert / Cancel
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    buttonLayout->addStretch();
+
+    QPushButton *applyButton = new QPushButton(tr("Apply"));
+    QPushButton *revertButton = new QPushButton(tr("Revert"));
+    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
+
+    applyButton->setFixedSize(80, 30);
+    revertButton->setFixedSize(80, 30);
+    cancelButton->setFixedSize(80, 30);
+
+    buttonLayout->addWidget(applyButton);
+    buttonLayout->addWidget(revertButton);
+    buttonLayout->addWidget(cancelButton);
+
+    logLayout->addLayout(buttonLayout);
+
+    // Connect buttons
+    connect(applyButton, &QPushButton::clicked, this, &LogPage::applyLogsettings);
+    connect(revertButton, &QPushButton::clicked, this, &LogPage::revertToSnapshot);
+    connect(cancelButton, &QPushButton::clicked, this, [this]() {
+        QDialog *dlg = qobject_cast<QDialog*>(window());
+        if (dlg) dlg->reject();
+    });
+
     logLayout->addStretch();
-    
+
 }
 
 void LogPage::browseLogPath()
@@ -249,6 +276,7 @@ void LogPage::initLogSettings(){
 
     logFilePathLineEdit->setText(settings.value("log/logFilePath", "").toString());
 
+    captureSnapshot();
 }
 
 void LogPage::applyLogsettings() {
@@ -314,4 +342,40 @@ void LogPage::applyLogsettings() {
     bool systemKeyBlockerEnabled = systemKeyBlockerCheckBox->isChecked();
     GlobalSetting::instance().setSystemKeyBlockerEnabled(systemKeyBlockerEnabled);
     emit systemKeyBlockerToggled(systemKeyBlockerEnabled);
+}
+
+void LogPage::captureSnapshot()
+{
+    m_snap_coreLog = coreCheckBox->isChecked();
+    m_snap_serialLog = serialCheckBox->isChecked();
+    m_snap_uiLog = uiCheckBox->isChecked();
+    m_snap_hostLog = hostCheckBox->isChecked();
+    m_snap_deviceLog = deviceCheckBox->isChecked();
+    m_snap_backendLog = backendCheckBox->isChecked();
+    m_snap_scriptLog = scriptCheckBox->isChecked();
+    m_snap_storeLog = storeLogCheckBox->isChecked();
+    m_snap_logFilePath = logFilePathLineEdit->text();
+    m_snap_screenSaver = screenSaverCheckBox->isChecked();
+    m_snap_hideKeyboardInput = hideKeyboardInputCheckBox->isChecked();
+    m_snap_floatingWindow = floatingWindowCheckBox->isChecked();
+    m_snap_floatingWindowOpacity = floatingWindowOpacitySlider->value();
+    m_snap_systemKeyBlocker = systemKeyBlockerCheckBox->isChecked();
+}
+
+void LogPage::revertToSnapshot()
+{
+    coreCheckBox->setChecked(m_snap_coreLog);
+    serialCheckBox->setChecked(m_snap_serialLog);
+    uiCheckBox->setChecked(m_snap_uiLog);
+    hostCheckBox->setChecked(m_snap_hostLog);
+    deviceCheckBox->setChecked(m_snap_deviceLog);
+    backendCheckBox->setChecked(m_snap_backendLog);
+    scriptCheckBox->setChecked(m_snap_scriptLog);
+    storeLogCheckBox->setChecked(m_snap_storeLog);
+    logFilePathLineEdit->setText(m_snap_logFilePath);
+    screenSaverCheckBox->setChecked(m_snap_screenSaver);
+    hideKeyboardInputCheckBox->setChecked(m_snap_hideKeyboardInput);
+    floatingWindowCheckBox->setChecked(m_snap_floatingWindow);
+    floatingWindowOpacitySlider->setValue(m_snap_floatingWindowOpacity);
+    systemKeyBlockerCheckBox->setChecked(m_snap_systemKeyBlocker);
 }
