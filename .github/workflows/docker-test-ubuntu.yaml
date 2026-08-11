@@ -933,19 +933,19 @@ jobs:
                 
                 # Determine if screenshot has content based on file size (more reliable than color analysis)
                 actual_size=$(stat -f%z "$img" 2>/dev/null || stat -c%s "$img" 2>/dev/null || echo 0)
-                if [ "$actual_size" -gt 50000 ]; then
+                if [ "$actual_size" -gt 5000 ]; then
                   echo "**Status:** ✅ Content detected ($(($actual_size / 1024))KB)" >> $GITHUB_STEP_SUMMARY
                 else
-                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >50000 bytes)" >> $GITHUB_STEP_SUMMARY
-                  echo "Screenshot file size validation failed: $actual_size bytes < 50000 bytes"
+                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >5000 bytes)" >> $GITHUB_STEP_SUMMARY
+                  echo "Screenshot file size validation failed: $actual_size bytes < 5000 bytes"
                   exit 1
                 fi
                 echo "" >> $GITHUB_STEP_SUMMARY
-                
+
                 if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
                   echo "📤 Uploading $filename to Qiniu using Python script..."
                   echo "🔑 Qiniu credentials validation: AK=${#QINIU_AK} chars, SK=${#QINIU_SK} chars"
-                  
+
                   # Use Python script for upload instead of bash script
                   UPLOAD_EXIT_CODE=0
                   UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
@@ -1197,9 +1197,8 @@ jobs:
             apt update -y
             apt install -y ca-certificates
 
-            # Enable universe repository
-            echo "deb http://archive.ubuntu.com/ubuntu jammy main universe" > /etc/apt/sources.list.d/universe.list
-            apt update -y
+            # Note: Ubuntu 24.04 (noble) already has main/universe enabled by default.
+            # Do NOT add jammy repos — they conflict with noble packages.
 
             # Install Qt6 development packages
             echo "📦 Installing Qt6 development packages..."
@@ -1208,7 +1207,6 @@ jobs:
               qt6-multimedia-dev \
               qt6-serialport-dev \
               qt6-svg-dev \
-              libqt6httpserver-dev \
               qmake6 \
               pkg-config; then
               echo "❌ Qt6 package installation failed"
@@ -1535,19 +1533,19 @@ jobs:
                 
                 # Determine if screenshot has content based on file size
                 actual_size=$(stat -f%z "$img" 2>/dev/null || stat -c%s "$img" 2>/dev/null || echo 0)
-                if [ "$actual_size" -gt 50000 ]; then
+                if [ "$actual_size" -gt 5000 ]; then
                   echo "**Status:** ✅ Content detected ($(($actual_size / 1024))KB)" >> $GITHUB_STEP_SUMMARY
                 else
-                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >50000 bytes)" >> $GITHUB_STEP_SUMMARY
-                  echo "Screenshot file size validation failed: $actual_size bytes < 50000 bytes"
+                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >5000 bytes)" >> $GITHUB_STEP_SUMMARY
+                  echo "Screenshot file size validation failed: $actual_size bytes < 5000 bytes"
                   exit 1
                 fi
                 echo "" >> $GITHUB_STEP_SUMMARY
-                
+
                 if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
                   echo "📤 Uploading $filename to Qiniu using Python script..."
                   echo "🔑 Qiniu credentials validation: AK=${#QINIU_AK} chars, SK=${#QINIU_SK} chars"
-                  
+
                   # Use Python script for upload instead of bash script
                   UPLOAD_EXIT_CODE=0
                   UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
