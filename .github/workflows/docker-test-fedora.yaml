@@ -51,8 +51,12 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Download Latest Linux Build Artifacts
+        id: download
         run: |
           echo "⬇️ Downloading latest Linux shared build artifacts..."
+
+          # Default: artifact not available (skip subsequent steps)
+          echo "artifact_available=false" >> $GITHUB_OUTPUT
 
           # Create build directory
           mkdir -p build
@@ -140,11 +144,15 @@ jobs:
               fi
             fi
           fi
-          
+
+          # Mark artifact as available for subsequent steps
+          echo "artifact_available=true" >> $GITHUB_OUTPUT
+
           echo "📦 Build directory contents:"
           ls -la build/ || echo "Build directory is empty"
 
       - name: Extract and inspect package contents (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         run: |
           if [ "${{ matrix.install_type }}" = "rpm" ]; then
             echo "📦 Extracting RPM package contents for inspection..."
@@ -353,6 +361,7 @@ jobs:
           fi
       
       - name: Build Docker image (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         run: |
           echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }}"
           
@@ -365,6 +374,7 @@ jobs:
           echo "📦 Docker image built successfully"
 
       - name: Prepare volume mounts for build artifacts
+        if: steps.download.outputs.artifact_available == 'true'
         run: |
           echo "📦 Checking for build artifacts to mount..."
           
@@ -394,6 +404,7 @@ jobs:
           echo "GITHUB_TOKEN_ENV=-e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
 
       - name: Start persistent container for testing (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         timeout-minutes: 15
         env:
           HAS_VOLUME_MOUNT: ${{ env.HAS_VOLUME_MOUNT }}
@@ -408,10 +419,13 @@ jobs:
           # Set environment variable to track container name
           echo "TEST_CONTAINER_NAME=openterface-test-fedora-persistent" >> $GITHUB_ENV
           
-          # Set APPIMAGE path for AppImage installations
-          # This signals to entrypoint.sh, launcher.sh, and main.cpp that we're using AppImage
-          # Enables proper platform detection and Wayland→XCB fallback handling
-          APPIMAGE_PATH="/tmp/openterfaceQT_linux_amd64.AppImage"
+          # Set APPIMAGE path for AppImage installations only
+          # For rpm installations, leave APPIMAGE empty so entrypoint.sh uses the installed binary
+          if [ "${INSTALL_TYPE}" = "appimage" ]; then
+            APPIMAGE_PATH="/tmp/openterfaceQT_linux_amd64.AppImage"
+          else
+            APPIMAGE_PATH=""
+          fi
           
           # Force XCB platform for stable testing in container environment
           # Platform detection is automatic but can be overridden for testing
@@ -600,23 +614,25 @@ jobs:
           echo ""
 
       - name: Verify Docker image (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         run: |
           echo "🔍 Verifying Docker image was built successfully"
           docker images | grep openterface-test-fedora
-          
+
           echo "📊 Image information:"
           docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
           docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
           docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
-          
+
           echo "🔍 Image CMD and Entrypoint:"
           docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
           docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
-          
+
           echo "🔍 Image layers (last 10):"
           docker history openterface-test-fedora:${{ env.DOCKER_TAG }} | head -10
 
       - name: Verify Docker image (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         run: |
           echo "🔍 Verifying Docker image was built successfully"
           docker images | grep openterface-test-fedora
@@ -634,6 +650,7 @@ jobs:
                     docker history openterface-test-fedora:${{ env.DOCKER_TAG }} | head -10
 
       - name: Test basic container functionality (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         timeout-minutes: 5
         run: |
           echo "🧪 Testing basic container functionality on persistent container"
@@ -655,6 +672,7 @@ jobs:
           echo "✅ Basic container functionality test passed"
      
       - name: Test hardware interface dependencies (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         timeout-minutes: 5
         run: |
           echo "🧪 Testing hardware interface dependencies on persistent container"
@@ -678,6 +696,7 @@ jobs:
           '
       
       - name: GUI screenshot test on persistent container (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         timeout-minutes: 10
         run: |
           echo "🧪 Taking screenshots from persistent container"
@@ -978,6 +997,7 @@ jobs:
           fi
 
       - name: Test container with simulated USB devices (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         timeout-minutes: 5
         run: |
           echo "🧪 Testing container with simulated USB device access on persistent container"

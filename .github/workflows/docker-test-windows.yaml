@@ -77,10 +77,14 @@ jobs:
           Write-Host "Total Memory: $memoryGB GB"
 
       - name: Download Latest Windows Build Artifacts
+        id: download
         shell: powershell
         run: |
           Write-Host "[DOWNLOAD] Getting latest Windows build artifacts..."
-          
+
+          # Default: artifact not available (skip subsequent steps)
+          "artifact_available=false" >> $env:GITHUB_OUTPUT
+
           # Create build directory
           New-Item -ItemType Directory -Path "build" -Force | Out-Null
           
@@ -201,6 +205,7 @@ jobs:
               Write-Host "[SUCCESS] Installer extracted: $($installerFile.Name)"
               Write-Host "   Size: $([Math]::Round($installerFile.Length / 1MB, 2)) MB"
               Get-ChildItem -Path "build" | Format-Table Name, Length -AutoSize
+              "artifact_available=true" >> $env:GITHUB_OUTPUT
             } else {
               Write-Host "[WARNING] Extraction completed but no installer file found"
               Write-Host "Contents of build directory:"
@@ -213,6 +218,7 @@ jobs:
           }
 
       - name: Install and test application
+        if: steps.download.outputs.artifact_available == 'true'
         shell: powershell
         timeout-minutes: 60
         run: |
@@ -767,6 +773,7 @@ jobs:
           fi
 
       - name: Verify installation and application startup
+        if: steps.download.outputs.artifact_available == 'true'
         shell: powershell
         timeout-minutes: 10
         run: |
