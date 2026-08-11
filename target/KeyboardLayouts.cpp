@@ -198,6 +198,14 @@ KeyboardLayoutConfig KeyboardLayoutConfig::fromJsonFile(const QString& filePath)
 
     // Load shift keys
     QJsonArray shiftKeys = json["need_shift_keys"].toArray();
+
+    // DEBUG: Dump the entire keyMap to see what got loaded
+    qCWarning(log_keyboard_layouts) << "===== DUMPING KEYMAP FOR LAYOUT:" << config.name << "=====";
+    for (auto it = config.keyMap.begin(); it != config.keyMap.end(); ++it) {
+        qCWarning(log_keyboard_layouts) << "  Qt key 0x" << QString::number(it.key(), 16)
+                                       << "-> HID 0x" << QString::number(it.value(), 16);
+    }
+    qCWarning(log_keyboard_layouts) << "===== END KEYMAP DUMP =====";
     for (const QJsonValue& value : shiftKeys) {
         QString keyStr = value.toString();
         if (keyStr.length() == 1) {

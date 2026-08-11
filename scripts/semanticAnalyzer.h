@@ -70,6 +70,7 @@ private:
     
     void analyzeSleepStatement(const CommandStatementNode* node);
     void analyzeMouseMove(const CommandStatementNode* node);
+    void analyzeScrollStatement(const CommandStatementNode* node);
     void analyzeLockState(const CommandStatementNode* node, const QString& keyName, bool (KeyboardMouse::*getStateFunc)());
     void analyzeFullScreenCapture(const CommandStatementNode* node);
     void analyzeAreaScreenCapture(const CommandStatementNode* node);

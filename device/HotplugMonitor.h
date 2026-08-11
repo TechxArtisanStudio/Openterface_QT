@@ -62,6 +62,11 @@ signals:
     void monitoringStarted();
     void monitoringStopped();
     void errorOccurred(const QString& error);
+
+    // Fast scan signals
+    void fastScanStarted(int intervalMs);
+    void fastScanEnded();
+    void deviceRapidlyReconnected(const QString& deviceId, const QString& devicePath);
     
 private slots:
     void checkForChangesSlot();

@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <cerrno>
 #include <cstring>
+#include <cstdio>
 #include <sys/ioctl.h>
 #include <linux/hid.h>
 #include <linux/hidraw.h>
@@ -42,16 +43,21 @@ bool LinuxHIDTransport::open()
 
     QString devicePath = getHIDDevicePath();
     if (devicePath.isEmpty()) {
+        fprintf(stderr, "[DEBUG-HID] open: no HID device path found\n");
         qCDebug(log_linux_transport) << "open: no HID device path found";
         return false;
     }
 
+    fprintf(stderr, "[DEBUG-HID] Opening device: %s\n", devicePath.toUtf8().constData());
     m_hidFd = ::open(devicePath.toStdString().c_str(), O_RDWR);
     if (m_hidFd < 0) {
+        fprintf(stderr, "[DEBUG-HID] open failed: %s, error: %s\n",
+                devicePath.toUtf8().constData(), strerror(errno));
         qCDebug(log_linux_transport) << "open: failed to open" << devicePath
                                      << "error:" << strerror(errno);
         return false;
     }
+    fprintf(stderr, "[DEBUG-HID] Device opened successfully, fd=%d\n", m_hidFd);
     return true;
 }
 

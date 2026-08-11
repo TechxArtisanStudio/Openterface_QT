@@ -277,6 +277,10 @@ bool FFmpegCaptureManager::ReadFrame()
 
         if (ret < 0) {
             if (ret == AVERROR(EAGAIN)) {
+                // DirectShow returned EAGAIN: no frame data available yet.
+                // This is NORMAL during device startup or transient idle periods.
+                // Return false WITHOUT logging as error — the capture thread
+                // should not count this as a real failure.
                 return false;
             } else if (ret == AVERROR_EOF) {
                 qCWarning(log_ffmpeg_backend) << "End of stream reached";

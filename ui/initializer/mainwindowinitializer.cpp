@@ -50,6 +50,7 @@
 #include "../../scripts/scriptExecutor.h"
 #include "../../host/audiomanager.h"
 #include "../../server/tcpServer.h"
+#include "../../SysKeyBlocker/SystemKeyBlocker.h"
 
 #include <QTimer>
 #include <QStackedLayout>
@@ -108,19 +109,39 @@ void MainWindowInitializer::initialize()
 void MainWindowInitializer::setupCentralWidget()
 {
     qCDebug(log_ui_mainwindowinitializer) << "Setting up central widget...";
-    QWidget *centralWidget = new QWidget(m_mainWindow);
+    // Use the existing central widget from the .ui file (created by ui->setupUi(this))
+    // This avoids the QLayout conflict warning:
+    //   "QLayout: Attempting to add QLayout to MainWindow which already has a layout"
+    QWidget *centralWidget = m_mainWindow->centralWidget();
+    if (!centralWidget) {
+        // Fallback: create a new central widget only if .ui file didn't provide one
+        qCDebug(log_ui_mainwindowinitializer) << "No central widget from .ui file, creating new one";
+        centralWidget = new QWidget(m_mainWindow);
+        m_mainWindow->setCentralWidget(centralWidget);
+    } else {
+        // Remove the empty grid layout from the .ui file's central widget
+        // before installing our QStackedLayout
+        QLayout *existingLayout = centralWidget->layout();
+        if (existingLayout) {
+            // Steal child widgets so they aren't destroyed when layout is deleted
+            QLayoutItem *item;
+            while ((item = existingLayout->takeAt(0)) != nullptr) {
+                // Don't delete - managed elsewhere
+                delete item;
+            }
+            delete existingLayout;
+        }
+    }
     centralWidget->setLayout(m_stackedLayout);
     centralWidget->setMouseTracking(true);
 
-    HelpPane *helpPane = new HelpPane;
+    HelpPane *helpPane = new HelpPane(centralWidget);
     m_stackedLayout->addWidget(helpPane);
-    
+
     m_videoPane->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_stackedLayout->addWidget(m_videoPane);
 
     m_stackedLayout->setCurrentIndex(0);
-
-    m_mainWindow->setCentralWidget(centralWidget);
 }
 
 void MainWindowInitializer::setupCoordinators()
@@ -223,7 +244,7 @@ void MainWindowInitializer::connectCornerWidgetSignals()
 
     // Connect SerialPortManager USB status changes to CornerWidgetManager
     connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
-            m_cornerWidgetManager, &CornerWidgetManager::updateUSBStatus);
+            m_cornerWidgetManager, &CornerWidgetManager::updateUSBStatus, Qt::QueuedConnection);
 
     connect(&SerialPortManager::getInstance(), &SerialPortManager::keyStatesChanged,
             m_mainWindow, &MainWindow::onKeyStatesChanged, Qt::QueuedConnection);
@@ -256,6 +277,10 @@ void MainWindowInitializer::connectDeviceManagerSignals()
             m_statusBarManager, &StatusBarManager::setTargetUsbConnected, Qt::QueuedConnection);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::keyStatesChanged,
             m_statusBarManager, &StatusBarManager::setKeyStates, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged,
+            m_statusBarManager, &StatusBarManager::setConnectedPort, Qt::QueuedConnection);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::statusUpdate,
+            m_statusBarManager, &StatusBarManager::setStatusUpdate, Qt::QueuedConnection);
     
     DeviceManager& deviceManager = DeviceManager::getInstance();
     HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();
@@ -300,6 +325,19 @@ void MainWindowInitializer::connectDeviceManagerSignals()
                     if (switchSuccess) {
                         qCInfo(log_ui_mainwindowinitializer) << "✓ Camera auto-switched to port:" << device.portChain;
                         stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
+                    } else {
+                        // Fallback retry: CameraManager's built-in retry may be in progress,
+                        // but as a safety net, schedule one more retry attempt in 1000ms
+                        QTimer::singleShot(1000, [cameraManager, stackedLayout, videoPane, device]() {
+                            if (cameraManager && !cameraManager->hasActiveCameraDevice()) {
+                                qCDebug(log_ui_mainwindowinitializer) << "Fallback retry: attempting auto-switch again for port:" << device.portChain;
+                                bool retrySuccess = cameraManager->tryAutoSwitchToNewDevice(device.portChain);
+                                if (retrySuccess && stackedLayout && videoPane) {
+                                    qCInfo(log_ui_mainwindowinitializer) << "✓ Camera auto-switched on fallback retry for port:" << device.portChain;
+                                    stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
+                                }
+                            }
+                        });
                     }
                 });
         qCDebug(log_ui_mainwindowinitializer) << "Connected hotplug monitor signals";
@@ -343,7 +381,10 @@ void MainWindowInitializer::setupToolbar()
     qCDebug(log_ui_mainwindowinitializer) << "Setting up toolbar...";
     m_mainWindow->addToolBar(Qt::TopToolBarArea, m_toolbarManager->getToolbar());
     m_toolbarManager->getToolbar()->setVisible(false);
-    
+
+    // Connect toolbar config button to open custom key dialog
+    connect(m_toolbarManager, &ToolbarManager::openCustomKeyConfig, m_mainWindow, &MainWindow::openCustomKeyDialog);
+
     if (m_windowLayoutCoordinator) {
         m_windowLayoutCoordinator->setToolbarManager(m_toolbarManager);
     }
@@ -571,18 +612,21 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     // QShortcut *findShortcut = new QShortcut(findSeq, m_mainWindow);
     
     
+    // Ctrl+P: Open preferences/settings dialog (explicit shortcut — .ui file has this via auto-connect but add QShortcut for reliability)
+    QShortcut *preferencesShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_P), m_mainWindow);
+
     // CRITICAL FIX: Capture specific pointers instead of 'this' to avoid dangling reference
     // MainWindowInitializer is destroyed after constructor completes, so capturing 'this' causes crash
     MainWindow* mainWindow = m_mainWindow;
     WindowLayoutCoordinator* coordinator = m_windowLayoutCoordinator;
-    
+
     // Add debug logging for when shortcut is activated
     QObject::connect(fullscreenShortcut, &QShortcut::activated, [mainWindow, coordinator]() {
         if (!mainWindow || !coordinator) {
             qCCritical(log_ui_mainwindowinitializer) << "CRITICAL: mainWindow or coordinator is null in shortcut handler!";
             return;
         }
-        
+
         qCDebug(log_ui_mainwindowinitializer) << "*** Alt+F11 SHORTCUT ACTIVATED - Toggling fullscreen ***";
         qCDebug(log_ui_mainwindowinitializer) << "Window state BEFORE fullScreen() call:" << mainWindow->windowState();
         qCDebug(log_ui_mainwindowinitializer) << "Window ID BEFORE fullScreen() call:" << mainWindow->winId();
@@ -590,6 +634,8 @@ void MainWindowInitializer::setupKeyboardShortcuts()
         qCDebug(log_ui_mainwindowinitializer) << "Window isVisible BEFORE fullScreen() call:" << mainWindow->isVisible();
         coordinator->fullScreen();
     });
+
+    QObject::connect(preferencesShortcut, &QShortcut::activated, mainWindow, &MainWindow::configureSettings);
 
     // Connect Ctrl+Shift+A shortcut to open screen aspect ratio dialog
     QObject::connect(aspectRatioShortcut, &QShortcut::activated, mainWindow, &MainWindow::configScreenScale);
@@ -625,7 +671,7 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     qCDebug(log_ui_mainwindowinitializer) << "Registered Alt+F11 shortcut for fullscreen toggle";
     qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+A shortcut for screen aspect ratio";
     // qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+F shortcut for find/search";
-    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+P shortcut for preferences";
+    qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+P shortcut for preferences (QShortcut created)";
     qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut context:" << fullscreenShortcut->context();
     qCDebug(log_ui_mainwindowinitializer) << "Fullscreen shortcut enabled:" << fullscreenShortcut->isEnabled();
     qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+F10 shortcut for mouse dance toggle";
@@ -644,9 +690,32 @@ void MainWindowInitializer::finalize()
     connect(m_mainWindow->mouseEdgeTimer, &QTimer::timeout, m_mainWindow, &MainWindow::checkMousePosition);
 
     connect(m_languageManager, &LanguageManager::languageChanged, m_mainWindow, &MainWindow::updateUI);
-    
+
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, m_mainWindow, &MainWindow::onPortConnected);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, m_mainWindow, &MainWindow::onArmBaudratePerformanceRecommendation);
+
+    // Connect SystemKeyBlocker keyCaptured signal to KeyboardManager (fix for modifier keys)
+    connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::keyCaptured,
+            &KeyboardManager::getInstance(), &KeyboardManager::handleKeyboardAction);
+    qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to HostManager";
+
+    // Defer SystemKeyBlocker startup until window is visible
+    // The X11KeyGrabber needs a visible top-level window to grab keys on
+    if (GlobalSetting::instance().getSystemKeyBlockerEnabled()) {
+        // Use a short delay to ensure the window is fully shown and visible
+        QTimer::singleShot(100, m_mainWindow, [this]() {
+            if (!m_mainWindow->isVisible()) {
+                qCWarning(log_ui_mainwindowinitializer) << "SystemKeyBlocker: window not visible yet, cannot start";
+                return;
+            }
+            quintptr hwnd = m_videoPane ? m_videoPane->winId() : 0;
+            if (SystemKeyBlocker::instance().start(hwnd)) {
+                qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker restored to active state";
+            } else {
+                qCWarning(log_ui_mainwindowinitializer) << "SystemKeyBlocker failed to start";
+            }
+        });
+    }
 
     m_mainWindow->onLastKeyPressed("");
     m_mainWindow->onLastMouseLocation(QPoint(0, 0), "");

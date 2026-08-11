@@ -113,6 +113,9 @@ void SemanticAnalyzer::analyzeCommandStatement(const CommandStatementNode* node)
     if(commandName == "MouseMove"){
         analyzeMouseMove(node);
     }
+    if(commandName == "Scroll"){
+        analyzeScrollStatement(node);
+    }
     if(commandName == "Send"){
         analyzeSendStatement(node);
     }
@@ -271,18 +274,18 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
     }
 
     // Build the key string from options
+    // String literals are now handled by Lexer as single STRING tokens
+    // with internal spaces preserved; wrapper quotes are stripped by Lexer.
+    // No need for quote-stripping logic here.
     QString tmpKeys;
-    bool append = false;
-    for (const auto& token : options) {
-        if (token == "\"") append = true;
-        if (append) tmpKeys.append(QString::fromStdString(token));
+    for (const auto& option : options) {
+        tmpKeys.append(QString::fromStdString(option));
     }
-    tmpKeys.replace(QRegularExpression("^\"|\"$"), "");
     qCDebug(log_script) << "Processing keys:" << tmpKeys;
 
     int pos = 0;
     int packetCount = 0;
-    const int MAX_PACKETS = 50;
+    const int MAX_PACKETS = tmpKeys.length() * 2 + 10;  // 2 packets per char (press+release) + margin
 
     // backtickEscapeMap and shiftRequiredChars are defined in SendKeyMaps.h
 
@@ -316,10 +319,20 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
 
         // [Phase 3] Accumulate AHK modifier prefixes: ^=Ctrl, !=Alt, +=Shift, #=Win
         // Multiple modifiers may be combined (e.g. "^+c" = Ctrl+Shift+C)
+        int modifierStartPos = pos;  // Record position for error reporting
         while (pos < tmpKeys.length() && controldata.contains(QString(tmpKeys[pos]))) {
             control |= controldata.value(QString(tmpKeys[pos]));
+            qCDebug(log_script) << "Added modifier prefix at pos" << pos << ":" << tmpKeys[pos] << "(control now:" << QString("0x%1").arg(control, 2, 16, QChar('0')) << ")";
             pos++;
         }
+        
+        // Check if we have modifiers but no key to apply them to
+        if (pos >= tmpKeys.length() && control != 0x00) {
+            qCDebug(log_script) << "Send: ERROR - modifier prefix(es) at position" << modifierStartPos 
+                                << "with no key to modify. Use backtick escape for literal symbols: `^, `!, `+, `#";
+            break;  // Stop processing
+        }
+        
         if (pos >= tmpKeys.length()) break;
 
         // Check brace key (e.g., {Enter}, {Tab}) — re-evaluated after modifier advance
@@ -365,7 +378,9 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
                 keyPacket pack(general, control);
                 keyboardMouse->addKeyPacket(pack);
                 packetCount++;
-                qCDebug(log_script) << "Added brace key press:" << keyName;
+                qCDebug(log_script) << "Added brace key press:" << keyName 
+                                   << "(HID:" << QString("0x%1").arg(general[0], 2, 16, QChar('0')) 
+                                   << ", modifiers:" << QString("0x%1").arg(control, 2, 16, QChar('0')) << ")";
 
                 // Send key release
                 std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
@@ -391,7 +406,9 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
             keyPacket pack(general, control);
             keyboardMouse->addKeyPacket(pack);
             packetCount++;
-            qCDebug(log_script) << "Added char press:" << ch;
+            qCDebug(log_script) << "Added char press:" << ch 
+                               << "(HID:" << QString("0x%1").arg(general[0], 2, 16, QChar('0')) 
+                               << ", modifiers:" << QString("0x%1").arg(control, 2, 16, QChar('0')) << ")";
 
             // Send key release
             std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
@@ -618,4 +635,44 @@ MouseParams SemanticAnalyzer::parserClickParam(const QString& command) {
     // keyPacket pack(Mode, _mouseButton, 0x00, coord); // Last param 0x00 is mouseRollWheel
     // qCDebug(log_script) << "after key packet";
     // keyboardMouse->addKeyPacket(pack);
+}
+
+void SemanticAnalyzer::analyzeScrollStatement(const CommandStatementNode* node) {
+    const auto& options = node->getOptions();
+    if (options.empty()) {
+        qCDebug(log_script) << "Scroll: no parameters provided. Usage: Scroll up|down [, lines]";
+        return;
+    }
+
+    if (!mouseManager) {
+        qCDebug(log_script) << "Scroll: MouseManager is not initialized";
+        return;
+    }
+
+    // Parse direction: first token should be "up" or "down"
+    QString direction = QString::fromStdString(options[0]).toLower();
+    int scrollDirection = 1;  // default: up
+
+    if (direction == "down") {
+        scrollDirection = -1;
+    } else if (direction != "up") {
+        qCDebug(log_script) << "Scroll: unknown direction" << direction << "(defaulting to up)";
+    }
+
+    // Parse lines: second token (optional, default 1)
+    int lines = 1;
+    if (options.size() >= 2) {
+        bool ok = false;
+        int value = QString::fromStdString(options[1]).toInt(&ok);
+        if (ok && value > 0) {
+            lines = value;
+        } else {
+            qCDebug(log_script) << "Scroll: invalid lines value" << options[1] << "(defaulting to 1)";
+        }
+    }
+
+    qCDebug(log_script) << "Scroll: direction=" << (scrollDirection > 0 ? "up" : "down")
+                        << "lines=" << lines;
+
+    mouseManager->scrollWheel(scrollDirection, lines);
 }

@@ -17,7 +17,21 @@ ScriptRunner::ScriptRunner(ScriptTool* tool, ScriptExecutor* executor, QObject* 
 void ScriptRunner::runTree(std::shared_ptr<ASTNode> tree, QObject* originSender)
 {
     qCDebug(log_script_runner) << "ScriptRunner::runTree called with tree:" << (tree ? "valid" : "null") << "from sender:" << originSender;
+    
+    // Prevent duplicate execution
+    {
+        QMutexLocker locker(&runMutex);
+        if (isRunning.load()) {
+            qCWarning(log_script_runner) << "Script already running! Ignoring duplicate runTree call.";
+            emit analysisFinished(originSender, false);
+            return;
+        }
+        isRunning.store(true);
+        qCDebug(log_script_runner) << "Script execution started - isRunning set to true";
+    }
+    
     if (!tree) {
+        isRunning.store(false);
         emit analysisFinished(originSender, false);
         return;
     }
@@ -25,6 +39,7 @@ void ScriptRunner::runTree(std::shared_ptr<ASTNode> tree, QObject* originSender)
     // Verify that executor and its managers are properly initialized
     if (!m_executor) {
         qWarning() << "Error: ScriptExecutor is not initialized";
+        isRunning.store(false);
         emit analysisFinished(originSender, false);
         return;
     }
@@ -34,6 +49,7 @@ void ScriptRunner::runTree(std::shared_ptr<ASTNode> tree, QObject* originSender)
     
     if (!mouseManager || !keyboardMouse) {
         qWarning() << "Error: MouseManager or KeyboardMouse not initialized in ScriptExecutor";
+        isRunning.store(false);
         emit analysisFinished(originSender, false);
         return;
     }
@@ -58,6 +74,8 @@ void ScriptRunner::runTree(std::shared_ptr<ASTNode> tree, QObject* originSender)
 
     // When analysis finishes, emit up and stop thread
     connect(workerAnalyzer, &SemanticAnalyzer::analysisFinished, this, [this, originSender, workerThread](bool success){
+        qCDebug(log_script_runner) << "Analysis finished with success:" << success << "- Resetting isRunning flag";
+        isRunning.store(false);
         emit analysisFinished(originSender, success);
         workerThread->quit();
     });

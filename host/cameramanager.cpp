@@ -13,6 +13,10 @@
 #include "host/backend/qtbackendhandler.h"
 #include "host/backend/qtmultimediabackendhandler.h"
 
+#ifdef Q_OS_WIN
+#include "host/backend/mf/mfbackendhandler.h"
+#endif
+
 #include "ui/videopane.h"
 
 #include <QLoggingCategory>
@@ -87,6 +91,13 @@ bool CameraManager::isQtBackend() const
 {
     return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::Qt;
 }
+
+#ifdef Q_OS_WIN
+bool CameraManager::isMediaFoundationBackend() const
+{
+    return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::MediaFoundation;
+}
+#endif
 
 QImage CameraManager::getLatestOriginalFrame() const
 {
@@ -197,6 +208,7 @@ void CameraManager::initializeBackendHandler()
                 connect(ffmpegHandler, &FFmpegBackendHandler::captureError,
                         this, [this](const QString& error) {
                             qCWarning(log_ui_camera) << "FFmpeg capture error:" << error;
+                            emit cameraActiveChanged(false);
                             emit cameraError("FFmpeg: " + error);
                         });
 
@@ -271,6 +283,16 @@ void CameraManager::setVideoOutput(QGraphicsVideoItem* videoOutput)
             }
         }
 #endif
+
+#ifdef Q_OS_WIN
+        if (m_backendHandler && isMediaFoundationBackend()) {
+            MfBackendHandler* mf = qobject_cast<MfBackendHandler*>(m_backendHandler.get());
+            if (mf) {
+                mf->setVideoOutput(videoOutput);
+                qDebug() << "Graphics video output successfully connected to Media Foundation backend";
+            }
+        }
+#endif
     } else {
         qDebug() << "Attempted to set null graphics video output";
     }
@@ -296,11 +318,17 @@ void CameraManager::startCamera()
         }
 #endif
         
-        // Start FFmpeg backend camera
+        // Start backend camera
         m_backendHandler->startCamera();
-        
-        emit cameraActiveChanged(true);
-        qCDebug(log_backend) << "Camera started successfully";
+
+        // FFmpeg reports real readiness asynchronously via deviceActivated.
+        // Avoid optimistic success state that can produce a black screen with "active=true".
+        if (!isFFmpegBackend()) {
+            emit cameraActiveChanged(true);
+            qCDebug(log_backend) << "Camera started successfully";
+        } else {
+            qCDebug(log_backend) << "FFmpeg start requested, waiting for device activation signal";
+        }
         
     } catch (const std::exception& e) {
         qCritical() << "Exception starting camera:" << e.what();
@@ -1425,6 +1453,7 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
                 connect(ffmpegHandler, &FFmpegBackendHandler::captureError,
                         this, [this](const QString& error) {
                             qCWarning(log_ui_camera) << "FFmpeg capture error:" << error;
+                            emit cameraActiveChanged(false);
                             emit cameraError(error);
                         }, Qt::UniqueConnection);
 
@@ -1594,6 +1623,53 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
     }
 #endif
 
+#ifdef Q_OS_WIN
+    // Check if we're using Media Foundation backend for direct capture
+    if (isMediaFoundationBackend() && m_backendHandler) {
+        qDebug() << "Using Media Foundation backend for direct capture";
+        auto* mfHandler = qobject_cast<MfBackendHandler*>(m_backendHandler.get());
+        if (mfHandler) {
+            // Enable direct FFmpeg mode in VideoPane for rendering
+            videoPane->enableDirectFFmpegMode(true);
+
+            // Set VideoPane as Media Foundation video output for direct rendering
+            mfHandler->setVideoOutput(videoPane);
+
+            // Connect error signals
+            connect(mfHandler, &MfBackendHandler::backendError,
+                    this, [this](const QString& error) {
+                        qCWarning(log_ui_camera) << "Media Foundation backend error:" << error;
+                        emit cameraError(error);
+                    }, Qt::UniqueConnection);
+
+            // Connect camera active changed to VideoPane
+            connect(this, &CameraManager::cameraActiveChanged, videoPane, &VideoPane::onCameraActiveChanged, Qt::UniqueConnection);
+
+            // Configure resolution and framerate
+            QSize resolution(GlobalVar::instance().getCaptureWidth(), GlobalVar::instance().getCaptureHeight());
+            int framerate = GlobalVar::instance().getCaptureFps();
+            if (resolution.width() <= 0) resolution = QSize(1920, 1080);
+            if (framerate <= 0) framerate = 30;
+
+            mfHandler->setResolution(resolution);
+            mfHandler->setFramerate(framerate);
+
+            if (startCapture) {
+                qDebug() << "Starting Media Foundation direct capture with resolution:" << resolution << "framerate:" << framerate;
+                mfHandler->startCamera();
+
+                emit cameraActiveChanged(true);
+                return true;
+            } else {
+                qDebug() << "Media Foundation video pipeline set up (capture will start on demand)";
+                return true;
+            }
+        } else {
+            qCWarning(log_ui_camera) << "Failed to cast to MfBackendHandler";
+        }
+    }
+#endif
+
     // Fall back to standard Qt camera approach with QGraphicsVideoItem
     qDebug() << "Using standard Qt camera approach";
     videoPane->enableDirectFFmpegMode(false);
@@ -1659,6 +1735,15 @@ bool CameraManager::deactivateCameraByPortChain(const QString& portChain)
                 gst->setVideoOutput(m_graphicsVideoOutput);
             }
             #endif
+
+#ifdef Q_OS_WIN
+            MfBackendHandler* mf = qobject_cast<MfBackendHandler*>(m_backendHandler.get());
+            if (mf) {
+                mf->setVideoOutput(static_cast<QGraphicsVideoItem*>(nullptr));
+                QThread::msleep(50);
+                mf->setVideoOutput(m_graphicsVideoOutput);
+            }
+#endif
         }
         // Clear device info inside backend handlers
         if (m_backendHandler) {
@@ -1692,63 +1777,59 @@ bool CameraManager::tryAutoSwitchToNewDevice(const QString& portChain)
     qCDebug(log_ui_camera) << "tryAutoSwitchToNewDevice called";
     qCDebug(log_ui_camera) << "  Target port chain:" << portChain;
     qCDebug(log_ui_camera) << "========================================";
-    
+
     // Check if we currently have an active camera device
     if (hasActiveCameraDevice()) {
         qCWarning(log_ui_camera) << "!!! Active camera device detected, skipping auto-switch to preserve user selection";
         qCWarning(log_ui_camera) << "!!! Current device:" << m_currentCameraDevice.description();
         qCWarning(log_ui_camera) << "!!! Current port chain:" << m_currentCameraPortChain;
+        cancelAutoSwitchRetry();
         return false;
     }
-    
+
     qCDebug(log_ui_camera) << "✓ No active camera device found, attempting to switch to new device";
-    
+
+    // Cancel any pending retry since we're trying now
+    cancelAutoSwitchRetry();
+
     // IMPORTANT: Refresh available camera devices to ensure the list is up-to-date
-    // This is critical for hotplug scenarios where QMediaDevices::videoInputs() might not
-    // be immediately updated when a device is plugged in
-    qCDebug(log_ui_camera) << "Refreshing available camera devices before auto-switch (1st refresh)";
+    qCDebug(log_ui_camera) << "Refreshing available camera devices before auto-switch";
     refreshAvailableCameraDevices();
-    qCDebug(log_ui_camera) << "  Available cameras after 1st refresh:" << m_availableCameraDevices.size();
-    
-    // Add a small delay to allow the system to fully enumerate the new camera device
-    // This is especially important on Windows where device enumeration can take time
-    qCDebug(log_ui_camera) << "Waiting 500ms for system to fully enumerate camera device...";
-    QThread::msleep(500);
-    
-    // Refresh again after the delay to ensure we have the latest device list
-    qCDebug(log_ui_camera) << "Refreshing available camera devices before auto-switch (2nd refresh)";
-    refreshAvailableCameraDevices();
-    qCDebug(log_ui_camera) << "  Available cameras after 2nd refresh:" << m_availableCameraDevices.size();
-    
+    qCDebug(log_ui_camera) << "  Available cameras after refresh:" << m_availableCameraDevices.size();
+
     // Try to find a matching camera device for the port chain
     qCDebug(log_ui_camera) << "Attempting to find matching camera device for port chain:" << portChain;
     QCameraDevice matchedCamera = findMatchingCameraDevice(portChain);
-    
+
     if (matchedCamera.isNull()) {
         qCWarning(log_ui_camera) << "✗ No matching camera device found for port chain:" << portChain;
-        qCWarning(log_ui_camera) << "  This could mean:";
-        qCWarning(log_ui_camera) << "  1. QMediaDevices hasn't updated yet";
-        qCWarning(log_ui_camera) << "  2. Device info doesn't match Qt camera device";
-        qCWarning(log_ui_camera) << "  3. Camera device path/ID mismatch";
+        // Start exponential backoff retry if we haven't exceeded max retries
+        if (m_autoSwitchRetry.retryCount < m_autoSwitchRetry.maxRetries) {
+            qCInfo(log_ui_camera) << "Starting exponential backoff retry mechanism";
+            startAutoSwitchRetry(portChain);
+            return false; // Retry in progress
+        }
+        qCWarning(log_ui_camera) << "  Max retries exceeded, giving up";
         return false;
     }
-    
+
     qCDebug(log_ui_camera) << "✓ Found matching camera device:" << matchedCamera.description() << "for port chain:" << portChain;
-    
+
     // Ensure video output is connected before switching
     if (m_graphicsVideoOutput) {
         qCDebug(log_ui_camera) << "Video output available for camera switch";
     } else {
         qCWarning(log_ui_camera) << "!!! No graphics video output available";
     }
-    
+
     // Switch to the new camera device
     qCDebug(log_ui_camera) << "Calling switchToCameraDevice...";
     bool switchSuccess = switchToCameraDevice(matchedCamera, portChain);
-    
+
     if (switchSuccess) {
         qCInfo(log_ui_camera) << "✓ Successfully auto-switched to new camera device:" << matchedCamera.description() << "at port chain:" << portChain;
-        
+        cancelAutoSwitchRetry();
+
         // Start the camera if video output is available
         if (m_graphicsVideoOutput) {
             qCDebug(log_ui_camera) << "Starting camera after successful switch";
@@ -1756,12 +1837,16 @@ bool CameraManager::tryAutoSwitchToNewDevice(const QString& portChain)
         } else {
             qCWarning(log_ui_camera) << "!!! Cannot start camera - no video output available";
         }
-        
+
         emit newDeviceAutoConnected(matchedCamera, portChain);
     } else {
         qCWarning(log_ui_camera) << "✗ Failed to auto-switch to new camera device:" << matchedCamera.description();
+        // Retry if switch failed but device was found
+        if (m_autoSwitchRetry.retryCount < m_autoSwitchRetry.maxRetries) {
+            startAutoSwitchRetry(portChain);
+        }
     }
-    
+
     qCDebug(log_ui_camera) << "========================================";
     return switchSuccess;
 }
@@ -2187,5 +2272,69 @@ void CameraManager::handleFFmpegDeviceDisconnection(const QString& devicePath)
         }
     } else {
         qCDebug(log_ui_camera) << "Disconnected device is not our current device, ignoring";
+    }
+}
+
+// ===== Auto-switch retry mechanism (exponential backoff) =====
+
+void CameraManager::startAutoSwitchRetry(const QString& portChain)
+{
+    cancelAutoSwitchRetry();
+
+    m_autoSwitchRetry.retryCount = 0;
+    m_autoSwitchRetry.targetDevicePath = portChain;
+    m_autoSwitchRetry.isActive = true;
+
+    if (!m_autoSwitchRetry.retryTimer) {
+        m_autoSwitchRetry.retryTimer = new QTimer(this);
+        m_autoSwitchRetry.retryTimer->setSingleShot(true);
+        connect(m_autoSwitchRetry.retryTimer, &QTimer::timeout,
+                this, &CameraManager::executeAutoSwitchRetry);
+    }
+
+    int interval = m_autoSwitchRetry.getNextInterval();
+    qCInfo(log_ui_camera) << "Starting auto-switch retry - max retries:" << m_autoSwitchRetry.maxRetries
+                          << "first retry in:" << interval << "ms";
+    m_autoSwitchRetry.retryTimer->start(interval);
+}
+
+void CameraManager::cancelAutoSwitchRetry()
+{
+    if (m_autoSwitchRetry.retryTimer && m_autoSwitchRetry.retryTimer->isActive()) {
+        m_autoSwitchRetry.retryTimer->stop();
+    }
+    m_autoSwitchRetry.isActive = false;
+    m_autoSwitchRetry.retryCount = 0;
+}
+
+void CameraManager::executeAutoSwitchRetry()
+{
+    if (!m_autoSwitchRetry.isActive) return;
+
+    m_autoSwitchRetry.retryCount++;
+    qCInfo(log_ui_camera) << "Auto-switch retry attempt" << m_autoSwitchRetry.retryCount
+                          << "/" << m_autoSwitchRetry.maxRetries;
+
+    // Refresh devices before retry
+    refreshAvailableCameraDevices();
+
+    // Try to switch
+    bool success = tryAutoSwitchToNewDevice(m_autoSwitchRetry.targetDevicePath);
+
+    if (success) {
+        qCInfo(log_ui_camera) << "Auto-switch succeeded on retry" << m_autoSwitchRetry.retryCount;
+        cancelAutoSwitchRetry();
+        return;
+    }
+
+    // Not found - schedule next retry
+    if (m_autoSwitchRetry.retryCount < m_autoSwitchRetry.maxRetries) {
+        int nextInterval = m_autoSwitchRetry.getNextInterval();
+        qCDebug(log_ui_camera) << "Scheduling next retry in" << nextInterval << "ms";
+        m_autoSwitchRetry.retryTimer->start(nextInterval);
+    } else {
+        qCWarning(log_ui_camera) << "Auto-switch FAILED after" << m_autoSwitchRetry.maxRetries << "retries for" << m_autoSwitchRetry.targetDevicePath;
+        m_autoSwitchRetry.isActive = false;
+        m_autoSwitchRetry.retryCount = 0;
     }
 }

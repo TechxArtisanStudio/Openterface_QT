@@ -104,18 +104,23 @@ qt_add_resources(openterfaceQT "languages"
         --compress 2
 )
 
-set(qmake_immediate_resource_files
-    "openterfaceQT.rc"
+set(customkeys_resource_files
+    "config/customkeys/default.json"
 )
 
-qt_add_resources(openterfaceQT "qmake_immediate"
+qt_add_resources(openterfaceQT "customkeys"
     PREFIX
-        "/"
+        "/config/customkeys"
+    BASE
+        "config/customkeys"
     FILES
-        ${qmake_immediate_resource_files}
+        ${customkeys_resource_files}
     OPTIONS
         --compress 2
 )
+
+# Windows resource file is handled separately in CMakeLists.txt via target_sources
+# It should NOT be added as a Qt resource
 
 set(app_icons_resource_files
     "images/icon_128.png"

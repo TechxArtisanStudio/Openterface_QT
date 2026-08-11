@@ -178,7 +178,11 @@ fi
 # For a shared build we avoid forcing static linking flags
 # Default: Enable GPU acceleration unless explicitly disabled
 EXTRA_CFLAGS="-I${FFMPEG_INSTALL_PREFIX}/include"
-EXTRA_LDFLAGS="-L${FFMPEG_INSTALL_PREFIX}/lib -lz -lbz2 -llzma -lwinpthread"
+EXTRA_LDFLAGS="-L${FFMPEG_INSTALL_PREFIX}/lib -lwinpthread"
+# Add MSYS2 mingw64 library path for compression libs (bz2, lzma) when using external MinGW
+if [ -d "/c/msys64/mingw64/lib" ]; then
+    EXTRA_LDFLAGS="${EXTRA_LDFLAGS} -LC:/msys64/mingw64/lib -lz -lbz2 -llzma"
+fi
 
 # Enable GPU acceleration by default (Intel QSV enabled, NVENC disabled by default)
 : "${ENABLE_LIBMFX:=1}"
@@ -525,6 +529,7 @@ set +e  # Temporarily disable exit on error
     --enable-swresample \
     --enable-swscale \
     --enable-avdevice \
+    --enable-indev=dshow \
     --enable-avfilter \
     --enable-postproc \
     --enable-network \

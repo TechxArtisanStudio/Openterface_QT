@@ -143,6 +143,86 @@ void HostManager::handleFunctionKey(int keyCode, int modifiers)
     });
 }
 
+void HostManager::handleKeySequence(const QList<KeyStep>& steps)
+{
+    if (steps.isEmpty()) return;
+
+    // Check for special combo
+    for (const KeyStep& step : steps) {
+        if (step.modifiers == (Qt::ControlModifier | Qt::AltModifier) && step.keyCode == Qt::Key_Delete) {
+            sendCtrlAltDel();
+            return;
+        }
+    }
+
+    int totalDelay = 0;
+    for (int i = 0; i < steps.size(); ++i) {
+        const KeyStep& step = steps[i];
+        int delay = totalDelay;
+        QTimer::singleShot(delay, this, [this, step]() {
+            handleKeyboardAction(step.keyCode, step.modifiers, true);
+        });
+        totalDelay += 50;
+        QTimer::singleShot(totalDelay, this, [this, step]() {
+            handleKeyboardAction(step.keyCode, step.modifiers, false);
+        });
+        totalDelay += 30;
+    }
+}
+
+void HostManager::handleKeyCombo(const QList<int>& keyCodes)
+{
+    if (keyCodes.isEmpty()) return;
+
+    // Check for special combo: Ctrl+Alt+Delete
+    bool hasCtrl = false, hasAlt = false, hasDel = false;
+    for (int kc : keyCodes) {
+        if (kc == Qt::Key_Control) hasCtrl = true;
+        if (kc == Qt::Key_Alt) hasAlt = true;
+        if (kc == Qt::Key_Delete) hasDel = true;
+    }
+    if (hasCtrl && hasAlt && hasDel) {
+        sendCtrlAltDel();
+        return;
+    }
+
+    // Separate modifiers and regular keys
+    QList<int> modifiers;
+    QList<int> regularKeys;
+    int modifierFlags = 0;
+    for (int kc : keyCodes) {
+        if (CustomKeyManager::isModifierKey(kc)) {
+            modifiers << kc;
+            if (kc == Qt::Key_Control) modifierFlags |= Qt::ControlModifier;
+            else if (kc == Qt::Key_Shift) modifierFlags |= Qt::ShiftModifier;
+            else if (kc == Qt::Key_Alt) modifierFlags |= Qt::AltModifier;
+            else if (kc == Qt::Key_Meta) modifierFlags |= Qt::MetaModifier;
+        } else {
+            regularKeys << kc;
+        }
+    }
+
+    // Press modifiers first
+    for (int mod : modifiers) {
+        handleKeyboardAction(mod, modifierFlags, true);
+    }
+    // Press regular keys
+    for (int kc : regularKeys) {
+        handleKeyboardAction(kc, modifierFlags, true);
+    }
+    // Short delay then release
+    QTimer::singleShot(50, this, [this, regularKeys, modifiers, modifierFlags]() {
+        // Release regular keys
+        for (int kc : regularKeys) {
+            handleKeyboardAction(kc, modifierFlags, false);
+        }
+        // Release modifiers (in reverse order)
+        for (int i = modifiers.size() - 1; i >= 0; --i) {
+            handleKeyboardAction(modifiers[i], modifierFlags, false);
+        }
+    });
+}
+
 void HostManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown, unsigned int nativeVirtualKey)
 {
     QString hexKeyCode = QString::number(keyCode, 16);

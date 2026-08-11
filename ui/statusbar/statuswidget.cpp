@@ -65,7 +65,10 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
             padding: 2px 4px;
             color: #333333;
             font-weight: bold;
-            font-size: 10px;ound-color: #e0e0e0;
+            font-size: 10px;
+        }
+        QPushButton:hover {
+            background-color: #e0e0e0;
             border: 1px solid #999999;
         }
         QPushButton:pressed {

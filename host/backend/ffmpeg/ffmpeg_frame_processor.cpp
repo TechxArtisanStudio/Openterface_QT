@@ -294,7 +294,7 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
     return ProcessWithFFmpegDecoding(packet, codec_context, is_recording, targetSize);
 }
 
-QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodecContext* codec_context, 
+QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodecContext* codec_context,
                                                       bool is_recording, const QSize& targetSize)
 {
     if (!temp_frame_) {
@@ -307,12 +307,21 @@ QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodec
     // Send packet to decoder
     int ret = avcodec_send_packet(codec_context, packet);
     if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "avcodec_send_packet failed:" << QString::fromUtf8(errbuf)
+                                      << "packet size:" << packet->size;
         return QImage();
     }
-    
+
     // Receive frame from decoder
     ret = avcodec_receive_frame(codec_context, AV_FRAME_RAW(temp_frame_));
     if (ret < 0) {
+        if (ret != AVERROR(EAGAIN) && ret != AVERROR_EOF) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "avcodec_receive_frame failed:" << QString::fromUtf8(errbuf);
+        }
         return QImage();
     }
     

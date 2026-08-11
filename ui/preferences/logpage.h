@@ -50,6 +50,7 @@ signals:
     void hideKeyboardInputChanged(bool hide);
     void floatingWindowEnabledChanged(bool enabled);
     void floatingWindowOpacityChanged(double opacity);
+    void systemKeyBlockerToggled(bool enabled);
 
 private:
 
@@ -68,6 +69,7 @@ private:
     QCheckBox *floatingWindowCheckBox;
     QSlider *floatingWindowOpacitySlider;
     QLabel *floatingWindowOpacityLabel;
+    QCheckBox *systemKeyBlockerCheckBox;
 
     QHBoxLayout *logCheckboxLayout;
     QHBoxLayout *logFilePathLayout;

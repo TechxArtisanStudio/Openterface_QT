@@ -1,0 +1,80 @@
+Start openterface...
+QT_QPA_PLATFORM already set by launcher or user: "xcb"
+Creating QApplication...
+Detected locale "C" with character encoding "ANSI_X3.4-1968", which is not UTF-8.
+Qt depends on a UTF-8 locale, and has switched to "C.UTF-8" instead.
+If this causes problems, reconfigure your locale. See the locale(1) manual
+for more information.
+Show window now
+Splash screen shown, starting initialization
+Updating splash message: "Loading"
+Loading message timer started
+Animation started
+Loading settings...
+Log filter rules set to:
+ "opf.core.*=false\nopf.ui.*=false\nopf.host.*=false\nopf.core.serial=false\nopf.device.*=false\nopf.backend.*=false\nopf.scripts.*=false\n"
+Original QT Media Backend: ""
+✓ Using GStreamer plugins from launcher environment:
+  GST_PLUGIN_PATH= "/opt/gstreamer/lib/gstreamer-1.0:/usr/lib/aarch64-linux-gnu/gstreamer-1.0"
+Applied enhanced GStreamer-specific environment settings for video compatibility
+[2026-06-03 14:39:41.705][MainThread] [I][default]: Loading keyboard layouts...
+[2026-06-03 14:39:41.721][MainThread] [I][default]: Creating main window...
+[2026-06-03 14:39:41.791][MainThread] [W][default]: PulseAudioService: pa_context_connect() failed
+[2026-06-03 14:39:41.899][MainThread] [W][default]: QLayout: Attempting to add QLayout "" to MainWindow "", which already has a layout
+[2026-06-03 14:39:41.923][MainThread] [D][default]: [CornerWidgetManager] Set corner widget on menu bar
+[2026-06-03 14:39:41.923][MainThread] [D][default]: [CornerWidgetManager] Corner widget size: QSize(542, 40)
+[2026-06-03 14:39:41.923][MainThread] [D][default]: [CornerWidgetManager] Corner widget sizeHint: QSize(542, 40)
+[2026-06-03 14:39:41.923][MainThread] [D][default]: [CornerWidgetManager] Menu bar width: 1280
+[2026-06-03 14:39:41.923][MainThread] [D][opf.serial.state]: SerialStateManager initialized
+[2026-06-03 14:39:41.923][MainThread] [D][opf.serial.statistics]: SerialStatistics initialized
+[2026-06-03 14:39:41.923][MainThread] [D][opf.serial.statistics]: ARM detection initialized: Architecture: "arm64" Is ARM: true
+[2026-06-03 14:39:41.923][MainThread] [W][default]: QObject: Cannot create children for a parent that is in a different thread.
+(Parent is SerialPortManager(0x558d1d0060), parent's thread is QThread(0x55c74154c0), current thread is QThread(0x55c7202060)
+[2026-06-03 14:39:41.924][MainThread] [W][default]: QObject: Cannot create children for a parent that is in a different thread.
+(Parent is SerialPortManager(0x558d1d0060), parent's thread is QThread(0x55c74154c0), current thread is QThread(0x55c7202060)
+[2026-06-03 14:39:41.930][MainThread] [D][default]: [DEBUG] WindowControlManager auto-hide DISABLED for menu testing
+[2026-06-03 14:39:41.935][MainThread] [D][default]: Menu bar corner widget, size: QSize(542, 40) , geometry: QRect(0,0 542x40) , layout sizeHint: QSize(542, 40)
+[2026-06-03 14:39:41.968][MainThread] [D][default]: Menu bar corner widget, size: QSize(542, 40) , geometry: QRect(0,0 542x40) , layout sizeHint: QSize(542, 40)
+[2026-06-03 14:39:41.970][MainThread] [I][default]: Main window shown
+[2026-06-03 14:39:49.922][MainThread] [D][default]: Auto-check preference:  enabled
+[2026-06-03 14:39:49.922][MainThread] [I][default]: Entering application event loop (app.exec())
+[2026-06-03 14:39:49.925][MainThread] [I][default]: Setting up device menu...
+[2026-06-03 14:39:49.926][MainThread] [I][default]: Device menu setup complete
+[2026-06-03 14:39:49.926][MainThread] [I][default]: Initializing camera and audio...
+[2026-06-03 14:39:49.927][MainThread] [D][default]: Initializing camera with VideoPane output, startCapture: false
+[2026-06-03 14:39:49.927][MainThread] [D][default]: Not using FFmpeg backend for direct capture
+[2026-06-03 14:39:49.927][MainThread] [D][default]: Using GStreamer backend for direct capture
+[2026-06-03 14:39:49.935][MainThread] [D][default]: ✓ GStreamer video pipeline set up (capture will start on device switch)
+[2026-06-03 14:39:49.935][MainThread] [I][default]: Camera and audio initialization started
+[2026-06-03 14:39:50.129][VideoHidThread] [I][default]: VideoHid started (on HID thread)
+[2026-06-03 14:39:50.236][MainThread] [D][default]: ✓ Audio initialization triggered
+[2026-06-03 14:39:50.236][MainThread] [D][default]: ✓ Audio restored to muted state
+[2026-06-03 14:39:50.237][MainThread] [D][default]: ✓ Mute button state restored: muted
+[2026-06-03 14:39:50.423][MainThread] [I][default]: Running deferred environment check...
+[2026-06-03 14:39:55.383][MainThread] [D][default]: Chip type detection and firmware check initiated
+[2026-06-03 14:39:55.384][MainThread] [D][default]: Current firmware version:  "00000000"
+[2026-06-03 14:39:55.384][MainThread] [D][default]: Latest firmware version:  ""
+[2026-06-03 14:39:55.384][MainThread] [D][default]: Firmware is latest:  no
+[2026-06-03 14:39:55.384][MainThread] [D][default]: "<br>Current version: 00000000<br>Latest version: <br>Please update driver to latest version.<br>click OK then Advance->Firmware Update..."
+[2026-06-03 14:39:55.384][MainThread] [D][default]: Checking if Openterface devices are on Linux.
+[2026-06-03 14:39:55.385][MainThread] [W][default]: Error initializing libusb:  LIBUSB_ERROR_OTHER
+[2026-06-03 14:39:55.385][MainThread] [W][default]: Cannot proceed without libusb context. Skipping device checks.
+[2026-06-03 14:40:00.000][MainThread] [D][default]: Update check failed: "Connection closed"
+[2026-06-03 14:42:10.396][MainThread] [D][default]: toggleRecording called
+[2026-06-03 14:42:10.396][MainThread] [W][default]: No active camera device available for recording
+[2026-06-03 14:42:14.262][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Start
+[2026-06-03 14:42:14.262][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Current visibility: false Height: 30 MaxHeight: 16777215
+[2026-06-03 14:42:14.262][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Found 0 existing animations
+[2026-06-03 14:42:14.262][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Creating new animation
+[2026-06-03 14:42:14.271][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Showing toolbar, animating from 0 to 30
+[2026-06-03 14:42:14.278][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Starting animation
+[2026-06-03 14:42:14.599][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Show animation finished
+[2026-06-03 14:42:14.599][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Toolbar shown successfully
+[2026-06-03 14:42:15.338][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Start
+[2026-06-03 14:42:15.339][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Current visibility: true Height: 30 MaxHeight: 30
+[2026-06-03 14:42:15.339][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Found 0 existing animations
+[2026-06-03 14:42:15.339][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Creating new animation
+[2026-06-03 14:42:15.339][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Hiding toolbar, animating from 30 to 0
+[2026-06-03 14:42:15.339][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Starting animation
+[2026-06-03 14:42:15.519][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Hide animation finished
+[2026-06-03 14:42:15.519][MainThread] [D][default]: ToolbarManager::toggleToolbar() - Toolbar hidden successfully

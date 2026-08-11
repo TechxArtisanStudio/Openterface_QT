@@ -83,6 +83,9 @@ void LogPage::setupUI()
     floatingWindowOpacityLabel->setObjectName("floatingWindowOpacityLabel");
     floatingWindowOpacityLabel->setStyleSheet(commentsFontSize);
 
+    systemKeyBlockerCheckBox = new QCheckBox(tr("Enable System Key Blocker"));
+    systemKeyBlockerCheckBox->setObjectName("systemKeyBlockerCheckBox");
+
 
     QHBoxLayout *logCheckboxLayout = new QHBoxLayout();
     logCheckboxLayout->addWidget(coreCheckBox);
@@ -146,6 +149,24 @@ void LogPage::setupUI()
     opacityLayout->addWidget(floatingWindowOpacityLabel);
     opacityLayout->addWidget(floatingWindowOpacitySlider);
     logLayout->addLayout(opacityLayout);
+
+    // System Key Blocker section
+    QLabel *systemKeyBlockerLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("System Key Blocker")));
+    systemKeyBlockerLabel->setTextFormat(Qt::RichText);
+    systemKeyBlockerLabel->setStyleSheet(bigLabelFontSize);
+
+    QLabel *systemKeyBlockerDescription = new QLabel(
+        tr("When enabled, intercepts ALL keystrokes at the OS level (Win/Super, "
+           "PrintScreen, Alt+Tab, and other system keys) and forwards them to the "
+           "target machine instead. The host OS will not receive these keys while "
+           "the blocker is active.\n\n"
+           "⚠ Use with caution — only enable this when the video pane has focus."));
+    systemKeyBlockerDescription->setWordWrap(true);
+    systemKeyBlockerDescription->setStyleSheet(commentsFontSize);
+
+    logLayout->addWidget(systemKeyBlockerLabel);
+    logLayout->addWidget(systemKeyBlockerDescription);
+    logLayout->addWidget(systemKeyBlockerCheckBox);
 
     logLayout->addStretch();
     
@@ -223,6 +244,9 @@ void LogPage::initLogSettings(){
         opacityLabel->setText(tr("Opacity: %1%").arg(val));
     });
 
+    QCheckBox *systemKeyBlockerCheckBox = findChild<QCheckBox*>("systemKeyBlockerCheckBox");
+    systemKeyBlockerCheckBox->setChecked(GlobalSetting::instance().getSystemKeyBlockerEnabled());
+
     logFilePathLineEdit->setText(settings.value("log/logFilePath", "").toString());
 
 }
@@ -285,4 +309,9 @@ void LogPage::applyLogsettings() {
     double opacity = opacitySlider->value() / 100.0;
     GlobalSetting::instance().setFloatingWindowOpacity(opacity);
     emit floatingWindowOpacityChanged(opacity);
+
+    QCheckBox *systemKeyBlockerCheckBox = findChild<QCheckBox*>("systemKeyBlockerCheckBox");
+    bool systemKeyBlockerEnabled = systemKeyBlockerCheckBox->isChecked();
+    GlobalSetting::instance().setSystemKeyBlockerEnabled(systemKeyBlockerEnabled);
+    emit systemKeyBlockerToggled(systemKeyBlockerEnabled);
 }

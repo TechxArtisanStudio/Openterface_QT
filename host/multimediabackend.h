@@ -40,7 +40,8 @@ enum class MultimediaBackendType {
     QtMultimedia,    // Qt's native multimedia backend (legacy)
     Qt,              // Qt's native multimedia backend (Windows)
     FFmpeg,
-    GStreamer
+    GStreamer,
+    MediaFoundation  // Windows Media Foundation capture
 };
 
 /**

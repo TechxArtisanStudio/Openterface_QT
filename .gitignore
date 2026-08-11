@@ -19,3 +19,7 @@ CmakeLists.txt.user
 debug.log
 build-script/libusb-build-temp/*
 .claude/*
+# Docker image exports (very large)
+shared-qt-complete-arm-opt.tar*
+email_service/*
+.codegraph/*

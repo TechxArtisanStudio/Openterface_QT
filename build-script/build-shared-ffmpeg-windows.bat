@@ -251,7 +251,7 @@ set "PKG_CONFIG_PATH=%FFMPEG_INSTALL_PREFIX%\lib\pkgconfig;%PKG_CONFIG_PATH%"
 --enable-gpl --enable-version3 --enable-nonfree ^
 --disable-debug --disable-programs --disable-doc --disable-htmlpages --disable-manpages --disable-podpages --disable-txtpages --disable-outdevs ^
 --enable-avcodec --enable-avformat --enable-avutil --enable-swresample --enable-swscale ^
---enable-avdevice --enable-avfilter --enable-postproc ^
+--enable-avdevice --enable-indev=dshow --enable-avfilter --enable-postproc ^
 --enable-network --enable-runtime-cpudetect --enable-pthreads --disable-w32threads ^
 --enable-zlib --enable-bzlib --enable-lzma ^
 --enable-dxva2 --enable-d3d11va --enable-hwaccels ^

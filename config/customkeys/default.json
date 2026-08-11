@@ -1,0 +1,34 @@
+{
+    "version": 2,
+    "name": "Default",
+    "keys": [
+        {"displayName": "Ctrl+Alt+Del", "keyCodes": [], "isSeparator": false, "specialCombo": "ctrl_alt_del"},
+
+        {"displayName": "F1", "keyCodes": [63], "isSeparator": false},
+        {"displayName": "F2", "keyCodes": [64], "isSeparator": false},
+        {"displayName": "F3", "keyCodes": [65], "isSeparator": false},
+        {"displayName": "F4", "keyCodes": [66], "isSeparator": false},
+        {"displayName": "F5", "keyCodes": [67], "isSeparator": false},
+        {"displayName": "F6", "keyCodes": [68], "isSeparator": false},
+        {"displayName": "F7", "keyCodes": [69], "isSeparator": false},
+        {"displayName": "F8", "keyCodes": [70], "isSeparator": false},
+        {"displayName": "F9", "keyCodes": [71], "isSeparator": false},
+        {"displayName": "F10", "keyCodes": [72], "isSeparator": false},
+        {"displayName": "F11", "keyCodes": [73], "isSeparator": false},
+        {"displayName": "F12", "keyCodes": [74], "isSeparator": false},
+
+        {"displayName": "Win", "keyCodes": [16777250], "isSeparator": false},
+        {"displayName": "Esc", "keyCodes": [16777168], "isSeparator": false},
+        {"displayName": "PrtSc", "keyCodes": [16777247], "isSeparator": false},
+        {"displayName": "ScrLk", "keyCodes": [16777249], "isSeparator": false},
+        {"displayName": "NumLk", "keyCodes": [16777253], "isSeparator": false},
+        {"displayName": "CapsLk", "keyCodes": [16777252], "isSeparator": false},
+        {"displayName": "Pause", "keyCodes": [16777237], "isSeparator": false},
+        {"displayName": "Ins", "keyCodes": [16777233], "isSeparator": false},
+        {"displayName": "Del", "keyCodes": [16777232], "isSeparator": false},
+        {"displayName": "Home", "keyCodes": [16777234], "isSeparator": false},
+        {"displayName": "End", "keyCodes": [16777235], "isSeparator": false},
+        {"displayName": "PgUp", "keyCodes": [16777238], "isSeparator": false},
+        {"displayName": "PgDn", "keyCodes": [16777239], "isSeparator": false}
+    ]
+}

@@ -133,6 +133,14 @@ MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
             targetWidth = contentSize.width();
             targetHeight = contentSize.height();
         }
+    } else if (m_videoPane) {
+        // For FFmpeg/Qt video rendering modes, getTransformedMousePosition() returns
+        // coordinates in the original video space. Normalize against that same space.
+        QSize videoSize = m_videoPane->getOriginalVideoSize();
+        if (videoSize.width() > 0 && videoSize.height() > 0) {
+            targetWidth = videoSize.width();
+            targetHeight = videoSize.height();
+        }
     }
     
     // qCDebug(log_ui_input) << "    [calcAbsolute] Target size:" << QSize(targetWidth, targetHeight);
@@ -622,6 +630,19 @@ void InputHandler::handleWheelEvent(QWheelEvent *event)
         
         int targetWidth = effectiveWidget->width();
         int targetHeight = effectiveWidget->height();
+        if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
+            QSize contentSize = m_videoPane->getGStreamerVideoContentRect().size().toSize();
+            if (contentSize.width() > 0 && contentSize.height() > 0) {
+                targetWidth = contentSize.width();
+                targetHeight = contentSize.height();
+            }
+        } else if (m_videoPane) {
+            QSize videoSize = m_videoPane->getOriginalVideoSize();
+            if (videoSize.width() > 0 && videoSize.height() > 0) {
+                targetWidth = videoSize.width();
+                targetHeight = videoSize.height();
+            }
+        }
         
         // Calculate absolute coordinates (0-4096 range)
         qreal absoluteX = (static_cast<qreal>(videoPos.x()) * 4096.0) / targetWidth;

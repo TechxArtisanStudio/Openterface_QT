@@ -12,6 +12,7 @@
 #include <QObject>
 #include <QString>
 #include <QTimer>
+#include <QDateTime>
 
 // Forward declarations
 class HotplugMonitor;
@@ -79,6 +80,15 @@ private:
 
     // Flag to indicate an auto-connect flow is currently scheduled/running
     std::atomic_bool auto_connect_in_progress_{false};
+
+    // Hotplug debounce state to prevent rapid plug/unplug from flooding auto-connect requests
+    std::atomic_bool m_debounceActive{false};
+    QDateTime m_lastUnplugTime;
+    int m_hotplugFailCount = 0;  // Consecutive hotplug failure count for exponential backoff
+
+    // Debounce timing configuration
+    static constexpr int DEBOUNCE_WINDOW_MS = 1000;      // Plug events within 1s of unplug are considered bounce
+    static constexpr int STABILIZATION_DELAY_MS = 1500;  // Wait time for USB stack to stabilize
 };
 
 #endif // SERIAL_HOTPLUG_HANDLER_H

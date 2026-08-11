@@ -157,11 +157,19 @@ public:
     void setVideoSmoothTransform(bool enabled);
     bool getVideoSmoothTransform() const;
 
+    // Custom key import path persistence
+    void setLastCustomKeyImportPath(const QString& path);
+    QString getLastCustomKeyImportPath() const;
+
     // Floating window
     void setFloatingWindowEnabled(bool enabled);
     bool getFloatingWindowEnabled() const;
     void setFloatingWindowOpacity(double opacity);
     double getFloatingWindowOpacity() const;
+
+    // System key blocker
+    void setSystemKeyBlockerEnabled(bool enabled);
+    bool getSystemKeyBlockerEnabled() const;
 
     // Update reminder settings
     // Stores the epoch seconds of the last update check (used for 30-day throttle)
@@ -171,6 +179,28 @@ public:
     // If true, the user opted to never be reminded about updates
     void setUpdateNeverRemind(bool never);
     bool getUpdateNeverRemind() const;
+
+    // ---- MCP Server ----
+    void setMcpEnabled(bool enabled);
+    bool getMcpEnabled() const;
+    void setMcpTransport(const QString& transport);
+    QString getMcpTransport() const;
+    void setMcpSsePort(int port);
+    int getMcpSsePort() const;
+    void setMcpSseBindAddress(const QString& address);
+    QString getMcpSseBindAddress() const;
+    void setMcpSsePathSse(const QString& path);
+    QString getMcpSsePathSse() const;
+    void setMcpSsePathMessages(const QString& path);
+    QString getMcpSsePathMessages() const;
+    void setMcpSseKeepaliveInterval(int ms);
+    int getMcpSseKeepaliveInterval() const;
+    void setMcpSseSessionTimeout(int ms);
+    int getMcpSseSessionTimeout() const;
+    void setMcpSseCleanupInterval(int ms);
+    int getMcpSseCleanupInterval() const;
+    void setMcpSseMaxSessions(int max);
+    int getMcpSseMaxSessions() const;
 
 private:
     QSettings m_settings;

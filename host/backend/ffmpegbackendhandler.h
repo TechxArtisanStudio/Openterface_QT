@@ -126,6 +126,7 @@ public:
     // Direct FFmpeg capture methods
     bool startDirectCapture(const QString& devicePath, const QSize& resolution, int framerate);
     void stopDirectCapture();
+    bool waitForCaptureStop(int timeoutMs = 2000);
 public slots:
     void processFrame();
     bool isDirectCaptureRunning() const;

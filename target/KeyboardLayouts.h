@@ -112,6 +112,7 @@ struct KeyboardLayoutConfig {
         keyNameToQt["Question"] = Qt::Key_Question;     // ?
         // UK-specific keys
         keyNameToQt["sterling"] = Qt::Key_sterling;     // £
+        keyNameToQt["notsign"] = Qt::Key_notsign;       // ¬
         keyNameToQt["AltGr"] = Qt::Key_AltGr;
         // German-specific keys
         keyNameToQt["Udiaeresis"] = Qt::Key_Udiaeresis; // Ü

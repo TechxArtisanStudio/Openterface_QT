@@ -7,14 +7,26 @@ set -e
 # =========================
 echo "Preparing RPM package..."
 
-apt install -y rpm
+# Install rpm only if not already present (e.g., pre-installed in arm64-rpm image)
+if ! command -v rpmbuild >/dev/null 2>&1; then
+	echo "Installing rpm package..."
+	apt install -y rpm
+fi
 if ! command -v rpmbuild >/dev/null 2>&1; then
 	echo "Error: rpmbuild not found in the container. Please ensure 'rpm' is installed in the image." >&2
 	exit 1
 fi
 
 SRC=/workspace/src
-BUILD=/workspace/build
+# Try multiple possible build output locations (host vs container mounts)
+if [ -f "/workspace/build/openterfaceQT" ]; then
+	BUILD=/workspace/build
+elif [ -f "${SRC}/build/openterfaceQT" ]; then
+	BUILD=${SRC}/build
+else
+	echo "Error: openterfaceQT binary not found in any expected location" >&2
+	exit 1
+fi
 RPMTOP=/workspace/rpmbuild-shared
 
 mkdir -p "${RPMTOP}/SPECS" "${RPMTOP}/SOURCES" "${RPMTOP}/BUILD" "${RPMTOP}/RPMS" "${RPMTOP}/SRPMS"

@@ -9,10 +9,31 @@ if(WIN32 AND NOT DEFINED MINGW_ROOT)
     if(DEFINED ENV{MINGW_ROOT})
         set(MINGW_ROOT "$ENV{MINGW_ROOT}" CACHE PATH "MinGW root directory")
     else()
-        # Default to standard MSYS2 location
-        set(MINGW_ROOT "C:/msys64/mingw64" CACHE PATH "MinGW root directory")
+        # Default to standard MSYS2 location (architecture-aware)
+        if(OPENTERFACE_IS_ARM64)
+            set(MINGW_ROOT "C:/msys64/clangarm64" CACHE PATH "MinGW root directory")
+        else()
+            set(MINGW_ROOT "C:/msys64/mingw64" CACHE PATH "MinGW root directory")
+        endif()
     endif()
     message(STATUS "Using MINGW_ROOT: ${MINGW_ROOT}")
+endif()
+
+# Set Qt MinGW path for finding static libraries like libssp
+if(WIN32 AND NOT DEFINED QT_MINGW_PATH)
+    # Try to read from environment variable first
+    if(DEFINED ENV{QT_MINGW_PATH})
+        set(QT_MINGW_PATH "$ENV{QT_MINGW_PATH}" CACHE PATH "Qt MinGW installation path")
+    endif()
+    # Try to find Qt's MinGW installation
+    if(EXISTS "E:/Qt/Tools/mingw1120_64")
+        set(QT_MINGW_PATH "E:/Qt/Tools/mingw1120_64" CACHE PATH "Qt MinGW installation path")
+    elseif(EXISTS "C:/Qt/Tools/mingw1120_64")
+        set(QT_MINGW_PATH "C:/Qt/Tools/mingw1120_64" CACHE PATH "Qt MinGW installation path")
+    endif()
+    if(DEFINED QT_MINGW_PATH)
+        message(STATUS "Using QT_MINGW_PATH: ${QT_MINGW_PATH}")
+    endif()
 endif()
 
 # Initialize FFmpeg configuration variables
@@ -21,9 +42,23 @@ set(FFMPEG_PKG_CONFIG ${USE_SHARED_FFMPEG})
 # Set ZLIB_LIBRARY for static zlib
 if(NOT ZLIB_LIBRARY)
     if(DEFINED MINGW_ROOT AND WIN32)
-        set(ZLIB_LIBRARY "${MINGW_ROOT}/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
+        # Check if zlib exists in MINGW_ROOT
+        if(EXISTS "${MINGW_ROOT}/lib/libz.a")
+            set(ZLIB_LIBRARY "${MINGW_ROOT}/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
+        else()
+            # Fallback to MSYS2 path
+            if(OPENTERFACE_IS_ARM64)
+                set(ZLIB_LIBRARY "C:/msys64/clangarm64/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
+            else()
+                set(ZLIB_LIBRARY "C:/msys64/mingw64/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
+            endif()
+        endif()
     elseif(WIN32)
-        set(ZLIB_LIBRARY "C:/msys64/mingw64/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
+        if(OPENTERFACE_IS_ARM64)
+            set(ZLIB_LIBRARY "C:/msys64/clangarm64/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
+        else()
+            set(ZLIB_LIBRARY "C:/msys64/mingw64/lib/libz.a" CACHE FILEPATH "Path to static zlib library")
+        endif()
     endif()
 endif()
 
@@ -50,7 +85,13 @@ if(FFMPEG_PREFIX)
 endif()
 
 # Option to control hardware acceleration libraries
-option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ON)
+# VA-API and VDPAU are Intel/NVIDIA-specific, not available on ARM
+if(OPENTERFACE_IS_ARM64)
+    set(HWACCEL_DEFAULT OFF)
+else()
+    set(HWACCEL_DEFAULT ON)
+endif()
+option(USE_HWACCEL "Enable hardware acceleration libraries (VA-API, VDPAU)" ${HWACCEL_DEFAULT})
 
 # Option to use shared FFmpeg libraries instead of static
 option(USE_SHARED_FFMPEG "Use shared FFmpeg libraries instead of static" OFF)
@@ -503,6 +544,7 @@ if(NOT WIN32)
     # Linux libraries
     list(APPEND HWACCEL_LIBRARIES
         X11
+        Xv
         atomic
         pthread
         m
@@ -671,18 +713,18 @@ function(link_ffmpeg_libraries)
                 message(STATUS "Using static libturbojpeg: ${TURBOJPEG_STATIC_PATH}")
                 set(TURBOJPEG_LINK "${TURBOJPEG_STATIC_PATH}")
             else()
-                message(WARNING "Static libturbojpeg.a not found at ${TURBOJPEG_STATIC_PATH}, falling back to -lturbojpeg")
+                message(STATUS "Static libturbojpeg.a not found at ${TURBOJPEG_STATIC_PATH}")
                 if(WIN32)
-                    # On Windows, skip -lturbojpeg if not found (likely included in FFmpeg build)
                     set(TURBOJPEG_LINK "")
                 else()
-                    set(TURBOJPEG_LINK "-lturbojpeg")
-                endif()
-                if(WIN32)
-                    # On Windows, skip -lturbojpeg if not found (likely included in FFmpeg build)
-                    set(TURBOJPEG_LINK "")
-                else()
-                    set(TURBOJPEG_LINK "-lturbojpeg")
+                    find_library(LINUX_TURBOJPEG_FIND turbojpeg)
+                    if(LINUX_TURBOJPEG_FIND)
+                        message(STATUS "Found libturbojpeg: ${LINUX_TURBOJPEG_FIND}")
+                        set(TURBOJPEG_LINK "-lturbojpeg")
+                    else()
+                        message(STATUS "libturbojpeg not found, skipping (JPEG support via libjpeg only)")
+                        set(TURBOJPEG_LINK "")
+                    endif()
                 endif()
             endif()
             
@@ -709,7 +751,7 @@ function(link_ffmpeg_libraries)
                         message(STATUS "Found: ${_lib}")
                     endif()
                 endforeach()
-                  
+
                 set(_FFMPEG_STATIC_DEPS
                     ${JPEG_LINK}
                     ${TURBOJPEG_LINK}
@@ -724,11 +766,18 @@ function(link_ffmpeg_libraries)
                     "${MINGW_ROOT}/lib/libbrotlidec.a"  # Brotli decompression
                     "${MINGW_ROOT}/lib/libbrotlienc.a"  # Brotli compression
                     "${MINGW_ROOT}/lib/libbrotlicommon.a"  # Brotli common
-                    "${MINGW_ROOT}/lib/libmfx.a"    # Intel Media SDK for QSV (optional)
                     -lmingwex       # MinGW extensions for setjmp etc.
                     "${MINGW_ROOT}/lib/libwinpthread.a"  # Windows pthreads for 64-bit time functions
-                    # -liconv        # Character encoding conversion
                 )
+
+                # Add Intel Media SDK (libmfx) for QSV support if available (x86_64 only)
+                # ARM64: Intel QSV is not available on ARM64
+                if(NOT OPENTERFACE_IS_ARM64 AND EXISTS "${MINGW_ROOT}/lib/libmfx.a")
+                    list(APPEND _FFMPEG_STATIC_DEPS "${MINGW_ROOT}/lib/libmfx.a")
+                    message(STATUS "Found Intel QSV library: ${MINGW_ROOT}/lib/libmfx.a")
+                elseif(NOT OPENTERFACE_IS_ARM64)
+                    message(WARNING "Intel QSV library (libmfx.a) not found at ${MINGW_ROOT}/lib/libmfx.a - QSV support unavailable")
+                endif()
                 
                 # Use MSYS2's winpthread for 64-bit time functions
                 # if(EXISTS "C:/msys64/mingw64/lib/libwinpthread.a")
@@ -770,14 +819,15 @@ function(link_ffmpeg_libraries)
                 # else()
                 #     message(WARNING "libz.a not found - compression may not work properly")
                 # endif()
-                
-                # Add stack protection library LAST (required by MSYS2-compiled libraries)
-                # Use full path to static library to avoid linking to DLL
+
+                # Find and link libssp.a (static stack protector)
+                # Required to avoid multiple definition of __stack_chk_fail
                 # Try multiple possible locations for libssp.a
                 set(SSP_PATHS
-                    "E:/Qt/Tools/mingw1120_64/lib/gcc/x86_64-w64-mingw32/11.2.0/libssp.a"
-                    "E:/Qt/Tools/mingw1120_64/x86_64-w64-mingw32/lib/libssp.a"
-                    "${MINGW_PATH}/lib/gcc/x86_64-w64-mingw32/11.2.0/libssp.a"
+                    "${QT_MINGW_PATH}/lib/gcc/x86_64-w64-mingw32/11.2.0/libssp.a"
+                    "${QT_MINGW_PATH}/x86_64-w64-mingw32/lib/libssp.a"
+                    "${MINGW_ROOT}/lib/gcc/x86_64-w64-mingw32/11.2.0/libssp.a"
+                    "${MINGW_ROOT}/x86_64-w64-mingw32/lib/libssp.a"
                 )
                 foreach(SSP_PATH ${SSP_PATHS})
                     if(EXISTS "${SSP_PATH}")
@@ -786,7 +836,7 @@ function(link_ffmpeg_libraries)
                         break()
                     endif()
                 endforeach()
-                
+
             else()
                 # Linux-specific FFmpeg dependencies
                 set(_FFMPEG_STATIC_DEPS
@@ -794,9 +844,21 @@ function(link_ffmpeg_libraries)
                     ${TURBOJPEG_LINK}
                     # Core system libs
                     -lpthread -lm -ldl -lz -llzma -lbz2
-                    # DRM/VA/VDPAU/X11 stack (vdpa_device_create_x11 lives in libvdpau and needs X11)
-                    -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11 -lXext
-                    # XCB is required by avdevice xcbgrab; ensure core xcb gets linked
+                )
+
+                # VA-API and VDPAU are Intel/NVIDIA-specific - skip on ARM
+                if(NOT OPENTERFACE_IS_ARM64)
+                    list(APPEND _FFMPEG_STATIC_DEPS
+                        -ldrm -lva -lva-drm -lva-x11 -lvdpau -lX11 -lXext
+                    )
+                else()
+                    list(APPEND _FFMPEG_STATIC_DEPS
+                        -lX11 -lXext
+                    )
+                endif()
+
+                # XCB is required by avdevice xcbgrab; ensure core xcb gets linked
+                list(APPEND _FFMPEG_STATIC_DEPS
                     -lxcb
                     # XCB extensions used by xcbgrab (shared memory, xfixes for cursor, shape for OSD)
                     -lxcb-shm -lxcb-xfixes -lxcb-shape -lxcb-image

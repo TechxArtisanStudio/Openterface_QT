@@ -5,9 +5,13 @@ function(force_static_compression_libraries target)
     if(WIN32)
         message(STATUS "Forcing static linking of compression libraries for ${target}")
         
-        # Define MINGW_ROOT if not set
+        # Define MINGW_ROOT if not set (architecture-aware default)
         if(NOT DEFINED MINGW_ROOT)
-            set(MINGW_ROOT "C:/msys64/mingw64")
+            if(OPENTERFACE_IS_ARM64)
+                set(MINGW_ROOT "C:/msys64/clangarm64")
+            else()
+                set(MINGW_ROOT "C:/msys64/mingw64")
+            endif()
         endif()
         
         # List of compression libraries to force static linking
