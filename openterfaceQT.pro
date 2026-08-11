@@ -37,6 +37,7 @@ SOURCES += main.cpp \
     host/backend/ffmpeg/ffmpeg_hardware_accelerator.cpp \
     host/backend/ffmpeg/ffmpeg_device_manager.cpp \
     host/backend/ffmpeg/ffmpeg_frame_processor.cpp \
+    host/backend/ffmpeg/ffmpeg_amd_detector.cpp \
     host/backend/ffmpeg/ffmpeg_recorder.cpp \
     host/backend/ffmpeg/ffmpeg_device_validator.cpp \
     host/backend/ffmpeg/ffmpeg_hotplug_handler.cpp \
@@ -190,6 +191,7 @@ HEADERS  += \
     host/backend/ffmpeg/ffmpeg_hardware_accelerator.h \
     host/backend/ffmpeg/ffmpeg_device_manager.h \
     host/backend/ffmpeg/ffmpeg_frame_processor.h \
+    host/backend/ffmpeg/ffmpeg_amd_detector.h \
     host/backend/ffmpeg/ffmpeg_recorder.h \
     host/backend/ffmpeg/ffmpeg_device_validator.h \
     host/backend/ffmpeg/ffmpeg_hotplug_handler.h \

@@ -660,7 +660,6 @@ void VideoPane::updateVideoItemTransform()
         // FFmpeg mode: use content-sized scene rect (updateScrollBarsAndSceneRect
         // will set it from the item's scene-space bounds), and just scale.
         QTransform transform;
-        transform.translate(x, y);
         transform.scale(scale, scale);
         targetItem->setTransform(transform);
         targetItem->setPos(0, 0);
