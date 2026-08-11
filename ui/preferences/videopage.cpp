@@ -812,6 +812,42 @@ void VideoPage::captureSnapshot()
     m_snap_pixelFormatIndex = pixelFormatBox->currentIndex();
     m_snap_fpsIndex = fpsComboBox->currentIndex();
     m_snap_resolution = m_currentResolution;
+
+    // Hardware acceleration
+    QComboBox *hwAccelBox = this->findChild<QComboBox*>("hwAccelBox");
+    m_snap_hwAccelIndex = hwAccelBox ? hwAccelBox->currentIndex() : -1;
+
+    // Scaling quality
+    QComboBox *scalingQualityBox = this->findChild<QComboBox*>("scalingQualityBox");
+    m_snap_scalingQualityIndex = scalingQualityBox ? scalingQualityBox->currentIndex() : -1;
+
+    // Rendering quality checkboxes
+    QCheckBox *antialiasingCheckBox = this->findChild<QCheckBox*>("antialiasingCheckBox");
+    m_snap_antialiasing = antialiasingCheckBox ? antialiasingCheckBox->isChecked() : false;
+
+    QCheckBox *textAntialiasingCheckBox = this->findChild<QCheckBox*>("textAntialiasingCheckBox");
+    m_snap_textAntialiasing = textAntialiasingCheckBox ? textAntialiasingCheckBox->isChecked() : false;
+
+    QCheckBox *smoothTransformCheckBox = this->findChild<QCheckBox*>("smoothTransformCheckBox");
+    m_snap_smoothTransform = smoothTransformCheckBox ? smoothTransformCheckBox->isChecked() : false;
+
+    // Media backend
+    QComboBox *mediaBackendBox = this->findChild<QComboBox*>("mediaBackendBox");
+    m_snap_mediaBackendIndex = mediaBackendBox ? mediaBackendBox->currentIndex() : -1;
+
+    // Custom resolution override
+    QCheckBox *overrideSettingsCheckBox = this->findChild<QCheckBox*>("overrideSettingsCheckBox");
+    m_snap_overrideSettings = overrideSettingsCheckBox ? overrideSettingsCheckBox->isChecked() : false;
+
+    QLineEdit *customInputWidthEdit = this->findChild<QLineEdit*>("customInputWidthEdit");
+    m_snap_customWidth = customInputWidthEdit ? customInputWidthEdit->text().toInt() : 0;
+
+    QLineEdit *customInputHeightEdit = this->findChild<QLineEdit*>("customInputHeightEdit");
+    m_snap_customHeight = customInputHeightEdit ? customInputHeightEdit->text().toInt() : 0;
+
+    // GStreamer sink priority
+    QLineEdit *gstSinkEdit = this->findChild<QLineEdit*>("gstSinkEdit");
+    m_snap_gstSinkPriority = gstSinkEdit ? gstSinkEdit->text() : QString();
 }
 
 void VideoPage::revertToSnapshot()
@@ -820,4 +856,70 @@ void VideoPage::revertToSnapshot()
     pixelFormatBox->setCurrentIndex(m_snap_pixelFormatIndex);
     fpsComboBox->setCurrentIndex(m_snap_fpsIndex);
     m_currentResolution = m_snap_resolution;
+
+    // Restore video format box's derived resolution
+    if (videoFormatBox->count() > 0) {
+        QString resolutionText = videoFormatBox->currentText();
+        QStringList resolutionParts = resolutionText.split(' ').first().split('x');
+        if (resolutionParts.size() >= 2) {
+            m_currentResolution = QSize(resolutionParts[0].toInt(), resolutionParts[1].toInt());
+        }
+    }
+
+    // Hardware acceleration
+    QComboBox *hwAccelBox = this->findChild<QComboBox*>("hwAccelBox");
+    if (hwAccelBox && m_snap_hwAccelIndex >= 0) {
+        hwAccelBox->setCurrentIndex(m_snap_hwAccelIndex);
+    }
+
+    // Scaling quality
+    QComboBox *scalingQualityBox = this->findChild<QComboBox*>("scalingQualityBox");
+    if (scalingQualityBox && m_snap_scalingQualityIndex >= 0) {
+        scalingQualityBox->setCurrentIndex(m_snap_scalingQualityIndex);
+    }
+
+    // Rendering quality checkboxes
+    QCheckBox *antialiasingCheckBox = this->findChild<QCheckBox*>("antialiasingCheckBox");
+    if (antialiasingCheckBox) {
+        antialiasingCheckBox->setChecked(m_snap_antialiasing);
+    }
+
+    QCheckBox *textAntialiasingCheckBox = this->findChild<QCheckBox*>("textAntialiasingCheckBox");
+    if (textAntialiasingCheckBox) {
+        textAntialiasingCheckBox->setChecked(m_snap_textAntialiasing);
+    }
+
+    QCheckBox *smoothTransformCheckBox = this->findChild<QCheckBox*>("smoothTransformCheckBox");
+    if (smoothTransformCheckBox) {
+        smoothTransformCheckBox->setChecked(m_snap_smoothTransform);
+    }
+
+    // Media backend — restore combo, then trigger the visibility update slot
+    QComboBox *mediaBackendBox = this->findChild<QComboBox*>("mediaBackendBox");
+    if (mediaBackendBox && m_snap_mediaBackendIndex >= 0) {
+        mediaBackendBox->setCurrentIndex(m_snap_mediaBackendIndex);
+        onMediaBackendChanged();
+    }
+
+    // Custom resolution override
+    QCheckBox *overrideSettingsCheckBox = this->findChild<QCheckBox*>("overrideSettingsCheckBox");
+    if (overrideSettingsCheckBox) {
+        overrideSettingsCheckBox->setChecked(m_snap_overrideSettings);
+    }
+
+    QLineEdit *customInputWidthEdit = this->findChild<QLineEdit*>("customInputWidthEdit");
+    if (customInputWidthEdit) {
+        customInputWidthEdit->setText(QString::number(m_snap_customWidth));
+    }
+
+    QLineEdit *customInputHeightEdit = this->findChild<QLineEdit*>("customInputHeightEdit");
+    if (customInputHeightEdit) {
+        customInputHeightEdit->setText(QString::number(m_snap_customHeight));
+    }
+
+    // GStreamer sink priority
+    QLineEdit *gstSinkEdit = this->findChild<QLineEdit*>("gstSinkEdit");
+    if (gstSinkEdit) {
+        gstSinkEdit->setText(m_snap_gstSinkPriority);
+    }
 }
