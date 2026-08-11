@@ -186,7 +186,6 @@ void WindowLayoutCoordinator::handleAspectRatioResize(int currentWidth, int curr
         
         // Scale video pane to fit the available area
         double scaleX = static_cast<double>(availableWidth) / (captureAspectRatio * availableHeight);
-        double scaleY = 1.0;
         
         int videoWidth, videoHeight;
         if (scaleX <= 1.0) {
@@ -239,7 +238,6 @@ void WindowLayoutCoordinator::checkInitSize()
     
     // Get screen geometry
     QRect screenGeometry = currentScreen->geometry();
-    int screenWidth = screenGeometry.width();
     int screenHeight = screenGeometry.height();
     int titleBarHeight = m_mainWindow->frameGeometry().height() - m_mainWindow->geometry().height();
     int menuBarHeight = m_menuBar->height();
@@ -321,7 +319,6 @@ void WindowLayoutCoordinator::fullScreen()
         qCWarning(log_ui_windowlayoutcoordinator) << "Setting window state to WindowNoState...";
         
         // Use a safer approach: check if the operation succeeds
-        Qt::WindowStates oldState = m_mainWindow->windowState();
         m_mainWindow->setWindowState(Qt::WindowNoState);
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 50);
         

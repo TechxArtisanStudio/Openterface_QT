@@ -242,7 +242,7 @@ private slots:
     
     void onArmBaudratePerformanceRecommendation(int currentBaudrate);
 
-    void onToggleSwitchStateChanged(int state);
+    void onToggleSwitchStateChanged(Qt::CheckState state);
 
 
     void onKeyboardLayoutCombobox_Changed(const QString &layout);

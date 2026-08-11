@@ -42,8 +42,8 @@ static constexpr int kAutoMoveInterval = 80;
 
 FloatingWindow::FloatingWindow(QWidget *parent)
     : QWidget(parent)
-    , m_expanded(false)
     , m_moveDelay(kMoveStepSmall)
+    , m_expanded(false)
 {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool | Qt::BypassWindowManagerHint);
     setAttribute(Qt::WA_DeleteOnClose, false);
@@ -330,7 +330,7 @@ void FloatingWindow::startAutoMove(QPushButton *btn, void (FloatingWindow::*sig)
     m_moveTimer->start(kAutoMoveInterval);
 }
 
-void FloatingWindow::stopAutoMove(QPushButton *btn)
+void FloatingWindow::stopAutoMove(QPushButton */*btn*/)
 {
     if (m_moveTimer->isActive()) {
         m_moveTimer->stop();

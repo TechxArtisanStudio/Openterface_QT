@@ -43,9 +43,9 @@
 
 Q_LOGGING_CATEGORY(log_ui_video, "opf.ui.video")
 
-VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent), 
-    escTimer(new QTimer(this)), 
-    m_inputHandler(new InputHandler(this, this)), 
+VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
+    m_inputHandler(new InputHandler(this, this)),
+    escTimer(new QTimer(this)),
     m_isCameraSwitching(false),
     m_scene(new QGraphicsScene(this)),
     m_videoItem(nullptr),
@@ -221,7 +221,7 @@ VideoPane::~VideoPane()
     * This function is called when the focus is on the video pane and the user presses the Tab key.
     * This function is overridden to prevent the focus from moving to the next widget.
 */
-bool VideoPane::focusNextPrevChild(bool next) {
+bool VideoPane::focusNextPrevChild(bool /*next*/) {
     return false;
 }
 
@@ -277,7 +277,7 @@ void VideoPane::stopEscTimer()
     escTimer->stop();
 }
 
-void VideoPane::onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice)
+void VideoPane::onCameraDeviceSwitching(const QString& /*fromDevice*/, const QString& /*toDevice*/)
 {
     // qCDebug(log_ui_video) << "VideoPane: Camera switching from" << fromDevice << "to" << toDevice;
     
@@ -836,10 +836,6 @@ QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
         // qCDebug(log_ui_video) << "      [getTransformed] No valid item, returning original pos";
         return QPointF(viewportPos);
     }
-    
-    QRectF viewRect = viewport()->rect();
-    QTransform viewTransform = transform();
-    QTransform itemTransform = targetItem->transform();
     
     // Step 1: Convert viewport coordinates to scene coordinates (this accounts for scrolling)
     QPointF scenePos = mapToScene(viewportPos);

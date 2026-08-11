@@ -131,18 +131,18 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     , videoPane(new VideoPane(this))
     , stackedLayout(new QStackedLayout)
     , toolbarManager(new ToolbarManager(this))
+    , m_deviceAutoSelected(false)
     , toggleSwitch(new ToggleSwitch(this))
     , m_cameraManager(new CameraManager(this))
+    , m_deviceCoordinator(nullptr)
+    , m_menuCoordinator(nullptr)
+    , mouseEdgeTimer(nullptr)
     , m_versionInfoManager(new VersionInfoManager(this))
     , m_languageManager(languageManager)
+    , taskmanager(TaskManager::instance())
     , m_screenSaverManager(new ScreenSaverManager(this))
     , m_cornerWidgetManager(new CornerWidgetManager(this))
     , m_windowControlManager(nullptr)
-    , m_deviceCoordinator(nullptr)
-    , m_menuCoordinator(nullptr)
-    , m_deviceAutoSelected(false)
-    , mouseEdgeTimer(nullptr)
-    , taskmanager(TaskManager::instance())
 {
     qCDebug(log_ui_mainwindow) << "Initializing MainWindow...";
     
@@ -443,23 +443,16 @@ void MainWindow::updateScrollbars() {
     // Check if the mouse is near the edges of the screen
     const int edgeThreshold = 300; // Adjust this value as needed
 
-    int deltaX = 0;
-    int deltaY = 0;
-
     if (lastMousePos.x() < edgeThreshold) {
         // Move scrollbar to the left
-        deltaX = -10; // Adjust step size as needed
     } else if (lastMousePos.x() > 4096*factorScale - edgeThreshold) {
         // Move scrollbar to the right
-        deltaX = 10; // Adjust step size as needed
     }
 
     if (lastMousePos.y() < edgeThreshold) {
         // Move scrollbar up
-        deltaY = -10; // Adjust step size as needed
     } else if (lastMousePos.y() > 4096*factorScale - edgeThreshold) {
         // Move scrollbar down
-        deltaY = 10; // Adjust step size as needed
     }
 
     // Note: scrollbars removed - VideoPane handles zooming internally via QGraphicsView
@@ -580,7 +573,7 @@ void MainWindow::onActionSwitchToTargetTriggered()
 
 }
 
-void MainWindow::onToggleSwitchStateChanged(int state)
+void MainWindow::onToggleSwitchStateChanged(Qt::CheckState state)
 {
     // Ignore if this change is from a programmatic status update
     if (m_cornerWidgetManager && m_cornerWidgetManager->isUpdatingFromStatus()) {
@@ -732,7 +725,7 @@ void MainWindow::onDeviceSwitchCompleted() {
     updateCameraActive(m_cameraManager->hasActiveCameraDevice());
 }
 
-void MainWindow::onDeviceSelected(const QString &portChain, bool success, const QString &message) {
+void MainWindow::onDeviceSelected(const QString &portChain, bool /*success*/, const QString &/*message*/) {
     if (!m_cameraManager->hasActiveCameraDevice()) {
         // Try to auto-select the "Openterface" camera if available
         const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
@@ -2010,17 +2003,16 @@ void MainWindow::updateFirmware() {
     std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
     qDebug() << "latestFirmwareVersion" << latestFirmwareVersion.c_str();
     FirmwareUpdateConfirmDialog confirmDialog(this);
-    bool proceed = false;
     switch (firmwareStatus){
         case FirmwareResult::Latest:
             qDebug() << "Firmware is up to date.";
-            QMessageBox::information(this, tr("Firmware Update"), 
-            tr("The firmware is up to date.\nCurrent version: ") + 
+            QMessageBox::information(this, tr("Firmware Update"),
+            tr("The firmware is up to date.\nCurrent version: ") +
             QString::fromStdString(currentFirmwareVersion));
             break;
-        case FirmwareResult::Upgradable:
-            qDebug() << "Firmware is upgradable.";
-            proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
+        case FirmwareResult::Upgradable:            qDebug() << "Firmware is upgradable.";
+            {
+            bool proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
             if (proceed) {
                 qDebug() << "User accepted firmware update, proceeding...";
                 
@@ -2098,12 +2090,18 @@ void MainWindow::updateFirmware() {
                     this->close(); // Close main window on successful update
                 }
             }
+            } // end proceed scope
             break;
         case FirmwareResult::Timeout:
             qDebug() << "Firmware fetch timeout.";
-            QMessageBox::information(this, tr("Firmware fetch timeout"), 
-            tr("Firmware retrieval timed out. Please check your network connection and try again.\nCurrent version: ") + 
+            QMessageBox::information(this, tr("Firmware fetch timeout"),
+            tr("Firmware retrieval timed out. Please check your network connection and try again.\nCurrent version: ") +
             QString::fromStdString(currentFirmwareVersion));
+            break;
+        case FirmwareResult::CheckSuccess:
+        case FirmwareResult::CheckFailed:
+        case FirmwareResult::Checking:
+            // These states are handled by the caller before reaching this switch
             break;
     }
 }

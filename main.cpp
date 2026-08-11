@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
 {
     // TEMP: Early startup logging
     QFile earlyLog("C:/openterface_startup.log");
-    earlyLog.open(QIODevice::WriteOnly | QIODevice::Append);
+    (void)earlyLog.open(QIODevice::WriteOnly | QIODevice::Append);
     if (earlyLog.isOpen()) {
         QTextStream outs(&earlyLog);
         outs << "[EARLY] main() entered\n";
@@ -368,7 +368,7 @@ int main(int argc, char *argv[])
         // Discover and connect to device hardware
         qInfo() << "Discovering Openterface devices...";
         QList<DeviceInfo> devices = DeviceManager::getInstance().discoverDevices();
-        fprintf(stderr, "[DEBUG] Discovered %d devices\n", devices.size());
+        fprintf(stderr, "[DEBUG] Discovered %d devices\n", static_cast<int>(devices.size()));
         if (!devices.isEmpty()) {
             qInfo() << "Found" << devices.size() << "device(s)";
             DeviceInfo device = devices.first();

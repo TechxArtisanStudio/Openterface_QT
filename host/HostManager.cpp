@@ -149,7 +149,7 @@ void HostManager::handleKeySequence(const QList<KeyStep>& steps)
 
     // Check for special combo
     for (const KeyStep& step : steps) {
-        if (step.modifiers == (Qt::ControlModifier | Qt::AltModifier) && step.keyCode == Qt::Key_Delete) {
+        if (static_cast<unsigned>(step.modifiers) == static_cast<unsigned>(Qt::ControlModifier | Qt::AltModifier) && step.keyCode == Qt::Key_Delete) {
             sendCtrlAltDel();
             return;
         }

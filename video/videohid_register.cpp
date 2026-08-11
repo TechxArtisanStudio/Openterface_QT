@@ -45,7 +45,6 @@ bool VideoHid::getGpio0() {
 }
 
 float VideoHid::getPixelclk() {
-    VideoHidRegisterSet set = getRegisterSetForCurrentChip();
     qCDebug(log_host_hid) << "getPixelclk: Using registers from chip impl" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
 
     VideoHidResolutionInfo info = getInputStatus();
@@ -324,7 +323,7 @@ void VideoHid::handleSpdifToggle(bool currentSwitchOnTarget) {
     isHardSwitchOnTarget = currentSwitchOnTarget;
 }
 
-void VideoHid::dispatchSwitchableUsbToggle(bool isToTarget) {
+void VideoHid::dispatchSwitchableUsbToggle(bool /*isToTarget*/) {
     if (eventCallback) {
         // eventCallback->onSwitchableUsbToggle(isToTarget);
     }
