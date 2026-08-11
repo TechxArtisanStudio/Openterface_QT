@@ -1266,6 +1266,7 @@ jobs:
             apt install -y \
               libudev-dev \
               libx11-dev \
+              libxkbcommon-dev \
               build-essential \
               git
             
