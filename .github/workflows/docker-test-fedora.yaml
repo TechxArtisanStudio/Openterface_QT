@@ -1112,29 +1112,26 @@ jobs:
             
             # Install multimedia libraries
             echo "📦 Installing multimedia libraries..."
-            # RPM Fusion repos may not be available in all environments.
-            # Try to install multimedia packages but do not fail if unavailable.
-            # The build can proceed without them (they are optional for basic functionality).
+            # Install packages individually to handle conflicts gracefully.
+            # gstreamer is in main Fedora repos and is required for the build.
+            # ffmpeg-devel (from RPM Fusion) may conflict with Qt6-installed libs.
             dnf install -y --nogpgcheck \
-              ffmpeg-devel \
               gstreamer1-devel \
-              gstreamer1-plugins-base-devel \
+              gstreamer1-plugins-base-devel || echo "⚠️ gstreamer install failed"
+
+            dnf install -y --nogpgcheck \
               libjpeg-turbo-devel \
-              turbojpeg-devel \
               libusb1-devel \
               libva-devel \
-              systemd-devel || {
-              echo "⚠️ Some multimedia packages not available (RPM Fusion repos may be unreachable)"
-              echo "🔍 Trying essential packages only..."
-              dnf install -y --nogpgcheck \
-                libjpeg-turbo-devel \
-                libusb1-devel \
-                libva-devel || echo "⚠️ Even essential packages failed"
-            }
+              systemd-devel || echo "⚠️ Essential devel packages install failed"
+
+            # ffmpeg-devel often conflicts with Qt6-installed libswscale-free.
+            # Try it but do not fail the build if it conflicts.
+            dnf install -y --nogpgcheck ffmpeg-devel || echo "⚠️ ffmpeg-devel not installed (conflicts with Qt6 libs, non-fatal)"
             
             # Verify installations
             echo "🔍 Verifying package installations..."
-            for pkg in ffmpeg-devel gstreamer1-devel libjpeg-turbo-devel turbojpeg-devel libusb1-devel libva-devel systemd-devel; do
+            for pkg in ffmpeg-devel gstreamer1-devel libjpeg-turbo-devel libusb1-devel libva-devel systemd-devel; do
               if rpm -q $pkg >/dev/null 2>&1; then
                 echo "✅ $pkg: installed"
               else
