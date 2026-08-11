@@ -53,6 +53,8 @@ public:
     void setupUI();
     void initMcpSettings();
     void applyMcpSettings();
+    void captureSnapshot();
+    void revertToSnapshot();
 
 signals:
     void mcpSettingsChanged();
@@ -78,6 +80,19 @@ private:
     QSpinBox     *m_sseSessionTimeoutSpin;
     QSpinBox     *m_sseCleanupIntervalSpin;
     QSpinBox     *m_sseMaxSessionsSpin;
+
+    // Snapshot members
+    bool m_snap_enableChecked;
+    int m_snap_transportIndex;
+    int m_snap_ssePort;
+    int m_snap_sseBindPresetIndex;
+    QString m_snap_sseBindCustom;
+    QString m_snap_ssePathSse;
+    QString m_snap_ssePathMessages;
+    int m_snap_sseKeepalive;
+    int m_snap_sseSessionTimeout;
+    int m_snap_sseCleanupInterval;
+    int m_snap_sseMaxSessions;
 };
 
 #endif // MCPPAGE_H
