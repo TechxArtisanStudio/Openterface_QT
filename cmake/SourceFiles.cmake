@@ -307,7 +307,6 @@ set(UI_PREFERENCES_SOURCES
     ui/preferences/cameraadjust.cpp ui/preferences/cameraadjust.h
     ui/preferences/fpsspinbox.cpp ui/preferences/fpsspinbox.h
     ui/preferences/settingdialog.cpp ui/preferences/settingdialog.h ui/preferences/settingdialog.ui
-    ui/preferences/advancedsettingsdialog.cpp ui/preferences/advancedsettingsdialog.h
     ui/preferences/firmwarepage.cpp ui/preferences/firmwarepage.h
     ui/preferences/controlchipfirmwarepage.cpp ui/preferences/controlchipfirmwarepage.h
     ui/preferences/logpage.cpp ui/preferences/logpage.h
