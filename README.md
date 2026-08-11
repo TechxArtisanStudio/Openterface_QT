@@ -172,6 +172,11 @@ sudo apt install -y \
     libva1 libva-drm2 libva-x11-2 libgstreamer1.0-0
 ```
 
+> **Note for Ubuntu 24.04+ users:** the package `libturbojpeg0` was renamed to
+> `libturbojpeg`. If the install command above fails, replace `libturbojpeg0`
+> with `libturbojpeg`.
+```
+
 3. Configure permissions:
 
 ```bash

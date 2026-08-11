@@ -1213,7 +1213,7 @@ jobs:
               libgstreamer1.0-dev \
               libgstreamer-plugins-base1.0-dev \
               libjpeg-turbo8-dev \
-              libturbojpeg0-dev \
+              libturbojpeg-dev \
               libusb-1.0-0-dev \
               libudev-dev \
               libva-dev; then
@@ -1225,7 +1225,7 @@ jobs:
             
             # Verify installations
             echo "🔍 Verifying package installations..."
-            for pkg in libavformat-dev libgstreamer1.0-dev libjpeg-turbo8-dev libturbojpeg0-dev libusb-1.0-0-dev libudev-dev libva-dev; do
+            for pkg in libavformat-dev libgstreamer1.0-dev libjpeg-turbo8-dev libturbojpeg-dev libusb-1.0-0-dev libudev-dev libva-dev; do
               if dpkg -l $pkg >/dev/null 2>&1; then
                 echo "✅ $pkg: installed"
               else
