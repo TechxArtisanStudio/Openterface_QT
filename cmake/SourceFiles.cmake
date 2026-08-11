@@ -292,12 +292,14 @@ set(UI_FLOATING_WINDOW_SOURCES
 set(UI_CUSTOMKEY_SOURCES
     ui/customkey/customkeymanager.cpp ui/customkey/customkeymanager.h
     ui/customkey/customkeydialog.cpp ui/customkey/customkeydialog.h
+    ui/customkey/virtualkeyboardpage.cpp ui/customkey/virtualkeyboardpage.h
 )
 
 # UI custom key sources
 set(UI_CUSTOMKEY_SOURCES
     ui/customkey/customkeymanager.cpp ui/customkey/customkeymanager.h
     ui/customkey/customkeydialog.cpp ui/customkey/customkeydialog.h
+    ui/customkey/virtualkeyboardpage.cpp ui/customkey/virtualkeyboardpage.h
 )
 
 # UI preferences sources

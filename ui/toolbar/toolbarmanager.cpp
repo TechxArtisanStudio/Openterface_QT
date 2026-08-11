@@ -20,10 +20,23 @@ const QString ToolbarManager::commonButtonStyle =
         "QPushButton:pressed { "
         "   background-color: palette(dark); "
         "   border: 1px solid palette(shadow); "
+        "} "
+        "QPushButton[openterface_modifier] { "
+        "   color: palette(highlight); "
+        "} "
+        "QPushButton[openterface_modifier]:checked { "
+        "   background-color: palette(dark); "
         "}";
 
 const char *ToolbarManager::KEYCODE_PROPERTY = "openterface_keyCode";
 const char *ToolbarManager::MODIFIER_PROPERTY = "openterface_modifier";
+
+const QList<ToolbarManager::ModifierInfo> ToolbarManager::modifierButtons = {
+    {"Ctrl", "Toggle Ctrl modifier.", Qt::ControlModifier},
+    {"Alt", "Toggle Alt modifier.", Qt::AltModifier},
+    {"Shift", "Toggle Shift modifier.", Qt::ShiftModifier},
+    {"Win", "Toggle Windows modifier.", Qt::MetaModifier},
+};
 
 ToolbarManager::ToolbarManager(QWidget *parent) : QObject(parent)
 {
@@ -41,7 +54,7 @@ void ToolbarManager::setupToolbar()
     CustomKeyManager& keyManager = CustomKeyManager::getInstance();
     keyManager.initialize();
 
-    // Build toolbar from custom keys
+    // Build toolbar (modifier buttons + custom keys)
     rebuildToolbar();
 
     // Add config button
@@ -83,6 +96,9 @@ void ToolbarManager::setupToolbar()
 
 void ToolbarManager::rebuildToolbar()
 {
+    // Remove custom key actions, but preserve modifier buttons and other fixed widgets
+    // We rebuild by clearing everything and re-adding in the correct order
+
     // Remove all actions first, deleting any associated widgets
     QList<QAction*> existingActions = toolbar->actions();
     for (QAction* a : existingActions) {
@@ -90,6 +106,14 @@ void ToolbarManager::rebuildToolbar()
         if (w) w->deleteLater();
         toolbar->removeAction(a);
     }
+
+    // Re-add modifier toggle buttons first
+    for (const auto& modInfo : modifierButtons) {
+        QPushButton *button = addKeyButton(modInfo.text, modInfo.toolTip);
+        button->setCheckable(true);
+        button->setProperty(MODIFIER_PROPERTY, modInfo.modifierFlag);
+    }
+    toolbar->addSeparator();
 
     CustomKeyManager& keyManager = CustomKeyManager::getInstance();
     QList<CustomKeyInfo> keys = keyManager.getKeys();
@@ -140,12 +164,33 @@ void ToolbarManager::onKeyButtonClicked()
         return;
     }
 
+    // Collect modifier flags from checked modifier buttons
+    int modifiers = 0;
+    for (QPushButton *btn : toolbar->findChildren<QPushButton*>()) {
+        int modifier = btn->property(MODIFIER_PROPERTY).toInt();
+        if (modifier != 0 && btn->isChecked()) {
+            modifiers |= modifier;
+            btn->setChecked(false);  // Auto-uncheck after collecting
+        }
+    }
+
     // Check if this is a custom key with keyCodes
     QVariant keyCodesVar = button->property("customkey_keyCodes");
     if (keyCodesVar.isValid()) {
         QList<int> keyCodes = keyCodesVar.value<QList<int>>();
         if (!keyCodes.isEmpty()) {
-            HostManager::getInstance().handleKeyCombo(keyCodes);
+            // If modifiers are toggled, prepend them to the keyCodes
+            if (modifiers != 0) {
+                QList<int> combinedKeyCodes;
+                if (modifiers & Qt::ControlModifier) combinedKeyCodes << Qt::Key_Control;
+                if (modifiers & Qt::ShiftModifier) combinedKeyCodes << Qt::Key_Shift;
+                if (modifiers & Qt::AltModifier) combinedKeyCodes << Qt::Key_Alt;
+                if (modifiers & Qt::MetaModifier) combinedKeyCodes << Qt::Key_Meta;
+                combinedKeyCodes.append(keyCodes);
+                HostManager::getInstance().handleKeyCombo(combinedKeyCodes);
+            } else {
+                HostManager::getInstance().handleKeyCombo(keyCodes);
+            }
         }
         return;
     }
@@ -156,7 +201,8 @@ void ToolbarManager::onKeyButtonClicked()
         return;
     }
 
-    int modifiers = QGuiApplication::keyboardModifiers();
+    // Merge with any physical keyboard modifiers
+    modifiers |= QGuiApplication::keyboardModifiers();
     HostManager::getInstance().handleFunctionKey(keyCode, modifiers);
 }
 

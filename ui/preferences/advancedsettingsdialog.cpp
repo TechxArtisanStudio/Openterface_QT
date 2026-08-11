@@ -25,6 +25,7 @@
 #include "firmwarepage.h"
 #include "controlchipfirmwarepage.h"
 #include "edidconfigpage.h"
+#include "../customkey/virtualkeyboardpage.h"
 
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
@@ -47,6 +48,7 @@ AdvancedSettingsDialog::AdvancedSettingsDialog(QWidget *parent)
     , controlChipFirmwarePage(new ControlChipFirmwarePage(this))
     , mcpPage(new McpPage(this))
     , edidConfigPage(new EdidConfigPage(this))
+    , virtualKeyboardPage(new VirtualKeyboardPage(this))
     , buttonWidget(new QWidget(this))
     , m_currentPageIndex(-1)
     , m_changingPage(false)
@@ -97,7 +99,7 @@ void AdvancedSettingsDialog::createSettingTree() {
     settingTree->setSelectionMode(QAbstractItemView::SingleSelection);
     settingTree->setRootIsDecorated(false);
 
-    QStringList names = {tr("Video Firmware"), tr("Control Chip Firmware"), tr("MCP"), tr("EDID Configuration")};
+    QStringList names = {tr("Video Firmware"), tr("Control Chip Firmware"), tr("MCP"), tr("EDID Configuration"), tr("Virtual Keyboard")};
     for (const QString &name : names) {
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
@@ -118,6 +120,7 @@ void AdvancedSettingsDialog::createPages() {
     addScrollablePage(controlChipFirmwarePage);
     addScrollablePage(mcpPage);
     addScrollablePage(edidConfigPage);
+    addScrollablePage(virtualKeyboardPage);
 }
 
 void AdvancedSettingsDialog::createButtons() {
@@ -175,6 +178,8 @@ void AdvancedSettingsDialog::changePage(QTreeWidgetItem *current, QTreeWidgetIte
         newPageIndex = 2;
     } else if (itemText == tr("EDID Configuration")) {
         newPageIndex = 3;
+    } else if (itemText == tr("Virtual Keyboard")) {
+        newPageIndex = 4;
     }
 
     if (newPageIndex != -1 && newPageIndex != m_currentPageIndex) {
@@ -216,4 +221,18 @@ McpPage* AdvancedSettingsDialog::getMcpPage() {
 
 FirmwarePage* AdvancedSettingsDialog::getFirmwarePage() {
     return firmwarePage;
+}
+
+VirtualKeyboardPage* AdvancedSettingsDialog::getVirtualKeyboardPage() {
+    return virtualKeyboardPage;
+}
+
+void AdvancedSettingsDialog::selectPage(const QString& pageName) {
+    for (int i = 0; i < settingTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem *item = settingTree->topLevelItem(i);
+        if (item->text(0) == pageName) {
+            settingTree->setCurrentItem(item);
+            return;
+        }
+    }
 }

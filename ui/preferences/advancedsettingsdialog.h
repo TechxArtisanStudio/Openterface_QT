@@ -34,6 +34,7 @@
 #include "firmwarepage.h"
 #include "controlchipfirmwarepage.h"
 #include "edidconfigpage.h"
+#include "../customkey/virtualkeyboardpage.h"
 
 class AdvancedSettingsDialog : public QDialog
 {
@@ -45,6 +46,8 @@ public:
 
     McpPage* getMcpPage();
     FirmwarePage* getFirmwarePage();
+    VirtualKeyboardPage* getVirtualKeyboardPage();
+    void selectPage(const QString& pageName);
 
 private:
     QTreeWidget *settingTree;
@@ -53,6 +56,7 @@ private:
     ControlChipFirmwarePage *controlChipFirmwarePage;
     McpPage *mcpPage;
     EdidConfigPage *edidConfigPage;
+    VirtualKeyboardPage *virtualKeyboardPage;
 
     QWidget *buttonWidget;
     QSplitter *splitter;

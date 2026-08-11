@@ -51,6 +51,7 @@
 #include "../../host/audiomanager.h"
 #include "../../server/tcpServer.h"
 #include "../../SysKeyBlocker/SystemKeyBlocker.h"
+#include "../customkey/customkeymanager.h"
 
 #include <QTimer>
 #include <QStackedLayout>
@@ -382,8 +383,19 @@ void MainWindowInitializer::setupToolbar()
     m_mainWindow->addToolBar(Qt::TopToolBarArea, m_toolbarManager->getToolbar());
     m_toolbarManager->getToolbar()->setVisible(false);
 
-    // Connect toolbar config button to open custom key dialog
-    connect(m_toolbarManager, &ToolbarManager::openCustomKeyConfig, m_mainWindow, &MainWindow::openCustomKeyDialog);
+    // Connect toolbar config button to open Advanced Settings → Virtual Keyboard page
+    connect(m_toolbarManager, &ToolbarManager::openCustomKeyConfig, m_mainWindow, [this]() {
+        m_mainWindow->configureAdvancedSettings();
+        QTimer::singleShot(100, [this]() {
+            if (m_mainWindow->advancedSettingsDialog) {
+                m_mainWindow->advancedSettingsDialog->selectPage(tr("Virtual Keyboard"));
+            }
+        });
+    });
+
+    // Connect CustomKeyManager signal to rebuild toolbar live
+    connect(&CustomKeyManager::getInstance(), &CustomKeyManager::keysChanged,
+            m_toolbarManager, &ToolbarManager::rebuildToolbar);
 
     if (m_windowLayoutCoordinator) {
         m_windowLayoutCoordinator->setToolbarManager(m_toolbarManager);
