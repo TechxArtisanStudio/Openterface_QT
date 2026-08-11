@@ -36,6 +36,8 @@
 #include <QMediaFormat>
 #include <QLineEdit>
 #include <QCheckBox>
+#include <QPushButton>
+#include <QDialog>
 #include <QFrame>
 #include <QMediaDevices>
 #include <QWidget>
@@ -108,13 +110,13 @@ void VideoPage::setupUI()
     QLabel *resolutionsLabel = new QLabel(tr("Capture resolutions: "));
     resolutionsLabel->setStyleSheet(smallLabelFontSize);
 
-    QComboBox *videoFormatBox = new QComboBox();
+    videoFormatBox = new QComboBox();
     videoFormatBox->setObjectName("videoFormatBox");
 
     QLabel *framerateLabel = new QLabel(tr("Framerate: "));
     framerateLabel->setStyleSheet(smallLabelFontSize);
 
-    QComboBox *fpsComboBox = new QComboBox();
+    fpsComboBox = new QComboBox();
     fpsComboBox->setObjectName("fpsComboBox");
 
     QHBoxLayout *hBoxLayout = new QHBoxLayout();
@@ -122,7 +124,7 @@ void VideoPage::setupUI()
 
     QLabel *formatLabel = new QLabel(tr("Pixel format: "));
     formatLabel->setStyleSheet(smallLabelFontSize);
-    QComboBox *pixelFormatBox = new QComboBox();
+    pixelFormatBox = new QComboBox();
     pixelFormatBox->setObjectName("pixelFormatBox");
 
     QLabel *hintLabel = new QLabel(tr("Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable."));
@@ -328,6 +330,32 @@ void VideoPage::setupUI()
     
     videoLayout->addStretch();
 
+    // Button bar: Apply / Revert / Cancel
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    buttonLayout->addStretch();
+
+    QPushButton *applyButton = new QPushButton(tr("Apply"));
+    QPushButton *revertButton = new QPushButton(tr("Revert"));
+    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
+
+    applyButton->setFixedSize(80, 30);
+    revertButton->setFixedSize(80, 30);
+    cancelButton->setFixedSize(80, 30);
+
+    buttonLayout->addWidget(applyButton);
+    buttonLayout->addWidget(revertButton);
+    buttonLayout->addWidget(cancelButton);
+
+    videoLayout->addLayout(buttonLayout);
+
+    // Connect buttons
+    connect(applyButton, &QPushButton::clicked, this, &VideoPage::applyVideoSettings);
+    connect(revertButton, &QPushButton::clicked, this, &VideoPage::revertToSnapshot);
+    connect(cancelButton, &QPushButton::clicked, this, [this]() {
+        QDialog *dlg = qobject_cast<QDialog*>(window());
+        if (dlg) dlg->reject();
+    });
+
     // Connect the checkbox state change to the slot
     connect(overrideSettingsCheckBox, &QCheckBox::toggled, this, &VideoPage::toggleCustomResolutionInputs);
 
@@ -354,7 +382,7 @@ void VideoPage::setupUI()
             m_currentResolution = QSize(1920, 1080);
         }
         
-        connect(videoFormatBox, &QComboBox::currentIndexChanged, [this, videoFormatBox](int /*index*/){
+        connect(videoFormatBox, &QComboBox::currentIndexChanged, [this](int /*index*/){
             if (videoFormatBox->count() > 0) {
                 QString resolutionText = videoFormatBox->currentText();
                 QStringList resolutionParts = resolutionText.split(' ').first().split('x');
@@ -708,6 +736,8 @@ void VideoPage::initVideoSettings() {
             scalingQualityBox->setCurrentIndex(qualityIndex);
         }
     }
+
+    captureSnapshot();
 }
 
 void VideoPage::handleResolutionSettings() {
@@ -774,4 +804,20 @@ void VideoPage::onMediaBackendChanged() {
             qDebug() << "FFmpeg backend selected - using DirectShow (Windows) or V4L2 (Linux)";
         }
     }
+}
+
+void VideoPage::captureSnapshot()
+{
+    m_snap_videoFormatIndex = videoFormatBox->currentIndex();
+    m_snap_pixelFormatIndex = pixelFormatBox->currentIndex();
+    m_snap_fpsIndex = fpsComboBox->currentIndex();
+    m_snap_resolution = m_currentResolution;
+}
+
+void VideoPage::revertToSnapshot()
+{
+    videoFormatBox->setCurrentIndex(m_snap_videoFormatIndex);
+    pixelFormatBox->setCurrentIndex(m_snap_pixelFormatIndex);
+    fpsComboBox->setCurrentIndex(m_snap_fpsIndex);
+    m_currentResolution = m_snap_resolution;
 }
