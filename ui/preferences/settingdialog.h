@@ -73,6 +73,8 @@ public:
     FirmwarePage* getFirmwarePage();
     VirtualKeyboardPage* getVirtualKeyboardPage();
 
+    void selectPage(const QString& pageName);
+
 // signals:
 //     // void serialSettingsApplied();
     

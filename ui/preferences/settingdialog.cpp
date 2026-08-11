@@ -247,3 +247,13 @@ FirmwarePage* SettingDialog::getFirmwarePage() {
 VirtualKeyboardPage* SettingDialog::getVirtualKeyboardPage() {
     return virtualKeyboardPage;
 }
+
+void SettingDialog::selectPage(const QString& pageName) {
+    for (int i = 0; i < settingTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem *item = settingTree->topLevelItem(i);
+        if (item->text(0) == pageName) {
+            settingTree->setCurrentItem(item);
+            return;
+        }
+    }
+}

@@ -823,6 +823,15 @@ void MainWindow::configureSettings() {
         });
         m_statusBarManager->setHideKeyboardInput(GlobalSetting::instance().getHideKeyboardInput());
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
+
+        // Migrated from AdvancedSettingsDialog
+        McpPage* mcpPage = settingDialog->getMcpPage();
+        connect(mcpPage, &McpPage::mcpSettingsChanged, this, &MainWindow::onMcpSettingsApplied);
+
+        FirmwarePage* firmwarePage = settingDialog->getFirmwarePage();
+        connect(firmwarePage, &FirmwarePage::firmwareUpdateCompleted,
+                this, []() { QApplication::quit(); });
+
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingDialog, &QDialog::finished, this, [this](){
             settingDialog->deleteLater();
@@ -832,32 +841,6 @@ void MainWindow::configureSettings() {
     }else{
         settingDialog->raise();
         settingDialog->activateWindow();
-    }
-}
-
-void MainWindow::configureAdvancedSettings() {
-    qCDebug(log_ui_mainwindow) << "configureAdvancedSettings";
-    if (!advancedSettingsDialog) {
-        qCDebug(log_ui_mainwindow) << "Creating advanced settings dialog";
-        advancedSettingsDialog = new AdvancedSettingsDialog(this);
-
-        // MCP settings — restart server with new config
-        McpPage* mcpPage = advancedSettingsDialog->getMcpPage();
-        connect(mcpPage, &McpPage::mcpSettingsChanged, this, &MainWindow::onMcpSettingsApplied);
-
-        // Firmware settings — quit app on successful update/write
-        FirmwarePage* firmwarePage = advancedSettingsDialog->getFirmwarePage();
-        connect(firmwarePage, &FirmwarePage::firmwareUpdateCompleted,
-                this, []() { QApplication::quit(); });
-
-        connect(advancedSettingsDialog, &QDialog::finished, this, [this]() {
-            advancedSettingsDialog->deleteLater();
-            advancedSettingsDialog = nullptr;
-        });
-        advancedSettingsDialog->show();
-    } else {
-        advancedSettingsDialog->raise();
-        advancedSettingsDialog->activateWindow();
     }
 }
 

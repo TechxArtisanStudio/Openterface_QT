@@ -383,12 +383,12 @@ void MainWindowInitializer::setupToolbar()
     m_mainWindow->addToolBar(Qt::TopToolBarArea, m_toolbarManager->getToolbar());
     m_toolbarManager->getToolbar()->setVisible(false);
 
-    // Connect toolbar config button to open Advanced Settings → Virtual Keyboard page
+    // Connect toolbar config button to open Settings → Virtual Keyboard page
     connect(m_toolbarManager, &ToolbarManager::openCustomKeyConfig, m_mainWindow, [this]() {
-        m_mainWindow->configureAdvancedSettings();
+        m_mainWindow->configureSettings();
         QTimer::singleShot(100, [this]() {
-            if (m_mainWindow->advancedSettingsDialog) {
-                m_mainWindow->advancedSettingsDialog->selectPage(tr("Virtual Keyboard"));
+            if (m_mainWindow->settingDialog) {
+                m_mainWindow->settingDialog->selectPage(tr("Virtual Keyboard"));
             }
         });
     });

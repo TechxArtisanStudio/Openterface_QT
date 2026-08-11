@@ -612,7 +612,7 @@
    <sender>actionAdvancedSettings</sender>
    <signal>triggered()</signal>
    <receiver>MainWindow</receiver>
-   <slot>configureAdvancedSettings()</slot>
+   <slot>configureSettings()</slot>
   </connection>
  </connections>
  <slots>
@@ -639,6 +639,6 @@
   <slot>showEnvironmentSetupDialog()</slot>
   <slot>openDeviceSelector()</slot>
   <slot>openKeyboardMapEditor()</slot>
-  <slot>configureAdvancedSettings()</slot>
+  <slot>configureSettings()</slot>
  </slots>
 </ui>
