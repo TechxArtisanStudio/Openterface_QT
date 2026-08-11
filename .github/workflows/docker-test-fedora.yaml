@@ -1127,8 +1127,8 @@ jobs:
               systemd-devel || echo "⚠️ Essential devel packages install failed"
 
             # ffmpeg-devel often conflicts with Qt6-installed libswscale-free.
-            # Try it but do not fail the build if it conflicts.
-            dnf install -y --nogpgcheck ffmpeg-devel || echo "⚠️ ffmpeg-devel not installed (conflicts with Qt6 libs, non-fatal)"
+            # Use --allowerasing to resolve conflicts by replacing Qt6 versions.
+            dnf install -y --nogpgcheck --allowerasing ffmpeg-devel || echo "⚠️ ffmpeg-devel not installed (non-fatal)"
             
             # Verify installations
             echo "🔍 Verifying package installations..."
