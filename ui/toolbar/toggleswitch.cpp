@@ -13,7 +13,13 @@ ToggleSwitch::ToggleSwitch(QWidget *parent, QColor barColor, QColor checkedColor
       m_fontSize(fontSize)
 {
     setContentsMargins(7, 0, 7, 0);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
     connect(this, &QCheckBox::checkStateChanged, this, &ToggleSwitch::handleStateChange);
+#else
+    connect(this, &QCheckBox::stateChanged, this, [this](int state) {
+        handleStateChange(static_cast<Qt::CheckState>(state));
+    });
+#endif
 }
 
 QSize ToggleSwitch::sizeHint() const

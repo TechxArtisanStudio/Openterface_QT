@@ -131,7 +131,7 @@ jobs:
         run: |
           pacman-key --init || true
           pacman-key --populate msys2
-          pacman --noconfirm -Syuu --overwrite '*'
+          pacman --noconfirm -Syuu --overwrite '*' --ignore msys2-runtime
 
       - name: Cache Qt static build (ARM64)
         id: cache-qt
@@ -204,7 +204,7 @@ jobs:
         run: |
           pacman-key --init || true
           pacman-key --populate msys2
-          pacman --noconfirm -Syuu --overwrite '*'
+          pacman --noconfirm -Syuu --overwrite '*' --ignore msys2-runtime
 
       - name: Build Qt statically from source (ARM64)
         if: needs.setup-env.outputs.qt-cache-hit != 'true'
@@ -290,7 +290,7 @@ jobs:
         run: |
           pacman-key --init || true
           pacman-key --populate msys2
-          pacman --noconfirm -Syuu --overwrite '*'
+          pacman --noconfirm -Syuu --overwrite '*' --ignore msys2-runtime
 
       - name: Build FFmpeg statically from source (ARM64)
         if: needs.setup-env.outputs.ffmpeg-cache-hit != 'true'
@@ -387,7 +387,7 @@ jobs:
         run: |
           pacman-key --init || true
           pacman-key --populate msys2
-          pacman --noconfirm -Syuu --overwrite '*'
+          pacman --noconfirm -Syuu --overwrite '*' --ignore msys2-runtime
 
       - name: Download Qt artifact (from build-qt job, if ran this run)
         uses: actions/download-artifact@v4
