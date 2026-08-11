@@ -166,7 +166,13 @@ void CornerWidgetManager::setupConnections()
     connect(fullScreenButton, &QPushButton::clicked, this, &CornerWidgetManager::fullScreenClicked);
     connect(pasteButton, &QPushButton::clicked, this, &CornerWidgetManager::pasteClicked);
     connect(screensaverButton, &QPushButton::toggled, this, &CornerWidgetManager::screensaverClicked);
-    connect(toggleSwitch, &ToggleSwitch::checkStateChanged, this, &CornerWidgetManager::toggleSwitchChanged);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+    connect(toggleSwitch, &QCheckBox::checkStateChanged, this, &CornerWidgetManager::toggleSwitchChanged);
+#else
+    connect(toggleSwitch, &QCheckBox::stateChanged, this, [this](int state) {
+        toggleSwitchChanged(static_cast<Qt::CheckState>(state));
+    });
+#endif
     connect(keyboardLayoutComboBox, &QComboBox::currentTextChanged, this, &CornerWidgetManager::keyboardLayoutChanged);
     
     // Connect recording button click to toggle recording state and emit signal
