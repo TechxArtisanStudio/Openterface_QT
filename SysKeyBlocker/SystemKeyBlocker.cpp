@@ -111,6 +111,14 @@ void SystemKeyBlocker::stop()
     emit captureStateChanged(false);
 }
 
+void SystemKeyBlocker::setSwallowEnabled(bool enabled)
+{
+    if (m_swallowEnabled == enabled) return;
+    m_swallowEnabled = enabled;
+    qCInfo(log_syskey) << "Keyboard swallow" << (enabled ? "enabled" : "disabled")
+                       << "— hook" << (enabled ? "swallows" : "passes through") << "events";
+}
+
 // ============================================================================
 //  nativeToQtKey — platform VK / keysym → Qt key code
 // ============================================================================

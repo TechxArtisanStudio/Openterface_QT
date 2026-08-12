@@ -43,6 +43,8 @@ public:
 private slots:
     void loadSettings();
     void saveSettings();
+    void captureSnapshot();
+    void revertToSnapshot();
     void connectSignals();
     void refreshAudioDevices();
     void onAudioDeviceChanged(int index);
@@ -67,6 +69,16 @@ private:
     QCheckBox *enableAudioCheckBox;
     QSlider *volumeSlider;
     QLabel *volumeValueLabel;
+
+    // Snapshot members
+    int m_snap_audioCodecIndex;
+    int m_snap_sampleRate;
+    int m_snap_quality;
+    int m_snap_containerFormatIndex;
+    int m_snap_audioDeviceIndex;
+    int m_snap_audioBitrate;
+    bool m_snap_enableAudio;
+    int m_snap_volume;
 };
 
 #endif // AUDIOPAGE_H

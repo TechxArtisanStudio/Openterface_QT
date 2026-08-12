@@ -25,7 +25,11 @@
 #include "logpage.h"
 #include "targetcontrolpage.h"
 #include "videopage.h"
+#include "firmwarepage.h"
+#include "controlchipfirmwarepage.h"
 #include "mcppage.h"
+#include "edidconfigpage.h"
+#include "../customkey/virtualkeyboardpage.h"
 #include "host/cameramanager.h"
 
 #include <QCamera>
@@ -68,7 +72,10 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     , videoPage(new VideoPage(cameraManager, this))
     , mcpPage(new McpPage(this))
     , targetControlPage(new TargetControlPage(this))
-    , buttonWidget(new QWidget(this))
+    , firmwarePage(new FirmwarePage(this))
+    , controlChipFirmwarePage(new ControlChipFirmwarePage(this))
+    , edidConfigPage(new EdidConfigPage(this))
+    , virtualKeyboardPage(new VirtualKeyboardPage(this))
     , m_currentPageIndex(-1)
     , m_changingPage(false)
     , m_pageChangeTimer(new QTimer(this))
@@ -77,7 +84,6 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     ui->setupUi(this);
     createSettingTree();
     createPages();
-    createButtons();
     createLayout();
 
     // Set dialog size and allow free resizing
@@ -125,7 +131,17 @@ void SettingDialog::createSettingTree() {
     settingTree->setRootIsDecorated(false);
 
     // QStringList names = {"Log"};
-    QStringList names = {tr("General"), tr("Video"), tr("Audio"), tr("MCP"), tr("Target Control")};
+    QStringList names = {
+        tr("General"),              // 0
+        tr("Video"),                // 1
+        tr("Audio"),                // 2
+        tr("Target Control"),       // 3
+        tr("MCP"),                  // 4
+        tr("Video Firmware"),       // 5
+        tr("Control Chip Firmware"),// 6
+        tr("EDID Configuration"),   // 7
+        tr("Virtual Keyboard")      // 8
+    };
     for (const QString &name : names) {     // add item to setting tree
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
@@ -149,26 +165,11 @@ void SettingDialog::createPages() {
     addScrollablePage(audioPage);
     addScrollablePage(mcpPage);
     addScrollablePage(targetControlPage);
-}
-
-void SettingDialog::createButtons(){
-    QPushButton *okButton = new QPushButton(tr("OK"));
-    QPushButton *applyButton = new QPushButton(tr("Apply"));
-    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
-
-    okButton->setFixedSize(80, 30);
-    applyButton->setFixedSize(80, 30);
-    cancelButton->setFixedSize(80, 30);
-
-    QHBoxLayout *buttonLayout = new QHBoxLayout(buttonWidget);
-    buttonLayout->addStretch();
-    buttonLayout->addWidget(okButton);
-    buttonLayout->addWidget(applyButton);
-    buttonLayout->addWidget(cancelButton);
-
-    connect(okButton, &QPushButton::clicked, this, &SettingDialog::handleOkButton);
-    connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
-    connect(applyButton, &QPushButton::clicked, this, &SettingDialog::applyAccrodingPage);
+    addScrollablePage(mcpPage);
+    addScrollablePage(firmwarePage);
+    addScrollablePage(controlChipFirmwarePage);
+    addScrollablePage(edidConfigPage);
+    addScrollablePage(virtualKeyboardPage);
 }
 
 void SettingDialog::createLayout() {
@@ -181,7 +182,6 @@ void SettingDialog::createLayout() {
 
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->addWidget(splitter, 1);
-    mainLayout->addWidget(buttonWidget);
 
     setLayout(mainLayout);
 }
@@ -201,17 +201,15 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
     QString itemText = current->text(0);
     int newPageIndex = -1;
 
-    if (itemText == tr("General")) {
-        newPageIndex = 0;
-    } else if (itemText == tr("Video")) {
-        newPageIndex = 1;
-    } else if (itemText == tr("Audio")) {
-        newPageIndex = 2;
-    } else if (itemText == tr("MCP")) {
-        newPageIndex = 3;
-    } else if (itemText == tr("Target Control")) {
-        newPageIndex = 4;
-    }
+    if (itemText == tr("General")) newPageIndex = 0;
+    else if (itemText == tr("Video")) newPageIndex = 1;
+    else if (itemText == tr("Audio")) newPageIndex = 2;
+    else if (itemText == tr("Target Control")) newPageIndex = 3;
+    else if (itemText == tr("MCP")) newPageIndex = 4;
+    else if (itemText == tr("Video Firmware")) newPageIndex = 5;
+    else if (itemText == tr("Control Chip Firmware")) newPageIndex = 6;
+    else if (itemText == tr("EDID Configuration")) newPageIndex = 7;
+    else if (itemText == tr("Virtual Keyboard")) newPageIndex = 8;
 
     // Only switch page if it's different from the current page
     if (newPageIndex != -1 && newPageIndex != m_currentPageIndex) {
@@ -225,38 +223,6 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
         m_pageChangeTimer->start(200);
     }
 
-}
-
-void SettingDialog::applyAccrodingPage(){
-    int currentPageIndex = stackedWidget->currentIndex();
-    switch (currentPageIndex)
-    {
-    // sequence Log Video Audio MCP TargetControl
-    case 0:
-        logPage->applyLogsettings();
-        break;
-    case 1:
-        videoPage->applyVideoSettings();
-        break;
-    case 2:
-        break;
-    case 3:
-        mcpPage->applyMcpSettings();
-        break;
-    case 4:
-        targetControlPage->applyHardwareSetting();
-        break;
-    default:
-        break;
-    }
-}
-
-void SettingDialog::handleOkButton() {
-    logPage->applyLogsettings();
-    videoPage->applyVideoSettings();
-    mcpPage->applyMcpSettings();
-    targetControlPage->applyHardwareSetting();
-    accept();
 }
 
 TargetControlPage* SettingDialog::getTargetControlPage() {
@@ -273,4 +239,22 @@ LogPage* SettingDialog::getLogPage() {
 
 McpPage* SettingDialog::getMcpPage() {
     return mcpPage;
+}
+
+FirmwarePage* SettingDialog::getFirmwarePage() {
+    return firmwarePage;
+}
+
+VirtualKeyboardPage* SettingDialog::getVirtualKeyboardPage() {
+    return virtualKeyboardPage;
+}
+
+void SettingDialog::selectPage(const QString& pageName) {
+    for (int i = 0; i < settingTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem *item = settingTree->topLevelItem(i);
+        if (item->text(0) == pageName) {
+            settingTree->setCurrentItem(item);
+            return;
+        }
+    }
 }

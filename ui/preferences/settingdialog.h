@@ -42,7 +42,11 @@
 #include "targetcontrolpage.h"
 #include "videopage.h"
 #include "audiopage.h"
+#include "firmwarepage.h"
+#include "controlchipfirmwarepage.h"
 #include "mcppage.h"
+#include "edidconfigpage.h"
+#include "../customkey/virtualkeyboardpage.h"
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
 class QComboBox;
@@ -66,6 +70,10 @@ public:
 
     LogPage* getLogPage();
     McpPage* getMcpPage();
+    FirmwarePage* getFirmwarePage();
+    VirtualKeyboardPage* getVirtualKeyboardPage();
+
+    void selectPage(const QString& pageName);
 
 // signals:
 //     // void serialSettingsApplied();
@@ -81,8 +89,11 @@ private:
     VideoPage *videoPage;
     McpPage *mcpPage;
     TargetControlPage *targetControlPage;
+    FirmwarePage *firmwarePage;
+    ControlChipFirmwarePage *controlChipFirmwarePage;
+    EdidConfigPage *edidConfigPage;
+    VirtualKeyboardPage *virtualKeyboardPage;
 
-    QWidget *buttonWidget;
     QSplitter *splitter;
     int m_currentPageIndex;
     bool m_changingPage;
@@ -93,9 +104,6 @@ private:
     void createPages();
     
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
-    void createButtons();
-    void applyAccrodingPage();
-    void handleOkButton();
 };
 
 #endif // SETTINGDIALOG_H

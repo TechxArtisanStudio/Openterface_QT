@@ -230,8 +230,6 @@ set(UI_ADVANCE_SOURCES
     ui/advance/devicediagnosticsdialog.cpp ui/advance/devicediagnosticsdialog.h
     ui/advance/diagnostics/diagnosticsmanager.cpp ui/advance/diagnostics/diagnosticsmanager.h ui/advance/diagnostics/diagnostics_constants.h ui/advance/diagnostics/LogWriter.cpp ui/advance/diagnostics/LogWriter.h ui/advance/diagnostics/SupportEmailDialog.cpp ui/advance/diagnostics/SupportEmailDialog.h
     ui/advance/envdialog.cpp ui/advance/envdialog.h ui/advance/envdialog.ui
-    ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
-    ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h
     ui/advance/renamedisplaydialog.cpp ui/advance/renamedisplaydialog.h
     ui/advance/updatedisplaysettingsdialog.cpp ui/advance/updatedisplaysettingsdialog.h
     ui/advance/edid/edidutils.cpp ui/advance/edid/edidutils.h
@@ -240,8 +238,10 @@ set(UI_ADVANCE_SOURCES
     ui/advance/edid/resolutionmodel.cpp ui/advance/edid/resolutionmodel.h
     ui/advance/edid/edidprocessor.cpp ui/advance/edid/edidprocessor.h
     ui/advance/recordingsettingsdialog.cpp ui/advance/recordingsettingsdialog.h
-    ui/advance/wchflash/WCHFlashDialog.cpp ui/advance/wchflash/WCHFlashDialog.h
+    ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h
+    ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
     ui/advance/wchflash/WCHFlashWorker.cpp ui/advance/wchflash/WCHFlashWorker.h
+    ui/advance/wchflash/WCHFlashDialog.cpp ui/advance/wchflash/WCHFlashDialog.h
     ui/advance/keyboardmapeditor.cpp ui/advance/keyboardmapeditor.h
 )
 
@@ -295,19 +295,22 @@ set(UI_FLOATING_WINDOW_SOURCES
 set(UI_CUSTOMKEY_SOURCES
     ui/customkey/customkeymanager.cpp ui/customkey/customkeymanager.h
     ui/customkey/customkeydialog.cpp ui/customkey/customkeydialog.h
+    ui/customkey/virtualkeyboardpage.cpp ui/customkey/virtualkeyboardpage.h
 )
-
 
 # UI preferences sources
 set(UI_PREFERENCES_SOURCES
     ui/preferences/cameraadjust.cpp ui/preferences/cameraadjust.h
     ui/preferences/fpsspinbox.cpp ui/preferences/fpsspinbox.h
     ui/preferences/settingdialog.cpp ui/preferences/settingdialog.h ui/preferences/settingdialog.ui
+    ui/preferences/firmwarepage.cpp ui/preferences/firmwarepage.h
+    ui/preferences/controlchipfirmwarepage.cpp ui/preferences/controlchipfirmwarepage.h
     ui/preferences/logpage.cpp ui/preferences/logpage.h
     ui/preferences/videopage.cpp ui/preferences/videopage.h
     ui/preferences/audiopage.cpp ui/preferences/audiopage.h
     ui/preferences/mcppage.cpp ui/preferences/mcppage.h
     ui/preferences/targetcontrolpage.cpp ui/preferences/targetcontrolpage.h
+    ui/preferences/edidconfigpage.cpp ui/preferences/edidconfigpage.h
 )
 
 # Combine all source files

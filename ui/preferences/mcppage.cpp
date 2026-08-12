@@ -31,6 +31,8 @@
 #include <QLabel>
 #include <QFrame>
 #include <QLoggingCategory>
+#include <QDialog>
+#include <QPushButton>
 
 Q_LOGGING_CATEGORY(log_ui_mcp_page, "opf.ui.mcp.page")
 
@@ -190,6 +192,32 @@ void McpPage::setupUI()
             this, &McpPage::onTransportModeChanged);
     connect(m_sseBindPresetCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &McpPage::onBindAddressPresetChanged);
+
+    // Button bar: Apply / Revert / Cancel
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    buttonLayout->addStretch();
+
+    QPushButton *applyButton = new QPushButton(tr("Apply"));
+    QPushButton *revertButton = new QPushButton(tr("Revert"));
+    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
+
+    applyButton->setFixedSize(80, 30);
+    revertButton->setFixedSize(80, 30);
+    cancelButton->setFixedSize(80, 30);
+
+    buttonLayout->addWidget(applyButton);
+    buttonLayout->addWidget(revertButton);
+    buttonLayout->addWidget(cancelButton);
+
+    mainLayout->addLayout(buttonLayout);
+
+    // Connect buttons
+    connect(applyButton, &QPushButton::clicked, this, &McpPage::applyMcpSettings);
+    connect(revertButton, &QPushButton::clicked, this, &McpPage::revertToSnapshot);
+    connect(cancelButton, &QPushButton::clicked, this, [this]() {
+        QDialog *dlg = qobject_cast<QDialog*>(window());
+        if (dlg) dlg->reject();
+    });
 }
 
 // ============================================================================
@@ -234,6 +262,8 @@ void McpPage::initMcpSettings()
     m_sseSessionTimeoutSpin->setValue(s.getMcpSseSessionTimeout() / 1000);
     m_sseCleanupIntervalSpin->setValue(s.getMcpSseCleanupInterval() / 1000);
     m_sseMaxSessionsSpin->setValue(s.getMcpSseMaxSessions());
+
+    captureSnapshot();
 }
 
 // ============================================================================
@@ -301,4 +331,38 @@ void McpPage::onBindAddressPresetChanged(int index)
     if (custom) {
         m_sseBindCustomEdit->setFocus();
     }
+}
+
+void McpPage::captureSnapshot()
+{
+    m_snap_enableChecked = m_enableCheckBox->isChecked();
+    m_snap_transportIndex = m_transportCombo->currentIndex();
+    m_snap_ssePort = m_ssePortSpin->value();
+    m_snap_sseBindPresetIndex = m_sseBindPresetCombo->currentIndex();
+    m_snap_sseBindCustom = m_sseBindCustomEdit->text();
+    m_snap_ssePathSse = m_ssePathSseEdit->text();
+    m_snap_ssePathMessages = m_ssePathMessagesEdit->text();
+    m_snap_sseKeepalive = m_sseKeepaliveSpin->value();
+    m_snap_sseSessionTimeout = m_sseSessionTimeoutSpin->value();
+    m_snap_sseCleanupInterval = m_sseCleanupIntervalSpin->value();
+    m_snap_sseMaxSessions = m_sseMaxSessionsSpin->value();
+}
+
+void McpPage::revertToSnapshot()
+{
+    m_enableCheckBox->setChecked(m_snap_enableChecked);
+    m_transportCombo->setCurrentIndex(m_snap_transportIndex);
+    m_ssePortSpin->setValue(m_snap_ssePort);
+    m_sseBindPresetCombo->setCurrentIndex(m_snap_sseBindPresetIndex);
+    m_sseBindCustomEdit->setText(m_snap_sseBindCustom);
+    m_ssePathSseEdit->setText(m_snap_ssePathSse);
+    m_ssePathMessagesEdit->setText(m_snap_ssePathMessages);
+    m_sseKeepaliveSpin->setValue(m_snap_sseKeepalive);
+    m_sseSessionTimeoutSpin->setValue(m_snap_sseSessionTimeout);
+    m_sseCleanupIntervalSpin->setValue(m_snap_sseCleanupInterval);
+    m_sseMaxSessionsSpin->setValue(m_snap_sseMaxSessions);
+
+    // Trigger UI state updates
+    onTransportModeChanged(m_snap_transportIndex);
+    onBindAddressPresetChanged(m_snap_sseBindPresetIndex);
 }

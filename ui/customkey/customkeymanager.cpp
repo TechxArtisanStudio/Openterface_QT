@@ -218,6 +218,7 @@ void CustomKeyManager::setKeys(const QList<CustomKeyInfo>& keys) {
         file.close();
         qCDebug(log_custom_keys) << "Saved custom keys to" << userFile;
     }
+    emit keysChanged();
 }
 
 QList<CustomKeyInfo> CustomKeyManager::parseJsonKeys(const QJsonArray& keysArray) const {

@@ -645,6 +645,7 @@ jobs:
           name: openterface-gui-screenshots-windows-${{ matrix.install_type }}
           path: screenshots-windows/
           if-no-files-found: warn
+          retention-days: 30
 
       - name: Manage Qiniu bucket - Keep max 50 recent images (Windows)
         if: always()

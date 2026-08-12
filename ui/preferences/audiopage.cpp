@@ -34,6 +34,7 @@
 #include <QPushButton>
 #include <QCheckBox>
 #include <QGroupBox>
+#include <QDialog>
 #include <QLoggingCategory>
 
 Q_LOGGING_CATEGORY(log_ui_audio_page, "opf.ui.audio.page")
@@ -196,6 +197,32 @@ void AudioPage::setupUI()
     
     // Connect refresh button
     connect(refreshDevicesBtn, &QPushButton::clicked, this, &AudioPage::refreshAudioDevices);
+
+    // Button bar: Apply / Revert / Cancel
+    QHBoxLayout *buttonLayout = new QHBoxLayout();
+    buttonLayout->addStretch();
+
+    QPushButton *applyButton = new QPushButton(tr("Apply"));
+    QPushButton *revertButton = new QPushButton(tr("Revert"));
+    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
+
+    applyButton->setFixedSize(80, 30);
+    revertButton->setFixedSize(80, 30);
+    cancelButton->setFixedSize(80, 30);
+
+    buttonLayout->addWidget(applyButton);
+    buttonLayout->addWidget(revertButton);
+    buttonLayout->addWidget(cancelButton);
+
+    mainLayout->addLayout(buttonLayout);
+
+    // Connect buttons
+    connect(applyButton, &QPushButton::clicked, this, &AudioPage::saveSettings);
+    connect(revertButton, &QPushButton::clicked, this, &AudioPage::revertToSnapshot);
+    connect(cancelButton, &QPushButton::clicked, this, [this]() {
+        QDialog *dlg = qobject_cast<QDialog*>(window());
+        if (dlg) dlg->reject();
+    });
 }
 
 void AudioPage::loadSettings()
@@ -209,6 +236,7 @@ void AudioPage::loadSettings()
     containerFormatBox->setCurrentText(settings.getRecordingOutputFormat());
     
     qCDebug(log_ui_audio_page) << "Loaded audio settings from GlobalSetting";
+    captureSnapshot();
 }
 
 void AudioPage::saveSettings()
@@ -355,4 +383,28 @@ void AudioPage::onAudioDeviceChanged(int index)
         
         saveSettings();
     }
+}
+
+void AudioPage::captureSnapshot()
+{
+    m_snap_audioCodecIndex = audioCodecBox->currentIndex();
+    m_snap_sampleRate = audioSampleRateBox->value();
+    m_snap_quality = qualitySlider->value();
+    m_snap_containerFormatIndex = containerFormatBox->currentIndex();
+    m_snap_audioDeviceIndex = audioDeviceComboBox->currentIndex();
+    m_snap_audioBitrate = audioBitrateBox->value();
+    m_snap_enableAudio = enableAudioCheckBox->isChecked();
+    m_snap_volume = volumeSlider->value();
+}
+
+void AudioPage::revertToSnapshot()
+{
+    audioCodecBox->setCurrentIndex(m_snap_audioCodecIndex);
+    audioSampleRateBox->setValue(m_snap_sampleRate);
+    qualitySlider->setValue(m_snap_quality);
+    containerFormatBox->setCurrentIndex(m_snap_containerFormatIndex);
+    audioDeviceComboBox->setCurrentIndex(m_snap_audioDeviceIndex);
+    audioBitrateBox->setValue(m_snap_audioBitrate);
+    enableAudioCheckBox->setChecked(m_snap_enableAudio);
+    volumeSlider->setValue(m_snap_volume);
 }

@@ -74,7 +74,7 @@ jobs:
           # during build-qt (e.g. /clangarm64/lib/libpng.a → C:/msys64/clangarm64/...)
           # will still resolve in build-project, which runs on a fresh runner.
           location: C:\msys64
-          update: false
+          update: true
           install: |
             mingw-w64-clang-aarch64-clang
             mingw-w64-clang-aarch64-compiler-rt
@@ -165,7 +165,7 @@ jobs:
         with:
           msystem: CLANGARM64
           location: C:\msys64
-          update: false
+          update: true
           install: |
             mingw-w64-clang-aarch64-clang
             mingw-w64-clang-aarch64-compiler-rt
@@ -263,7 +263,7 @@ jobs:
         with:
           msystem: CLANGARM64
           location: C:\msys64
-          update: false
+          update: true
           install: |
             mingw-w64-clang-aarch64-clang
             mingw-w64-clang-aarch64-compiler-rt
@@ -348,7 +348,7 @@ jobs:
         with:
           msystem: CLANGARM64
           location: C:\msys64
-          update: false
+          update: true
           install: |
             mingw-w64-clang-aarch64-clang
             mingw-w64-clang-aarch64-compiler-rt

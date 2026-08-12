@@ -1,3 +1,4 @@
 {
-    "idf.pythonInstallPath": "/usr/bin/python3"
+    "idf.pythonInstallPath": "/usr/bin/python3",
+    "cdt.debug.sourceHighlighting": false
 }

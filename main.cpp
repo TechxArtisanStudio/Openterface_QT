@@ -539,6 +539,21 @@ int main(int argc, char *argv[])
     QPalette systemPalette = QApplication::palette();
     app.setPalette(systemPalette);
     app.setStyle(QStyleFactory::create("Fusion"));
+
+    // Global rounded button style — adapts to system light/dark palette.
+    // Individual widgets can override with their own setStyleSheet().
+    app.setStyleSheet(
+        "QPushButton {"
+        "  background-color: palette(button);"
+        "  border: 1px solid palette(mid);"
+        "  border-radius: 6px;"
+        "  padding: 4px 12px;"
+        "  color: palette(buttonText);"
+        "}"
+        "QPushButton:hover { background-color: palette(midlight); }"
+        "QPushButton:pressed { background-color: palette(mid); }"
+        "QPushButton:disabled { color: palette(mid); }"
+    );
     
     QCoreApplication::setApplicationName("Openterface Mini-KVM");
     QCoreApplication::setOrganizationName("TechxArtisan");

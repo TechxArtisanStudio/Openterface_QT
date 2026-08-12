@@ -561,21 +561,33 @@ void SystemKeyBlocker::X11KeyGrabber::handleKeyEvent(quint32 keysym, quint32 /*s
 }
 
 bool SystemKeyBlocker::X11KeyGrabber::nativeEventFilter(
-    const QByteArray &eventType, void * /*message*/, qintptr * /*result*/)
+    const QByteArray &eventType, void *message, qintptr * /*result*/)
 {
     if (eventType != QByteArrayLiteral("xcb_generic_event_t"))
         return false;
 
-    // We intentionally do NOT manage the grab based on focus events.
-    // When XGrabKeyboard is called, the X server sends FocusOut events on ALL
-    // connections, including Qt's connection. These grab-induced focus events
-    // would incorrectly trigger ungrab, creating a grab-ungrab loop.
-    //
-    // Instead, the grab stays active as long as the feature is enabled.
-    // The user can disable the feature in settings to release the grab.
-    //
-    // This is the correct behavior for a KVM app: all keys should be captured
-    // when the feature is enabled, regardless of focus state.
+    // Track focus changes on Qt's connection.
+    // When our window loses focus, ungrab the keyboard so the host OS
+    // can process system shortcuts (Ctrl+Alt+F1, Alt+Tab, etc.).
+    // When focus returns, re-grab to resume capture.
+    xcb_generic_event_t *event = static_cast<xcb_generic_event_t *>(message);
+    uint responseType = event->response_type & ~0x80;
+
+    if (responseType == XCB_FOCUS_OUT) {
+        xcb_focus_out_event_t *focusOut = reinterpret_cast<xcb_focus_out_event_t *>(event);
+        if (focusOut->event == m_tlw && m_grabbed) {
+            qCInfo(log_syskey_x11) << "Window lost focus (FocusOut), ungrabbing keyboard";
+            ungrabKeyboard();
+            // Reset modifier state to avoid stuck keys
+            g_modifierState = ModifierKeyState{};
+        }
+    } else if (responseType == XCB_FOCUS_IN) {
+        xcb_focus_in_event_t *focusIn = reinterpret_cast<xcb_focus_in_event_t *>(event);
+        if (focusIn->event == m_tlw && !m_grabbed && m_blocker && m_blocker->isActive()) {
+            qCInfo(log_syskey_x11) << "Window regained focus (FocusIn), re-grabbing keyboard";
+            grabKeyboard();
+        }
+    }
 
     return false;  // Never swallow — let Qt handle normally
 }

@@ -18,6 +18,7 @@ public:
     QToolBar* getToolbar() { return toolbar; }
     void toggleToolbar();
     void updateStyles();
+    void rebuildToolbar();
 
 signals:
     void toolbarVisibilityChanged(bool visible);
@@ -30,15 +31,20 @@ private:
         int keyCode;
     };
 
+    struct ModifierInfo {
+        QString text;
+        QString toolTip;
+        int modifierFlag;
+    };
+
     static const QString commonButtonStyle;
-    static const QList<KeyInfo> modifierKeys;
+    static const QList<ModifierInfo> modifierButtons;
     static const QList<KeyInfo> specialKeys;
     static const char *KEYCODE_PROPERTY;
     static const char *MODIFIER_PROPERTY;
 
     QToolBar *toolbar;
     void setupToolbar();
-    void rebuildToolbar();
     QPushButton *addKeyButton(const QString& text, const QString& toolTip);
     void onCustomKeyButtonClicked();
 

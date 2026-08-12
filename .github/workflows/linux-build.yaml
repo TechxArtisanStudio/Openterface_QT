@@ -11,16 +11,28 @@ on:
       - '.github/workflows/linux-build.yaml'
       - 'vcpkg.json'
       - 'CMakeLists.txt'
+      - '**/*.cmake'
       - '**/*.bat'
       - '**/*.cpp'
+      - '**/*.h'
+      - '**/*.hpp'
+      - '**/*.ui'
+      - '**/*.ts'
+      - '**/*.qrc'
   pull_request:
-    branches: ["dev"]
+    branches: ["main", "dev"]
     paths:
       - '.github/workflows/linux-build.yaml'
       - 'vcpkg.json'
       - 'CMakeLists.txt'
+      - '**/*.cmake'
       - '**/*.bat'
       - '**/*.cpp'
+      - '**/*.h'
+      - '**/*.hpp'
+      - '**/*.ui'
+      - '**/*.ts'
+      - '**/*.qrc'
   workflow_dispatch:
     inputs:
       build_type:
@@ -156,6 +168,7 @@ jobs:
           name: openterfaceQT_linux_amd64.deb
           path: ${{ runner.temp }}/build-shared/openterfaceQT_*.deb
           if-no-files-found: error
+          retention-days: 30
 
       - name: Upload shared .AppImage
         uses: actions/upload-artifact@v4
@@ -163,6 +176,7 @@ jobs:
           name: openterfaceQT_linux_amd64.AppImage
           path: ${{ runner.temp }}/build-shared/openterfaceQT_*.AppImage
           if-no-files-found: error
+          retention-days: 30
 
       - name: Upload shared .rpm
         uses: actions/upload-artifact@v4
@@ -170,6 +184,7 @@ jobs:
           name: openterfaceQT_linux_amd64.rpm
           path: ${{ runner.temp }}/build-shared/openterfaceQT_*.rpm
           if-no-files-found: error
+          retention-days: 30
 
   build-static:
     if: false

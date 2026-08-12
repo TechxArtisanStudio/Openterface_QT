@@ -1050,6 +1050,7 @@ jobs:
           name: openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-collection
           path: screenshots-shared/
           if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload individual screenshots as artifacts (Shared)
         if: always()
@@ -1058,6 +1059,7 @@ jobs:
           name: openterface-gui-screenshots-shared-${{ env.INSTALL_TYPE }}-individual
           path: /tmp/individual_screenshots/
           if-no-files-found: warn
+          retention-days: 30
 
       - name: Manage Qiniu bucket - Keep max 50 recent images (Shared)
         if: always()
@@ -1217,18 +1219,6 @@ jobs:
               exit 1
             fi
 
-            # Verify qmake6 is available (may need PATH adjustment)
-            export PATH="/usr/lib/qt6/bin:$PATH"
-            if ! command -v qmake6 >/dev/null 2>&1; then
-              echo "⚠️ qmake6 not in PATH after installation"
-              if [ -x /usr/lib/qt6/bin/qmake ]; then
-                echo "ℹ️ Found qmake at /usr/lib/qt6/bin/qmake"
-              else
-                echo "❌ No qmake binary found"
-                exit 1
-              fi
-            fi
-            
             # Install multimedia libraries
             echo "📦 Installing multimedia libraries..."
             if ! apt install -y \
@@ -1240,7 +1230,7 @@ jobs:
               libgstreamer1.0-dev \
               libgstreamer-plugins-base1.0-dev \
               libjpeg-turbo8-dev \
-              libturbojpeg0-dev \
+              libturbojpeg-dev \
               libusb-1.0-0-dev \
               libudev-dev \
               libva-dev; then
@@ -1252,7 +1242,7 @@ jobs:
             
             # Verify installations
             echo "🔍 Verifying package installations..."
-            for pkg in libavformat-dev libgstreamer1.0-dev libjpeg-turbo8-dev libturbojpeg0-dev libusb-1.0-0-dev libudev-dev libva-dev; do
+            for pkg in libavformat-dev libgstreamer1.0-dev libjpeg-turbo8-dev libturbojpeg-dev libusb-1.0-0-dev libudev-dev libva-dev; do
               if dpkg -l $pkg >/dev/null 2>&1; then
                 echo "✅ $pkg: installed"
               else
@@ -1473,6 +1463,7 @@ jobs:
           name: openterface-build-from-source-test
           path: build-artifacts/
           if-no-files-found: warn
+          retention-days: 30
 
       - name: Display screenshots in summary (build-from-source)
         if: always()
@@ -1647,6 +1638,7 @@ jobs:
           name: openterface-gui-screenshots-build-from-source-collection
           path: screenshots-build-from-source/
           if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload individual screenshots as artifacts (build-from-source)
         if: always()
@@ -1655,6 +1647,7 @@ jobs:
           name: openterface-gui-screenshots-build-from-source-individual
           path: /tmp/individual_screenshots_build_from_source/
           if-no-files-found: warn
+          retention-days: 30
 
       - name: Manage Qiniu bucket - Keep max 50 recent images (build-from-source)
         if: always()
@@ -1875,3 +1868,4 @@ jobs:
           name: combined-test-report
           path: combined-test-report.md
           if-no-files-found: warn
+          retention-days: 30

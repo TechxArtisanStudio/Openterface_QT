@@ -35,6 +35,7 @@
 #include "device/DeviceManager.h"
 #include "device/HotplugMonitor.h"
 #include "ui/preferences/settingdialog.h"
+#include "ui/preferences/mcppage.h"
 #include "ui/help/helppane.h"
 #include "ui/videopane.h"
 #include "video/videohid.h"
@@ -42,9 +43,8 @@
 #include "ui/TaskManager.h"
 #include "regex/RegularExpression.h"
 #include "ui/advance/serialportdebugdialog.h"
-#include "ui/advance/firmwareupdatedialog.h"
+#include "ui/preferences/firmwarepage.h"
 #include "ui/advance/envdialog.h"
-#include "ui/advance/updatedisplaysettingsdialog.h"
 #include "ui/advance/devicediagnosticsdialog.h"
 #include "ui/customkey/customkeydialog.h"
 
@@ -804,24 +804,27 @@ void MainWindow::configureSettings() {
             if (m_floatingWindow) m_floatingWindow->setWindowOpacityValue(opacity);
         });
         connect(logPage, &LogPage::systemKeyBlockerToggled, this, [this](bool enabled) {
-            if (enabled) {
-                quintptr hwnd = videoPane ? videoPane->winId() : 0;
-                bool ok = SystemKeyBlocker::instance().start(hwnd);
-                if (ok) {
-                    qCDebug(log_ui_mainwindow) << "SystemKeyBlocker started successfully";
-                } else {
-                    qCWarning(log_ui_mainwindow) << "SystemKeyBlocker failed to start";
-                }
-            } else {
-                SystemKeyBlocker::instance().stop();
-                qCDebug(log_ui_mainwindow) << "SystemKeyBlocker stopped";
-            }
+            // The hook is always running when the app is focused.
+            // The toggle only controls whether the hook swallows events (Blocker ON)
+            // or passes them through (Blocker OFF). Both states forward keys to target.
+            SystemKeyBlocker::instance().setSwallowEnabled(enabled);
+            GlobalSetting::instance().setSystemKeyBlockerEnabled(enabled);
+            // Re-sync shortcuts: when swallow is OFF and VideoPane has focus,
+            // disable app shortcuts so keys reach the target
+            syncShortcutsState();
+            qCDebug(log_ui_mainwindow) << "SystemKeyBlocker swallow" << (enabled ? "enabled" : "disabled");
         });
         m_statusBarManager->setHideKeyboardInput(GlobalSetting::instance().getHideKeyboardInput());
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
-        // MCP settings — restart server with new config
+
+        // Migrated from AdvancedSettingsDialog
         McpPage* mcpPage = settingDialog->getMcpPage();
         connect(mcpPage, &McpPage::mcpSettingsChanged, this, &MainWindow::onMcpSettingsApplied);
+
+        FirmwarePage* firmwarePage = settingDialog->getFirmwarePage();
+        connect(firmwarePage, &FirmwarePage::firmwareUpdateCompleted,
+                this, []() { QApplication::quit(); });
+
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingDialog, &QDialog::finished, this, [this](){
             settingDialog->deleteLater();
@@ -1806,12 +1809,6 @@ MainWindow::~MainWindow()
         qCDebug(log_ui_mainwindow) << "m_screenScaleDialog destroyed successfully";
     }
 
-    if (firmwareManagerDialog) {
-        delete firmwareManagerDialog;
-        firmwareManagerDialog = nullptr;
-        qCDebug(log_ui_mainwindow) << "firmwareManagerDialog destroyed successfully";
-    }
-    
     // 4. Clean up video pane and related objects - Use direct delete to ensure immediate cleanup
     if (videoPane) {
         // Remove videoPane from any layouts first
@@ -2015,10 +2012,10 @@ void MainWindow::updateFirmware() {
             bool proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
             if (proceed) {
                 qDebug() << "User accepted firmware update, proceeding...";
-                
+
                 // Declare success variable before try-catch block
                 bool success = false;
-                
+
                 try {
                     // Stop services in proper order with robust error handling
                     qDebug() << "Stopping main window operations first...";
@@ -2028,7 +2025,7 @@ void MainWindow::updateFirmware() {
                     } catch (...) {
                         qWarning() << "Exception while stopping main window operations - continuing anyway";
                     }
-                    
+
                     qDebug() << "Stopping video HID polling only...";
                     try {
                         VideoHid::getInstance().stopPollingOnly();
@@ -2036,12 +2033,12 @@ void MainWindow::updateFirmware() {
                     } catch (...) {
                         qWarning() << "Exception while stopping video HID polling - continuing anyway";
                     }
-                    
+
                     // Wait a bit for video HID to fully stop
                     qDebug() << "Waiting for video HID to stop completely...";
                     QThread::msleep(300);
                     QCoreApplication::processEvents();
-                    
+
                     qDebug() << "Stopping serial port manager...";
                     try {
                         // Close the serial port directly rather than using full stop() to avoid timer issues
@@ -2049,23 +2046,23 @@ void MainWindow::updateFirmware() {
                         qDebug() << "Serial port closed successfully";
                         QThread::msleep(200); // Small delay for port closure
                         QCoreApplication::processEvents();
-                        
+
                         qDebug() << "Serial port manager stopped successfully";
                     } catch (...) {
                         qWarning() << "Exception while stopping SerialPortManager - continuing anyway";
                     }
-                    
+
                     // Final cleanup - process any remaining events
                     qDebug() << "Processing remaining events...";
                     QCoreApplication::processEvents();
                     QThread::msleep(200);
-                    
+
                     qDebug() << "Services stopped successfully, proceeding with firmware update...";
 
                     // Hide main window while update dialog runs to keep app alive and allow dialog to control shutdown
                     this->hide();
                     qDebug() << "Creating FirmwareUpdateDialog...";
-                    
+
                     // Create and show firmware update dialog (capture result to restore main window on failure)
                     FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
                     qDebug() << "Calling updateDialog->startUpdate()...";
@@ -2122,25 +2119,6 @@ void MainWindow::openDeviceSelector() {
     } else {
         deviceSelectorDialog->raise();
         deviceSelectorDialog->activateWindow();
-    }
-}
-
-void MainWindow::showUpdateDisplaySettingsDialog() {
-    qCDebug(log_ui_mainwindow) << "Opening update display settings dialog";
-    if (!updateDisplaySettingsDialog) {
-        qCDebug(log_ui_mainwindow) << "Creating update display settings dialog";
-        updateDisplaySettingsDialog = new UpdateDisplaySettingsDialog(this);
-        
-        // Connect the finished signal to clean up
-        connect(updateDisplaySettingsDialog, &QDialog::finished, this, [this]() {
-            updateDisplaySettingsDialog->deleteLater();
-            updateDisplaySettingsDialog = nullptr;
-        });
-        
-        updateDisplaySettingsDialog->show();
-    } else {
-        updateDisplaySettingsDialog->raise();
-        updateDisplaySettingsDialog->activateWindow();
     }
 }
 
@@ -2214,5 +2192,17 @@ void MainWindow::showHardwareDiagnostics() {
 //         }
 //     }
 // }
+
+void MainWindow::syncShortcutsState()
+{
+    // User preference: allow app shortcuts (Ctrl+P for Preferences, etc.) to work
+    // even when VideoPane has focus. The user controls key forwarding via SystemBlocker:
+    // - SystemBlocker ON (swallow): all keys go to target, app shortcuts don't fire
+    // - SystemBlocker OFF (pass-through): app shortcuts work normally
+    //
+    // This function is now a no-op — shortcuts are never disabled based on focus.
+    // Kept for API compatibility and potential future use.
+    qCDebug(log_ui_mainwindow) << "syncShortcutsState called (no-op: shortcuts always enabled)";
+}
 
 

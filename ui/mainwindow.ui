@@ -133,10 +133,6 @@
     <addaction name="actionRecordingSettings"/>
     <addaction name="actionTCPServer"/>
     <addaction name="actionDeviceSelector"/>
-    <addaction name="actionFirmwareManager"/>
-    <addaction name="actionUpdateFirmware"/>
-    <addaction name="actionRenameDisplay"/>
-    <addaction name="actionWCHFlash"/>
     <addaction name="actionKeyboardMapEditor"/>
    </widget>
    <addaction name="menuFile"/>
@@ -298,19 +294,6 @@
     <string>Ctrl+Shift+E</string>
    </property>
   </action>
-  <action name="actionFirmwareManager">
-   <property name="text">
-    <string>Firmware Manager</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+Shift+F</string>
-   </property>
-  </action>
-  <action name="actionUpdateFirmware">
-   <property name="text">
-    <string>Firmware Update...</string>
-   </property>
-  </action>
   <action name="actionDeviceSelector">
    <property name="text">
     <string>Device Selector</string>
@@ -320,28 +303,6 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+I</string>
-   </property>
-  </action>
-  <action name="actionRenameDisplay">
-   <property name="text">
-    <string>Update Display Settings</string>
-   </property>
-   <property name="toolTip">
-    <string>Update display name and serial number in EDID</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+Shift+U</string>
-   </property>
-  </action>
-  <action name="actionWCHFlash">
-   <property name="text">
-    <string>WCH Flash</string>
-   </property>
-   <property name="toolTip">
-    <string>Flash WCH microcontroller firmware via USB ISP bootloader</string>
-   </property>
-   <property name="shortcut">
-    <string>Ctrl+Shift+W</string>
    </property>
   </action>
   <action name="actionKeyboardMapEditor">
@@ -626,34 +587,10 @@
    <slot>showEnvironmentSetupDialog()</slot>
   </connection>
   <connection>
-   <sender>actionFirmwareManager</sender>
-   <signal>triggered()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>showFirmwareManagerDialog()</slot>
-  </connection>
-  <connection>
-   <sender>actionUpdateFirmware</sender>
-   <signal>triggered()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>updateFirmware()</slot>
-  </connection>
-  <connection>
    <sender>actionDeviceSelector</sender>
    <signal>triggered()</signal>
    <receiver>MainWindow</receiver>
    <slot>openDeviceSelector()</slot>
-  </connection>
-  <connection>
-   <sender>actionRenameDisplay</sender>
-   <signal>triggered()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>showUpdateDisplaySettingsDialog()</slot>
-  </connection>
-  <connection>
-   <sender>actionWCHFlash</sender>
-   <signal>triggered()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>showWCHFlashDialog()</slot>
   </connection>
   <connection>
    <sender>actionKeyboardMapEditor</sender>
@@ -684,11 +621,7 @@
   <slot>showScriptTool()</slot>
   <slot>changeKeyboardLayout(QString)</slot>
   <slot>showEnvironmentSetupDialog()</slot>
-  <slot>showFirmwareManagerDialog()</slot>
-  <slot>updateFirmware()</slot>
   <slot>openDeviceSelector()</slot>
-  <slot>showUpdateDisplaySettingsDialog()</slot>
-  <slot>showWCHFlashDialog()</slot>
   <slot>openKeyboardMapEditor()</slot>
  </slots>
 </ui>

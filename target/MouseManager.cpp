@@ -22,6 +22,7 @@
 
 #include "MouseManager.h"
 #include "serial/SerialPortManager.h"
+#include <QThread>
 
 Q_LOGGING_CATEGORY(log_core_mouse, "opf.host.mouse")
 
@@ -128,20 +129,24 @@ uint8_t MouseManager::mapScrollWheel(int delta){
     }
 }
 
-void MouseManager::scrollWheel(int direction) {
+void MouseManager::scrollWheel(int direction, int lines) {
     // direction: positive = scroll up, negative = scroll down
-    // Sends a single scroll-wheel packet. For multi-line scrolling, the
-    // caller should invoke this method multiple times with Sleep between calls.
-    qCDebug(log_core_mouse) << "Scroll wheel - direction:" << direction;
+    // lines: number of scroll lines (default 1)
+    if (lines < 1) lines = 1;
+    qCDebug(log_core_mouse) << "Scroll wheel - direction:" << direction << "lines:" << lines;
 
     // Reuse last known coordinates; fall back to (0, 0) if never moved
     int x = lastX;
     int y = lastY;
 
-    // Route through handleAbsoluteMouseAction to ensure the exact same
-    // packet assembly as the UI wheel path.
-    int delta = direction * 100;
-    handleAbsoluteMouseAction(x, y, 0, delta);
+    // Send one scroll packet per line with a small delay between them
+    for (int i = 0; i < lines; i++) {
+        int delta = direction * 100;
+        handleAbsoluteMouseAction(x, y, 0, delta);
+        if (i < lines - 1) {
+            QThread::msleep(20);
+        }
+    }
 }
 
 void MouseManager::startAutoMoveMouse() {

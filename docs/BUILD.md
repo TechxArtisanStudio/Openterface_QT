@@ -228,6 +228,9 @@ sudo apt-get install -y \
     libssl-dev
 ```
 
+> **Note for Ubuntu 24.04+ users:** the package `libturbojpeg0-dev` was renamed to
+> `libturbojpeg-dev`. Replace it in the command above if you're on 24.04 or later.
+
 </details>
 
 <details>

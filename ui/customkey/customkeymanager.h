@@ -80,6 +80,9 @@ public:
     // Convert Qt modifier flag to list of names
     static QStringList modifierFlagToNames(int modifiers);
 
+signals:
+    void keysChanged();
+
 private:
     explicit CustomKeyManager(QObject *parent = nullptr);
 

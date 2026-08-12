@@ -39,11 +39,11 @@
 #include "ui/advance/serialportdebugdialog.h"
 #include "ui/recording/recordingcontroller.h"
 #include "ui/advance/DeviceSelectorDialog.h"
-#include "ui/advance/scripttool.h"
 #include "ui/advance/firmwaremanagerdialog.h"
-#include "ui/advance/updatedisplaysettingsdialog.h"
-#include "ui/advance/devicediagnosticsdialog.h"
+#include "ui/advance/firmwareupdatedialog.h"
 #include "ui/advance/wchflash/WCHFlashDialog.h"
+#include "ui/advance/scripttool.h"
+#include "ui/advance/devicediagnosticsdialog.h"
 #include "ui/advance/keyboardmapeditor.h"
 #include "ui/help/versioninfomanager.h"
 #include "ui/toolbar/toolbarmanager.h"
@@ -225,16 +225,11 @@ private slots:
     void onSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate) override;
 
     void showEnvironmentSetupDialog();
-
     void showFirmwareManagerDialog();
-
     void showWCHFlashDialog();
-
-    void showUpdateDisplaySettingsDialog();
+    void updateFirmware();
 
     void showHardwareDiagnostics();
-
-    void updateFirmware(); 
 
     void onRepeatingKeystrokeChanged(int index);
 
@@ -252,6 +247,11 @@ private slots:
     void onVideoSettingsChanged();
     void onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps, float pixelClk);
     void onInputResolutionChanged();
+
+    // Focus-based shortcut disabling: when VideoPane has focus and SystemBlocker
+    // swallow is OFF, disable all Qt shortcuts/actions so keys reach VideoPane
+    // and get forwarded to the target instead of being intercepted by the app.
+    void syncShortcutsState();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -322,7 +322,6 @@ private:
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
     DeviceSelectorDialog *deviceSelectorDialog = nullptr;
     FirmwareManagerDialog *firmwareManagerDialog = nullptr;
-    UpdateDisplaySettingsDialog *updateDisplaySettingsDialog = nullptr;
     WCHFlashDialog *wchFlashDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;
@@ -374,6 +373,7 @@ private:
     void stopServer();
     TcpServer *tcpServer;
     bool m_tcpServerRunning = false;
+    bool m_shortcutsDisabled = false;
 
     // --- MCP Server ---
     McpServer *m_mcpServer = nullptr;
