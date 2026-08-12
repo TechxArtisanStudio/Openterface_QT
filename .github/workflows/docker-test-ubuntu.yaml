@@ -1211,8 +1211,13 @@ jobs:
               qt6-svg-dev \
               libqt6httpserver-dev \
               qmake6 \
-              pkg-config
-            
+              pkg-config; then
+              echo "❌ Qt6 package installation failed"
+              echo "🔍 Checking available Qt6 packages..."
+              apt-cache search qmake 2>/dev/null | head -10
+              exit 1
+            fi
+
             # Install multimedia libraries
             echo "📦 Installing multimedia libraries..."
             if ! apt install -y \
