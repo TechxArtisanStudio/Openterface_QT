@@ -1110,6 +1110,7 @@ jobs:
               qt6-qtserialport-devel \
               qt6-qtsvg-devel \
               qt6-qthttpserver-devel \
+              qt6-qtwebsockets-devel \
               pkgconf-pkg-config
             
             # Install multimedia libraries
