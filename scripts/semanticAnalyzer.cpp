@@ -659,7 +659,20 @@ void SemanticAnalyzer::analyzeScrollStatement(const CommandStatementNode* node) 
         qCDebug(log_script) << "Scroll: unknown direction" << direction << "(defaulting to up)";
     }
 
-    qCDebug(log_script) << "Scroll: direction=" << (scrollDirection > 0 ? "up" : "down");
+    // Parse lines: second token (optional, default 1)
+    int lines = 1;
+    if (options.size() >= 2) {
+        bool ok = false;
+        int value = QString::fromStdString(options[1]).toInt(&ok);
+        if (ok && value > 0) {
+            lines = value;
+        } else {
+            qCDebug(log_script) << "Scroll: invalid lines value" << QString::fromStdString(options[1]) << "(defaulting to 1)";
+        }
+    }
+
+    qCDebug(log_script) << "Scroll: direction=" << (scrollDirection > 0 ? "up" : "down")
+                        << "lines=" << lines;
 
     mouseManager->scrollWheel(scrollDirection);
 }

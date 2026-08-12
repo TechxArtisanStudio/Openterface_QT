@@ -67,7 +67,7 @@ static uint32_t toLittleEndian(uint32_t value) {
 
 template <typename T>
 T fromByteArray(const QByteArray &data) {
-    T result;
+    T result{};
     if (data.size() > 0) {
         std::memcpy(&result, data.constData(), sizeof(T));
         // Debugging: Print the raw data

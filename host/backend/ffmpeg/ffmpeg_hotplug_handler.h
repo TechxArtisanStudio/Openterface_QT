@@ -26,6 +26,7 @@
 #include <QObject>
 #include <QString>
 #include <QTimer>
+#include <QList>
 
 // Forward declarations
 class HotplugMonitor;
@@ -69,6 +70,14 @@ public:
     QString GetCurrentDevicePortChain() const { return current_device_port_chain_; }
     QString GetCurrentDevice() const { return current_device_; }
     bool IsWaitingForDevice() const { return waiting_for_device_; }
+
+    // Device enumeration
+    struct DshowDeviceInfo {
+        QString name;       // DirectShow-friendly name (e.g., "video=Device Name")
+        QString description;
+        int index;
+    };
+    static QList<DshowDeviceInfo> EnumerateDirectShowDevices();
 
 signals:
     // Device state signals - forwarded to FFmpegBackendHandler

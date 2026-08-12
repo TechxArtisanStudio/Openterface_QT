@@ -32,6 +32,13 @@
 #include <QMediaDevices>
 #include <QCameraDevice>
 
+#ifdef HAVE_FFMPEG
+extern "C" {
+#include <libavdevice/avdevice.h>
+#include <libavformat/avformat.h>
+}
+#endif
+
 Q_DECLARE_LOGGING_CATEGORY(log_ffmpeg_backend)
 
 FFmpegHotplugHandler::FFmpegHotplugHandler(FFmpegDeviceValidator* validator, QObject* parent)
@@ -353,4 +360,47 @@ void FFmpegHotplugHandler::OnDeviceCheckTimer()
         device_check_timer_->stop();
         HandleDeviceActivation(expected_device_path_);
     }
+}
+
+QList<FFmpegHotplugHandler::DshowDeviceInfo> FFmpegHotplugHandler::EnumerateDirectShowDevices()
+{
+    QList<DshowDeviceInfo> devices;
+
+#ifdef HAVE_FFMPEG
+    avdevice_register_all();
+
+    const AVInputFormat* inputFormat = av_find_input_format("dshow");
+    if (!inputFormat) {
+        qCWarning(log_ffmpeg_backend) << "DirectShow input format not available for device enumeration";
+        return devices;
+    }
+
+    AVDeviceInfoList* deviceList = nullptr;
+    int ret = avdevice_list_input_sources(inputFormat, nullptr, nullptr, &deviceList);
+
+    if (ret < 0 || !deviceList) {
+        qCDebug(log_ffmpeg_backend) << "avdevice_list_input_sources failed, falling back to Qt device list";
+        return devices;
+    }
+
+    for (int i = 0; i < deviceList->nb_devices; i++) {
+        AVDeviceInfo* dev = deviceList->devices[i];
+        if (!dev) continue;
+
+        DshowDeviceInfo info;
+        info.index = i;
+        info.name = QString("video=%1").arg(QString::fromUtf8(dev->device_description ? dev->device_description : dev->device_name));
+        info.description = QString::fromUtf8(dev->device_description ? dev->device_description : dev->device_name);
+        devices.append(info);
+
+        qCDebug(log_ffmpeg_backend) << "DirectShow device[" << i << "]:" << info.description
+                                    << "(" << dev->device_name << ")";
+    }
+
+    avdevice_free_list_devices(&deviceList);
+#else
+    qCDebug(log_ffmpeg_backend) << "FFmpeg not available, cannot enumerate DirectShow devices";
+#endif
+
+    return devices;
 }

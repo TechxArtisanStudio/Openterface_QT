@@ -33,7 +33,8 @@ RUN pacman -Syu --noconfirm \
 RUN pacman -S --noconfirm qt6-base \
         qt6-multimedia \
         qt6-serialport \
-        qt6-svg
+        qt6-svg \
+        qt6-httpserver
 
 # Hardware interface libraries (runtime only)
 RUN pacman -S --noconfirm libusb

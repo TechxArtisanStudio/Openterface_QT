@@ -81,7 +81,11 @@ public:
     void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown, unsigned int nativeVirtualKey = 0);
 
     void setKeyboardLayout(const QString& layoutName);
-    
+
+    // Accessors for MCP Server (and other direct consumers)
+    MouseManager& getMouseManager() { return mouseManager; }
+    KeyboardManager& getKeyboardManager() { return keyboardManager; }
+
 private:
     explicit HostManager(QObject *parent = nullptr);
     MouseManager mouseManager;

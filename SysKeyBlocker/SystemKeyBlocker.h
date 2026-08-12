@@ -24,6 +24,10 @@
 #define SYSTEMKEYBLOCKER_H
 
 #include <QObject>
+#include <QLoggingCategory>
+
+// Declare the logging category (defined in SystemKeyBlocker.cpp)
+Q_DECLARE_LOGGING_CATEGORY(log_syskey)
 
 #ifdef Q_OS_WIN
 #  ifndef WINVER

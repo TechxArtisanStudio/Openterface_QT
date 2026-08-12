@@ -62,6 +62,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(Qt6Required REQUIRED)
 
 # Find additional Qt components (Qt6Required already found Core, Widgets, Gui, Multimedia, SerialPort, Svg)
+# Note: HttpServer is NOT required — the SSE transport uses raw QTcpServer (Qt6::Network)
+# for Qt 6.5+ compatibility. See server/mcp/mcpSseTransport.h.
 find_package(Qt6 REQUIRED COMPONENTS Network OpenGL OpenGLWidgets Xml Concurrent DBus)
 
 find_package(Threads REQUIRED)
@@ -81,6 +83,11 @@ endif()
 # Include source files from modular file
 include(cmake/SourceFiles.cmake)
 qt_add_executable(openterfaceQT WIN32 ${SOURCE_FILES})
+
+# Explicitly add Windows resource file with forward slash path
+if(WIN32)
+    target_sources(openterfaceQT PRIVATE "${CMAKE_SOURCE_DIR}/openterfaceQT.rc")
+endif()
 
 # Force static linking of compression libraries (must be done early)
 force_static_compression_libraries(openterfaceQT)
@@ -116,6 +123,12 @@ endif()
 # Debug output for linking
 message(STATUS "Hardware acceleration libraries to link: ${HWACCEL_LIBRARIES}")
 
+# Add FFmpeg compatibility shim for static libs built with newer MinGW-w64
+if(WIN32)
+    target_sources(${PROJECT_NAME} PRIVATE host/backend/ffmpeg_compat_shim.c)
+    message(STATUS "Adding FFmpeg compatibility shim for 64-bit time functions")
+endif()
+
 # Link Qt6 image format plugins statically for static builds (only if targets exist)
 if(OPENTERFACE_BUILD_STATIC)
     set(_qt_image_plugins Qt6::QJpegPlugin Qt6::QGifPlugin Qt6::QICOPlugin Qt6::QSvgPlugin)
@@ -133,7 +146,26 @@ if(OPENTERFACE_BUILD_STATIC)
     endforeach()
 endif()
 
-target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus Threads::Threads)
+# Qt6::HttpServer is optional (requires Qt 6.6.3+)
+set(QT_HTTPSERVER_LIB)
+if(TARGET Qt6::HttpServer)
+    set(QT_HTTPSERVER_LIB Qt6::HttpServer)
+    message(STATUS "Qt6::HttpServer found - enabling QHttpServer support")
+else()
+    message(STATUS "Qt6::HttpServer not found - using raw QTcpServer for Qt 6.5 compatibility")
+endif()
+
+target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus ${QT_HTTPSERVER_LIB} Threads::Threads)
+
+# Link Windows HID and SetupAPI libraries
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE hid setupapi cfgmgr32 ole32)
+
+    # Note: libssp is linked via FFmpeg.cmake's _FFMPEG_STATIC_DEPS
+    # Do NOT add -lssp here to avoid multiple definition conflicts
+    target_link_options(${PROJECT_NAME} PRIVATE -fstack-protector-strong)
+    target_compile_options(${PROJECT_NAME} PRIVATE -fstack-protector-strong)
+endif()
 
 # Link Windows HID and SetupAPI libraries
 if(WIN32)
@@ -148,7 +180,12 @@ endif()
 # For static Qt builds on Windows with MinGW, link MinGW runtime libraries
 # When building static on Windows, prefer real static libraries (.a) over import libs (.dll.a)
 if(OPENTERFACE_BUILD_STATIC AND WIN32)
-    set(MSYS_MINGW_PATH "/c/msys64/mingw64")
+    if(OPENTERFACE_IS_ARM64)
+        # MSYS2 CLANGARM64 environment
+        set(MSYS_MINGW_PATH "/c/msys64/clangarm64")
+    else()
+        set(MSYS_MINGW_PATH "/c/msys64/mingw64")
+    endif()
     list(INSERT CMAKE_LIBRARY_PATH 0 "${MSYS_MINGW_PATH}/lib")
     list(INSERT CMAKE_INCLUDE_PATH 0 "${MSYS_MINGW_PATH}/include")
     message(STATUS "Using MSYS2 MinGW path: ${MSYS_MINGW_PATH}")
@@ -306,6 +343,18 @@ if(NOT WIN32)
     endif()
 endif()
 
+# Link Media Foundation libraries on Windows
+if(WIN32)
+    target_link_libraries(openterfaceQT PRIVATE
+        mf
+        mfplat
+        mfreadwrite
+        mfuuid
+        wmcodecdspuuid
+    )
+    message(STATUS "Linked Media Foundation libraries for Windows video capture")
+endif()
+
 # Add DBus on Unix systems (excluding macOS)
 if(UNIX AND NOT APPLE)
     target_link_libraries(openterfaceQT PRIVATE Qt6::DBus)
@@ -352,6 +401,14 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
         endif()
     endif()
 endif()
+
+# Copy local-build launcher to output directory
+add_custom_command(TARGET openterfaceQT POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_SOURCE_DIR}/build-script/openterfaceQT-local-launcher.sh"
+        "$<TARGET_FILE_DIR:openterfaceQT>/openterfaceQT-launcher.sh"
+    COMMENT "Copying local launcher to build directory"
+)
 
 # Qt components already found above
 # =============================================================================

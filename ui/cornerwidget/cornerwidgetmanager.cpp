@@ -8,6 +8,9 @@
 
 CornerWidgetManager::CornerWidgetManager(QWidget *parent)
     : QObject(parent),
+      screensaverButton(nullptr),
+      recordingButton(nullptr),
+      muteButton(nullptr),
       cornerWidget(new QWidget(parent)),
       keyboardLayoutComboBox(nullptr),
       screenScaleButton(nullptr),
@@ -18,16 +21,13 @@ CornerWidgetManager::CornerWidgetManager(QWidget *parent)
       captureButton(nullptr),
       fullScreenButton(nullptr),
       pasteButton(nullptr),
-      screensaverButton(nullptr),
-      recordingButton(nullptr),
-      muteButton(nullptr),
       toggleSwitch(new ToggleSwitch(cornerWidget)),
       horizontalLayout(new QHBoxLayout()),
-      menuBar(nullptr),
-      layoutThreshold(800),
       isRecording(false),
       isMuted(false),
-      m_updatingFromStatus(false)  // Initialize flag
+      menuBar(nullptr),
+      layoutThreshold(800),
+      m_updatingFromStatus(false)
 {
     createWidgets();
     setupConnections();
@@ -166,7 +166,13 @@ void CornerWidgetManager::setupConnections()
     connect(fullScreenButton, &QPushButton::clicked, this, &CornerWidgetManager::fullScreenClicked);
     connect(pasteButton, &QPushButton::clicked, this, &CornerWidgetManager::pasteClicked);
     connect(screensaverButton, &QPushButton::toggled, this, &CornerWidgetManager::screensaverClicked);
-    connect(toggleSwitch, &ToggleSwitch::stateChanged, this, &CornerWidgetManager::toggleSwitchChanged);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+    connect(toggleSwitch, &QCheckBox::checkStateChanged, this, &CornerWidgetManager::toggleSwitchChanged);
+#else
+    connect(toggleSwitch, &QCheckBox::stateChanged, this, [this](int state) {
+        toggleSwitchChanged(static_cast<Qt::CheckState>(state));
+    });
+#endif
     connect(keyboardLayoutComboBox, &QComboBox::currentTextChanged, this, &CornerWidgetManager::keyboardLayoutChanged);
     
     // Connect recording button click to toggle recording state and emit signal

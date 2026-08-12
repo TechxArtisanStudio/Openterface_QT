@@ -107,7 +107,9 @@ void GlobalSetting::setMediaBackend(const QString &backend) {
 }
 
 QString GlobalSetting::getMediaBackend() const {
-#if defined(Q_PROCESSOR_ARM)
+#ifdef Q_OS_WIN
+    return m_settings.value("video/mediaBackend", "ffmpeg").toString();
+#elif defined(Q_PROCESSOR_ARM)
     return m_settings.value("video/mediaBackend", "gstreamer").toString();
 #else
     return m_settings.value("video/mediaBackend", "ffmpeg").toString();
@@ -215,6 +217,7 @@ void GlobalSetting::setSystemKeyBlockerEnabled(bool enabled) {
 bool GlobalSetting::getSystemKeyBlockerEnabled() const {
     return m_settings.value("keyboard/systemKeyBlocker", false).toBool();
 }
+
 
 void GlobalSetting::setMouseAutoHideEnable(bool enable){
     m_settings.setValue("mouse/autoHide", enable);
@@ -583,4 +586,88 @@ void GlobalSetting::setLastCustomKeyImportPath(const QString& path)
 QString GlobalSetting::getLastCustomKeyImportPath() const
 {
     return m_settings.value("customkeys/lastImportPath", QString()).toString();
+}
+
+// ===========================================================================
+// MCP Server settings
+// ===========================================================================
+
+void GlobalSetting::setMcpEnabled(bool enabled) {
+    m_settings.setValue("mcp/enabled", enabled);
+}
+
+bool GlobalSetting::getMcpEnabled() const {
+    return m_settings.value("mcp/enabled", false).toBool();
+}
+
+void GlobalSetting::setMcpTransport(const QString& transport) {
+    m_settings.setValue("mcp/transport", transport);
+}
+
+QString GlobalSetting::getMcpTransport() const {
+    return m_settings.value("mcp/transport", "stdio").toString();
+}
+
+void GlobalSetting::setMcpSsePort(int port) {
+    m_settings.setValue("mcp/ssePort", port);
+}
+
+int GlobalSetting::getMcpSsePort() const {
+    return m_settings.value("mcp/ssePort", 8080).toInt();
+}
+
+void GlobalSetting::setMcpSseBindAddress(const QString& address) {
+    m_settings.setValue("mcp/sseBindAddress", address);
+}
+
+QString GlobalSetting::getMcpSseBindAddress() const {
+    return m_settings.value("mcp/sseBindAddress", "0.0.0.0").toString();
+}
+
+void GlobalSetting::setMcpSsePathSse(const QString& path) {
+    m_settings.setValue("mcp/ssePathSse", path);
+}
+
+QString GlobalSetting::getMcpSsePathSse() const {
+    return m_settings.value("mcp/ssePathSse", "/sse").toString();
+}
+
+void GlobalSetting::setMcpSsePathMessages(const QString& path) {
+    m_settings.setValue("mcp/ssePathMessages", path);
+}
+
+QString GlobalSetting::getMcpSsePathMessages() const {
+    return m_settings.value("mcp/ssePathMessages", "/messages").toString();
+}
+
+void GlobalSetting::setMcpSseKeepaliveInterval(int ms) {
+    m_settings.setValue("mcp/sseKeepaliveInterval", ms);
+}
+
+int GlobalSetting::getMcpSseKeepaliveInterval() const {
+    return m_settings.value("mcp/sseKeepaliveInterval", 15000).toInt();
+}
+
+void GlobalSetting::setMcpSseSessionTimeout(int ms) {
+    m_settings.setValue("mcp/sseSessionTimeout", ms);
+}
+
+int GlobalSetting::getMcpSseSessionTimeout() const {
+    return m_settings.value("mcp/sseSessionTimeout", 1800000).toInt();
+}
+
+void GlobalSetting::setMcpSseCleanupInterval(int ms) {
+    m_settings.setValue("mcp/sseCleanupInterval", ms);
+}
+
+int GlobalSetting::getMcpSseCleanupInterval() const {
+    return m_settings.value("mcp/sseCleanupInterval", 60000).toInt();
+}
+
+void GlobalSetting::setMcpSseMaxSessions(int max) {
+    m_settings.setValue("mcp/sseMaxSessions", max);
+}
+
+int GlobalSetting::getMcpSseMaxSessions() const {
+    return m_settings.value("mcp/sseMaxSessions", 16).toInt();
 }

@@ -65,14 +65,14 @@ UpdateDisplaySettingsDialog::UpdateDisplaySettingsDialog(QWidget *parent) :
     selectDefaultButton(nullptr),
     updateButton(nullptr),
     cancelButton(nullptr),
-    mainLayout(nullptr),
-    displayNameLayout(nullptr),
-    serialNumberLayout(nullptr),
-    buttonLayout(nullptr),
     progressGroup(nullptr),
     progressBar(nullptr),
     progressLabel(nullptr),
     cancelReadingButton(nullptr),
+    mainLayout(nullptr),
+    displayNameLayout(nullptr),
+    serialNumberLayout(nullptr),
+    buttonLayout(nullptr),
     firmwareOperationManager(nullptr),
     m_tempFirmwarePath(),
     m_operationFinished(false),
@@ -147,7 +147,7 @@ void UpdateDisplaySettingsDialog::ensureFirmwareOperationManager()
         onFirmwareReadFinished(success);
     });
 
-    connect(firmwareOperationManager, &FirmwareOperationManager::readCompleted, this, [this](bool success, const QByteArray &firmwareData, const QString &errorMsg) {
+    connect(firmwareOperationManager, &FirmwareOperationManager::readCompleted, this, [this](bool success, const QByteArray &/*firmwareData*/, const QString &errorMsg) {
         if (!success) {
             onFirmwareReadError(errorMsg);
             return;

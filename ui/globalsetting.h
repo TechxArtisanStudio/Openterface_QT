@@ -180,6 +180,28 @@ public:
     void setUpdateNeverRemind(bool never);
     bool getUpdateNeverRemind() const;
 
+    // ---- MCP Server ----
+    void setMcpEnabled(bool enabled);
+    bool getMcpEnabled() const;
+    void setMcpTransport(const QString& transport);
+    QString getMcpTransport() const;
+    void setMcpSsePort(int port);
+    int getMcpSsePort() const;
+    void setMcpSseBindAddress(const QString& address);
+    QString getMcpSseBindAddress() const;
+    void setMcpSsePathSse(const QString& path);
+    QString getMcpSsePathSse() const;
+    void setMcpSsePathMessages(const QString& path);
+    QString getMcpSsePathMessages() const;
+    void setMcpSseKeepaliveInterval(int ms);
+    int getMcpSseKeepaliveInterval() const;
+    void setMcpSseSessionTimeout(int ms);
+    int getMcpSseSessionTimeout() const;
+    void setMcpSseCleanupInterval(int ms);
+    int getMcpSseCleanupInterval() const;
+    void setMcpSseMaxSessions(int max);
+    int getMcpSseMaxSessions() const;
+
 private:
     QSettings m_settings;
 };

@@ -11,8 +11,13 @@ MOC_DIR = moc
 OBJECTS_DIR = obj
 RCC_DIR = rcc
 
-QT       += core gui multimedia multimediawidgets serialport concurrent svg svgwidgets network opengl openglwidgets xml dbus
+QT       += core gui gui-private multimedia multimediawidgets serialport concurrent svg svgwidgets network opengl openglwidgets xml dbus httpserver
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+
+# Speed up incremental rebuilds with ccache (install: sudo dnf install ccache / apt install ccache)
+exists(/usr/bin/ccache) {
+    QMAKE_CXX = ccache $$QMAKE_CXX
+}
 
 INCLUDEPATH += $$PWD
 
@@ -20,6 +25,7 @@ SOURCES += main.cpp \
     device/DeviceInfo.cpp \
     device/DeviceManager.cpp \
     device/HotplugMonitor.cpp \
+    device/HotplugDebounceManager.cpp \
     device/platform/AbstractPlatformDeviceManager.cpp \
     device/platform/DeviceFactory.cpp \
     host/HostManager.cpp \
@@ -36,6 +42,7 @@ SOURCES += main.cpp \
     host/backend/ffmpeg/ffmpeg_hardware_accelerator.cpp \
     host/backend/ffmpeg/ffmpeg_device_manager.cpp \
     host/backend/ffmpeg/ffmpeg_frame_processor.cpp \
+    host/backend/ffmpeg/ffmpeg_amd_detector.cpp \
     host/backend/ffmpeg/ffmpeg_recorder.cpp \
     host/backend/ffmpeg/ffmpeg_device_validator.cpp \
     host/backend/ffmpeg/ffmpeg_hotplug_handler.cpp \
@@ -61,6 +68,10 @@ SOURCES += main.cpp \
     serial/serial_hotplug_handler.cpp \
     server/tcpServer.cpp \
     server/tcpResponse.cpp \
+    server/mcp/mcpServer.cpp \
+    server/mcp/mcpProtocol.cpp \
+    server/mcp/mcpToolHandler.cpp \
+    server/mcp/mcpSseTransport.cpp \
     target/KeyboardLayouts.cpp \
     target/KeyboardManager.cpp \
     target/MouseManager.cpp \
@@ -129,10 +140,12 @@ SOURCES += main.cpp \
     ui/preferences/logpage.cpp \
     ui/preferences/videopage.cpp \
     ui/preferences/audiopage.cpp \
+    ui/preferences/mcppage.cpp \
     ui/preferences/targetcontrolpage.cpp \
     ui/floatingwindow/floatingwindow.cpp \
     ui/customkey/customkeymanager.cpp \
-    ui/customkey/customkeydialog.cpp
+    ui/customkey/customkeydialog.cpp \
+    SysKeyBlocker/SystemKeyBlocker.cpp
 
 # Platform-specific backend handlers (exclude on Windows)
 !win32 {
@@ -164,6 +177,7 @@ HEADERS  += \
     device/DeviceInfo.h \
     device/DeviceManager.h \
     device/HotplugMonitor.h \
+    device/HotplugDebounceManager.h \
     device/platform/AbstractPlatformDeviceManager.h \
     device/platform/DeviceFactory.h \
     device/platform/windows/WinDeviceEnumerator.h \
@@ -182,6 +196,7 @@ HEADERS  += \
     host/backend/ffmpeg/ffmpeg_hardware_accelerator.h \
     host/backend/ffmpeg/ffmpeg_device_manager.h \
     host/backend/ffmpeg/ffmpeg_frame_processor.h \
+    host/backend/ffmpeg/ffmpeg_amd_detector.h \
     host/backend/ffmpeg/ffmpeg_recorder.h \
     host/backend/ffmpeg/ffmpeg_device_validator.h \
     host/backend/ffmpeg/ffmpeg_hotplug_handler.h \
@@ -212,6 +227,11 @@ HEADERS  += \
     serial/serial_hotplug_handler.h \
     server/tcpServer.h \
     server/tcpResponse.h \
+    server/mcp/mcpServer.h \
+    server/mcp/mcpProtocol.h \
+    server/mcp/mcpToolHandler.h \
+    server/mcp/mcpConstants.h \
+    server/mcp/mcpSseTransport.h \
     target/KeyboardLayouts.h \
     target/KeyboardManager.h \
     target/MouseManager.h \
@@ -283,9 +303,11 @@ HEADERS  += \
     ui/preferences/targetcontrolpage.h \
     ui/preferences/videopage.h \
     ui/preferences/audiopage.h \
+    ui/preferences/mcppage.h \
     ui/floatingwindow/floatingwindow.h \
     ui/customkey/customkeymanager.h \
-    ui/customkey/customkeydialog.h
+    ui/customkey/customkeydialog.h \
+    SysKeyBlocker/SystemKeyBlocker.h
 
 FORMS    += \
     ui/mainwindow.ui \
@@ -313,7 +335,8 @@ win32 {
         device/platform/windows/discoverers/BotherDeviceDiscoverer.cpp \
         device/platform/windows/discoverers/Generation3Discoverer.cpp \
         device/platform/windows/discoverers/DeviceDiscoveryManager.cpp \
-        video/transport/WindowsHIDTransport.cpp
+        video/transport/WindowsHIDTransport.cpp \
+        SysKeyBlocker/SystemKeyBlocker_win.cpp
     HEADERS += device/platform/WindowsDeviceManager.h \
         video/transport/WindowsHIDTransport.h \
         device/platform/windows/discoverers/IDeviceDiscoverer.h \
@@ -367,16 +390,19 @@ win32 {
 unix {
     # Add Linux-specific sources if any
     SOURCES += device/platform/LinuxDeviceManager.cpp \
-               video/transport/LinuxHIDTransport.cpp
+               video/transport/LinuxHIDTransport.cpp \
+               SysKeyBlocker/SystemKeyBlocker_x11.cpp
     HEADERS += device/platform/LinuxDeviceManager.h \
                video/transport/LinuxHIDTransport.h
 
     INCLUDEPATH += /usr/include
-    LIBS += -lusb-1.0 -lX11 -lgstapp-1.0 -lturbojpeg
+    # -lusb-1.0 is provided by PKGCONFIG below; keep -lturbojpeg (TurboJPEG API, distinct from -ljpeg)
+    LIBS += -lX11 -lgstapp-1.0 -lturbojpeg
 
     # On non-mac Unix systems enable pkg-config based dependencies
     unix:!macx {
         CONFIG += link_pkgconfig
+        # libjpeg and libusb-1.0 provide -ljpeg (-lturbojpeg) and -lusb-1.0 respectively
         PKGCONFIG += libudev gstreamer-1.0 gstreamer-video-1.0 libavformat libavcodec libavutil libswscale libavdevice libjpeg libusb-1.0
         DEFINES += HAVE_LIBUDEV HAVE_GSTREAMER HAVE_FFMPEG HAVE_LIBJPEG_TURBO HAVE_LIBUSB
         # Add VA-API libraries AFTER FFmpeg pkg-config libraries to ensure proper linking order
@@ -384,6 +410,12 @@ unix {
     }
 
     RESOURCES += driver/linux/drivers.qrc
+
+    # Post-link: copy launcher script and strip the release binary
+    QMAKE_POST_LINK = $$quote($$QMAKE_COPY $$quote($$PWD/build-script/openterfaceQT-local-launcher.sh) $$quote($$OUT_PWD/openterfaceQT-launcher.sh))
+    exists(/usr/bin/strip) {
+        QMAKE_POST_LINK += && strip $$quote($$OUT_PWD/$$TARGET)
+    }
 }
 
 # Set platform-specific installation paths

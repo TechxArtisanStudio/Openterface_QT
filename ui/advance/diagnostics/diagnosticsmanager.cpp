@@ -25,9 +25,9 @@
 DiagnosticsManager::DiagnosticsManager(QObject *parent)
     : QObject(parent)
     , m_testTimer(new QTimer(this))
+    , m_targetCheckTimer(nullptr)
     , m_runningTestIndex(-1)
     , m_isTestingInProgress(false)
-    , m_targetCheckTimer(nullptr)
     , m_targetPreviouslyConnected(false)
     , m_targetCurrentlyConnected(false)
     , m_targetUnplugDetected(false)
@@ -1305,9 +1305,7 @@ bool DiagnosticsManager::performLowBaudrateTest()
     try {
         // Build command to switch to 9600 baudrate (reusing factory reset approach)
         QByteArray command;
-        static QSettings settings("Techxartisan", "Openterface");
-        uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
-        
+
         appendToLog("Setting device to factory default baudrate (9600) using reset method...");
         
         // Perform factory reset to restore default baudrate (9600)

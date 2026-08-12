@@ -365,8 +365,6 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     
     // Determine the appropriate video sink for current environment
     const QString platform = QGuiApplication::platformName();
-    const bool isXcb = platform.contains("xcb", Qt::CaseInsensitive);
-    const bool isWayland = platform.contains("wayland", Qt::CaseInsensitive);
     const bool hasXDisplay = !qgetenv("DISPLAY").isEmpty();
     const bool hasWaylandDisplay = !qgetenv("WAYLAND_DISPLAY").isEmpty();
     
@@ -2119,7 +2117,7 @@ void GStreamerBackendHandler::removeRecordingBranch()
     m_recordingManager->stopRecording();
 }
 
-QString GStreamerBackendHandler::generateRecordingElements(const QString& outputPath, const QString& format, int videoBitrate) const
+QString GStreamerBackendHandler::generateRecordingElements(const QString& outputPath, const QString& format, int /*videoBitrate*/) const
 {
     // This method is kept for reference but not used in the new tee-based approach
     QString encoder, muxer;

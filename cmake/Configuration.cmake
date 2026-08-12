@@ -18,9 +18,15 @@ if(OPENTERFACE_IS_ARM64)
         message(STATUS "Applied ARM64 native release build optimizations (-O1)")
     endif()
     
-    # Essential stability flags for ARM64 native compilation (reduced)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -ftemplate-depth-64")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations")
+    # GCC-specific stability flags (not supported by clang)
+    # Explicitly exclude clang and clang-like compilers (AppleClang, LLVM, etc.)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-aggressive-loop-optimizations -ftemplate-depth-64")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-aggressive-loop-optimizations")
+        message(STATUS "Applied GCC-specific flags: -fno-aggressive-loop-optimizations -ftemplate-depth-64")
+    else()
+        message(STATUS "Skipping GCC-specific flags (compiler: ${CMAKE_CXX_COMPILER_ID})")
+    endif()
     
     # Enable parallel compilation for native builds
     include(ProcessorCount)

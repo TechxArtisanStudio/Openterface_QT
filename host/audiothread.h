@@ -8,6 +8,7 @@
 #include <QAudioFormat>
 #include <QMutex>
 #include <QLoggingCategory>
+#include <memory>
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_audio)
 
@@ -40,7 +41,7 @@ private:
     QAudioDevice m_outputDevice;
     QAudioFormat m_format;
     QAudioSource* m_audioSource;
-    QScopedPointer<QAudioSink> m_audioSink;
+    std::unique_ptr<QAudioSink> m_audioSink;
     QIODevice* m_audioIODevice;    // For reading from source
     QIODevice* m_sinkIODevice;     // For writing to sink
     bool m_running;

@@ -103,8 +103,8 @@ void DeviceSelectorDialog::setupUI()
         qCDebug(log_device_selector) << "Debug USB devices triggered";
         DeviceManager& deviceManager = DeviceManager::getInstance();
         if (deviceManager.getPlatformManager()) {
-            auto* platformManager = deviceManager.getPlatformManager();
 #ifdef _WIN32
+            auto* platformManager = deviceManager.getPlatformManager();
             // Cast to Windows manager and call debug method
             auto* windowsManager = dynamic_cast<WindowsDeviceManager*>(platformManager);
             if (windowsManager) {

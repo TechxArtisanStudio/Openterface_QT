@@ -61,6 +61,7 @@ set(HOST_SOURCES
     host/backend/ffmpeg/ffmpeg_device_validator.cpp host/backend/ffmpeg/ffmpeg_device_validator.h
     host/backend/ffmpeg/ffmpeg_hotplug_handler.cpp host/backend/ffmpeg/ffmpeg_hotplug_handler.h
     host/backend/ffmpeg/ffmpeg_capture_manager.cpp host/backend/ffmpeg/ffmpeg_capture_manager.h
+    host/backend/ffmpeg/ffmpeg_amd_detector.cpp host/backend/ffmpeg/ffmpeg_amd_detector.h
     host/backend/ffmpeg/icapture_frame_reader.h
     host/backend/ffmpeg/ffmpegutils.h
 )
@@ -88,6 +89,16 @@ if(NOT WIN32)
         host/backend/gstreamer/pipelinebuilder.h
         host/backend/gstreamer/pipelinefactory.h
         host/backend/gstreamer/gstreamerhelpers.h
+    )
+endif()
+
+# Add Media Foundation backend on Windows
+if(WIN32)
+    list(APPEND HOST_SOURCES
+        host/backend/mf/mfbackendhandler.cpp host/backend/mf/mfbackendhandler.h
+        host/backend/mf/mf_capture_manager.cpp host/backend/mf/mf_capture_manager.h
+        host/backend/mf/mf_device_enumerator.cpp host/backend/mf/mf_device_enumerator.h
+        host/backend/mf/mf_frame_processor.cpp host/backend/mf/mf_frame_processor.h
     )
 endif()
 
@@ -149,6 +160,11 @@ set(SERIAL_SOURCES
 set(SERVER_SOURCES
     server/tcpServer.cpp server/tcpServer.h
     server/tcpResponse.cpp server/tcpResponse.h
+    server/mcp/mcpServer.cpp server/mcp/mcpServer.h
+    server/mcp/mcpProtocol.cpp server/mcp/mcpProtocol.h
+    server/mcp/mcpToolHandler.cpp server/mcp/mcpToolHandler.h
+    server/mcp/mcpConstants.h
+    server/mcp/mcpSseTransport.cpp server/mcp/mcpSseTransport.h
 )
 
 # Target sources
@@ -281,11 +297,6 @@ set(UI_CUSTOMKEY_SOURCES
     ui/customkey/customkeydialog.cpp ui/customkey/customkeydialog.h
 )
 
-# UI custom key sources
-set(UI_CUSTOMKEY_SOURCES
-    ui/customkey/customkeymanager.cpp ui/customkey/customkeymanager.h
-    ui/customkey/customkeydialog.cpp ui/customkey/customkeydialog.h
-)
 
 # UI preferences sources
 set(UI_PREFERENCES_SOURCES
@@ -295,6 +306,7 @@ set(UI_PREFERENCES_SOURCES
     ui/preferences/logpage.cpp ui/preferences/logpage.h
     ui/preferences/videopage.cpp ui/preferences/videopage.h
     ui/preferences/audiopage.cpp ui/preferences/audiopage.h
+    ui/preferences/mcppage.cpp ui/preferences/mcppage.h
     ui/preferences/targetcontrolpage.cpp ui/preferences/targetcontrolpage.h
 )
 

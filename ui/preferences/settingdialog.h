@@ -42,6 +42,7 @@
 #include "targetcontrolpage.h"
 #include "videopage.h"
 #include "audiopage.h"
+#include "mcppage.h"
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
 class QComboBox;
@@ -64,6 +65,7 @@ public:
     VideoPage* getVideoPage();
 
     LogPage* getLogPage();
+    McpPage* getMcpPage();
 
 // signals:
 //     // void serialSettingsApplied();
@@ -77,6 +79,7 @@ private:
     LogPage *logPage;
     QWidget *audioPage;
     VideoPage *videoPage;
+    McpPage *mcpPage;
     TargetControlPage *targetControlPage;
 
     QWidget *buttonWidget;

@@ -70,8 +70,9 @@ Q_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
 #include "ffmpeg/ffmpeg_capture_manager.h"
 
 FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
-    : MultimediaBackendHandler(parent), 
-    m_packet(nullptr),
+    : MultimediaBackendHandler(parent),
+    m_interruptRequested(false),
+    m_operationStartTime(0),
     m_deviceManager(std::make_unique<FFmpegDeviceManager>()),
     m_hardwareAccelerator(std::make_unique<FFmpegHardwareAccelerator>()),
     m_frameProcessor(std::make_unique<FFmpegFrameProcessor>()),
@@ -79,16 +80,15 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
     m_deviceValidator(std::make_unique<FFmpegDeviceValidator>()),
     m_hotplugHandler(nullptr),  // Created after validator
     m_captureManager(nullptr),  // Created after dependencies
+    m_packet(nullptr),
     m_captureRunning(false),
     m_videoStreamIndex(-1),
-    m_frameCount(0),
-    m_lastFrameTime(0),
-    m_interruptRequested(false),
-    m_operationStartTime(0),
+    m_recordingActive(false),
     m_suppressErrors(false),
     m_graphicsVideoItem(nullptr),
     m_videoPane(nullptr),
-    m_recordingActive(false),
+    m_frameCount(0),
+    m_lastFrameTime(0),
     m_targetFrameIntervalMs(0),
     m_lastFrameDisplayTime(0),
     m_firstFrameSystemTime(0),
@@ -284,16 +284,16 @@ void FFmpegBackendHandler::configureCameraDevice()
     return;
 }
 
-void FFmpegBackendHandler::setupCaptureSession(QMediaCaptureSession* session)
+void FFmpegBackendHandler::setupCaptureSession(QMediaCaptureSession* /*session*/)
 {
     // For FFmpeg backend, skip Qt capture session setup to avoid device conflicts
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Skipping Qt capture session setup - using direct capture";
-    
+
     // Do not call session->setCamera(camera) for FFmpeg backend
     // The direct capture will handle video rendering without Qt camera
 }
 
-void FFmpegBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput)
+void FFmpegBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* /*session*/, QObject* videoOutput)
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Preparing video output connection";
     
@@ -314,7 +314,7 @@ void FFmpegBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* se
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Video output type not supported for direct rendering";
 }
 
-void FFmpegBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput)
+void FFmpegBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession* /*session*/, QObject* /*videoOutput*/)
 {
     // For FFmpeg backend, skip Qt video output setup
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Skipping Qt video output setup - using direct rendering";
@@ -326,6 +326,7 @@ void FFmpegBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession* s
 void FFmpegBackendHandler::startCamera()
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Starting camera with direct capture";
+    fprintf(stderr, "[DEBUG-FFMPEG] startCamera() called\n");
 
     // Refresh framerate from GlobalVar so that changes made in Preferences take effect.
     // m_currentFramerate is only set during initial setup (selectOptimalFormat / restartCaptureWithDevice),
@@ -345,6 +346,10 @@ void FFmpegBackendHandler::startCamera()
     qCDebug(log_ffmpeg_backend) << "Current device:" << m_currentDevice;
     qCDebug(log_ffmpeg_backend) << "Current resolution:" << m_currentResolution;
     qCDebug(log_ffmpeg_backend) << "Current framerate:" << m_currentFramerate;
+    fprintf(stderr, "[DEBUG-FFMPEG] Device='%s', Resolution=%dx%d, Framerate=%d\n",
+            m_currentDevice.toUtf8().constData(),
+            m_currentResolution.width(), m_currentResolution.height(),
+            m_currentFramerate);
     
     // Skip availability check - just try to open the device directly
     // The checkCameraAvailable() opens the device which can interfere with immediate reopening
@@ -377,7 +382,7 @@ void FFmpegBackendHandler::stopCamera()
 QCameraFormat FFmpegBackendHandler::selectOptimalFormat(const QList<QCameraFormat>& formats,
                                                        const QSize& resolution,
                                                        int desiredFrameRate,
-                                                       QVideoFrameFormat::PixelFormat pixelFormat) const
+                                                       QVideoFrameFormat::PixelFormat /*pixelFormat*/) const
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Selecting optimal format with flexible frame rate matching";
     

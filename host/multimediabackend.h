@@ -40,7 +40,8 @@ enum class MultimediaBackendType {
     QtMultimedia,    // Qt's native multimedia backend (legacy)
     Qt,              // Qt's native multimedia backend (Windows)
     FFmpeg,
-    GStreamer
+    GStreamer,
+    MediaFoundation  // Windows Media Foundation capture
 };
 
 /**
@@ -114,7 +115,7 @@ public:
     virtual bool shouldRetryOperation(int attemptCount) const;
 
     // Video recording interface (virtual methods for backend implementations)
-    virtual bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000) { return false; }
+    virtual bool startRecording(const QString& /*outputPath*/, const QString& /*format*/ = "mp4", int /*videoBitrate*/ = 2000000) { return false; }
     virtual bool stopRecording() { return false; }
     virtual void pauseRecording() {}
     virtual void resumeRecording() {}

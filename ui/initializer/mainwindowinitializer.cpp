@@ -694,17 +694,27 @@ void MainWindowInitializer::finalize()
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, m_mainWindow, &MainWindow::onPortConnected);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, m_mainWindow, &MainWindow::onArmBaudratePerformanceRecommendation);
 
-    // Connect SystemKeyBlocker keyCaptured signal to HostManager
+    // Connect SystemKeyBlocker keyCaptured signal to KeyboardManager (fix for modifier keys)
     connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::keyCaptured,
-            &HostManager::getInstance(), &HostManager::handleKeyboardAction);
+            &KeyboardManager::getInstance(), &KeyboardManager::handleKeyboardAction);
     qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to HostManager";
 
-    // Restore SystemKeyBlocker state from previous session
+    // Defer SystemKeyBlocker startup until window is visible
+    // The X11KeyGrabber needs a visible top-level window to grab keys on
     if (GlobalSetting::instance().getSystemKeyBlockerEnabled()) {
-        quintptr hwnd = m_videoPane ? m_videoPane->winId() : 0;
-        if (SystemKeyBlocker::instance().start(hwnd)) {
-            qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker restored to active state";
-        }
+        // Use a short delay to ensure the window is fully shown and visible
+        QTimer::singleShot(100, m_mainWindow, [this]() {
+            if (!m_mainWindow->isVisible()) {
+                qCWarning(log_ui_mainwindowinitializer) << "SystemKeyBlocker: window not visible yet, cannot start";
+                return;
+            }
+            quintptr hwnd = m_videoPane ? m_videoPane->winId() : 0;
+            if (SystemKeyBlocker::instance().start(hwnd)) {
+                qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker restored to active state";
+            } else {
+                qCWarning(log_ui_mainwindowinitializer) << "SystemKeyBlocker failed to start";
+            }
+        });
     }
 
     m_mainWindow->onLastKeyPressed("");

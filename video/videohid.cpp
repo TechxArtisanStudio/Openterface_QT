@@ -267,7 +267,6 @@ void VideoHid::pollDeviceStatus() {
     // Device is already open - no need for beginTransaction/endTransaction
     try {
         bool currentSwitchOnTarget = getGpio0();
-        bool hdmiConnected = isHdmiConnected();
         // qCDebug(log_host_hid) << "chip type" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
         if (eventCallback) {
             VideoHidResolutionInfo info = getInputStatus();

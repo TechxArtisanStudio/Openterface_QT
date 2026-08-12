@@ -14,7 +14,7 @@
 #include <QStandardPaths>
 
 SupportEmailDialog::SupportEmailDialog(const QStringList& failedTests, const QString& diagnosticsLogFilePath, const QString& serialLogFilePath, bool diagnosticsCompleted, QWidget* parent)
-    : QDialog(parent), m_logFilePath(diagnosticsLogFilePath), m_serialLogFilePath(serialLogFilePath) {
+    : QDialog(parent), m_serialLogFilePath(serialLogFilePath), m_logFilePath(diagnosticsLogFilePath) {
     QString title = tr("Support Email Draft");
     if (!diagnosticsCompleted) {
         title += tr(" - Please complete the diagnostics tests first");

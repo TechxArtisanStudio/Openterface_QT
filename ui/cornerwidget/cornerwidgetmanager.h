@@ -41,7 +41,7 @@ signals:
     void fullScreenClicked();
     void pasteClicked();
     void screensaverClicked(bool checked);
-    void toggleSwitchChanged(int state);
+    void toggleSwitchChanged(Qt::CheckState state);
     void keyboardLayoutChanged(const QString &layout);
     void recordingToggled();
     void muteToggled();

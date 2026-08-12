@@ -142,7 +142,13 @@ void TargetControlPage::setupUI()
     hardwareLayout->addLayout(gridLayout);
     hardwareLayout->addStretch();
 
-    connect(USBCustomStringDescriptorCheckBox, &QCheckBox::stateChanged, this, &TargetControlPage::onCheckBoxStateChanged);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+    connect(USBCustomStringDescriptorCheckBox, &QCheckBox::checkStateChanged, this, &TargetControlPage::onCheckBoxStateChanged);
+#else
+    connect(USBCustomStringDescriptorCheckBox, &QCheckBox::stateChanged, this, [this](int state) {
+        onCheckBoxStateChanged(static_cast<Qt::CheckState>(state));
+    });
+#endif
     addCheckBoxLineEditPair(VIDCheckBox, VIDDescriptorLineEdit);
     addCheckBoxLineEditPair(PIDCheckBox, PIDDescriptorLineEdit);
     addCheckBoxLineEditPair(USBSerialNumberCheckBox, serialNumberLineEdit);
@@ -150,10 +156,16 @@ void TargetControlPage::setupUI()
 
 void TargetControlPage::addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit){
     USBCheckBoxEditMap.insert(checkBox,lineEdit);
-    connect(checkBox, &QCheckBox::stateChanged, this, &TargetControlPage::onCheckBoxStateChanged);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+    connect(checkBox, &QCheckBox::checkStateChanged, this, &TargetControlPage::onCheckBoxStateChanged);
+#else
+    connect(checkBox, &QCheckBox::stateChanged, this, [this](int state) {
+        onCheckBoxStateChanged(static_cast<Qt::CheckState>(state));
+    });
+#endif
 }
 
-void TargetControlPage::onCheckBoxStateChanged(int state) {
+void TargetControlPage::onCheckBoxStateChanged(Qt::CheckState state) {
     QCheckBox *checkBox = qobject_cast<QCheckBox*>(sender());
     QLineEdit *lineEdit = USBCheckBoxEditMap.value(checkBox);
     

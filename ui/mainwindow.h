@@ -66,6 +66,7 @@
 
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
+#include "server/mcp/mcpServer.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -241,7 +242,7 @@ private slots:
     
     void onArmBaudratePerformanceRecommendation(int currentBaudrate);
 
-    void onToggleSwitchStateChanged(int state);
+    void onToggleSwitchStateChanged(Qt::CheckState state);
 
 
     void onKeyboardLayoutCombobox_Changed(const QString &layout);
@@ -373,6 +374,20 @@ private:
     void stopServer();
     TcpServer *tcpServer;
     bool m_tcpServerRunning = false;
+
+    // --- MCP Server ---
+    McpServer *m_mcpServer = nullptr;
+
+public:
+    CameraManager* getCameraManager() const { return m_cameraManager; }
+
+public:
+    McpServer* getMcpServer() { return m_mcpServer; }
+
+    void initMcpServer();
+public slots:
+    void toggleMcpServer(bool enabled);
+    void onMcpSettingsApplied();
 
 };
 #endif // MAINWINDOW_H

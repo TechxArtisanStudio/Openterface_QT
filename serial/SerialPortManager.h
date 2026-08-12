@@ -101,7 +101,7 @@ public:
     bool getCapsLockState();
     bool getScrollLockState();
 
-    bool writeData(const QByteArray &data);
+    Q_INVOKABLE bool writeData(const QByteArray &data);
     bool writeDataInThread(const QByteArray &data);
     bool sendAsyncCommand(const QByteArray &data, bool force);
     bool sendResetCommand();
@@ -139,6 +139,8 @@ public:
     bool switchSerialPortByPortChain(const QString& portChain);
     QString getCurrentSerialPortPath() const;
     QString getCurrentSerialPortChain() const;
+    bool isPortReady() const { return ready.load(); }
+    bool isPortOpen() const;
     
     // Hotplug monitoring integration
     void connectToHotplugMonitor();
