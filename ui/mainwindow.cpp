@@ -131,18 +131,18 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     , videoPane(new VideoPane(this))
     , stackedLayout(new QStackedLayout)
     , toolbarManager(new ToolbarManager(this))
+    , m_deviceAutoSelected(false)
     , toggleSwitch(new ToggleSwitch(this))
     , m_cameraManager(new CameraManager(this))
+    , m_deviceCoordinator(nullptr)
+    , m_menuCoordinator(nullptr)
+    , mouseEdgeTimer(nullptr)
     , m_versionInfoManager(new VersionInfoManager(this))
     , m_languageManager(languageManager)
+    , taskmanager(TaskManager::instance())
     , m_screenSaverManager(new ScreenSaverManager(this))
     , m_cornerWidgetManager(new CornerWidgetManager(this))
     , m_windowControlManager(nullptr)
-    , m_deviceCoordinator(nullptr)
-    , m_menuCoordinator(nullptr)
-    , m_deviceAutoSelected(false)
-    , mouseEdgeTimer(nullptr)
-    , taskmanager(TaskManager::instance())
 {
     qCDebug(log_ui_mainwindow) << "Initializing MainWindow...";
     
@@ -443,23 +443,16 @@ void MainWindow::updateScrollbars() {
     // Check if the mouse is near the edges of the screen
     const int edgeThreshold = 300; // Adjust this value as needed
 
-    int deltaX = 0;
-    int deltaY = 0;
-
     if (lastMousePos.x() < edgeThreshold) {
         // Move scrollbar to the left
-        deltaX = -10; // Adjust step size as needed
     } else if (lastMousePos.x() > 4096*factorScale - edgeThreshold) {
         // Move scrollbar to the right
-        deltaX = 10; // Adjust step size as needed
     }
 
     if (lastMousePos.y() < edgeThreshold) {
         // Move scrollbar up
-        deltaY = -10; // Adjust step size as needed
     } else if (lastMousePos.y() > 4096*factorScale - edgeThreshold) {
         // Move scrollbar down
-        deltaY = 10; // Adjust step size as needed
     }
 
     // Note: scrollbars removed - VideoPane handles zooming internally via QGraphicsView
@@ -580,7 +573,7 @@ void MainWindow::onActionSwitchToTargetTriggered()
 
 }
 
-void MainWindow::onToggleSwitchStateChanged(int state)
+void MainWindow::onToggleSwitchStateChanged(Qt::CheckState state)
 {
     // Ignore if this change is from a programmatic status update
     if (m_cornerWidgetManager && m_cornerWidgetManager->isUpdatingFromStatus()) {
@@ -732,7 +725,7 @@ void MainWindow::onDeviceSwitchCompleted() {
     updateCameraActive(m_cameraManager->hasActiveCameraDevice());
 }
 
-void MainWindow::onDeviceSelected(const QString &portChain, bool success, const QString &message) {
+void MainWindow::onDeviceSelected(const QString &portChain, bool /*success*/, const QString &/*message*/) {
     if (!m_cameraManager->hasActiveCameraDevice()) {
         // Try to auto-select the "Openterface" camera if available
         const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
@@ -1966,6 +1959,148 @@ void MainWindow::showEnvironmentSetupDialog() {
     qCDebug(log_ui_mainwindow) << "Show EnvironmentSetupDialog";
     EnvironmentSetupDialog dialog(this);
     dialog.exec();
+}
+
+void MainWindow::showFirmwareManagerDialog() {
+    if (!firmwareManagerDialog){
+        qDebug() << "Creating serial port debug dialog";
+        firmwareManagerDialog = new FirmwareManagerDialog(this);
+        // connect the finished signal to the set the dialog pointer to nullptr
+        connect(firmwareManagerDialog, &QDialog::finished, this, [this](){
+            firmwareManagerDialog->deleteLater();
+            firmwareManagerDialog = nullptr;
+        });
+        firmwareManagerDialog->show();
+    }else{
+        firmwareManagerDialog->raise();
+        firmwareManagerDialog->activateWindow();
+    }
+
+}
+
+void MainWindow::showWCHFlashDialog() {
+    if (!wchFlashDialog) {
+        wchFlashDialog = new WCHFlashDialog(this);
+        connect(wchFlashDialog, &QDialog::finished, this, [this]() {
+            wchFlashDialog->deleteLater();
+            wchFlashDialog = nullptr;
+        });
+        wchFlashDialog->show();
+    } else {
+        wchFlashDialog->raise();
+        wchFlashDialog->activateWindow();
+    }
+}
+
+void MainWindow::updateFirmware() {
+    // Check if it's latest firmware
+    qDebug() << "Checking for latest firmware version...";
+    FirmwareResult firmwareStatus = VideoHid::getInstance().isLatestFirmware();
+    std::string currentFirmwareVersion = VideoHid::getInstance().getCurrentFirmwareVersion();
+    std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
+    qDebug() << "latestFirmwareVersion" << latestFirmwareVersion.c_str();
+    FirmwareUpdateConfirmDialog confirmDialog(this);
+    switch (firmwareStatus){
+        case FirmwareResult::Latest:
+            qDebug() << "Firmware is up to date.";
+            QMessageBox::information(this, tr("Firmware Update"),
+            tr("The firmware is up to date.\nCurrent version: ") +
+            QString::fromStdString(currentFirmwareVersion));
+            break;
+        case FirmwareResult::Upgradable:            qDebug() << "Firmware is upgradable.";
+            {
+            bool proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
+            if (proceed) {
+                qDebug() << "User accepted firmware update, proceeding...";
+
+                // Declare success variable before try-catch block
+                bool success = false;
+
+                try {
+                    // Stop services in proper order with robust error handling
+                    qDebug() << "Stopping main window operations first...";
+                    try {
+                        stop();
+                        qDebug() << "Main window operations stopped successfully";
+                    } catch (...) {
+                        qWarning() << "Exception while stopping main window operations - continuing anyway";
+                    }
+
+                    qDebug() << "Stopping video HID polling only...";
+                    try {
+                        VideoHid::getInstance().stopPollingOnly();
+                        qDebug() << "Video HID polling stopped successfully";
+                    } catch (...) {
+                        qWarning() << "Exception while stopping video HID polling - continuing anyway";
+                    }
+
+                    // Wait a bit for video HID to fully stop
+                    qDebug() << "Waiting for video HID to stop completely...";
+                    QThread::msleep(300);
+                    QCoreApplication::processEvents();
+
+                    qDebug() << "Stopping serial port manager...";
+                    try {
+                        // Close the serial port directly rather than using full stop() to avoid timer issues
+                        SerialPortManager::getInstance().closePort();
+                        qDebug() << "Serial port closed successfully";
+                        QThread::msleep(200); // Small delay for port closure
+                        QCoreApplication::processEvents();
+
+                        qDebug() << "Serial port manager stopped successfully";
+                    } catch (...) {
+                        qWarning() << "Exception while stopping SerialPortManager - continuing anyway";
+                    }
+
+                    // Final cleanup - process any remaining events
+                    qDebug() << "Processing remaining events...";
+                    QCoreApplication::processEvents();
+                    QThread::msleep(200);
+
+                    qDebug() << "Services stopped successfully, proceeding with firmware update...";
+
+                    // Hide main window while update dialog runs to keep app alive and allow dialog to control shutdown
+                    this->hide();
+                    qDebug() << "Creating FirmwareUpdateDialog...";
+
+                    // Create and show firmware update dialog (capture result to restore main window on failure)
+                    FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
+                    qDebug() << "Calling updateDialog->startUpdate()...";
+                    success = updateDialog->startUpdate();
+                    qDebug() << "FirmwareUpdate completed with result:" << success;
+                    updateDialog->deleteLater();
+                } catch (const std::exception& e) {
+                    qCritical() << "Exception during firmware update process:" << e.what();
+                    this->show(); // Restore window if there was an error
+                    success = false; // Ensure success is false on exception
+                } catch (...) {
+                    qCritical() << "Unknown exception during firmware update process";
+                    this->show(); // Restore window if there was an error
+                    success = false; // Ensure success is false on exception
+                }
+
+                // If update failed, restore main window so user can retry
+                if (!success) {
+                    this->show();
+                }else{
+                    qDebug() << "Firmware updated successfully, closing main window.";
+                    this->close(); // Close main window on successful update
+                }
+            }
+            } // end proceed scope
+            break;
+        case FirmwareResult::Timeout:
+            qDebug() << "Firmware fetch timeout.";
+            QMessageBox::information(this, tr("Firmware fetch timeout"),
+            tr("Firmware retrieval timed out. Please check your network connection and try again.\nCurrent version: ") +
+            QString::fromStdString(currentFirmwareVersion));
+            break;
+        case FirmwareResult::CheckSuccess:
+        case FirmwareResult::CheckFailed:
+        case FirmwareResult::Checking:
+            // These states are handled by the caller before reaching this switch
+            break;
+    }
 }
 
 void MainWindow::openDeviceSelector() {

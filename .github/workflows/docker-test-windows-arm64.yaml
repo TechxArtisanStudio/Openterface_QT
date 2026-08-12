@@ -45,55 +45,83 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download ARM64 Build Artifact
+        id: download
         shell: bash
         run: |
-          echo "[DOWNLOAD] Getting latest ARM64 build artifact..."
+          echo "[DOWNLOAD] Getting ARM64 build artifact for SHA ${{ github.sha }}..."
           mkdir -p build
 
+          # Default: artifact not available (skip subsequent steps)
+          echo "artifact_available=false" >> $GITHUB_OUTPUT
+
           WORKFLOW="windows-arm64-build.yaml"
-          API="https://api.github.com/repos/${{ github.repository }}/actions/workflows/$WORKFLOW/runs?status=success&per_page=5"
+          API="https://api.github.com/repos/${{ github.repository }}/actions/workflows/$WORKFLOW/runs?status=success&per_page=10"
 
           echo "Fetching: $API"
-          RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$API")
+          RESPONSE=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$API") || {
+            echo "[ERROR] Failed to query workflow runs API"
+            exit 1
+          }
 
-          # Get the run ID (try matching our SHA first, fallback to latest)
+          # Only use a successful build matching our current SHA.
+          # Do NOT fall back to stale runs — their artifacts are likely expired,
+          # which produces cryptic "End-of-central-directory" unzip errors.
+          # When the build for this SHA succeeds, the workflow_run trigger will
+          # re-fire this job with a valid artifact available.
           RUN_ID=$(echo "$RESPONSE" | jq -r --arg SHA "${{ github.sha }}" \
             '.workflow_runs[] | select(.head_sha == $SHA) | .id' | head -1)
 
           if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
-            echo "[INFO] No SHA match, using latest successful run"
-            RUN_ID=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].id')
-          fi
-
-          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
-            echo "[ERROR] No successful ARM64 build runs found"
-            exit 1
+            echo "[SKIP] No successful ARM64 build found for SHA ${{ github.sha }}"
+            echo "[SKIP] This job will re-run via workflow_run once the build succeeds."
+            exit 0
           fi
 
           echo "[SUCCESS] Found ARM64 build run: $RUN_ID"
 
           # Get artifacts
-          ARTIFACTS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts")
+          ARTIFACTS=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts") || {
+            echo "[ERROR] Failed to query artifacts API"
+            exit 1
+          }
 
           echo "[INFO] Available artifacts:"
           echo "$ARTIFACTS" | jq -r '.artifacts[].name'
 
           # Find ARM64 portable artifact
-          ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | test("arm64")) | .id' | head -1)
+          ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | test("portable.*arm64|arm64.*portable")) | .id' | head -1)
 
           if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" = "null" ]; then
-            echo "[ERROR] No ARM64 artifact found"
+            # Fall back to any arm64 artifact (installer is acceptable)
+            ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | test("arm64")) | .id' | head -1)
+          fi
+
+          if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" = "null" ]; then
+            echo "[ERROR] No ARM64 artifact found in run $RUN_ID"
             exit 1
           fi
 
           echo "[PACKAGE] Found artifact ID: $ARTIFACT_ID"
 
-          # Download and extract
+          # Download and extract — use -f so HTTP errors fail loudly instead of
+          # silently writing an error HTML body to artifact.zip.
           echo "[DOWNLOAD] Downloading artifact..."
-          curl -sL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          curl -sfL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -o artifact.zip \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip"
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" || {
+            echo "[ERROR] Artifact download failed (HTTP error or network issue)"
+            ls -la artifact.zip 2>/dev/null
+            exit 1
+          }
+
+          # Validate the download is actually a zip before extracting
+          if ! file artifact.zip | grep -qi "zip"; then
+            echo "[ERROR] Downloaded file is not a valid zip archive"
+            ls -la artifact.zip
+            head -c 200 artifact.zip | xxd | head -5
+            exit 1
+          fi
 
           echo "[EXTRACT] Extracting..."
           unzip -q -o artifact.zip -d build/
@@ -112,8 +140,10 @@ jobs:
           fi
 
           echo "[SUCCESS] Download complete"
+          echo "artifact_available=true" >> $GITHUB_OUTPUT
 
       - name: Verify ARM64 static linkage
+        if: steps.download.outputs.artifact_available == 'true'
         shell: bash
         run: |
           echo "[VERIFY] Checking ARM64 static linkage..."
@@ -213,7 +243,7 @@ jobs:
           echo "[VERIFY] Static linkage check completed"
 
       - name: Launch app (background)
-        if: ${{ github.event.inputs.skip_test != 'true' }}
+        if: ${{ github.event.inputs.skip_test != 'true' && steps.download.outputs.artifact_available == 'true' }}
         shell: bash
         timeout-minutes: 2
         run: |
@@ -261,7 +291,7 @@ jobs:
           echo "APP_EXE_PATH=$WIN_EXE" >> "$GITHUB_ENV"
 
       - name: Take screenshot (PowerShell - minimal)
-        if: ${{ github.event.inputs.skip_test != 'true' }}
+        if: ${{ github.event.inputs.skip_test != 'true' && steps.download.outputs.artifact_available == 'true' }}
         shell: bash
         timeout-minutes: 3
         run: |

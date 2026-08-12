@@ -71,40 +71,28 @@ void LinuxHIDTransport::close()
 
 bool LinuxHIDTransport::sendFeatureReport(uint8_t* buf, size_t len)
 {
-    bool opened = false;
-    if (!isOpen()) {
-        if (!open()) return false;
-        opened = true;
-    }
+    if (!isOpen() && !open()) return false;
 
     std::vector<uint8_t> buffer(buf, buf + len);
     int res = ioctl(m_hidFd, HIDIOCSFEATURE(buffer.size()), buffer.data());
     if (res < 0) {
         qCDebug(log_linux_transport) << "sendFeatureReport failed:" << strerror(errno);
-        if (opened) close();
         return false;
     }
-    if (opened) close();
     return true;
 }
 
 bool LinuxHIDTransport::getFeatureReport(uint8_t* buf, size_t len)
 {
-    bool opened = false;
-    if (!isOpen()) {
-        if (!open()) return false;
-        opened = true;
-    }
+    if (!isOpen() && !open()) return false;
 
     std::vector<uint8_t> buffer(len, 0);
     int res = ioctl(m_hidFd, HIDIOCGFEATURE(buffer.size()), buffer.data());
     if (res < 0) {
         qCDebug(log_linux_transport) << "getFeatureReport failed:" << strerror(errno);
-        if (opened) close();
         return false;
     }
     std::copy(buffer.begin(), buffer.end(), buf);
-    if (opened) close();
     return true;
 }
 

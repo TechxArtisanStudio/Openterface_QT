@@ -39,6 +39,9 @@
 #include "ui/advance/serialportdebugdialog.h"
 #include "ui/recording/recordingcontroller.h"
 #include "ui/advance/DeviceSelectorDialog.h"
+#include "ui/advance/firmwaremanagerdialog.h"
+#include "ui/advance/firmwareupdatedialog.h"
+#include "ui/advance/wchflash/WCHFlashDialog.h"
 #include "ui/advance/scripttool.h"
 #include "ui/advance/devicediagnosticsdialog.h"
 #include "ui/advance/keyboardmapeditor.h"
@@ -222,6 +225,9 @@ private slots:
     void onSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate) override;
 
     void showEnvironmentSetupDialog();
+    void showFirmwareManagerDialog();
+    void showWCHFlashDialog();
+    void updateFirmware();
 
     void showHardwareDiagnostics();
 
@@ -231,7 +237,7 @@ private slots:
     
     void onArmBaudratePerformanceRecommendation(int currentBaudrate);
 
-    void onToggleSwitchStateChanged(int state);
+    void onToggleSwitchStateChanged(Qt::CheckState state);
 
 
     void onKeyboardLayoutCombobox_Changed(const QString &layout);
@@ -315,6 +321,8 @@ private:
     RecordingController *m_recordingController = nullptr;
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
     DeviceSelectorDialog *deviceSelectorDialog = nullptr;
+    FirmwareManagerDialog *firmwareManagerDialog = nullptr;
+    WCHFlashDialog *wchFlashDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;
 

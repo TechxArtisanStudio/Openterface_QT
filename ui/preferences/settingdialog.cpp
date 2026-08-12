@@ -70,10 +70,10 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     , logPage(new LogPage(this))
     , audioPage(new AudioPage(this))
     , videoPage(new VideoPage(cameraManager, this))
+    , mcpPage(new McpPage(this))
     , targetControlPage(new TargetControlPage(this))
     , firmwarePage(new FirmwarePage(this))
     , controlChipFirmwarePage(new ControlChipFirmwarePage(this))
-    , mcpPage(new McpPage(this))
     , edidConfigPage(new EdidConfigPage(this))
     , virtualKeyboardPage(new VirtualKeyboardPage(this))
     , m_currentPageIndex(-1)
@@ -163,6 +163,7 @@ void SettingDialog::createPages() {
     addScrollablePage(logPage);
     addScrollablePage(videoPage);
     addScrollablePage(audioPage);
+    addScrollablePage(mcpPage);
     addScrollablePage(targetControlPage);
     addScrollablePage(mcpPage);
     addScrollablePage(firmwarePage);

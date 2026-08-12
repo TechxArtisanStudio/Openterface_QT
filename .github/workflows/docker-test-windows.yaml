@@ -77,145 +77,124 @@ jobs:
           Write-Host "Total Memory: $memoryGB GB"
 
       - name: Download Latest Windows Build Artifacts
-        shell: powershell
+        id: download
+        shell: bash
         run: |
-          Write-Host "[DOWNLOAD] Getting latest Windows build artifacts..."
-          
-          # Create build directory
-          New-Item -ItemType Directory -Path "build" -Force | Out-Null
-          
+          echo "[DOWNLOAD] Getting latest Windows build artifacts..."
+
+          # Default: artifact not available (skip subsequent steps)
+          echo "artifact_available=false" >> $GITHUB_OUTPUT
+
+          mkdir -p build
+
           # Determine which workflow to use based on install type
-          $workflowName = if ("${{ env.INSTALL_TYPE }}" -eq "portable") { "windows-portable-build.yaml" } else { "windows-build.yaml" }
-          Write-Host "[INFO] Using workflow: $workflowName"
-          
-          # Get the latest successful build workflow run
-          $headers = @{Authorization = "token ${{ secrets.GITHUB_TOKEN }}" }
-          $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflowName/runs?status=success&head_branch=${{ github.ref_name }}&per_page=1"
-          
-          Write-Host "Fetching from: $apiUrl"
-          
-          try {
-            $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -ErrorAction Stop
-            $latestRun = $response.workflow_runs[0]
-            
-            if ($null -eq $latestRun) {
-              Write-Host "[WARNING] No successful build runs found for branch ${{ github.ref_name }}"
-              Write-Host "Trying to get from main branch..."
-              
-              $apiUrl = "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$workflowName/runs?status=success&head_branch=main&per_page=1"
-              $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -ErrorAction Stop
-              $latestRun = $response.workflow_runs[0]
-            }
-            
-            if ($null -eq $latestRun) {
-              Write-Host "[ERROR] No successful build runs found"
-              exit 1
-            }
-            
-            $runId = $latestRun.id
-            Write-Host "[SUCCESS] Found latest windows-build run: $runId"
-            Write-Host "[INFO] Run created: $($latestRun.created_at)"
-            
-            # Calculate age of the build
-            $createdAt = [DateTime]::Parse($latestRun.created_at)
-            $age = [DateTime]::UtcNow - $createdAt
-            Write-Host "[INFO] Build age: $($age.Days) days, $($age.Hours) hours"
-            
-            if ($age.Days -gt 85) {
-              Write-Host "[WARNING] Build is very old ($($age.Days) days). Artifacts may have expired."
-            }
-            
-            # Get all artifacts from this run
-            $artifactsUrl = "https://api.github.com/repos/${{ github.repository }}/actions/runs/$runId/artifacts"
-            $artifacts = Invoke-RestMethod -Uri $artifactsUrl -Headers $headers -ErrorAction Stop
-            
-            # Define artifact patterns based on install type
-            $patterns = @{
-              "installer" = @("openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.exe", "exe")
-              "portable" = @("openterfaceQT.windows.amd64.portable", "portable", "openterfaceQT.windows.amd64.installer", "windows.amd64.installer", "installer", "shared.zip", "zip")
-            }
-            
-            $searchPatterns = $patterns["${{ env.INSTALL_TYPE }}"]
-            Write-Host "[SEARCH] Looking for artifacts matching: $($searchPatterns -join ', ')"
-            
-            $foundArtifact = $null
-            foreach ($pattern in $searchPatterns) {
-              $artifact = $artifacts.artifacts | Where-Object { $_.name -like "*$pattern*" } | Select-Object -First 1
-              if ($artifact) {
-                $foundArtifact = $artifact
-                break
-              }
-            }
-            
-            if ($null -eq $foundArtifact) {
-              Write-Host "[ERROR] No artifact matching patterns found"
-              Write-Host "Available artifacts:"
-              $artifacts.artifacts | ForEach-Object { Write-Host "  - $($_.name)" }
-              exit 1
-            }
-            
-            Write-Host "[PACKAGE] Found artifact: $($foundArtifact.name) (ID: $($foundArtifact.id))"
-            
-            # Check if artifact has expired
-            $expiresAt = [DateTime]::Parse($foundArtifact.expires_at)
-            $now = [DateTime]::UtcNow
-            
-            if ($now -gt $expiresAt) {
-              Write-Host "[WARNING] Artifact has expired on $expiresAt"
-              Write-Host "[INFO] Artifact availability is limited to 90 days from creation"
-              exit 1
-            }
-            
-            Write-Host "[INFO] Artifact expires at: $expiresAt"
-            
-            # Download the artifact
-            Write-Host "[DOWNLOAD] Downloading artifact..."
-            $downloadUrl = "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$($foundArtifact.id)/zip"
-            
-            $zipPath = "artifact.zip"
-            $ProgressPreference = 'SilentlyContinue'
-            
-            try {
-              Invoke-WebRequest -Uri $downloadUrl -Headers $headers -OutFile $zipPath -ErrorAction Stop
-              Write-Host "[SUCCESS] Artifact downloaded: $zipPath"
-            } catch {
-              $errorMsg = $_.Exception.Message
-              if ($errorMsg -match "410") {
-                Write-Host "[WARNING] Artifact download returned 410 Gone - artifact has expired"
-              } else {
-                Write-Host "[WARNING] Error downloading artifact: $errorMsg"
-              }
-              exit 1
-            }
-            
-            # Extract the artifact
-            Write-Host "[PACKAGE] Extracting artifact..."
-            try {
-              Expand-Archive -Path $zipPath -DestinationPath "build" -Force
-            } catch {
-              Write-Host "[WARNING] Error extracting artifact: $_"
-              exit 1
-            }
-            
-            # Verify extraction
-            $installerFile = Get-ChildItem -Path "build" -Recurse -Include "*.exe", "*.msi", "*.zip" -ErrorAction SilentlyContinue | Select-Object -First 1
-            
-            if ($null -ne $installerFile) {
-              Write-Host "[SUCCESS] Installer extracted: $($installerFile.Name)"
-              Write-Host "   Size: $([Math]::Round($installerFile.Length / 1MB, 2)) MB"
-              Get-ChildItem -Path "build" | Format-Table Name, Length -AutoSize
-            } else {
-              Write-Host "[WARNING] Extraction completed but no installer file found"
-              Write-Host "Contents of build directory:"
-              Get-ChildItem -Path "build" -Recurse | Format-Table FullName, Length -AutoSize
-            }
-            
-          } catch {
-            Write-Host "[WARNING] Error downloading artifacts: $_"
+          if [ "${{ env.INSTALL_TYPE }}" = "portable" ]; then
+            WORKFLOW="windows-portable-build.yaml"
+          else
+            WORKFLOW="windows-build.yaml"
+          fi
+          echo "[INFO] Using workflow: $WORKFLOW"
+
+          API="https://api.github.com/repos/${{ github.repository }}/actions/workflows/$WORKFLOW/runs?status=success&head_branch=${{ github.ref_name }}&per_page=1"
+
+          echo "Fetching: $API"
+          RESPONSE=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$API") || {
+            echo "[SKIP] No successful build runs found for workflow $WORKFLOW on branch ${{ github.ref_name }}"
+            echo "[SKIP] This job will re-run via workflow_run once the build succeeds."
+            exit 0
+          }
+
+          # Find matching run for current SHA
+          RUN_ID=$(echo "$RESPONSE" | jq -r --arg SHA "${{ github.sha }}" \
+            '.workflow_runs[] | select(.head_sha == $SHA) | .id' | head -1)
+
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            # Fall back to latest successful run (no SHA match)
+            RUN_ID=$(echo "$RESPONSE" | jq -r '.workflow_runs[0].id // empty')
+          fi
+
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "[SKIP] No successful build runs found for branch ${{ github.ref_name }}"
+            echo "[SKIP] This job will re-run via workflow_run once the build succeeds."
+            exit 0
+          fi
+
+          echo "[SUCCESS] Found build run: $RUN_ID"
+
+          # Check build age
+          CREATED_AT=$(echo "$RESPONSE" | jq -r --argjson ID "$RUN_ID" '.workflow_runs[] | select(.id == $ID) | .created_at')
+          echo "[INFO] Run created: $CREATED_AT"
+
+          # Get artifacts
+          ARTIFACTS=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts") || {
+            echo "[ERROR] Failed to query artifacts API"
             exit 1
           }
 
+          echo "[INFO] Available artifacts:"
+          echo "$ARTIFACTS" | jq -r '.artifacts[].name'
+
+          # Find matching artifact based on install type
+          if [ "${{ env.INSTALL_TYPE }}" = "portable" ]; then
+            ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | test("portable.*amd64|amd64.*portable|portable")) | .id' | head -1)
+            # Fall back to any zip-like artifact
+            if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" = "null" ]; then
+              ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | test("shared.zip|zip")) | .id' | head -1)
+            fi
+          else
+            ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | test("installer.*amd64|amd64.*installer|installer")) | .id' | head -1)
+            # Fall back to any exe-like artifact
+            if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" = "null" ]; then
+              ARTIFACT_ID=$(echo "$ARTIFACTS" | jq -r '.artifacts[] | select(.name | test("shared.exe|exe")) | .id' | head -1)
+            fi
+          fi
+
+          if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" = "null" ]; then
+            echo "[ERROR] No artifact matching install type '${{ env.INSTALL_TYPE }}' found in run $RUN_ID"
+            exit 1
+          fi
+
+          echo "[PACKAGE] Found artifact ID: $ARTIFACT_ID"
+
+          # Download artifact
+          echo "[DOWNLOAD] Downloading artifact..."
+          curl -sfL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -o artifact.zip \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" || {
+            echo "[ERROR] Artifact download failed (HTTP error or network issue)"
+            ls -la artifact.zip 2>/dev/null
+            exit 1
+          }
+
+          # Validate the download is actually a zip
+          if ! file artifact.zip | grep -qi "zip"; then
+            echo "[ERROR] Downloaded file is not a valid zip archive"
+            ls -la artifact.zip
+            exit 1
+          fi
+
+          echo "[EXTRACT] Extracting..."
+          unzip -q -o artifact.zip -d build/
+
+          # Verify extraction
+          echo "[VERIFY] Checking extracted files:"
+          find build -name "*.exe" -o -name "*.msi" -o -name "*.zip" | while read f; do
+            echo "  - $f ($(du -h "$f" | cut -f1))"
+          done
+
+          FILE_COUNT=$(find build -name "*.exe" -o -name "*.msi" -o -name "*.zip" | wc -l)
+          if [ "$FILE_COUNT" -eq 0 ]; then
+            echo "[ERROR] No installer/executable files found after extraction"
+            find build -type f | head -20
+            exit 1
+          fi
+
+          echo "[SUCCESS] Download and extraction complete"
+          echo "artifact_available=true" >> $GITHUB_OUTPUT
+
       - name: Install and test application
+        if: steps.download.outputs.artifact_available == 'true'
         shell: powershell
         timeout-minutes: 60
         run: |
@@ -771,6 +750,7 @@ jobs:
           fi
 
       - name: Verify installation and application startup
+        if: steps.download.outputs.artifact_available == 'true'
         shell: powershell
         timeout-minutes: 10
         run: |

@@ -72,14 +72,16 @@ openterfaceQT
 
 ## Supported OS
 
-| OS | Version | Status |
-|---|---|---|
-| 🪟 **Windows** | 10, 11 (x86 only) | ✅ Supported |
-| 🐧 **Ubuntu** | 22.04+ | ✅ Supported |
-| **Linux Mint** | 21.3+ | ✅ Supported (Qt 6.4+ required) |
-| **openSUSE** | Tumbleweed | ✅ Supported (community-built) |
-| 🔋 **Raspberry Pi OS** | 64-bit | ✅ Supported |
-| 🔋 **Raspberry Pi OS** | 32-bit | ❌ Not supported (Qt too old) |
+| OS | Version | Architecture | Status |
+|---|---|---|---|
+| **Windows** | 10+ | x64 | ✅ Supported |
+| **Ubuntu** | 22.04+ | x64, ARM64 | ✅ Supported |
+| **Fedora** | 42+ | x64, ARM64 | ✅ Supported |
+| **Linux Mint** | 21.3+ | x64 | ✅ Supported |
+| **openSUSE** | Tumbleweed | x64 | ✅ Supported |
+| **Arch Linux** | Rolling | x64, ARM64 | ⚠️ Build from source only |
+| 🔋 **Raspberry Pi OS** | 64-bit | ARM64 | ✅ Supported |
+| 🔋 **Raspberry Pi OS** | 32-bit | ARM32 | ❌ Not supported (Qt too old) |
 
 ---
 

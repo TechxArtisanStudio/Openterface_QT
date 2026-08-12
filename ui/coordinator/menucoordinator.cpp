@@ -155,7 +155,7 @@ void MenuCoordinator::updateBaudrateMenu(int baudrate)
     }
 }
 
-void MenuCoordinator::showArmBaudratePerformanceRecommendation(int currentBaudrate)
+void MenuCoordinator::showArmBaudratePerformanceRecommendation(int /*currentBaudrate*/)
 {
     if (!m_parentWidget) {
         qCWarning(log_ui_menucoordinator) << "No parent widget for dialog";

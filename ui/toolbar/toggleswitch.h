@@ -36,7 +36,7 @@ protected:
     void paintEvent(QPaintEvent *e) override;
 
 private slots:
-    void handleStateChange(int value);
+    void handleStateChange(Qt::CheckState state);
 
 private:
     QBrush m_barBrush;

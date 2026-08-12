@@ -771,7 +771,7 @@ int SerialPortManager::determineBaudrate() const {
     return stored > 0 ? stored : DEFAULT_BAUDRATE;
 }
 
-bool SerialPortManager::openPortWithRetries(const QString &portName, int tryBaudrate) {
+bool SerialPortManager::openPortWithRetries(const QString &/*portName*/, int /*tryBaudrate*/) {
     // This method is now deprecated in favor of the async initialization methods
     // It should not be called in the new flow, but keeping it for backward compatibility
     qCWarning(log_core_serial) << "openPortWithRetries called - this should not happen with new async initialization";
@@ -1414,10 +1414,9 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     QMutexLocker locker(&m_serialPortMutex);
     
     // If there is an existing QSerialPort instance that is not open, delete it to avoid stale internal state (e.g., stale file descriptor / notifiers)
-    QSerialPort* oldSerialPort = nullptr;
     if (serialPort != nullptr && !serialPort->isOpen()) {
         qCDebug(log_core_serial) << "Existing closed QSerialPort instance found - marking for deletion to ensure fresh instance before open.";
-        oldSerialPort = serialPort;
+        delete serialPort;
         serialPort = nullptr;  // Clear pointer temporarily
     }
 
@@ -3372,7 +3371,6 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
     // Add lightweight consecutive "no-response" detection and automatic escalation:
     // - If we send requests but receive 0 responses for N consecutive 1-second intervals,
     //   trigger recovery (prefer ConnectionWatchdog; fallback to close+reopen).
-    static int s_consecutiveNoResponseIntervals = 0;
     const int NO_RESPONSE_ESCALATION_THRESHOLD = 3; // ~3 seconds of zero replies
     Q_UNUSED(NO_RESPONSE_ESCALATION_THRESHOLD);
     
@@ -3451,7 +3449,6 @@ void SerialPortManager::checkAndLogAsyncMessageStatistics()
             }
         } else {
             // No activity in this window; be conservative and reset counter
-            s_consecutiveNoResponseIntervals = 0;
         }
         
         // ===== RESET COUNTERS FOR NEXT INTERVAL =====

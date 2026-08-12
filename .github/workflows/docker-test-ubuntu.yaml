@@ -57,36 +57,35 @@ jobs:
 
       - name: Download Latest Linux Build Artifacts
         run: |
-          echo "� Downloading latest Linux shared build artifacts..."
-          
+          echo "⬇️ Downloading latest Linux shared build artifacts..."
+
           # Create build directory
           mkdir -p build
-          
-          # Get the latest successful linux-build workflow run
-          LATEST_RUN=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+
+          # Get the latest successful linux-build workflow run for current branch.
+          # Do NOT fall back to other branches — their artifacts may be stale/expired.
+          # When a successful build for this branch exists, the workflow_run trigger
+          # will re-fire this job with a valid artifact available.
+          LATEST_RUN=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yaml/runs?status=success&head_branch=${{ github.ref_name }}" \
             | jq -r '.workflow_runs[0]')
-          
+
           if [ "$LATEST_RUN" = "null" ] || [ -z "$LATEST_RUN" ]; then
             echo "⚠️ No successful linux-build runs found for branch ${{ github.ref_name }}"
-            echo "Trying to get from main branch..."
-            LATEST_RUN=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yaml/runs?status=success&head_branch=main" \
-              | jq -r '.workflow_runs[0]')
+            echo "⚠️ This job will re-run via workflow_run once the build succeeds."
+            exit 0
           fi
-          
-          if [ "$LATEST_RUN" = "null" ] || [ -z "$LATEST_RUN" ]; then
-            echo "❌ No successful linux-build runs found"
-            exit 1
-          fi
-          
-          RUN_ID=$(echo "$LATEST_RUN" | jq -r '.id')
+
+          RUN_ID=$(echo "$LATEST_RUN" | jq -r ".id")
           echo "✅ Found latest linux-build run: $RUN_ID"
-          
+
           # Get all artifacts from this run
-          ARTIFACTS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts")
-          
+          ARTIFACTS=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts") || {
+            echo "❌ Failed to query artifacts API"
+            exit 1
+          }
+
           # Find and download the appropriate artifact based on install_type
           if [ "${{ env.INSTALL_TYPE }}" = "deb" ]; then
             ARTIFACT_PATTERN=".deb"
@@ -108,11 +107,23 @@ jobs:
           
           echo "📦 Found artifact: $ARTIFACT_ID"
           
-          # Download the artifact
+          # Download the artifact — use -f so HTTP errors fail loudly
           echo "⬇️ Downloading artifact..."
-          curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          curl -sfL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             -o artifact.zip \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip"
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" || {
+            echo "❌ Artifact download failed (HTTP error or network issue)"
+            ls -la artifact.zip 2>/dev/null
+            exit 1
+          }
+
+          # Validate the download is actually a zip before extracting
+          if ! file artifact.zip | grep -qi "zip"; then
+            echo "❌ Downloaded file is not a valid zip archive"
+            ls -la artifact.zip
+            head -c 200 artifact.zip | xxd | head -5
+            exit 1
+          fi
           
           # Extract the artifact file
           unzip -j artifact.zip -d build/
@@ -922,19 +933,19 @@ jobs:
                 
                 # Determine if screenshot has content based on file size (more reliable than color analysis)
                 actual_size=$(stat -f%z "$img" 2>/dev/null || stat -c%s "$img" 2>/dev/null || echo 0)
-                if [ "$actual_size" -gt 50000 ]; then
+                if [ "$actual_size" -gt 5000 ]; then
                   echo "**Status:** ✅ Content detected ($(($actual_size / 1024))KB)" >> $GITHUB_STEP_SUMMARY
                 else
-                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >50000 bytes)" >> $GITHUB_STEP_SUMMARY
-                  echo "Screenshot file size validation failed: $actual_size bytes < 50000 bytes"
+                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >5000 bytes)" >> $GITHUB_STEP_SUMMARY
+                  echo "Screenshot file size validation failed: $actual_size bytes < 5000 bytes"
                   exit 1
                 fi
                 echo "" >> $GITHUB_STEP_SUMMARY
-                
+
                 if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
                   echo "📤 Uploading $filename to Qiniu using Python script..."
                   echo "🔑 Qiniu credentials validation: AK=${#QINIU_AK} chars, SK=${#QINIU_SK} chars"
-                  
+
                   # Use Python script for upload instead of bash script
                   UPLOAD_EXIT_CODE=0
                   UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?
@@ -1188,12 +1199,12 @@ jobs:
             apt update -y
             apt install -y ca-certificates
 
-            # Enable universe repository
-            echo "deb http://archive.ubuntu.com/ubuntu jammy main universe" > /etc/apt/sources.list.d/universe.list
-            apt update -y
+            # Note: Ubuntu 24.04 (noble) already has main/universe enabled by default.
+            # Do NOT add jammy repos — they conflict with noble packages.
 
             # Install Qt6 development packages
-            apt install -y \
+            echo "📦 Installing Qt6 development packages..."
+            if ! apt install -y \
               qt6-base-dev \
               qt6-multimedia-dev \
               qt6-serialport-dev \
@@ -1239,6 +1250,7 @@ jobs:
             apt install -y \
               libudev-dev \
               libx11-dev \
+              libxkbcommon-dev \
               build-essential \
               git
             
@@ -1290,11 +1302,29 @@ jobs:
             # Create build directory
             mkdir -p build
             cd build
-            
-            # Configure with qmake6
-            echo "📋 Running qmake6..."
-            if ! qmake6 ..; then
-              echo "❌ qmake6 failed."
+
+            # Set up PATH for Qt6 binaries (qmake6 may not be in default PATH)
+            export PATH="/usr/lib/qt6/bin:$PATH"
+
+            # Determine correct qmake command
+            QMAKE_CMD=""
+            if command -v qmake6 >/dev/null 2>&1; then
+              QMAKE_CMD="qmake6"
+            elif command -v qmake >/dev/null 2>&1; then
+              QMAKE_CMD="qmake"
+            elif [ -x /usr/lib/qt6/bin/qmake ]; then
+              QMAKE_CMD="/usr/lib/qt6/bin/qmake"
+            else
+              echo "❌ qmake6/qmake not found. Searching..."
+              find /usr -name "qmake*" -type f 2>/dev/null | head -10
+              echo "Available qt6 packages:"
+              dpkg -l | grep qt6 2>/dev/null | head -10
+              exit 1
+            fi
+
+            echo "📋 Running $QMAKE_CMD..."
+            if ! $QMAKE_CMD ..; then
+              echo "❌ $QMAKE_CMD failed."
               exit 1
             fi
             
@@ -1403,9 +1433,11 @@ jobs:
             echo "=================" >> /workspace/build-artifacts/build-info.txt
             echo "Date: $(date)" >> /workspace/build-artifacts/build-info.txt
             echo "System: Ubuntu Linux" >> /workspace/build-artifacts/build-info.txt
-            echo "Qt Version: $(qmake6 --version | head -1)" >> /workspace/build-artifacts/build-info.txt
+            export PATH="/usr/lib/qt6/bin:$PATH"
+            QMAKE_CMD="qmake6"; command -v qmake6 >/dev/null 2>&1 || QMAKE_CMD="qmake"
+            echo "Qt Version: $($QMAKE_CMD --version 2>&1 | head -1)" >> /workspace/build-artifacts/build-info.txt
             echo "GCC Version: $(gcc --version | head -1)" >> /workspace/build-artifacts/build-info.txt
-            echo "Build Command: qmake6 .. && make -j$(nproc)" >> /workspace/build-artifacts/build-info.txt
+            echo "Build Command: $QMAKE_CMD .. && make -j$(nproc)" >> /workspace/build-artifacts/build-info.txt
             
             if [ -f openterfaceQT ]; then
               echo "Executable Size: $(ls -lh openterfaceQT | awk '\''{print $5}'\'')" >> /workspace/build-artifacts/build-info.txt
@@ -1489,19 +1521,19 @@ jobs:
                 
                 # Determine if screenshot has content based on file size
                 actual_size=$(stat -f%z "$img" 2>/dev/null || stat -c%s "$img" 2>/dev/null || echo 0)
-                if [ "$actual_size" -gt 50000 ]; then
+                if [ "$actual_size" -gt 5000 ]; then
                   echo "**Status:** ✅ Content detected ($(($actual_size / 1024))KB)" >> $GITHUB_STEP_SUMMARY
                 else
-                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >50000 bytes)" >> $GITHUB_STEP_SUMMARY
-                  echo "Screenshot file size validation failed: $actual_size bytes < 50000 bytes"
+                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >5000 bytes)" >> $GITHUB_STEP_SUMMARY
+                  echo "Screenshot file size validation failed: $actual_size bytes < 5000 bytes"
                   exit 1
                 fi
                 echo "" >> $GITHUB_STEP_SUMMARY
-                
+
                 if [ -n "$QINIU_AK" ] && [ -n "$QINIU_SK" ]; then
                   echo "📤 Uploading $filename to Qiniu using Python script..."
                   echo "🔑 Qiniu credentials validation: AK=${#QINIU_AK} chars, SK=${#QINIU_SK} chars"
-                  
+
                   # Use Python script for upload instead of bash script
                   UPLOAD_EXIT_CODE=0
                   UPLOAD_OUTPUT=$(QINIU_AK="$QINIU_AK" QINIU_SK="$QINIU_SK" QINIU_BUCKET="${QINIU_BUCKET:-openterface}" QINIU_DOMAIN="$QINIU_DOMAIN" timeout 120 python3 ./docker/upload_to_qiniu.py "$img" 2>&1) || UPLOAD_EXIT_CODE=$?

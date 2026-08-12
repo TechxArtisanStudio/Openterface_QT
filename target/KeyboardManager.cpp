@@ -237,7 +237,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
 
             if (mappedKeyCode != 0) {
                 QChar unicodeChar(unicodeValue);
-                if (currentLayout.needAltGrKeys.contains(unicodeValue)) {
+                if (currentLayout.needAltGrKeys.contains(static_cast<int>(unicodeValue))) {
                     qDebug() << "Character requires AltGr, forcing modifier";
                     modifiers |= Qt::GroupSwitchModifier;
                 }

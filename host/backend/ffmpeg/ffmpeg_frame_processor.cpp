@@ -295,7 +295,7 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
 }
 
 QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodecContext* codec_context,
-                                                      bool is_recording, const QSize& targetSize)
+                                                      bool /*is_recording*/, const QSize& targetSize)
 {
     if (!temp_frame_) {
         temp_frame_ = make_av_frame();

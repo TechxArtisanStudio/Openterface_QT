@@ -710,7 +710,7 @@ void MainWindowInitializer::finalize()
     // This ensures both HID report building AND status bar updates go through
     // the same HostManager::keyboardManager instance (not the KeyboardManager singleton)
     connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::keyCaptured,
-            &HostManager::getInstance(), &HostManager::handleKeyboardAction);
+            &KeyboardManager::getInstance(), &KeyboardManager::handleKeyboardAction);
     qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to HostManager";
 
     // Always install the keyboard hook when the window is shown.

@@ -238,7 +238,10 @@ set(UI_ADVANCE_SOURCES
     ui/advance/edid/resolutionmodel.cpp ui/advance/edid/resolutionmodel.h
     ui/advance/edid/edidprocessor.cpp ui/advance/edid/edidprocessor.h
     ui/advance/recordingsettingsdialog.cpp ui/advance/recordingsettingsdialog.h
+    ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h
+    ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
     ui/advance/wchflash/WCHFlashWorker.cpp ui/advance/wchflash/WCHFlashWorker.h
+    ui/advance/wchflash/WCHFlashDialog.cpp ui/advance/wchflash/WCHFlashDialog.h
     ui/advance/keyboardmapeditor.cpp ui/advance/keyboardmapeditor.h
 )
 
@@ -286,13 +289,6 @@ set(UI_RECORDING_SOURCES
 # UI floating window sources
 set(UI_FLOATING_WINDOW_SOURCES
     ui/floatingwindow/floatingwindow.cpp ui/floatingwindow/floatingwindow.h
-)
-
-# UI custom key sources
-set(UI_CUSTOMKEY_SOURCES
-    ui/customkey/customkeymanager.cpp ui/customkey/customkeymanager.h
-    ui/customkey/customkeydialog.cpp ui/customkey/customkeydialog.h
-    ui/customkey/virtualkeyboardpage.cpp ui/customkey/virtualkeyboardpage.h
 )
 
 # UI custom key sources

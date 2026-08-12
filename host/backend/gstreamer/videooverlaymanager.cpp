@@ -16,7 +16,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 static bool x11_overlay_error_occurred_local = false;
-static int x11_overlay_error_handler_local(Display* display, XErrorEvent* error) {
+static int x11_overlay_error_handler_local(Display* /*display*/, XErrorEvent* /*error*/) {
     x11_overlay_error_occurred_local = true;
     return 0;
 }

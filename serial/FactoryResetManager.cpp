@@ -50,7 +50,6 @@ bool FactoryResetManager::handleFactoryResetInternal()
 
         QTimer::singleShot(4000, this, [this, currentPortName]() {
             qCDebug(log_core_serial) << "  [4s timer] Setting RTS to high...";
-            bool success = false;
             if (m_owner->serialPort && m_owner->serialPort->setRequestToSend(false)) {
                 qCDebug(log_core_serial) << "  [4s timer] ✓ RTS set to high successfully";
                 emit factoryReset(false);
@@ -73,8 +72,6 @@ bool FactoryResetManager::handleFactoryResetInternal()
                         // Let SerialPortManager handle ready-state polling / retries
                     });
                 });
-
-                success = true;
             } else {
                 qCWarning(log_core_serial) << "  [4s timer] Failed to set RTS to high";
                 emit factoryResetCompleted(false);

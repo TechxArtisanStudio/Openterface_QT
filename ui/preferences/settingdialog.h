@@ -87,10 +87,10 @@ private:
     LogPage *logPage;
     QWidget *audioPage;
     VideoPage *videoPage;
+    McpPage *mcpPage;
     TargetControlPage *targetControlPage;
     FirmwarePage *firmwarePage;
     ControlChipFirmwarePage *controlChipFirmwarePage;
-    McpPage *mcpPage;
     EdidConfigPage *edidConfigPage;
     VirtualKeyboardPage *virtualKeyboardPage;
 

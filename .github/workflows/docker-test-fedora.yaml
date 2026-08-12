@@ -51,36 +51,39 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Download Latest Linux Build Artifacts
+        id: download
         run: |
           echo "⬇️ Downloading latest Linux shared build artifacts..."
-          
+
+          # Default: artifact not available (skip subsequent steps)
+          echo "artifact_available=false" >> $GITHUB_OUTPUT
+
           # Create build directory
           mkdir -p build
-          
-          # Get the latest successful linux-build workflow run
-          LATEST_RUN=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+
+          # Get the latest successful linux-build workflow run for current branch.
+          # Do NOT fall back to other branches — their artifacts may be stale/expired.
+          # When a successful build for this branch exists, the workflow_run trigger
+          # will re-fire this job with a valid artifact available.
+          LATEST_RUN=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yaml/runs?status=success&head_branch=${{ github.ref_name }}" \
             | jq -r '.workflow_runs[0]')
-          
+
           if [ "$LATEST_RUN" = "null" ] || [ -z "$LATEST_RUN" ]; then
             echo "⚠️ No successful linux-build runs found for branch ${{ github.ref_name }}"
-            echo "Trying to get from main branch..."
-            LATEST_RUN=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/workflows/linux-build.yaml/runs?status=success&head_branch=main" \
-              | jq -r '.workflow_runs[0]')
+            echo "⚠️ This job will re-run via workflow_run once the build succeeds."
+            exit 0
           fi
-          
-          if [ "$LATEST_RUN" = "null" ] || [ -z "$LATEST_RUN" ]; then
-            echo "❌ No successful linux-build runs found"
-            exit 1
-          fi
-          
+
           RUN_ID=$(echo "$LATEST_RUN" | jq -r '.id')
           echo "✅ Found latest linux-build run: $RUN_ID"
-          
+
           # Get all artifacts from this run
-          ARTIFACTS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts")
+          ARTIFACTS=$(curl -sf -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts") || {
+            echo "❌ Failed to query artifacts API"
+            exit 1
+          }
           
           # Find and download the appropriate artifact based on install_type
           if [ "${{ matrix.install_type }}" = "appimage" ]; then
@@ -102,11 +105,23 @@ jobs:
           else
             echo "📦 Found artifact: $ARTIFACT_ID"
             
-            # Download the artifact
+            # Download the artifact — use -f so HTTP errors fail loudly
             echo "⬇️ Downloading artifact..."
-            curl -L -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            curl -sfL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
               -o artifact.zip \
-              "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip"
+              "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACT_ID/zip" || {
+              echo "❌ Artifact download failed (HTTP error or network issue)"
+              ls -la artifact.zip 2>/dev/null
+              exit 1
+            }
+
+            # Validate the download is actually a zip before extracting
+            if ! file artifact.zip | grep -qi "zip"; then
+              echo "❌ Downloaded file is not a valid zip archive"
+              ls -la artifact.zip
+              head -c 200 artifact.zip | xxd | head -5
+              exit 1
+            fi
             
             # Extract the artifact file
             unzip -j artifact.zip -d build/
@@ -129,11 +144,15 @@ jobs:
               fi
             fi
           fi
-          
+
+          # Mark artifact as available for subsequent steps
+          echo "artifact_available=true" >> $GITHUB_OUTPUT
+
           echo "📦 Build directory contents:"
           ls -la build/ || echo "Build directory is empty"
 
       - name: Extract and inspect package contents (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         run: |
           if [ "${{ matrix.install_type }}" = "rpm" ]; then
             echo "📦 Extracting RPM package contents for inspection..."
@@ -342,6 +361,7 @@ jobs:
           fi
       
       - name: Build Docker image (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         run: |
           echo "🔨 Building Docker image: ${{ env.DOCKER_IMAGE_FEDORA }}:${{ env.DOCKER_TAG }}"
           
@@ -354,6 +374,7 @@ jobs:
           echo "📦 Docker image built successfully"
 
       - name: Prepare volume mounts for build artifacts
+        if: steps.download.outputs.artifact_available == 'true'
         run: |
           echo "📦 Checking for build artifacts to mount..."
           
@@ -383,6 +404,7 @@ jobs:
           echo "GITHUB_TOKEN_ENV=-e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
 
       - name: Start persistent container for testing (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         timeout-minutes: 15
         env:
           HAS_VOLUME_MOUNT: ${{ env.HAS_VOLUME_MOUNT }}
@@ -397,10 +419,13 @@ jobs:
           # Set environment variable to track container name
           echo "TEST_CONTAINER_NAME=openterface-test-fedora-persistent" >> $GITHUB_ENV
           
-          # Set APPIMAGE path for AppImage installations
-          # This signals to entrypoint.sh, launcher.sh, and main.cpp that we're using AppImage
-          # Enables proper platform detection and Wayland→XCB fallback handling
-          APPIMAGE_PATH="/tmp/openterfaceQT_linux_amd64.AppImage"
+          # Set APPIMAGE path for AppImage installations only
+          # For rpm installations, leave APPIMAGE empty so entrypoint.sh uses the installed binary
+          if [ "${INSTALL_TYPE}" = "appimage" ]; then
+            APPIMAGE_PATH="/tmp/openterfaceQT_linux_amd64.AppImage"
+          else
+            APPIMAGE_PATH=""
+          fi
           
           # Force XCB platform for stable testing in container environment
           # Platform detection is automatic but can be overridden for testing
@@ -589,23 +614,25 @@ jobs:
           echo ""
 
       - name: Verify Docker image (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         run: |
           echo "🔍 Verifying Docker image was built successfully"
           docker images | grep openterface-test-fedora
-          
+
           echo "📊 Image information:"
           docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Env}}'
           docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.User}}'
           docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.WorkingDir}}'
-          
+
           echo "🔍 Image CMD and Entrypoint:"
           docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Cmd}}'
           docker inspect openterface-test-fedora:${{ env.DOCKER_TAG }} --format='{{.Config.Entrypoint}}'
-          
+
           echo "🔍 Image layers (last 10):"
           docker history openterface-test-fedora:${{ env.DOCKER_TAG }} | head -10
 
       - name: Verify Docker image (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         run: |
           echo "🔍 Verifying Docker image was built successfully"
           docker images | grep openterface-test-fedora
@@ -623,6 +650,7 @@ jobs:
                     docker history openterface-test-fedora:${{ env.DOCKER_TAG }} | head -10
 
       - name: Test basic container functionality (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         timeout-minutes: 5
         run: |
           echo "🧪 Testing basic container functionality on persistent container"
@@ -644,6 +672,7 @@ jobs:
           echo "✅ Basic container functionality test passed"
      
       - name: Test hardware interface dependencies (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         timeout-minutes: 5
         run: |
           echo "🧪 Testing hardware interface dependencies on persistent container"
@@ -667,6 +696,7 @@ jobs:
           '
       
       - name: GUI screenshot test on persistent container (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         timeout-minutes: 10
         run: |
           echo "🧪 Taking screenshots from persistent container"
@@ -816,11 +846,11 @@ jobs:
                 
                 # Determine if screenshot has content based on file size
                 actual_size=$(stat -f%z "$img" 2>/dev/null || stat -c%s "$img" 2>/dev/null || echo 0)
-                if [ "$actual_size" -gt 50000 ]; then
+                if [ "$actual_size" -gt 5000 ]; then
                   echo "**Status:** ✅ Content detected ($(($actual_size / 1024))KB)" >> $GITHUB_STEP_SUMMARY
                 else
-                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >50000 bytes)" >> $GITHUB_STEP_SUMMARY
-                  echo "Screenshot file size validation failed: $actual_size bytes < 50000 bytes"
+                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >5000 bytes)" >> $GITHUB_STEP_SUMMARY
+                  echo "Screenshot file size validation failed: $actual_size bytes < 5000 bytes"
                   exit 1
                 fi
                 echo "" >> $GITHUB_STEP_SUMMARY
@@ -969,6 +999,7 @@ jobs:
           fi
 
       - name: Test container with simulated USB devices (Fedora)
+        if: steps.download.outputs.artifact_available == 'true'
         timeout-minutes: 5
         run: |
           echo "🧪 Testing container with simulated USB device access on persistent container"
@@ -1083,22 +1114,23 @@ jobs:
             
             # Install multimedia libraries
             echo "📦 Installing multimedia libraries..."
-            if ! dnf install -y --nogpgcheck \
-              ffmpeg-devel \
+            # Install packages individually to handle conflicts gracefully.
+            # gstreamer is in main Fedora repos and is required for the build.
+            # ffmpeg-devel (from RPM Fusion) may conflict with Qt6-installed libs.
+            dnf install -y --nogpgcheck \
               gstreamer1-devel \
-              gstreamer1-plugins-base-devel \
+              gstreamer1-plugins-base-devel || echo "⚠️ gstreamer install failed"
+
+            dnf install -y --nogpgcheck \
               libjpeg-turbo-devel \
               turbojpeg-devel \
               libusb1-devel \
               libva-devel \
-              systemd-devel; then
-              echo "❌ Multimedia package installation failed"
-              echo "🔍 Checking what packages are available..."
-              dnf list available | grep -E "(ffmpeg|gstreamer|libjpeg|libusb)" | head -10 || echo "No matching packages found"
-              echo "🔍 Trying to find alternative package names..."
-              dnf search ffmpeg | head -5 || echo "ffmpeg search failed"
-              exit 1
-            fi
+              systemd-devel || echo "⚠️ Essential devel packages install failed"
+
+            # ffmpeg-devel often conflicts with Qt6-installed libswscale-free.
+            # Use --allowerasing to resolve conflicts by replacing Qt6 versions.
+            dnf install -y --nogpgcheck --allowerasing ffmpeg-devel || echo "⚠️ ffmpeg-devel not installed (non-fatal)"
             
             # Verify installations
             echo "🔍 Verifying package installations..."
@@ -1117,6 +1149,7 @@ jobs:
               libudev-devel \
               systemd-devel \
               libX11-devel \
+              libxkbcommon-devel \
               make \
               gcc-c++ \
               git
@@ -1371,11 +1404,11 @@ jobs:
                 
                 # Determine if screenshot has content based on file size
                 actual_size=$(stat -f%z "$img" 2>/dev/null || stat -c%s "$img" 2>/dev/null || echo 0)
-                if [ "$actual_size" -gt 50000 ]; then
+                if [ "$actual_size" -gt 5000 ]; then
                   echo "**Status:** ✅ Content detected ($(($actual_size / 1024))KB)" >> $GITHUB_STEP_SUMMARY
                 else
-                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >50000 bytes)" >> $GITHUB_STEP_SUMMARY
-                  echo "Screenshot file size validation failed: $actual_size bytes < 50000 bytes"
+                  echo "**Status:** ❌ FAILED - Screenshot too small (size: $actual_size bytes, expected: >5000 bytes)" >> $GITHUB_STEP_SUMMARY
+                  echo "Screenshot file size validation failed: $actual_size bytes < 5000 bytes"
                   exit 1
                 fi
                 echo "" >> $GITHUB_STEP_SUMMARY

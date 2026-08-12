@@ -97,7 +97,7 @@ MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
         if (overlayWidget && m_videoPane->viewport()) {
             rawPos = overlayWidget->mapTo(m_videoPane->viewport(), rawPos);
         } else if (m_videoPane->viewport()) {
-            rawPos = m_videoPane->viewport()->mapFromGlobal(event->globalPos());
+            rawPos = m_videoPane->viewport()->mapFromGlobal(event->globalPosition().toPoint());
         }
     }
 
@@ -381,7 +381,7 @@ void InputHandler::handleMouseMoveEvent(QMouseEvent *event)
     m_pendingMouseMoveEvent = new QMouseEvent(
         event->type(),
         event->pos(),
-        event->globalPos(),
+        event->globalPosition().toPoint(),
         event->button(),
         event->buttons(),
         event->modifiers()
@@ -472,23 +472,12 @@ void InputHandler::handleMousePressEvent(QMouseEvent* event)
     }
     
     // CRITICAL: Check if mouse has moved to a different position BEFORE updating m_lastMousePressPos
-    bool mousePositionChanged = (currentPos != m_lastMousePressPos);
-    
     // Update duplicate detection state
     m_lastMousePressTime = currentTime;
     m_lastMousePressPos = currentPos;
     m_lastPressButton = currentButton;
-    
-    // CRITICAL DEBUG: Log exact coordinates at press
-    // qCWarning(log_ui_input) << "=== MOUSE PRESS ===";
-    // qCWarning(log_ui_input) << "  Raw event->pos():" << event->pos();
-    // qCWarning(log_ui_input) << "  Before calc - lastX/lastY:" << QPoint(lastX, lastY);
-    // qCWarning(log_ui_input) << "  Mouse position changed:" << mousePositionChanged;
-    
+
     QScopedPointer<MouseEventDTO> eventDto;
-    
-    // Check if this might be a double-click scenario (fast second press within 500ms)
-    bool isPotentialDoubleClick = (timeSinceLastPress > 5 && timeSinceLastPress < 500);
     
     // CRITICAL FIX for double-click coordinate stability:
     // Strategy: ALWAYS save coordinates on EVERY press for potential future double-click

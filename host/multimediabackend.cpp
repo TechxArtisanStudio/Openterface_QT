@@ -58,13 +58,13 @@ void MultimediaBackendHandler::configureCameraDevice()
     logBackendMessage("Default: Configuring camera device.");
 }
 
-void MultimediaBackendHandler::setupCaptureSession(QMediaCaptureSession* session)
+void MultimediaBackendHandler::setupCaptureSession(QMediaCaptureSession* /*session*/)
 {
     // Default implementation: Standard setup
     logBackendMessage("Default: Setting up capture session.");
 }
 
-void MultimediaBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput)
+void MultimediaBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* /*session*/, QObject* /*videoOutput*/)
 {
     // Default implementation: No special preparation
     logBackendMessage("Default: Preparing video output connection.");
