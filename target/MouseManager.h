@@ -128,7 +128,7 @@ public:
 
     void handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement);
     void handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement);
-    void scrollWheel(int direction, int lines);
+    void scrollWheel(int direction);
     void setEventCallback(StatusEventCallback* callback);
     void startAutoMoveMouse();
     void stopAutoMoveMouse();

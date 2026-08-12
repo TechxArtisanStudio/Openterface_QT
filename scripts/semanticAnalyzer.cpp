@@ -640,7 +640,7 @@ MouseParams SemanticAnalyzer::parserClickParam(const QString& command) {
 void SemanticAnalyzer::analyzeScrollStatement(const CommandStatementNode* node) {
     const auto& options = node->getOptions();
     if (options.empty()) {
-        qCDebug(log_script) << "Scroll: no parameters provided. Usage: Scroll up|down [, lines]";
+        qCDebug(log_script) << "Scroll: no parameters provided. Usage: Scroll up|down";
         return;
     }
 
@@ -674,5 +674,5 @@ void SemanticAnalyzer::analyzeScrollStatement(const CommandStatementNode* node) 
     qCDebug(log_script) << "Scroll: direction=" << (scrollDirection > 0 ? "up" : "down")
                         << "lines=" << lines;
 
-    mouseManager->scrollWheel(scrollDirection, lines);
+    mouseManager->scrollWheel(scrollDirection);
 }

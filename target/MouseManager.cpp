@@ -122,35 +122,26 @@ uint8_t MouseManager::mapScrollWheel(int delta){
     if(delta == 0){
         return 0;
     }else if(delta > 0){
-        return uint8_t(delta / 100);
+        return uint8_t(delta / 50);
     }else{
-        return 0xFF - uint8_t(-1*delta / 100)+1;
+        return 0xFF - uint8_t(-1*delta / 50)+1;
     }
 }
 
-void MouseManager::scrollWheel(int direction, int lines) {
+void MouseManager::scrollWheel(int direction) {
     // direction: positive = scroll up, negative = scroll down
-    // lines: number of scroll lines (default 1)
-    if (lines <= 0) {
-        lines = 1;
-    }
-
-    qCDebug(log_core_mouse) << "Scroll wheel - direction:" << direction
-                            << "lines:" << lines;
+    // Sends a single scroll-wheel packet. For multi-line scrolling, the
+    // caller should invoke this method multiple times with Sleep between calls.
+    qCDebug(log_core_mouse) << "Scroll wheel - direction:" << direction;
 
     // Reuse last known coordinates; fall back to (0, 0) if never moved
     int x = lastX;
     int y = lastY;
 
     // Route through handleAbsoluteMouseAction to ensure the exact same
-    // packet assembly as the UI wheel path (button byte, stopAutoMoveMouse, etc.).
-    // Each line uses delta=100 so mapScrollWheel(100) → 1.
-    // Add a short delay between packets so the firmware can process each one.
-    int deltaPerLine = direction * 100;
-    for (int i = 0; i < lines; ++i) {
-        handleAbsoluteMouseAction(x, y, 0, deltaPerLine);
-        QThread::msleep(30);
-    }
+    // packet assembly as the UI wheel path.
+    int delta = direction * 100;
+    handleAbsoluteMouseAction(x, y, 0, delta);
 }
 
 void MouseManager::startAutoMoveMouse() {
