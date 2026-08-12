@@ -123,6 +123,7 @@ SOURCES += main.cpp \
     ui/advance/recordingsettingsdialog.cpp \
     ui/advance/diagnostics/SupportEmailDialog.cpp \
     ui/advance/wchflash/WCHFlashWorker.cpp \
+    ui/advance/wchflash/WCHFlashDialog.cpp \
     ui/advance/keyboardmapeditor.cpp \
     ui/initializer/mainwindowinitializer.cpp \
     ui/statusbar/statusbarmanager.cpp \
@@ -140,11 +141,14 @@ SOURCES += main.cpp \
     ui/preferences/videopage.cpp \
     ui/preferences/audiopage.cpp \
     ui/preferences/mcppage.cpp \
+    ui/preferences/firmwarepage.cpp \
+    ui/preferences/edidconfigpage.cpp \
     ui/preferences/controlchipfirmwarepage.cpp \
     ui/preferences/targetcontrolpage.cpp \
     ui/floatingwindow/floatingwindow.cpp \
     ui/customkey/customkeymanager.cpp \
     ui/customkey/customkeydialog.cpp \
+    ui/customkey/virtualkeyboardpage.cpp \
     SysKeyBlocker/SystemKeyBlocker.cpp
 
 # Platform-specific backend handlers (exclude on Windows)
@@ -286,6 +290,7 @@ HEADERS  += \
     ui/advance/recordingsettingsdialog.h \
     ui/advance/diagnostics/SupportEmailDialog.h \
     ui/advance/wchflash/WCHFlashWorker.h \
+    ui/advance/wchflash/WCHFlashDialog.h \
     ui/advance/keyboardmapeditor.h \
     ui/initializer/mainwindowinitializer.h \
     ui/statusbar/statusbarmanager.h \
@@ -303,10 +308,13 @@ HEADERS  += \
     ui/preferences/videopage.h \
     ui/preferences/audiopage.h \
     ui/preferences/mcppage.h \
+    ui/preferences/firmwarepage.h \
+    ui/preferences/edidconfigpage.h \
     ui/preferences/controlchipfirmwarepage.h \
     ui/floatingwindow/floatingwindow.h \
     ui/customkey/customkeymanager.h \
     ui/customkey/customkeydialog.h \
+    ui/customkey/virtualkeyboardpage.h \
     SysKeyBlocker/SystemKeyBlocker.h
 
 FORMS    += \
