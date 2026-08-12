@@ -29,6 +29,52 @@
         {"displayName": "Home", "keyCodes": [16777232], "isSeparator": false},
         {"displayName": "End", "keyCodes": [16777233], "isSeparator": false},
         {"displayName": "PgUp", "keyCodes": [16777238], "isSeparator": false},
-        {"displayName": "PgDn", "keyCodes": [16777239], "isSeparator": false}
+        {"displayName": "PgDn", "keyCodes": [16777239], "isSeparator": false},
+
+        {"displayName": "", "keyCodes": [], "isSeparator": true},
+
+        {"displayName": "A", "keyCodes": [65], "isSeparator": false},
+        {"displayName": "B", "keyCodes": [66], "isSeparator": false},
+        {"displayName": "C", "keyCodes": [67], "isSeparator": false},
+        {"displayName": "D", "keyCodes": [68], "isSeparator": false},
+        {"displayName": "E", "keyCodes": [69], "isSeparator": false},
+        {"displayName": "F", "keyCodes": [70], "isSeparator": false},
+        {"displayName": "G", "keyCodes": [71], "isSeparator": false},
+        {"displayName": "H", "keyCodes": [72], "isSeparator": false},
+        {"displayName": "I", "keyCodes": [73], "isSeparator": false},
+        {"displayName": "J", "keyCodes": [74], "isSeparator": false},
+        {"displayName": "K", "keyCodes": [75], "isSeparator": false},
+        {"displayName": "L", "keyCodes": [76], "isSeparator": false},
+        {"displayName": "M", "keyCodes": [77], "isSeparator": false},
+        {"displayName": "N", "keyCodes": [78], "isSeparator": false},
+        {"displayName": "O", "keyCodes": [79], "isSeparator": false},
+        {"displayName": "P", "keyCodes": [80], "isSeparator": false},
+        {"displayName": "Q", "keyCodes": [81], "isSeparator": false},
+        {"displayName": "R", "keyCodes": [82], "isSeparator": false},
+        {"displayName": "S", "keyCodes": [83], "isSeparator": false},
+        {"displayName": "T", "keyCodes": [84], "isSeparator": false},
+        {"displayName": "U", "keyCodes": [85], "isSeparator": false},
+        {"displayName": "V", "keyCodes": [86], "isSeparator": false},
+        {"displayName": "W", "keyCodes": [87], "isSeparator": false},
+        {"displayName": "X", "keyCodes": [88], "isSeparator": false},
+        {"displayName": "Y", "keyCodes": [89], "isSeparator": false},
+        {"displayName": "Z", "keyCodes": [90], "isSeparator": false},
+
+        {"displayName": "", "keyCodes": [], "isSeparator": true},
+
+        {"displayName": "0", "keyCodes": [48], "isSeparator": false},
+        {"displayName": "1", "keyCodes": [49], "isSeparator": false},
+        {"displayName": "2", "keyCodes": [50], "isSeparator": false},
+        {"displayName": "3", "keyCodes": [51], "isSeparator": false},
+        {"displayName": "4", "keyCodes": [52], "isSeparator": false},
+        {"displayName": "5", "keyCodes": [53], "isSeparator": false},
+        {"displayName": "6", "keyCodes": [54], "isSeparator": false},
+        {"displayName": "7", "keyCodes": [55], "isSeparator": false},
+        {"displayName": "8", "keyCodes": [56], "isSeparator": false},
+        {"displayName": "9", "keyCodes": [57], "isSeparator": false},
+
+        {"displayName": "", "keyCodes": [], "isSeparator": true},
+
+        {"displayName": "Space", "keyCodes": [32], "isSeparator": false}
     ]
 }
