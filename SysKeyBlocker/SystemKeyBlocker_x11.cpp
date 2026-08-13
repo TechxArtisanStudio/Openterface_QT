@@ -309,6 +309,7 @@ private:
     ::Window         m_tlw     = 0;         // Our window ID
     QTimer          *m_pollTimer = nullptr;  // Polls grab connection for events
     bool             m_grabbed  = false;
+    bool             m_inFocusTransition = false;  // Reentrancy guard for grab/ungrab
 };
 
 SystemKeyBlocker::X11KeyGrabber::X11KeyGrabber(SystemKeyBlocker *blocker)
@@ -570,22 +571,36 @@ bool SystemKeyBlocker::X11KeyGrabber::nativeEventFilter(
     // When our window loses focus, ungrab the keyboard so the host OS
     // can process system shortcuts (Ctrl+Alt+F1, Alt+Tab, etc.).
     // When focus returns, re-grab to resume capture.
+    //
+    // IMPORTANT: XGrabKeyboard / XUngrabKeyboard themselves generate FocusOut
+    // and FocusIn events (with mode NotifyGrab / NotifyUngrab).  If we reacted
+    // to those, we'd enter an infinite grab→FocusOut→ungrab→FocusIn→grab loop
+    // that freezes the application.  Only respond to "real" focus changes
+    // (mode == NotifyNormal), which come from the user clicking another window
+    // or the window manager moving focus.
     xcb_generic_event_t *event = static_cast<xcb_generic_event_t *>(message);
     uint responseType = event->response_type & ~0x80;
 
     if (responseType == XCB_FOCUS_OUT) {
         xcb_focus_out_event_t *focusOut = reinterpret_cast<xcb_focus_out_event_t *>(event);
-        if (focusOut->event == m_tlw && m_grabbed) {
-            qCInfo(log_syskey_x11) << "Window lost focus (FocusOut), ungrabbing keyboard";
+        if (focusOut->event == m_tlw && m_grabbed && !m_inFocusTransition
+            && focusOut->mode == XCB_NOTIFY_MODE_NORMAL) {
+            qCInfo(log_syskey_x11) << "Window lost focus (FocusOut, NotifyNormal), ungrabbing keyboard";
+            m_inFocusTransition = true;
             ungrabKeyboard();
+            m_inFocusTransition = false;
             // Reset modifier state to avoid stuck keys
             g_modifierState = ModifierKeyState{};
         }
     } else if (responseType == XCB_FOCUS_IN) {
         xcb_focus_in_event_t *focusIn = reinterpret_cast<xcb_focus_in_event_t *>(event);
-        if (focusIn->event == m_tlw && !m_grabbed && m_blocker && m_blocker->isActive()) {
-            qCInfo(log_syskey_x11) << "Window regained focus (FocusIn), re-grabbing keyboard";
+        if (focusIn->event == m_tlw && !m_grabbed && !m_inFocusTransition
+            && m_blocker && m_blocker->isActive()
+            && focusIn->mode == XCB_NOTIFY_MODE_NORMAL) {
+            qCInfo(log_syskey_x11) << "Window regained focus (FocusIn, NotifyNormal), re-grabbing keyboard";
+            m_inFocusTransition = true;
             grabKeyboard();
+            m_inFocusTransition = false;
         }
     }
 
