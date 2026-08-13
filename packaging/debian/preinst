@@ -67,9 +67,11 @@ DEPENDENCIES=(
     "libva-x11.so.2|libva-x11-2|VA-API X11 support|no"
     "libvdpau.so.1|libvdpau1|VDPAU for video decode acceleration|no"
     
-    # Hard dependency (application links against it)
-    "libturbojpeg.so.0|libturbojpeg0|JPEG compression for video capture|yes"
-    
+    # NOTE: libturbojpeg is checked separately below (Phase 2) because the package
+    # was renamed from libturbojpeg0 to libturbojpeg on Ubuntu 24.04+.
+    # The ldconfig check here would fail on systems where the library is provided
+    # by the renamed package, so we defer to the dpkg-based either/or check.
+
     # Compression
     "libz.so.1|zlib1g|Compression library|yes"
     "libbz2.so.1.0|libbz2-1.0|Bzip2 compression support|yes"
@@ -303,8 +305,15 @@ for pkg in "${TURBOJPEG_DEPS[@]}"; do
     fi
 done
 if [ "$TURBOJPEG_FOUND" -eq 0 ]; then
-    echo "    ❌ Neither libturbojpeg0 nor libturbojpeg is installed (REQUIRED)"
-    MISSING_DEPS+=("libturbojpeg0 | libturbojpeg")
+    # Detect the correct package name for this distro:
+    # Ubuntu 24.04+ and Debian 13+ renamed libturbojpeg0 → libturbojpeg
+    if apt-cache show libturbojpeg >/dev/null 2>&1; then
+        TURBOJPEG_PKG="libturbojpeg"
+    else
+        TURBOJPEG_PKG="libturbojpeg0"
+    fi
+    echo "    ❌ $TURBOJPEG_PKG is not installed (REQUIRED)"
+    MISSING_DEPS+=("$TURBOJPEG_PKG")
 fi
 
 # Check Compression dependencies
@@ -338,14 +347,11 @@ echo "Missing: ${#MISSING_DEPS[@]}/$TOTAL_DEPS"
 echo ""
 
 if [ ${#MISSING_DEPS[@]} -eq 0 ]; then
-    print_success "All required dependencies are installed!"
+    echo "✅ All required dependencies are installed."
     echo ""
-    for entry in "${MISSING_REQUIRED[@]}"; do
-        IFS='|' read -r pkg desc <<< "$entry"
-        echo "  ❌ $pkg"
-        echo "     └─ $desc"
-        echo ""
-    done
+    echo "Proceeding with OpenterfaceQT installation..."
+    echo ""
+    exit 0
 fi
 
 if [ ${#MISSING_OPTIONAL[@]} -gt 0 ]; then
@@ -369,12 +375,10 @@ echo "How to fix"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# Build package lists
-REQUIRED_PKGS=()
-for entry in "${MISSING_REQUIRED[@]}"; do
-    IFS='|' read -r pkg desc <<< "$entry"
-    REQUIRED_PKGS+=("$pkg")
-done
+# Build install command from Phase 2's MISSING_DEPS results (which correctly
+# handle the libturbojpeg0/libturbojpeg rename). Phase 1's MISSING_REQUIRED
+# is no longer used for the exit decision because it hardcoded old package names.
+REQUIRED_PKGS=("${MISSING_DEPS[@]}")
 
 OPTIONAL_PKGS=()
 for entry in "${MISSING_OPTIONAL[@]}"; do
@@ -400,6 +404,8 @@ fi
 echo "3. Then retry installing OpenterfaceQT:"
 echo ""
 echo "   sudo dpkg -i openterfaceQT_linux_amd64.deb"
+echo ""
+echo "   Or use 'sudo apt install ./openterfaceQT_linux_amd64.deb' to auto-resolve dependencies."
 echo ""
 
 if [ ${#REQUIRED_PKGS[@]} -gt 0 ]; then
