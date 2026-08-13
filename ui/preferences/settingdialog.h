@@ -96,8 +96,6 @@ private:
 
     QSplitter *splitter;
     int m_currentPageIndex;
-    bool m_changingPage;
-    QTimer *m_pageChangeTimer;
 
     void createSettingTree();
     void createLayout();

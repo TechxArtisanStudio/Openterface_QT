@@ -54,7 +54,6 @@
 #include <QLoggingCategory>
 #include <QSettings>
 #include <QElapsedTimer>
-#include <qtimer.h>
 #include <QList>
 #include <QSerialPortInfo>
 #include <QLineEdit>
@@ -77,8 +76,6 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     , edidConfigPage(new EdidConfigPage(this))
     , virtualKeyboardPage(new VirtualKeyboardPage(this))
     , m_currentPageIndex(-1)
-    , m_changingPage(false)
-    , m_pageChangeTimer(new QTimer(this))
 
 {
     ui->setupUi(this);
@@ -102,13 +99,7 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     mcpPage->initMcpSettings();
     // Connect the tree widget's currentItemChanged signal to a slot
     connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
-    
-    // Connect timer to reset the changing page flag
-    connect(m_pageChangeTimer, &QTimer::timeout, this, [this]() {
-        m_changingPage = false;
-        m_pageChangeTimer->stop();
-    });
-    
+
     // Set initial page to General (index 0)
     if (settingTree->topLevelItemCount() > 0) {
         settingTree->setCurrentItem(settingTree->topLevelItem(0));
@@ -163,7 +154,6 @@ void SettingDialog::createPages() {
     addScrollablePage(logPage);
     addScrollablePage(videoPage);
     addScrollablePage(audioPage);
-    addScrollablePage(mcpPage);
     addScrollablePage(targetControlPage);
     addScrollablePage(mcpPage);
     addScrollablePage(firmwarePage);
@@ -188,11 +178,6 @@ void SettingDialog::createLayout() {
 
 void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous) {
 
-    // If we're already changing pages, ignore this call
-    if (m_changingPage) {
-        return;
-    }
-
     if (!current) {
         current = previous;
         if (!current) return;
@@ -213,14 +198,8 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
 
     // Only switch page if it's different from the current page
     if (newPageIndex != -1 && newPageIndex != m_currentPageIndex) {
-        m_changingPage = true;  // Set guard
-        
         stackedWidget->setCurrentIndex(newPageIndex);
         m_currentPageIndex = newPageIndex;
-        
-        // Start timer to reset the guard after a short delay (200ms)
-        // This prevents rapid clicking while allowing the UI to remain responsive
-        m_pageChangeTimer->start(200);
     }
 
 }
