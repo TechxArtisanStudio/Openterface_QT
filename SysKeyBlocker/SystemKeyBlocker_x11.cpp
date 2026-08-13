@@ -42,22 +42,6 @@
 Q_LOGGING_CATEGORY(log_syskey_x11, "opf.systemkey.x11")
 
 /* ============================================================================
- *  Modifier key state tracking
- * ============================================================================ */
-
-struct ModifierKeyState {
-    bool lShift = false;
-    bool rShift = false;
-    bool lCtrl  = false;
-    bool rCtrl  = false;
-    bool lAlt   = false;
-    bool rAlt   = false;
-    bool lSuper = false;
-    bool rSuper = false;
-};
-static ModifierKeyState g_modifierState;
-
-/* ============================================================================
  *  GNOME System Shortcut Blocker
  *
  *  In GNOME Wayland environment, Mutter intercepts system shortcuts
@@ -72,6 +56,9 @@ static ModifierKeyState g_modifierState;
  *
  *  Uses QProcess::startDetached() to be fully non-blocking, avoiding
  *  main thread deadlock.
+ *
+ *  NOTE: With the current X11KeyCaptureFilter approach (no XGrabKeyboard),
+ *  this class is no longer called. It is kept for potential future use.
  * ============================================================================ */
 
 // List of GNOME shortcuts to disable
@@ -269,327 +256,127 @@ private:
 };
 
 /* ============================================================================
- *  X11KeyGrabber — Grab the entire keyboard via XGrabKeyboard()
+ *  X11KeyCaptureFilter — Passive keyboard capture via QAbstractNativeEventFilter
  *
- *  Uses a SEPARATE X11 Display connection for the grab. This is critical:
- *  events from XGrabKeyboard are delivered to the grabbing client's
- *  connection. We use a QTimer to poll for events on the grab connection
- *  and forward them to the target machine.
+ *  Mirrors the Windows WH_KEYBOARD_LL approach:
+ *  - Installs on Qt's own XCB connection (no separate Display, no XGrabKeyboard)
+ *  - Only intercepts keyboard events when our window has focus
+ *  - Always forwards via keyCaptured signal
+ *  - When swallow is ON: consumes event (return true → Qt doesn't process)
+ *  - When swallow is OFF: lets event pass (return false → Qt processes normally)
  *
- *  We also install a QAbstractNativeEventFilter on Qt's connection to
- *  watch for FocusIn/FocusOut on our window, so we can re-grab when
- *  focus returns (the grab is lost on focus-out).
+ *  No XGrabKeyboard → no global keyboard grab → no focus stealing, no lag.
+ *  No separate Display connection, no polling timer, no synchronous X calls.
  *
  *  No Q_OBJECT — no .moc file needed.
  * ============================================================================ */
 
-class SystemKeyBlocker::X11KeyGrabber : public QAbstractNativeEventFilter
+class SystemKeyBlocker::X11KeyCaptureFilter : public QAbstractNativeEventFilter
 {
 public:
-    X11KeyGrabber(SystemKeyBlocker *blocker);
-    ~X11KeyGrabber() override;
+    X11KeyCaptureFilter(SystemKeyBlocker *blocker, ::Window tlw);
+    ~X11KeyCaptureFilter() override;
 
-    bool grabKeyboard();
-    void ungrabKeyboard();
-    bool isGrabbed() const { return m_grabbed; }
-
-    // QAbstractNativeEventFilter — track focus changes on Qt's connection
     bool nativeEventFilter(const QByteArray &eventType,
                            void *message,
                            qintptr *result) override;
 
-    // Called by timer to process grabbed events
-    void processEvents();
+    void resetModifierState() { m_modState = ModifierKeyState{}; }
 
 private:
-    void handleKeyEvent(quint32 keysym, quint32 state, bool isPress);
+    struct ModifierKeyState {
+        bool lShift = false;
+        bool rShift = false;
+        bool lCtrl  = false;
+        bool rCtrl  = false;
+        bool lAlt   = false;
+        bool rAlt   = false;
+        bool lSuper = false;
+        bool rSuper = false;
+    };
 
     SystemKeyBlocker *m_blocker = nullptr;
-    Display         *m_grabDpy = nullptr;   // Separate X connection for grab
-    ::Window         m_tlw     = 0;         // Our window ID
-    QTimer          *m_pollTimer = nullptr;  // Polls grab connection for events
-    bool             m_grabbed  = false;
+    ::Window          m_tlw     = 0;
+    Display          *m_dpy     = nullptr;   // Cached X display for keysym conversion
+    ModifierKeyState  m_modState;
 };
 
-SystemKeyBlocker::X11KeyGrabber::X11KeyGrabber(SystemKeyBlocker *blocker)
-    : m_blocker(blocker)
+SystemKeyBlocker::X11KeyCaptureFilter::X11KeyCaptureFilter(SystemKeyBlocker *blocker, ::Window tlw)
+    : m_blocker(blocker), m_tlw(tlw)
 {
-    // Open a SEPARATE X display connection for grabbing.
-    // Events from XGrabKeyboard will be delivered to this connection.
-    m_grabDpy = XOpenDisplay(nullptr);
-    if (!m_grabDpy) {
-        qCWarning(log_syskey_x11) << "Cannot open X11 display for grab";
-        return;
+    // Open a display connection for keysym conversion (cached for the lifetime of the filter)
+    m_dpy = XOpenDisplay(nullptr);
+    if (!m_dpy) {
+        qCWarning(log_syskey_x11) << "Cannot open X11 display for keysym conversion";
     }
-
-    // Get our visible top-level window ID
-    const QWindowList topLevels = QGuiApplication::topLevelWindows();
-    for (QWindow *w : topLevels) {
-        if (w->isVisible()) {
-            m_tlw = static_cast<::Window>(w->winId());
-            break;
-        }
-    }
-
-    if (!m_tlw) {
-        qCWarning(log_syskey_x11) << "No visible top-level window found";
-        return;
-    }
-
-    // Use a QTimer to poll the grab connection for events.
-    // 5ms interval = ~200Hz polling, low latency for key events.
-    m_pollTimer = new QTimer();
-    m_pollTimer->setInterval(5);
-    QObject::connect(m_pollTimer, &QTimer::timeout, [this]() {
-        processEvents();
-    });
-
-    qCInfo(log_syskey_x11) << "X11KeyGrabber initialized: window=" << m_tlw;
+    qCInfo(log_syskey_x11) << "X11KeyCaptureFilter initialized: window=" << m_tlw;
 }
 
-SystemKeyBlocker::X11KeyGrabber::~X11KeyGrabber()
+SystemKeyBlocker::X11KeyCaptureFilter::~X11KeyCaptureFilter()
 {
-    if (m_grabbed)
-        ungrabKeyboard();
-
-    if (m_pollTimer) {
-        m_pollTimer->stop();
-        delete m_pollTimer;
-        m_pollTimer = nullptr;
-    }
-
-    if (m_grabDpy) {
-        XCloseDisplay(m_grabDpy);
-        m_grabDpy = nullptr;
+    if (m_dpy) {
+        XCloseDisplay(m_dpy);
+        m_dpy = nullptr;
     }
 }
 
-bool SystemKeyBlocker::X11KeyGrabber::grabKeyboard()
-{
-    if (m_grabbed || !m_grabDpy || !m_tlw) {
-        qCInfo(log_syskey_x11) << "grabKeyboard() skipped: m_grabbed=" << m_grabbed
-                               << "m_grabDpy=" << m_grabDpy << "m_tlw=" << m_tlw;
-        return m_grabbed;
-    }
-
-    qCInfo(log_syskey_x11) << "Attempting XGrabKeyboard on window" << m_tlw;
-
-    // XGrabKeyboard: active grab on our separate display connection.
-    // - owner_events=False: ALL key events go to the grab window (m_tlw),
-    //   regardless of which window actually has focus. This is critical:
-    //   with True, events go to the window on our connection that has focus,
-    //   but since we're on a separate connection, that's unreliable.
-    // - GrabModeAsync: key/mouse events continue normally (no freeze)
-    //
-    // With owner_events=False, X server delivers ALL key events to m_tlw
-    // on our grab connection. This blocks Alt+Tab completely because the
-    // WM never sees the Alt key at all.
-    int status = XGrabKeyboard(
-        m_grabDpy,
-        m_tlw,
-        False,          // owner_events = False (critical!)
-        GrabModeAsync,  // pointer_mode
-        GrabModeAsync,  // keyboard_mode
-        CurrentTime
-    );
-
-    if (status == GrabSuccess) {
-        m_grabbed = true;
-        XFlush(m_grabDpy);
-        // Start polling for grabbed events
-        if (m_pollTimer)
-            m_pollTimer->start();
-        qCInfo(log_syskey_x11) << "Keyboard grabbed successfully on window" << m_tlw
-                                << "(owner_events=False)";
-    } else {
-        const char *reason = "Unknown";
-        switch (status) {
-            case AlreadyGrabbed:  reason = "AlreadyGrabbed";  break;
-            case GrabNotViewable: reason = "GrabNotViewable"; break;
-            case GrabFrozen:      reason = "GrabFrozen";      break;
-            case GrabInvalidTime: reason = "GrabInvalidTime"; break;
-        }
-        qCWarning(log_syskey_x11) << "XGrabKeyboard failed, status:" << status
-                                   << "(" << reason << ")";
-    }
-
-    return m_grabbed;
-}
-
-void SystemKeyBlocker::X11KeyGrabber::ungrabKeyboard()
-{
-    if (!m_grabDpy || !m_tlw) {
-        qCInfo(log_syskey_x11) << "ungrabKeyboard() skipped: m_grabDpy=" << m_grabDpy
-                               << "m_tlw=" << m_tlw;
-        return;
-    }
-
-    qCInfo(log_syskey_x11) << "Calling XUngrabKeyboard on window" << m_tlw << "m_grabbed=" << m_grabbed;
-
-    // Stop polling
-    if (m_pollTimer)
-        m_pollTimer->stop();
-
-    XUngrabKeyboard(m_grabDpy, CurrentTime);
-    XFlush(m_grabDpy);
-    m_grabbed = false;
-    qCInfo(log_syskey_x11) << "Keyboard ungrabbed";
-}
-
-void SystemKeyBlocker::X11KeyGrabber::processEvents()
-{
-    if (!m_grabDpy) {
-        qCWarning(log_syskey_x11) << "processEvents() called but m_grabDpy is null!";
-        return;
-    }
-
-    // Don't return early if !m_grabbed - X server might still be delivering events
-    // even during re-grab attempts. We want to process any pending events.
-
-    // Process all pending events on our grab connection
-    int eventCount = 0;
-    int keyEventCount = 0;
-    while (m_grabDpy && XPending(m_grabDpy) > 0) {
-        XEvent ev;
-        XNextEvent(m_grabDpy, &ev);
-        eventCount++;
-
-        if (ev.type == KeyPress || ev.type == KeyRelease) {
-            keyEventCount++;
-            const XKeyEvent &ke = ev.xkey;
-            const bool isDown = (ev.type == KeyPress);
-
-            // Convert keycode to keysym
-            KeySym ks = XkbKeycodeToKeysym(m_grabDpy, ke.keycode, 0, 0);
-
-            qCInfo(log_syskey_x11) << "✓ Key event on grab connection:" << (isDown ? "PRESS" : "RELEASE")
-                                   << "keycode:" << ke.keycode << "keysym:" << ks
-                                   << "state:" << Qt::hex << ke.state;
-
-            handleKeyEvent(static_cast<quint32>(ks),
-                           static_cast<quint32>(ke.state),
-                           isDown);
-        } else if (ev.type == FocusIn || ev.type == FocusOut) {
-            // Focus events on grab connection - check if we lost the grab
-            const XFocusChangeEvent &fe = ev.xfocus;
-            qCInfo(log_syskey_x11) << "Focus event on GRAB connection:"
-                                   << (ev.type == FocusIn ? "FocusIn" : "FocusOut")
-                                   << "window:" << fe.window
-                                   << "mode:" << fe.mode
-                                   << "detail:" << fe.detail;
-
-            // When grab is lost due to FocusOut with NotifyWhileGrabbed,
-            // we need to mark as ungrabbed and schedule a re-grab
-            // But DON'T stop the timer - keep processing events
-            if (ev.type == FocusOut && fe.mode == NotifyWhileGrabbed && m_grabbed) {
-                qCWarning(log_syskey_x11) << "✗ Keyboard grab LOST! Scheduling re-grab in 100ms...";
-                m_grabbed = false;
-                // Keep timer running - don't stop it, so we continue processing events
-                // Schedule re-grab after a short delay
-                QTimer::singleShot(100, [this]() {
-                    qCInfo(log_syskey_x11) << "Attempting to re-grab keyboard...";
-                    grabKeyboard();
-                });
-            }
-        } else {
-            qCDebug(log_syskey_x11) << "Other event on grab connection, type:" << ev.type;
-        }
-    }
-
-    if (eventCount > 0) {
-        qCInfo(log_syskey_x11) << "processEvents() processed" << eventCount << "total events,"
-                               << keyEventCount << "key events";
-    }
-}
-
-void SystemKeyBlocker::X11KeyGrabber::handleKeyEvent(quint32 keysym, quint32 /*state*/, bool isDown)
-{
-    qCInfo(log_syskey_x11) << "handleKeyEvent() called: keysym=" << keysym << "isDown=" << isDown;
-
-    if (!m_blocker) {
-        qCWarning(log_syskey_x11) << "ERROR: m_blocker is null!";
-        return;
-    }
-
-    // Track modifier state
-    // Use hardcoded X11 keysym values to ensure correct matching
-    // XK_Shift_L=0xFFE1, XK_Shift_R=0xFFE2
-    // XK_Control_L=0xFFE3, XK_Control_R=0xFFE4
-    // XK_Alt_L=0xFFE9, XK_Alt_R=0xFFEA
-    // XK_Super_L=0xFFEB, XK_Super_R=0xFFEC
-    // XK_Meta_L=0xFFE7, XK_Meta_R=0xFFE8
-    qCInfo(log_syskey_x11) << "Before tracking: lAlt=" << g_modifierState.lAlt << "rAlt=" << g_modifierState.rAlt
-                           << "lSuper=" << g_modifierState.lSuper << "rSuper=" << g_modifierState.rSuper;
-
-    switch (keysym) {
-        case 0xFFE1:    g_modifierState.lShift = isDown; break; // XK_Shift_L
-        case 0xFFE2:    g_modifierState.rShift = isDown; break; // XK_Shift_R
-        case 0xFFE3:    g_modifierState.lCtrl  = isDown; break; // XK_Control_L
-        case 0xFFE4:    g_modifierState.rCtrl  = isDown; break; // XK_Control_R
-        case 0xFFE9:    g_modifierState.lAlt   = isDown; qCInfo(log_syskey_x11) << "Setting lAlt=" << isDown; break; // XK_Alt_L
-        case 0xFFEA:    g_modifierState.rAlt   = isDown; qCInfo(log_syskey_x11) << "Setting rAlt=" << isDown; break; // XK_Alt_R
-        case 0xFFEB:    g_modifierState.lSuper = isDown; break; // XK_Super_L
-        case 0xFFEC:    g_modifierState.rSuper = isDown; break; // XK_Super_R
-        case 0xFFE7:    g_modifierState.lSuper = isDown; break; // XK_Meta_L
-        case 0xFFE8:    g_modifierState.rSuper = isDown; break; // XK_Meta_R
-        default: break;
-    }
-
-    qCInfo(log_syskey_x11) << "After tracking: lAlt=" << g_modifierState.lAlt << "rAlt=" << g_modifierState.rAlt
-                           << "lSuper=" << g_modifierState.lSuper << "rSuper=" << g_modifierState.rSuper;
-
-    // Build modifier mask
-    int modifiers = 0;
-    if (g_modifierState.lShift || g_modifierState.rShift) modifiers |= Qt::ShiftModifier;
-    if (g_modifierState.lCtrl  || g_modifierState.rCtrl)  modifiers |= Qt::ControlModifier;
-    if (g_modifierState.lAlt   || g_modifierState.rAlt)   modifiers |= Qt::AltModifier;
-    if (g_modifierState.lSuper || g_modifierState.rSuper) modifiers |= Qt::MetaModifier;
-
-    // Translate to Qt key code and emit
-    const int qtKey = m_blocker->nativeToQtKey(keysym, false);
-
-    qCInfo(log_syskey_x11) << "✓ Emitting keyCaptured signal: qtKey=" << qtKey
-                           << "modifiers=" << Qt::hex << modifiers
-                           << "nativeVk=" << keysym
-                           << "lAlt=" << g_modifierState.lAlt
-                           << "rAlt=" << g_modifierState.rAlt
-                           << "lSuper=" << g_modifierState.lSuper
-                           << "rSuper=" << g_modifierState.rSuper;
-
-    emit m_blocker->keyCaptured(qtKey, modifiers, isDown, keysym);
-    qCInfo(log_syskey_x11) << "✓ Signal emitted successfully";
-}
-
-bool SystemKeyBlocker::X11KeyGrabber::nativeEventFilter(
+bool SystemKeyBlocker::X11KeyCaptureFilter::nativeEventFilter(
     const QByteArray &eventType, void *message, qintptr * /*result*/)
 {
     if (eventType != QByteArrayLiteral("xcb_generic_event_t"))
         return false;
 
-    // Track focus changes on Qt's connection.
-    // When our window loses focus, ungrab the keyboard so the host OS
-    // can process system shortcuts (Ctrl+Alt+F1, Alt+Tab, etc.).
-    // When focus returns, re-grab to resume capture.
     xcb_generic_event_t *event = static_cast<xcb_generic_event_t *>(message);
     uint responseType = event->response_type & ~0x80;
 
-    if (responseType == XCB_FOCUS_OUT) {
-        xcb_focus_out_event_t *focusOut = reinterpret_cast<xcb_focus_out_event_t *>(event);
-        if (focusOut->event == m_tlw && m_grabbed) {
-            qCInfo(log_syskey_x11) << "Window lost focus (FocusOut), ungrabbing keyboard";
-            ungrabKeyboard();
-            // Reset modifier state to avoid stuck keys
-            g_modifierState = ModifierKeyState{};
-        }
-    } else if (responseType == XCB_FOCUS_IN) {
-        xcb_focus_in_event_t *focusIn = reinterpret_cast<xcb_focus_in_event_t *>(event);
-        if (focusIn->event == m_tlw && !m_grabbed && m_blocker && m_blocker->isActive()) {
-            qCInfo(log_syskey_x11) << "Window regained focus (FocusIn), re-grabbing keyboard";
-            grabKeyboard();
-        }
+    // Only handle keyboard events
+    if (responseType != XCB_KEY_PRESS && responseType != XCB_KEY_RELEASE)
+        return false;
+
+    // Only intercept when our app window is active (mirrors Windows GetForegroundWindow check)
+    if (!QGuiApplication::activeWindow())
+        return false;
+
+    xcb_key_press_event_t *ke = reinterpret_cast<xcb_key_press_event_t *>(event);
+    const bool isDown = (responseType == XCB_KEY_PRESS);
+
+    // Convert keycode to keysym (using cached display connection)
+    if (!m_dpy) return false;
+    KeySym keysym = XkbKeycodeToKeysym(m_dpy, ke->detail, 0, 0);
+
+    qCDebug(log_syskey_x11) << "Key" << (isDown ? "PRESS" : "RELEASE")
+                            << "keycode:" << ke->detail << "keysym:" << keysym;
+
+    // Track modifier state
+    switch (keysym) {
+        case XK_Shift_L:   m_modState.lShift = isDown; break;
+        case XK_Shift_R:   m_modState.rShift = isDown; break;
+        case XK_Control_L: m_modState.lCtrl  = isDown; break;
+        case XK_Control_R: m_modState.rCtrl  = isDown; break;
+        case XK_Alt_L:     m_modState.lAlt   = isDown; break;
+        case XK_Alt_R:     m_modState.rAlt   = isDown; break;
+        case XK_Super_L:   m_modState.lSuper = isDown; break;
+        case XK_Super_R:   m_modState.rSuper = isDown; break;
+        case XK_Meta_L:    m_modState.lSuper = isDown; break;
+        case XK_Meta_R:    m_modState.rSuper = isDown; break;
+        default: break;
     }
 
-    return false;  // Never swallow — let Qt handle normally
+    // Build modifier mask
+    int modifiers = 0;
+    if (m_modState.lShift || m_modState.rShift) modifiers |= Qt::ShiftModifier;
+    if (m_modState.lCtrl  || m_modState.rCtrl)  modifiers |= Qt::ControlModifier;
+    if (m_modState.lAlt   || m_modState.rAlt)   modifiers |= Qt::AltModifier;
+    if (m_modState.lSuper || m_modState.rSuper) modifiers |= Qt::MetaModifier;
+
+    // Translate to Qt key code and emit
+    const int qtKey = m_blocker->nativeToQtKey(keysym, false);
+
+    emit m_blocker->keyCaptured(qtKey, modifiers, isDown, static_cast<quint32>(keysym));
+
+    // Swallow if enabled (local OS won't see the key)
+    // When OFF, let Qt process the event normally (local OS also sees it)
+    return m_blocker->isSwallowEnabled();
 }
 
 /* ============================================================================
@@ -599,40 +386,34 @@ bool SystemKeyBlocker::X11KeyGrabber::nativeEventFilter(
 bool SystemKeyBlocker::startImpl(quintptr /*nativeParentHwnd*/)
 {
     qCInfo(log_syskey) << "=== startImpl() called ===";
-    qCInfo(log_syskey) << "Resetting modifier state";
 
-    g_modifierState = ModifierKeyState{};
+    // Get our visible top-level window ID for the capture filter
+    ::Window tlw = 0;
+    const QWindowList topLevels = QGuiApplication::topLevelWindows();
+    for (QWindow *w : topLevels) {
+        if (w->isVisible()) {
+            tlw = static_cast<::Window>(w->winId());
+            break;
+        }
+    }
 
-    // In Wayland + GNOME environment, Mutter intercepts system shortcuts
-    // (Super, Alt+Tab, Alt+Space, etc.)
-    // Temporarily disable all conflicting shortcuts so XGrabKeyboard can capture them.
-    qCInfo(log_syskey) << "Disabling GNOME system shortcuts (Wayland workaround)...";
-    GnomeShortcutBlocker::instance().disableAll();
-
-    // Strategy: Use X11 XGrabKeyboard to capture all keyboard input
-    // This grabs the entire keyboard before it reaches the desktop environment
-    // Note: On Wayland, XGrabKeyboard may not capture all system keys due to
-    // compositor security restrictions. For full Wayland support, a different
-    // approach would be needed (e.g., compositor-specific protocols).
-
-    // Create X11 grabber
-    qCInfo(log_syskey) << "Creating X11KeyGrabber...";
-    m_x11Grabber = new X11KeyGrabber(this);
-
-    // Install the grabber's native event filter on Qt's connection
-    qCInfo(log_syskey) << "Installing native event filter...";
-    QCoreApplication::instance()->installNativeEventFilter(m_x11Grabber);
-
-    // Grab the entire keyboard
-    qCInfo(log_syskey) << "Attempting initial keyboard grab...";
-    if (!m_x11Grabber->grabKeyboard()) {
-        qCWarning(log_syskey) << "Failed to grab keyboard on startup";
-        // Restore shortcuts on failure
-        GnomeShortcutBlocker::instance().restoreAll();
+    if (!tlw) {
+        qCWarning(log_syskey) << "No visible top-level window found, cannot start capture";
         return false;
     }
 
-    qCInfo(log_syskey) << "Initial keyboard grab succeeded (X11 backend)";
+    // Strategy: Use QAbstractNativeEventFilter on Qt's own XCB connection.
+    // This is equivalent to the Windows WH_KEYBOARD_LL approach:
+    // - No global keyboard grab (no XGrabKeyboard)
+    // - Only intercepts when our window has focus
+    // - No separate Display connection, no polling timer, no synchronous X calls
+    qCInfo(log_syskey) << "Creating X11KeyCaptureFilter (passive capture, no XGrabKeyboard)...";
+    m_x11Filter = new X11KeyCaptureFilter(this, tlw);
+
+    qCInfo(log_syskey) << "Installing native event filter on Qt's connection...";
+    QCoreApplication::instance()->installNativeEventFilter(m_x11Filter);
+
+    qCInfo(log_syskey) << "X11 keyboard capture started (passive filter, no grab)";
     return true;
 }
 
@@ -640,29 +421,12 @@ void SystemKeyBlocker::stopImpl()
 {
     qCInfo(log_syskey) << "Stopping key capture";
 
-    // Stop X11 grabber if active
-    if (m_x11Grabber) {
-        qCInfo(log_syskey) << "Stopping X11 grabber...";
-        // 1) Ungrab keyboard FIRST
-        if (m_x11Grabber) {
-            m_x11Grabber->ungrabKeyboard();
-        }
-
-        // 2) Remove event filter
-        if (m_x11Grabber) {
-            QCoreApplication::instance()->removeNativeEventFilter(m_x11Grabber);
-        }
-
-        // 3) Delete the grabber (closes its Display connection)
-        if (m_x11Grabber) {
-            delete m_x11Grabber;
-            m_x11Grabber = nullptr;
-        }
+    if (m_x11Filter) {
+        qCInfo(log_syskey) << "Removing native event filter...";
+        QCoreApplication::instance()->removeNativeEventFilter(m_x11Filter);
+        delete m_x11Filter;
+        m_x11Filter = nullptr;
     }
 
-    // Restore GNOME system shortcuts (allow Super, Alt+Tab, Alt+Space etc. to control host normally)
-    qCInfo(log_syskey) << "Restoring GNOME system shortcuts...";
-    GnomeShortcutBlocker::instance().restoreAll();
-
-    g_modifierState = ModifierKeyState{};
+    qCInfo(log_syskey) << "X11 keyboard capture stopped";
 }

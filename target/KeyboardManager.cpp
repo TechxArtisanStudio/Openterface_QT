@@ -246,7 +246,7 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     }
 
     // X11 keysym fallback for common keys when nativeVirtualKey is set
-    // This handles keys coming from X11KeyGrabber that weren't in the layout keyMap
+    // This handles keys coming from X11KeyCaptureFilter that weren't in the layout keyMap
     if (mappedKeyCode == 0 && nativeVirtualKey != 0) {
         switch (nativeVirtualKey) {
             case 0xFF09: // XK_Tab
