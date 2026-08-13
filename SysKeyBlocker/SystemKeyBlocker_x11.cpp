@@ -333,8 +333,9 @@ bool SystemKeyBlocker::X11KeyCaptureFilter::nativeEventFilter(
     if (responseType != XCB_KEY_PRESS && responseType != XCB_KEY_RELEASE)
         return false;
 
-    // Only intercept when our app window is active (mirrors Windows GetForegroundWindow check)
-    if (!QGuiApplication::activeWindow())
+    // Only intercept when our app window has keyboard focus
+    // (mirrors Windows GetForegroundWindow check in lowLevelKeyboardProc)
+    if (!QGuiApplication::focusWindow())
         return false;
 
     xcb_key_press_event_t *ke = reinterpret_cast<xcb_key_press_event_t *>(event);
