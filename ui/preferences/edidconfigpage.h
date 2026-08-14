@@ -46,6 +46,9 @@ public:
     explicit EdidConfigPage(QWidget *parent = nullptr);
     ~EdidConfigPage();
 
+protected:
+    void showEvent(QShowEvent *event) override;
+
 private slots:
     void onDisplayNameCheckChanged(bool checked);
     void onApplyButtonClicked();

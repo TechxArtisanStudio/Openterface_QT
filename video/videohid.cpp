@@ -7,6 +7,7 @@
 #include <atomic>
 #include <QThread>
 #include <QLoggingCategory>
+#include <QMutexLocker>
 #include <QRegularExpression>
 #include <QFile>
 #include <QFileInfo>
@@ -268,6 +269,16 @@ void VideoHid::pollDeviceStatus() {
     try {
         bool currentSwitchOnTarget = getGpio0();
         // qCDebug(log_host_hid) << "chip type" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
+
+        // Track HDMI input state every cycle so UI code can rely on the
+        // poller instead of issuing its own USB reads.
+        bool hdmiNow = isHdmiConnected();
+        bool previous = m_lastHdmiConnected.exchange(hdmiNow);
+        if (previous != hdmiNow) {
+            qCDebug(log_host_hid) << "HDMI input status changed:" << (hdmiNow ? "connected" : "disconnected");
+            emit hdmiInputStatusChanged(hdmiNow);
+        }
+
         if (eventCallback) {
             VideoHidResolutionInfo info = getInputStatus();
             normalizeResolution(info);
@@ -359,6 +370,10 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
     if (m_flashInProgress.load(std::memory_order_acquire)) {
         return qMakePair(QByteArray(1, 0), false);
     }
+    // Serialize the whole command+response transaction; otherwise a concurrent
+    // reader (e.g. the polling thread) can inject its own command between our
+    // send and get and we would read its response.
+    QMutexLocker locker(&m_registerIoMutex);
     // Different approaches for different chip types
     qCDebug(log_host_hid).nospace().noquote() << QString("usbXdataRead4Byte called for address: 0x%1 chip type: %2")
         .arg(QString::number(u16_address, 16).rightJustified(4, '0').toUpper())
@@ -384,6 +399,7 @@ QPair<QByteArray, bool> VideoHid::usbXdataRead4Byte(quint16 u16_address) {
 
 
 bool VideoHid::usbXdataWrite4Byte(quint16 u16_address, QByteArray data) {
+    QMutexLocker locker(&m_registerIoMutex);
     if (!m_chipImpl) return false;
     qCDebug(log_host_hid) << "Writing to address:" << QString("0x%1").arg(u16_address, 4, 16, QChar('0'))
         << "chip:" << m_chipImpl->name() << "data:" << data.toHex(' ').toUpper();
@@ -490,6 +506,13 @@ void VideoHid::endTransaction() {
 
 bool VideoHid::isInTransaction() const {
     return m_inTransaction;
+}
+
+bool VideoHid::isHidDevicePresent() {
+    if (isOpen()) return true;
+    if (!m_deviceTransport) return false;
+    // Enumeration probe; the path lookup is cached (~10s) so this is cheap.
+    return !m_deviceTransport->getHIDDevicePath().isEmpty();
 }
 
 void VideoHid::connectToHotplugMonitor()

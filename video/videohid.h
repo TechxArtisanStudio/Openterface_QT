@@ -85,6 +85,13 @@ public:
     bool getSpdifout();
 
     bool isHdmiConnected();
+    // Last HDMI input state observed by the polling thread. Lets UI code use
+    // the poller's result instead of issuing its own USB reads.
+    bool lastKnownHdmiConnected() const { return m_lastHdmiConnected.load(std::memory_order_acquire); }
+    // True when the HID device is currently open or can be enumerated.
+    // isOpen() alone is unreliable because chip-level reads open/close the
+    // handle per operation.
+    bool isHidDevicePresent();
     std::string getFirmwareVersion();
     inline std::string getLatestFirmwareVersion()  { return m_netClient.getLatestVersion(); }
     inline std::string getCurrentFirmwareVersion() { return m_currentfirmwareVersion; }
@@ -169,6 +176,8 @@ signals:
     void hidDeviceSwitched(const QString& fromPortChain, const QString& toPortChain);
     void hidDeviceConnected(const QString& devicePath);
     void hidDeviceDisconnected(const QString& devicePath);
+    // Emitted when the polled HDMI input connection state changes
+    void hdmiInputStatusChanged(bool connected);
     void gpio0StatusChanged(bool isToTarget);
 
 private:
@@ -228,6 +237,9 @@ private:
     QString devicePath;
     std::atomic_bool isHardSwitchOnTarget{false};
 
+    // Last HDMI input connection state observed by the polling thread
+    std::atomic_bool m_lastHdmiConnected{false};
+
     StatusEventCallback* eventCallback = nullptr;
 
     bool writeChunk(quint16 address, const QByteArray &data,
@@ -247,6 +259,12 @@ private:
 
     // Mutex for thread-safe device handle operations
     QRecursiveMutex m_deviceHandleMutex;
+
+    // Serializes register-level transactions (command send + response read)
+    // across threads. The transport mutex only protects individual send/get
+    // calls; without this, the polling thread and a UI-thread reader can
+    // interleave and read each other's responses.
+    QMutex m_registerIoMutex;
 
     // Current HID device tracking
     QString m_currentHIDDevicePath;
