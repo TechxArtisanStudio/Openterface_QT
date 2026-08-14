@@ -50,6 +50,7 @@
 #include <QMessageBox>
 #include <QCloseEvent>
 #include <QList>
+#include <QStringList>
 #include "../customkey/virtualkeyboardpage.h"
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
@@ -112,6 +113,7 @@ private:
 
     // Unsaved changes protection
     bool hasUnsavedChanges() const;
+    QStringList dirtyPageNames() const;
     void applyAllDirtyPages();
     QMessageBox::StandardButton promptSaveDiscardCancel();
 

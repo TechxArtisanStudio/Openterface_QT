@@ -103,15 +103,15 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     videoPage->initVideoSettings();
     targetControlPage->initHardwareSetting();
     mcpPage->initMcpSettings();
-    // Connect the tree widget's currentItemChanged signal to a slot
-    connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
-
-    // Set initial page to General (index 0)
+    // Set initial page to General (index 0) - before connecting signal to avoid spurious changePage
     if (settingTree->topLevelItemCount() > 0) {
-        settingTree->setCurrentItem(settingTree->topLevelItem(0));
         m_currentPageIndex = 0;
         stackedWidget->setCurrentIndex(0);
+        settingTree->setCurrentItem(settingTree->topLevelItem(0));
     }
+
+    // Connect signal AFTER all init is complete to avoid false unsaved-changes triggers
+    connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
 }
 
 SettingDialog::~SettingDialog()
@@ -266,6 +266,17 @@ bool SettingDialog::hasUnsavedChanges() const
     return false;
 }
 
+QStringList SettingDialog::dirtyPageNames() const
+{
+    QStringList names;
+    for (int i = 0; i < settingTree->topLevelItemCount() && i < m_pages.size(); ++i) {
+        if (m_pages[i] && m_pages[i]->isDirty()) {
+            names << settingTree->topLevelItem(i)->text(0);
+        }
+    }
+    return names;
+}
+
 void SettingDialog::applyAllDirtyPages()
 {
     for (auto *page : m_pages) {
@@ -279,10 +290,19 @@ void SettingDialog::applyAllDirtyPages()
 
 QMessageBox::StandardButton SettingDialog::promptSaveDiscardCancel()
 {
+    QStringList names = dirtyPageNames();
+    QString detail;
+    if (!names.isEmpty()) {
+        detail = tr("Modified pages: %1").arg(names.join(", "));
+    }
+
     QMessageBox msgBox(this);
     msgBox.setWindowTitle(tr("Unsaved Changes"));
     msgBox.setText(tr("You have unsaved changes."));
     msgBox.setInformativeText(tr("Do you want to save your changes?"));
+    if (!detail.isEmpty()) {
+        msgBox.setDetailedText(detail);
+    }
     msgBox.setStandardButtons(QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
     msgBox.setDefaultButton(QMessageBox::Save);
     return static_cast<QMessageBox::StandardButton>(msgBox.exec());
