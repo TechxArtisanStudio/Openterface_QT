@@ -26,6 +26,8 @@
 #include <QObject>
 #include <QLoggingCategory>
 
+class QWidget;
+
 // Declare the logging category (defined in SystemKeyBlocker.cpp)
 Q_DECLARE_LOGGING_CATEGORY(log_syskey)
 
@@ -116,6 +118,9 @@ public:
      * ensuring ALL keyboard events flow through ONE code path.
      */
     void setSwallowEnabled(bool enabled);
+    /// Set the widget that should receive key swallowing. Only when focus is inside this widget will keys be swallowed.
+    void setFocusTarget(QWidget *target) { m_focusTarget = target; }
+    QWidget *focusTarget() const { return m_focusTarget; }
     bool isSwallowEnabled() const { return m_swallowEnabled; }
 
 signals:
@@ -149,6 +154,7 @@ private:
     /* ---- state ---- */
     bool m_active = false;
     bool m_swallowEnabled = true;  // when true, hook swallows events; when false, pass-through
+    QWidget *m_focusTarget = nullptr;  // Only swallow keys when focus is inside this widget
 
     /* ---- Windows ---- */
 #ifdef Q_OS_WIN

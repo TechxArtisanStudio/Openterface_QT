@@ -46,6 +46,11 @@
 #include "controlchipfirmwarepage.h"
 #include "mcppage.h"
 #include "edidconfigpage.h"
+#include "preferencepagebase.h"
+#include <QMessageBox>
+#include <QCloseEvent>
+#include <QList>
+#include <QStringList>
 #include "../customkey/virtualkeyboardpage.h"
 #include "../chat/ChatSettingsPage.h"
 QT_BEGIN_NAMESPACE
@@ -99,11 +104,23 @@ private:
     QSplitter *splitter;
     int m_currentPageIndex;
 
+    // All settings pages that use PreferencePageBase (for dirty checking)
+    QList<PreferencePageBase*> m_pages;
+
     void createSettingTree();
     void createLayout();
     void createPages();
     
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
+
+    // Unsaved changes protection
+    bool hasUnsavedChanges() const;
+    QStringList dirtyPageNames() const;
+    void applyAllDirtyPages();
+    QMessageBox::StandardButton promptSaveDiscardCancel();
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 };
 
 #endif // SETTINGDIALOG_H

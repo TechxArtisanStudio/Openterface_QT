@@ -31,7 +31,6 @@
 #include <QLabel>
 #include <QFrame>
 #include <QLoggingCategory>
-#include <QDialog>
 #include <QPushButton>
 
 Q_LOGGING_CATEGORY(log_ui_mcp_page, "opf.ui.mcp.page")
@@ -42,7 +41,7 @@ static const char *kBindPresetLoopback  = "127.0.0.1";
 static const int   kBindPresetCustomIdx = 2;
 
 McpPage::McpPage(QWidget *parent)
-    : QWidget(parent)
+    : PreferencePageBase(parent)
 {
     setupUI();
     initMcpSettings();
@@ -198,40 +197,37 @@ void McpPage::setupUI()
 
     mainLayout->addWidget(m_sseGroup);
 
-    // ---- Stretch ----
-    mainLayout->addStretch();
-
     // ---- Internal signal connections ----
     connect(m_transportCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &McpPage::onTransportModeChanged);
     connect(m_sseBindPresetCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &McpPage::onBindAddressPresetChanged);
 
-    // Button bar: Apply / Revert / Cancel
-    QHBoxLayout *buttonLayout = new QHBoxLayout();
-    buttonLayout->addStretch();
+    // ---- Stretch ----
+    mainLayout->addStretch();
 
-    QPushButton *applyButton = new QPushButton(tr("Apply"));
-    QPushButton *revertButton = new QPushButton(tr("Revert"));
-    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
+    // ---- Button bar via base class ----
+    createButtonBar(mainLayout);
 
-    applyButton->setFixedSize(80, 30);
-    revertButton->setFixedSize(80, 30);
-    cancelButton->setFixedSize(80, 30);
-
-    buttonLayout->addWidget(applyButton);
-    buttonLayout->addWidget(revertButton);
-    buttonLayout->addWidget(cancelButton);
-
-    mainLayout->addLayout(buttonLayout);
-
-    // Connect buttons
-    connect(applyButton, &QPushButton::clicked, this, &McpPage::applyMcpSettings);
-    connect(revertButton, &QPushButton::clicked, this, &McpPage::revertToSnapshot);
-    connect(cancelButton, &QPushButton::clicked, this, [this]() {
-        QDialog *dlg = qobject_cast<QDialog*>(window());
-        if (dlg) dlg->reject();
-    });
+    // ---- Connect setting widgets to markDirty() ----
+    connect(m_enableCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(m_transportCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_ssePortSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_sseBindPresetCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_sseBindCustomEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(m_ssePathSseEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(m_ssePathMessagesEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(m_sseKeepaliveSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_sseSessionTimeoutSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_sseCleanupIntervalSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_sseMaxSessionsSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this]{ checkDirtyState(); });
 }
 
 // ============================================================================
@@ -284,13 +280,14 @@ void McpPage::initMcpSettings()
     m_sseMaxSessionsSpin->setValue(s.getMcpSseMaxSessions());
 
     captureSnapshot();
+    clearDirty();
 }
 
 // ============================================================================
 // Save values and emit change signal
 // ============================================================================
 
-void McpPage::applyMcpSettings()
+void McpPage::applySettings()
 {
     GlobalSetting &s = GlobalSetting::instance();
 
@@ -418,4 +415,19 @@ void McpPage::revertToSnapshot()
     // Trigger UI state updates
     onTransportModeChanged(m_snap_transportIndex);
     onBindAddressPresetChanged(m_snap_sseBindPresetIndex);
+}
+
+bool McpPage::valuesMatchSnapshot() const
+{
+    return m_enableCheckBox->isChecked() == m_snap_enableChecked
+        && m_transportCombo->currentIndex() == m_snap_transportIndex
+        && m_ssePortSpin->value() == m_snap_ssePort
+        && m_sseBindPresetCombo->currentIndex() == m_snap_sseBindPresetIndex
+        && m_sseBindCustomEdit->text() == m_snap_sseBindCustom
+        && m_ssePathSseEdit->text() == m_snap_ssePathSse
+        && m_ssePathMessagesEdit->text() == m_snap_ssePathMessages
+        && m_sseKeepaliveSpin->value() == m_snap_sseKeepalive
+        && m_sseSessionTimeoutSpin->value() == m_snap_sseSessionTimeout
+        && m_sseCleanupIntervalSpin->value() == m_snap_sseCleanupInterval
+        && m_sseMaxSessionsSpin->value() == m_snap_sseMaxSessions;
 }

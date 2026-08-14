@@ -24,6 +24,8 @@
 
 #include <QLoggingCategory>
 #include <QGuiApplication>
+#include <QApplication>
+#include <QWidget>
 #include <QWindow>
 #include <QWindowList>
 #include <QCoreApplication>
@@ -333,9 +335,13 @@ bool SystemKeyBlocker::X11KeyCaptureFilter::nativeEventFilter(
     if (responseType != XCB_KEY_PRESS && responseType != XCB_KEY_RELEASE)
         return false;
 
-    // Only intercept when our app window has keyboard focus
-    // (mirrors Windows GetForegroundWindow check in lowLevelKeyboardProc)
-    if (!QGuiApplication::focusWindow())
+    // Only swallow keys when focus is inside the designated focus target (VideoPane).
+    // This allows dialogs (e.g. Preferences) to receive keyboard input even when
+    // SystemBlocker is enabled.
+    if (!m_blocker->focusTarget())
+        return false;
+    QWidget *fw = QApplication::focusWidget();
+    if (!fw || !m_blocker->focusTarget()->isAncestorOf(fw))
         return false;
 
     xcb_key_press_event_t *ke = reinterpret_cast<xcb_key_press_event_t *>(event);

@@ -38,7 +38,7 @@
 #include <QPushButton>
 #include <QDialog>
 
-LogPage::LogPage(QWidget *parent) : QWidget(parent)
+LogPage::LogPage(QWidget *parent) : PreferencePageBase(parent)
 {
     // Constructor implementation
     setupUI();
@@ -169,31 +169,24 @@ void LogPage::setupUI()
     logLayout->addWidget(systemKeyBlockerDescription);
     logLayout->addWidget(systemKeyBlockerCheckBox);
 
-    // Button bar: Apply / Revert / Cancel
-    QHBoxLayout *buttonLayout = new QHBoxLayout();
-    buttonLayout->addStretch();
+    // Button bar via base class
+    createButtonBar(logLayout);
 
-    QPushButton *applyButton = new QPushButton(tr("Apply"));
-    QPushButton *revertButton = new QPushButton(tr("Revert"));
-    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
-
-    applyButton->setFixedSize(80, 30);
-    revertButton->setFixedSize(80, 30);
-    cancelButton->setFixedSize(80, 30);
-
-    buttonLayout->addWidget(applyButton);
-    buttonLayout->addWidget(revertButton);
-    buttonLayout->addWidget(cancelButton);
-
-    logLayout->addLayout(buttonLayout);
-
-    // Connect buttons
-    connect(applyButton, &QPushButton::clicked, this, &LogPage::applyLogsettings);
-    connect(revertButton, &QPushButton::clicked, this, &LogPage::revertToSnapshot);
-    connect(cancelButton, &QPushButton::clicked, this, [this]() {
-        QDialog *dlg = qobject_cast<QDialog*>(window());
-        if (dlg) dlg->reject();
-    });
+    // Connect setting widgets to markDirty()
+    connect(coreCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(serialCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(uiCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(hostCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(deviceCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(backendCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(scriptCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(storeLogCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(logFilePathLineEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(screenSaverCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(hideKeyboardInputCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(floatingWindowCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(floatingWindowOpacitySlider, &QSlider::valueChanged, this, [this]{ checkDirtyState(); });
+    connect(systemKeyBlockerCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
 
     logLayout->addStretch();
 
@@ -277,9 +270,10 @@ void LogPage::initLogSettings(){
     logFilePathLineEdit->setText(settings.value("log/logFilePath", "").toString());
 
     captureSnapshot();
+    clearDirty();
 }
 
-void LogPage::applyLogsettings() {
+void LogPage::applySettings() {
 
     // QSettings settings("Techxartisan", "Openterface");
 
@@ -378,4 +372,22 @@ void LogPage::revertToSnapshot()
     floatingWindowCheckBox->setChecked(m_snap_floatingWindow);
     floatingWindowOpacitySlider->setValue(m_snap_floatingWindowOpacity);
     systemKeyBlockerCheckBox->setChecked(m_snap_systemKeyBlocker);
+}
+
+bool LogPage::valuesMatchSnapshot() const
+{
+    return coreCheckBox->isChecked() == m_snap_coreLog
+        && serialCheckBox->isChecked() == m_snap_serialLog
+        && uiCheckBox->isChecked() == m_snap_uiLog
+        && hostCheckBox->isChecked() == m_snap_hostLog
+        && deviceCheckBox->isChecked() == m_snap_deviceLog
+        && backendCheckBox->isChecked() == m_snap_backendLog
+        && scriptCheckBox->isChecked() == m_snap_scriptLog
+        && storeLogCheckBox->isChecked() == m_snap_storeLog
+        && logFilePathLineEdit->text() == m_snap_logFilePath
+        && screenSaverCheckBox->isChecked() == m_snap_screenSaver
+        && hideKeyboardInputCheckBox->isChecked() == m_snap_hideKeyboardInput
+        && floatingWindowCheckBox->isChecked() == m_snap_floatingWindow
+        && floatingWindowOpacitySlider->value() == m_snap_floatingWindowOpacity
+        && systemKeyBlockerCheckBox->isChecked() == m_snap_systemKeyBlocker;
 }

@@ -27,13 +27,11 @@
 #include <QMessageBox>
 #include <QLoggingCategory>
 #include <QApplication>
-#include <QPushButton>
-#include <QDialog>
 
 // Define logging category for Target Control page
 Q_LOGGING_CATEGORY(log_target_control, "opf.targetcontrol")
 
-TargetControlPage::TargetControlPage(QWidget *parent) : QWidget(parent)
+TargetControlPage::TargetControlPage(QWidget *parent) : PreferencePageBase(parent)
 {
     setupUI();
 }
@@ -47,7 +45,7 @@ void TargetControlPage::setupUI()
 
     // Operating Mode Section
     QLabel *operatingModeLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Target Control Operating Mode:")));
-    
+
     // Create radio buttons for operating modes
     fullModeRadio = new QRadioButton(tr("[Performance] Standard USB keyboard + USB mouse device + USB custom HID device"));
     fullModeRadio->setToolTip(tr("The target USB port is a multi-functional composite device supporting a keyboard, mouse, and custom HID device. It performs best, though the mouse may have compatibility issues with Mac OS and Linux."));
@@ -57,14 +55,14 @@ void TargetControlPage::setupUI()
     keyboardMouseRadio->setToolTip(tr("The target USB port is a muti-functional composite device for keyboard and mouse. Best competibility with Mac OS, Andriod and Linux."));
     customHIDRadio = new QRadioButton(tr("[Custom HID] Standard USB custom HID device"));
     customHIDRadio->setToolTip(tr("The target USB port is a custom HID device supporting data transmission between host serial and target HID ."));
-    
+
     // Group the radio buttons
     operatingModeGroup = new QButtonGroup(this);
     operatingModeGroup->addButton(fullModeRadio, 0);
     operatingModeGroup->addButton(keyboardOnlyRadio, 1);
     operatingModeGroup->addButton(keyboardMouseRadio, 2);
     operatingModeGroup->addButton(customHIDRadio, 3);
-    
+
     // Create layout for operating mode section
     QVBoxLayout *operatingModeLayout = new QVBoxLayout();
     operatingModeLayout->addWidget(operatingModeLabel);
@@ -72,14 +70,14 @@ void TargetControlPage::setupUI()
     operatingModeLayout->addWidget(keyboardOnlyRadio);
     operatingModeLayout->addWidget(keyboardMouseRadio);
     operatingModeLayout->addWidget(customHIDRadio);
-    
+
     // Create a horizontal line separator
     QFrame *operatingModeSeparator = new QFrame();
     operatingModeSeparator->setFrameShape(QFrame::HLine);
     operatingModeSeparator->setFrameShadow(QFrame::Sunken);
     operatingModeLayout->addWidget(operatingModeSeparator);
     operatingModeLayout->addSpacing(10);
-    
+
 
     QLabel *VIDPIDLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Custom target USB Composite Device VID and PID:")));
     QLabel *USBDescriptor = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Custom target USB descriptors: ")));
@@ -137,7 +135,7 @@ void TargetControlPage::setupUI()
     gridLayout->addWidget(USBSerialNumberCheckBox, 6, 0, Qt::AlignLeft);
     gridLayout->addWidget(serialNumberLineEdit, 6, 1, Qt::AlignLeft);
 
-    QVBoxLayout *hardwareLayout = new QVBoxLayout(this);    
+    QVBoxLayout *hardwareLayout = new QVBoxLayout(this);
     hardwareLayout->addWidget(hardwareLabel);
     hardwareLayout->addLayout(operatingModeLayout);
     hardwareLayout->addWidget(VIDPIDLabel);
@@ -155,31 +153,18 @@ void TargetControlPage::setupUI()
     addCheckBoxLineEditPair(PIDCheckBox, PIDDescriptorLineEdit);
     addCheckBoxLineEditPair(USBSerialNumberCheckBox, serialNumberLineEdit);
 
-    // Button bar: Apply / Revert / Cancel
-    QHBoxLayout *buttonLayout = new QHBoxLayout();
-    buttonLayout->addStretch();
+    // Button bar from base class
+    createButtonBar(hardwareLayout);
 
-    QPushButton *applyButton = new QPushButton(tr("Apply"));
-    QPushButton *revertButton = new QPushButton(tr("Revert"));
-    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
+    // Connect settings widgets to markDirty()
+    connect(operatingModeGroup, QOverload<QAbstractButton*>::of(&QButtonGroup::buttonClicked),
+            this, [this](QAbstractButton *) { markDirty(); });
 
-    applyButton->setFixedSize(80, 30);
-    revertButton->setFixedSize(80, 30);
-    cancelButton->setFixedSize(80, 30);
-
-    buttonLayout->addWidget(applyButton);
-    buttonLayout->addWidget(revertButton);
-    buttonLayout->addWidget(cancelButton);
-
-    hardwareLayout->addLayout(buttonLayout);
-
-    // Connect buttons
-    connect(applyButton, &QPushButton::clicked, this, &TargetControlPage::applyHardwareSetting);
-    connect(revertButton, &QPushButton::clicked, this, &TargetControlPage::revertToSnapshot);
-    connect(cancelButton, &QPushButton::clicked, this, [this]() {
-        QDialog *dlg = qobject_cast<QDialog*>(window());
-        if (dlg) dlg->reject();
-    });
+    connect(VIDLineEdit, &QLineEdit::textChanged, this, [this](const QString &) { markDirty(); });
+    connect(PIDLineEdit, &QLineEdit::textChanged, this, [this](const QString &) { markDirty(); });
+    connect(VIDDescriptorLineEdit, &QLineEdit::textChanged, this, [this](const QString &) { markDirty(); });
+    connect(PIDDescriptorLineEdit, &QLineEdit::textChanged, this, [this](const QString &) { markDirty(); });
+    connect(serialNumberLineEdit, &QLineEdit::textChanged, this, [this](const QString &) { markDirty(); });
 }
 
 void TargetControlPage::addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit){
@@ -196,54 +181,57 @@ void TargetControlPage::addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *
 void TargetControlPage::onCheckBoxStateChanged(Qt::CheckState state) {
     QCheckBox *checkBox = qobject_cast<QCheckBox*>(sender());
     QLineEdit *lineEdit = USBCheckBoxEditMap.value(checkBox);
-    
+
     // Special handling for USBCustomStringDescriptorCheckBox
     if (checkBox->objectName() == "USBCustomStringDescriptorCheckBox") {
         QCheckBox *VIDCheckBox = this->findChild<QCheckBox*>("VIDCheckBox");
         QCheckBox *PIDCheckBox = this->findChild<QCheckBox*>("PIDCheckBox");
         QCheckBox *USBSerialNumberCheckBox = this->findChild<QCheckBox*>("USBSerialNumberCheckBox");
-        
+
         if (state == Qt::Checked) {
             // Enable all descriptor checkboxes
             VIDCheckBox->setEnabled(true);
             PIDCheckBox->setEnabled(true);
             USBSerialNumberCheckBox->setEnabled(true);
-            
+
             // Line edits remain controlled by their respective checkboxes
         } else {
             // Disable all descriptor checkboxes and their line edits
             VIDCheckBox->setEnabled(false);
             VIDCheckBox->setChecked(false);
-            
+
             PIDCheckBox->setEnabled(false);
             PIDCheckBox->setChecked(false);
-            
+
             USBSerialNumberCheckBox->setEnabled(false);
             USBSerialNumberCheckBox->setChecked(false);
         }
     }
-    
+
     // Original functionality for individual checkbox-lineEdit pairs
     if (lineEdit) {
         lineEdit->setEnabled(state == Qt::Checked);
     }
+
+    // Any checkbox state change marks the page dirty
+    markDirty();
 }
 
-void TargetControlPage::applyHardwareSetting()
+void TargetControlPage::applySettings()
 {
-    qCDebug(log_target_control) << "[TargetControlPage] applyHardwareSetting() called";
+    qCDebug(log_target_control) << "[TargetControlPage] applySettings() called";
     qCDebug(log_target_control) << "[TargetControlPage] Current thread:" << QThread::currentThread();
     qCDebug(log_target_control) << "[TargetControlPage] QApplication thread:" << qApp->thread();
-    
+
     QSettings settings("Techxartisan", "Openterface");
-    
+
     // Save the selected operating mode
     int selectedMode = operatingModeGroup->checkedId();
     qCDebug(log_target_control) << "[TargetControlPage] Selected operating mode:" << selectedMode;
-    
+
     settings.setValue("hardware/operatingMode", selectedMode);
     GlobalSetting::instance().setOperatingMode(selectedMode);
-    
+
     QLineEdit *VIDLineEdit = this->findChild<QLineEdit*>("VIDLineEdit");
     QLineEdit *PIDLineEdit = this->findChild<QLineEdit*>("PIDLineEdit");
     QLineEdit *VIDDescriptorLineEdit = this->findChild<QLineEdit*>("VIDDescriptorLineEdit");
@@ -262,19 +250,21 @@ void TargetControlPage::applyHardwareSetting()
     // Store current baudrate for use in worker thread
     int currentBaudrate = SerialPortManager::getInstance().getCurrentBaudrate();
     qCDebug(log_target_control) << "[TargetControlPage] Current baudrate from SerialPortManager:" << currentBaudrate;
-    
+
     bool needFactoryReset = (selectedMode != originalOperatingMode);
     qCDebug(log_target_control) << "[TargetControlPage] Mode changed:" << (selectedMode != originalOperatingMode);
     qCDebug(log_target_control) << "[TargetControlPage] Need factory reset:" << needFactoryReset;
-    
+
     // Emit signal to worker thread for thread-safe serial port operations
     //Qt::QueuedConnection ensures the slot runs in the worker thread
     qCDebug(log_target_control) << "[TargetControlPage] Emitting requestApplyHardwareSetting signal...";
     emit SerialPortManager::getInstance().requestApplyHardwareSetting(currentBaudrate, selectedMode, needFactoryReset);
     qCDebug(log_target_control) << "[TargetControlPage] Signal emitted successfully";
-    
+
     originalOperatingMode = selectedMode;
-    qCDebug(log_target_control) << "[TargetControlPage] applyHardwareSetting() completed";
+    captureSnapshot();
+    clearDirty();
+    qCDebug(log_target_control) << "[TargetControlPage] applySettings() completed";
 }
 
 QByteArray TargetControlPage::convertCheckBoxValueToBytes(){
@@ -308,7 +298,7 @@ void TargetControlPage::initHardwareSetting()
         keyboardMouseRadio->setChecked(true); // Default to keyboard+mouse mode
         operatingMode = 2; // Set default value if button not found
     }
-    
+
     // Store the original operating mode for change detection
     originalOperatingMode = operatingMode;
 
@@ -322,7 +312,7 @@ void TargetControlPage::initHardwareSetting()
     QLineEdit *VIDDescriptorLineEdit = USBCheckBoxEditMap.value(VIDCheckBox);
     QLineEdit *PIDDescriptorLineEdit = USBCheckBoxEditMap.value(PIDCheckBox);
     QLineEdit *serialNumberLineEdit = USBCheckBoxEditMap.value(USBSerialNumberCheckBox);
-    
+
     QString USBFlag = settings.value("serial/enableflag", "87").toString();
     std::array<bool, 4> enableFlagArray = extractBits(USBFlag);
 
@@ -334,8 +324,8 @@ void TargetControlPage::initHardwareSetting()
     PIDCheckBox->setChecked(enableFlagArray[1]);
     USBSerialNumberCheckBox->setChecked(enableFlagArray[0]);
     USBCustomStringDescriptorCheckBox->setChecked(enableFlagArray[3]);
-    
-    
+
+
     // Make the descriptor checkboxes enabled/disabled based on the master toggle
     VIDCheckBox->setEnabled(enableFlagArray[3]);
     PIDCheckBox->setEnabled(enableFlagArray[3]);
@@ -360,6 +350,7 @@ void TargetControlPage::initHardwareSetting()
     }
 
     captureSnapshot();
+    clearDirty();
 }
 
 std::array<bool, 4> TargetControlPage::extractBits(QString hexString) {
@@ -414,4 +405,20 @@ void TargetControlPage::revertToSnapshot()
     // Restore operating mode radio button
     QAbstractButton *button = operatingModeGroup->button(m_snap_operatingMode);
     if (button) button->setChecked(true);
+
+    clearDirty();
+}
+
+bool TargetControlPage::valuesMatchSnapshot() const
+{
+    return VIDCheckBox->isChecked() == m_snap_vidChecked
+        && PIDCheckBox->isChecked() == m_snap_pidChecked
+        && VIDLineEdit->text() == m_snap_vidText
+        && PIDLineEdit->text() == m_snap_pidText
+        && VIDDescriptorLineEdit->text() == m_snap_vidDescriptor
+        && PIDDescriptorLineEdit->text() == m_snap_pidDescriptor
+        && USBSerialNumberCheckBox->isChecked() == m_snap_usbSerialNumberChecked
+        && serialNumberLineEdit->text() == m_snap_serialNumberText
+        && USBCustomStringDescriptorCheckBox->isChecked() == m_snap_usbCustomStringChecked
+        && operatingModeGroup->checkedId() == m_snap_operatingMode;
 }

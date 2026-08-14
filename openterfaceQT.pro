@@ -139,6 +139,7 @@ SOURCES += main.cpp \
     ui/preferences/fpsspinbox.cpp \
     ui/preferences/settingdialog.cpp \
     ui/preferences/logpage.cpp \
+    ui/preferences/preferencepagebase.cpp \
     ui/preferences/videopage.cpp \
     ui/preferences/audiopage.cpp \
     ui/preferences/mcppage.cpp \
@@ -306,6 +307,7 @@ HEADERS  += \
     ui/preferences/fpsspinbox.h \
     ui/preferences/settingdialog.h \
     ui/preferences/logpage.h \
+    ui/preferences/preferencepagebase.h \
     ui/preferences/targetcontrolpage.h \
     ui/preferences/videopage.h \
     ui/preferences/audiopage.h \

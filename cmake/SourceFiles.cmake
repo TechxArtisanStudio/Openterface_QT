@@ -301,6 +301,7 @@ set(UI_CUSTOMKEY_SOURCES
 
 # UI preferences sources
 set(UI_PREFERENCES_SOURCES
+    ui/preferences/preferencepagebase.cpp ui/preferences/preferencepagebase.h
     ui/preferences/cameraadjust.cpp ui/preferences/cameraadjust.h
     ui/preferences/fpsspinbox.cpp ui/preferences/fpsspinbox.h
     ui/preferences/settingdialog.cpp ui/preferences/settingdialog.h ui/preferences/settingdialog.ui

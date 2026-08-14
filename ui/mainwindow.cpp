@@ -154,6 +154,9 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     // Initialize WindowLayoutCoordinator early - needed before checkInitSize()
     m_windowLayoutCoordinator = new WindowLayoutCoordinator(this, videoPane, menuBar(), statusBar(), this);
     
+    // Initialize SystemKeyBlocker focus target — only swallow keys when VideoPane has focus
+    SystemKeyBlocker::instance().setFocusTarget(videoPane);
+    
     // Delegate all initialization to initializer
     m_initializer = new MainWindowInitializer(this);
     m_initializer->initialize();
