@@ -270,6 +270,7 @@ void LogPage::initLogSettings(){
     logFilePathLineEdit->setText(settings.value("log/logFilePath", "").toString());
 
     captureSnapshot();
+    clearDirty();
 }
 
 void LogPage::applySettings() {

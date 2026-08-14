@@ -260,6 +260,7 @@ void McpPage::initMcpSettings()
     m_sseMaxSessionsSpin->setValue(s.getMcpSseMaxSessions());
 
     captureSnapshot();
+    clearDirty();
 }
 
 // ============================================================================

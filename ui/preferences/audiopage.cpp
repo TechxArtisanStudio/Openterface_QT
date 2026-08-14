@@ -213,6 +213,7 @@ void AudioPage::loadSettings()
 
     qCDebug(log_ui_audio_page) << "Loaded audio settings from GlobalSetting";
     captureSnapshot();
+    clearDirty();
 }
 
 void AudioPage::applySettings()
