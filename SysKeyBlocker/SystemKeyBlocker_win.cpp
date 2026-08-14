@@ -22,6 +22,7 @@
 
 #include "SystemKeyBlocker.h"
 
+#include <QWidget>
 #include <windows.h>
 #include <QLoggingCategory>
 #include <QMetaObject>
