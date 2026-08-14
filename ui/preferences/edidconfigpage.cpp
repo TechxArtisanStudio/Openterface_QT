@@ -29,6 +29,7 @@
 #include "../../serial/SerialPortManager.h"
 #include <QMessageBox>
 #include <QPointer>
+#include <QShowEvent>
 #include <QThread>
 #include <QTimer>
 #include <QApplication>
@@ -209,6 +210,11 @@ void EdidConfigPage::connectUiSignals()
     connect(&videoHid, &VideoHid::hidDeviceChanged, this, [this](const QString &, const QString &) {
         updateDeviceStatus();
     });
+    // The polling thread continuously tracks HDMI input state; follow its view
+    // instead of issuing extra USB reads from the GUI thread.
+    connect(&videoHid, &VideoHid::hdmiInputStatusChanged, this, [this](bool) {
+        updateDeviceStatus();
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -229,16 +235,17 @@ void EdidConfigPage::onReadButtonClicked()
 {
     VideoHid &videoHid = VideoHid::getInstance();
 
-    // Fast check first — avoid blocking USB read if device is not open
-    if (!videoHid.isOpen()) {
+    // Fast check first — avoid blocking USB read if the device is absent
+    if (!videoHid.isHidDevicePresent()) {
         QMessageBox::warning(this, tr("Device Not Connected"),
                              tr("Please connect the device before reading EDID data."));
         updateDeviceStatus();
         return;
     }
 
-    // Only do the slow USB read if the device is actually open
-    if (!videoHid.isHdmiConnected()) {
+    // Only proceed if HDMI input is present; trust the polling cache first
+    // and fall back to a direct read only if it reports disconnected.
+    if (!videoHid.lastKnownHdmiConnected() && !videoHid.isHdmiConnected()) {
         QMessageBox::warning(this, tr("Device Not Connected"),
                              tr("Please connect the device before reading EDID data."));
         updateDeviceStatus();
@@ -253,17 +260,35 @@ void EdidConfigPage::onReadButtonClicked()
 // Device connection status
 // ---------------------------------------------------------------------------
 
+void EdidConfigPage::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    // The one-shot check at construction time can land on a stale or failed
+    // read; refresh the status every time the page becomes visible.
+    updateDeviceStatus();
+}
+
 void EdidConfigPage::updateDeviceStatus()
 {
     VideoHid &videoHid = VideoHid::getInstance();
 
-    // Fast check first — avoid blocking USB read if device is not open
-    bool deviceOpen = videoHid.isOpen();
+    // isOpen() only reflects whether a handle is momentarily held open; use
+    // enumeration-based presence detection instead.
+    bool devicePresent = videoHid.isHidDevicePresent();
     bool connected = false;
 
-    if (deviceOpen) {
-        // Only do the slow USB read if the device is actually open
-        connected = videoHid.isHdmiConnected();
+    if (devicePresent) {
+        // Prefer the polling thread's cached state — it reads the status
+        // register continuously and its reads don't contend with the UI.
+        connected = videoHid.lastKnownHdmiConnected();
+        if (!connected) {
+            // Cache says disconnected; confirm with a direct read (retry once
+            // since a single failed read can be transient).
+            connected = videoHid.isHdmiConnected();
+            if (!connected) {
+                connected = videoHid.isHdmiConnected();
+            }
+        }
     }
 
     if (connected) {
@@ -273,7 +298,9 @@ void EdidConfigPage::updateDeviceStatus()
             "background-color: #2e7d32; border-radius: 8px; min-width: 16px; min-height: 16px;");
         readButton->setEnabled(true);
     } else {
-        deviceStatusLabel->setText(tr("Disconnected"));
+        deviceStatusLabel->setText(devicePresent
+            ? tr("Disconnected (no HDMI input signal detected)")
+            : tr("Disconnected (device not found)"));
         deviceStatusLabel->setStyleSheet("QLabel { font-weight: bold; color: #c62828; }");
         deviceStatusIconLabel->setStyleSheet(
             "background-color: #c62828; border-radius: 8px; min-width: 16px; min-height: 16px;");
