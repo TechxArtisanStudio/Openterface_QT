@@ -30,6 +30,7 @@
 #include <QLineEdit>
 #include <QGroupBox>
 #include <QLabel>
+#include "preferencepagebase.h"
 
 /**
  * Preferences page for the MCP (Model Context Protocol) server.
@@ -39,11 +40,11 @@
  *   - Transport mode (Stdio / SSE HTTP)
  *   - Port, bind address, paths, keepalive, session timeout, max sessions (SSE mode)
  *
- * Changes are persisted via GlobalSetting on applyMcpSettings(), and the
+ * Changes are persisted via GlobalSetting on applySettings(), and the
  * mcpSettingsChanged() signal is emitted so the MainWindow can restart the
  * MCP server with the new configuration.
  */
-class McpPage : public QWidget
+class McpPage : public PreferencePageBase
 {
     Q_OBJECT
 
@@ -52,9 +53,9 @@ public:
 
     void setupUI();
     void initMcpSettings();
-    void applyMcpSettings();
-    void captureSnapshot();
-    void revertToSnapshot();
+    void applySettings() override;
+    void captureSnapshot() override;
+    void revertToSnapshot() override;
 
 signals:
     void mcpSettingsChanged();
