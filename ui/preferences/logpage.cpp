@@ -38,7 +38,7 @@
 #include <QPushButton>
 #include <QDialog>
 
-LogPage::LogPage(QWidget *parent) : QWidget(parent)
+LogPage::LogPage(QWidget *parent) : PreferencePageBase(parent)
 {
     // Constructor implementation
     setupUI();
@@ -169,31 +169,24 @@ void LogPage::setupUI()
     logLayout->addWidget(systemKeyBlockerDescription);
     logLayout->addWidget(systemKeyBlockerCheckBox);
 
-    // Button bar: Apply / Revert / Cancel
-    QHBoxLayout *buttonLayout = new QHBoxLayout();
-    buttonLayout->addStretch();
+    // Button bar via base class
+    createButtonBar(logLayout);
 
-    QPushButton *applyButton = new QPushButton(tr("Apply"));
-    QPushButton *revertButton = new QPushButton(tr("Revert"));
-    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
-
-    applyButton->setFixedSize(80, 30);
-    revertButton->setFixedSize(80, 30);
-    cancelButton->setFixedSize(80, 30);
-
-    buttonLayout->addWidget(applyButton);
-    buttonLayout->addWidget(revertButton);
-    buttonLayout->addWidget(cancelButton);
-
-    logLayout->addLayout(buttonLayout);
-
-    // Connect buttons
-    connect(applyButton, &QPushButton::clicked, this, &LogPage::applyLogsettings);
-    connect(revertButton, &QPushButton::clicked, this, &LogPage::revertToSnapshot);
-    connect(cancelButton, &QPushButton::clicked, this, [this]() {
-        QDialog *dlg = qobject_cast<QDialog*>(window());
-        if (dlg) dlg->reject();
-    });
+    // Connect setting widgets to markDirty()
+    connect(coreCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(serialCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(uiCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(hostCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(deviceCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(backendCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(scriptCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(storeLogCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(logFilePathLineEdit, &QLineEdit::textChanged, this, [this]{ markDirty(); });
+    connect(screenSaverCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(hideKeyboardInputCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(floatingWindowCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(floatingWindowOpacitySlider, &QSlider::valueChanged, this, [this]{ markDirty(); });
+    connect(systemKeyBlockerCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
 
     logLayout->addStretch();
 
@@ -279,7 +272,7 @@ void LogPage::initLogSettings(){
     captureSnapshot();
 }
 
-void LogPage::applyLogsettings() {
+void LogPage::applySettings() {
 
     // QSettings settings("Techxartisan", "Openterface");
 
