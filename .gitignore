@@ -31,6 +31,5 @@ email_service/*
 .codegraph/*
 
 # Soak test artifacts (logs, screenshots, reports)
-tests/soak_test_*s
 tests/soak_test_logs/
 tests/soak_test_screenshots/
