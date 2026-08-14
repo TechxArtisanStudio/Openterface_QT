@@ -40,6 +40,7 @@ public:
     virtual void revertToSnapshot() = 0;
 
     bool isDirty() const { return m_isDirty; }
+    void clearDirty();
 
 signals:
     void dirtyChanged(bool dirty);
@@ -56,8 +57,6 @@ protected:
     /// Mark the page as dirty (modified since last snapshot).
     void markDirty();
 
-    /// Clear the dirty state (after apply or initial load).
-    void clearDirty();
 
     /// Update button styles based on dirty state.
     void updateButtonStyles();

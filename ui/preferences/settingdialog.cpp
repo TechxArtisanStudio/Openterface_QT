@@ -57,6 +57,8 @@
 #include <QList>
 #include <QSerialPortInfo>
 #include <QLineEdit>
+#include <QMessageBox>
+#include <QCloseEvent>
 #include <QByteArray>
 
 
@@ -78,6 +80,10 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     , m_currentPageIndex(-1)
 
 {
+    // Initialize the list of settings pages for dirty-checking
+    m_pages << logPage << videoPage << qobject_cast<PreferencePageBase*>(audioPage)
+            << targetControlPage << mcpPage;
+
     ui->setupUi(this);
     createSettingTree();
     createPages();
@@ -196,8 +202,22 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
     else if (itemText == tr("EDID Configuration")) newPageIndex = 7;
     else if (itemText == tr("Virtual Keyboard")) newPageIndex = 8;
 
-    // Only switch page if it's different from the current page
+    // Only switch page if it is different from the current page
     if (newPageIndex != -1 && newPageIndex != m_currentPageIndex) {
+        // Check for unsaved changes before switching
+        if (hasUnsavedChanges()) {
+            auto result = promptSaveDiscardCancel();
+            if (result == QMessageBox::Save) {
+                applyAllDirtyPages();
+            } else if (result == QMessageBox::Cancel) {
+                // Restore previous selection, block signals to avoid recursion
+                settingTree->blockSignals(true);
+                if (previous) settingTree->setCurrentItem(previous);
+                settingTree->blockSignals(false);
+                return;
+            }
+            // Discard: proceed without saving
+        }
         stackedWidget->setCurrentIndex(newPageIndex);
         m_currentPageIndex = newPageIndex;
     }
@@ -237,3 +257,52 @@ void SettingDialog::selectPage(const QString& pageName) {
         }
     }
 }
+
+bool SettingDialog::hasUnsavedChanges() const
+{
+    for (auto *page : m_pages) {
+        if (page && page->isDirty()) return true;
+    }
+    return false;
+}
+
+void SettingDialog::applyAllDirtyPages()
+{
+    for (auto *page : m_pages) {
+        if (page && page->isDirty()) {
+            page->applySettings();
+            page->captureSnapshot();
+            page->clearDirty();
+        }
+    }
+}
+
+QMessageBox::StandardButton SettingDialog::promptSaveDiscardCancel()
+{
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(tr("Unsaved Changes"));
+    msgBox.setText(tr("You have unsaved changes."));
+    msgBox.setInformativeText(tr("Do you want to save your changes?"));
+    msgBox.setStandardButtons(QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+    msgBox.setDefaultButton(QMessageBox::Save);
+    return static_cast<QMessageBox::StandardButton>(msgBox.exec());
+}
+
+void SettingDialog::closeEvent(QCloseEvent *event)
+{
+    if (hasUnsavedChanges()) {
+        auto result = promptSaveDiscardCancel();
+        if (result == QMessageBox::Save) {
+            applyAllDirtyPages();
+            event->accept();
+        } else if (result == QMessageBox::Cancel) {
+            event->ignore();
+        } else {
+            // Discard
+            event->accept();
+        }
+    } else {
+        event->accept();
+    }
+}
+
