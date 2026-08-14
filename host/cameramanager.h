@@ -99,8 +99,8 @@ public:
     // Helper methods to detect current multimedia backend
     bool isGStreamerBackend() const;
     bool isFFmpegBackend() const;
-    bool isQtBackend() const;
 #ifdef Q_OS_WIN
+    bool isQtBackend() const;
     bool isMediaFoundationBackend() const;
 #endif
     
