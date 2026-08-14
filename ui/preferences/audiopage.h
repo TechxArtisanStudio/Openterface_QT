@@ -32,19 +32,21 @@
 #include <QCheckBox>
 #include <QPushButton>
 #include "fontstyle.h"
+#include "preferencepagebase.h"
 
-class AudioPage : public QWidget
+class AudioPage : public PreferencePageBase
 {
     Q_OBJECT
 public:
     explicit AudioPage(QWidget *parent = nullptr);
     void setupUI();
 
+    void applySettings() override;
+    void captureSnapshot() override;
+    void revertToSnapshot() override;
+
 private slots:
     void loadSettings();
-    void saveSettings();
-    void captureSnapshot();
-    void revertToSnapshot();
     void connectSignals();
     void refreshAudioDevices();
     void onAudioDeviceChanged(int index);
@@ -60,7 +62,7 @@ private:
     QSlider *qualitySlider;
     QLabel *fileFormatLabel;
     QComboBox *containerFormatBox;
-    
+
     // Audio device management widgets
     QComboBox *audioDeviceComboBox;
     QLabel *currentDeviceLabel;
