@@ -115,30 +115,15 @@ LRESULT CALLBACK SystemKeyBlocker::lowLevelKeyboardProc(
         return CallNextHookEx(nullptr, nCode, wParam, lParam);
     }
 
-    // Check if openterfaceQT window (or any of its child windows) is in foreground
-    // Only intercept keyboard events when our window is active
-    HWND foregroundWnd = GetForegroundWindow();
-    HWND hookedWnd = (HWND)s_self->m_hookedHwnd;
-
-    // Only block if our window or a child of our window is in foreground
-    // Check both directions: foreground is hookedWnd, or foreground is a child of hookedWnd
-    // (VideoPane is a child of MainWindow, so when MainWindow is foreground, we need
-    // to check if the foreground has VideoPane as a descendant)
-    bool isOurWindowFocused = false;
-    if (foregroundWnd != nullptr && hookedWnd != nullptr) {
-        if (foregroundWnd == hookedWnd) {
-            isOurWindowFocused = true;
-        } else if (IsChild(hookedWnd, foregroundWnd)) {
-            // foregroundWnd is a child of hookedWnd (e.g. VideoPane has a child widget focused)
-            isOurWindowFocused = true;
-        } else if (IsChild(foregroundWnd, hookedWnd)) {
-            // hookedWnd (VideoPane) is a child of foregroundWnd (MainWindow)
-            isOurWindowFocused = true;
-        }
+    // Only swallow keys when focus is inside the designated focus target (VideoPane).
+    // This allows dialogs (e.g. Preferences) to receive keyboard input even when
+    // SystemBlocker is enabled.
+    if (!s_self->m_focusTarget) {
+        return CallNextHookEx(nullptr, nCode, wParam, lParam);
     }
-
-    if (!isOurWindowFocused) {
-        // Our window is not in foreground, let the event pass through
+    HWND focusHwnd = GetFocus();
+    HWND targetHwnd = reinterpret_cast<HWND>(s_self->m_focusTarget->winId());
+    if (focusHwnd != targetHwnd && !IsChild(targetHwnd, focusHwnd)) {
         return CallNextHookEx(nullptr, nCode, wParam, lParam);
     }
 
