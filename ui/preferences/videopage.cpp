@@ -417,6 +417,12 @@ void VideoPage::populateResolutionBox(const QList<QCameraFormat> &videoFormats) 
             // For GStreamer, be very conservative - only use safe standard frame rates
             std::vector<int> safeFrameRates = {5, 10, 15, 20, 24, 25, 30, 50, 60};
 
+<<<<<<< HEAD
+=======
+            qDebug() << "GStreamer mode: Using safe frame rates for" << resolution
+                     << "range" << minFrameRate << "-" << maxFrameRate;
+
+>>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
             for (int safeRate : safeFrameRates) {
                 if (safeRate >= minFrameRate && safeRate <= maxFrameRate) {
                     resolutionSampleRates[resolution].insert(safeRate);
@@ -512,6 +518,10 @@ void VideoPage::applySettings() {
         return;
     }
     int fps = fpsComboBox->currentData().toInt();
+<<<<<<< HEAD
+=======
+    qDebug() << "fpsComboBox current data:" << fpsComboBox->currentData();
+>>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
 
     // Check if we're using GStreamer
     QString mediaBackend = GlobalSetting::instance().getMediaBackend();
@@ -565,6 +575,10 @@ void VideoPage::applySettings() {
 
     // CRITICAL FIX: Wait for capture thread to fully terminate
     // This prevents crash when FFmpeg resources are accessed during cleanup
+<<<<<<< HEAD
+=======
+    qDebug() << "Waiting for capture thread to terminate...";
+>>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
 
     // Process events to ensure stop signal is handled
     QApplication::processEvents();
@@ -574,6 +588,11 @@ void VideoPage::applySettings() {
     QEventLoop loop;
     QTimer::singleShot(200, &loop, &QEventLoop::quit);
     loop.exec();
+<<<<<<< HEAD
+=======
+
+    qDebug() << "Capture thread should be terminated, proceeding with restart";
+>>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
 
     // Restore device settings before starting camera again
     if (!savedPortChain.isEmpty()) {
@@ -593,6 +612,12 @@ void VideoPage::applySettings() {
     } catch (const std::exception& e){
         qCritical() << "Error starting camera: " << e.what();
     }
+<<<<<<< HEAD
+=======
+
+
+    qDebug() << "Applied settings: resolution:" << m_currentResolution << ", FPS:" << fps;
+>>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
 
     updatePixelFormats();
 

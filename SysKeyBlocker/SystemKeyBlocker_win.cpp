@@ -122,6 +122,7 @@ LRESULT CALLBACK SystemKeyBlocker::lowLevelKeyboardProc(
     // This allows dialogs (e.g. Preferences) to receive keyboard input even when
     // SystemBlocker is enabled.
     if (!s_self->m_focusTarget) {
+<<<<<<< HEAD
         qCDebug(log_syskey_win) << "Hook: m_focusTarget is null, passing through";
         return CallNextHookEx(nullptr, nCode, wParam, lParam);
     }
@@ -142,6 +143,13 @@ LRESULT CALLBACK SystemKeyBlocker::lowLevelKeyboardProc(
         qCDebug(log_syskey_win) << "Hook: focus not on target, passing through"
                                 << "focusedWidget:" << focusedWidget->objectName()
                                 << "focusTarget:" << s_self->m_focusTarget->objectName();
+=======
+        return CallNextHookEx(nullptr, nCode, wParam, lParam);
+    }
+    HWND focusHwnd = GetFocus();
+    HWND targetHwnd = reinterpret_cast<HWND>(s_self->m_focusTarget->winId());
+    if (focusHwnd != targetHwnd && !IsChild(targetHwnd, focusHwnd)) {
+>>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
         return CallNextHookEx(nullptr, nCode, wParam, lParam);
     }
 
