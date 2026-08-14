@@ -320,15 +320,16 @@ void SettingDialog::closeEvent(QCloseEvent *event)
         auto result = promptSaveDiscardCancel();
         if (result == QMessageBox::Save) {
             applyAllDirtyPages();
-            event->accept();
+            reject();  // emits finished signal so MainWindow can clean up
         } else if (result == QMessageBox::Cancel) {
             event->ignore();
+            return;
         } else {
             // Discard
-            event->accept();
+            reject();
         }
     } else {
-        event->accept();
+        reject();
     }
 }
 
