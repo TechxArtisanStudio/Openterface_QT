@@ -35,6 +35,7 @@
 #include <QSettings>
 #include "ui/globalsetting.h"
 #include "global.h"
+#include "preferencepagebase.h"
 
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
@@ -50,17 +51,17 @@ struct QSizeComparator {
     }
 };
 
-class VideoPage : public QWidget
+class VideoPage : public PreferencePageBase
 {
     Q_OBJECT
 public:
     explicit VideoPage(CameraManager *cameraManager, QWidget *parent = nullptr);
     void setupUI();
     void initVideoSettings();
-    void applyVideoSettings();
-    void captureSnapshot();
-    void revertToSnapshot();
-    
+    void applySettings() override;
+    void captureSnapshot() override;
+    void revertToSnapshot() override;
+
 signals:
     void videoSettingsChanged();
     void inputResolutionChanged(const QSize &resolution);
@@ -105,8 +106,7 @@ private:
     void handleResolutionSettings();
     QVariant boxValue(const QComboBox *) const;
     void updatePixelFormats();
-    
+
 };
 
 #endif // VIDEOPAGE_H
-
