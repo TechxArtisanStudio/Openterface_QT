@@ -25,7 +25,9 @@
 #ifndef Q_OS_WIN
 #include "backend/gstreamerbackendhandler.h"
 #endif
+#ifdef Q_OS_WIN
 #include "backend/qtbackendhandler.h"
+#endif
 #include "backend/qtmultimediabackendhandler.h"
 #ifdef Q_OS_WIN
 #include "backend/mf/mfbackendhandler.h"
@@ -219,9 +221,11 @@ MultimediaBackendType MultimediaBackendFactory::parseBackendType(const QString& 
     if (backendName.compare("qtmultimedia", Qt::CaseInsensitive) == 0) {
         return MultimediaBackendType::QtMultimedia;
     }
+#ifdef Q_OS_WIN
     if (backendName.compare("qt", Qt::CaseInsensitive) == 0) {
         return MultimediaBackendType::Qt;
     }
+#endif
     if (backendName.compare("gstreamer", Qt::CaseInsensitive) == 0) {
         return MultimediaBackendType::GStreamer;
     }
@@ -239,8 +243,10 @@ QString MultimediaBackendFactory::backendTypeToString(MultimediaBackendType type
     switch (type) {
         case MultimediaBackendType::QtMultimedia:
             return "Qt Multimedia (Legacy)";
+#ifdef Q_OS_WIN
         case MultimediaBackendType::Qt:
             return "Qt Multimedia (Windows)";
+#endif
         case MultimediaBackendType::FFmpeg:
             return "FFmpeg";
         case MultimediaBackendType::GStreamer:
@@ -261,8 +267,10 @@ std::unique_ptr<MultimediaBackendHandler> MultimediaBackendFactory::createHandle
 #endif
         case MultimediaBackendType::FFmpeg:
             return std::make_unique<FFmpegBackendHandler>(parent);
+#ifdef Q_OS_WIN
         case MultimediaBackendType::Qt:
             return std::make_unique<QtBackendHandler>(parent);
+#endif
         case MultimediaBackendType::QtMultimedia:
             return std::make_unique<QtMultimediaBackendHandler>(parent);
 #ifdef Q_OS_WIN
