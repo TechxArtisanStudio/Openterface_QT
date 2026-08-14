@@ -173,20 +173,20 @@ void LogPage::setupUI()
     createButtonBar(logLayout);
 
     // Connect setting widgets to markDirty()
-    connect(coreCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(serialCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(uiCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(hostCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(deviceCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(backendCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(scriptCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(storeLogCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(logFilePathLineEdit, &QLineEdit::textChanged, this, [this]{ markDirty(); });
-    connect(screenSaverCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(hideKeyboardInputCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(floatingWindowCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(floatingWindowOpacitySlider, &QSlider::valueChanged, this, [this]{ markDirty(); });
-    connect(systemKeyBlockerCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(coreCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(serialCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(uiCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(hostCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(deviceCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(backendCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(scriptCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(storeLogCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(logFilePathLineEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(screenSaverCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(hideKeyboardInputCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(floatingWindowCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(floatingWindowOpacitySlider, &QSlider::valueChanged, this, [this]{ checkDirtyState(); });
+    connect(systemKeyBlockerCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
 
     logLayout->addStretch();
 
@@ -372,4 +372,22 @@ void LogPage::revertToSnapshot()
     floatingWindowCheckBox->setChecked(m_snap_floatingWindow);
     floatingWindowOpacitySlider->setValue(m_snap_floatingWindowOpacity);
     systemKeyBlockerCheckBox->setChecked(m_snap_systemKeyBlocker);
+}
+
+bool LogPage::valuesMatchSnapshot() const
+{
+    return coreCheckBox->isChecked() == m_snap_coreLog
+        && serialCheckBox->isChecked() == m_snap_serialLog
+        && uiCheckBox->isChecked() == m_snap_uiLog
+        && hostCheckBox->isChecked() == m_snap_hostLog
+        && deviceCheckBox->isChecked() == m_snap_deviceLog
+        && backendCheckBox->isChecked() == m_snap_backendLog
+        && scriptCheckBox->isChecked() == m_snap_scriptLog
+        && storeLogCheckBox->isChecked() == m_snap_storeLog
+        && logFilePathLineEdit->text() == m_snap_logFilePath
+        && screenSaverCheckBox->isChecked() == m_snap_screenSaver
+        && hideKeyboardInputCheckBox->isChecked() == m_snap_hideKeyboardInput
+        && floatingWindowCheckBox->isChecked() == m_snap_floatingWindow
+        && floatingWindowOpacitySlider->value() == m_snap_floatingWindowOpacity
+        && systemKeyBlockerCheckBox->isChecked() == m_snap_systemKeyBlocker;
 }

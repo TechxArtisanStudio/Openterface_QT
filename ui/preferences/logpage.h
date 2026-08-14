@@ -46,6 +46,7 @@ public:
     void initLogSettings();
     void applySettings() override;
     void captureSnapshot() override;
+    bool valuesMatchSnapshot() const override;
     void revertToSnapshot() override;
 
 signals:

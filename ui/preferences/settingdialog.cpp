@@ -103,6 +103,12 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     videoPage->initVideoSettings();
     targetControlPage->initHardwareSetting();
     mcpPage->initMcpSettings();
+
+    // Force clear dirty state after all init - some widget signals may fire during init
+    for (auto *page : m_pages) {
+        if (page) page->clearDirty();
+    }
+
     // Set initial page to General (index 0) - before connecting signal to avoid spurious changePage
     if (settingTree->topLevelItemCount() > 0) {
         m_currentPageIndex = 0;

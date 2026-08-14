@@ -334,18 +334,18 @@ void VideoPage::setupUI()
     createButtonBar(videoLayout);
 
     // Connect dirty tracking for all settings widgets
-    connect(overrideSettingsCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(customInputWidthEdit, &QLineEdit::textChanged, this, [this]{ markDirty(); });
-    connect(customInputHeightEdit, &QLineEdit::textChanged, this, [this]{ markDirty(); });
+    connect(overrideSettingsCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(customInputWidthEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(customInputHeightEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
     connect(videoFormatBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ markDirty(); });
     connect(fpsComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ markDirty(); });
     connect(pixelFormatBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ markDirty(); });
     connect(hwAccelBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ markDirty(); });
     connect(scalingQualityBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ markDirty(); });
-    connect(antialiasingCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(textAntialiasingCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(smoothTransformCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
-    connect(gstSinkEdit, &QLineEdit::textChanged, this, [this]{ markDirty(); });
+    connect(antialiasingCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(textAntialiasingCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(smoothTransformCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(gstSinkEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
 
     // Connect the checkbox state change to the slot
     connect(overrideSettingsCheckBox, &QCheckBox::toggled, this, &VideoPage::toggleCustomResolutionInputs);
@@ -914,4 +914,31 @@ void VideoPage::revertToSnapshot()
     if (gstSinkEdit) {
         gstSinkEdit->setText(m_snap_gstSinkPriority);
     }
+}
+
+bool VideoPage::valuesMatchSnapshot() const
+{
+    QComboBox *hwAccelBox = this->findChild<QComboBox*>("hwAccelBox");
+    QComboBox *scalingQualityBox = this->findChild<QComboBox*>("scalingQualityBox");
+    QCheckBox *antialiasingCheckBox = this->findChild<QCheckBox*>("antialiasingCheckBox");
+    QCheckBox *textAntialiasingCheckBox = this->findChild<QCheckBox*>("textAntialiasingCheckBox");
+    QCheckBox *smoothTransformCheckBox = this->findChild<QCheckBox*>("smoothTransformCheckBox");
+    QComboBox *mediaBackendBox = this->findChild<QComboBox*>("mediaBackendBox");
+    QCheckBox *overrideSettingsCheckBox = this->findChild<QCheckBox*>("overrideSettingsCheckBox");
+    QLineEdit *customInputWidthEdit = this->findChild<QLineEdit*>("customInputWidthEdit");
+    QLineEdit *customInputHeightEdit = this->findChild<QLineEdit*>("customInputHeightEdit");
+
+    return videoFormatBox->currentIndex() == m_snap_videoFormatIndex
+        && pixelFormatBox->currentIndex() == m_snap_pixelFormatIndex
+        && fpsComboBox->currentIndex() == m_snap_fpsIndex
+        && m_currentResolution == m_snap_resolution
+        && (hwAccelBox ? hwAccelBox->currentIndex() : -1) == m_snap_hwAccelIndex
+        && (scalingQualityBox ? scalingQualityBox->currentIndex() : -1) == m_snap_scalingQualityIndex
+        && (antialiasingCheckBox ? antialiasingCheckBox->isChecked() : false) == m_snap_antialiasing
+        && (textAntialiasingCheckBox ? textAntialiasingCheckBox->isChecked() : false) == m_snap_textAntialiasing
+        && (smoothTransformCheckBox ? smoothTransformCheckBox->isChecked() : false) == m_snap_smoothTransform
+        && (mediaBackendBox ? mediaBackendBox->currentIndex() : -1) == m_snap_mediaBackendIndex
+        && (overrideSettingsCheckBox ? overrideSettingsCheckBox->isChecked() : false) == m_snap_overrideSettings
+        && (customInputWidthEdit ? customInputWidthEdit->text().toInt() : 0) == m_snap_customWidth
+        && (customInputHeightEdit ? customInputHeightEdit->text().toInt() : 0) == m_snap_customHeight;
 }

@@ -15,6 +15,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QDialog>
+#include <QDebug>
 
 PreferencePageBase::PreferencePageBase(QWidget *parent)
     : QWidget(parent)
@@ -54,7 +55,7 @@ void PreferencePageBase::createButtonBar(QVBoxLayout *parentLayout)
     // Connect Revert: restore from snapshot, mark dirty so user sees Apply is orange
     connect(m_revertButton, &QPushButton::clicked, this, [this]() {
         revertToSnapshot();
-        markDirty();
+        checkDirtyState();
     });
 
     // Connect Cancel: close the dialog
@@ -81,6 +82,16 @@ void PreferencePageBase::clearDirty()
         m_isDirty = false;
         updateButtonStyles();
         emit dirtyChanged(false);
+    }
+}
+
+void PreferencePageBase::checkDirtyState()
+{
+    bool matches = valuesMatchSnapshot();
+    if (matches && m_isDirty) {
+        clearDirty();
+    } else if (!matches && !m_isDirty) {
+        markDirty();
     }
 }
 

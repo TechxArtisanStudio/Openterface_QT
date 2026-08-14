@@ -196,24 +196,24 @@ void McpPage::setupUI()
     createButtonBar(mainLayout);
 
     // ---- Connect setting widgets to markDirty() ----
-    connect(m_enableCheckBox, &QCheckBox::toggled, this, [this]{ markDirty(); });
+    connect(m_enableCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
     connect(m_transportCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [this]{ markDirty(); });
+            this, [this]{ checkDirtyState(); });
     connect(m_ssePortSpin, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, [this]{ markDirty(); });
+            this, [this]{ checkDirtyState(); });
     connect(m_sseBindPresetCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [this]{ markDirty(); });
-    connect(m_sseBindCustomEdit, &QLineEdit::textChanged, this, [this]{ markDirty(); });
-    connect(m_ssePathSseEdit, &QLineEdit::textChanged, this, [this]{ markDirty(); });
-    connect(m_ssePathMessagesEdit, &QLineEdit::textChanged, this, [this]{ markDirty(); });
+            this, [this]{ checkDirtyState(); });
+    connect(m_sseBindCustomEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(m_ssePathSseEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(m_ssePathMessagesEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
     connect(m_sseKeepaliveSpin, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, [this]{ markDirty(); });
+            this, [this]{ checkDirtyState(); });
     connect(m_sseSessionTimeoutSpin, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, [this]{ markDirty(); });
+            this, [this]{ checkDirtyState(); });
     connect(m_sseCleanupIntervalSpin, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, [this]{ markDirty(); });
+            this, [this]{ checkDirtyState(); });
     connect(m_sseMaxSessionsSpin, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, [this]{ markDirty(); });
+            this, [this]{ checkDirtyState(); });
 }
 
 // ============================================================================
@@ -362,4 +362,19 @@ void McpPage::revertToSnapshot()
     // Trigger UI state updates
     onTransportModeChanged(m_snap_transportIndex);
     onBindAddressPresetChanged(m_snap_sseBindPresetIndex);
+}
+
+bool McpPage::valuesMatchSnapshot() const
+{
+    return m_enableCheckBox->isChecked() == m_snap_enableChecked
+        && m_transportCombo->currentIndex() == m_snap_transportIndex
+        && m_ssePortSpin->value() == m_snap_ssePort
+        && m_sseBindPresetCombo->currentIndex() == m_snap_sseBindPresetIndex
+        && m_sseBindCustomEdit->text() == m_snap_sseBindCustom
+        && m_ssePathSseEdit->text() == m_snap_ssePathSse
+        && m_ssePathMessagesEdit->text() == m_snap_ssePathMessages
+        && m_sseKeepaliveSpin->value() == m_snap_sseKeepalive
+        && m_sseSessionTimeoutSpin->value() == m_snap_sseSessionTimeout
+        && m_sseCleanupIntervalSpin->value() == m_snap_sseCleanupInterval
+        && m_sseMaxSessionsSpin->value() == m_snap_sseMaxSessions;
 }

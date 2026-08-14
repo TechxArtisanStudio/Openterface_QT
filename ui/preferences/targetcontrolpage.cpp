@@ -408,3 +408,17 @@ void TargetControlPage::revertToSnapshot()
 
     clearDirty();
 }
+
+bool TargetControlPage::valuesMatchSnapshot() const
+{
+    return VIDCheckBox->isChecked() == m_snap_vidChecked
+        && PIDCheckBox->isChecked() == m_snap_pidChecked
+        && VIDLineEdit->text() == m_snap_vidText
+        && PIDLineEdit->text() == m_snap_pidText
+        && VIDDescriptorLineEdit->text() == m_snap_vidDescriptor
+        && PIDDescriptorLineEdit->text() == m_snap_pidDescriptor
+        && USBSerialNumberCheckBox->isChecked() == m_snap_usbSerialNumberChecked
+        && serialNumberLineEdit->text() == m_snap_serialNumberText
+        && USBCustomStringDescriptorCheckBox->isChecked() == m_snap_usbCustomStringChecked
+        && operatingModeGroup->checkedId() == m_snap_operatingMode;
+}

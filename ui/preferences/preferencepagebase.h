@@ -41,6 +41,7 @@ public:
 
     bool isDirty() const { return m_isDirty; }
     void clearDirty();
+    void checkDirtyState();
 
 signals:
     void dirtyChanged(bool dirty);
@@ -56,6 +57,8 @@ protected:
 
     /// Mark the page as dirty (modified since last snapshot).
     void markDirty();
+    /// Compare current widget values to snapshot.
+    virtual bool valuesMatchSnapshot() const = 0;
 
 
     /// Update button styles based on dirty state.

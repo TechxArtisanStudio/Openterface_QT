@@ -49,6 +49,7 @@ public:
     void applySettings() override;
     void initHardwareSetting();
     void captureSnapshot() override;
+    bool valuesMatchSnapshot() const override;
     void revertToSnapshot() override;
 
 private:

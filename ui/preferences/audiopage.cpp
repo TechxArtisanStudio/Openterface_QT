@@ -388,3 +388,15 @@ void AudioPage::revertToSnapshot()
     enableAudioCheckBox->setChecked(m_snap_enableAudio);
     volumeSlider->setValue(m_snap_volume);
 }
+
+bool AudioPage::valuesMatchSnapshot() const
+{
+    return audioCodecBox->currentIndex() == m_snap_audioCodecIndex
+        && audioSampleRateBox->value() == m_snap_sampleRate
+        && qualitySlider->value() == m_snap_quality
+        && containerFormatBox->currentIndex() == m_snap_containerFormatIndex
+        && audioDeviceComboBox->currentIndex() == m_snap_audioDeviceIndex
+        && audioBitrateBox->value() == m_snap_audioBitrate
+        && enableAudioCheckBox->isChecked() == m_snap_enableAudio
+        && volumeSlider->value() == m_snap_volume;
+}
