@@ -520,10 +520,10 @@ int main(int argc, char *argv[])
         printf("  ffmpeg          - FFmpeg backend (DirectShow on Windows, V4L2 on Linux)\n");
 #ifdef Q_OS_WIN
         printf("  mediafoundation - Windows Media Foundation (native)\n");
+        printf("  qt              - Qt Multimedia backend (Windows only)\n");
 #else
         printf("  gstreamer       - GStreamer backend\n");
 #endif
-        printf("  qt              - Qt Multimedia backend\n");
         return 0;
     }
     setupEnv();

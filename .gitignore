@@ -23,3 +23,7 @@ build-script/libusb-build-temp/*
 shared-qt-complete-arm-opt.tar*
 email_service/*
 .codegraph/*
+
+# Soak test artifacts (logs, screenshots, reports)
+tests/soak_test_logs/
+tests/soak_test_screenshots/

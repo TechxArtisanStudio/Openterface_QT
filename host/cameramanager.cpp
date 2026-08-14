@@ -87,12 +87,12 @@ bool CameraManager::isFFmpegBackend() const
     return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::FFmpeg;
 }
 
+#ifdef Q_OS_WIN
 bool CameraManager::isQtBackend() const
 {
     return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::Qt;
 }
 
-#ifdef Q_OS_WIN
 bool CameraManager::isMediaFoundationBackend() const
 {
     return m_backendHandler && m_backendHandler->getBackendType() == MultimediaBackendType::MediaFoundation;
