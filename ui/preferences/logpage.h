@@ -33,8 +33,9 @@
 #include <QSettings>
 #include <QSlider>
 #include "fontstyle.h"
+#include "preferencepagebase.h"
 
-class LogPage : public QWidget
+class LogPage : public PreferencePageBase
 {
     Q_OBJECT
 
@@ -43,9 +44,10 @@ public:
     void setupUI();
     void browseLogPath();
     void initLogSettings();
-    void applyLogsettings();
-    void captureSnapshot();
-    void revertToSnapshot();
+    void applySettings() override;
+    void captureSnapshot() override;
+    bool valuesMatchSnapshot() const override;
+    void revertToSnapshot() override;
 
 signals:
     void ScreenSaverInhibitedChanged(bool inhibited);
