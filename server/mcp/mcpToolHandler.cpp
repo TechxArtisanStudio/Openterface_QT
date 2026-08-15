@@ -34,6 +34,7 @@
 #include "scripts/AST.h"
 #include "serial/SerialPortManager.h"
 #include "video/videohid.h"
+#include "video/firmwareoperationmanager.h"
 
 #include <QBuffer>
 #include <QJsonDocument>
@@ -309,6 +310,35 @@ QJsonArray McpToolHandler::listTools() const
         tools.append(tool);
     }
 
+    // ---- Firmware Tools ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_FIRMWARE_CHECK;
+        tool["description"] = "Check the video chip firmware version against the latest published release. Reports the current version, the latest version and whether an update is available. Downloads the latest firmware binary into memory as a side effect.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        schema["properties"] = QJsonObject();
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_FIRMWARE_UPDATE;
+        tool["description"] = "Update the video chip firmware to the latest published release. Stops all video/HID/serial activity, writes the firmware EEPROM and blocks until the write completes (up to 5 minutes). After success the app must be restarted and the device fully power-cycled (host USB power AND target power); video and control are dead until then.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["force"] = QJsonObject{{"type", "boolean"}, {"description", "Re-flash even if the device already reports the latest version (default false)"}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
     return tools;
 }
 
@@ -333,6 +363,8 @@ QJsonObject McpToolHandler::callTool(const QString& name, const QJsonObject& arg
     if (name == MCP_TOOL_VALIDATE_SCRIPT)             return toolValidateScript(arguments);
     if (name == MCP_TOOL_SYSTEM_STATUS)              return toolSystemStatus(arguments);
     if (name == MCP_TOOL_USB_SWITCH)                 return toolUsbSwitch(arguments);
+    if (name == MCP_TOOL_FIRMWARE_CHECK)             return toolFirmwareCheck(arguments);
+    if (name == MCP_TOOL_FIRMWARE_UPDATE)            return toolFirmwareUpdate(arguments);
 
     return errorResult("Unknown tool: " + name);
 }
@@ -915,6 +947,96 @@ QJsonObject McpToolHandler::toolUsbSwitch(const QJsonObject& args)
     } else {
         return errorResult("Invalid USB target: '" + target + "'. Use 'host' or 'target'.");
     }
+}
+
+// ==========================================================================
+// Firmware Tool Implementations
+// ==========================================================================
+
+QJsonObject McpToolHandler::toolFirmwareCheck(const QJsonObject& args)
+{
+    Q_UNUSED(args);
+    VideoHid& hid = VideoHid::getInstance();
+    FirmwareResult r = hid.isLatestFirmware();
+
+    QString status;
+    switch (r) {
+    case FirmwareResult::Latest:      status = "latest"; break;
+    case FirmwareResult::Upgradable:  status = "upgradable"; break;
+    case FirmwareResult::Timeout:     status = "network_timeout"; break;
+    case FirmwareResult::CheckFailed: status = "check_failed"; break;
+    default:                          status = "unknown"; break;
+    }
+
+    return textResult(QString("firmware status: %1 (current: %2, latest: %3)")
+        .arg(status,
+             QString::fromStdString(hid.getCurrentFirmwareVersion()),
+             QString::fromStdString(hid.getLatestFirmwareVersion())));
+}
+
+QJsonObject McpToolHandler::toolFirmwareUpdate(const QJsonObject& args)
+{
+    bool force = args.value("force").toBool(false);
+
+    VideoHid& hid = VideoHid::getInstance();
+    FirmwareResult r = hid.isLatestFirmware();
+    QString cur = QString::fromStdString(hid.getCurrentFirmwareVersion());
+    QString latest = QString::fromStdString(hid.getLatestFirmwareVersion());
+
+    if (r == FirmwareResult::Timeout || r == FirmwareResult::CheckFailed) {
+        return errorResult(QString("Firmware check failed (%1); no flash attempted. Current version: %2")
+            .arg(r == FirmwareResult::Timeout ? "network timeout" : "check failed", cur));
+    }
+    if (r == FirmwareResult::Latest && !force) {
+        return textResult(QString("Firmware already at latest version %1; nothing flashed. "
+            "Pass force=true to re-flash.").arg(cur));
+    }
+
+    qCInfo(log_server_mcp_tool) << "Firmware update starting:" << cur << "->" << latest;
+
+    // Same shutdown sequence as FirmwarePage::onCheckForUpdatesClicked():
+    // the EEPROM write must not compete with HID polling or serial traffic.
+    hid.stop();
+    hid.stopPollingOnly();
+    QThread::msleep(300);
+    SerialPortManager::getInstance().closePort();
+    QThread::msleep(200);
+
+    FirmwareOperationManager* mgr = hid.getFirmwareOperationManager();
+
+    QEventLoop loop;
+    bool done = false;
+    bool ok = false;
+    int lastPct = 0;
+    QMetaObject::Connection cProg = connect(mgr, &FirmwareOperationManager::progress,
+        &loop, [&lastPct](int pct) { lastPct = pct; });
+    QMetaObject::Connection cDone = connect(mgr, &FirmwareOperationManager::writeCompleted,
+        &loop, [&ok, &done, &loop](bool success) { ok = success; done = true; loop.quit(); });
+
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timeout.start(300000);
+
+    hid.loadFirmwareToEeprom();
+    if (!done)
+        loop.exec();
+
+    disconnect(cProg);
+    disconnect(cDone);
+
+    if (!done) {
+        return errorResult(QString("Firmware write TIMED OUT after 300s at %1%. "
+            "Device state unknown -- retry or investigate before power-cycling.").arg(lastPct));
+    }
+    if (!ok) {
+        return errorResult(QString("Firmware write FAILED at %1% (%2 -> %3). "
+            "Retry before power-cycling the device.").arg(lastPct).arg(cur, latest));
+    }
+    return textResult(QString("Firmware update SUCCESSFUL: %1 -> %2. "
+        "REQUIRED next steps: quit this app, power off BOTH ends of the KVM "
+        "(host USB power and target power), then re-energize the KVM before booting the target.")
+        .arg(cur, latest));
 }
 
 // ==========================================================================
