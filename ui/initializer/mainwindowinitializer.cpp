@@ -103,7 +103,12 @@ void MainWindowInitializer::initialize()
     setupEventCallbacks();
     setupKeyboardShortcuts();
     finalize();
-    
+
+    // Initialize MCP server if enabled in settings
+    QTimer::singleShot(1000, m_mainWindow, [this]() {
+        m_mainWindow->onMcpSettingsApplied();
+    });
+
     qCDebug(log_ui_mainwindowinitializer) << "Initialization sequence complete - deferred operations scheduled";
 }
 

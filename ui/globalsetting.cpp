@@ -671,3 +671,11 @@ void GlobalSetting::setMcpSseMaxSessions(int max) {
 int GlobalSetting::getMcpSseMaxSessions() const {
     return m_settings.value("mcp/sseMaxSessions", 16).toInt();
 }
+
+void GlobalSetting::setMcpScreenToMarkdown(bool enabled) {
+    m_settings.setValue("mcp/screenToMarkdown", enabled);
+}
+
+bool GlobalSetting::getMcpScreenToMarkdown() const {
+    return m_settings.value("mcp/screenToMarkdown", false).toBool();
+}

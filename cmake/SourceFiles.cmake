@@ -165,6 +165,7 @@ set(SERVER_SOURCES
     server/mcp/mcpToolHandler.cpp server/mcp/mcpToolHandler.h
     server/mcp/mcpConstants.h
     server/mcp/mcpSseTransport.cpp server/mcp/mcpSseTransport.h
+    server/mcp/screenAnalyzer.cpp server/mcp/screenAnalyzer.h
 )
 
 # Target sources

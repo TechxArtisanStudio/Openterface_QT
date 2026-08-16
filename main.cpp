@@ -41,6 +41,18 @@
 #include <QFileInfo>
 #include <QTimer>
 #include <cstdio>
+#include <cstdlib>
+
+// For stdout redirection in stdio mode
+#ifdef Q_OS_WIN
+#include <io.h>
+#define dup _dup
+#define dup2 _dup2
+#define STDOUT_FILENO _fileno(stdout)
+#define STDERR_FILENO _fileno(stderr)
+#else
+#include <unistd.h>
+#endif
 
 // Stdio MCP transport support (headless mode for Claude Code)
 #include "server/mcp/mcpServer.h"
@@ -305,13 +317,34 @@ int main(int argc, char *argv[])
     // We use the offscreen platform so no real display is needed.
     bool mcpHeadlessMode = !autoStartMcp && (mcpStdioMode || (mcpSsePort > 0));
     if (mcpHeadlessMode) {
+        fprintf(stderr, "[DEBUG-MAIN] Entering mcpHeadlessMode block\n");
+        fflush(stderr);
+        // In stdio mode, redirect stdout to stderr to prevent debug output from
+        // interfering with JSON-RPC protocol. We'll reopen stdout later for JSON-RPC only.
+        if (mcpStdioMode) {
+            // Save original stdout file descriptor
+            int savedStdout = dup(STDOUT_FILENO);
+            fprintf(stderr, "[DEBUG] Saved stdout fd: %d\n", savedStdout);
+            // Redirect stdout to stderr
+            dup2(STDERR_FILENO, STDOUT_FILENO);
+            // Store saved fd for later use by MCP server
+            const char* fdStr = QString::number(savedStdout).toUtf8().constData();
+            fprintf(stderr, "[DEBUG] Setting OPENTERFACE_SAVED_STDOUT=%s\n", fdStr);
+            int result = setenv("OPENTERFACE_SAVED_STDOUT", fdStr, 1);
+            fprintf(stderr, "[DEBUG] setenv result: %d\n", result);
+        }
+
         // Use offscreen platform — provides QInputMethod without needing a real display
         qputenv("QT_QPA_PLATFORM", "offscreen");
 
         // Redirect all logging to stderr so we can see what's happening
         qputenv("QT_LOGGING_RULES", "*.debug=true");
 
+        fprintf(stderr, "[DEBUG-MAIN] Creating QApplication...\n");
+        fflush(stderr);
         QApplication app(argc, argv);
+        fprintf(stderr, "[DEBUG-MAIN] QApplication created\n");
+        fflush(stderr);
         qInfo() << "Starting MCP server in stdio transport mode (offscreen)...";
 
         // Load keyboard layouts — required by KeyboardManager (used by MCP tools)
@@ -319,11 +352,17 @@ int main(int argc, char *argv[])
         KeyboardLayoutManager::getInstance().loadLayouts(":/config/keyboards");
         qInfo() << "Keyboard layouts loaded";
 
+        fprintf(stderr, "[DEBUG-MAIN] Creating CameraManager...\n");
+        fflush(stderr);
         // Create CameraManager on the heap — must outlive McpServer so capture_screen works.
         // Parented to &app for automatic cleanup on exit.
         CameraManager* cameraManager = new CameraManager(&app);
+        fprintf(stderr, "[DEBUG-MAIN] CameraManager created\n");
+        fflush(stderr);
         qInfo() << "CameraManager created for stdio mode";
 
+        fprintf(stderr, "[DEBUG-MAIN] Starting camera initialization...\n");
+        fflush(stderr);
         // Start VideoHid — required to initialize the video chip (MS2109/MS2130S) HID
         // interface so the HDMI input is routed to the USB capture device. Without this,
         // the capture device produces valid but black frames. GUI mode does the same in
@@ -381,6 +420,8 @@ int main(int argc, char *argv[])
                 device.portChain, cameraManager);
             fprintf(stderr, "[DEBUG] switchToDeviceByPortChainWithCamera result: success=%d, message='%s'\n",
                     result.success, result.statusMessage.toUtf8().constData());
+            fprintf(stderr, "[DEBUG-MAIN] Device connection completed\n");
+            fflush(stderr);
             if (result.success) {
                 qInfo() << "Device connected successfully:" << result.statusMessage;
             } else {
@@ -396,6 +437,8 @@ int main(int argc, char *argv[])
 
             // Wait for serial port to be ready (it's initialized asynchronously)
             qInfo() << "Waiting for serial port to initialize...";
+            fprintf(stderr, "[DEBUG-MAIN] Starting serial port wait loop...\n");
+            fflush(stderr);
             QEventLoop waitLoop;
             QTimer timeoutTimer;
             timeoutTimer.setSingleShot(true);
@@ -416,6 +459,8 @@ int main(int argc, char *argv[])
             timeoutTimer.start(5000); // 5 second timeout
             waitLoop.exec();
             timeoutTimer.stop();
+            fprintf(stderr, "[DEBUG-MAIN] Serial port wait loop completed, serialReady=%d\n", serialReady);
+            fflush(stderr);
 
             if (!serialReady) {
                 qWarning() << "Serial port did not become ready within timeout";
@@ -467,8 +512,12 @@ int main(int argc, char *argv[])
             }
         }
 
+        fprintf(stderr, "[DEBUG-MAIN] About to start camera wait loop...\n");
+        fflush(stderr);
         // Wait for camera to produce its first frame (FFmpeg backend starts async)
         qInfo() << "Waiting for camera to produce first frame...";
+        fprintf(stderr, "[DEBUG-MAIN] Starting camera wait loop...\n");
+        fflush(stderr);
         {
             int maxWaitMs = 5000;
             int waitedMs = 0;
@@ -477,6 +526,8 @@ int main(int argc, char *argv[])
                 waitedMs += 200;
                 QCoreApplication::processEvents();
             }
+            fprintf(stderr, "[DEBUG-MAIN] Camera wait loop completed, waited %d ms\n", waitedMs);
+            fflush(stderr);
             if (cameraManager->getLatestOriginalFrame().isNull()) {
                 qWarning() << "Camera did not produce a frame within" << maxWaitMs << "ms";
                 qWarning() << "capture_screen tool may return errors until a frame is available";
@@ -486,15 +537,23 @@ int main(int argc, char *argv[])
             }
         }
 
+        fprintf(stderr, "[DEBUG-MAIN] About to create MCP server...\n");
+        fflush(stderr);
         McpServer* mcpServer = new McpServer(&app);
+        fprintf(stderr, "[DEBUG-MAIN] MCP server created\n");
+        fflush(stderr);
         mcpServer->setCameraManager(cameraManager);
 
         // Start stdio transport if requested
         if (mcpStdioMode) {
+            fprintf(stderr, "[DEBUG-MAIN] Starting MCP stdio transport\n");
+            fflush(stderr);
             if (!mcpServer->startStdio()) {
                 qCritical() << "Failed to start MCP stdio transport";
                 return 1;
             }
+            fprintf(stderr, "[DEBUG-MAIN] MCP stdio transport started successfully\n");
+            fflush(stderr);
         }
 
         // Start SSE transport if requested

@@ -201,6 +201,8 @@ public:
     int getMcpSseCleanupInterval() const;
     void setMcpSseMaxSessions(int max);
     int getMcpSseMaxSessions() const;
+    void setMcpScreenToMarkdown(bool enabled);
+    bool getMcpScreenToMarkdown() const;
 
 private:
     QSettings m_settings;

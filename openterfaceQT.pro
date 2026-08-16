@@ -72,6 +72,7 @@ SOURCES += main.cpp \
     server/mcp/mcpProtocol.cpp \
     server/mcp/mcpToolHandler.cpp \
     server/mcp/mcpSseTransport.cpp \
+    server/mcp/screenAnalyzer.cpp \
     target/KeyboardLayouts.cpp \
     target/KeyboardManager.cpp \
     target/MouseManager.cpp \
@@ -236,6 +237,7 @@ HEADERS  += \
     server/mcp/mcpToolHandler.h \
     server/mcp/mcpConstants.h \
     server/mcp/mcpSseTransport.h \
+    server/mcp/screenAnalyzer.h \
     target/KeyboardLayouts.h \
     target/KeyboardManager.h \
     target/MouseManager.h \
@@ -415,6 +417,33 @@ unix {
         DEFINES += HAVE_LIBUDEV HAVE_GSTREAMER HAVE_FFMPEG HAVE_LIBJPEG_TURBO HAVE_LIBUSB
         # Add VA-API libraries AFTER FFmpeg pkg-config libraries to ensure proper linking order
         LIBS += -lva -lva-drm -lva-x11
+
+        # Optional: Tesseract OCR for screen_to_markdown
+        TESSERACT_PKG = $$system(pkg-config --exists tesseract && echo yes)
+        equals(TESSERACT_PKG, yes) {
+            PKGCONFIG += tesseract lept
+            DEFINES += HAVE_TESSERACT
+            message("Tesseract OCR found - enabling screen_to_markdown feature")
+        } else {
+            message("Tesseract OCR not found - screen_to_markdown feature will be disabled")
+        }
+
+        # Optional: OpenCV for visual button detection in screen_to_markdown
+        OPENCV4_PKG = $$system(pkg-config --exists opencv4 && echo yes)
+        OPENCV_PKG = $$system(pkg-config --exists opencv && echo yes)
+        !isEmpty(OPENCV4_PKG) {
+            OPENCV_VERSION = $$system(pkg-config --modversion opencv4)
+            PKGCONFIG += opencv4
+            DEFINES += HAVE_OPENCV
+            message("OpenCV found ($$OPENCV_VERSION) - enabling visual button detection")
+        } else:!isEmpty(OPENCV_PKG) {
+            OPENCV_VERSION = $$system(pkg-config --modversion opencv)
+            PKGCONFIG += opencv4 opencv
+            DEFINES += HAVE_OPENCV
+            message("OpenCV found ($$OPENCV_VERSION) - enabling visual button detection")
+        } else {
+            message("OpenCV not found - visual button detection disabled. Install with: sudo dnf install opencv-devel")
+        }
     }
 
     RESOURCES += driver/linux/drivers.qrc
