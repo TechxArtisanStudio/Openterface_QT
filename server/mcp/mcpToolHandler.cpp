@@ -387,6 +387,7 @@ QJsonObject McpToolHandler::callTool(const QString& name, const QJsonObject& arg
     if (name == MCP_TOOL_SCREEN_TO_MARKDOWN)         return toolScreenToMarkdown(arguments);
     if (name == MCP_TOOL_FIRMWARE_CHECK)             return toolFirmwareCheck(arguments);
     if (name == MCP_TOOL_FIRMWARE_UPDATE)            return toolFirmwareUpdate(arguments);
+    if (name == MCP_TOOL_SCREEN_TO_MARKDOWN)         return toolScreenToMarkdown(arguments);
 
     return errorResult("Unknown tool: " + name);
 }
@@ -1164,6 +1165,51 @@ QJsonObject McpToolHandler::toolFirmwareUpdate(const QJsonObject& args)
         "REQUIRED next steps: quit this app, power off BOTH ends of the KVM "
         "(host USB power and target power), then re-energize the KVM before booting the target.")
         .arg(cur, latest));
+}
+
+// ==========================================================================
+// Screen Analysis Tool
+// ==========================================================================
+
+QJsonObject McpToolHandler::toolScreenToMarkdown(const QJsonObject& args)
+{
+    // Check if the feature is enabled in settings
+    GlobalSetting &settings = GlobalSetting::instance();
+    if (!settings.getMcpScreenToMarkdown()) {
+        return errorResult("Screen to Markdown feature is disabled. Enable it in Preferences -> MCP Server.");
+    }
+
+    if (!m_cameraManager) {
+        return errorResult("CameraManager not initialized");
+    }
+
+    if (!m_screenAnalyzer) {
+        return errorResult("ScreenAnalyzer not initialized");
+    }
+
+    if (!m_screenAnalyzer->isAvailable()) {
+        return errorResult("OCR engine not available. Tesseract may not be installed.");
+    }
+
+    // Get detail level parameter
+    QString detailLevel = args.value("detail_level").toString("detailed");
+    if (detailLevel != "basic" && detailLevel != "detailed") {
+        detailLevel = "detailed";
+    }
+
+    // Get the current frame
+    QImage frame = m_cameraManager->getLatestOriginalFrame();
+    if (frame.isNull()) {
+        return errorResult("No frame available from camera");
+    }
+
+    qCInfo(log_server_mcp_tool) << "Analyzing screen with detail level:" << detailLevel;
+
+    // Analyze the screen
+    ScreenAnalysis analysis = m_screenAnalyzer->analyzeScreen(frame, detailLevel);
+
+    // Return the Markdown output
+    return textResult(analysis.markdownOutput);
 }
 
 // ==========================================================================
