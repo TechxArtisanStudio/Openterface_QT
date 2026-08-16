@@ -16,10 +16,15 @@ set -euo pipefail
 PROJECT_DIR="${WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 SOAK_SCRIPT="${PROJECT_DIR}/tests/gui_soak_test.sh"
 LOG_DIR="${PROJECT_DIR}/tests/soak_test_logs"
+BUILD_DIR="${PROJECT_DIR}/build"
 
 DURATION="${SOAK_DURATION_MIN:-30}"
 INTERVAL="${SOAK_CHECK_INTERVAL:-30}"
 BACKEND="${SOAK_BACKEND:-}"
+
+# The soak test job's own workspace doesn't include build artifacts.
+# The binary lives in the build job's workspace on the same agent.
+BUILD_JOB_WORKSPACE="/home/pi/jenkins/workspace/Openterface_Shared_arm64/build"
 
 echo "=== OpenterfaceQT Soak Test Runner ==="
 echo "Project:   ${PROJECT_DIR}"
@@ -29,12 +34,27 @@ echo "Backend:   ${BACKEND:-default}"
 echo
 
 # ---------------------------------------------------------------------------
-# Pre-flight: ensure binary exists (skip if Jenkins already built it upstream)
+# Pre-flight: ensure binary exists
 # ---------------------------------------------------------------------------
-if [ ! -f "${PROJECT_DIR}/build/openterfaceQT" ]; then
-    echo "Binary not found — build is required before soak test."
-    echo "Trigger Openterface_Shared_arm64 first, or run cmake/make here."
-    exit 1
+if [ ! -f "${BUILD_DIR}/openterfaceQT" ]; then
+    if [ -f "${BUILD_JOB_WORKSPACE}/openterfaceQT" ]; then
+        echo "Binary not in this workspace — symlinking from build job workspace:"
+        echo "  ${BUILD_JOB_WORKSPACE}/openterfaceQT"
+        mkdir -p "${BUILD_DIR}"
+        # Symlink the whole build output so runtime libs (Qt, FFmpeg) resolve too
+        for f in "${BUILD_JOB_WORKSPACE}"/*; do
+            [ -e "${BUILD_DIR}/$(basename "$f")" ] && continue
+            ln -sf "$f" "${BUILD_DIR}/$(basename "$f")"
+        done
+        # Copy launcher script and translations (small, not symlinked)
+        echo "  Symlinked $(ls "${BUILD_DIR}" | wc -l) entries into ${BUILD_DIR}"
+    else
+        echo "Binary not found in this workspace OR build job workspace."
+        echo "  Expected: ${BUILD_DIR}/openterfaceQT"
+        echo "      Or:   ${BUILD_JOB_WORKSPACE}/openterfaceQT"
+        echo "Trigger Openterface_Shared_arm64 first."
+        exit 1
+    fi
 fi
 
 # ---------------------------------------------------------------------------
