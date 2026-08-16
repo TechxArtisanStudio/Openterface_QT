@@ -82,6 +82,32 @@ sleep 1
 # ---------------------------------------------------------------------------
 mkdir -p "${LOG_DIR}"
 
+# ---------------------------------------------------------------------------
+# Set up Qt/library paths from the AppDir bundled by the build job.
+# The shared build produces a dynamically-linked binary that needs Qt/FFmpeg
+# libs at runtime; on the NanoPi agent these aren't installed system-wide —
+# they live in the AppImage staging area.
+# ponytail: relies on the build job having populated appimage/AppDir. If the
+# build layout changes, this block needs updating (or switch to running the
+# AppImage directly via --appimage-extract).
+# ---------------------------------------------------------------------------
+APPDIR="${BUILD_DIR}/appimage/AppDir"
+if [ -d "${APPDIR}/usr/lib" ]; then
+    echo "Setting LD_LIBRARY_PATH from AppDir: ${APPDIR}/usr/lib"
+    export LD_LIBRARY_PATH="${APPDIR}/usr/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+    export QT_PLUGIN_PATH="${APPDIR}/usr/plugins"
+    export QML2_IMPORT_PATH="${APPDIR}/usr/qml"
+    # The AppDir binary (openterfaceQT.bin) is stripped & smaller; prefer it
+    # because the raw build binary (100MB+) has debug symbols and the same
+    # runtime deps. If the AppDir binary isn't there, fall back to raw.
+    if [ -x "${APPDIR}/usr/bin/openterfaceQT.bin" ]; then
+        echo "Using AppDir binary: ${APPDIR}/usr/bin/openterfaceQT.bin"
+        cp "${APPDIR}/usr/bin/openterfaceQT.bin" "${BUILD_DIR}/openterfaceQT"
+    fi
+else
+    echo "WARNING: AppDir not found at ${APPDIR} — relying on system Qt libs"
+fi
+
 echo "Starting soak test..."
 ARGS=("--native" "${DURATION}" "${INTERVAL}")
 if [ -n "${BACKEND}" ]; then
