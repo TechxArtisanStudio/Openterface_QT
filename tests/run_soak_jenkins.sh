@@ -102,7 +102,11 @@ if [ -d "${APPDIR}/usr/lib" ]; then
     # runtime deps. If the AppDir binary isn't there, fall back to raw.
     if [ -x "${APPDIR}/usr/bin/openterfaceQT.bin" ]; then
         echo "Using AppDir binary: ${APPDIR}/usr/bin/openterfaceQT.bin"
+        # ponytail: the existing build/openterfaceQT is a read-only symlink
+        # into the build job's workspace; remove it before replacing.
+        rm -f "${BUILD_DIR}/openterfaceQT"
         cp "${APPDIR}/usr/bin/openterfaceQT.bin" "${BUILD_DIR}/openterfaceQT"
+        chmod +x "${BUILD_DIR}/openterfaceQT"
     fi
 else
     echo "WARNING: AppDir not found at ${APPDIR} — relying on system Qt libs"
