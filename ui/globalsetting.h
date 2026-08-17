@@ -204,6 +204,40 @@ public:
     void setMcpScreenToMarkdown(bool enabled);
     bool getMcpScreenToMarkdown() const;
 
+    // ---- AI Chat ----
+    void setChatApiBaseURL(const QString &url);
+    QString getChatApiBaseURL() const;
+    void setChatApiKey(const QString &key);
+    QString getChatApiKey() const;
+    void setChatModel(const QString &model);
+    QString getChatModel() const;
+    void setChatTargetSystem(const QString &system);
+    QString getChatTargetSystem() const;
+    void setChatAgentMaxIterations(int max);
+    int getChatAgentMaxIterations() const;
+    void setChatAgenticModeEnabled(bool enabled);
+    bool getChatAgenticModeEnabled() const;
+    void setChatPlannerModeEnabled(bool enabled);
+    bool getChatPlannerModeEnabled() const;
+    void setChatGuideModeEnabled(bool enabled);
+    bool getChatGuideModeEnabled() const;
+    void setChatSystemPrompt(const QString &prompt);
+    QString getChatSystemPrompt() const;
+    void setChatPlannerPrompt(const QString &prompt);
+    QString getChatPlannerPrompt() const;
+    void setChatScreenTaskPrompt(const QString &prompt);
+    QString getChatScreenTaskPrompt() const;
+    void setChatTypingTaskPrompt(const QString &prompt);
+    QString getChatTypingTaskPrompt() const;
+    void setChatGuidePrompt(const QString &prompt);
+    QString getChatGuidePrompt() const;
+    void setChatWindowVisible(bool visible);
+    bool getChatWindowVisible() const;
+    void setChatWindowWidth(int width);
+    int getChatWindowWidth() const;
+    void setChatDockSide(const QString &side);
+    QString getChatDockSide() const;
+
 private:
     QSettings m_settings;
 };

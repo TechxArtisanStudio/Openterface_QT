@@ -679,3 +679,236 @@ void GlobalSetting::setMcpScreenToMarkdown(bool enabled) {
 bool GlobalSetting::getMcpScreenToMarkdown() const {
     return m_settings.value("mcp/screenToMarkdown", false).toBool();
 }
+
+// ============================================================================
+// AI Chat Settings
+// ============================================================================
+
+void GlobalSetting::setChatApiBaseURL(const QString &url) {
+    m_settings.setValue("chat/apiBaseURL", url);
+}
+
+QString GlobalSetting::getChatApiBaseURL() const {
+    return m_settings.value("chat/apiBaseURL", "https://api.openai.com/v1").toString();
+}
+
+void GlobalSetting::setChatApiKey(const QString &key) {
+    m_settings.setValue("chat/apiKey", key);
+}
+
+QString GlobalSetting::getChatApiKey() const {
+    // Also check environment variable as fallback
+    QString key = m_settings.value("chat/apiKey", "").toString();
+    if (key.isEmpty()) {
+        key = QString::fromUtf8(qgetenv("OPENAI_API_KEY"));
+    }
+    return key;
+}
+
+void GlobalSetting::setChatModel(const QString &model) {
+    m_settings.setValue("chat/model", model);
+}
+
+QString GlobalSetting::getChatModel() const {
+    return m_settings.value("chat/model", "gpt-4o-mini").toString();
+}
+
+void GlobalSetting::setChatTargetSystem(const QString &system) {
+    m_settings.setValue("chat/targetSystem", system);
+}
+
+QString GlobalSetting::getChatTargetSystem() const {
+    return m_settings.value("chat/targetSystem", "linux").toString();
+}
+
+void GlobalSetting::setChatAgentMaxIterations(int max) {
+    m_settings.setValue("chat/agentMaxIterations", qBound(1, max, 30));
+}
+
+int GlobalSetting::getChatAgentMaxIterations() const {
+    return qBound(1, m_settings.value("chat/agentMaxIterations", 10).toInt(), 30);
+}
+
+void GlobalSetting::setChatAgenticModeEnabled(bool enabled) {
+    m_settings.setValue("chat/agenticMode", enabled);
+}
+
+bool GlobalSetting::getChatAgenticModeEnabled() const {
+    return m_settings.value("chat/agenticMode", false).toBool();
+}
+
+void GlobalSetting::setChatPlannerModeEnabled(bool enabled) {
+    m_settings.setValue("chat/plannerMode", enabled);
+}
+
+bool GlobalSetting::getChatPlannerModeEnabled() const {
+    return m_settings.value("chat/plannerMode", false).toBool();
+}
+
+void GlobalSetting::setChatGuideModeEnabled(bool enabled) {
+    m_settings.setValue("chat/guideMode", enabled);
+}
+
+bool GlobalSetting::getChatGuideModeEnabled() const {
+    return m_settings.value("chat/guideMode", false).toBool();
+}
+
+void GlobalSetting::setChatSystemPrompt(const QString &prompt) {
+    m_settings.setValue("chat/systemPrompt", prompt);
+}
+
+QString GlobalSetting::getChatSystemPrompt() const {
+    return m_settings.value("chat/systemPrompt",
+        "You are Openterface Assistant, an on-device KVM copilot.\n\n"
+        "Capabilities:\n"
+        "- You can analyze the latest shared screen image from the target computer.\n"
+        "- You can suggest keyboard and mouse actions for the user to execute through Openterface.\n\n"
+        "Operating style:\n"
+        "- Be concise, practical, and step-by-step.\n"
+        "- Prefer short action plans with checkpoints.\n"
+        "- If screen details are unclear, ask for a fresh screenshot or zoomed area.\n"
+        "- State assumptions explicitly when uncertain.\n\n"
+        "Control guidance:\n"
+        "- Provide exact key names and mouse actions (click, double-click, right-click, drag).\n"
+        "- For text entry, provide the exact text to type.\n"
+        "- For risky actions (delete, reset, install, security changes), ask for confirmation first.\n\n"
+        "Safety and scope:\n"
+        "- Do not invent screen content you cannot see.\n"
+        "- Do not claim actions were executed; only provide guidance.\n"
+        "- Prioritize non-destructive troubleshooting before invasive changes.\n"
+        "- Protect privacy: avoid requesting secrets unless absolutely required.\n"
+    ).toString();
+}
+
+void GlobalSetting::setChatPlannerPrompt(const QString &prompt) {
+    m_settings.setValue("chat/plannerPrompt", prompt);
+}
+
+QString GlobalSetting::getChatPlannerPrompt() const {
+    return m_settings.value("chat/plannerPrompt",
+        "You are the Openterface Main Agent.\n\n"
+        "Your job is to understand the user's intent, inspect the current target screen when available, "
+        "and produce a structured execution plan before any task runs.\n\n"
+        "Rules:\n"
+        "- Return ONLY JSON.\n"
+        "- Build a short, concrete plan that can be reviewed by the user.\n"
+        "- Keep tasks simple and independent.\n"
+        "- Available task agents/tools:\n"
+        "    - screen + capture_screen\n"
+        "    - typing + type_text\n"
+        "    - mouse + move_mouse\n"
+        "    - mouse + left_click\n"
+        "    - mouse + right_click\n"
+        "    - mouse + double_click\n"
+        "- Use typing tasks when the user intent requires entering text or keystrokes on target.\n"
+        "- Use mouse tasks when the user intent requires cursor movement or clicks on target.\n"
+        "- Do not execute tasks yourself.\n"
+        "- Do not invent screen details that are not visible.\n\n"
+        "Schema:\n"
+        "{\n"
+        "    \"summary\": \"one short sentence about the plan\",\n"
+        "    \"tasks\": [\n"
+        "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"screen\", \"tool\": \"capture_screen\"},\n"
+        "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"typing\", \"tool\": \"type_text\"},\n"
+        "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"mouse\", \"tool\": \"left_click\"}\n"
+        "    ]\n"
+        "}\n"
+    ).toString();
+}
+
+void GlobalSetting::setChatScreenTaskPrompt(const QString &prompt) {
+    m_settings.setValue("chat/screenTaskPrompt", prompt);
+}
+
+QString GlobalSetting::getChatScreenTaskPrompt() const {
+    return m_settings.value("chat/screenTaskPrompt",
+        "You are the Openterface Screen Task Agent.\n\n"
+        "You are responsible for exactly one task and may rely on the latest target screen image as your only tool context.\n\n"
+        "Rules:\n"
+        "- Return ONLY JSON.\n"
+        "- Focus only on the assigned task.\n"
+        "- Do not plan future tasks.\n"
+        "- Do not claim actions were executed.\n"
+        "- If the screen is unclear, report that directly.\n\n"
+        "Schema:\n"
+        "{\n"
+        "    \"status\": \"completed\" | \"failed\",\n"
+        "    \"result_summary\": \"short result for the user\"\n"
+        "}\n"
+    ).toString();
+}
+
+void GlobalSetting::setChatTypingTaskPrompt(const QString &prompt) {
+    m_settings.setValue("chat/typingTaskPrompt", prompt);
+}
+
+QString GlobalSetting::getChatTypingTaskPrompt() const {
+    return m_settings.value("chat/typingTaskPrompt",
+        "You are the Openterface Typing Task Agent.\n\n"
+        "You are responsible for one typing task and one tool only: type_text.\n\n"
+        "Rules:\n"
+        "- Return ONLY JSON.\n"
+        "- Focus only on the current task.\n"
+        "- For plain typing, provide text_to_type.\n"
+        "- For keyboard/function keys, use angle-bracket format (example: <ctrl>l, <cmd><space>, <enter>, <f1>).\n"
+        "- Provide either text_to_type or shortcut.\n\n"
+        "Schema:\n"
+        "{\n"
+        "    \"status\": \"completed\" | \"failed\",\n"
+        "    \"text_to_type\": \"exact text to type on target (optional)\",\n"
+        "    \"shortcut\": \"keyboard combo like Ctrl+L (optional)\",\n"
+        "    \"result_summary\": \"short summary for the user\"\n"
+        "}\n"
+    ).toString();
+}
+
+void GlobalSetting::setChatGuidePrompt(const QString &prompt) {
+    m_settings.setValue("chat/guidePrompt", prompt);
+}
+
+QString GlobalSetting::getChatGuidePrompt() const {
+    return m_settings.value("chat/guidePrompt",
+        "You are the Openterface Guide Mode Agent.\n\n"
+        "Provide turn-by-turn guidance for the user to accomplish their goal on the target screen.\n\n"
+        "Rules:\n"
+        "- Return ONLY JSON.\n"
+        "- Provide one clear step at a time.\n"
+        "- If a clickable target is identified, set target_box with normalized coordinates (0.0-1.0).\n"
+        "- If a keyboard shortcut is more appropriate, set tool and tool_input.\n"
+        "- Prefer keyboard shortcuts over mouse clicks when both are viable.\n"
+        "- If the target is unclear, set needs_clarification=true.\n\n"
+        "Schema:\n"
+        "{\n"
+        "    \"next_step\": \"clear instruction for the next step\",\n"
+        "    \"tool\": \"left_click|right_click|double_click|shortcut (optional)\",\n"
+        "    \"tool_input\": \"shortcut like Ctrl+S or key combo (optional)\",\n"
+        "    \"target_box\": {\"x\": 0.0-1.0, \"y\": 0.0-1.0, \"width\": 0.0-1.0, \"height\": 0.0-1.0},\n"
+        "    \"needs_clarification\": true|false,\n"
+        "    \"clarification\": \"what to clarify (if needed)\"\n"
+        "}\n"
+    ).toString();
+}
+
+void GlobalSetting::setChatWindowVisible(bool visible) {
+    m_settings.setValue("chat/windowVisible", visible);
+}
+
+bool GlobalSetting::getChatWindowVisible() const {
+    return m_settings.value("chat/windowVisible", false).toBool();
+}
+
+void GlobalSetting::setChatWindowWidth(int width) {
+    m_settings.setValue("chat/windowWidth", qBound(320, width, 800));
+}
+
+int GlobalSetting::getChatWindowWidth() const {
+    return qBound(320, m_settings.value("chat/windowWidth", 420).toInt(), 800);
+}
+
+void GlobalSetting::setChatDockSide(const QString &side) {
+    m_settings.setValue("chat/dockSide", side);
+}
+
+QString GlobalSetting::getChatDockSide() const {
+    return m_settings.value("chat/dockSide", "right").toString();
+}

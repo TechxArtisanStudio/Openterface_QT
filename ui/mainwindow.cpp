@@ -30,6 +30,9 @@
 #include "ui/statusbar/statusbarmanager.h"
 #include "host/HostManager.h"
 #include "host/cameramanager.h"
+#include "chat/ChatWindow.h"
+#include "ai/ChatManager.h"
+#include "ai/ChatScreenCapture.h"
 #include "serial/SerialPortManager.h"
 #include <QStandardPaths>
 #include "device/DeviceManager.h"
@@ -291,6 +294,32 @@ void MainWindow::onMcpSettingsApplied()
             m_statusBarManager->setStatusUpdate("MCP Server disabled");
         }
     }
+}
+
+void MainWindow::toggleChatWindow(bool visible)
+{
+    if (!m_chatWindow) {
+        m_chatWindow = new ChatWindow(this);
+        m_chatWindow->setWindowTitle("AI Chat");
+
+        // Position chat window to the right of main window
+        QRect mainGeo = geometry();
+        m_chatWindow->resize(400, mainGeo.height());
+        m_chatWindow->move(mainGeo.right() + 4, mainGeo.top());
+
+        // Set up CameraManager for AI screenshots
+        ChatScreenCapture::instance().setCameraManager(m_cameraManager);
+    }
+
+    if (visible) {
+        m_chatWindow->show();
+        m_chatWindow->raise();
+        m_chatWindow->activateWindow();
+    } else {
+        m_chatWindow->hide();
+    }
+
+    GlobalSetting::instance().setChatWindowVisible(visible);
 }
 
 void MainWindow::stopServer(){

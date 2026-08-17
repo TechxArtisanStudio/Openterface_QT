@@ -373,6 +373,7 @@ void MainWindowInitializer::connectActionSignals()
     connect(m_ui->actionScriptTool, &QAction::triggered, m_mainWindow, &MainWindow::showScriptTool);
     connect(m_ui->actionRecordingSettings, &QAction::triggered, m_mainWindow, &MainWindow::showRecordingSettings);
     connect(m_ui->actionHardwareDiagnostics, &QAction::triggered, m_mainWindow, &MainWindow::showHardwareDiagnostics);
+    connect(m_ui->actionAIChat, &QAction::toggled, m_mainWindow, &MainWindow::toggleChatWindow);
     // Connect baudrate actions to the MenuCoordinator which handles baudrate logic
     // Use the QActionGroup triggered(QAction*) signal to call the MenuCoordinator slot.
     // We use the string-based SIGNAL/SLOT so that the private slot onBaudrateMenuTriggered
