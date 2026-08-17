@@ -23,6 +23,7 @@
 #include "SystemKeyBlocker.h"
 
 #include <QWidget>
+#include <QApplication>
 #include <windows.h>
 #include <QLoggingCategory>
 #include <QMetaObject>
@@ -120,11 +121,26 @@ LRESULT CALLBACK SystemKeyBlocker::lowLevelKeyboardProc(
     // This allows dialogs (e.g. Preferences) to receive keyboard input even when
     // SystemBlocker is enabled.
     if (!s_self->m_focusTarget) {
+        qCDebug(log_syskey_win) << "Hook: m_focusTarget is null, passing through";
         return CallNextHookEx(nullptr, nCode, wParam, lParam);
     }
-    HWND focusHwnd = GetFocus();
-    HWND targetHwnd = reinterpret_cast<HWND>(s_self->m_focusTarget->winId());
-    if (focusHwnd != targetHwnd && !IsChild(targetHwnd, focusHwnd)) {
+
+    // Use Qt's focus system instead of native Windows GetFocus() to check if
+    // VideoPane or its children have focus. Qt's focus tracking is more reliable
+    // than native Windows focus for Qt applications.
+    QWidget* focusedWidget = QApplication::focusWidget();
+    if (!focusedWidget) {
+        qCDebug(log_syskey_win) << "Hook: no widget has focus, passing through";
+        return CallNextHookEx(nullptr, nCode, wParam, lParam);
+    }
+
+    // Check if focus is on the target itself or any of its descendants
+    bool focusOnTarget = (focusedWidget == s_self->m_focusTarget) ||
+                         s_self->m_focusTarget->isAncestorOf(focusedWidget);
+    if (!focusOnTarget) {
+        qCDebug(log_syskey_win) << "Hook: focus not on target, passing through"
+                                << "focusedWidget:" << focusedWidget->objectName()
+                                << "focusTarget:" << s_self->m_focusTarget->objectName();
         return CallNextHookEx(nullptr, nCode, wParam, lParam);
     }
 
@@ -162,6 +178,9 @@ LRESULT CALLBACK SystemKeyBlocker::lowLevelKeyboardProc(
 
     // ---- Translate to Qt key code ----
     const int qtKey = s_self->nativeToQtKey(vk, isExtended);
+
+    qCDebug(log_syskey_win) << "Hook: captured key vk=" << vk << "qtKey=" << qtKey
+                            << "modifiers=" << modifiers << "isKeyDown=" << isKeyDown;
 
     // ---- Emit signal (cross-thread dispatch by Qt) ----
     emit s_self->keyCaptured(qtKey, modifiers, isKeyDown, vk);
