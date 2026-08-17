@@ -759,10 +759,10 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     qDebug() << "Latest firmware version: " << QString::fromStdString(latestVersion);
     qDebug() << "Firmware is latest: " << (latestFirmware == FirmwareResult::Latest ? "yes" : "no");
     
-    latestFirewareDescription ="<br>Current version: " + QString::fromStdString(version) + 
+    latestFirewareDescription ="<br>Current version: " + QString::fromStdString(version) +
     "<br>" + "Latest version: " + QString::fromStdString(latestVersion) +
-    "<br>" + "Please update driver to latest version." + 
-    "<br>" + "click OK then Advance->Firmware Update...";
+    "<br>" + "Please update the firmware to the latest version." +
+    "<br>" + "Click OK, then open File->Preferences->Video Firmware and use \"Firmware Update from Remote\".";
     qDebug() << latestFirewareDescription;
     #ifdef _WIN32
     return checkDriverInstalled() && latestFirmware == FirmwareResult::Latest;
