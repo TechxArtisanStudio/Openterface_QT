@@ -25,6 +25,7 @@
 #include "inputhandler.h"
 #include "../global.h"
 #include "globalsetting.h"
+#include "../SysKeyBlocker/SystemKeyBlocker.h"
 
 #include <QtWidgets>
 #include <QtMultimedia>
@@ -951,6 +952,12 @@ void VideoPane::wheelEvent(QWheelEvent *event)
 
 void VideoPane::keyPressEvent(QKeyEvent *event)
 {
+    // Forward to InputHandler when SystemKeyBlocker is not active
+    // (When active, the hook handles keyboard forwarding to avoid duplicates)
+    if (!SystemKeyBlocker::instance().isActive() && m_inputHandler) {
+        m_inputHandler->handleKeyPress(event);
+    }
+
     // Handle Shift + Arrow keys for panning in zoomed mode
     if (m_scaleFactor > 1.0 && event->modifiers() == Qt::ShiftModifier) {
         // Define scroll step size (in pixels)
@@ -1016,6 +1023,18 @@ void VideoPane::keyPressEvent(QKeyEvent *event)
     
     // Pass unhandled events to base class
     QGraphicsView::keyPressEvent(event);
+}
+
+void VideoPane::keyReleaseEvent(QKeyEvent *event)
+{
+    // Forward to InputHandler when SystemKeyBlocker is not active
+    // (When active, the hook handles keyboard forwarding to avoid duplicates)
+    if (!SystemKeyBlocker::instance().isActive() && m_inputHandler) {
+        m_inputHandler->handleKeyRelease(event);
+    }
+
+    // Pass unhandled events to base class
+    QGraphicsView::keyReleaseEvent(event);
 }
 
 void VideoPane::mousePressEvent(QMouseEvent *event)
