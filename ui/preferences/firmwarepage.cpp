@@ -36,6 +36,7 @@
 #include <QMessageBox>
 #include <QApplication>
 #include <QThread>
+#include <QTimer>
 #include <QCoreApplication>
 #include <QDebug>
 
@@ -44,9 +45,13 @@ FirmwarePage::FirmwarePage(QWidget *parent)
     , currentOperation(None)
     , workerThread(nullptr)
     , m_fetchThread(nullptr)
+    , m_versionThread(nullptr)
 {
     setupUI();
-    updateVersionDisplay();
+    // Defer so the Preferences dialog opens instantly instead of blocking
+    // on synchronous USB HID reads. The actual firmware version read runs
+    // in a background thread (see updateVersionDisplay()).
+    QTimer::singleShot(0, this, &FirmwarePage::updateVersionDisplay);
 }
 
 FirmwarePage::~FirmwarePage()
@@ -65,6 +70,13 @@ FirmwarePage::~FirmwarePage()
         m_fetchThread->requestInterruption();
         m_fetchThread->quit();
         m_fetchThread->wait(100); // 100ms timeout max
+    }
+
+    // Same for the synchronous USB version read.
+    if (m_versionThread && m_versionThread->isRunning()) {
+        m_versionThread->requestInterruption();
+        m_versionThread->quit();
+        m_versionThread->wait(100);
     }
 }
 
@@ -158,12 +170,40 @@ void FirmwarePage::setupUI()
 
 void FirmwarePage::updateVersionDisplay()
 {
-    std::string version = VideoHid::getInstance().getFirmwareVersion();
-    versionLabel->setText(tr("Current Firmware Version: ") + QString::fromStdString(version));
+    // Show "Loading..." while reading firmware version from device
+    versionLabel->setText(tr("Current Firmware Version: Loading..."));
+
+    // Run the synchronous USB HID read in a background thread so the GUI
+    // is never blocked by USB timeouts. Pattern mirrors fetchLatestVersionAsync().
+    // Don't start a new read if one is already in progress.
+    if (m_versionThread && m_versionThread->isRunning()) {
+        return;
+    }
+
+    m_versionThread = new QThread();
+    QObject *worker = new QObject();
+    QPointer<FirmwarePage> guard(this);
+    connect(m_versionThread, &QThread::started, worker, [guard, worker]() {
+        std::string version = VideoHid::getInstance().getFirmwareVersion();
+        if (guard) {
+            QMetaObject::invokeMethod(guard.data(), "onVersionFetched",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(QString, QString::fromStdString(version)));
+        }
+        worker->deleteLater();
+    });
+    connect(m_versionThread, &QThread::finished, m_versionThread, &QThread::deleteLater);
+    worker->moveToThread(m_versionThread);
+    m_versionThread->start();
 
     // Show "Checking..." while fetching latest version from network
     latestVersionLabel->setText(tr("Latest Firmware Version: Checking..."));
     fetchLatestVersionAsync();
+}
+
+void FirmwarePage::onVersionFetched(const QString &version)
+{
+    versionLabel->setText(tr("Current Firmware Version: ") + version);
 }
 
 void FirmwarePage::fetchLatestVersionAsync()

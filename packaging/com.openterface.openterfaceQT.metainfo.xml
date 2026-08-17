@@ -49,6 +49,18 @@
     </screenshots>
 
     <releases>
+        <release version="0.5.27" date="2026-08-14">
+            <description>
+                <p>Improve preference dialog and input handling:</p>
+                <ul>
+                    <li>Add unsaved-changes protection with save/discard/cancel prompt</li>
+                    <li>SystemKeyBlocker now only intercepts keys when VideoPane has focus</li>
+                    <li>Add mouse scroll support and floating window for small screens</li>
+                    <li>Fix UK keyboard layout and X11 focus loop hang</li>
+                    <li>Add MCP server and improve HDMI input handling</li>
+                </ul>
+            </description>
+        </release>
         <release version="0.5.17" date="2026-03-03">
             <description>
                 <p>Add the software update checking, and enhance the firmware update process for better stability and user experience.</p>

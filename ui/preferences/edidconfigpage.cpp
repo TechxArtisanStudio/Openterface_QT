@@ -278,17 +278,10 @@ void EdidConfigPage::updateDeviceStatus()
     bool connected = false;
 
     if (devicePresent) {
-        // Prefer the polling thread's cached state — it reads the status
+        // Trust the polling thread's cached state — it reads the status
         // register continuously and its reads don't contend with the UI.
+        // No direct USB reads here to avoid blocking the GUI thread.
         connected = videoHid.lastKnownHdmiConnected();
-        if (!connected) {
-            // Cache says disconnected; confirm with a direct read (retry once
-            // since a single failed read can be transient).
-            connected = videoHid.isHdmiConnected();
-            if (!connected) {
-                connected = videoHid.isHdmiConnected();
-            }
-        }
     }
 
     if (connected) {

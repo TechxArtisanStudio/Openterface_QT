@@ -52,6 +52,7 @@ private slots:
     void onOperationComplete(bool success);
     void onCancelClicked();
     void onLatestVersionFetched();
+    void onVersionFetched(const QString &version);
 
 private:
     enum OperationType { None, Update, Backup, Write };
@@ -69,7 +70,8 @@ private:
     // State
     OperationType currentOperation;
     QThread *workerThread;
-    QThread *m_fetchThread;
+    QThread *m_fetchThread;      // network: latest version check
+    QThread *m_versionThread;    // USB HID: current version read
 
     void setupUI();
     void startOperation(OperationType type);
