@@ -549,8 +549,18 @@ rpmbuild --define "_topdir ${RPMTOP}" -bb "${SPEC_OUT}"
 RPM_OUT_NAME="openterfaceQT_${VERSION}_${ARCH}.rpm"
 FOUND_RPM=$(find "${RPMTOP}/RPMS" -name "*.rpm" -type f | head -n1 || true)
 if [ -n "${FOUND_RPM}" ]; then
-	mv "${FOUND_RPM}" "${BUILD}/${RPM_OUT_NAME}"
-	echo "RPM package created at ${BUILD}/${RPM_OUT_NAME}"
+	# ponytail: use cp+sync+rm instead of mv — mv across Docker bind-mount
+	# boundaries (container overlay -> host bind mount) can silently produce
+	# a 0-byte file because data isn't fsync'd before the container exits.
+	cp "${FOUND_RPM}" "${BUILD}/${RPM_OUT_NAME}"
+	sync
+	rm -f "${FOUND_RPM}"
+	SIZE=$(stat -c%s "${BUILD}/${RPM_OUT_NAME}" 2>/dev/null || stat -f%z "${BUILD}/${RPM_OUT_NAME}" 2>/dev/null || echo 0)
+	if [ "${SIZE}" -eq 0 ]; then
+		echo "Error: RPM file is 0 bytes after copy — bind-mount sync failed." >&2
+		exit 1
+	fi
+	echo "RPM package created at ${BUILD}/${RPM_OUT_NAME} (${SIZE} bytes)"
 else
 	echo "Error: RPM build did not produce an output." >&2
 	exit 1
