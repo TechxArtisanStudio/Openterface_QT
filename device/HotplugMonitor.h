@@ -5,6 +5,8 @@
 #include <QTimer>
 #include <QDateTime>
 #include <QMutex>
+#include <QFuture>
+#include <QFutureWatcher>
 #include <functional>
 #include "DeviceInfo.h"
 
@@ -86,6 +88,9 @@ private:
     int m_changeEventCount;
     QDateTime m_lastChangeTime;
     mutable QMutex m_mutex;
+
+    // Background task lifecycle management
+    QFutureWatcher<void>* m_checkWatcher;  // Tracks the running checkForChanges task
 };
 
 #endif // HOTPLUGMONITOR_H

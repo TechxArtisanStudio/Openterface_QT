@@ -21,9 +21,9 @@
 /**
  * @brief Base class for preference pages that have Apply/Revert/Cancel buttons.
  *
- * Provides common button creation, styling (white with shadow, orange when dirty),
- * and dirty-state tracking. Subclasses implement captureSnapshot(), applySettings(),
- * and revertToSnapshot().
+ * Provides common button creation, styling (palette-aware with drop shadow,
+ * brand-orange when dirty), and dirty-state tracking. Subclasses implement
+ * captureSnapshot(), applySettings(), and revertToSnapshot().
  */
 class PreferencePageBase : public QWidget
 {
