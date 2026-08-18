@@ -316,9 +316,12 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "GUDEV|GUdev device|libgudev-1.0.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     "JPEG|libjpeg|libjpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
     "TURBOJPEG|libturbojpeg|libturbojpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "VA|VA-API|libva.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "VADRM|VA-API DRM|libva-drm.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "VAX11|VA-API X11|libva-x11.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    # Hardware acceleration libraries are NOT bundled - use system libraries instead
+    # Bundling libva causes symbol incompatibilities with system libavutil (e.g., vaMapBuffer2)
+    # Users must install system libva packages: libva, libva-drm, libva-x11
+    # "VA|VA-API|libva.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    # "VADRM|VA-API DRM|libva-drm.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    # "VAX11|VA-API X11|libva-x11.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     "VDPAU|VDPAU|libvdpau.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
 
     # Compression libraries (FFmpeg dependencies)
