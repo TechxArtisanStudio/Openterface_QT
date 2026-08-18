@@ -345,12 +345,17 @@ void DeviceCoordinator::scheduleAutoSelectFirstDevice(const QString &portChain)
 
     // Use QPointer to safely reference this object from background threads
     QPointer<DeviceCoordinator> safeThis(this);
-    CameraManager *cameraManager = m_cameraManager;
+    QPointer<CameraManager> safeCameraManager(m_cameraManager);  // QPointer for safe cross-thread access
 
     // Run device switching scheduled on DeviceManager thread; do not block UI
-    (void)QtConcurrent::run([portChain, cameraManager, safeThis]() {
+    (void)QtConcurrent::run([portChain, safeCameraManager, safeThis]() {
         if (!safeThis) {
             qCWarning(log_ui_devicecoordinator) << "DeviceCoordinator destroyed before scheduling auto-select";
+            return;
+        }
+
+        if (!safeCameraManager) {
+            qCWarning(log_ui_devicecoordinator) << "CameraManager destroyed before scheduling auto-select";
             return;
         }
 
@@ -370,12 +375,22 @@ void DeviceCoordinator::scheduleAutoSelectFirstDevice(const QString &portChain)
                 QThread::msleep(retryDelays[attempt]);
             }
 
+            // Check QPointer validity before each attempt
+            if (!safeCameraManager) {
+                qCWarning(log_ui_devicecoordinator) << "CameraManager destroyed during auto-select retry";
+                return;
+            }
+
             // Schedule the actual switching to run in the DeviceManager's QObject thread via queued invocation
             bool success = false;
-            QMetaObject::invokeMethod(&deviceManager, [portChain, cameraManager, &success]() {
+            QMetaObject::invokeMethod(&deviceManager, [portChain, safeCameraManager, &success]() {
+                if (!safeCameraManager) {
+                    qCWarning(log_ui_devicecoordinator) << "CameraManager destroyed before switch execution";
+                    return;
+                }
                 qCDebug(log_ui_devicecoordinator) << "Queued auto-select switch to port chain:" << portChain;
                 DeviceManager &dm = DeviceManager::getInstance();
-                auto result = dm.switchToDeviceByPortChainWithCamera(portChain, cameraManager);
+                auto result = dm.switchToDeviceByPortChainWithCamera(portChain, safeCameraManager.data());
                 success = result.success || result.hidSuccess;
             }, Qt::BlockingQueuedConnection);
 

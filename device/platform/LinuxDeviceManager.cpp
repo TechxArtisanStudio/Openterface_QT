@@ -18,7 +18,6 @@ Q_LOGGING_CATEGORY(log_device_linux, "opf.device.linux")
 LinuxDeviceManager::LinuxDeviceManager(QObject *parent)
     : AbstractPlatformDeviceManager(parent)
     , m_futureWatcher(new QFutureWatcher<QList<DeviceInfo>>(this))
-    , m_discoveryInProgress(false)
 {
 #ifdef HAVE_LIBUDEV
     // Initialize udev context
@@ -52,37 +51,48 @@ QList<DeviceInfo> LinuxDeviceManager::discoverDevices()
 {
     qCDebug(log_device_linux) << "Discovering Openterface devices on Linux with caching...";
     QDateTime now = QDateTime::currentDateTime();
-    
-    // Check if cache is fresh (within timeout)
-    if (m_lastCacheUpdate.isValid() && 
-        m_lastCacheUpdate.msecsTo(now) < CACHE_TIMEOUT_MS) {
-        return m_cachedDevices;
+
+    // Thread-safe cache check
+    {
+        QMutexLocker locker(&m_cacheMutex);
+        // Check if cache is fresh (within timeout)
+        if (m_lastCacheUpdate.isValid() &&
+            m_lastCacheUpdate.msecsTo(now) < CACHE_TIMEOUT_MS) {
+            return m_cachedDevices;
+        }
     }
 
     // Always return cached data if available and trigger async refresh to avoid blocking
-    if (m_lastCacheUpdate.isValid() && !m_discoveryInProgress) {
-        qCDebug(log_device_linux) << "Cache stale, returning cached data and triggering async refresh";
-        // Trigger async discovery for next time
-        discoverDevicesAsync();
-        return m_cachedDevices;
+    if (!m_discoveryInProgress.load(std::memory_order_acquire)) {
+        QMutexLocker locker(&m_cacheMutex);
+        if (m_lastCacheUpdate.isValid()) {
+            qCDebug(log_device_linux) << "Cache stale, returning cached data and triggering async refresh";
+            // Trigger async discovery for next time
+            discoverDevicesAsync();
+            return m_cachedDevices;
+        }
     }
 
     // Only do blocking discovery on very first call when no cache exists
-    if (!m_lastCacheUpdate.isValid() && !m_discoveryInProgress) {
-        qCDebug(log_device_linux) << "No cache available, performing initial blocking discovery...";
-        
-        QList<DeviceInfo> devices = discoverDevicesBlocking();
-        
-        // Update cache
-        m_cachedDevices = devices;
-        m_lastCacheUpdate = now;
-        
-        qCDebug(log_device_linux) << "Initial discovery found" << devices.size() << "Openterface devices";
-        return devices;
+    if (!m_discoveryInProgress.load(std::memory_order_acquire)) {
+        QMutexLocker locker(&m_cacheMutex);
+        if (!m_lastCacheUpdate.isValid()) {
+            qCDebug(log_device_linux) << "No cache available, performing initial blocking discovery...";
+
+            QList<DeviceInfo> devices = discoverDevicesBlocking();
+
+            // Update cache
+            m_cachedDevices = devices;
+            m_lastCacheUpdate = now;
+
+            qCDebug(log_device_linux) << "Initial discovery found" << devices.size() << "Openterface devices";
+            return devices;
+        }
     }
 
     // If discovery is already in progress, return current cache
     qCDebug(log_device_linux) << "Discovery in progress, returning cached data";
+    QMutexLocker locker(&m_cacheMutex);
     return m_cachedDevices;
 }
 
@@ -129,40 +139,43 @@ QList<DeviceInfo> LinuxDeviceManager::discoverDevicesBlocking()
 
 void LinuxDeviceManager::discoverDevicesAsync()
 {
-    if (m_discoveryInProgress) {
+    bool expected = false;
+    if (!m_discoveryInProgress.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
         qCDebug(log_device_linux) << "Async discovery already in progress, skipping";
         return;
     }
-    
+
     qCDebug(log_device_linux) << "Starting async device discovery...";
-    m_discoveryInProgress = true;
-    
+
     // Start async discovery using QtConcurrent
     QFuture<QList<DeviceInfo>> future = QtConcurrent::run([this]() {
         return discoverDevicesBlocking();
     });
-    
+
     m_futureWatcher->setFuture(future);
 }
 
 void LinuxDeviceManager::onAsyncDiscoveryFinished()
 {
-    m_discoveryInProgress = false;
-    
+    m_discoveryInProgress.store(false, std::memory_order_release);
+
     if (m_futureWatcher->isCanceled()) {
         qCDebug(log_device_linux) << "Async discovery was canceled";
         return;
     }
-    
+
     try {
         QList<DeviceInfo> devices = m_futureWatcher->result();
-        
-        // Update cache
-        m_cachedDevices = devices;
-        m_lastCacheUpdate = QDateTime::currentDateTime();
-        
+
+        // Thread-safe cache update
+        {
+            QMutexLocker locker(&m_cacheMutex);
+            m_cachedDevices = devices;
+            m_lastCacheUpdate = QDateTime::currentDateTime();
+        }
+
         qCDebug(log_device_linux) << "Async discovery completed, found" << devices.size() << "devices";
-        
+
         // Emit signal that devices were discovered
         emit devicesDiscovered(devices);
         
@@ -909,6 +922,7 @@ QList<DeviceInfo> LinuxDeviceManager::processDeviceMap(const QList<UdevDeviceDat
 void LinuxDeviceManager::clearCache()
 {
     qCDebug(log_device_linux) << "Clearing device cache";
+    QMutexLocker locker(&m_cacheMutex);
     m_cachedDevices.clear();
     m_lastCacheUpdate = QDateTime();
 }
