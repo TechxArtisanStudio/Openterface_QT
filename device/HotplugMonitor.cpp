@@ -13,21 +13,27 @@ HotplugMonitor::HotplugMonitor(DeviceManager* deviceManager, QObject *parent)
     , m_running(false)
     , m_pollInterval(2000)
     , m_changeEventCount(0)
+    , m_checkWatcher(new QFutureWatcher<void>(this))
 {
     if (!m_deviceManager) {
         qCWarning(log_hotplug_monitor) << "Invalid device manager provided";
         return;
     }
-    
+
     m_timer->setSingleShot(false);
     connect(m_timer, &QTimer::timeout, this, &HotplugMonitor::checkForChangesSlot);
-    
+
     qCDebug(log_hotplug_monitor) << "Hotplug monitor created";
 }
 
 HotplugMonitor::~HotplugMonitor()
 {
     stop();
+    // Wait for any in-flight background check to complete before destroying
+    if (m_checkWatcher && m_checkWatcher->isRunning()) {
+        qCDebug(log_hotplug_monitor) << "Waiting for background check to finish before destruction";
+        m_checkWatcher->waitForFinished();
+    }
     clearCallbacks();
     qCDebug(log_hotplug_monitor) << "Hotplug monitor destroyed";
 }
@@ -276,9 +282,17 @@ DeviceChangeEvent HotplugMonitor::getInitialState() const
 
 void HotplugMonitor::checkForChangesSlot()
 {
+    // If a previous check is still running, skip this tick to avoid queuing up
+    // background tasks faster than they can complete (prevents thread pool exhaustion)
+    if (m_checkWatcher->isRunning()) {
+        qCDebug(log_hotplug_monitor) << "Previous check still running, skipping this tick";
+        return;
+    }
+
     // Run device discovery in background thread to avoid blocking UI
-    auto future = QtConcurrent::run([this]() {
+    // Use QPointer to safely detect if HotplugMonitor is destroyed mid-task
+    QFuture<void> future = QtConcurrent::run([this]() {
         checkForChanges();
     });
-    Q_UNUSED(future);
+    m_checkWatcher->setFuture(future);
 }

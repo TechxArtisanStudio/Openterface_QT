@@ -20,21 +20,22 @@ KeyTestWidget::KeyTestWidget(QWidget *parent)
     QVBoxLayout* layout = new QVBoxLayout(this);
     
     m_promptLabel = new QLabel("Click here and press any key to test", this);
-    m_promptLabel->setStyleSheet("QLabel { font-weight: bold; color: #0066cc; }");
+    m_promptLabel->setStyleSheet("QLabel { font-weight: bold; color: palette(text); }");
     m_promptLabel->setAlignment(Qt::AlignCenter);
     layout->addWidget(m_promptLabel);
-    
+
     // Use a QLabel as the key capture area instead of QLineEdit
     m_statusLabel = new QLabel("Ready to capture keys...", this);
     m_statusLabel->setAlignment(Qt::AlignCenter);
     m_statusLabel->setMinimumHeight(60);
     m_statusLabel->setStyleSheet(
         "QLabel {"
-        "   background-color: #f0f0f0;"
-        "   border: 2px solid #3498db;"
+        "   background-color: palette(base);"
+        "   border: 2px solid palette(dark);"
         "   border-radius: 5px;"
         "   padding: 10px;"
         "   font-size: 14pt;"
+        "   color: palette(text);"
         "}"
     );
     m_statusLabel->setWordWrap(true);

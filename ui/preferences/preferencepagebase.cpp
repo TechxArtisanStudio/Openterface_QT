@@ -16,6 +16,7 @@
 #include <QVBoxLayout>
 #include <QDialog>
 #include <QDebug>
+#include <QGraphicsDropShadowEffect>
 
 PreferencePageBase::PreferencePageBase(QWidget *parent)
     : QWidget(parent)
@@ -38,6 +39,19 @@ void PreferencePageBase::createButtonBar(QVBoxLayout *parentLayout)
     m_applyButton->setFixedSize(80, 30);
     m_revertButton->setFixedSize(80, 30);
     m_cancelButton->setFixedSize(80, 30);
+
+    // Add subtle drop shadow to each button for depth and visibility.
+    // Especially useful on Linux where buttons can otherwise blend into the panel.
+    auto addShadow = [](QPushButton* btn) {
+        auto* effect = new QGraphicsDropShadowEffect(btn);
+        effect->setBlurRadius(8);
+        effect->setOffset(0, 2);
+        effect->setColor(QColor(0, 0, 0, 60)); // ~24% opacity black
+        btn->setGraphicsEffect(effect);
+    };
+    addShadow(m_applyButton);
+    addShadow(m_revertButton);
+    addShadow(m_cancelButton);
 
     buttonLayout->addWidget(m_applyButton);
     buttonLayout->addWidget(m_revertButton);
@@ -114,40 +128,43 @@ void PreferencePageBase::updateButtonStyles()
 
 QString PreferencePageBase::defaultButtonStyle()
 {
+    // Flat palette-aware style consistent with the global QPushButton style
+    // in main.cpp. The buttons also have a QGraphicsDropShadowEffect applied
+    // per-widget in createButtonBar() for extra visual separation.
     return QStringLiteral(
         "QPushButton {"
-        "  background-color: #ffffff;"
-        "  border: 1px solid #cccccc;"
-        "  border-radius: 4px;"
+        "  background-color: palette(button);"
+        "  border: 1px solid palette(dark);"
+        "  border-radius: 6px;"
         "  padding: 4px 16px;"
-        ""
-        ""
-        "  color: #333333;"
+        "  color: palette(buttonText);"
         "}"
-        "QPushButton:hover {"
-        "  background-color: #f0f0f0;"
-        "  border-color: #999999;"
-        "}"
-        "QPushButton:pressed {"
-        "  background-color: #e0e0e0;"
+        "QPushButton:hover { background-color: palette(midlight); }"
+        "QPushButton:pressed { background-color: palette(mid); }"
+        "QPushButton:disabled {"
+        "  color: palette(mid);"
+        "  background-color: palette(button);"
+        "  border: 1px solid palette(dark);"
         "}"
     );
 }
 
 QString PreferencePageBase::dirtyApplyButtonStyle()
 {
+    // Canonical brand orange (consistent with firmwarepage and other prominent CTAs).
+    // White text on orange guarantees readability in both light and dark themes.
     return QStringLiteral(
         "QPushButton#applyButton {"
-        "  background-color: #ff8c00;"
-        "  border: 1px solid #e07000;"
+        "  background-color: #e8841a;"
+        "  border: 1px solid #c46e14;"
         "  color: white;"
         "  font-weight: bold;"
         "}"
         "QPushButton#applyButton:hover {"
-        "  background-color: #ff9920;"
+        "  background-color: #f59330;"
         "}"
         "QPushButton#applyButton:pressed {"
-        "  background-color: #e07000;"
+        "  background-color: #c46e14;"
         "}"
     );
 }
