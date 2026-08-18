@@ -81,6 +81,8 @@ private:
     QJsonObject toolSystemStatus(const QJsonObject& args);
     QJsonObject toolUsbSwitch(const QJsonObject& args);
     QJsonObject toolScreenToMarkdown(const QJsonObject& args);
+    QJsonObject toolFirmwareCheck(const QJsonObject& args);
+    QJsonObject toolFirmwareUpdate(const QJsonObject& args);
 
     // --- Helpers ---
     static QJsonObject textResult(const QString& text);
