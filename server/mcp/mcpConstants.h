@@ -65,6 +65,8 @@
 #define MCP_TOOL_VALIDATE_SCRIPT           "validate_script"
 #define MCP_TOOL_SYSTEM_STATUS             "system_status"
 #define MCP_TOOL_USB_SWITCH                "usb_switch"
+#define MCP_TOOL_FIRMWARE_CHECK            "firmware_check"
+#define MCP_TOOL_FIRMWARE_UPDATE           "firmware_update"
 
 // Default Named Pipe Name
 #define MCP_DEFAULT_PIPE_NAME "openterface-mcp"
