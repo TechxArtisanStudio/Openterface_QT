@@ -56,23 +56,23 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     capsLockBtn = new QPushButton("CAPS", this);
     scrollLockBtn = new QPushButton("SCROLL", this);
     
-    // Configure button properties and styles
+    // Flat palette-aware style so lock indicators are clearly visible on any
+    // system theme. palette(buttonText) always contrasts with palette(button).
     QString buttonStyleSheet = R"(
         QPushButton {
-            background-color: #f0f0f0;
-            border: 1px solid #cccccc;
+            background-color: palette(button);
+            border: 1px solid palette(dark);
             border-radius: 3px;
             padding: 2px 4px;
-            color: #333333;
+            color: palette(buttonText);
             font-weight: bold;
             font-size: 10px;
         }
         QPushButton:hover {
-            background-color: #e0e0e0;
-            border: 1px solid #999999;
+            background-color: palette(midlight);
         }
         QPushButton:pressed {
-            background-color: #d0d0d0;
+            background-color: palette(mid);
         }
         QPushButton:checked {
             background-color: #4CAF50;
