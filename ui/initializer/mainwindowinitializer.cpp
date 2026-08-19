@@ -56,9 +56,10 @@
 #include <QTimer>
 #include <QStackedLayout>
 #include <QShortcut>
+#include "../../log/opflogging.h"
 
-// Define the logging category with inline to avoid multiple definition errors
-inline Q_LOGGING_CATEGORY(log_ui_mainwindowinitializer, "opf.ui.mainwindowinitializer")
+// Define the logging category
+OPF_LOGGING_CATEGORY(log_ui_mainwindowinitializer, "opf.ui.mainwindowinitializer")
 
 MainWindowInitializer::MainWindowInitializer(MainWindow *mainWindow, QObject *parent)
     : QObject(parent)

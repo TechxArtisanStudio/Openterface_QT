@@ -2,8 +2,9 @@
 #include "../global.h"
 #include <QDebug>
 #include <QLoggingCategory>
+#include "../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_core_audio, "opf.core.audio");
+OPF_LOGGING_CATEGORY(log_core_audio, "opf.core.audio")
 
 AudioThread::AudioThread(const QAudioDevice& inputDevice, 
                        const QAudioDevice& outputDevice,

@@ -49,8 +49,9 @@
 #include <QDebug>
 #include <QApplication>
 #include <QStyle>
+#include "../../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_video_recording, "opf.video.recording")
+OPF_LOGGING_CATEGORY(log_video_recording, "opf.video.recording")
 
 RecordingSettingsDialog::RecordingSettingsDialog(QWidget *parent)
     : QDialog(parent)

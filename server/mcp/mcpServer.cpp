@@ -34,8 +34,9 @@
 #include <QJsonObject>
 #include <QFile>
 #include <unistd.h>
+#include "../../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_server_mcp, "opf.server.mcp")
+OPF_LOGGING_CATEGORY(log_server_mcp, "opf.server.mcp")
 
 McpServer::McpServer(QObject *parent)
     : QObject(parent)

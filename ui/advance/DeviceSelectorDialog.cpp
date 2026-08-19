@@ -14,8 +14,9 @@
 #include <QCheckBox>
 #include <QPainter>
 #include <QMessageBox>
+#include "../../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_device_selector, "opf.ui.deviceselector")
+OPF_LOGGING_CATEGORY(log_device_selector, "opf.ui.deviceselector")
 
 DeviceSelectorDialog::DeviceSelectorDialog(CameraManager *cameraManager, VideoHid *videoHid, QWidget *parent)
     : QDialog(parent)

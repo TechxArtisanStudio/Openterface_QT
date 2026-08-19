@@ -6,7 +6,8 @@
 #include <gst/app/gstappsink.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_gst_recording, "opf.backend.gstreamer.recording")
+#include "../../../log/opflogging.h"
+OPF_LOGGING_CATEGORY(log_gst_recording, "opf.backend.gstreamer.recording")
 
 RecordingManager::RecordingManager(QObject* parent)
     : QObject(parent), m_mainPipeline(nullptr),

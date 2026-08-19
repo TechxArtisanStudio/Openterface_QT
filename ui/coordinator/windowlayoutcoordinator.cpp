@@ -35,8 +35,9 @@
 #include <QDebug>
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
+#include "../../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_windowlayoutcoordinator, "opf.ui.windowlayoutcoordinator")
+OPF_LOGGING_CATEGORY(log_ui_windowlayoutcoordinator, "opf.ui.windowlayoutcoordinator")
 
 WindowLayoutCoordinator::WindowLayoutCoordinator(QMainWindow *mainWindow,
                                                  VideoPane *videoPane,

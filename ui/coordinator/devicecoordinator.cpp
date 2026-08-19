@@ -31,8 +31,9 @@
 #include <QMetaObject>
 #include <QPointer>
 #include <QThread>
+#include "../../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_devicecoordinator, "opf.ui.devicecoordinator")
+OPF_LOGGING_CATEGORY(log_ui_devicecoordinator, "opf.ui.devicecoordinator")
 
 DeviceCoordinator::DeviceCoordinator(QMenu *deviceMenu, CameraManager *cameraManager, QObject *parent)
     : QObject(parent)

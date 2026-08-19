@@ -47,39 +47,104 @@ static struct CategoryMeta {
     const char* displayName;
     const char* defaultLevel;
 } s_categoryMeta[] = {
-    // Serial group
-    {"opf.core.serial.tx",         "TX Data",         "Debug"},
-    {"opf.core.serial.rx",         "RX Data",         "Debug"},
-    {"opf.core.serial.cmd",        "Command",         "Info"},
-    {"opf.core.serial.conn",       "Connection",      "Info"},
-    {"opf.core.serial.watchdog",   "Watchdog",        "Warning"},
-    {"opf.core.serial.hotplug",    "Hotplug",         "Info"},
-    {"opf.core.serial.config",     "Config",          "Info"},
-    {"opf.core.serial.lockkeys",   "Lock Keys",       "Debug"},
-    {"opf.core.serial.usbswitch",  "USB Switch",      "Debug"},
-    {"opf.serial.state",           "State",           "Info"},
-    {"opf.serial.statistics",      "Statistics",      "Debug"},
-    // Keyboard group
-    {"opf.host.keyboard.mapping",   "Key Mapping",    "Debug"},
-    {"opf.host.keyboard.modifiers", "Modifiers",      "Debug"},
-    {"opf.host.keyboard.ime",       "IME",            "Debug"},
-    {"opf.host.keyboard.special",   "Special Keys",   "Info"},
-    {"opf.host.keyboard.state",     "Key State",      "Info"},
-    {"opf.host.layouts",            "Layouts",        "Info"},
-    // Mouse group
-    {"opf.host.mouse.absolute",    "Absolute",        "Debug"},
-    {"opf.host.mouse.relative",    "Relative",        "Debug"},
-    {"opf.host.mouse.scroll",      "Scroll",          "Info"},
-    // HID/Chip group
-    {"opf.core.hid.detect",        "Detection",       "Info"},
-    {"opf.core.hid.poll",          "Polling",         "Info"},
-    {"opf.core.hid.firmware",      "Firmware",        "Info"},
-    {"opf.core.hid.device",        "Device",          "Info"},
-    {"opf.core.chip.read",         "Register Read",   "Debug"},
-    {"opf.core.chip.flash",        "Flash",           "Info"},
-    {"opf.core.chip.gpio",         "GPIO",            "Debug"},
-    {"opf.host.win_transport",     "Win Transport",   "Debug"},
-    {"opf.host.linux_transport",   "Linux Transport", "Debug"},
+    // === Serial ===
+    {"opf.core.serial.tx",         "TX Data",              "Debug"},
+    {"opf.core.serial.rx",         "RX Data",              "Debug"},
+    {"opf.core.serial.cmd",        "Command",              "Info"},
+    {"opf.core.serial.conn",       "Connection",           "Info"},
+    {"opf.core.serial.watchdog",   "Watchdog",             "Warning"},
+    {"opf.core.serial.hotplug",    "Hotplug",              "Info"},
+    {"opf.core.serial.config",     "Config",               "Info"},
+    {"opf.core.serial.lockkeys",   "Lock Keys",            "Debug"},
+    {"opf.core.serial.usbswitch",  "USB Switch",           "Debug"},
+    {"opf.serial.state",           "State",                "Info"},
+    {"opf.serial.statistics",      "Statistics",           "Debug"},
+    // === Input (Keyboard + Mouse) ===
+    {"opf.host.keyboard.mapping",   "Key Mapping",         "Debug"},
+    {"opf.host.keyboard.modifiers", "Modifiers",           "Debug"},
+    {"opf.host.keyboard.ime",       "IME",                 "Debug"},
+    {"opf.host.keyboard.special",   "Special Keys",        "Info"},
+    {"opf.host.keyboard.state",     "Key State",           "Info"},
+    {"opf.host.layouts",            "Layouts",             "Info"},
+    {"opf.host.mouse.absolute",     "Absolute",            "Debug"},
+    {"opf.host.mouse.relative",     "Relative",            "Debug"},
+    {"opf.host.mouse.scroll",       "Scroll",              "Info"},
+    // === HID / Chip ===
+    {"opf.core.hid.detect",        "Detection",            "Info"},
+    {"opf.core.hid.poll",          "Polling",              "Info"},
+    {"opf.core.hid.firmware",      "Firmware",             "Info"},
+    {"opf.core.hid.device",        "Device",               "Info"},
+    {"opf.core.chip.read",         "Register Read",        "Debug"},
+    {"opf.core.chip.flash",        "Flash",                "Info"},
+    {"opf.core.chip.gpio",         "GPIO",                 "Debug"},
+    {"opf.host.win_transport",     "Win Transport",        "Debug"},
+    {"opf.host.linux_transport",   "Linux Transport",      "Debug"},
+    // === Device ===
+    {"opf.device.manager",         "Manager",              "Info"},
+    {"opf.device.factory",         "Factory",              "Info"},
+    {"opf.device.hotplug",         "Hotplug",              "Info"},
+    {"opf.device.linux",           "Linux",                "Info"},
+    {"opf.device.debounce",        "Debounce",             "Info"},
+    {"opf.host.windows",           "Windows",              "Info"},
+    {"opf.host.windows.enumerator","Enumerator",           "Info"},
+    {"opf.host.windows.discoverer","Discoverer",           "Info"},
+    // === Camera / Backend ===
+    {"opf.ui.camera",              "Camera",               "Info"},
+    {"opf.backend",                "Backend",              "Info"},
+    {"opf.backend.ffmpeg",         "FFmpeg",               "Info"},
+    {"opf.backend.qt",             "Qt Multimedia",        "Info"},
+    {"opf.backend.qtmultimedia",   "Qt Backend",           "Info"},
+    {"opf.multimedia.backend",     "Multimedia",           "Info"},
+    {"opf.backend.gstreamer",      "GStreamer",            "Info"},
+    {"opf.backend.gstreamerhelpers","Helpers",             "Debug"},
+    {"opf.backend.gstreamer.runner.external","Runner Ext",  "Debug"},
+    {"opf.backend.gstreamer.runner.inprocess","Runner In-Proc","Debug"},
+    {"opf.backend.gstreamer.pipelinefactory","Pipeline Factory","Debug"},
+    {"opf.backend.gstreamer.pipelinebuilder","Pipeline Builder","Debug"},
+    {"opf.backend.gstreamer.queueconfigurator","Queue Config","Debug"},
+    {"opf.backend.gstreamer.sinkselector","Sink Selector",  "Debug"},
+    {"opf.backend.gstreamer.recording","Recording",         "Info"},
+    {"opf.backend.videooverlaymanager","Video Overlay",     "Debug"},
+    // === Audio ===
+    {"opf.core.audio",             "Audio Core",           "Info"},
+    {"opf.core.host.audio",        "Host Audio",           "Info"},
+    // === Scripts ===
+    {"opf.scripts",                "Scripts",              "Info"},
+    {"opf.scripts.scriptrunner",   "Runner",               "Info"},
+    {"opf.ui.scriptexec",          "Executor",             "Info"},
+    // === Server ===
+    {"opf.server.tcp",             "TCP",                  "Info"},
+    {"opf.server.tcp.response",    "TCP Response",         "Debug"},
+    {"opf.server.mcp",             "MCP",                  "Info"},
+    {"opf.server.mcp.protocol",    "MCP Protocol",         "Debug"},
+    {"opf.server.mcp.sse",         "MCP SSE",              "Debug"},
+    {"opf.server.mcp.tool",        "MCP Tool",             "Debug"},
+    // === System ===
+    {"opf.systemkey",              "SysKey Blocker",       "Info"},
+    {"opf.systemkey.win",          "SysKey Windows",       "Info"},
+    {"opf.systemkey.x11",          "SysKey X11",           "Info"},
+    {"opf.usb",                    "USB Control",          "Info"},
+    {"opf.targetcontrol",          "Target Control",       "Info"},
+    // === UI ===
+    {"opf.ui.mainwindow",          "Main Window",          "Info"},
+    {"opf.ui.mainwindowinitializer","Initializer",         "Info"},
+    {"opf.ui.input",               "Input",                "Info"},
+    {"opf.ui.video",               "Video",                "Info"},
+    {"opf.ui.statuswidget",        "Status Widget",        "Info"},
+    {"opf.ui.statusbarmanager",    "Status Bar",           "Info"},
+    {"opf.ui.windowcontrolmanager","Window Control",       "Info"},
+    {"opf.ui.recordingcontroller", "Recording",            "Info"},
+    {"opf.ui.deviceselector",      "Device Selector",      "Info"},
+    {"opf.ui.keyboardeditor",      "Keyboard Editor",      "Info"},
+    {"opf.ui.customkeydialog",     "Custom Key Dialog",    "Debug"},
+    {"opf.ui.customkeys",          "Custom Keys",          "Info"},
+    {"opf.ui.devicecoordinator",   "Device Coord",         "Info"},
+    {"opf.ui.menucoordinator",     "Menu Coord",           "Info"},
+    {"opf.ui.windowlayoutcoordinator","Window Layout Coord","Info"},
+    {"opf.ui.audio.page",          "Audio Page",           "Info"},
+    {"opf.ui.mcp.page",            "MCP Page",             "Info"},
+    {"opf.diagnostics",            "Diagnostics",          "Info"},
+    {"opf.video.recording",        "Video Recording",      "Info"},
 };
 
 static const CategoryMeta* findCategoryMeta(const QString& category) {
@@ -320,20 +385,54 @@ void LogPage::populateCategoryTree()
             groupMap["Serial"].append(cat);
             placed = true;
         }
-        // Keyboard: opf.host.keyboard.* or opf.host.layouts*
-        else if (cat.startsWith("opf.host.keyboard.") || cat.startsWith("opf.host.layouts")) {
-            groupMap["Keyboard"].append(cat);
-            placed = true;
-        }
-        // Mouse: opf.host.mouse.*
-        else if (cat.startsWith("opf.host.mouse.")) {
-            groupMap["Mouse"].append(cat);
+        // Input (Keyboard + Mouse): opf.host.keyboard.* or opf.host.layouts* or opf.host.mouse.*
+        else if (cat.startsWith("opf.host.keyboard.") || cat.startsWith("opf.host.layouts")
+                 || cat.startsWith("opf.host.mouse.")) {
+            groupMap["Input"].append(cat);
             placed = true;
         }
         // HID/Chip: opf.core.hid.* or opf.core.chip.* or opf.host.*_transport
         else if (cat.startsWith("opf.core.hid.") || cat.startsWith("opf.core.chip.")
                  || cat.endsWith("_transport") || cat.contains("_transport.")) {
             groupMap["HID/Chip"].append(cat);
+            placed = true;
+        }
+        // Device: opf.device.* or opf.host.windows* (device enumerators)
+        else if (cat.startsWith("opf.device.") || cat.startsWith("opf.host.windows")) {
+            groupMap["Device"].append(cat);
+            placed = true;
+        }
+        // Camera/Backend: opf.backend.* or opf.multimedia.* or opf.ui.camera
+        else if (cat.startsWith("opf.backend.") || cat == "opf.backend"
+                 || cat.startsWith("opf.multimedia.") || cat == "opf.ui.camera") {
+            groupMap["Camera/Backend"].append(cat);
+            placed = true;
+        }
+        // Audio: opf.core.audio* or opf.core.host.audio*
+        else if (cat.startsWith("opf.core.audio") || cat.startsWith("opf.core.host.audio")) {
+            groupMap["Audio"].append(cat);
+            placed = true;
+        }
+        // Scripts: opf.scripts.* or opf.ui.scriptexec
+        else if (cat.startsWith("opf.scripts.") || cat == "opf.scripts" || cat == "opf.ui.scriptexec") {
+            groupMap["Scripts"].append(cat);
+            placed = true;
+        }
+        // Server: opf.server.*
+        else if (cat.startsWith("opf.server.")) {
+            groupMap["Server"].append(cat);
+            placed = true;
+        }
+        // System: opf.systemkey.* or opf.usb* or opf.targetcontrol*
+        else if (cat.startsWith("opf.systemkey") || cat.startsWith("opf.usb")
+                 || cat.startsWith("opf.targetcontrol")) {
+            groupMap["System"].append(cat);
+            placed = true;
+        }
+        // UI: opf.ui.* or opf.diagnostics* or opf.video.recording*
+        else if (cat.startsWith("opf.ui.") || cat.startsWith("opf.diagnostics")
+                 || cat.startsWith("opf.video.")) {
+            groupMap["UI"].append(cat);
             placed = true;
         }
 
@@ -350,14 +449,21 @@ void LogPage::populateCategoryTree()
     // Map group names to display names
     QMap<QString, QString> groupDisplayNames = {
         {"Serial", "Serial"},
-        {"Keyboard", "Keyboard"},
-        {"Mouse", "Mouse"},
+        {"Input", "Input (Keyboard & Mouse)"},
         {"HID/Chip", "HID / Chip"},
+        {"Device", "Device"},
+        {"Camera/Backend", "Camera / Backend"},
+        {"Audio", "Audio"},
+        {"Scripts", "Scripts"},
+        {"Server", "Server"},
+        {"System", "System"},
+        {"UI", "UI"},
         {"Other", "Other"}
     };
 
     // Create top-level groups in a stable order
-    QStringList groupOrder = {"Serial", "Keyboard", "Mouse", "HID/Chip", "Other"};
+    QStringList groupOrder = {"Serial", "Input", "HID/Chip", "Device", "Camera/Backend",
+                              "Audio", "Scripts", "Server", "System", "UI", "Other"};
     for (const QString &groupName : groupOrder) {
         if (!groupMap.contains(groupName)) continue;
         const QStringList &cats = groupMap[groupName];

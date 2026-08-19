@@ -85,8 +85,9 @@
 #include "host/backend/qtbackendhandler.h"
 #endif
 #include "SysKeyBlocker/SystemKeyBlocker.h"
+#include "../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
+OPF_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
 /*
   * QT Permissions API is not compatible with Qt < 6.5 and will cause compilation failure on

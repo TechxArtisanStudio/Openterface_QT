@@ -1,8 +1,9 @@
 #include "scriptExecutor.h"
 #include <QDebug>
 #include <QLoggingCategory>
+#include "../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_scriptexec, "opf.ui.scriptexec")
+OPF_LOGGING_CATEGORY(log_scriptexec, "opf.ui.scriptexec")
 
 ScriptExecutor::ScriptExecutor(QObject* parent)
     : QObject(parent)

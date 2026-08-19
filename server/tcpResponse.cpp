@@ -1,8 +1,9 @@
 #include "tcpResponse.h"
 #include <QLoggingCategory>
 #include <QDateTime>
+#include "../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_tcp_response, "opf.server.tcp.response")
+OPF_LOGGING_CATEGORY(log_tcp_response, "opf.server.tcp.response")
 
 QByteArray TcpResponse::createSuccessResponse(ResponseType type, const QString& message) {
     QJsonObject response = buildBaseResponse(type, Success);

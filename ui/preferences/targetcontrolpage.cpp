@@ -27,9 +27,10 @@
 #include <QMessageBox>
 #include <QLoggingCategory>
 #include <QApplication>
+#include "../../log/opflogging.h"
 
 // Define logging category for Target Control page
-Q_LOGGING_CATEGORY(log_target_control, "opf.targetcontrol")
+OPF_LOGGING_CATEGORY(log_target_control, "opf.targetcontrol")
 
 TargetControlPage::TargetControlPage(QWidget *parent) : PreferencePageBase(parent)
 {

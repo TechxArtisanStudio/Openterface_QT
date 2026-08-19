@@ -34,10 +34,11 @@
 #include <QThread>
 #include <algorithm>
 #include <QSet>
+#include "../log/opflogging.h"
 
 
-Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
-Q_LOGGING_CATEGORY(log_backend, "opf.backend")
+OPF_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
+OPF_LOGGING_CATEGORY(log_backend, "opf.backend")
 
 CameraManager::CameraManager(QObject *parent)
     : QObject(parent), m_graphicsVideoOutput(nullptr), m_video_width(0), m_video_height(0)

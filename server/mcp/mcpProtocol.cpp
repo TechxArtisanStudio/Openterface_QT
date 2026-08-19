@@ -23,8 +23,9 @@
 #include "mcpProtocol.h"
 #include <QDebug>
 #include <QLoggingCategory>
+#include "../../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_server_mcp_protocol, "opf.server.mcp.protocol")
+OPF_LOGGING_CATEGORY(log_server_mcp_protocol, "opf.server.mcp.protocol")
 
 bool McpProtocol::parseRequest(const QByteArray& line, Request& out) {
     QJsonParseError parseError;

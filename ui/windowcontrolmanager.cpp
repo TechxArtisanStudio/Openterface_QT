@@ -28,8 +28,9 @@
 #include <QDebug>
 #include <QLoggingCategory>
 #include <QMenuBar>
+#include "../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_windowcontrolmanager, "opf.ui.windowcontrolmanager")
+OPF_LOGGING_CATEGORY(log_ui_windowcontrolmanager, "opf.ui.windowcontrolmanager")
 
 WindowControlManager::WindowControlManager(QMainWindow *mainWindow, QToolBar *toolbar, QObject *parent)
     : QObject(parent)

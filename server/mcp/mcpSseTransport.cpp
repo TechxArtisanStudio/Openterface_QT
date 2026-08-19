@@ -30,8 +30,9 @@
 #include <QUrlQuery>
 
 #include <chrono>
+#include "../../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_server_mcp_sse, "opf.server.mcp.sse")
+OPF_LOGGING_CATEGORY(log_server_mcp_sse, "opf.server.mcp.sse")
 
 // ============================================================================
 // Session

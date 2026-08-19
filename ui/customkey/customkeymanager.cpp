@@ -7,10 +7,11 @@
 #include <QCoreApplication>
 #include <QKeyEvent>
 #include <QMetaType>
+#include "../../log/opflogging.h"
 
 Q_DECLARE_METATYPE(QList<int>)
 
-Q_LOGGING_CATEGORY(log_custom_keys, "opf.ui.customkeys")
+OPF_LOGGING_CATEGORY(log_custom_keys, "opf.ui.customkeys")
 
 // Static key name to Qt key code mapping
 static QMap<QString, int>& getKeyMap() {

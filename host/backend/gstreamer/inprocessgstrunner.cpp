@@ -4,8 +4,9 @@
 #include <QLoggingCategory>
 #include <QtConcurrent>
 #include <QFutureWatcher>
+#include "../../../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_gst_runner_inproc, "opf.backend.gstreamer.runner.inprocess")
+OPF_LOGGING_CATEGORY(log_gst_runner_inproc, "opf.backend.gstreamer.runner.inprocess")
 
 #ifdef HAVE_GSTREAMER
 InProcessGstRunner::InProcessGstRunner(QObject* parent) : QObject(parent)

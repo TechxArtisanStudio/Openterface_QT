@@ -42,7 +42,8 @@
 #include <X11/Xlib.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_ui_video, "opf.ui.video")
+#include "../log/opflogging.h"
+OPF_LOGGING_CATEGORY(log_ui_video, "opf.ui.video")
 
 VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     m_inputHandler(new InputHandler(this, this)),

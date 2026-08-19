@@ -16,7 +16,8 @@
 #include "../host/backend/gstreamerbackendhandler.h"
 #endif
 
-Q_LOGGING_CATEGORY(log_server_tcp, "opf.server.tcp")
+#include "../log/opflogging.h"
+OPF_LOGGING_CATEGORY(log_server_tcp, "opf.server.tcp")
 
 TcpServer::TcpServer(QObject *parent) : QTcpServer(parent), currentClient(nullptr), m_cameraManager(nullptr), actionStatus(Finish) {}
 

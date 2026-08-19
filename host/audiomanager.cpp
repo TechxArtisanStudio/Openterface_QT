@@ -6,8 +6,9 @@
 #include "../global.h"
 #include <QDebug>
 #include <QRegularExpression>
+#include "../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_core_host_audio, "opf.core.host.audio");
+OPF_LOGGING_CATEGORY(log_core_host_audio, "opf.core.host.audio")
 
 AudioManager::AudioManager()
     : QObject(nullptr), m_audioThread(nullptr) {

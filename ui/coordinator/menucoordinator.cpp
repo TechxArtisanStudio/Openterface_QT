@@ -26,8 +26,9 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QDebug>
+#include "../../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_menucoordinator, "opf.ui.menucoordinator")
+OPF_LOGGING_CATEGORY(log_ui_menucoordinator, "opf.ui.menucoordinator")
 
 MenuCoordinator::MenuCoordinator(QMenu *languageMenu,
                                  QMenu *baudrateMenu,

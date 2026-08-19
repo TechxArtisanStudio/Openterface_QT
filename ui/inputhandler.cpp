@@ -6,6 +6,7 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QDateTime>
+#include "../log/opflogging.h"
 
 /*
  * CRITICAL FIX for maximize screen crash:
@@ -27,7 +28,7 @@
  * - Method call on inconsistent object -> SEGFAULT
  */
 
-Q_LOGGING_CATEGORY(log_ui_input, "opf.ui.input")
+OPF_LOGGING_CATEGORY(log_ui_input, "opf.ui.input")
 
 InputHandler::InputHandler(VideoPane *videoPane, QObject *parent)
     : QObject(parent), m_videoPane(videoPane), m_currentEventTarget(nullptr),

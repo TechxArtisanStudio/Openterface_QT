@@ -3,8 +3,9 @@
 #include <QLoggingCategory>
 #include <QMutexLocker>
 #include <QtConcurrent>
+#include "../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_hotplug_monitor, "opf.device.hotplug")
+OPF_LOGGING_CATEGORY(log_hotplug_monitor, "opf.device.hotplug")
 
 HotplugMonitor::HotplugMonitor(DeviceManager* deviceManager, QObject *parent)
     : QObject(parent)

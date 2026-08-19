@@ -27,8 +27,9 @@
 #include <QFileInfo>
 #include <QUrl>
 #include <QDebug>
+#include "../../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_qt_backend, "opf.backend.qt")
+OPF_LOGGING_CATEGORY(log_qt_backend, "opf.backend.qt")
 
 QtBackendHandler::QtBackendHandler(QObject *parent)
     : MultimediaBackendHandler(parent)

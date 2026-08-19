@@ -27,8 +27,9 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QTimer>
 #include <QRandomGenerator>
+#include "../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_core_host, "opf.core.host")
+OPF_LOGGING_CATEGORY(log_core_host, "opf.core.host")
 
 HostManager::HostManager(QObject *parent) : QObject(parent),
                                             mouseManager(),

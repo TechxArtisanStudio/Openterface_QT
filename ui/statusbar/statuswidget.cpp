@@ -45,7 +45,8 @@
 #include <sys/times.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_ui_statuswidget, "opf.ui.statuswidget")
+#include "../../log/opflogging.h"
+OPF_LOGGING_CATEGORY(log_ui_statuswidget, "opf.ui.statuswidget")
 
 StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0), m_captureHeight(0), m_captureFramerate(0.0) {
     keyboardIndicatorsLabel = new QLabel("", this);

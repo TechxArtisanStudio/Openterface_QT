@@ -1,5 +1,6 @@
 #include "DeviceFactory.h"
 #include <QLoggingCategory>
+#include "../../log/opflogging.h"
 
 #ifdef _WIN32
 #include "WindowsDeviceManager.h"
@@ -9,7 +10,7 @@
 #include "LinuxDeviceManager.h"
 #endif
 
-Q_LOGGING_CATEGORY(log_device_factory, "opf.device.factory")
+OPF_LOGGING_CATEGORY(log_device_factory, "opf.device.factory")
 
 AbstractPlatformDeviceManager* DeviceFactory::createDeviceManager(QObject* parent)
 {

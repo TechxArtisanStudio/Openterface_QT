@@ -22,9 +22,10 @@
 
 #include "usbcontrol.h"
 #include <QDebug>
+#include "../log/opflogging.h"
 
 // Add this line to define the logging category
-Q_LOGGING_CATEGORY(log_usb, "opf.usb")
+OPF_LOGGING_CATEGORY(log_usb, "opf.usb")
 
 USBControl::USBControl(QObject *parent) 
     : QObject(parent)

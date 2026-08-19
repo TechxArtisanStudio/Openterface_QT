@@ -6,8 +6,9 @@
 #include <QMetaObject>
 #include <QDebug>
 #include <QLoggingCategory>
+#include "../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_script_runner, "opf.scripts.scriptrunner")
+OPF_LOGGING_CATEGORY(log_script_runner, "opf.scripts.scriptrunner")
 
 ScriptRunner::ScriptRunner(ScriptTool* tool, ScriptExecutor* executor, QObject* parent)
     : QObject(parent), m_tool(tool), m_executor(executor)

@@ -35,8 +35,9 @@
 #include <QLoggingCategory>
 #include <QThread>
 #include "../ui/globalsetting.h"
+#include "../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_multimedia_backend, "opf.multimedia.backend")
+OPF_LOGGING_CATEGORY(log_multimedia_backend, "opf.multimedia.backend")
 
 // ==========================================================================
 // MultimediaBackendHandler (Base Class)

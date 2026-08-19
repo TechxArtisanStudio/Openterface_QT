@@ -57,7 +57,9 @@ extern "C" {
 #include <turbojpeg.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
+#include "../../log/opflogging.h"
+
+OPF_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
 
 // Capture thread extracted to host/backend/ffmpeg/capturethread.h/.cpp
 #include "ffmpeg/capturethread.h"

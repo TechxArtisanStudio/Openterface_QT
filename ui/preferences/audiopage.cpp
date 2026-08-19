@@ -35,8 +35,9 @@
 #include <QCheckBox>
 #include <QGroupBox>
 #include <QLoggingCategory>
+#include "../../log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_audio_page, "opf.ui.audio.page")
+OPF_LOGGING_CATEGORY(log_ui_audio_page, "opf.ui.audio.page")
 
 AudioPage::AudioPage(QWidget *parent) : PreferencePageBase(parent)
 {
