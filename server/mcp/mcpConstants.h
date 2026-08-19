@@ -67,6 +67,8 @@
 #define MCP_TOOL_USB_SWITCH                "usb_switch"
 #define MCP_TOOL_FIRMWARE_CHECK            "firmware_check"
 #define MCP_TOOL_FIRMWARE_UPDATE           "firmware_update"
+#define MCP_TOOL_KEYMOD_SCAN               "keymod_scan"
+#define MCP_TOOL_KEYMOD_FLASH              "keymod_flash"
 
 // Default Named Pipe Name
 #define MCP_DEFAULT_PIPE_NAME "openterface-mcp"
