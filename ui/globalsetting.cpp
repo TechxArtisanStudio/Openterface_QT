@@ -26,6 +26,7 @@
 #include <QFile>
 #include <QDateTime>
 #include <QSettings>
+#include <QSet>
 
 GlobalSetting::GlobalSetting(QObject *parent)
     : QObject(parent),
@@ -59,28 +60,64 @@ void GlobalSetting::getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool 
     HID = m_settings.value("filter/HID", true).toBool();
 }
 
-void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host, bool device, bool backend, bool script)
+void GlobalSetting::saveCategoryStates(const QMap<QString, QPair<bool, QString>>& states)
 {
-    m_settings.setValue("log/core", core);
-    m_settings.setValue("log/serial", serial);
-    m_settings.setValue("log/ui", ui);
-    m_settings.setValue("log/host", host);
-    m_settings.setValue("log/device", device);
-    m_settings.setValue("log/backend", backend);
-    m_settings.setValue("log/script", script);
+    for (auto it = states.constBegin(); it != states.constEnd(); ++it) {
+        const QString& category = it.key();
+        bool enabled = it.value().first;
+        QString level = it.value().second;
+        m_settings.setValue(QString("log/category/%1/enabled").arg(category), enabled);
+        m_settings.setValue(QString("log/category/%1/level").arg(category), level);
+    }
+}
+
+QMap<QString, QPair<bool, QString>> GlobalSetting::loadCategoryStates() const
+{
+    QMap<QString, QPair<bool, QString>> states;
+    // Find all unique category names from keys like "log/category/<cat>/enabled"
+    QSet<QString> categories;
+    for (const QString& key : m_settings.allKeys()) {
+        if (key.startsWith("log/category/") && key.endsWith("/enabled")) {
+            QString cat = key.mid(QString("log/category/").size(),
+                                  key.size() - QString("log/category/").size() - QString("/enabled").size());
+            categories.insert(cat);
+        }
+    }
+    for (const QString& category : categories) {
+        bool enabled = m_settings.value(QString("log/category/%1/enabled").arg(category), true).toBool();
+        QString level = m_settings.value(QString("log/category/%1/level").arg(category), "Info").toString();
+        states.insert(category, qMakePair(enabled, level));
+    }
+    return states;
 }
 
 void GlobalSetting::loadLogSettings()
 {
-    QString logFilter = "";
-    logFilter += m_settings.value("log/core", false).toBool() ? "opf.core.*=true\n" : "opf.core.*=false\n";
-    logFilter += m_settings.value("log/ui", false).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
-    logFilter += m_settings.value("log/host", false).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
-    logFilter += m_settings.value("log/serial", false).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
-    logFilter += m_settings.value("log/device", false).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
-    logFilter += m_settings.value("log/backend", false).toBool() ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
-    logFilter += m_settings.value("log/script", false).toBool() ? "opf.scripts.*=true\n" : "opf.scripts.*=false\n";
-    QLoggingCategory::setFilterRules(logFilter);
+    auto states = loadCategoryStates();
+    if (states.isEmpty()) {
+        return;
+    }
+
+    QStringList rules;
+    for (auto it = states.constBegin(); it != states.constEnd(); ++it) {
+        const QString& category = it.key();
+        bool enabled = it.value().first;
+        QString level = it.value().second;
+
+        if (!enabled) {
+            rules << QString("%1=false").arg(category);
+        } else {
+            QString levelLower = level.toLower().trimmed();
+            if (levelLower == "off") {
+                rules << QString("%1=false").arg(category);
+            } else {
+                rules << QString("%1.%2=true").arg(category, levelLower);
+            }
+        }
+    }
+    if (!rules.isEmpty()) {
+        QLoggingCategory::setFilterRules(rules.join('\n'));
+    }
 }
 
 void GlobalSetting::setLogStoreSettings(bool storeLog, QString logFilePath){

@@ -30,7 +30,7 @@
 #include <QHeaderView>
 #include <QMessageBox>
 #include "global.h"
-#include "ui/globalsetting.h"
+#include "../globalsetting.h"
 #include "ui/loghandler.h"
 #include "log/logcategoryregistry.h"
 #include <QCheckBox>
@@ -532,7 +532,7 @@ QString LogPage::generateFilterRules() const
 
 void LogPage::saveCategorySettings() const
 {
-    QSettings settings("Techxartisan", "Openterface");
+    QMap<QString, QPair<bool, QString>> states;
     for (int g = 0; g < categoryModel->rowCount(); ++g) {
         QStandardItem *group = categoryModel->item(g);
         for (int c = 0; c < group->rowCount(); ++c) {
@@ -541,15 +541,15 @@ void LogPage::saveCategorySettings() const
             QString category = nameItem->data(Qt::UserRole + 1).toString();
             bool enabled = nameItem->checkState() == Qt::Checked;
             QString level = levelItem->text();
-            settings.setValue(QString("log/category/%1/enabled").arg(category), enabled);
-            settings.setValue(QString("log/category/%1/level").arg(category), level);
+            states.insert(category, qMakePair(enabled, level));
         }
     }
+    GlobalSetting::instance().saveCategoryStates(states);
 }
 
 void LogPage::restoreCategorySettings()
 {
-    QSettings settings("Techxartisan", "Openterface");
+    auto states = GlobalSetting::instance().loadCategoryStates();
     for (int g = 0; g < categoryModel->rowCount(); ++g) {
         QStandardItem *group = categoryModel->item(g);
         for (int c = 0; c < group->rowCount(); ++c) {
@@ -557,10 +557,13 @@ void LogPage::restoreCategorySettings()
             QStandardItem *levelItem = group->child(c, 1);
             QString category = nameItem->data(Qt::UserRole + 1).toString();
             QString defaultLevel = getDefaultLevel(category);
-            bool enabled = settings.value(QString("log/category/%1/enabled").arg(category), true).toBool();
-            QString level = settings.value(QString("log/category/%1/level").arg(category), defaultLevel).toString();
-            nameItem->setCheckState(enabled ? Qt::Checked : Qt::Unchecked);
-            levelItem->setText(level);
+            if (states.contains(category)) {
+                auto state = states.value(category);
+                nameItem->setCheckState(state.first ? Qt::Checked : Qt::Unchecked);
+                levelItem->setText(state.second);
+            } else {
+                levelItem->setText(defaultLevel);
+            }
         }
     }
 }
