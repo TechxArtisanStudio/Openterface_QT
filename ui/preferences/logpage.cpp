@@ -48,38 +48,38 @@ static struct CategoryMeta {
     const char* defaultLevel;
 } s_categoryMeta[] = {
     // Serial group
-    {"opf.core.serial.tx",         "TX 数据",        "Debug"},
-    {"opf.core.serial.rx",         "RX 数据",        "Debug"},
-    {"opf.core.serial.cmd",        "命令协调",        "Info"},
-    {"opf.core.serial.conn",       "连接状态",        "Info"},
-    {"opf.core.serial.watchdog",   "看门狗",          "Warning"},
-    {"opf.core.serial.hotplug",    "热插拔",          "Info"},
-    {"opf.core.serial.config",     "芯片配置",        "Info"},
-    {"opf.core.serial.lockkeys",   "锁定键",          "Debug"},
-    {"opf.core.serial.usbswitch",  "USB 切换",       "Debug"},
-    {"opf.serial.state",           "状态管理",        "Info"},
-    {"opf.serial.statistics",      "统计",            "Debug"},
+    {"opf.core.serial.tx",         "TX Data",         "Debug"},
+    {"opf.core.serial.rx",         "RX Data",         "Debug"},
+    {"opf.core.serial.cmd",        "Command",         "Info"},
+    {"opf.core.serial.conn",       "Connection",      "Info"},
+    {"opf.core.serial.watchdog",   "Watchdog",        "Warning"},
+    {"opf.core.serial.hotplug",    "Hotplug",         "Info"},
+    {"opf.core.serial.config",     "Config",          "Info"},
+    {"opf.core.serial.lockkeys",   "Lock Keys",       "Debug"},
+    {"opf.core.serial.usbswitch",  "USB Switch",      "Debug"},
+    {"opf.serial.state",           "State",           "Info"},
+    {"opf.serial.statistics",      "Statistics",      "Debug"},
     // Keyboard group
-    {"opf.host.keyboard.mapping",   "按键映射",       "Debug"},
-    {"opf.host.keyboard.modifiers", "修饰键",         "Debug"},
-    {"opf.host.keyboard.ime",       "输入法",         "Debug"},
-    {"opf.host.keyboard.special",   "特殊键",         "Info"},
-    {"opf.host.keyboard.state",     "按键状态",       "Info"},
-    {"opf.host.layouts",            "键盘布局",       "Info"},
+    {"opf.host.keyboard.mapping",   "Key Mapping",    "Debug"},
+    {"opf.host.keyboard.modifiers", "Modifiers",      "Debug"},
+    {"opf.host.keyboard.ime",       "IME",            "Debug"},
+    {"opf.host.keyboard.special",   "Special Keys",   "Info"},
+    {"opf.host.keyboard.state",     "Key State",      "Info"},
+    {"opf.host.layouts",            "Layouts",        "Info"},
     // Mouse group
-    {"opf.host.mouse.absolute",    "绝对坐标",        "Debug"},
-    {"opf.host.mouse.relative",    "相对坐标",        "Debug"},
-    {"opf.host.mouse.scroll",      "滚轮",            "Info"},
+    {"opf.host.mouse.absolute",    "Absolute",        "Debug"},
+    {"opf.host.mouse.relative",    "Relative",        "Debug"},
+    {"opf.host.mouse.scroll",      "Scroll",          "Info"},
     // HID/Chip group
-    {"opf.core.hid.detect",        "芯片检测",        "Info"},
-    {"opf.core.hid.poll",          "轮询",            "Info"},
-    {"opf.core.hid.firmware",      "固件",            "Info"},
-    {"opf.core.hid.device",        "设备管理",        "Info"},
-    {"opf.core.chip.read",         "寄存器读取",      "Debug"},
-    {"opf.core.chip.flash",        "烧录",            "Info"},
+    {"opf.core.hid.detect",        "Detection",       "Info"},
+    {"opf.core.hid.poll",          "Polling",         "Info"},
+    {"opf.core.hid.firmware",      "Firmware",        "Info"},
+    {"opf.core.hid.device",        "Device",          "Info"},
+    {"opf.core.chip.read",         "Register Read",   "Debug"},
+    {"opf.core.chip.flash",        "Flash",           "Info"},
     {"opf.core.chip.gpio",         "GPIO",            "Debug"},
-    {"opf.host.win_transport",     "Windows 传输",    "Debug"},
-    {"opf.host.linux_transport",   "Linux 传输",      "Debug"},
+    {"opf.host.win_transport",     "Win Transport",   "Debug"},
+    {"opf.host.linux_transport",   "Linux Transport", "Debug"},
 };
 
 static const CategoryMeta* findCategoryMeta(const QString& category) {
@@ -127,7 +127,9 @@ void LogPage::setupUI()
     categoryTreeView->setObjectName("categoryTreeView");
     categoryTreeView->setRootIsDecorated(true);
     categoryTreeView->setAlternatingRowColors(true);
-    categoryTreeView->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::SelectedClicked);
+    categoryTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    categoryTreeView->setMaximumHeight(280);
+    categoryTreeView->setIndentation(20);
 
     categoryModel = new QStandardItemModel(this);
     categoryModel->setColumnCount(2);
@@ -174,14 +176,41 @@ void LogPage::setupUI()
         // If changed item is a group (has children), propagate check state
         if (item && item->rowCount() > 0 && item->isCheckable()) {
             Qt::CheckState groupState = item->checkState();
-            bool blockSignalsState = categoryModel->blockSignals(true);
+
+            // Check if all children already match this state
+            // If they do, the user clicked to TOGGLE the opposite direction
+            bool allMatch = true;
+            bool anyChecked = false;
             for (int c = 0; c < item->rowCount(); ++c) {
                 QStandardItem* child = item->child(c, 0);
                 if (child && child->isCheckable()) {
-                    child->setCheckState(groupState);
+                    if (child->checkState() != groupState) allMatch = false;
+                    if (child->checkState() == Qt::Checked) anyChecked = true;
                 }
             }
-            categoryModel->blockSignals(blockSignalsState);
+
+            // Determine desired state:
+            // - If all children already match → toggle to opposite
+            // - If some don't match → propagate group state to fix them
+            Qt::CheckState desiredState;
+            if (allMatch) {
+                desiredState = (groupState == Qt::Checked) ? Qt::Unchecked : Qt::Checked;
+            } else if (groupState == Qt::PartiallyChecked) {
+                // PartiallyChecked from auto-tristate — check all if any unchecked, else uncheck all
+                desiredState = anyChecked ? Qt::Checked : Qt::Unchecked;
+            } else {
+                desiredState = groupState;
+            }
+
+            bool wasBlocked = categoryModel->blockSignals(true);
+            item->setCheckState(desiredState);
+            for (int c = 0; c < item->rowCount(); ++c) {
+                QStandardItem* child = item->child(c, 0);
+                if (child && child->isCheckable()) {
+                    child->setCheckState(desiredState);
+                }
+            }
+            categoryModel->blockSignals(wasBlocked);
         }
         checkDirtyState();
     });
@@ -314,13 +343,13 @@ void LogPage::populateCategoryTree()
         groupMap["Other"] = uncategorized;
     }
 
-    // Map group names to Chinese display names
+    // Map group names to display names
     QMap<QString, QString> groupDisplayNames = {
-        {"Serial", "串口"},
-        {"Keyboard", "键盘"},
-        {"Mouse", "鼠标"},
-        {"HID/Chip", "HID/芯片"},
-        {"Other", "其他"}
+        {"Serial", "Serial"},
+        {"Keyboard", "Keyboard"},
+        {"Mouse", "Mouse"},
+        {"HID/Chip", "HID / Chip"},
+        {"Other", "Other"}
     };
 
     // Create top-level groups in a stable order
