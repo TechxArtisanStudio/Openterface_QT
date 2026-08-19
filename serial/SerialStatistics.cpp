@@ -21,7 +21,7 @@
 */
 
 #include "SerialStatistics.h"
-#include <QLoggingCategory>
+#include "log/opflogging.h"
 #include <QMutexLocker>
 #include <QSysInfo>
 #include <QStandardPaths>
@@ -30,7 +30,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
-Q_LOGGING_CATEGORY(log_serial_statistics, "opf.serial.statistics")
+OPF_LOGGING_CATEGORY(log_serial_statistics, "opf.serial.statistics")
 
 // Define static constants
 const int SerialStatistics::DEFAULT_MONITORING_INTERVAL;

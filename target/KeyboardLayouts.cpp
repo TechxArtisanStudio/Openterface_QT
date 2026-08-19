@@ -6,8 +6,9 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QKeySequence>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_keyboard_layouts, "opf.host.layouts")
+OPF_LOGGING_CATEGORY(log_keyboard_layouts, "opf.host.layouts")
 
 const KeyboardLayoutConfig QWERTY_US("US QWERTY", false);
 const KeyboardLayoutConfig QWERTY_UK("UK QWERTY", false);

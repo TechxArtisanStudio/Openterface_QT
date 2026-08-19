@@ -8,7 +8,7 @@
 #include <QDir>
 #include <QFile>
 #include <QTextStream>
-#include <QLoggingCategory>
+#include "log/opflogging.h"
 #include "../../ui/globalsetting.h"
 
 #include <fcntl.h>
@@ -20,7 +20,7 @@
 #include <linux/hid.h>
 #include <linux/hidraw.h>
 
-Q_LOGGING_CATEGORY(log_linux_transport, "opf.host.linux_transport")
+OPF_LOGGING_CATEGORY(log_linux_transport, "opf.host.linux_transport")
 
 LinuxHIDTransport::LinuxHIDTransport(VideoHid* owner)
     : m_owner(owner)
