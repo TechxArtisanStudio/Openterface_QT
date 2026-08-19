@@ -36,8 +36,6 @@
 #include <QInputMethod>
 #include <QKeyEvent>
 
-Q_DECLARE_LOGGING_CATEGORY(log_host_keyboard)
-
 class KeyboardManager: public QObject
 {
     Q_OBJECT
