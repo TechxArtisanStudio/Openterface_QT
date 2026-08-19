@@ -393,7 +393,7 @@ int Ms2130sChip::detectConnectMode()
     }
     getData[0] = 0x01;
     if (!m_transport->getDirect(getData, 9)) {
-        qCWarning(log_chip_read) << "MS2130S connect mode: V2/V3 getDirect failed";
+        qCWarning(log_chip_flash) << "MS2130S connect mode: V2/V3 getDirect failed";
         return 0;
     }
     QString hexSent, hexRecv;

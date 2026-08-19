@@ -835,7 +835,7 @@ int safe_stoi(std::string str, int defaultValue) {
         return defaultValue;
     } catch (const std::out_of_range&) {
         qCDebug(log_hid_firmware) << "Out of range for stoi, returning default value:" << defaultValue;
-        qCDebug(log_hid_device) << "String was:" << QString::fromStdString(str);
+        qCDebug(log_hid_firmware) << "String was:" << QString::fromStdString(str);
         return defaultValue;
     }
 }
