@@ -99,13 +99,11 @@ QByteArray VideoHid::readEeprom(quint16 address, quint32 size,
 quint32 VideoHid::readFirmwareSize(){
     QByteArray header = readEeprom(ADDR_EEPROM, 4);
     if (header.size() != 4) {
-        qDebug() << "Can not read firemware header form eeprom:" << header.size();
         return 0;
     }
 
     quint16 sizeBytes = (static_cast<quint8>(header[2]) << 8) + static_cast<quint8>(header[3]);
     quint32 firmwareSize = sizeBytes + 52;
-    qDebug() << "Caculate firmware size:" << firmwareSize << " bytes";
     
     return firmwareSize;
 }
@@ -122,7 +120,6 @@ void VideoHid::loadEepromToFile(const QString &filePath) {
     connect(worker, &FirmwareReader::finished, thread, &QThread::quit);
     connect(worker, &FirmwareReader::finished, worker, &FirmwareReader::deleteLater);
     connect(thread, &QThread::finished, thread, &QThread::deleteLater);
-
 
     connect(worker, &FirmwareReader::finished, this, [](bool success) {
         if (success) {
@@ -255,5 +252,4 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data,
 
     return success;
 }
-
 

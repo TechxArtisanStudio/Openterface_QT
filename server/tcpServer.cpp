@@ -23,10 +23,8 @@ TcpServer::TcpServer(QObject *parent) : QTcpServer(parent), currentClient(nullpt
 
 void TcpServer::startServer(quint16 port) {
     if (this->listen(QHostAddress::Any, port)) {
-        qDebug() << "Server started on port:" << port;
         connect(this, &QTcpServer::newConnection, this, &TcpServer::onNewConnection);
     } else {
-        qDebug() << "Server could not start!";
     }
 }
 

@@ -67,8 +67,6 @@ public:
         QString documentsPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
         QString outputPath = QDir(documentsPath).absoluteFilePath(QString("recording_%1.mp4").arg(timestamp));
         
-        qDebug() << "Starting basic recording to:" << outputPath;
-        
         // Start recording with default settings (MP4, 2 Mbps)
         bool success = m_ffmpegHandler->startRecording(outputPath);
         if (success) {
@@ -98,8 +96,6 @@ public:
         QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss");
         QString documentsPath = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
         QString outputPath = QDir(documentsPath).absoluteFilePath(QString("hq_recording_%1.mp4").arg(timestamp));
-        
-        qDebug() << "Starting high quality recording to:" << outputPath;
         
         bool success = m_ffmpegHandler->startRecording(outputPath, config.format, config.videoBitrate);
         if (success) {
@@ -141,23 +137,19 @@ public:
 public slots:
     void onRecordingStarted(const QString& outputPath)
     {
-        qDebug() << "Recording started successfully:" << outputPath;
     }
     
     void onRecordingStopped()
     {
-        qDebug() << "Recording stopped successfully";
         m_statusTimer->stop();
     }
     
     void onRecordingPaused()
     {
-        qDebug() << "Recording paused";
     }
     
     void onRecordingResumed()
     {
-        qDebug() << "Recording resumed";
     }
     
     void onRecordingError(const QString& error)
@@ -179,7 +171,6 @@ public slots:
                              .arg(minutes, 2, 10, QChar('0'))
                              .arg(seconds, 2, 10, QChar('0'));
         
-        qDebug() << "Recording duration:" << durationStr;
     }
     
     void updateStatus()
@@ -187,7 +178,6 @@ public slots:
         if (m_ffmpegHandler && m_ffmpegHandler->isRecording()) {
             qint64 duration = m_ffmpegHandler->getRecordingDuration();
             QString currentFile = m_ffmpegHandler->getCurrentRecordingPath();
-            qDebug() << "Recording status - File:" << currentFile << "Duration:" << duration << "ms";
         }
     }
 

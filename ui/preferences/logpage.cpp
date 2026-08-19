@@ -580,7 +580,6 @@ void LogPage::browseLogPath()
         if (!file.exists()) {
             if (file.open(QIODevice::WriteOnly)) {
                 file.close();
-                qDebug() << "Created new log file:" << logPath;
             } else {
                 qWarning() << "Failed to create log file:" << logPath;
             }
@@ -591,7 +590,6 @@ void LogPage::browseLogPath()
 
 void LogPage::initLogSettings()
 {
-    qDebug() << "initLogSettings";
     QSettings settings("Techxartisan", "Openterface");
 
     // Populate the category tree from the registry
@@ -627,7 +625,6 @@ void LogPage::applySettings()
     // Apply filter rules
     QString logFilter = generateFilterRules();
     QLoggingCategory::setFilterRules(logFilter);
-    qDebug() << "Applying log filter rules:" << logFilter;
 
     // Save category states
     saveCategorySettings();

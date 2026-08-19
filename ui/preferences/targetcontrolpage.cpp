@@ -79,7 +79,6 @@ void TargetControlPage::setupUI()
     operatingModeLayout->addWidget(operatingModeSeparator);
     operatingModeLayout->addSpacing(10);
 
-
     QLabel *VIDPIDLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Custom target USB Composite Device VID and PID:")));
     QLabel *USBDescriptor = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Custom target USB descriptors: ")));
     VID = new QLabel(tr("VID: "));
@@ -318,14 +317,12 @@ void TargetControlPage::initHardwareSetting()
     std::array<bool, 4> enableFlagArray = extractBits(USBFlag);
 
     for(uint i = 0; i < enableFlagArray.size(); i++){
-        qDebug() << "enable flag array: " <<enableFlagArray[i];
     }
 
     VIDCheckBox->setChecked(enableFlagArray[2]);
     PIDCheckBox->setChecked(enableFlagArray[1]);
     USBSerialNumberCheckBox->setChecked(enableFlagArray[0]);
     USBCustomStringDescriptorCheckBox->setChecked(enableFlagArray[3]);
-
 
     // Make the descriptor checkboxes enabled/disabled based on the master toggle
     VIDCheckBox->setEnabled(enableFlagArray[3]);
@@ -359,10 +356,7 @@ std::array<bool, 4> TargetControlPage::extractBits(QString hexString) {
     bool ok;
     int hexValue = hexString.toInt(&ok, 16);
 
-    qDebug() << "extractBits: " << hexValue;
-
     if (!ok) {
-        qDebug() << "Convert failed";
         return {}; // return empty array
     }
 

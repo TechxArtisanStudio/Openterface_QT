@@ -43,7 +43,6 @@
     } \
 }
 
-
 OPF_LOGGING_CATEGORY(log_host_kb_mapping, "opf.host.keyboard.mapping")
 OPF_LOGGING_CATEGORY(log_host_kb_modifiers, "opf.host.keyboard.modifiers")
 OPF_LOGGING_CATEGORY(log_host_kb_ime, "opf.host.keyboard.ime")
@@ -630,7 +629,6 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
                               << "passed modifiers:" << Qt::hex << modifiers << ")";
     }
 
-
     if (mappedKeyCode != 0) {
         // Phantom release: Windows IME consumed the key-down, only key-up arrived.
         // For modifier keys (Shift/Ctrl/Alt/GUI), we don't add them to currentMappedKeyCodes,
@@ -873,7 +871,6 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
 }
 
 void KeyboardManager::pasteTextToTarget(const QString &text) {
-    qDebug() << "Paste text to target:" << text;
     handlePastingCharacters(text, currentLayout.charMapping);
 }
 

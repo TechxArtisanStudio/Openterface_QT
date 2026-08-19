@@ -324,7 +324,6 @@ void MainWindow::stopServer(){
     qCDebug(log_ui_mainwindow) << "TCP Server stopped";
 }
 
-
 void MainWindow::updateUI() {
     ui->retranslateUi(this); // Update the UI elements
     // this->menuBar()->clear();
@@ -462,7 +461,6 @@ void MainWindow::updateScrollbars() {
     // Note: scrollbars removed - VideoPane handles zooming internally via QGraphicsView
     // No need to update scrollbars since VideoPane manages its own scroll behavior
 }
-
 
 void MainWindow::onActionRelativeTriggered()
 {
@@ -755,7 +753,6 @@ void MainWindow::processCapturedImage(int requestId, const QImage &img)
     QImage scaledImage =
             img.scaled(ui->centralwidget->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
-
     // Display captured image for 4 seconds.
     displayCapturedImage();
     QTimer::singleShot(4000, this, &MainWindow::displayViewfinder);
@@ -763,7 +760,6 @@ void MainWindow::processCapturedImage(int requestId, const QImage &img)
 
 void MainWindow::configScreenScale(){
     if (!m_screenScaleDialog){
-        qDebug() << "Creating screen scale dialog";
         m_screenScaleDialog = new ScreenScale(this);
         connect(m_screenScaleDialog, &QDialog::finished, this, [this](){
             m_screenScaleDialog->deleteLater();
@@ -787,8 +783,6 @@ void MainWindow::onScreenRatioChanged(double ratio) {
         }
     }
 }
-
-
 
 void MainWindow::configureSettings() {
     qCDebug(log_ui_mainwindow) << "configureSettings";
@@ -842,7 +836,6 @@ void MainWindow::configureSettings() {
 }
 
 void MainWindow::toggleRecording() {
-    qDebug() << "toggleRecording called";
     
     // Make sure the camera system is ready and recording controller is initialized
     if (!m_recordingController) {
@@ -891,7 +884,6 @@ void MainWindow::toggleRecording() {
 }
 
 void MainWindow::toggleMute() {
-    qDebug() << "toggleMute called";
     
     // Get the AudioManager singleton
     AudioManager& audioManager = AudioManager::getInstance();
@@ -905,19 +897,16 @@ void MainWindow::toggleMute() {
         // Unmute - restore to default volume (1.0)
         audioManager.setVolume(1.0);
         GlobalSetting::instance().setAudioMuted(false);
-        qDebug() << "Audio unmuted - volume set to 1.0";
         if (m_cornerWidgetManager) m_cornerWidgetManager->updateMuteState(false);
     } else {
         // Mute - set volume to 0
         audioManager.setVolume(0.0);
         GlobalSetting::instance().setAudioMuted(true);
-        qDebug() << "Audio muted - volume set to 0.0";
         if (m_cornerWidgetManager) m_cornerWidgetManager->updateMuteState(true);
     }
 }
 
 void MainWindow::showRecordingSettings() {
-    qDebug() << "showRecordingSettings called";
     
     // Stop any active recording before showing settings
     if (m_recordingController && m_recordingController->isRecording()) {
@@ -935,7 +924,6 @@ void MainWindow::showRecordingSettings() {
     }
     
     if (!recordingSettingsDialog) {
-        qDebug() << "Creating recording settings dialog";
         recordingSettingsDialog = new RecordingSettingsDialog(this);
         
         // Get the current backend from camera manager and set it
@@ -961,12 +949,8 @@ void MainWindow::showRecordingSettings() {
     }
 }
 
-
 void MainWindow::debugSerialPort() {
-    qDebug() << "debug dialog" ;
-    qDebug() << "serialPortDebugDialog: " << serialPortDebugDialog;
     if (!serialPortDebugDialog){
-        qDebug() << "Creating serial port debug dialog";
         serialPortDebugDialog = new SerialPortDebugDialog();
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(serialPortDebugDialog, &QDialog::finished, this, [this]() {
@@ -981,7 +965,6 @@ void MainWindow::debugSerialPort() {
 }
 
 void MainWindow::openKeyboardMapEditor() {
-    qDebug() << "Opening keyboard mapping editor";
     
     KeyboardMapEditor* editor = new KeyboardMapEditor(this);
     
@@ -1141,7 +1124,6 @@ void MainWindow::setExposureCompensation(int index)
     m_camera->setExposureCompensation(index * 0.5);
 }
 
-
 void MainWindow::displayCameraError()
 {
     if (!m_camera) {
@@ -1163,12 +1145,10 @@ void MainWindow::displayCameraError()
 }
 
 void MainWindow::stop(){
-    qDebug() << "Stop camera data...";
     // Note: Do NOT use wildcard disconnect() calls as they cause crashes during shutdown
     // when trying to disconnect from destroyed signals on partially-destroyed objects.
     // Qt will handle signal disconnections automatically when objects are destroyed.
     
-    qDebug() << "Stopping camera manager...";
     m_cameraManager->stopCamera();
 
     // Don't call closePort() here because SerialPortManager::stop() will handle it
@@ -1176,7 +1156,6 @@ void MainWindow::stop(){
     // qDebug() << "Closing serial port...";
     // SerialPortManager::getInstance().closePort();
 
-    qDebug() << "Camera stopped.";
 }
 
 void MainWindow::displayViewfinder()
@@ -1188,8 +1167,6 @@ void MainWindow::displayCapturedImage()
 {
     //ui->stackedWidget->setCurrentIndex(1);
 }
-
-
 
 void MainWindow::onArmBaudratePerformanceRecommendation(int currentBaudrate)
 {
@@ -1206,7 +1183,6 @@ void MainWindow::imageSaved(int id, const QString &fileName)
 
     m_isCapturingImage = false;
     if (m_applicationExiting) {
-        qDebug() << "Image saved during shutdown, quitting application...";
         QApplication::quit();
     }
 }
@@ -1463,12 +1439,10 @@ void MainWindow::onLastMouseLocation(const QPoint& location, const QString& mous
 
 void MainWindow::onSwitchableUsbToggle(const bool isToTarget) {
     if (isToTarget) {
-        qDebug() << "UI Switchable USB to target...";
         ui->actionTo_Host->setChecked(false);
         ui->actionTo_Target->setChecked(true);
         toggleSwitch->setChecked(true);
     } else {
-        qDebug() << "UI Switchable USB to host...";
         ui->actionTo_Host->setChecked(true);
         ui->actionTo_Target->setChecked(false);
         toggleSwitch->setChecked(false);
@@ -1539,7 +1513,6 @@ void MainWindow::onVideoSettingsChanged() {
         newWidth = static_cast<int>(newWidth / 1.2);
         newHeight = static_cast<int>(newHeight / 1.2);
     }
-    qDebug() << "Resize to onVideoSettingsChanged " << captureWidth << newHeight;
     resize(newWidth, newHeight);
 
     // Optionally, you might want to center the window on the screen
@@ -1569,8 +1542,6 @@ void MainWindow::onInputResolutionChanged()
     // Calculate the maximum available content height with safety checks
     int contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
 
-    qDebug() << "contentHeight: " << contentHeight;
-    
     // Set the videoPane to use the full available width and height
     // videoPane->setMinimumSize(videoPane->width(), contentHeight);
     videoPane->resize(videoPane->width(), contentHeight);
@@ -1700,8 +1671,6 @@ void MainWindow::hideFloatingWindow()
 
 void MainWindow::showScriptTool()
 {
-    qDebug() << "showScriptTool called";  // Add debug output
-    scriptTool->setAttribute(Qt::WA_DeleteOnClose);
     
     // Connect the syntaxTreeReady signal to the handleSyntaxTree slot
     connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
@@ -1727,12 +1696,8 @@ void MainWindow::handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree) {
     scriptRunner->runTree(std::move(syntaxTree), origin);
 }
 
-
-
-
 MainWindow::~MainWindow()
 {
-    qDebug() << "MainWindow destructor called";
     
     // Set global shutdown flag to prevent Qt Multimedia operations
     g_applicationShuttingDown.storeRelease(1);
@@ -1967,7 +1932,6 @@ void MainWindow::showEnvironmentSetupDialog() {
 
 void MainWindow::showFirmwareManagerDialog() {
     if (!firmwareManagerDialog){
-        qDebug() << "Creating serial port debug dialog";
         firmwareManagerDialog = new FirmwareManagerDialog(this);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(firmwareManagerDialog, &QDialog::finished, this, [this](){
@@ -1998,15 +1962,12 @@ void MainWindow::showWCHFlashDialog() {
 
 void MainWindow::updateFirmware() {
     // Check if it's latest firmware
-    qDebug() << "Checking for latest firmware version...";
     FirmwareResult firmwareStatus = VideoHid::getInstance().isLatestFirmware();
     std::string currentFirmwareVersion = VideoHid::getInstance().getCurrentFirmwareVersion();
     std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
-    qDebug() << "latestFirmwareVersion" << latestFirmwareVersion.c_str();
     FirmwareUpdateConfirmDialog confirmDialog(this);
     switch (firmwareStatus){
         case FirmwareResult::Latest:
-            qDebug() << "Firmware is up to date.";
             QMessageBox::information(this, tr("Firmware Update"),
             tr("The firmware is up to date.\nCurrent version: ") +
             QString::fromStdString(currentFirmwareVersion));
@@ -2015,63 +1976,48 @@ void MainWindow::updateFirmware() {
             {
             bool proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
             if (proceed) {
-                qDebug() << "User accepted firmware update, proceeding...";
 
                 // Declare success variable before try-catch block
                 bool success = false;
 
                 try {
                     // Stop services in proper order with robust error handling
-                    qDebug() << "Stopping main window operations first...";
                     try {
                         stop();
-                        qDebug() << "Main window operations stopped successfully";
                     } catch (...) {
                         qWarning() << "Exception while stopping main window operations - continuing anyway";
                     }
 
-                    qDebug() << "Stopping video HID polling only...";
                     try {
                         VideoHid::getInstance().stopPollingOnly();
-                        qDebug() << "Video HID polling stopped successfully";
                     } catch (...) {
                         qWarning() << "Exception while stopping video HID polling - continuing anyway";
                     }
 
                     // Wait a bit for video HID to fully stop
-                    qDebug() << "Waiting for video HID to stop completely...";
                     QThread::msleep(300);
                     QCoreApplication::processEvents();
 
-                    qDebug() << "Stopping serial port manager...";
                     try {
                         // Close the serial port directly rather than using full stop() to avoid timer issues
                         SerialPortManager::getInstance().closePort();
-                        qDebug() << "Serial port closed successfully";
                         QThread::msleep(200); // Small delay for port closure
                         QCoreApplication::processEvents();
 
-                        qDebug() << "Serial port manager stopped successfully";
                     } catch (...) {
                         qWarning() << "Exception while stopping SerialPortManager - continuing anyway";
                     }
 
                     // Final cleanup - process any remaining events
-                    qDebug() << "Processing remaining events...";
                     QCoreApplication::processEvents();
                     QThread::msleep(200);
 
-                    qDebug() << "Services stopped successfully, proceeding with firmware update...";
-
                     // Hide main window while update dialog runs to keep app alive and allow dialog to control shutdown
                     this->hide();
-                    qDebug() << "Creating FirmwareUpdateDialog...";
 
                     // Create and show firmware update dialog (capture result to restore main window on failure)
                     FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
-                    qDebug() << "Calling updateDialog->startUpdate()...";
                     success = updateDialog->startUpdate();
-                    qDebug() << "FirmwareUpdate completed with result:" << success;
                     updateDialog->deleteLater();
                 } catch (const std::exception& e) {
                     qCritical() << "Exception during firmware update process:" << e.what();
@@ -2087,14 +2033,12 @@ void MainWindow::updateFirmware() {
                 if (!success) {
                     this->show();
                 }else{
-                    qDebug() << "Firmware updated successfully, closing main window.";
                     this->close(); // Close main window on successful update
                 }
             }
             } // end proceed scope
             break;
         case FirmwareResult::Timeout:
-            qDebug() << "Firmware fetch timeout.";
             QMessageBox::information(this, tr("Firmware fetch timeout"),
             tr("Firmware retrieval timed out. Please check your network connection and try again.\nCurrent version: ") +
             QString::fromStdString(currentFirmwareVersion));
@@ -2108,9 +2052,7 @@ void MainWindow::updateFirmware() {
 }
 
 void MainWindow::openDeviceSelector() {
-    qDebug() << "Opening device selector dialog";
     if (!deviceSelectorDialog) {
-        qDebug() << "Creating device selector dialog";
         deviceSelectorDialog = new DeviceSelectorDialog(m_cameraManager, &VideoHid::getInstance(), this);
         
         // Connect the finished signal to clean up
@@ -2208,5 +2150,4 @@ void MainWindow::syncShortcutsState()
     // Kept for API compatibility and potential future use.
     qCDebug(log_ui_mainwindow) << "syncShortcutsState called (no-op: shortcuts always enabled)";
 }
-
 

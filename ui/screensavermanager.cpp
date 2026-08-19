@@ -43,7 +43,6 @@ void ScreenSaverManager::inhibitScreenSaver() {
 #ifdef Q_OS_WIN
     // Windows: inhibit screen saver using SetThreadExecutionState
     SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED);
-    qDebug() << "Screen saver inhibited on Windows";
 #endif
 #ifdef Q_OS_LINUX
     // Linux: use DBus to inhibit screen saver
@@ -54,7 +53,6 @@ void ScreenSaverManager::inhibitScreenSaver() {
         QDBusReply<uint> reply = screenSaver.call("Inhibit", "OpenterfaceQt", "Running KVM application");
         if (reply.isValid()) {
             m_cookie = reply.value();
-            qDebug() << "Screen saver inhibited on Linux with cookie:" << m_cookie;
         } else {
             qWarning() << "Failed to inhibit screen saver on Linux:" << reply.error().message();
         }
@@ -66,7 +64,6 @@ void ScreenSaverManager::uninhibitScreenSaver() {
 #ifdef Q_OS_WIN
     // Windows: recover screen saver using SetThreadExecutionState
     SetThreadExecutionState(ES_CONTINUOUS);
-    qDebug() << "Screen saver uninhibited on Windows";
 #endif
 #ifdef Q_OS_LINUX
     // Linux: DBus recovery screen saver
@@ -75,7 +72,6 @@ void ScreenSaverManager::uninhibitScreenSaver() {
                                "org.freedesktop.ScreenSaver");
     if (screenSaver.isValid() && m_cookie != 0) {
         screenSaver.call("UnInhibit", m_cookie);
-        qDebug() << "Screen saver uninhibited on Linux with cookie:" << m_cookie;
         m_cookie = 0;
     }
 #endif

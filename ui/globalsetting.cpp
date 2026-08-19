@@ -20,7 +20,6 @@
 * ========================================================================== *
 */
 
-
 #include "globalsetting.h"
 #include "global.h"
 #include <QMutex>
@@ -82,7 +81,6 @@ void GlobalSetting::loadLogSettings()
     logFilter += m_settings.value("log/backend", false).toBool() ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
     logFilter += m_settings.value("log/script", false).toBool() ? "opf.scripts.*=true\n" : "opf.scripts.*=false\n";
     QLoggingCategory::setFilterRules(logFilter);
-    qDebug() << "Log filter rules set to:\n" << logFilter;
 }
 
 void GlobalSetting::setLogStoreSettings(bool storeLog, QString logFilePath){
@@ -171,11 +169,9 @@ void GlobalSetting::setPID(QString pid){
     m_settings.setValue("serial/pid", pid);
 }
 
-
 void GlobalSetting::setSerialNumber(QString serialNumber){
     m_settings.setValue("serial/serialnumber", serialNumber);
 }
-
 
 void GlobalSetting::setUSBEnabelFlag(QString enableflag){
     m_settings.setValue("serial/enableflag", enableflag);
@@ -209,7 +205,6 @@ bool GlobalSetting::getHideKeyboardInput() const {
     return m_settings.value("keyboard/hideInput", false).toBool();
 }
 
-
 void GlobalSetting::setSystemKeyBlockerEnabled(bool enabled) {
     m_settings.setValue("keyboard/systemKeyBlocker", enabled);
 }
@@ -217,7 +212,6 @@ void GlobalSetting::setSystemKeyBlockerEnabled(bool enabled) {
 bool GlobalSetting::getSystemKeyBlockerEnabled() const {
     return m_settings.value("keyboard/systemKeyBlocker", false).toBool();
 }
-
 
 void GlobalSetting::setMouseAutoHideEnable(bool enable){
     m_settings.setValue("mouse/autoHide", enable);
@@ -301,7 +295,6 @@ bool GlobalSetting::getUpdateNeverRemind() const
 
 // Port chain management for Openterface devices
 void GlobalSetting::setOpenterfacePortChain(const QString& portChain) {
-    qDebug() << "Logging Openterface port chain:" << portChain;
     m_settings.setValue("openterface/portChain", portChain);
     m_settings.sync(); // Ensure immediate write to storage
 }
@@ -311,14 +304,12 @@ QString GlobalSetting::getOpenterfacePortChain() const {
 }
 
 void GlobalSetting::clearOpenterfacePortChain() {
-    qDebug() << "Clearing Openterface port chain";
     m_settings.remove("openterface/portChain");
     m_settings.sync();
 }
 
 // Serial port baudrate management
 void GlobalSetting::setSerialPortBaudrate(int baudrate) {
-    qDebug() << "Storing serial port baudrate:" << baudrate;
     m_settings.setValue("serial/baudrate", baudrate);
     m_settings.sync(); // Ensure immediate write to storage
 }
@@ -328,14 +319,12 @@ int GlobalSetting::getSerialPortBaudrate() const {
 }
 
 void GlobalSetting::clearSerialPortBaudrate() {
-    qDebug() << "Clearing stored serial port baudrate";
     m_settings.remove("serial/baudrate");
     m_settings.sync();
 }
 
 // ARM architecture baudrate performance prompt
 void GlobalSetting::setArmBaudratePromptDisabled(bool disabled) {
-    qDebug() << "Setting ARM baudrate prompt disabled:" << disabled;
     m_settings.setValue("serial/armBaudratePromptDisabled", disabled);
     m_settings.sync();
 }
@@ -345,7 +334,6 @@ bool GlobalSetting::getArmBaudratePromptDisabled() const {
 }
 
 void GlobalSetting::resetArmBaudratePrompt() {
-    qDebug() << "Resetting ARM baudrate prompt setting";
     m_settings.remove("serial/armBaudratePromptDisabled");
     m_settings.sync();
 }
@@ -356,14 +344,12 @@ void GlobalSetting::resetArmBaudratePrompt() {
 QByteArray GlobalSetting::convertStringToByteArray(QString str) {
     QStringList hexParts = str.split(" ", Qt::SkipEmptyParts);
 
-
     QString hexString = hexParts.join("");
     
     bool ok;
     int64_t value = hexString.toInt(&ok, 16);
     if (!ok) {
         // Handle the error, e.g., by returning an empty QByteArray or throwing an exception
-        qDebug() << str << "Error converting string";
         return QByteArray();
     }
 

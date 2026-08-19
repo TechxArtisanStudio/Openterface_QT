@@ -157,7 +157,6 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
 
 VideoPane::~VideoPane()
 {
-    qDebug() << "VideoPane destructor started";
     
     // 1. FIRST: Clean up overlay widget before anything else (to prevent event filter crashes)
     if (m_overlayWidget) {
@@ -216,7 +215,6 @@ VideoPane::~VideoPane()
         m_scene = nullptr;
     }
 
-    qDebug() << "VideoPane destructor completed";
 }
 
 /*
@@ -308,30 +306,25 @@ void VideoPane::onCameraDeviceSwitchComplete(const QString& device)
         // In FFmpeg mode, keep pixmap item visible and hide Qt video item
         if (m_videoItem) {
             m_videoItem->setVisible(false);
-            qDebug() << "VideoPane: Video item hidden - FFmpeg mode active";
         }
         
         if (m_pixmapItem) {
             m_pixmapItem->setVisible(true);
-            qDebug() << "VideoPane: Pixmap item kept visible for FFmpeg frames";
         }
     } else {
         // In normal Qt mode, show video item and hide pixmap item
         if (m_videoItem) {
             m_videoItem->setVisible(true);
-            qDebug() << "VideoPane: Video item made visible for new camera feed";
         }
         
         if (m_pixmapItem) {
             m_pixmapItem->setVisible(false);
-            qDebug() << "VideoPane: Pixmap item hidden to show live video";
         }
     }
     
     // Force a repaint to resume normal video display
     update();
     
-    qDebug() << "VideoPane: Ready to display new camera feed";
 }
 
 void VideoPane::captureCurrentFrame()
@@ -540,7 +533,6 @@ void VideoPane::actualSize()
         centerVideoItem();
     }
 }
-
 
 void VideoPane::resizeEvent(QResizeEvent *event)
 {
@@ -813,7 +805,6 @@ QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
         // qCDebug(log_ui_video) << "      [getTransformed] Using video item";
     } else if (m_directGStreamerMode) {
         QRectF videoRect = getGStreamerVideoContentRect();
-        qDebug() << "      [getTransformed] GStreamer video rect:" << videoRect;
 
         if (!videoRect.isValid() || videoRect.isEmpty()) {
             qCWarning(log_ui_video) << "Invalid video content rect for GStreamer mapping:" << videoRect;
@@ -829,7 +820,6 @@ QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
         double normalizedY = qBound(0.0, relativeY, 1.0);
 
         QPointF finalResult(normalizedX * itemWidth, normalizedY * itemHeight);
-        qDebug() << "      [getTransformed] GStreamer normalized pos:" << finalResult;
         return finalResult;
     }
     
@@ -1457,7 +1447,6 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
     m_scene->update(updateRect);
     viewport()->update();
 }
-
 
 void VideoPane::enableDirectFFmpegMode(bool enable)
 {

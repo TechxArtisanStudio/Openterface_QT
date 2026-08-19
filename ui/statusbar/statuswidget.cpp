@@ -161,7 +161,6 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
 
     qCDebug(log_ui_statuswidget) << "Detected CPU core count:" << m_cpuCoreCount;
 
-
     // Setup CPU monitoring timer
     cpuTimer = new QTimer(this);
     connect(cpuTimer, &QTimer::timeout, this, &StatusWidget::updateCpuUsage);
@@ -258,7 +257,6 @@ void StatusWidget::setCaptureResolution(const int &width, const int &height, con
     m_captureHeight = height;
     m_captureFramerate = fps;
 
-    
     // Update the input resolution tooltip to include capture information
     QString currentTooltip = inputResolutionLabel->toolTip();
     
@@ -284,7 +282,6 @@ void StatusWidget::setConnectedPort(const QString &port, const int &baudrate) {
     // Check if the new state is the same as the current state to avoid unnecessary updates
     if (m_lastPort == port && m_lastBaudrate == baudrate) {
         // States are the same, skip the update
-        qDebug() << "[StatusWidget] Skipping duplicate state update - port:" << port << "baudrate:" << baudrate;
         return;
     }
 
@@ -295,25 +292,20 @@ void StatusWidget::setConnectedPort(const QString &port, const int &baudrate) {
     QString displayText;
     
     // Debug logging to understand port and baudrate values
-    qDebug() << "[StatusWidget] setConnectedPort called with port:" << port << "baudrate:" << baudrate;
     
     // Handle different cases for port and baudrate
     if (port == "NA" || port.isEmpty()) {
         // No valid port or specifically marked as "NA" - show Not Connected
         displayText = "Not Connected";
-        qDebug() << "[StatusWidget] Showing 'Not Connected' status";
     } else if (baudrate > 0) {
         // Valid baudrate - show port and baudrate
         displayText = QString("%1@%2").arg(port).arg(baudrate);
-        qDebug() << "[StatusWidget] Showing port and baudrate:" << displayText;
     } else if (baudrate == 0 && !port.isEmpty()) {
         // Baudrate is 0 but port is valid - show just the port name
         displayText = port;
-        qDebug() << "[StatusWidget] Showing port name only:" << displayText;
     } else {
         // Other cases - show the port name
         displayText = port;
-        qDebug() << "[StatusWidget] Showing port name (fallback):" << displayText;
     }
     
     connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", displayText));

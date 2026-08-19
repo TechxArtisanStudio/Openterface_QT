@@ -6,7 +6,6 @@
 FirmwareUpdateDialog::FirmwareUpdateDialog(QWidget *parent)
     : QDialog(parent, Qt::WindowTitleHint | Qt::CustomizeWindowHint), updateResult(false)
 {
-    qDebug() << "FirmwareUpdateDialog constructor called";
     setWindowTitle(tr("Firmware Update"));
     setMinimumWidth(400);
     setModal(true);
@@ -64,24 +63,20 @@ void FirmwareUpdateDialog::onProgressTimerTimeout()
 
 void FirmwareUpdateDialog::beginLoad()
 {
-    qDebug() << "FirmwareUpdateDialog::beginLoad() called - starting firmware load";
     // Kick off the firmware write operation
     VideoHid::getInstance().loadFirmwareToEeprom();
-    qDebug() << "VideoHid::loadFirmwareToEeprom() called";
 }
 
 #include <QCoreApplication>
 
 bool FirmwareUpdateDialog::startUpdate()
 {
-    qDebug() << "FirmwareUpdateDialog::startUpdate() called";
     statusLabel->setText(tr("Updating firmware... Please do not disconnect the device."));
 
     // Connect signals before starting
     FirmwareOperationManager* mgr = VideoHid::getInstance().getFirmwareOperationManager();
     connect(mgr, &FirmwareOperationManager::progress,       this, &FirmwareUpdateDialog::updateProgress);
     connect(mgr, &FirmwareOperationManager::writeCompleted, this, &FirmwareUpdateDialog::updateComplete);
-    qDebug() << "Signals connected, showing dialog";
 
     // Show the dialog first so the user sees it immediately, then start the firmware load
     // on the next event loop iteration to ensure the UI is visible before the write starts.
@@ -176,22 +171,18 @@ FirmwareUpdateConfirmDialog::~FirmwareUpdateConfirmDialog()
 
 void FirmwareUpdateConfirmDialog::onOkClicked()
 {
-    qDebug() << "OK button clicked - proceeding with firmware update";
     m_accepted = true;
     accept();
 }
 
 void FirmwareUpdateConfirmDialog::onCancelClicked()
 {
-    qDebug() << "Cancel button clicked - aborting firmware update";
     m_accepted = false;
     reject();
 }
 
 bool FirmwareUpdateConfirmDialog::showConfirmDialog(const std::string& currentVersion, const std::string& latestVersion)
 {
-    qDebug() << "Current firmware version: " << QString::fromStdString(currentVersion);
-    qDebug() << "Latest firmware version: " << QString::fromStdString(latestVersion);
     QString message = tr("Current firmware version: ") + QString::fromStdString(currentVersion) + tr("\n") +
                      tr("Latest firmware version: ") + QString::fromStdString(latestVersion) + tr("\n\n") +
                      tr("The update process will:\n") +
@@ -207,15 +198,9 @@ bool FirmwareUpdateConfirmDialog::showConfirmDialog(const std::string& currentVe
     
     messageLabel->setText(message);
     
-    qDebug() << "About to show confirmation dialog";
     m_accepted = false; // Reset before showing
     
     int result = exec();
-    
-    qDebug() << "Dialog closed with result:" << result;
-    qDebug() << "QDialog::Accepted =" << QDialog::Accepted;
-    qDebug() << "QDialog::Rejected =" << QDialog::Rejected;
-    qDebug() << "m_accepted =" << m_accepted;
     
     return m_accepted;
 }
