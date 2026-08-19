@@ -75,6 +75,7 @@ private:
     // Category tree view
     QTreeView *categoryTreeView;
     QStandardItemModel *categoryModel;
+    QCheckBox *selectAllCheckBox;
 
     // Other settings (unchanged from original)
     QCheckBox *screenSaverCheckBox;

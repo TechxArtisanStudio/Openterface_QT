@@ -188,6 +188,10 @@ void LogPage::setupUI()
     browseButton->setObjectName("browseButton");
 
     // Category tree view
+    selectAllCheckBox = new QCheckBox(tr("Select All"));
+    selectAllCheckBox->setObjectName("selectAllCheckBox");
+    selectAllCheckBox->setChecked(true);
+
     categoryTreeView = new QTreeView(this);
     categoryTreeView->setObjectName("categoryTreeView");
     categoryTreeView->setRootIsDecorated(true);
@@ -197,8 +201,8 @@ void LogPage::setupUI()
     categoryTreeView->setIndentation(20);
 
     categoryModel = new QStandardItemModel(this);
-    categoryModel->setColumnCount(2);
-    categoryModel->setHorizontalHeaderLabels({tr("Category"), tr("Level")});
+    categoryModel->setColumnCount(3);
+    categoryModel->setHorizontalHeaderLabels({tr("Category"), tr("Level"), tr("ID")});
 
     categoryTreeView->setModel(categoryModel);
     categoryTreeView->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
@@ -281,6 +285,44 @@ void LogPage::setupUI()
             }
             propagating = false;
         }
+
+        // Sync selectAll checkbox: checked only when ALL leaf items are checked
+        bool allChecked = true;
+        for (int g = 0; g < categoryModel->rowCount(); ++g) {
+            QStandardItem* grp = categoryModel->item(g);
+            for (int c = 0; c < grp->rowCount(); ++c) {
+                QStandardItem* child = grp->child(c, 0);
+                if (child && child->isCheckable() && child->checkState() != Qt::Checked) {
+                    allChecked = false;
+                    break;
+                }
+            }
+            if (!allChecked) break;
+        }
+        selectAllCheckBox->blockSignals(true);
+        selectAllCheckBox->setChecked(allChecked);
+        selectAllCheckBox->blockSignals(false);
+
+        checkDirtyState();
+    });
+
+    // Select All checkbox — toggle all groups and their children
+    connect(selectAllCheckBox, &QCheckBox::toggled, this, [this](bool checked){
+        propagating = true;
+        Qt::CheckState state = checked ? Qt::Checked : Qt::Unchecked;
+        for (int g = 0; g < categoryModel->rowCount(); ++g) {
+            QStandardItem* group = categoryModel->item(g);
+            if (group && group->isCheckable()) {
+                group->setCheckState(state);
+            }
+            for (int c = 0; c < group->rowCount(); ++c) {
+                QStandardItem* child = group->child(c, 0);
+                if (child && child->isCheckable()) {
+                    child->setCheckState(state);
+                }
+            }
+        }
+        propagating = false;
         checkDirtyState();
     });
 
@@ -288,6 +330,7 @@ void LogPage::setupUI()
     QVBoxLayout *logLayout = new QVBoxLayout(this);
     logLayout->addWidget(logLabel);
     logLayout->addWidget(logDescription);
+    logLayout->addWidget(selectAllCheckBox);
     logLayout->addWidget(categoryTreeView);
     logLayout->addWidget(storeLogCheckBox);
     logLayout->addLayout(logFilePathLayout);
@@ -492,7 +535,11 @@ void LogPage::populateCategoryTree()
             QStandardItem *levelItem = new QStandardItem(defaultLevel);
             levelItem->setEditable(false);
 
-            groupItem->appendRow({nameItem, levelItem});
+            QStandardItem *idItem = new QStandardItem(cat);
+            idItem->setEditable(false);
+            idItem->setForeground(QColor(128, 128, 128));
+
+            groupItem->appendRow({nameItem, levelItem, idItem});
         }
 
         categoryModel->appendRow(groupItem);
@@ -703,6 +750,7 @@ void LogPage::revertToSnapshot()
     systemKeyBlockerCheckBox->setChecked(m_snap_systemKeyBlocker);
 
     // Restore tree state
+    bool allChecked = true;
     for (int g = 0; g < categoryModel->rowCount(); ++g) {
         QStandardItem *group = categoryModel->item(g);
         for (int c = 0; c < group->rowCount(); ++c) {
@@ -714,8 +762,12 @@ void LogPage::revertToSnapshot()
                 nameItem->setCheckState(state.first ? Qt::Checked : Qt::Unchecked);
                 levelItem->setText(state.second);
             }
+            if (nameItem->checkState() != Qt::Checked) allChecked = false;
         }
     }
+    selectAllCheckBox->blockSignals(true);
+    selectAllCheckBox->setChecked(allChecked);
+    selectAllCheckBox->blockSignals(false);
 }
 
 bool LogPage::valuesMatchSnapshot() const
