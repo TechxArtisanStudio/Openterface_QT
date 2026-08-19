@@ -76,11 +76,6 @@ private:
     QTreeView *categoryTreeView;
     QStandardItemModel *categoryModel;
 
-    // Quick-set buttons
-    QPushButton *allDebugButton;
-    QPushButton *allInfoButton;
-    QPushButton *allWarningButton;
-
     // Other settings (unchanged from original)
     QCheckBox *screenSaverCheckBox;
     QCheckBox *hideKeyboardInputCheckBox;

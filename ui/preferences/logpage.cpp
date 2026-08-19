@@ -41,6 +41,71 @@
 #include <QPushButton>
 #include <QDialog>
 
+// Category metadata: friendly names and default levels
+static struct CategoryMeta {
+    const char* category;
+    const char* displayName;
+    const char* defaultLevel;
+} s_categoryMeta[] = {
+    // Serial group
+    {"opf.core.serial.tx",         "TX 数据",        "Debug"},
+    {"opf.core.serial.rx",         "RX 数据",        "Debug"},
+    {"opf.core.serial.cmd",        "命令协调",        "Info"},
+    {"opf.core.serial.conn",       "连接状态",        "Info"},
+    {"opf.core.serial.watchdog",   "看门狗",          "Warning"},
+    {"opf.core.serial.hotplug",    "热插拔",          "Info"},
+    {"opf.core.serial.config",     "芯片配置",        "Info"},
+    {"opf.core.serial.lockkeys",   "锁定键",          "Debug"},
+    {"opf.core.serial.usbswitch",  "USB 切换",       "Debug"},
+    {"opf.serial.state",           "状态管理",        "Info"},
+    {"opf.serial.statistics",      "统计",            "Debug"},
+    // Keyboard group
+    {"opf.host.keyboard.mapping",   "按键映射",       "Debug"},
+    {"opf.host.keyboard.modifiers", "修饰键",         "Debug"},
+    {"opf.host.keyboard.ime",       "输入法",         "Debug"},
+    {"opf.host.keyboard.special",   "特殊键",         "Info"},
+    {"opf.host.keyboard.state",     "按键状态",       "Info"},
+    {"opf.host.layouts",            "键盘布局",       "Info"},
+    // Mouse group
+    {"opf.host.mouse.absolute",    "绝对坐标",        "Debug"},
+    {"opf.host.mouse.relative",    "相对坐标",        "Debug"},
+    {"opf.host.mouse.scroll",      "滚轮",            "Info"},
+    // HID/Chip group
+    {"opf.core.hid.detect",        "芯片检测",        "Info"},
+    {"opf.core.hid.poll",          "轮询",            "Info"},
+    {"opf.core.hid.firmware",      "固件",            "Info"},
+    {"opf.core.hid.device",        "设备管理",        "Info"},
+    {"opf.core.chip.read",         "寄存器读取",      "Debug"},
+    {"opf.core.chip.flash",        "烧录",            "Info"},
+    {"opf.core.chip.gpio",         "GPIO",            "Debug"},
+    {"opf.host.win_transport",     "Windows 传输",    "Debug"},
+    {"opf.host.linux_transport",   "Linux 传输",      "Debug"},
+};
+
+static const CategoryMeta* findCategoryMeta(const QString& category) {
+    for (const auto& meta : s_categoryMeta) {
+        if (category == meta.category) {
+            return &meta;
+        }
+    }
+    return nullptr;
+}
+
+static QString getFriendlyName(const QString& category) {
+    const CategoryMeta* meta = findCategoryMeta(category);
+    if (meta) {
+        return QString::fromUtf8(meta->displayName);
+    }
+    // Fallback: use last segment
+    QStringList parts = category.split('.');
+    return parts.last();
+}
+
+static QString getDefaultLevel(const QString& category) {
+    const CategoryMeta* meta = findCategoryMeta(category);
+    return meta ? QString::fromUtf8(meta->defaultLevel) : "Info";
+}
+
 LogPage::LogPage(QWidget *parent) : PreferencePageBase(parent)
 {
     setupUI();
@@ -72,19 +137,6 @@ void LogPage::setupUI()
     categoryTreeView->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     categoryTreeView->header()->setStretchLastSection(true);
 
-    // Quick-set buttons
-    allDebugButton = new QPushButton(tr("All Debug"), this);
-    allInfoButton = new QPushButton(tr("All Info"), this);
-    allWarningButton = new QPushButton(tr("All Warning"), this);
-    allDebugButton->setObjectName("allDebugButton");
-    allInfoButton->setObjectName("allInfoButton");
-    allWarningButton->setObjectName("allWarningButton");
-
-    QHBoxLayout *quicksetLayout = new QHBoxLayout();
-    quicksetLayout->addWidget(allDebugButton);
-    quicksetLayout->addWidget(allInfoButton);
-    quicksetLayout->addWidget(allWarningButton);
-
     // Other settings (unchanged)
     screenSaverCheckBox = new QCheckBox(tr("Inhibit Screen Saver"));
     screenSaverCheckBox->setObjectName("screenSaverCheckBox");
@@ -112,47 +164,25 @@ void LogPage::setupUI()
     logLabel->setTextFormat(Qt::RichText);
     logLabel->setStyleSheet(bigLabelFontSize);
 
-    QLabel *logDescription = new QLabel(tr("Use the tree below to enable/disable categories and set their log levels. Use quick-set buttons for bulk changes."));
+    QLabel *logDescription = new QLabel(tr("Use the tree below to enable/disable categories. Each category has a preset log level."));
     logDescription->setStyleSheet(commentsFontSize);
 
     connect(browseButton, &QPushButton::clicked, this, &LogPage::browseLogPath);
 
-    // Quick-set button connections
-    connect(allDebugButton, &QPushButton::clicked, this, [this]() {
-        for (int g = 0; g < categoryModel->rowCount(); ++g) {
-            QStandardItem* group = categoryModel->item(g);
-            for (int c = 0; c < group->rowCount(); ++c) {
-                QStandardItem* levelItem = group->child(c, 1);
-                levelItem->setText("Debug");
+    // Model changed signal — handle group checkbox propagation
+    connect(categoryModel, &QStandardItemModel::itemChanged, this, [this](QStandardItem* item){
+        // If changed item is a group (has children), propagate check state
+        if (item && item->rowCount() > 0 && item->isCheckable()) {
+            Qt::CheckState groupState = item->checkState();
+            bool blockSignalsState = categoryModel->blockSignals(true);
+            for (int c = 0; c < item->rowCount(); ++c) {
+                QStandardItem* child = item->child(c, 0);
+                if (child && child->isCheckable()) {
+                    child->setCheckState(groupState);
+                }
             }
+            categoryModel->blockSignals(blockSignalsState);
         }
-        checkDirtyState();
-    });
-
-    connect(allInfoButton, &QPushButton::clicked, this, [this]() {
-        for (int g = 0; g < categoryModel->rowCount(); ++g) {
-            QStandardItem* group = categoryModel->item(g);
-            for (int c = 0; c < group->rowCount(); ++c) {
-                QStandardItem* levelItem = group->child(c, 1);
-                levelItem->setText("Info");
-            }
-        }
-        checkDirtyState();
-    });
-
-    connect(allWarningButton, &QPushButton::clicked, this, [this]() {
-        for (int g = 0; g < categoryModel->rowCount(); ++g) {
-            QStandardItem* group = categoryModel->item(g);
-            for (int c = 0; c < group->rowCount(); ++c) {
-                QStandardItem* levelItem = group->child(c, 1);
-                levelItem->setText("Warning");
-            }
-        }
-        checkDirtyState();
-    });
-
-    // Model changed signal
-    connect(categoryModel, &QStandardItemModel::itemChanged, this, [this](QStandardItem*){
         checkDirtyState();
     });
 
@@ -161,7 +191,6 @@ void LogPage::setupUI()
     logLayout->addWidget(logLabel);
     logLayout->addWidget(logDescription);
     logLayout->addWidget(categoryTreeView);
-    logLayout->addLayout(quicksetLayout);
     logLayout->addWidget(storeLogCheckBox);
     logLayout->addLayout(logFilePathLayout);
 
@@ -285,6 +314,15 @@ void LogPage::populateCategoryTree()
         groupMap["Other"] = uncategorized;
     }
 
+    // Map group names to Chinese display names
+    QMap<QString, QString> groupDisplayNames = {
+        {"Serial", "串口"},
+        {"Keyboard", "键盘"},
+        {"Mouse", "鼠标"},
+        {"HID/Chip", "HID/芯片"},
+        {"Other", "其他"}
+    };
+
     // Create top-level groups in a stable order
     QStringList groupOrder = {"Serial", "Keyboard", "Mouse", "HID/Chip", "Other"};
     for (const QString &groupName : groupOrder) {
@@ -292,19 +330,27 @@ void LogPage::populateCategoryTree()
         const QStringList &cats = groupMap[groupName];
         if (cats.isEmpty()) continue;
 
-        QStandardItem *groupItem = new QStandardItem(groupName);
+        QString displayName = groupDisplayNames.value(groupName, groupName);
+        QStandardItem *groupItem = new QStandardItem(displayName);
+        groupItem->setCheckable(true);
+        groupItem->setCheckState(Qt::Checked);
         groupItem->setEditable(false);
         QFont f = groupItem->font();
         f.setBold(true);
         groupItem->setFont(f);
 
         for (const QString &cat : cats) {
-            QStandardItem *nameItem = new QStandardItem(cat);
+            QString friendlyName = getFriendlyName(cat);
+            QString defaultLevel = getDefaultLevel(cat);
+
+            QStandardItem *nameItem = new QStandardItem(friendlyName);
             nameItem->setCheckable(true);
             nameItem->setCheckState(Qt::Checked);
             nameItem->setEditable(false);
+            // Store raw category in user data
+            nameItem->setData(cat, Qt::UserRole + 1);
 
-            QStandardItem *levelItem = new QStandardItem("Info");
+            QStandardItem *levelItem = new QStandardItem(defaultLevel);
             levelItem->setEditable(false);
 
             groupItem->appendRow({nameItem, levelItem});
@@ -324,7 +370,7 @@ QString LogPage::generateFilterRules() const
         for (int c = 0; c < group->rowCount(); ++c) {
             QStandardItem *nameItem = group->child(c, 0);
             QStandardItem *levelItem = group->child(c, 1);
-            QString category = nameItem->text();
+            QString category = nameItem->data(Qt::UserRole + 1).toString();
             bool enabled = nameItem->checkState() == Qt::Checked;
             QString level = levelItem->text();
 
@@ -353,7 +399,7 @@ void LogPage::saveCategorySettings() const
         for (int c = 0; c < group->rowCount(); ++c) {
             QStandardItem *nameItem = group->child(c, 0);
             QStandardItem *levelItem = group->child(c, 1);
-            QString category = nameItem->text();
+            QString category = nameItem->data(Qt::UserRole + 1).toString();
             bool enabled = nameItem->checkState() == Qt::Checked;
             QString level = levelItem->text();
             settings.setValue(QString("log/category/%1/enabled").arg(category), enabled);
@@ -370,9 +416,10 @@ void LogPage::restoreCategorySettings()
         for (int c = 0; c < group->rowCount(); ++c) {
             QStandardItem *nameItem = group->child(c, 0);
             QStandardItem *levelItem = group->child(c, 1);
-            QString category = nameItem->text();
+            QString category = nameItem->data(Qt::UserRole + 1).toString();
+            QString defaultLevel = getDefaultLevel(category);
             bool enabled = settings.value(QString("log/category/%1/enabled").arg(category), true).toBool();
-            QString level = settings.value(QString("log/category/%1/level").arg(category), "Info").toString();
+            QString level = settings.value(QString("log/category/%1/level").arg(category), defaultLevel).toString();
             nameItem->setCheckState(enabled ? Qt::Checked : Qt::Unchecked);
             levelItem->setText(level);
         }
@@ -498,7 +545,7 @@ void LogPage::captureSnapshot()
         for (int c = 0; c < group->rowCount(); ++c) {
             QStandardItem *nameItem = group->child(c, 0);
             QStandardItem *levelItem = group->child(c, 1);
-            QString category = nameItem->text();
+            QString category = nameItem->data(Qt::UserRole + 1).toString();
             bool enabled = nameItem->checkState() == Qt::Checked;
             QString level = levelItem->text();
             m_snap_categoryStates.insert(category, qMakePair(enabled, level));
@@ -522,7 +569,7 @@ void LogPage::revertToSnapshot()
         for (int c = 0; c < group->rowCount(); ++c) {
             QStandardItem *nameItem = group->child(c, 0);
             QStandardItem *levelItem = group->child(c, 1);
-            QString category = nameItem->text();
+            QString category = nameItem->data(Qt::UserRole + 1).toString();
             if (m_snap_categoryStates.contains(category)) {
                 auto state = m_snap_categoryStates.value(category);
                 nameItem->setCheckState(state.first ? Qt::Checked : Qt::Unchecked);
@@ -548,7 +595,7 @@ bool LogPage::valuesMatchSnapshot() const
         for (int c = 0; c < group->rowCount(); ++c) {
             QStandardItem *nameItem = group->child(c, 0);
             QStandardItem *levelItem = group->child(c, 1);
-            QString category = nameItem->text();
+            QString category = nameItem->data(Qt::UserRole + 1).toString();
             bool enabled = nameItem->checkState() == Qt::Checked;
             QString level = levelItem->text();
             if (!m_snap_categoryStates.contains(category)) return false;
