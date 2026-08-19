@@ -144,12 +144,12 @@ void LogHandler::combinedHandler(QtMsgType type,
                                   const QMessageLogContext &context,
                                   const QString &msg)
 {
-    static QMutex mutex;
-    QMutexLocker lock(&mutex);
+    static QMutex handlerMutex;
+    QMutexLocker lock(&handlerMutex);
 
     QString formatted = formatMessage(type, context, msg);
 
-    // 1. Console output (always)
+    // 1. Console output (always) — no s_mutex needed, uses only local vars
 #ifdef Q_OS_WIN
     OutputDebugStringW(reinterpret_cast<const wchar_t*>(formatted.utf16()));
     OutputDebugStringW(L"\n");
@@ -158,11 +158,14 @@ void LogHandler::combinedHandler(QtMsgType type,
     fflush(stderr);
 #endif
 
-    // 2. File output (if enabled)
-    if (s_fileLoggingEnabled && s_logFile.isOpen()) {
-        QTextStream stream(&s_logFile);
-        stream << formatted << "\n";
-        stream.flush();
+    // 2. File output — acquire s_mutex to coordinate with setFileLoggingEnabled/shutdown
+    {
+        QMutexLocker fileLock(&s_mutex);
+        if (s_fileLoggingEnabled && s_logFile.isOpen()) {
+            QTextStream stream(&s_logFile);
+            stream << formatted << "\n";
+            stream.flush();
+        }
     }
 
     // 3. Fatal → abort
