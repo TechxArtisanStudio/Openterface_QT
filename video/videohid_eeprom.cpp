@@ -3,9 +3,9 @@
 #include "videohidchip.h"
 #include <QThread>
 #include <QDebug>
-#include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_DECLARE_LOGGING_CATEGORY(log_host_hid)
+Q_DECLARE_LOGGING_CATEGORY(log_hid_firmware)
 
 bool VideoHid::readChunk(quint16 address, QByteArray &data, int chunkSize) {
     const int REPORT_SIZE = 9;
@@ -37,7 +37,7 @@ QByteArray VideoHid::readEeprom(quint16 address, quint32 size,
 
     // Begin transaction for the entire operation
     if (!beginTransaction()) {
-        qCDebug(log_host_hid) << "Failed to begin transaction for EEPROM read";
+        qCDebug(log_hid_firmware) << "Failed to begin transaction for EEPROM read";
         return QByteArray();
     }
 
@@ -47,7 +47,7 @@ QByteArray VideoHid::readEeprom(quint16 address, quint32 size,
 
     while (bytesRemaining > 0 && success) {
         if (QThread::currentThread()->isInterruptionRequested()) {
-            qCInfo(log_host_hid) << "readEeprom interrupted";
+            qCInfo(log_hid_firmware) << "readEeprom interrupted";
             endTransaction();
             return QByteArray();
         }
@@ -62,7 +62,7 @@ QByteArray VideoHid::readEeprom(quint16 address, quint32 size,
             chunkSuccess = readChunk(currentAddress, chunk, chunkSize);
             if (!chunkSuccess) {
                 retries--;
-                qCDebug(log_host_hid) << "Retry" << (MAX_RETRIES - retries) << "of" << MAX_RETRIES
+                qCDebug(log_hid_firmware) << "Retry" << (MAX_RETRIES - retries) << "of" << MAX_RETRIES
                                       << "for reading chunk at address:" << QString("0x%1").arg(currentAddress, 4, 16, QChar('0'));
                 QThread::msleep(15); // Short delay before retrying
             }
@@ -74,11 +74,11 @@ QByteArray VideoHid::readEeprom(quint16 address, quint32 size,
             bytesRemaining -= chunkSize;
             if (progressCallback) progressCallback((read_size * 100) / size);
             if (read_size % 64 == 0) {
-                qCDebug(log_host_hid) << "Read size:" << read_size;
+                qCDebug(log_hid_firmware) << "Read size:" << read_size;
             }
             QThread::msleep(5); // Add 5ms delay between successful reads
         } else {
-            qCDebug(log_host_hid) << "Failed to read chunk from EEPROM at address:" << QString("0x%1").arg(currentAddress, 4, 16, QChar('0'))
+            qCDebug(log_hid_firmware) << "Failed to read chunk from EEPROM at address:" << QString("0x%1").arg(currentAddress, 4, 16, QChar('0'))
                                   << "after" << MAX_RETRIES << "retries";
             success = false;
             break;
@@ -89,7 +89,7 @@ QByteArray VideoHid::readEeprom(quint16 address, quint32 size,
     endTransaction();
 
     if (!success) {
-        qCDebug(log_host_hid) << "EEPROM read failed";
+        qCDebug(log_hid_firmware) << "EEPROM read failed";
         return QByteArray();
     }
 
@@ -126,9 +126,9 @@ void VideoHid::loadEepromToFile(const QString &filePath) {
 
     connect(worker, &FirmwareReader::finished, this, [](bool success) {
         if (success) {
-            qCDebug(log_host_hid) << "Firmware read completed successfully";
+            qCDebug(log_hid_firmware) << "Firmware read completed successfully";
         } else {
-            qCDebug(log_host_hid) << "Firmware read failed - user should try again";
+            qCDebug(log_hid_firmware) << "Firmware read failed - user should try again";
         }
     });
     
@@ -153,10 +153,10 @@ bool VideoHid::writeChunk(quint16 address, const QByteArray &data,
         report[2] = (_address >> 8) & 0xFF;
         report[3] = _address & 0xFF;
         report.replace(4, chunk_length, chunk);
-        qCDebug(log_host_hid)  << "Report:" << report.toHex(' ').toUpper();
+        qCDebug(log_hid_firmware)  << "Report:" << report.toHex(' ').toUpper();
         
         status = sendFeatureReport((uint8_t*)report.data(), report.size());
-        qCDebug(log_host_hid) << "writeChunk: sendFeatureReport" << (status ? "OK" : "FAIL") << "addr=" << QString("0x%1").arg(_address, 4, 16, QChar('0'));
+        qCDebug(log_hid_firmware) << "writeChunk: sendFeatureReport" << (status ? "OK" : "FAIL") << "addr=" << QString("0x%1").arg(_address, 4, 16, QChar('0'));
 
         if (!status) {
             qWarning() << "Failed to write chunk to address:" << QString("0x%1").arg(_address, 4, 16, QChar('0'));
@@ -182,7 +182,7 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data,
     // Pause polling during EEPROM updates to avoid concurrent HID bus contention.
     bool hadPolling = (m_pollingThread != nullptr);
     if (hadPolling) {
-        qCDebug(log_host_hid) << "writeEeprom: stopping polling thread to avoid HID bus contention";
+        qCDebug(log_hid_firmware) << "writeEeprom: stopping polling thread to avoid HID bus contention";
         stopPollingOnly();
         QThread::msleep(50); // brief delay for thread stop handshake
     }
@@ -213,7 +213,7 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data,
 
         // Begin transaction for the entire operation
         if (!beginTransaction()) {
-            qCDebug(log_host_hid)  << "Failed to begin transaction for EEPROM write";
+            qCDebug(log_hid_firmware)  << "Failed to begin transaction for EEPROM write";
             success = false;
         } else {
             while (!remainingData.isEmpty() && success) {
@@ -224,11 +224,11 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data,
                     address += chunk.size();
                     remainingData = remainingData.mid(MAX_CHUNK);
                     if (written_size % 64 == 0) {
-                        qCDebug(log_host_hid)  << "Written size:" << written_size;
+                        qCDebug(log_hid_firmware)  << "Written size:" << written_size;
                     }
                     QThread::msleep(20); // Throttle a little to avoid USB packet bursts
                 } else {
-                    qCDebug(log_host_hid)  << "Failed to write chunk to EEPROM";
+                    qCDebug(log_hid_firmware)  << "Failed to write chunk to EEPROM";
                     break;
                 }
             }
@@ -245,10 +245,10 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data,
         // firmware.  Restarting the polling thread immediately would hammer a device
         // that is still in an undefined state, generating confusing errors.
         if (chipTypeAtStart != VideoChipType::MS2130S) {
-            qCDebug(log_host_hid) << "writeEeprom: restarting polling thread after EEPROM update";
+            qCDebug(log_hid_firmware) << "writeEeprom: restarting polling thread after EEPROM update";
             start();
         } else {
-            qCInfo(log_host_hid) << "writeEeprom: NOT restarting polling �?MS2130S needs power cycle after flash"
+            qCInfo(log_hid_firmware) << "writeEeprom: NOT restarting polling �?MS2130S needs power cycle after flash"
                                  << "(chip snapshot at start:" << static_cast<int>(chipTypeAtStart) << ")";
         }
     }
