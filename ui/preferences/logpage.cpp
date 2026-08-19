@@ -172,13 +172,16 @@ void LogPage::setupUI()
     connect(browseButton, &QPushButton::clicked, this, &LogPage::browseLogPath);
 
     // Model changed signal — handle group checkbox propagation
+    // Use a re-entrancy guard instead of blockSignals so the view updates correctly
+    static bool propagating = false;
     connect(categoryModel, &QStandardItemModel::itemChanged, this, [this](QStandardItem* item){
-        // If changed item is a group (has children), propagate check state
+        if (propagating) return;
+
+        // If changed item is a group (has children), propagate check state to all children
         if (item && item->rowCount() > 0 && item->isCheckable()) {
             Qt::CheckState groupState = item->checkState();
 
             // Check if all children already match this state
-            // If they do, the user clicked to TOGGLE the opposite direction
             bool allMatch = true;
             bool anyChecked = false;
             for (int c = 0; c < item->rowCount(); ++c) {
@@ -190,19 +193,20 @@ void LogPage::setupUI()
             }
 
             // Determine desired state:
-            // - If all children already match → toggle to opposite
-            // - If some don't match → propagate group state to fix them
+            // - All children match group → user clicked to toggle opposite
+            // - PartiallyChecked (auto-tristate) → check all if any checked, else uncheck all
+            // - Otherwise → propagate group state
             Qt::CheckState desiredState;
             if (allMatch) {
                 desiredState = (groupState == Qt::Checked) ? Qt::Unchecked : Qt::Checked;
             } else if (groupState == Qt::PartiallyChecked) {
-                // PartiallyChecked from auto-tristate — check all if any unchecked, else uncheck all
                 desiredState = anyChecked ? Qt::Checked : Qt::Unchecked;
             } else {
                 desiredState = groupState;
             }
 
-            bool wasBlocked = categoryModel->blockSignals(true);
+            // Guard against recursive signals while updating children
+            propagating = true;
             item->setCheckState(desiredState);
             for (int c = 0; c < item->rowCount(); ++c) {
                 QStandardItem* child = item->child(c, 0);
@@ -210,7 +214,7 @@ void LogPage::setupUI()
                     child->setCheckState(desiredState);
                 }
             }
-            categoryModel->blockSignals(wasBlocked);
+            propagating = false;
         }
         checkDirtyState();
     });
