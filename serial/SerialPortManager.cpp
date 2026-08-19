@@ -3327,12 +3327,12 @@ void SerialPortManager::setSerialLogFilePath(const QString& path) {
 
 void SerialPortManager::enableDebugLogging(bool enabled) {
     if (enabled) {
-        // Enable debug logging for serial category
-        QLoggingCategory::setFilterRules("opf.core.serial.debug=true");
+        // Enable debug logging for all serial sub-categories
+        QLoggingCategory::setFilterRules("opf.core.serial.*.debug=true");
         qCDebug(log_core_serial_conn) << "Serial debug logging enabled for diagnostics";
     } else {
-        // Disable debug logging for serial category
-        QLoggingCategory::setFilterRules("opf.core.serial.debug=false");
+        // Disable debug logging for all serial sub-categories
+        QLoggingCategory::setFilterRules("opf.core.serial.*.debug=false");
     }
 }
 
