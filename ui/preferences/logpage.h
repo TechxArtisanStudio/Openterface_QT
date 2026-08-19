@@ -32,6 +32,11 @@
 #include <QLabel>
 #include <QSettings>
 #include <QSlider>
+#include <QTreeView>
+#include <QStandardItemModel>
+#include <QComboBox>
+#include <QMap>
+#include <QPair>
 #include "fontstyle.h"
 #include "preferencepagebase.h"
 
@@ -57,17 +62,26 @@ signals:
     void systemKeyBlockerToggled(bool enabled);
 
 private:
+    void populateCategoryTree();
+    QString generateFilterRules() const;
+    void saveCategorySettings() const;
+    void restoreCategorySettings();
 
-    QCheckBox *coreCheckBox;
-    QCheckBox *serialCheckBox;
-    QCheckBox *uiCheckBox;
-    QCheckBox *hostCheckBox;
-    QCheckBox *deviceCheckBox;
-    QCheckBox *backendCheckBox;
-    QCheckBox *scriptCheckBox;
+    // Log file controls
     QCheckBox *storeLogCheckBox;
     QLineEdit *logFilePathLineEdit;
     QPushButton *browseButton;
+
+    // Category tree view
+    QTreeView *categoryTreeView;
+    QStandardItemModel *categoryModel;
+
+    // Quick-set buttons
+    QPushButton *allDebugButton;
+    QPushButton *allInfoButton;
+    QPushButton *allWarningButton;
+
+    // Other settings (unchanged from original)
     QCheckBox *screenSaverCheckBox;
     QCheckBox *hideKeyboardInputCheckBox;
     QCheckBox *floatingWindowCheckBox;
@@ -75,14 +89,7 @@ private:
     QLabel *floatingWindowOpacityLabel;
     QCheckBox *systemKeyBlockerCheckBox;
 
-    // Snapshot members for Revert functionality
-    bool m_snap_coreLog;
-    bool m_snap_serialLog;
-    bool m_snap_uiLog;
-    bool m_snap_hostLog;
-    bool m_snap_deviceLog;
-    bool m_snap_backendLog;
-    bool m_snap_scriptLog;
+    // Snapshot for revert
     bool m_snap_storeLog;
     QString m_snap_logFilePath;
     bool m_snap_screenSaver;
@@ -90,12 +97,8 @@ private:
     bool m_snap_floatingWindow;
     int m_snap_floatingWindowOpacity;
     bool m_snap_systemKeyBlocker;
-
-    QHBoxLayout *logCheckboxLayout;
-    QHBoxLayout *logFilePathLayout;
-    QLabel *logLabel;
-    QLabel *logDescription;
-    QVBoxLayout *logLayout;
+    // Tree state snapshot: map of category -> {enabled, level}
+    QMap<QString, QPair<bool, QString>> m_snap_categoryStates;
 };
 
 #endif // LOGPAGE_H
