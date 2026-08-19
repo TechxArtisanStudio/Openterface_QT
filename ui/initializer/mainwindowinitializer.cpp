@@ -56,7 +56,7 @@
 #include <QTimer>
 #include <QStackedLayout>
 #include <QShortcut>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 // Define the logging category
 OPF_LOGGING_CATEGORY(log_ui_mainwindowinitializer, "opf.ui.mainwindowinitializer")

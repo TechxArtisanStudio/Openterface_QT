@@ -6,7 +6,7 @@
 #include <QMetaObject>
 #include <QDebug>
 #include <QLoggingCategory>
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_script_runner, "opf.scripts.scriptrunner")
 

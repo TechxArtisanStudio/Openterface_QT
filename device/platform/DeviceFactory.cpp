@@ -1,6 +1,6 @@
 #include "DeviceFactory.h"
 #include <QLoggingCategory>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 #ifdef _WIN32
 #include "WindowsDeviceManager.h"

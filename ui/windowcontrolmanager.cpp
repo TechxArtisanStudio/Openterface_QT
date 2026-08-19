@@ -28,7 +28,7 @@
 #include <QDebug>
 #include <QLoggingCategory>
 #include <QMenuBar>
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_ui_windowcontrolmanager, "opf.ui.windowcontrolmanager")
 

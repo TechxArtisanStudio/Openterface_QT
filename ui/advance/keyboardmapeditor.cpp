@@ -9,7 +9,7 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QTimer>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_keyboard_editor, "opf.ui.keyboardeditor")
 

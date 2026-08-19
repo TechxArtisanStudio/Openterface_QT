@@ -14,7 +14,7 @@
 #include "diagnostics/diagnostics_constants.h"
 #include "diagnostics/SupportEmailDialog.h"
 #include "../../serial/SerialPortManager.h"
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_device_diagnostics, "opf.diagnostics")
 

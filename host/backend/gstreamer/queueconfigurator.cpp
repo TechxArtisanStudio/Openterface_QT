@@ -8,7 +8,7 @@
 #include <gst/gst.h>
 #endif
 
-#include "../../../log/opflogging.h"
+#include "log/opflogging.h"
 OPF_LOGGING_CATEGORY(log_gstreamer_queueconfigurator, "opf.backend.queueconfigurator")
 
 using namespace Openterface::GStreamer;

@@ -6,7 +6,7 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QDateTime>
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 /*
  * CRITICAL FIX for maximize screen crash:

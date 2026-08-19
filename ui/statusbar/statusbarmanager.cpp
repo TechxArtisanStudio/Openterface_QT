@@ -3,7 +3,7 @@
 #include <QLoggingCategory>
 #include <QSvgRenderer>
 #include <QTimer>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_ui_statusbarmanager, "opf.ui.statusbarmanager")
 StatusBarManager::StatusBarManager(QStatusBar *statusBar, QObject *parent)

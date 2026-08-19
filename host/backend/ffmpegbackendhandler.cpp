@@ -57,7 +57,7 @@ extern "C" {
 #include <turbojpeg.h>
 #endif
 
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
 

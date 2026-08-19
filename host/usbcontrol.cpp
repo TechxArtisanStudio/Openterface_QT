@@ -22,7 +22,7 @@
 
 #include "usbcontrol.h"
 #include <QDebug>
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 // Add this line to define the logging category
 OPF_LOGGING_CATEGORY(log_usb, "opf.usb")

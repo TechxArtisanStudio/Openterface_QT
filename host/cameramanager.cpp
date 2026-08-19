@@ -34,7 +34,7 @@
 #include <QThread>
 #include <algorithm>
 #include <QSet>
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
 OPF_LOGGING_CATEGORY(log_backend, "opf.backend")

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "gstreamerhelpers.h"
-#include "../../../log/opflogging.h"
+#include "log/opflogging.h"
 
 #include <QDebug>
 #include <QLoggingCategory>

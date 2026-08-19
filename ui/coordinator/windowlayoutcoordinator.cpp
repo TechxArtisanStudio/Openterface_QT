@@ -35,7 +35,7 @@
 #include <QDebug>
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_ui_windowlayoutcoordinator, "opf.ui.windowlayoutcoordinator")
 

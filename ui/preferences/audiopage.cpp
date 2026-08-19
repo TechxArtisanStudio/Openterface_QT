@@ -35,7 +35,7 @@
 #include <QCheckBox>
 #include <QGroupBox>
 #include <QLoggingCategory>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_ui_audio_page, "opf.ui.audio.page")
 

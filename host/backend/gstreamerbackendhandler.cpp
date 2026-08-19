@@ -61,7 +61,7 @@
 #include "gstreamer/externalgstrunner.h"
 #include "gstreamer/recordingmanager.h"
 
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 // logging category for this translation unit
 OPF_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")

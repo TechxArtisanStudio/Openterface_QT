@@ -27,7 +27,7 @@
 #include <QMessageBox>
 #include <QLoggingCategory>
 #include <QApplication>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 // Define logging category for Target Control page
 OPF_LOGGING_CATEGORY(log_target_control, "opf.targetcontrol")

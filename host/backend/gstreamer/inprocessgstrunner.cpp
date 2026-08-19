@@ -4,7 +4,7 @@
 #include <QLoggingCategory>
 #include <QtConcurrent>
 #include <QFutureWatcher>
-#include "../../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_gst_runner_inproc, "opf.backend.gstreamer.runner.inprocess")
 

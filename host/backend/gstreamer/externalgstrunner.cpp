@@ -1,7 +1,7 @@
 #include "externalgstrunner.h"
 #include <QDebug>
 #include <QLoggingCategory>
-#include "../../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_gst_runner_external, "opf.backend.gstreamer.runner.external")
 

@@ -10,7 +10,7 @@
 #include <QLineEdit>
 #include <QHeaderView>
 #include <QLoggingCategory>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_customkey_dialog, "opf.ui.customkeydialog")
 

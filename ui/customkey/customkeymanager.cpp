@@ -7,7 +7,7 @@
 #include <QCoreApplication>
 #include <QKeyEvent>
 #include <QMetaType>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 Q_DECLARE_METATYPE(QList<int>)
 

@@ -32,7 +32,7 @@
 #include <QFrame>
 #include <QLoggingCategory>
 #include <QPushButton>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_ui_mcp_page, "opf.ui.mcp.page")
 

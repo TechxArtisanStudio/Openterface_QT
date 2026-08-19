@@ -3,7 +3,7 @@
 #include <QLoggingCategory>
 #include <QMutexLocker>
 #include <QtConcurrent>
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_hotplug_monitor, "opf.device.hotplug")
 

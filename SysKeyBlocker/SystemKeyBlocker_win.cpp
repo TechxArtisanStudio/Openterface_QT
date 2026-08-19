@@ -28,7 +28,7 @@
 #include <QLoggingCategory>
 #include <QMetaObject>
 #include <QAbstractEventDispatcher>
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_syskey_win, "opf.systemkey.win")
 

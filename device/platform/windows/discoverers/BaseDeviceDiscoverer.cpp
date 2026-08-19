@@ -7,7 +7,7 @@
 #include <devguid.h>
 #include <objbase.h>
 #include <hidclass.h>
-#include "../../../../log/opflogging.h"
+#include "log/opflogging.h"
 
 extern "C"
 {

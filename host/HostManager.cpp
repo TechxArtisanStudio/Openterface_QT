@@ -27,7 +27,7 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QTimer>
 #include <QRandomGenerator>
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_core_host, "opf.core.host")
 

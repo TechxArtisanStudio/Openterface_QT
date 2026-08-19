@@ -35,7 +35,7 @@
 #include <QLoggingCategory>
 #include <QThread>
 #include "../ui/globalsetting.h"
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_multimedia_backend, "opf.multimedia.backend")
 

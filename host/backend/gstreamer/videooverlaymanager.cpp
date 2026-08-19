@@ -22,7 +22,7 @@ static int x11_overlay_error_handler_local(Display* /*display*/, XErrorEvent* /*
 }
 #endif
 
-#include "../../../log/opflogging.h"
+#include "log/opflogging.h"
 OPF_LOGGING_CATEGORY(log_gstreamer_videooverlaymanager, "opf.backend.videooverlaymanager")
 
 using namespace Openterface::GStreamer;

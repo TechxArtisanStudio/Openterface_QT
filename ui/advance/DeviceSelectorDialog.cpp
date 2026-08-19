@@ -14,7 +14,7 @@
 #include <QCheckBox>
 #include <QPainter>
 #include <QMessageBox>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_device_selector, "opf.ui.deviceselector")
 

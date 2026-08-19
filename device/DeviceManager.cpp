@@ -14,7 +14,7 @@
 #include <QtConcurrent>
 #include <QtSerialPort/QSerialPortInfo>
 #include <algorithm>
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_device_manager, "opf.device.manager")
 

@@ -47,7 +47,7 @@
 #include <QTimer>
 #include <QThread>
 #include <QCoreApplication>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_server_mcp_tool, "opf.server.mcp.tool")
 

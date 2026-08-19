@@ -40,7 +40,7 @@
 #include <xcb/xcb.h>
 
 #include <unistd.h>
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_syskey_x11, "opf.systemkey.x11")
 

@@ -31,7 +31,7 @@
 #include <QMetaObject>
 #include <QPointer>
 #include <QThread>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_ui_devicecoordinator, "opf.ui.devicecoordinator")
 

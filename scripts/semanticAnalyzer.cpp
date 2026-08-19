@@ -29,7 +29,7 @@
 #include "KeyboardMouse.h"
 #include "SendKeyMaps.h"
 #include "global.h"
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 
 OPF_LOGGING_CATEGORY(log_script, "opf.scripts")

@@ -26,7 +26,7 @@
 #include <QKeyEvent>
 #include <QMutex>
 #include <QMutexLocker>
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 // ----- Windows -----
 #ifdef Q_OS_WIN

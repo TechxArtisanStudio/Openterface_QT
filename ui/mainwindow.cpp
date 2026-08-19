@@ -85,7 +85,7 @@
 #include "host/backend/qtbackendhandler.h"
 #endif
 #include "SysKeyBlocker/SystemKeyBlocker.h"
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 

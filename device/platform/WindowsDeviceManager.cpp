@@ -5,7 +5,7 @@
 #include "windows/discoverers/Generation3Discoverer.h"
 #include "windows/discoverers/DeviceDiscoveryManager.h"
 #include <QDebug>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_device_windows, "opf.host.windows")
 

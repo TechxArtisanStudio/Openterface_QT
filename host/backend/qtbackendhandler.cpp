@@ -27,7 +27,7 @@
 #include <QFileInfo>
 #include <QUrl>
 #include <QDebug>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_qt_backend, "opf.backend.qt")
 

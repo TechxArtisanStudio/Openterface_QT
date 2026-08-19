@@ -6,7 +6,7 @@
 #include "../global.h"
 #include <QDebug>
 #include <QRegularExpression>
-#include "../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_core_host_audio, "opf.core.host.audio")
 

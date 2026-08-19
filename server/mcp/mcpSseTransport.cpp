@@ -30,7 +30,7 @@
 #include <QUrlQuery>
 
 #include <chrono>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_server_mcp_sse, "opf.server.mcp.sse")
 

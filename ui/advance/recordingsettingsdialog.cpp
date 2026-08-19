@@ -49,7 +49,7 @@
 #include <QDebug>
 #include <QApplication>
 #include <QStyle>
-#include "../../log/opflogging.h"
+#include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_video_recording, "opf.video.recording")
 
