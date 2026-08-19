@@ -191,7 +191,7 @@ void LogPage::setupUI()
     categoryTreeView = new QTreeView(this);
     categoryTreeView->setObjectName("categoryTreeView");
     categoryTreeView->setRootIsDecorated(true);
-    categoryTreeView->setAlternatingRowColors(true);
+    categoryTreeView->setAlternatingRowColors(false);
     categoryTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
     categoryTreeView->setMaximumHeight(280);
     categoryTreeView->setIndentation(20);
@@ -498,7 +498,7 @@ void LogPage::populateCategoryTree()
         categoryModel->appendRow(groupItem);
     }
 
-    categoryTreeView->expandAll();
+    categoryTreeView->collapseAll();
 }
 
 QString LogPage::generateFilterRules() const
