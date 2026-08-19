@@ -305,7 +305,7 @@ void LogPage::populateCategoryTree()
             nameItem->setEditable(false);
 
             QStandardItem *levelItem = new QStandardItem("Info");
-            levelItem->setEditable(true);
+            levelItem->setEditable(false);
 
             groupItem->appendRow({nameItem, levelItem});
         }
