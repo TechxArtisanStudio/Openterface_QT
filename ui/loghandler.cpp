@@ -1,33 +1,16 @@
-/*
-* ========================================================================== *
-*                                                                            *
-*    This file is part of the Openterface Mini KVM App QT version            *
-*                                                                            *
-*    Copyright (C) 2024   <info@openterface.com>                             *
-*                                                                            *
-*    This program is free software: you can redistribute it and/or modify    *
-*    it under the terms of the GNU General Public License as published by    *
-*    the Free Software Foundation version 3.                                 *
-*                                                                            *
-*    This program is distributed in the hope that it will be useful, but     *
-*    WITHOUT ANY WARRANTY; without even the implied warranty of              *
-*    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU        *
-*    General Public License for more details.                                *
-*                                                                            *
-*    You should have received a copy of the GNU General Public License       *
-*    along with this program. If not, see <http://www.gnu.org/licenses/>.    *
-*                                                                            *
-* ========================================================================== *
-*/
-
-
-
 #include "loghandler.h"
 #include "globalsetting.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
+
+// Static member initialization
+bool LogHandler::s_fileLoggingEnabled = false;
+QFile LogHandler::s_logFile;
+QMutex LogHandler::s_mutex;
+bool LogHandler::s_installed = false;
+
 LogHandler::LogHandler(QObject *parent)
     : QObject(parent)
 {
@@ -39,146 +22,151 @@ LogHandler& LogHandler::instance()
     return instance;
 }
 
+void LogHandler::install()
+{
+    QMutexLocker locker(&s_mutex);
+    if (s_installed) return;
+
+    // Read settings to determine file logging state
+    QSettings settings("Techxartisan", "Openterface");
+    s_fileLoggingEnabled = settings.value("log/storeLog", false).toBool();
+
+    if (s_fileLoggingEnabled) {
+        QString path = getLogFilePath();
+        s_logFile.setFileName(path);
+        if (!s_logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            s_fileLoggingEnabled = false;
+        }
+    }
+
+    qInstallMessageHandler(combinedHandler);
+    s_installed = true;
+}
+
+void LogHandler::setFileLoggingEnabled(bool enabled, const QString& path)
+{
+    QMutexLocker locker(&s_mutex);
+
+    // Close existing file if open
+    if (s_logFile.isOpen()) {
+        s_logFile.flush();
+        s_logFile.close();
+    }
+
+    s_fileLoggingEnabled = enabled;
+
+    if (enabled) {
+        QString filePath = path.isEmpty() ? getLogFilePath() : path;
+        s_logFile.setFileName(filePath);
+        if (!s_logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            s_fileLoggingEnabled = false;
+        }
+    }
+}
+
+QString LogHandler::getLogFilePath() const
+{
+    QSettings settings("Techxartisan", "Openterface");
+    QString userPath = settings.value("log/logFilePath").toString();
+
+    if (!userPath.isEmpty()) {
+        return userPath;
+    }
+
+    // Default: QStandardPaths::AppDataLocation
+    QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (dataDir.isEmpty()) {
+        dataDir = QCoreApplication::applicationDirPath();
+    }
+    QDir().mkpath(dataDir);
+    return dataDir + "/openterface.log";
+}
+
+void LogHandler::shutdown()
+{
+    QMutexLocker locker(&s_mutex);
+    if (s_logFile.isOpen()) {
+        s_logFile.flush();
+        s_logFile.close();
+    }
+    s_fileLoggingEnabled = false;
+}
+
 void LogHandler::enableLogStore()
 {
-    // Don't log here before handler is installed to avoid duplication
-    static QSettings settings("Techxartisan", "Openterface");
+    // Backward-compatible entry point: re-read settings and update file logging
+    QSettings settings("Techxartisan", "Openterface");
     bool storeLog = settings.value("log/storeLog", false).toBool();
-    
-    if (storeLog)
-    {
-        qInstallMessageHandler(fileMessageHandler);
-    }
-    else
-    {
-        qInstallMessageHandler(customMessageHandler);      // Install custom handler for console output
+    QString logFilePath = settings.value("log/logFilePath").toString();
+    setFileLoggingEnabled(storeLog, logFilePath);
+
+    // Ensure handler is installed
+    if (!s_installed) {
+        qInstallMessageHandler(combinedHandler);
+        s_installed = true;
     }
 }
 
-void LogHandler::fileMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+QString LogHandler::formatMessage(QtMsgType type,
+                                   const QMessageLogContext &context,
+                                   const QString &msg)
+{
+    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
+
+    QThread *currentThread = QThread::currentThread();
+    QString threadName;
+    if (!currentThread->objectName().isEmpty()) {
+        threadName = currentThread->objectName();
+    } else if (currentThread == QCoreApplication::instance()->thread()) {
+        threadName = "MainThread";
+    } else {
+        threadName = QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId()));
+    }
+
+    const char* categoryName = context.category;
+    QString category = categoryName ? QString(categoryName) : "default";
+
+    QString level;
+    switch (type) {
+        case QtDebugMsg:    level = "D"; break;
+        case QtInfoMsg:     level = "I"; break;
+        case QtWarningMsg:  level = "W"; break;
+        case QtCriticalMsg: level = "C"; break;
+        case QtFatalMsg:    level = "F"; break;
+        default:            level = "U"; break;
+    }
+
+    return QString("[%1][%2][%3][%4] %5")
+        .arg(timestamp, level, threadName, category, msg);
+}
+
+void LogHandler::combinedHandler(QtMsgType type,
+                                  const QMessageLogContext &context,
+                                  const QString &msg)
 {
     static QMutex mutex;
-    QMutexLocker locker(&mutex);
-    // qDebug() << "Write log to file now";
-    static QSettings settings("Techxartisan", "Openterface");
-    QString logFilePath = settings.value("log/logFilePath").toString();
-    QFile outFile(logFilePath);
-    if (!outFile.open(QIODevice::WriteOnly | QIODevice::Append))
-    {
-        return;
-    }
+    QMutexLocker lock(&mutex);
 
-    QTextStream ts(&outFile);
-    
-    // qDebug() << "Write log to file test";
-    // Get the category name
-    const char* categoryName = context.category;
-    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
-    QThread *currentThread = QThread::currentThread();
-    QString threadName;
-    
-    // Get thread name: prefer objectName if set, otherwise try to identify main thread
-    if (!currentThread->objectName().isEmpty()) {
-        threadName = currentThread->objectName();
-    } else if (currentThread == QCoreApplication::instance()->thread()) {
-        threadName = "MainThread";
-    } else {
-        // Fall back to thread ID for unnamed worker threads
-        threadName = QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId()));
-    }
-    
-    QString category = categoryName ? QString(categoryName) : "default";
-    QString txt;
-    switch (type)
-    {
-    case QtDebugMsg:
-        txt = QString("[%1][D][%2] %3").arg(threadName).arg(category).arg(msg);
-        break;
-    case QtWarningMsg:
-        txt = QString("[%1][W][%2] %3").arg(threadName).arg(category).arg(msg);
-        break;
-    case QtCriticalMsg:
-        txt = QString("[%1][C][%2] %3").arg(threadName).arg(category).arg(msg);
-        break;
-    case QtFatalMsg:
-        txt = QString("[%1][F][%2] %3").arg(threadName).arg(category).arg(msg);
-        break;
-    default:
-        txt = QString("[%1][U][%2] %3").arg(threadName).arg(category).arg(msg);
-        break;
-    }
+    QString formatted = formatMessage(type, context, msg);
 
-    ts << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz");
-    ts << txt << "\n";
-    ts.flush();
-}
-
-
-void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
-{
-    // TEMP: Always write to file for debugging
-    static QFile debugFile("C:/openterface_debug.log");
-    if (!debugFile.isOpen()) {
-        (void)debugFile.open(QIODevice::WriteOnly | QIODevice::Append);
-    }
-    if (debugFile.isOpen()) {
-        QTextStream ds(&debugFile);
-        ds << msg << "\n";
-        ds.flush();
-    }
-
-    // Q_UNUSED(context)
-
-    // Suppress specific Qt warnings that are not useful
-    if (msg.contains("QWidget::paintEngine")) {
-        return; // Skip logging this warning
-    }
-
-    const char* categoryName = context.category;
-    QString category = categoryName ? QString(categoryName) : "opf.default.msg";
-    QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
-    QThread *currentThread = QThread::currentThread();
-    QString threadName;
-    
-    // Get thread name: prefer objectName if set, otherwise try to identify main thread
-    if (!currentThread->objectName().isEmpty()) {
-        threadName = currentThread->objectName();
-    } else if (currentThread == QCoreApplication::instance()->thread()) {
-        threadName = "MainThread";
-    } else {
-        // Fall back to thread ID for unnamed worker threads
-        threadName = QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId()));
-    }
-    
-    QString txt = QString("[%1][%2] ").arg(timestamp).arg(threadName);
-    
-    switch (type) {
-        case QtDebugMsg:
-            txt += QString("[D][%1]: %2").arg(category, msg);
-            break;
-        case QtWarningMsg:
-            txt += QString("[W][%1]: %2").arg(category, msg);
-            break;
-        case QtCriticalMsg:
-            txt += QString("[C][%1]: %2").arg(category, msg);
-            break;
-        case QtFatalMsg:
-            txt += QString("[F][%1]: %2").arg(category, msg);
-            break;
-        case QtInfoMsg:
-            txt += QString("[I][%1]: %2").arg(category, msg);
-            break;
-    }
-
-    // For Windows GUI applications, std::cout may not be available and can cause crashes
-    // Use OutputDebugString instead for debug output
-    // In static builds or Windows subsystem builds, stdout/stderr may not work
+    // 1. Console output (always)
 #ifdef Q_OS_WIN
-    OutputDebugStringW(reinterpret_cast<const wchar_t*>(txt.utf16()));
+    OutputDebugStringW(reinterpret_cast<const wchar_t*>(formatted.utf16()));
     OutputDebugStringW(L"\n");
 #else
-    // Use fprintf to stderr for single output
-    fprintf(stderr, "%s\n", txt.toUtf8().constData());
+    fprintf(stderr, "%s\n", formatted.toUtf8().constData());
     fflush(stderr);
 #endif
+
+    // 2. File output (if enabled)
+    if (s_fileLoggingEnabled && s_logFile.isOpen()) {
+        QTextStream stream(&s_logFile);
+        stream << formatted << "\n";
+        stream.flush();
+    }
+
+    // 3. Fatal → abort
+    if (type == QtFatalMsg) {
+        std::abort();
+    }
 }
