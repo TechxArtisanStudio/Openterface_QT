@@ -66,11 +66,6 @@ DEPENDENCIES=(
     "libva-drm.so.2|libva-drm2|VA-API DRM support|no"
     "libva-x11.so.2|libva-x11-2|VA-API X11 support|no"
     "libvdpau.so.1|libvdpau1|VDPAU for video decode acceleration|no"
-    
-    # NOTE: libturbojpeg is checked separately below (Phase 2) because the package
-    # was renamed from libturbojpeg0 to libturbojpeg on Ubuntu 24.04+.
-    # The ldconfig check here would fail on systems where the library is provided
-    # by the renamed package, so we defer to the dpkg-based either/or check.
 
     # Compression
     "libz.so.1|zlib1g|Compression library|yes"
@@ -174,10 +169,6 @@ HWACCEL_DEPS=(
     "libvdpau1"
 )
 
-# libturbojpeg0 was renamed to libturbojpeg on Ubuntu 24.04+.
-# Check for either name so the preinst works on older and newer distros.
-TURBOJPEG_DEPS=("libturbojpeg0" "libturbojpeg")
-
 COMPRESSION_DEPS=(
     "zlib1g"
     "libbz2-1.0"
@@ -192,8 +183,7 @@ FOUND_DEPS=0
 TOTAL_DEPS=0
 
 # Calculate total dependencies to check
-# Note: TURBOJPEG_DEPS is an "either/or" alternative (only one needed), so count it as 1
-TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + 1 + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]}))
+TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]}))
 
 echo "System dependency verification:"
 echo ""
@@ -289,33 +279,6 @@ for pkg in "${HWACCEL_DEPS[@]}"; do
     fi
 done
 
-# Check turbojpeg — libturbojpeg0 was renamed to libturbojpeg on Ubuntu 24.04+.
-# Either package satisfies the requirement; we only add to MISSING_DEPS if neither is installed.
-# Note: use dpkg-query with exact package names (the grep pattern "^ii.*name" used above
-# can false-positive on similarly-named packages like libturbojpeg0-dev).
-print_category "  JPEG Turbo Library:"
-TURBOJPEG_FOUND=0
-for pkg in "${TURBOJPEG_DEPS[@]}"; do
-    if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-        TURBOJPEG_FOUND=1
-    else
-        echo "    ⚠️  $pkg (not installed)"
-    fi
-done
-if [ "$TURBOJPEG_FOUND" -eq 0 ]; then
-    # Detect the correct package name for this distro:
-    # Ubuntu 24.04+ and Debian 13+ renamed libturbojpeg0 → libturbojpeg
-    if apt-cache show libturbojpeg >/dev/null 2>&1; then
-        TURBOJPEG_PKG="libturbojpeg"
-    else
-        TURBOJPEG_PKG="libturbojpeg0"
-    fi
-    echo "    ❌ $TURBOJPEG_PKG is not installed (REQUIRED)"
-    MISSING_DEPS+=("$TURBOJPEG_PKG")
-fi
-
 # Check Compression dependencies
 print_category "  Compression Libraries:"
 for pkg in "${COMPRESSION_DEPS[@]}"; do
@@ -375,9 +338,7 @@ echo "How to fix"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# Build install command from Phase 2's MISSING_DEPS results (which correctly
-# handle the libturbojpeg0/libturbojpeg rename). Phase 1's MISSING_REQUIRED
-# is no longer used for the exit decision because it hardcoded old package names.
+# Build install command from Phase 2's MISSING_DEPS results.
 REQUIRED_PKGS=("${MISSING_DEPS[@]}")
 
 OPTIONAL_PKGS=()
