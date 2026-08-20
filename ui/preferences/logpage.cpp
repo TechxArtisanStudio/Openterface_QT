@@ -242,9 +242,10 @@ void LogPage::setupUI()
 
     // Model changed signal — handle group checkbox propagation
     // Use a re-entrancy guard instead of blockSignals so the view updates correctly
+    // Skip group propagation while programmatically restoring state (m_restoring)
     static bool propagating = false;
     connect(categoryModel, &QStandardItemModel::itemChanged, this, [this](QStandardItem* item){
-        if (propagating) return;
+        if (propagating || m_restoring) return;
 
         // If changed item is a group (has children), propagate check state to all children
         if (item && item->rowCount() > 0 && item->isCheckable()) {
@@ -597,6 +598,9 @@ void LogPage::saveCategorySettings() const
 void LogPage::restoreCategorySettings()
 {
     auto states = GlobalSetting::instance().loadCategoryStates();
+
+    // Suppress group-propagation handler during bulk restore
+    m_restoring = true;
     for (int g = 0; g < categoryModel->rowCount(); ++g) {
         QStandardItem *group = categoryModel->item(g);
         for (int c = 0; c < group->rowCount(); ++c) {
@@ -613,6 +617,42 @@ void LogPage::restoreCategorySettings()
             }
         }
     }
+
+    // Recalculate group check states (must stay inside m_restoring=true
+    // to prevent the handler from propagating and overwriting children)
+    for (int g = 0; g < categoryModel->rowCount(); ++g) {
+        QStandardItem *group = categoryModel->item(g, 0);
+        bool allChildrenChecked = true;
+        bool anyChildChecked = false;
+        for (int c = 0; c < group->rowCount(); ++c) {
+            QStandardItem *child = group->child(c, 0);
+            if (child && child->isCheckable()) {
+                if (child->checkState() == Qt::Checked) anyChildChecked = true;
+                else allChildrenChecked = false;
+            }
+        }
+        if (allChildrenChecked) group->setCheckState(Qt::Checked);
+        else if (anyChildChecked) group->setCheckState(Qt::PartiallyChecked);
+        else group->setCheckState(Qt::Unchecked);
+    }
+    m_restoring = false;
+
+    // Sync selectAll checkbox
+    bool allChecked = true;
+    for (int g = 0; g < categoryModel->rowCount(); ++g) {
+        QStandardItem *group = categoryModel->item(g);
+        for (int c = 0; c < group->rowCount(); ++c) {
+            QStandardItem *child = group->child(c, 0);
+            if (child && child->isCheckable() && child->checkState() != Qt::Checked) {
+                allChecked = false;
+                break;
+            }
+        }
+        if (!allChecked) break;
+    }
+    selectAllCheckBox->blockSignals(true);
+    selectAllCheckBox->setChecked(allChecked);
+    selectAllCheckBox->blockSignals(false);
 }
 
 void LogPage::browseLogPath()
@@ -749,8 +789,8 @@ void LogPage::revertToSnapshot()
     floatingWindowOpacitySlider->setValue(m_snap_floatingWindowOpacity);
     systemKeyBlockerCheckBox->setChecked(m_snap_systemKeyBlocker);
 
-    // Restore tree state
-    bool allChecked = true;
+    // Restore tree state — suppress group-propagation handler
+    m_restoring = true;
     for (int g = 0; g < categoryModel->rowCount(); ++g) {
         QStandardItem *group = categoryModel->item(g);
         for (int c = 0; c < group->rowCount(); ++c) {
@@ -762,8 +802,40 @@ void LogPage::revertToSnapshot()
                 nameItem->setCheckState(state.first ? Qt::Checked : Qt::Unchecked);
                 levelItem->setText(state.second);
             }
-            if (nameItem->checkState() != Qt::Checked) allChecked = false;
         }
+    }
+
+    // Recalculate group check states (must stay inside m_restoring=true
+    // to prevent the handler from propagating and overwriting children)
+    for (int g = 0; g < categoryModel->rowCount(); ++g) {
+        QStandardItem *group = categoryModel->item(g, 0);
+        bool allChildrenChecked = true;
+        bool anyChildChecked = false;
+        for (int c = 0; c < group->rowCount(); ++c) {
+            QStandardItem *child = group->child(c, 0);
+            if (child && child->isCheckable()) {
+                if (child->checkState() == Qt::Checked) anyChildChecked = true;
+                else allChildrenChecked = false;
+            }
+        }
+        if (allChildrenChecked) group->setCheckState(Qt::Checked);
+        else if (anyChildChecked) group->setCheckState(Qt::PartiallyChecked);
+        else group->setCheckState(Qt::Unchecked);
+    }
+    m_restoring = false;
+
+    // Sync selectAll checkbox
+    bool allChecked = true;
+    for (int g = 0; g < categoryModel->rowCount(); ++g) {
+        QStandardItem *group = categoryModel->item(g);
+        for (int c = 0; c < group->rowCount(); ++c) {
+            QStandardItem *child = group->child(c, 0);
+            if (child && child->isCheckable() && child->checkState() != Qt::Checked) {
+                allChecked = false;
+                break;
+            }
+        }
+        if (!allChecked) break;
     }
     selectAllCheckBox->blockSignals(true);
     selectAllCheckBox->setChecked(allChecked);

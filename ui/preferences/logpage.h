@@ -95,6 +95,10 @@ private:
     bool m_snap_systemKeyBlocker;
     // Tree state snapshot: map of category -> {enabled, level}
     QMap<QString, QPair<bool, QString>> m_snap_categoryStates;
+
+    // Guard flag: true while programmatically restoring tree state
+    // (suppresses group-propagation in itemChanged handler)
+    bool m_restoring = false;
 };
 
 #endif // LOGPAGE_H
