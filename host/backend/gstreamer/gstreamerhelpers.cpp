@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "gstreamerhelpers.h"
+#include "log/opflogging.h"
 
 #include <QDebug>
 #include <QLoggingCategory>
 
-Q_LOGGING_CATEGORY(log_gstreamer_gstreamerhelpers, "opf.backend.gstreamerhelpers")
+OPF_LOGGING_CATEGORY(log_gstreamer_gstreamerhelpers, "opf.backend.gstreamerhelpers")
 
 using namespace Openterface::GStreamer::GstHelpers;
 

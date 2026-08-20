@@ -1,8 +1,9 @@
 #include "HotplugDebounceManager.h"
 #include <QDebug>
 #include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_debounce, "opf.device.debounce")
+OPF_LOGGING_CATEGORY(log_debounce, "opf.device.debounce")
 
 namespace device {
 

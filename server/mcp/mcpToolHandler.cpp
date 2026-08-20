@@ -49,8 +49,9 @@
 #include <QTimer>
 #include <QThread>
 #include <QCoreApplication>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_server_mcp_tool, "opf.server.mcp.tool")
+OPF_LOGGING_CATEGORY(log_server_mcp_tool, "opf.server.mcp.tool")
 
 McpToolHandler::McpToolHandler(QObject *parent)
     : QObject(parent)

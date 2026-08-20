@@ -22,12 +22,15 @@
 
 #include "MouseManager.h"
 #include "serial/SerialPortManager.h"
+#include "log/opflogging.h"
 #include <QThread>
 
-Q_LOGGING_CATEGORY(log_core_mouse, "opf.host.mouse")
+OPF_LOGGING_CATEGORY(log_mouse_abs, "opf.host.mouse.absolute")
+OPF_LOGGING_CATEGORY(log_mouse_rel, "opf.host.mouse.relative")
+OPF_LOGGING_CATEGORY(log_mouse_scroll, "opf.host.mouse.scroll")
 
 MouseManager::MouseManager(QObject *parent) : QObject(parent), mouseMoverThread(nullptr) {
-    qCDebug(log_core_mouse) << "MouseManager created";
+    qCDebug(log_mouse_abs) << "MouseManager created";
 }
 
 MouseManager::~MouseManager() {
@@ -56,7 +59,7 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
 
     QByteArray data;
     uint8_t mappedWheelMovement = mapScrollWheel(wheelMovement);
-    if(mappedWheelMovement>0){    qCDebug(log_core_mouse) << "mappedWheelMovement:" << mappedWheelMovement; }
+    if(mappedWheelMovement>0){    qCDebug(log_mouse_abs) << "mappedWheelMovement:" << mappedWheelMovement; }
     data.append(MOUSE_ABS_ACTION_PREFIX);
     data.append(static_cast<char>(mouse_event));
     data.append(static_cast<char>(x & 0xFF));
@@ -83,7 +86,7 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
 }
 
 void MouseManager::handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement) {
-    qCDebug(log_core_mouse) << "handleRelativeMouseAction";
+    qCDebug(log_mouse_rel) << "handleRelativeMouseAction";
     
     // Update current mouse button state
     // If wheelMovement is provided and mouse_event is 0, preserve current button state
@@ -95,7 +98,7 @@ void MouseManager::handleRelativeMouseAction(int dx, int dy, int mouse_event, in
     
     QByteArray data;
     uint8_t mappedWheelMovement = mapScrollWheel(wheelMovement);
-    if(mappedWheelMovement>0){    qCDebug(log_core_mouse) << "mappedWheelMovement:" << mappedWheelMovement; }
+    if(mappedWheelMovement>0){    qCDebug(log_mouse_rel) << "mappedWheelMovement:" << mappedWheelMovement; }
     data.append(MOUSE_REL_ACTION_PREFIX);
     data.append(static_cast<char>(mouse_event));
     data.append(static_cast<char>(dx & 0xFF));
@@ -133,7 +136,7 @@ void MouseManager::scrollWheel(int direction, int lines) {
     // direction: positive = scroll up, negative = scroll down
     // lines: number of scroll lines (default 1)
     if (lines < 1) lines = 1;
-    qCDebug(log_core_mouse) << "Scroll wheel - direction:" << direction << "lines:" << lines;
+    qCDebug(log_mouse_scroll) << "Scroll wheel - direction:" << direction << "lines:" << lines;
 
     // Reuse last known coordinates; fall back to (0, 0) if never moved
     int x = lastX;

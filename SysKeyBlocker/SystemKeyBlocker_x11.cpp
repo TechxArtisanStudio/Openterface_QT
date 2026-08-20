@@ -40,8 +40,9 @@
 #include <xcb/xcb.h>
 
 #include <unistd.h>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_syskey_x11, "opf.systemkey.x11")
+OPF_LOGGING_CATEGORY(log_syskey_x11, "opf.systemkey.x11")
 
 /* ============================================================================
  *  GNOME System Shortcut Blocker

@@ -61,7 +61,6 @@
 #include <QCloseEvent>
 #include <QByteArray>
 
-
 SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::SettingDialog)
@@ -153,7 +152,6 @@ void SettingDialog::createSettingTree() {
     }
 }
 
-
 void SettingDialog::createPages() {
     // Wrap each page in a QScrollArea so content can scroll both vertically and horizontally
     auto addScrollablePage = [this](QWidget *page) {
@@ -178,7 +176,6 @@ void SettingDialog::createPages() {
 }
 
 void SettingDialog::createLayout() {
-    qDebug() << "createLayout";
     splitter = new QSplitter(Qt::Horizontal, this);
     splitter->addWidget(settingTree);
     splitter->addWidget(stackedWidget);

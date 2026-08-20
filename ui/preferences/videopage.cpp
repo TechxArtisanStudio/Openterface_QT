@@ -46,7 +46,6 @@
 #include <QEventLoop>
 #include <QTimer>
 
-
 VideoPage::VideoPage(CameraManager *cameraManager, QWidget *parent) : PreferencePageBase(parent)
     , m_cameraManager(cameraManager)
 {
@@ -60,8 +59,6 @@ void VideoPage::setupUI()
         "<span style=' font-weight: bold;'>Video setting</span>");
     videoLabel->setStyleSheet(bigLabelFontSize);
     videoLabel->setTextFormat(Qt::RichText);
-
-
 
     // Input Resolution Setting Section
     QCheckBox *overrideSettingsCheckBox = new QCheckBox("Override HDMI Input Setting");
@@ -403,8 +400,6 @@ void VideoPage::setupUI()
     }
 }
 
-
-
 void VideoPage::populateResolutionBox(const QList<QCameraFormat> &videoFormats) {
     std::map<QSize, std::set<int>, QSizeComparator> resolutionSampleRates;
 
@@ -421,9 +416,6 @@ void VideoPage::populateResolutionBox(const QList<QCameraFormat> &videoFormats) 
         if (isGStreamer) {
             // For GStreamer, be very conservative - only use safe standard frame rates
             std::vector<int> safeFrameRates = {5, 10, 15, 20, 24, 25, 30, 50, 60};
-
-            qDebug() << "GStreamer mode: Using safe frame rates for" << resolution
-                     << "range" << minFrameRate << "-" << maxFrameRate;
 
             for (int safeRate : safeFrameRates) {
                 if (safeRate >= minFrameRate && safeRate <= maxFrameRate) {
@@ -461,7 +453,6 @@ void VideoPage::populateResolutionBox(const QList<QCameraFormat> &videoFormats) 
         }
 
         // Print all sampleRates
-        qDebug() << "Resolution:" << resolution << "Sample Rates:" << sampleRatesList.join(", ");
 
         if (!sampleRates.empty()) {
             int minSampleRate = *std::begin(sampleRates); // First element is the smallest
@@ -478,7 +469,6 @@ void VideoPage::populateResolutionBox(const QList<QCameraFormat> &videoFormats) 
 }
 
 void VideoPage::setFpsRange(const std::set<int> &fpsValues) {
-    qDebug() << "setFpsRange";
     if (!fpsValues.empty()) {
         QComboBox *fpsComboBox = this->findChild<QComboBox*>("fpsComboBox");
         fpsComboBox->clear();
@@ -494,7 +484,6 @@ void VideoPage::setFpsRange(const std::set<int> &fpsValues) {
 
 void VideoPage::updatePixelFormats()
 {
-    qDebug() << "update pixel formats";
     if (m_updatingFormats)
         return;
     m_updatingFormats = true;
@@ -523,14 +512,12 @@ void VideoPage::applySettings() {
         return;
     }
     int fps = fpsComboBox->currentData().toInt();
-    qDebug() << "fpsComboBox current data:" << fpsComboBox->currentData();
 
     // Check if we're using GStreamer
     QString mediaBackend = GlobalSetting::instance().getMediaBackend();
     bool isGStreamer = (mediaBackend == "gstreamer");
 
     if (isGStreamer) {
-        qDebug() << "Applying video settings with GStreamer backend - using conservative approach";
     }
 
     // Ensure pixelFormatBox is found
@@ -567,12 +554,10 @@ void VideoPage::applySettings() {
     // Save current device settings before stopping
     // This prevents device path from being cleared during stop
     QString savedPortChain = GlobalSetting::instance().getOpenterfacePortChain();
-    qDebug() << "Saving current device port chain before restart:" << savedPortChain;
 
     // Stop the camera if it is in an active status
     try {
         m_cameraManager->stopCamera();
-        qDebug() << "Camera stopped successfully";
     } catch (const std::exception& e) {
         qCritical() << "Error stopping camera:" << e.what();
         return;
@@ -580,7 +565,6 @@ void VideoPage::applySettings() {
 
     // CRITICAL FIX: Wait for capture thread to fully terminate
     // This prevents crash when FFmpeg resources are accessed during cleanup
-    qDebug() << "Waiting for capture thread to terminate...";
 
     // Process events to ensure stop signal is handled
     QApplication::processEvents();
@@ -591,33 +575,24 @@ void VideoPage::applySettings() {
     QTimer::singleShot(200, &loop, &QEventLoop::quit);
     loop.exec();
 
-    qDebug() << "Capture thread should be terminated, proceeding with restart";
-
     // Restore device settings before starting camera again
     if (!savedPortChain.isEmpty()) {
         GlobalSetting::instance().setOpenterfacePortChain(savedPortChain);
-        qDebug() << "Restored device port chain:" << savedPortChain;
     }
 
     // Store settings for FFmpeg backend
     handleResolutionSettings();
 
-    qDebug() << "Set global variable to:" << m_currentResolution.width() << m_currentResolution.height() << fps;
     GlobalVar::instance().setCaptureWidth(m_currentResolution.width());
     GlobalVar::instance().setCaptureHeight(m_currentResolution.height());
     GlobalVar::instance().setCaptureFps(fps);
 
-    qDebug() << "Start the camera";
     // Start the camera with the new settings
     try{
         m_cameraManager->startCamera();
-        qDebug() << "Camera started successfully with new settings";
     } catch (const std::exception& e){
         qCritical() << "Error starting camera: " << e.what();
     }
-
-
-    qDebug() << "Applied settings: resolution:" << m_currentResolution << ", FPS:" << fps;
 
     updatePixelFormats();
 
@@ -663,7 +638,6 @@ void VideoPage::applySettings() {
     if (statusWidget) {
         statusWidget->checkAndWarnResolutionMismatch(m_currentResolution.width(), m_currentResolution.height(), static_cast<float>(fps));
     } else {
-        qDebug() << "StatusWidget not found, cannot check resolution mismatch";
     }
 }
 
@@ -683,8 +657,6 @@ void VideoPage::initVideoSettings() {
         QString resolutionText = videoFormatBox->itemText(i).split(' ').first();
         QStringList resolutionParts = resolutionText.split('x');
         if (resolutionParts.size() >= 2) {
-            qDebug() << "resolution text: "<< resolutionText;
-            qDebug() << resolutionParts[0].toInt()<< width << resolutionParts[1].toInt() << height;
             if (resolutionParts[0].toInt() == width && resolutionParts[1].toInt() == height) {
                 videoFormatBox->setCurrentIndex(i);
                 break;
@@ -762,7 +734,6 @@ void VideoPage::onMediaBackendChanged() {
     if (mediaBackendBox) {
         QString selectedBackend = mediaBackendBox->currentData().toString();
         GlobalSetting::instance().setMediaBackend(selectedBackend);
-        qDebug() << "Media backend changed to:" << selectedBackend;
 
         // FFmpeg features (hardware acceleration) are available on all platforms
         bool isFFmpeg = (selectedBackend == "ffmpeg");
@@ -788,12 +759,8 @@ void VideoPage::onMediaBackendChanged() {
         if (gstSinkHintLabel) gstSinkHintLabel->setVisible(isGStreamer);
 
         if (selectedBackend == "gstreamer") {
-            qDebug() << "GStreamer backend selected - using conservative frame rate handling";
-            qDebug() << "Note: GStreamer may require specific frame rate ranges to avoid assertion errors";
         } else if (selectedBackend == "mediafoundation") {
-            qDebug() << "Media Foundation backend selected - native Windows video capture";
         } else if (selectedBackend == "ffmpeg") {
-            qDebug() << "FFmpeg backend selected - using DirectShow (Windows) or V4L2 (Linux)";
         }
     }
 }

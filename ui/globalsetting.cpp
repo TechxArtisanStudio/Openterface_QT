@@ -20,13 +20,13 @@
 * ========================================================================== *
 */
 
-
 #include "globalsetting.h"
 #include "global.h"
 #include <QMutex>
 #include <QFile>
 #include <QDateTime>
 #include <QSettings>
+#include <QSet>
 
 GlobalSetting::GlobalSetting(QObject *parent)
     : QObject(parent),
@@ -60,29 +60,64 @@ void GlobalSetting::getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool 
     HID = m_settings.value("filter/HID", true).toBool();
 }
 
-void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host, bool device, bool backend, bool script)
+void GlobalSetting::saveCategoryStates(const QMap<QString, QPair<bool, QString>>& states)
 {
-    m_settings.setValue("log/core", core);
-    m_settings.setValue("log/serial", serial);
-    m_settings.setValue("log/ui", ui);
-    m_settings.setValue("log/host", host);
-    m_settings.setValue("log/device", device);
-    m_settings.setValue("log/backend", backend);
-    m_settings.setValue("log/script", script);
+    for (auto it = states.constBegin(); it != states.constEnd(); ++it) {
+        const QString& category = it.key();
+        bool enabled = it.value().first;
+        QString level = it.value().second;
+        m_settings.setValue(QString("log/category/%1/enabled").arg(category), enabled);
+        m_settings.setValue(QString("log/category/%1/level").arg(category), level);
+    }
+}
+
+QMap<QString, QPair<bool, QString>> GlobalSetting::loadCategoryStates() const
+{
+    QMap<QString, QPair<bool, QString>> states;
+    // Find all unique category names from keys like "log/category/<cat>/enabled"
+    QSet<QString> categories;
+    for (const QString& key : m_settings.allKeys()) {
+        if (key.startsWith("log/category/") && key.endsWith("/enabled")) {
+            QString cat = key.mid(QString("log/category/").size(),
+                                  key.size() - QString("log/category/").size() - QString("/enabled").size());
+            categories.insert(cat);
+        }
+    }
+    for (const QString& category : categories) {
+        bool enabled = m_settings.value(QString("log/category/%1/enabled").arg(category), true).toBool();
+        QString level = m_settings.value(QString("log/category/%1/level").arg(category), "Info").toString();
+        states.insert(category, qMakePair(enabled, level));
+    }
+    return states;
 }
 
 void GlobalSetting::loadLogSettings()
 {
-    QString logFilter = "";
-    logFilter += m_settings.value("log/core", false).toBool() ? "opf.core.*=true\n" : "opf.core.*=false\n";
-    logFilter += m_settings.value("log/ui", false).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
-    logFilter += m_settings.value("log/host", false).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
-    logFilter += m_settings.value("log/serial", false).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
-    logFilter += m_settings.value("log/device", false).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
-    logFilter += m_settings.value("log/backend", false).toBool() ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
-    logFilter += m_settings.value("log/script", false).toBool() ? "opf.scripts.*=true\n" : "opf.scripts.*=false\n";
-    QLoggingCategory::setFilterRules(logFilter);
-    qDebug() << "Log filter rules set to:\n" << logFilter;
+    auto states = loadCategoryStates();
+    if (states.isEmpty()) {
+        return;
+    }
+
+    QStringList rules;
+    for (auto it = states.constBegin(); it != states.constEnd(); ++it) {
+        const QString& category = it.key();
+        bool enabled = it.value().first;
+        QString level = it.value().second;
+
+        if (!enabled) {
+            rules << QString("%1=false").arg(category);
+        } else {
+            QString levelLower = level.toLower().trimmed();
+            if (levelLower == "off") {
+                rules << QString("%1=false").arg(category);
+            } else {
+                rules << QString("%1.%2=true").arg(category, levelLower);
+            }
+        }
+    }
+    if (!rules.isEmpty()) {
+        QLoggingCategory::setFilterRules(rules.join('\n'));
+    }
 }
 
 void GlobalSetting::setLogStoreSettings(bool storeLog, QString logFilePath){
@@ -171,11 +206,9 @@ void GlobalSetting::setPID(QString pid){
     m_settings.setValue("serial/pid", pid);
 }
 
-
 void GlobalSetting::setSerialNumber(QString serialNumber){
     m_settings.setValue("serial/serialnumber", serialNumber);
 }
-
 
 void GlobalSetting::setUSBEnabelFlag(QString enableflag){
     m_settings.setValue("serial/enableflag", enableflag);
@@ -209,7 +242,6 @@ bool GlobalSetting::getHideKeyboardInput() const {
     return m_settings.value("keyboard/hideInput", false).toBool();
 }
 
-
 void GlobalSetting::setSystemKeyBlockerEnabled(bool enabled) {
     m_settings.setValue("keyboard/systemKeyBlocker", enabled);
 }
@@ -217,7 +249,6 @@ void GlobalSetting::setSystemKeyBlockerEnabled(bool enabled) {
 bool GlobalSetting::getSystemKeyBlockerEnabled() const {
     return m_settings.value("keyboard/systemKeyBlocker", false).toBool();
 }
-
 
 void GlobalSetting::setMouseAutoHideEnable(bool enable){
     m_settings.setValue("mouse/autoHide", enable);
@@ -301,7 +332,6 @@ bool GlobalSetting::getUpdateNeverRemind() const
 
 // Port chain management for Openterface devices
 void GlobalSetting::setOpenterfacePortChain(const QString& portChain) {
-    qDebug() << "Logging Openterface port chain:" << portChain;
     m_settings.setValue("openterface/portChain", portChain);
     m_settings.sync(); // Ensure immediate write to storage
 }
@@ -311,14 +341,12 @@ QString GlobalSetting::getOpenterfacePortChain() const {
 }
 
 void GlobalSetting::clearOpenterfacePortChain() {
-    qDebug() << "Clearing Openterface port chain";
     m_settings.remove("openterface/portChain");
     m_settings.sync();
 }
 
 // Serial port baudrate management
 void GlobalSetting::setSerialPortBaudrate(int baudrate) {
-    qDebug() << "Storing serial port baudrate:" << baudrate;
     m_settings.setValue("serial/baudrate", baudrate);
     m_settings.sync(); // Ensure immediate write to storage
 }
@@ -328,14 +356,12 @@ int GlobalSetting::getSerialPortBaudrate() const {
 }
 
 void GlobalSetting::clearSerialPortBaudrate() {
-    qDebug() << "Clearing stored serial port baudrate";
     m_settings.remove("serial/baudrate");
     m_settings.sync();
 }
 
 // ARM architecture baudrate performance prompt
 void GlobalSetting::setArmBaudratePromptDisabled(bool disabled) {
-    qDebug() << "Setting ARM baudrate prompt disabled:" << disabled;
     m_settings.setValue("serial/armBaudratePromptDisabled", disabled);
     m_settings.sync();
 }
@@ -345,7 +371,6 @@ bool GlobalSetting::getArmBaudratePromptDisabled() const {
 }
 
 void GlobalSetting::resetArmBaudratePrompt() {
-    qDebug() << "Resetting ARM baudrate prompt setting";
     m_settings.remove("serial/armBaudratePromptDisabled");
     m_settings.sync();
 }
@@ -356,14 +381,12 @@ void GlobalSetting::resetArmBaudratePrompt() {
 QByteArray GlobalSetting::convertStringToByteArray(QString str) {
     QStringList hexParts = str.split(" ", Qt::SkipEmptyParts);
 
-
     QString hexString = hexParts.join("");
     
     bool ok;
     int64_t value = hexString.toInt(&ok, 16);
     if (!ok) {
         // Handle the error, e.g., by returning an empty QByteArray or throwing an exception
-        qDebug() << str << "Error converting string";
         return QByteArray();
     }
 

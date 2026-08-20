@@ -56,9 +56,10 @@
 #include <QTimer>
 #include <QStackedLayout>
 #include <QShortcut>
+#include "log/opflogging.h"
 
-// Define the logging category with inline to avoid multiple definition errors
-inline Q_LOGGING_CATEGORY(log_ui_mainwindowinitializer, "opf.ui.mainwindowinitializer")
+// Define the logging category
+OPF_LOGGING_CATEGORY(log_ui_mainwindowinitializer, "opf.ui.mainwindowinitializer")
 
 MainWindowInitializer::MainWindowInitializer(MainWindow *mainWindow, QObject *parent)
     : QObject(parent)
@@ -415,7 +416,6 @@ void MainWindowInitializer::setupToolbar()
     
     // CRITICAL DEBUG: Temporarily disable WindowControlManager to test if it's blocking menus
     // m_windowControlManager->setAutoHideEnabled(true);
-    qDebug() << "[DEBUG] WindowControlManager auto-hide DISABLED for menu testing";
     
     m_windowControlManager->setAutoHideDelay(5000);  // 5 seconds auto-hide delay
     m_windowControlManager->setEdgeDetectionThreshold(5);
@@ -538,19 +538,16 @@ void MainWindowInitializer::deferredInitializeCamera()
     CornerWidgetManager* cornerWidgetManager = m_cornerWidgetManager;
     QTimer::singleShot(300, m_mainWindow, [audioManager, cornerWidgetManager]() {
         audioManager->initializeAudio();
-        qDebug() << "✓ Audio initialization triggered";
         
         // Restore mute state from settings
         bool isMuted = GlobalSetting::instance().getAudioMuted();
         if (isMuted) {
             audioManager->setVolume(0.0);
-            qDebug() << "✓ Audio restored to muted state";
         }
         
         // Update the mute button to reflect the saved state
         if (cornerWidgetManager) {
             cornerWidgetManager->restoreMuteState(isMuted);
-            qDebug() << "✓ Mute button state restored:" << (isMuted ? "muted" : "unmuted");
         }
     });
 }
@@ -629,7 +626,6 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     // QKeySequence findSeq(Qt::CTRL | Qt::Key_F);
     // QShortcut *findShortcut = new QShortcut(findSeq, m_mainWindow);
     
-    
     // Ctrl+P: Open preferences/settings dialog (explicit shortcut — .ui file has this via auto-connect but add QShortcut for reliability)
     QShortcut *preferencesShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_P), m_mainWindow);
 
@@ -681,10 +677,8 @@ void MainWindowInitializer::setupKeyboardShortcuts()
     // Connect Ctrl+Shift+K shortcut to toggle function key and composite key toolbar
     QObject::connect(virtualKeyboardShortcut, &QShortcut::activated, mainWindow, &MainWindow::onToggleVirtualKeyboard);
     
-    
     // // Connect Ctrl+F shortcut to activate file menu
     // QObject::connect(findShortcut, &QShortcut::activated, mainWindow, &MainWindow::activateFileMenu);
-
 
     qCDebug(log_ui_mainwindowinitializer) << "Registered Alt+F11 shortcut for fullscreen toggle";
     qCDebug(log_ui_mainwindowinitializer) << "Registered Ctrl+Shift+A shortcut for screen aspect ratio";

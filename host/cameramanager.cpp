@@ -34,10 +34,10 @@
 #include <QThread>
 #include <algorithm>
 #include <QSet>
+#include "log/opflogging.h"
 
-
-Q_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
-Q_LOGGING_CATEGORY(log_backend, "opf.backend")
+OPF_LOGGING_CATEGORY(log_ui_camera, "opf.ui.camera")
+OPF_LOGGING_CATEGORY(log_backend, "opf.backend")
 
 CameraManager::CameraManager(QObject *parent)
     : QObject(parent), m_graphicsVideoOutput(nullptr), m_video_width(0), m_video_height(0)
@@ -53,7 +53,6 @@ CameraManager::CameraManager(QObject *parent)
     initializeBackendHandler();
     // Setup Windows-specific hotplug monitoring
     setupWindowsHotplugMonitoring();
-    
     
     // Connect to hotplug monitor for all platforms
     connectToHotplugMonitor();  // Disabled to avoid clash with MainWindow camera initialization
@@ -261,17 +260,14 @@ void CameraManager::setVideoOutput(QGraphicsVideoItem* videoOutput)
 {
     if (videoOutput) {
         m_graphicsVideoOutput = videoOutput;
-        qDebug() << "Setting graphics video output for FFmpeg backend";
         
         // Connect video output to FFmpeg backend if available
         if (m_backendHandler && isFFmpegBackend()) {
             FFmpegBackendHandler* ffmpeg = getFFmpegBackend();
             if (ffmpeg) {
                 ffmpeg->setVideoOutput(videoOutput);
-                qDebug() << "Graphics video output successfully connected to FFmpeg backend";
             }
         } else {
-            qDebug() << "FFmpeg backend not available for video output";
         }
 
 #ifndef Q_OS_WIN
@@ -279,7 +275,6 @@ void CameraManager::setVideoOutput(QGraphicsVideoItem* videoOutput)
             GStreamerBackendHandler* gst = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get());
             if (gst) {
                 gst->setVideoOutput(videoOutput);
-                qDebug() << "Graphics video output successfully connected to GStreamer backend";
             }
         }
 #endif
@@ -289,12 +284,10 @@ void CameraManager::setVideoOutput(QGraphicsVideoItem* videoOutput)
             MfBackendHandler* mf = qobject_cast<MfBackendHandler*>(m_backendHandler.get());
             if (mf) {
                 mf->setVideoOutput(videoOutput);
-                qDebug() << "Graphics video output successfully connected to Media Foundation backend";
             }
         }
 #endif
     } else {
-        qDebug() << "Attempted to set null graphics video output";
     }
 }
 
@@ -609,7 +602,6 @@ void CameraManager::stopRecording()
     } else {
         bool stopSuccess = false;
 
-
         // Linux-specific recording stop code
         switch (m_backendHandler->getBackendType()) {
             case MultimediaBackendType::FFmpeg: {
@@ -661,7 +653,6 @@ void CameraManager::stopRecording()
         // Log the final result of the stop operation
         qCInfo(log_ui_camera) << "Recording stop result: " << (stopSuccess ? "Successful" : "Failed");
     }
-
 
     // Check if the file exists after recording is stopped
     if (!recordingPath.isEmpty()) {
@@ -920,7 +911,6 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice, cons
         }
         #endif
 
-        
         // Start camera with new device
         startCamera();
         
@@ -979,24 +969,15 @@ void CameraManager::refreshAvailableCameraDevices()
 
 // Removed duplicate broken getCurrentCameraDeviceDescription - keeping only correct version below
 
-
-
-
-
 // REMOVED: isCameraDeviceValid() - QCamera-dependent method
-
 
 // REMOVED: isCameraDeviceAvailable() - QCamera-dependent method
 
-
 // REMOVED: getAvailableCameraDeviceDescriptions() - QCamera-dependent method
-
 
 // REMOVED: getAvailableCameraDeviceIds() - QCamera-dependent method
 
-
 // REMOVED: findBestAvailableCamera() - QCamera-dependent method
-
 
 // REMOVED: getAllCameraDescriptions() - QCamera-dependent method
 
@@ -1145,9 +1126,7 @@ QString CameraManager::determineDirectCaptureDevicePath(QString &outPortChain, b
 
 // REMOVED: displayAllCameraDeviceIds() - QCamera-dependent method
 
-
 // REMOVED: handleCameraTimeout() - QCamera-dependent method
-
 
 QCameraDevice CameraManager::findMatchingCameraDevice(const QString& portChain) const
 {
@@ -1292,7 +1271,6 @@ QCameraDevice CameraManager::findCameraByDeviceInfo(const DeviceInfo& deviceInfo
 
 bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOutput)
 {
-    qDebug() << "Initializing camera with graphics video output";
     
     if (!videoOutput) {
         qCWarning(log_ui_camera) << "Cannot initialize camera with null graphics video output";
@@ -1306,8 +1284,6 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
     
     // Check if we already have an active camera device
     if (hasActiveCameraDevice()) {
-        qDebug() << "Camera already active with device:" << m_currentCameraDevice.description() 
-                 << "at port chain:" << m_currentCameraPortChain;
         return true;
     }
     
@@ -1315,7 +1291,6 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
     
     // Windows: Use enhanced approach with better device detection
     if (isWindowsPlatform()) {
-        qDebug() << "Windows: Using enhanced camera initialization";
         
         // First, try to find camera using device manager information
         DeviceManager& deviceManager = DeviceManager::getInstance();
@@ -1327,16 +1302,12 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
         // Look for devices with camera components
         for (const DeviceInfo& device : devices) {
             if (device.hasCameraDevice()) {
-                qDebug() << "Found device with camera at port chain:" << device.portChain;
-                qDebug() << "  Camera device ID:" << device.cameraDeviceId;
-                qDebug() << "  Camera device path:" << device.cameraDevicePath;
                 
                 // Try to find this camera in Qt's camera list
                 QCameraDevice matchedCamera = findCameraByDeviceInfo(device);
                 if (!matchedCamera.isNull()) {
                     openterfaceDevice = matchedCamera;
                     targetPortChain = device.portChain;
-                    qDebug() << "Windows: Found matching Qt camera device:" << matchedCamera.description();
                     break;
                 }
             }
@@ -1344,13 +1315,10 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
         
         // Fallback: Look for any camera with "Openterface" in the description
         if (openterfaceDevice.isNull()) {
-            qDebug() << "Windows: Fallback - searching for Openterface camera by description";
             QList<QCameraDevice> allDevices = getAvailableCameraDevices();
             
-            qDebug() << "Available camera devices:";
             QCameraDevice found = findQtOpenterfaceDevice(allDevices);
             if (!found.isNull()) {
-                qDebug() << "Windows: Found Openterface-like device:" << found.description();
                 openterfaceDevice = found;
             }
         }
@@ -1358,7 +1326,6 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
         if (!openterfaceDevice.isNull()) {
             switchSuccess = switchToCameraDevice(openterfaceDevice, targetPortChain);
             if (switchSuccess) {
-                qDebug() << "Windows: Camera switched to device:" << openterfaceDevice.description();
                 startCamera();
             }
         } else {
@@ -1366,9 +1333,7 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
             
             // Additional debugging: list all available cameras
             QList<QCameraDevice> allDevices = getAvailableCameraDevices();
-            qDebug() << "All available camera devices:";
             for (const QCameraDevice& device : allDevices) {
-                qDebug() << "  Camera:" << device.description() << "ID:" << QString::fromUtf8(device.id());
             }
         }
         
@@ -1380,15 +1345,12 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
     QString portChain = GlobalSetting::instance().getOpenterfacePortChain();
     
     if (!portChain.isEmpty()) {
-        qDebug() << "Found port chain in global settings:" << portChain;
         
         QCameraDevice matchedCamera = findMatchingCameraDevice(portChain);
         
         if (!matchedCamera.isNull()) {
             switchSuccess = switchToCameraDevice(matchedCamera, portChain);
             if (switchSuccess) {
-                qDebug() << "✓ Successfully switched to camera using port chain:" << portChain;
-                qDebug() << "✓ Selected camera:" << matchedCamera.description();
             } else {
                 qCWarning(log_ui_camera) << "Failed to switch to matched camera device:" << matchedCamera.description();
             }
@@ -1396,7 +1358,6 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
             qCDebug(log_ui_camera) << "No matching camera device found for port chain:" << portChain;
         }
     } else {
-        qDebug() << "No port chain found in global settings, using fallback methods";
     }
     
     // Fallback: Traditional camera selection logic (without port chain tracking)
@@ -1408,7 +1369,6 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
         if (!openterfaceDevice.isNull()) {
             switchSuccess = switchToCameraDevice(openterfaceDevice, QString());  // No port chain available for fallback
             if (switchSuccess) {
-                qDebug() << "Camera switched to device with description 'Openterface' (no port chain tracked)";
             }
         } else {
             qCWarning(log_ui_camera) << "No camera device with description 'Openterface' found";
@@ -1431,7 +1391,6 @@ bool CameraManager::initializeCameraWithVideoOutput(QGraphicsVideoItem* videoOut
 
 bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool startCapture)
 {
-    qDebug() << "Initializing camera with VideoPane output, startCapture:" << startCapture;
     
     if (!videoPane) {
         qCWarning(log_ui_camera) << "Cannot initialize camera with null VideoPane";
@@ -1440,7 +1399,6 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
     
     // Check if we're using FFmpeg backend for direct capture
     if (isFFmpegBackend() && m_backendHandler) {
-        qDebug() << "Using FFmpeg backend for direct capture";
         
         // Cast to FFmpegBackendHandler to access direct capture methods
         auto* ffmpegHandler = dynamic_cast<FFmpegBackendHandler*>(m_backendHandler.get());
@@ -1495,7 +1453,6 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
                 if (!found.isNull()) {
                     // Convert Qt camera device to DirectShow format
                     devicePath = convertCameraDeviceToPath(found);
-                    qDebug() << "Found Openterface device via Qt detection (Windows):" << devicePath;
                 }
             }
             
@@ -1517,7 +1474,6 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
             
             if (selectedDevice.isValid() && !selectedDevice.cameraDevicePath.isEmpty()) {
                 devicePath = selectedDevice.cameraDevicePath;
-                qDebug() << "Using detected camera device path:" << devicePath;
             } else {
                 qCWarning(log_ui_camera) << "No valid camera device path found in selected device, trying Qt camera detection";
                 
@@ -1527,7 +1483,6 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
                 if (!found.isNull()) {
                     // Convert Qt device ID to V4L2 device path
                     devicePath = convertCameraDeviceToPath(found);
-                    qDebug() << "Found Openterface device via Qt detection:" << devicePath;
                 }
                 
                 if (devicePath.isEmpty()) {
@@ -1539,12 +1494,9 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
             
             // Only start capture if requested (otherwise just set up the pipeline)
             if (startCapture) {
-                qDebug() << "Starting FFmpeg direct capture with device:" << devicePath;
                 bool captureStarted = ffmpegHandler->startDirectCapture(devicePath, resolution, framerate);
                 
                 if (captureStarted) {
-                    qDebug() << "✓ FFmpeg direct capture started successfully";
-                    qDebug() << "✓ Camera successfully initialized with video output";
                     // Prefer known port chain from DeviceManager if available
                     m_currentCameraPortChain = detectedPortChain.isEmpty() ? devicePath : detectedPortChain;
                     
@@ -1557,7 +1509,6 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
                     // Fall back to standard Qt camera approach
                 }
             } else {
-                qDebug() << "✓ FFmpeg video pipeline set up (capture will start on device switch)";
                 m_currentCameraPortChain = detectedPortChain.isEmpty() ? devicePath : detectedPortChain;
                 return true;
             }
@@ -1565,13 +1516,11 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
             qCWarning(log_ui_camera) << "Failed to cast to FFmpegBackendHandler";
         }
     } else {
-        qDebug() << "Not using FFmpeg backend for direct capture";
     }
     
     // Check if we're using GStreamer backend for direct pipeline capture (Linux only)
 #ifndef Q_OS_WIN
     if (isGStreamerBackend() && m_backendHandler) {
-        qDebug() << "Using GStreamer backend for direct capture";
         auto* gstHandler = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get());
         if (gstHandler) {
             // Enable direct GStreamer mode in VideoPane
@@ -1594,7 +1543,6 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
 
             // Only start capture if requested
             if (startCapture) {
-                qDebug() << "Starting GStreamer direct capture with device:" << devicePath;
                 // Set device and port chain into the handler and start
                 gstHandler->setCurrentDevicePortChain(detectedPortChain);
                 gstHandler->setCurrentDevice(devicePath);
@@ -1612,7 +1560,6 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
                 qCDebug(log_ui_camera) << "GStreamer direct capture attempted for device:" << devicePath;
                 return true;
             } else {
-                qDebug() << "✓ GStreamer video pipeline set up (capture will start on device switch)";
                 return true;
             }
         } else {
@@ -1624,7 +1571,6 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
 #ifdef Q_OS_WIN
     // Check if we're using Media Foundation backend for direct capture
     if (isMediaFoundationBackend() && m_backendHandler) {
-        qDebug() << "Using Media Foundation backend for direct capture";
         auto* mfHandler = qobject_cast<MfBackendHandler*>(m_backendHandler.get());
         if (mfHandler) {
             // Enable direct FFmpeg mode in VideoPane for rendering
@@ -1653,13 +1599,11 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
             mfHandler->setFramerate(framerate);
 
             if (startCapture) {
-                qDebug() << "Starting Media Foundation direct capture with resolution:" << resolution << "framerate:" << framerate;
                 mfHandler->startCamera();
 
                 emit cameraActiveChanged(true);
                 return true;
             } else {
-                qDebug() << "Media Foundation video pipeline set up (capture will start on demand)";
                 return true;
             }
         } else {
@@ -1669,7 +1613,6 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
 #endif
 
     // Fall back to standard Qt camera approach with QGraphicsVideoItem
-    qDebug() << "Using standard Qt camera approach";
     videoPane->enableDirectFFmpegMode(false);
     return initializeCameraWithVideoOutput(videoPane->getVideoItem());
 }
@@ -1849,7 +1792,6 @@ bool CameraManager::tryAutoSwitchToNewDevice(const QString& portChain)
     return switchSuccess;
 }
 
-
 bool CameraManager::switchToCameraDeviceByPortChain(const QString &portChain)
 {
     if (portChain.isEmpty()) {
@@ -1889,12 +1831,10 @@ bool CameraManager::switchToCameraDeviceByPortChain(const QString &portChain)
 
 void CameraManager::refreshVideoOutput()
 {
-    qDebug() << "Refreshing video output connection";
     
     try {
         // Force re-establishment of video output connection to ensure new camera feed is displayed
         if (m_graphicsVideoOutput) {
-            qDebug() << "Forcing graphics video output refresh";
             // Temporarily disconnect and reconnect to force refresh
     // REMOVED: m_captureSession.setVideoOutput(nullptr);
             QThread::msleep(10); // Brief pause
@@ -1902,11 +1842,9 @@ void CameraManager::refreshVideoOutput()
             
             // Verify reconnection
     // REMOVED: if (m_captureSession.videoOutput() == m_graphicsVideoOutput) {
-                qDebug() << "Graphics video output refresh successful";
             } else {
                 qCWarning(log_ui_camera) << "Graphics video output refresh failed";
             }
-    qDebug() << "Video output refresh completed";
     
     } catch (const std::exception& e) {
         qCritical() << "Exception refreshing video output:" << e.what();

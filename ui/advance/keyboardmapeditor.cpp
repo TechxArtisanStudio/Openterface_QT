@@ -9,8 +9,9 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QTimer>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_keyboard_editor, "opf.ui.keyboardeditor")
+OPF_LOGGING_CATEGORY(log_keyboard_editor, "opf.ui.keyboardeditor")
 
 // ===== KeyTestWidget Implementation =====
 

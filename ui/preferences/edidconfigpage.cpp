@@ -370,7 +370,6 @@ void EdidConfigPage::restartPollingDelayed(const QString &reason)
 {
     QTimer::singleShot(500, this, [this, reason]() {
         VideoHid::getInstance().start();
-        qDebug() << "Polling restarted after" << reason;
     });
 }
 
@@ -383,10 +382,8 @@ void EdidConfigPage::showErrorAndRestart(const QString &title, const QString &me
 
 void EdidConfigPage::stopAllDevices()
 {
-    qDebug() << "Stopping all devices...";
     VideoHid::getInstance().stop();
     SerialPortManager::getInstance().stop();
-    qDebug() << "All accessible devices stopped.";
 }
 
 // ---------------------------------------------------------------------------
@@ -462,7 +459,6 @@ void EdidConfigPage::ensureFirmwareOperationManager()
 
 void EdidConfigPage::loadCurrentEDIDSettings()
 {
-    qDebug() << "Loading current EDID settings from firmware...";
 
     VideoHid &videoHid = VideoHid::getInstance();
     videoHid.stopPollingOnly();
@@ -476,7 +472,6 @@ void EdidConfigPage::loadCurrentEDIDSettings()
         return;
     }
 
-    qDebug() << "Firmware size:" << firmwareSize << "bytes";
     setProgressState(true, tr("Reading firmware data..."));
     setControlsEnabled(false);
 
@@ -620,7 +615,6 @@ bool EdidConfigPage::processFirmwareData(const QByteArray &firmwareData)
     }
 
     edid::EDIDUtils::logSupportedResolutions(edidBlock);
-    qDebug() << "=== CURRENT EDID DESCRIPTORS ===";
     edid::EDIDUtils::showEDIDDescriptors(edidBlock);
 
     return true;
@@ -670,12 +664,9 @@ void EdidConfigPage::onApplyButtonClicked()
 
 bool EdidConfigPage::updateDisplayName(const QString &newName)
 {
-    qDebug() << "Starting display name update...";
-    qDebug() << "  Display name:" << newName;
 
     VideoHid &videoHid = VideoHid::getInstance();
     videoHid.stopPollingOnly();
-    qDebug() << "Polling stopped before firmware operation";
 
     setProgressState(true, tr("Updating display name..."));
 
@@ -715,11 +706,9 @@ bool EdidConfigPage::processAndWriteFirmware()
 void EdidConfigPage::onCancelReadingClicked()
 {
     if (m_operationFinished) {
-        qDebug() << "Cancel ignored because operation is already finished";
         return;
     }
 
-    qDebug() << "User cancelled firmware reading";
     shutdownFirmwareOperation();
     setControlsEnabled(true);
     updateDeviceStatus();

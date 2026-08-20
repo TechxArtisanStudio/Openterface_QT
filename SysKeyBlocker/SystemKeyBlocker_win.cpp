@@ -28,8 +28,9 @@
 #include <QLoggingCategory>
 #include <QMetaObject>
 #include <QAbstractEventDispatcher>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_syskey_win, "opf.systemkey.win")
+OPF_LOGGING_CATEGORY(log_syskey_win, "opf.systemkey.win")
 
 /* ============================================================================
  *  Static self-pointer

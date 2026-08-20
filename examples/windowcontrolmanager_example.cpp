@@ -128,21 +128,18 @@ private slots:
         QString status = visible ? "Toolbar shown" : "Toolbar hidden";
         statusLabel->setText(QString("Status: %1").arg(status));
         statusBar()->showMessage(status, 2000);
-        qDebug() << "Toolbar visibility changed:" << visible;
     }
     
     void onAutoHideTriggered()
     {
         statusLabel->setText("Status: Toolbar auto-hidden after inactivity");
         statusBar()->showMessage("Toolbar auto-hidden", 2000);
-        qDebug() << "Auto-hide triggered";
     }
     
     void onEdgeHoverDetected()
     {
         statusLabel->setText("Status: Mouse at top edge - showing toolbar");
         statusBar()->showMessage("Edge hover detected", 2000);
-        qDebug() << "Edge hover detected";
     }
 
 protected:

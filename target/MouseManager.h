@@ -30,7 +30,9 @@
 #include <QObject>
 #include <QLoggingCategory>
 
-Q_DECLARE_LOGGING_CATEGORY(log_core_mouse)
+Q_DECLARE_LOGGING_CATEGORY(log_mouse_abs)
+Q_DECLARE_LOGGING_CATEGORY(log_mouse_rel)
+Q_DECLARE_LOGGING_CATEGORY(log_mouse_scroll)
 
 #include <QThread>
 #include <QCursor>
@@ -137,7 +139,7 @@ public:
         // Reset any internal state
         // For example, clear any stored coordinates or button states
         currentMouseButton = 0;
-        qDebug() << "Mouse manager reset";
+        qCDebug(log_mouse_abs) << "Mouse manager reset";
     }
 
 private:
