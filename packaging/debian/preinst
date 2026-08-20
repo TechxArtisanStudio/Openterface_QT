@@ -64,7 +64,8 @@ DEPENDENCIES=(
 # -----------------------------------------------------------------------------
 check_library() {
     local lib="$1"
-    ldconfig -p 2>/dev/null | grep -q "lib[^ ]*${lib}"
+    # Use full path — ldconfig is in /sbin which may not be in PATH
+    /sbin/ldconfig -p 2>/dev/null | grep -q "lib[^ ]*${lib}"
 }
 
 # -----------------------------------------------------------------------------
