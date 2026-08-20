@@ -70,7 +70,10 @@ DEPENDENCIES=(
     # Compression
     "libz.so.1|zlib1g|Compression library|yes"
     "libbz2.so.1.0|libbz2-1.0|Bzip2 compression support|yes"
-    
+
+    # Qt6 runtime dependencies
+    "libpcre2-16.so.0|libpcre2-16-0|PCRE2 16-bit (required by Qt6 Core)|yes"
+
     # Debug
     "libdw.so.1|libdw1|Debug information library|yes"
 )
@@ -174,6 +177,10 @@ COMPRESSION_DEPS=(
     "libbz2-1.0"
 )
 
+PCRE_DEPS=(
+    "libpcre2-16-0"
+)
+
 DEBUG_DEPS=(
     "libdw1"
 )
@@ -183,7 +190,7 @@ FOUND_DEPS=0
 TOTAL_DEPS=0
 
 # Calculate total dependencies to check
-TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]}))
+TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#PCRE_DEPS[@]} + ${#DEBUG_DEPS[@]}))
 
 echo "System dependency verification:"
 echo ""
@@ -282,6 +289,18 @@ done
 # Check Compression dependencies
 print_category "  Compression Libraries:"
 for pkg in "${COMPRESSION_DEPS[@]}"; do
+    if dpkg -l | grep -q "^ii.*${pkg}"; then
+        echo "    ✅ $pkg"
+        FOUND_DEPS=$((FOUND_DEPS + 1))
+    else
+        echo "    ❌ $pkg (MISSING)"
+        MISSING_DEPS+=("$pkg")
+    fi
+done
+
+# Check PCRE2 dependencies
+print_category "  Qt6 Runtime Dependencies (PCRE2):"
+for pkg in "${PCRE_DEPS[@]}"; do
     if dpkg -l | grep -q "^ii.*${pkg}"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
