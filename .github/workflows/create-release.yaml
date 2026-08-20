@@ -93,6 +93,7 @@ jobs:
 
       - name: Upload Windows installer artifact
         id: upload-installer
+        if: ${{ inputs.sign_amd64_installer }}
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.windows.amd.installer.unsigned
@@ -102,6 +103,7 @@ jobs:
       
       - name: Submit installer signing request
         id: sign-installer
+        if: ${{ inputs.sign_amd64_installer }}
         uses: signpath/github-action-submit-signing-request@v1.2
         with:
           api-token: ${{ secrets.CI_TOKEN }}
@@ -126,6 +128,7 @@ jobs:
           
       - name: Upload Windows portable artifact
         id: upload-portable
+        if: ${{ inputs.sign_amd64_portable }}
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.windows.amd.portable.unsigned.exe
@@ -135,6 +138,7 @@ jobs:
           
       - name: Submit portable signing request
         id: sign-portable
+        if: ${{ inputs.sign_amd64_portable }}
         uses: signpath/github-action-submit-signing-request@v1.2
         with:
           api-token: ${{ secrets.CI_TOKEN }}
@@ -148,6 +152,7 @@ jobs:
           output-artifact-directory: artifacts/windows/signed
 
       - name: Upload signed windows insatller
+        if: ${{ inputs.sign_amd64_installer }}
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.windows.amd.installer
@@ -155,6 +160,7 @@ jobs:
           retention-days: 30
 
       - name: Upload signed Windows portable artifact
+        if: ${{ inputs.sign_amd64_portable }}
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.windows.amd.portable.exe
@@ -176,6 +182,7 @@ jobs:
 
       - name: Upload Windows ARM64 installer artifact
         id: upload-arm64-installer
+        if: ${{ inputs.sign_arm64_installer }}
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.windows.arm64.installer.unsigned
@@ -185,6 +192,7 @@ jobs:
 
       - name: Submit ARM64 installer signing request
         id: sign-arm64-installer
+        if: ${{ inputs.sign_arm64_installer }}
         uses: signpath/github-action-submit-signing-request@v1.2
         with:
           api-token: ${{ secrets.CI_TOKEN }}
@@ -198,6 +206,7 @@ jobs:
           output-artifact-directory: artifacts/windows/arm64/signed
 
       - name: Upload signed Windows ARM64 installer
+        if: ${{ inputs.sign_arm64_installer }}
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.windows.arm64.installer
@@ -219,6 +228,7 @@ jobs:
 
       - name: Upload Windows ARM64 portable artifact
         id: upload-arm64-portable
+        if: ${{ inputs.sign_arm64_portable }}
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.windows.arm64.portable.unsigned.exe
@@ -228,6 +238,7 @@ jobs:
 
       - name: Submit ARM64 portable signing request
         id: sign-arm64-portable
+        if: ${{ inputs.sign_arm64_portable }}
         uses: signpath/github-action-submit-signing-request@v1.2
         with:
           api-token: ${{ secrets.CI_TOKEN }}
@@ -241,6 +252,7 @@ jobs:
           output-artifact-directory: artifacts/windows/arm64/portable/signed
 
       - name: Upload signed Windows ARM64 portable artifact
+        if: ${{ inputs.sign_arm64_portable }}
         uses: actions/upload-artifact@v4
         with:
           name: openterfaceQT.windows.arm64.portable.exe
