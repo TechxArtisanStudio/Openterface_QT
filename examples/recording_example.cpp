@@ -74,10 +74,6 @@ void RecordingExample::setupRecordingConfiguration()
     // Apply configuration to backend
     m_ffmpegBackend->setRecordingConfig(config);
     
-    qDebug() << "Recording configuration applied:"
-             << "Video:" << config.videoCodec << "@" << config.videoBitrate << "bps"
-             << "Audio:" << config.audioCodec << "@" << config.audioBitrate << "bps"
-             << "Format:" << config.outputFormat;
 }
 
 void RecordingExample::connectSignals()
@@ -124,8 +120,6 @@ void RecordingExample::startRecordingSession(const QString& outputPath, int dura
     // Ensure output directory exists
     QDir().mkpath(QFileInfo(finalOutputPath).dir().absolutePath());
     
-    qDebug() << "Starting recording session to:" << finalOutputPath;
-    
     // Start recording
     if (m_ffmpegBackend->startRecording(finalOutputPath, "mp4", 2000000)) {
         m_currentOutputPath = finalOutputPath;
@@ -134,7 +128,6 @@ void RecordingExample::startRecordingSession(const QString& outputPath, int dura
         // Set auto-stop timer if duration is specified
         if (duration > 0) {
             m_autoStopTimer->start(duration * 1000); // Convert to milliseconds
-            qDebug() << "Auto-stop timer set for" << duration << "seconds";
         }
     } else {
         qWarning() << "Failed to start recording";
@@ -147,8 +140,6 @@ void RecordingExample::stopRecordingSession()
         qWarning() << "No recording in progress";
         return;
     }
-    
-    qDebug() << "Stopping recording session";
     
     // Stop auto-stop timer
     m_autoStopTimer->stop();
@@ -164,7 +155,6 @@ void RecordingExample::pauseRecording()
         return;
     }
     
-    qDebug() << "Pausing recording";
     m_ffmpegBackend->pauseRecording();
 }
 
@@ -175,25 +165,18 @@ void RecordingExample::resumeRecording()
         return;
     }
     
-    qDebug() << "Resuming recording";
     m_ffmpegBackend->resumeRecording();
 }
 
 void RecordingExample::onRecordingStarted(const QString& outputPath)
 {
-    qDebug() << "Recording started:" << outputPath;
-    qDebug() << "Current recording config:" << m_ffmpegBackend->getRecordingConfig().videoCodec
-             << "at" << m_ffmpegBackend->getRecordingConfig().videoBitrate << "bps";
 }
 
 void RecordingExample::onRecordingStopped()
 {
-    qDebug() << "Recording stopped. File saved to:" << m_currentOutputPath;
     
     // Get final duration
     qint64 finalDuration = m_ffmpegBackend->getRecordingDuration();
-    qDebug() << "Final recording duration:" << finalDuration << "ms (" 
-             << (finalDuration / 1000.0) << "seconds)";
     
     m_isRecording = false;
     m_currentOutputPath.clear();
@@ -202,12 +185,10 @@ void RecordingExample::onRecordingStopped()
 
 void RecordingExample::onRecordingPaused()
 {
-    qDebug() << "Recording paused at" << m_ffmpegBackend->getRecordingDuration() << "ms";
 }
 
 void RecordingExample::onRecordingResumed()
 {
-    qDebug() << "Recording resumed at" << m_ffmpegBackend->getRecordingDuration() << "ms";
 }
 
 void RecordingExample::onRecordingError(const QString& error)
@@ -223,14 +204,12 @@ void RecordingExample::onRecordingDurationChanged(qint64 duration)
     // Update every 5 seconds to avoid spam
     static qint64 lastReported = 0;
     if (duration - lastReported >= 5000) {
-        qDebug() << "Recording duration:" << duration << "ms (" << (duration / 1000.0) << "seconds)";
         lastReported = duration;
     }
 }
 
 void RecordingExample::autoStopRecording()
 {
-    qDebug() << "Auto-stopping recording after specified duration";
     stopRecordingSession();
 }
 

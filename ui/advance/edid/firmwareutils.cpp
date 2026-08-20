@@ -29,10 +29,6 @@ quint16 FirmwareUtils::calculateFirmwareChecksumWithDiff(const QByteArray &origi
     qint32 newChecksumInt = static_cast<qint32>(originalChecksumBE) + edidDifference;
     quint16 newChecksum = static_cast<quint16>(newChecksumInt & 0xFFFF);
 
-    qDebug() << "Original checksum (big-endian): 0x" << QString::number(originalChecksumBE, 16).toUpper().rightJustified(4, '0');
-    qDebug() << "EDID difference:" << edidDifference;
-    qDebug() << "New checksum (16-bit): 0x" << QString::number(newChecksum, 16).toUpper().rightJustified(4, '0');
-
     return newChecksum;
 }
 
@@ -60,10 +56,6 @@ quint16 FirmwareUtils::calculateFirmwareChecksumWithDiff(const QByteArray &origi
 
     qint32 newChecksumInt = static_cast<qint32>(originalChecksum) + firmwareDifference;
     quint16 newChecksum = static_cast<quint16>(newChecksumInt & 0xFFFF);
-
-    qDebug() << "Original checksum (big-endian): 0x" << QString::number(originalChecksum, 16).toUpper().rightJustified(4, '0');
-    qDebug() << "Firmware difference:" << firmwareDifference;
-    qDebug() << "New checksum (16-bit): 0x" << QString::number(newChecksum, 16).toUpper().rightJustified(4, '0');
 
     return newChecksum;
 }
@@ -94,7 +86,6 @@ bool FirmwareUtils::backupFirmware(const QByteArray &firmwareData, const QString
         return false;
     }
 
-    qDebug() << "Backup firmware saved to:" << path;
     return true;
 }
 

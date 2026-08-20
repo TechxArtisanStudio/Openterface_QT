@@ -34,9 +34,10 @@
 #include <QCameraFormat>
 #include <QGraphicsVideoItem>
 #include <QVideoFrameFormat>
+#include "log/opflogging.h"
 
 // Logging category for Qt Multimedia backend
-Q_LOGGING_CATEGORY(log_qtmultimedia_backend, "opf.backend.qtmultimedia")
+OPF_LOGGING_CATEGORY(log_qtmultimedia_backend, "opf.backend.qtmultimedia")
 
 QtMultimediaBackendHandler::QtMultimediaBackendHandler(QObject *parent)
     : MultimediaBackendHandler(parent),

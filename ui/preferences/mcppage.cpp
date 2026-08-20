@@ -32,8 +32,9 @@
 #include <QFrame>
 #include <QLoggingCategory>
 #include <QPushButton>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_mcp_page, "opf.ui.mcp.page")
+OPF_LOGGING_CATEGORY(log_ui_mcp_page, "opf.ui.mcp.page")
 
 // ---- Presets for the SSE bind-address combo ----
 static const char *kBindPresetAny       = "0.0.0.0";

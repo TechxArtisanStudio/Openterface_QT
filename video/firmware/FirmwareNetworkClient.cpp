@@ -19,9 +19,9 @@
 #include <QTimer>
 #include <QStringList>
 #include <QVector>
-#include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_DECLARE_LOGGING_CATEGORY(log_host_hid)
+Q_DECLARE_LOGGING_CATEGORY(log_hid_firmware)
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  check()
@@ -50,7 +50,7 @@ FirmwareResult FirmwareNetworkClient::check(const std::string& currentVersion,
 
     // Compare versions.
     const std::string& latest = m_latestVersion;
-    qCDebug(log_host_hid) << "FirmwareNetworkClient: device version:" << QString::fromStdString(currentVersion)
+    qCDebug(log_hid_firmware) << "FirmwareNetworkClient: device version:" << QString::fromStdString(currentVersion)
                           << "latest version:" << QString::fromStdString(latest);
 
     if (currentVersion == latest) {
@@ -81,24 +81,24 @@ QString FirmwareNetworkClient::fetchFilename(VideoChipType chip,
 
     QNetworkReply* reply = manager.get(request);
     if (!reply) {
-        qCDebug(log_host_hid) << "FirmwareNetworkClient: failed to create network reply for" << indexUrl;
+        qCDebug(log_hid_firmware) << "FirmwareNetworkClient: failed to create network reply for" << indexUrl;
         m_lastResult = FirmwareResult::CheckFailed;
         return {};
     }
 
     m_lastResult = FirmwareResult::Checking;
-    qCDebug(log_host_hid) << "FirmwareNetworkClient: fetching firmware index from" << indexUrl;
+    qCDebug(log_hid_firmware) << "FirmwareNetworkClient: fetching firmware index from" << indexUrl;
 
     QEventLoop loop;
     QTimer timer;
     timer.setSingleShot(true);
 
     QObject::connect(reply, &QNetworkReply::finished, &loop, [&]() {
-        qCDebug(log_host_hid) << "FirmwareNetworkClient: index reply finished";
+        qCDebug(log_hid_firmware) << "FirmwareNetworkClient: index reply finished";
         loop.quit();
     });
     QObject::connect(&timer, &QTimer::timeout, &loop, [&]() {
-        qCDebug(log_host_hid) << "FirmwareNetworkClient: index request timed out";
+        qCDebug(log_hid_firmware) << "FirmwareNetworkClient: index request timed out";
         m_lastResult = FirmwareResult::Timeout;
         reply->abort();
         loop.quit();
@@ -114,7 +114,7 @@ QString FirmwareNetworkClient::fetchFilename(VideoChipType chip,
     }
 
     if (reply->error() != QNetworkReply::NoError) {
-        qCDebug(log_host_hid) << "FirmwareNetworkClient: index fetch failed:" << reply->errorString();
+        qCDebug(log_hid_firmware) << "FirmwareNetworkClient: index fetch failed:" << reply->errorString();
         m_lastResult = FirmwareResult::CheckFailed;
         reply->deleteLater();
         return {};
@@ -125,12 +125,12 @@ QString FirmwareNetworkClient::fetchFilename(VideoChipType chip,
 
     const QString fileName = pickFirmwareFileNameFromIndex(indexContent, chip);
     if (fileName.isEmpty()) {
-        qCWarning(log_host_hid) << "FirmwareNetworkClient: no firmware filename selected for chip" << (int)chip;
+        qCWarning(log_hid_firmware) << "FirmwareNetworkClient: no firmware filename selected for chip" << (int)chip;
         m_lastResult = FirmwareResult::CheckFailed;
         return {};
     }
 
-    qCInfo(log_host_hid) << "FirmwareNetworkClient: selected firmware file for chip"
+    qCInfo(log_hid_firmware) << "FirmwareNetworkClient: selected firmware file for chip"
                          << (int)chip << ":" << fileName;
     m_lastResult = FirmwareResult::CheckSuccess;
     return fileName;
@@ -150,11 +150,11 @@ void FirmwareNetworkClient::fetchBinFile(const QString& url, int timeoutMs)
     timer.setSingleShot(true);
 
     QObject::connect(reply, &QNetworkReply::finished, &loop, [&]() {
-        qCDebug(log_host_hid) << "FirmwareNetworkClient: firmware binary download finished";
+        qCDebug(log_hid_firmware) << "FirmwareNetworkClient: firmware binary download finished";
         loop.quit();
     });
     QObject::connect(&timer, &QTimer::timeout, &loop, [&]() {
-        qCDebug(log_host_hid) << "FirmwareNetworkClient: firmware binary download timed out";
+        qCDebug(log_hid_firmware) << "FirmwareNetworkClient: firmware binary download timed out";
         m_lastResult = FirmwareResult::Timeout;
         reply->abort();
         loop.quit();
@@ -170,7 +170,7 @@ void FirmwareNetworkClient::fetchBinFile(const QString& url, int timeoutMs)
     }
 
     if (reply->error() != QNetworkReply::NoError) {
-        qCDebug(log_host_hid) << "FirmwareNetworkClient: firmware binary fetch failed:" << reply->errorString();
+        qCDebug(log_hid_firmware) << "FirmwareNetworkClient: firmware binary fetch failed:" << reply->errorString();
         m_lastResult = FirmwareResult::CheckFailed;
         reply->deleteLater();
         return;
@@ -180,7 +180,7 @@ void FirmwareNetworkClient::fetchBinFile(const QString& url, int timeoutMs)
     reply->deleteLater();
 
     m_networkFirmware.assign(data.begin(), data.end());
-    qCDebug(log_host_hid) << "FirmwareNetworkClient: downloaded" << data.size() << "bytes";
+    qCDebug(log_hid_firmware) << "FirmwareNetworkClient: downloaded" << data.size() << "bytes";
 
     // Parse version from firmware binary header (bytes 12-15).
     auto byte_at = [&](int i) -> int {
@@ -192,7 +192,7 @@ void FirmwareNetworkClient::fetchBinFile(const QString& url, int timeoutMs)
         .arg(byte_at(14), 2, 10, QChar('0'))
         .arg(byte_at(15), 2, 10, QChar('0'))
         .toStdString();
-    qCDebug(log_host_hid) << "FirmwareNetworkClient: latest version parsed as:"
+    qCDebug(log_hid_firmware) << "FirmwareNetworkClient: latest version parsed as:"
                           << QString::fromStdString(m_latestVersion);
 }
 
@@ -293,7 +293,7 @@ QString FirmwareNetworkClient::pickFirmwareFileNameFromIndex(const QString& inde
     }
 
     if (isUpgradeLike(best.filename) || isUpgradeLike(best.chipToken)) {
-        qCWarning(log_host_hid) << "FirmwareNetworkClient: refusing upgrader/bootloader candidate:"
+        qCWarning(log_hid_firmware) << "FirmwareNetworkClient: refusing upgrader/bootloader candidate:"
                                 << best.filename << "token:" << best.chipToken;
         return {};
     }

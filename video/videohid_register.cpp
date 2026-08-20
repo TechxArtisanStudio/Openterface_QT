@@ -2,9 +2,12 @@
 #include "../global.h"
 #include <QThread>
 #include <QDebug>
-#include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_DECLARE_LOGGING_CATEGORY(log_host_hid)
+Q_DECLARE_LOGGING_CATEGORY(log_hid_detect)
+Q_DECLARE_LOGGING_CATEGORY(log_hid_poll)
+Q_DECLARE_LOGGING_CATEGORY(log_hid_firmware)
+Q_DECLARE_LOGGING_CATEGORY(log_hid_device)
 
 /*
 Get the input resolution from capture card. 
@@ -15,7 +18,7 @@ QPair<int, int> VideoHid::getResolution() {
     quint32 width = info.width;
     quint32 height = info.height;
     
-    qCDebug(log_host_hid) << "getResolution: Read values --> " << width << "x" << height;
+    qCDebug(log_hid_poll) << "getResolution: Read values --> " << width << "x" << height;
     
     return qMakePair(static_cast<int>(width), static_cast<int>(height));
 }
@@ -25,7 +28,7 @@ float VideoHid::getFps() {
     normalizeResolution(info);
     float fps = info.fps;
     
-    qCDebug(log_host_hid) << "getFps: Read FPS:" << fps;
+    qCDebug(log_hid_poll) << "getFps: Read FPS:" << fps;
     
     return fps;
 }
@@ -45,11 +48,11 @@ bool VideoHid::getGpio0() {
 }
 
 float VideoHid::getPixelclk() {
-    qCDebug(log_host_hid) << "getPixelclk: Using registers from chip impl" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
+    qCDebug(log_hid_poll) << "getPixelclk: Using registers from chip impl" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
 
     VideoHidResolutionInfo info = getInputStatus();
     normalizeResolution(info);
-    qCDebug(log_host_hid) << "getPixelclk: Returning Pixel Clock=" << info.pixclk << "MHz (from registers)";
+    qCDebug(log_hid_poll) << "getPixelclk: Returning Pixel Clock=" << info.pixclk << "MHz (from registers)";
     return info.pixclk;
 }
 
@@ -62,7 +65,7 @@ bool VideoHid::getSpdifout() {
     if (m_chipImpl) spdifout_addr = m_chipImpl->addrSpdifout();
 
     if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
-        qCDebug(log_host_hid)  << "Firmware version is less than 24081309";
+        qCDebug(log_hid_firmware)  << "Firmware version is less than 24081309";
         bit = 0x10;
         mask = 0xEF;
     }
@@ -73,14 +76,14 @@ bool VideoHid::getSpdifout() {
 }
 
 void VideoHid::switchToHost() {
-    qCDebug(log_host_hid)  << "Switch to host";
+    qCDebug(log_hid_device)  << "Switch to host";
     setSpdifout(false);
     GlobalVar::instance().setSwitchOnTarget(false);
     // if(eventCallback) eventCallback->onSwitchableUsbToggle(false);
 }
 
 void VideoHid::switchToTarget() {
-    qCDebug(log_host_hid)  << "Switch to target";
+    qCDebug(log_hid_device)  << "Switch to target";
     setSpdifout(true);
     GlobalVar::instance().setSwitchOnTarget(true);
     // if(eventCallback) eventCallback->onSwitchableUsbToggle(true);
@@ -99,7 +102,7 @@ void VideoHid::setSpdifout(bool enable) {
     if (m_chipImpl) spdifout_addr = m_chipImpl->addrSpdifout();
     
     if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
-        qCDebug(log_host_hid)  << "Firmware version is less than 24081309";
+        qCDebug(log_hid_firmware)  << "Firmware version is less than 24081309";
         bit = 0x10;
         mask = 0xEF;
     }
@@ -113,9 +116,9 @@ void VideoHid::setSpdifout(bool enable) {
     QByteArray data(4, 0); // Create a 4-byte array initialized to zero
     data[0] = spdifout;
     if(writeRegisterSafe(spdifout_addr, data, "setSpdifout")){
-        qCDebug(log_host_hid)  << "SPDIFOUT set successfully";
+        qCDebug(log_hid_device)  << "SPDIFOUT set successfully";
     }else{
-        qCDebug(log_host_hid)  << "SPDIFOUT set failed";
+        qCDebug(log_hid_device)  << "SPDIFOUT set failed";
     }
 }
 
@@ -126,7 +129,7 @@ std::string VideoHid::getFirmwareVersion() {
     
     // Only begin transaction if not already in one
     if (!wasInTransaction && !beginTransaction()) {
-        qCDebug(log_host_hid)  << "Failed to begin transaction for getFirmwareVersion";
+        qCDebug(log_hid_firmware)  << "Failed to begin transaction for getFirmwareVersion";
         return "00000000";
     }
     
@@ -144,7 +147,7 @@ std::string VideoHid::getFirmwareVersion() {
         version_3 = usbXdataRead4Byte(ver3_addr).first.toHex().toInt(&ok, 16);
     }
     catch (...) {
-        qCDebug(log_host_hid)  << "Exception occurred during firmware version read";
+        qCDebug(log_hid_firmware)  << "Exception occurred during firmware version read";
     }
     
     // Only end the transaction if we started it
@@ -173,26 +176,26 @@ bool VideoHid::isHdmiConnected() {
     // Use the appropriate register based on chip implementation
     if (m_chipImpl && m_chipImpl->type() == VideoChipType::MS2130S) {
         status_addr = MS2130S_ADDR_HDMI_CONNECTION_STATUS;
-        qCDebug(log_host_hid) << "Using" << m_chipImpl->name() << "HDMI status register:" << QString::number(status_addr, 16);
+        qCDebug(log_hid_poll) << "Using" << m_chipImpl->name() << "HDMI status register:" << QString::number(status_addr, 16);
     } else if (m_chipImpl && m_chipImpl->type() == VideoChipType::MS2109S) {
         // MS2109S uses its own HDMI status register
         status_addr = MS2109S_ADDR_HDMI_CONNECTION_STATUS;
-        qCDebug(log_host_hid) << "Using" << m_chipImpl->name() << "HDMI status register (MS2109S):" << QString::number(status_addr, 16);
+        qCDebug(log_hid_poll) << "Using" << m_chipImpl->name() << "HDMI status register (MS2109S):" << QString::number(status_addr, 16);
     } else {
         // Default to MS2109 register
         status_addr = ADDR_HDMI_CONNECTION_STATUS;
-        qCDebug(log_host_hid) << "Using" << (m_chipImpl ? m_chipImpl->name() : QString("MS2109")) << "HDMI status register:" << QString::number(status_addr, 16);
+        qCDebug(log_hid_poll) << "Using" << (m_chipImpl ? m_chipImpl->name() : QString("MS2109")) << "HDMI status register:" << QString::number(status_addr, 16);
     }
     
     QPair<QByteArray, bool> result = usbXdataRead4Byte(status_addr);
     
     if (!result.second || result.first.isEmpty()) {
-        qCWarning(log_host_hid) << "Failed to read HDMI connection status from address:" << QString::number(status_addr, 16);
+        qCWarning(log_hid_poll) << "Failed to read HDMI connection status from address:" << QString::number(status_addr, 16);
         return false;
     }
     
     bool connected = result.first.at(0) & 0x01;
-    // qCDebug(log_host_hid) << "HDMI connected:" << connected << ", raw value:" << (int)result.first.at(0);
+    // qCDebug(log_hid_poll) << "HDMI connected:" << connected << ", raw value:" << (int)result.first.at(0);
     return connected;
 }
 
@@ -217,17 +220,17 @@ quint8 VideoHid::readRegisterSafe(quint16 addr, quint8 defaultValue, const QStri
     auto result = usbXdataRead4Byte(addr);
     if (!result.second || result.first.isEmpty()) {
         if (!tag.isEmpty()) {
-            qCWarning(log_host_hid) << "HID READ FAILED (tag:" << tag << ") from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+            qCWarning(log_hid_poll) << "HID READ FAILED (tag:" << tag << ") from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
                                    << "result.second:" << result.second << "result.first.size():" << result.first.size();
         } else {
-            qCWarning(log_host_hid) << "HID READ FAILED from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+            qCWarning(log_hid_poll) << "HID READ FAILED from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
                                    << "result.second:" << result.second << "result.first.size():" << result.first.size();
         }
         return defaultValue;
     }
     quint8 value = static_cast<quint8>(result.first.at(0));
     if (!tag.isEmpty()) {
-        // qCDebug(log_host_hid) << "HID READ SUCCESS (tag:" << tag << ") from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+        // qCDebug(log_hid_poll) << "HID READ SUCCESS (tag:" << tag << ") from address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
         //                       << "value:" << QString("0x%1").arg(value, 2, 16, QChar('0')) << "(" << value << ")";
     }
     return value;
@@ -237,15 +240,15 @@ bool VideoHid::writeRegisterSafe(quint16 addr, const QByteArray &data, const QSt
     bool result = usbXdataWrite4Byte(addr, data);
     if (!result) {
         if (!tag.isEmpty()) {
-            qCWarning(log_host_hid) << "HID WRITE FAILED (tag:" << tag << ") to address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+            qCWarning(log_hid_device) << "HID WRITE FAILED (tag:" << tag << ") to address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
                                    << "data:" << data.toHex(' ').toUpper();
         } else {
-            qCWarning(log_host_hid) << "HID WRITE FAILED to address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+            qCWarning(log_hid_device) << "HID WRITE FAILED to address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
                                    << "data:" << data.toHex(' ').toUpper();
         }
     } else {
         if (!tag.isEmpty()) {
-            // qCDebug(log_host_hid) << "HID WRITE SUCCESS (tag:" << tag << ") to address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
+            // qCDebug(log_hid_device) << "HID WRITE SUCCESS (tag:" << tag << ") to address:" << QString("0x%1").arg(addr, 4, 16, QChar('0'))
             //                       << "data:" << data.toHex(' ').toUpper();
         }
     }
@@ -300,7 +303,7 @@ void VideoHid::normalizeResolution(VideoHidResolutionInfo &info) {
 
 // SPDIF toggle handling moved here from timer lambda
 void VideoHid::handleSpdifToggle(bool currentSwitchOnTarget) {
-    qCDebug(log_host_hid)  << "isHardSwitchOnTarget" << isHardSwitchOnTarget << "currentSwitchOnTarget" << currentSwitchOnTarget;
+    qCDebug(log_hid_device)  << "isHardSwitchOnTarget" << isHardSwitchOnTarget << "currentSwitchOnTarget" << currentSwitchOnTarget;
     if (eventCallback) {
         // Dispatch callback to the VideoHid object's thread (likely main thread) to ensure callbacks run on the UI/main thread
         QMetaObject::invokeMethod(this, "dispatchSwitchableUsbToggle", Qt::QueuedConnection,

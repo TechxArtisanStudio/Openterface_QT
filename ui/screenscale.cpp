@@ -87,10 +87,8 @@ void ScreenScale::onOkClicked()
     // Emit signal with selected ratio
     QString selectedRatio = getSelectedRatio();
     // GlobalSetting::instance().setScreenRatio(selectedRatio);
-    qDebug() << "ScreenScale::onOkClicked" << selectedRatio;
     double ratio = converseRatio(selectedRatio);
     emit screenRatio(ratio);
-    qDebug() << "ScreenScale::onOkClicked" << ratio;
     accept(); // Close dialog with QDialog::Accepted status
 }
 

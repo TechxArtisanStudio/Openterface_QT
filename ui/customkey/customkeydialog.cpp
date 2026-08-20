@@ -10,8 +10,9 @@
 #include <QLineEdit>
 #include <QHeaderView>
 #include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_customkey_dialog, "opf.ui.customkeydialog")
+OPF_LOGGING_CATEGORY(log_customkey_dialog, "opf.ui.customkeydialog")
 
 // ─── KeyComboCaptureDialog ────────────────────────────────────────────────────
 

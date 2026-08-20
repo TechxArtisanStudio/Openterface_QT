@@ -29,6 +29,8 @@
 #include <QSize>
 #include <QLoggingCategory>
 #include <QByteArray>
+#include <QMap>
+#include <QPair>
 class GlobalSetting : public QObject
 {
     Q_OBJECT
@@ -37,13 +39,14 @@ public:
 
     static GlobalSetting& instance();
 
-    void setLogSettings(bool core, bool serial, bool ui, bool hostLayout, bool device, bool backend, bool script);
+    // Log category states: category -> {enabled, level}
+    void saveCategoryStates(const QMap<QString, QPair<bool, QString>>& states);
+    QMap<QString, QPair<bool, QString>> loadCategoryStates() const;
+    void loadLogSettings();  // Apply saved category filter rules at startup
 
     void setFilterSettings(bool Chipinfo, bool keyboardPress, bool mideaKeyboard, bool mouseMoveABS, bool mouseMoveREL, bool HID);
 
     void getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool &mideaKeyboard, bool &mouseMoveABS, bool &mouseMoveREL, bool &HID);
-    
-    void loadLogSettings();
 
     void setLogStoreSettings(bool storeLog, QString logFilePath);
 

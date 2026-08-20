@@ -4,7 +4,7 @@
 #include "../videohid.h"
 
 #include <QDebug>
-#include <QLoggingCategory>
+#include "log/opflogging.h"
 #include <QMutexLocker>
 #include <QString>
 #include <QThread>
@@ -18,7 +18,7 @@ extern "C" {
 #include <hidpi.h>
 }
 
-Q_LOGGING_CATEGORY(log_win_transport, "opf.host.win_transport")
+OPF_LOGGING_CATEGORY(log_win_transport, "opf.host.win_transport")
 
 // ─────────────────────────────────────────────────────────────────────────────
 // hidSendFeatureNoTimeout

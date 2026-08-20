@@ -14,8 +14,9 @@
 #include "diagnostics/diagnostics_constants.h"
 #include "diagnostics/SupportEmailDialog.h"
 #include "../../serial/SerialPortManager.h"
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_device_diagnostics, "opf.diagnostics")
+OPF_LOGGING_CATEGORY(log_device_diagnostics, "opf.diagnostics")
 
 TestItem::TestItem(const QString &title, int testIndex, QListWidget *parent)
     : QListWidgetItem(title, parent)

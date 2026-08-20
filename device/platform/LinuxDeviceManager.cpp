@@ -13,7 +13,8 @@
 #include <memory>
 #endif
 
-Q_LOGGING_CATEGORY(log_device_linux, "opf.device.linux")
+#include "log/opflogging.h"
+OPF_LOGGING_CATEGORY(log_device_linux, "opf.device.linux")
 
 LinuxDeviceManager::LinuxDeviceManager(QObject *parent)
     : AbstractPlatformDeviceManager(parent)

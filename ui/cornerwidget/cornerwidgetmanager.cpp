@@ -60,10 +60,6 @@ void CornerWidgetManager::setMenuBar(QMenuBar *menuBar)
         
         menuBar->setCornerWidget(cornerWidget, Qt::TopRightCorner);
         
-        qDebug() << "[CornerWidgetManager] Set corner widget on menu bar";
-        qDebug() << "[CornerWidgetManager] Corner widget size:" << cornerWidget->size();
-        qDebug() << "[CornerWidgetManager] Corner widget sizeHint:" << cornerWidget->sizeHint();
-        qDebug() << "[CornerWidgetManager] Menu bar width:" << menuBar->width();
     }
 }
 
@@ -268,17 +264,11 @@ void CornerWidgetManager::updatePosition(int windowWidth, int menuBarHeight, boo
         cornerWidget->setGeometry(x, y, size.width(), size.height());
         cornerWidget->raise();
         cornerWidget->show();
-        qDebug() << "Floating position: (" << x << "," << y << "), size:" << size
-                 << ", geometry:" << cornerWidget->geometry()
-                 << ", layout sizeHint:" << horizontalLayout->sizeHint();
     } else {
         if (menuBar) {
             menuBar->setCornerWidget(cornerWidget, Qt::TopRightCorner);
             cornerWidget->show();
         }
-        qDebug() << "Menu bar corner widget, size:" << cornerWidget->size()
-                 << ", geometry:" << cornerWidget->geometry()
-                 << ", layout sizeHint:" << horizontalLayout->sizeHint();
     }
 }
 

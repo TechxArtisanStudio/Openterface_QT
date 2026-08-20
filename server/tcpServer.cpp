@@ -16,16 +16,15 @@
 #include "../host/backend/gstreamerbackendhandler.h"
 #endif
 
-Q_LOGGING_CATEGORY(log_server_tcp, "opf.server.tcp")
+#include "log/opflogging.h"
+OPF_LOGGING_CATEGORY(log_server_tcp, "opf.server.tcp")
 
 TcpServer::TcpServer(QObject *parent) : QTcpServer(parent), currentClient(nullptr), m_cameraManager(nullptr), actionStatus(Finish) {}
 
 void TcpServer::startServer(quint16 port) {
     if (this->listen(QHostAddress::Any, port)) {
-        qDebug() << "Server started on port:" << port;
         connect(this, &QTcpServer::newConnection, this, &TcpServer::onNewConnection);
     } else {
-        qDebug() << "Server could not start!";
     }
 }
 

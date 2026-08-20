@@ -3,8 +3,9 @@
 
 #include <QDebug>
 #include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_gstreamer_pipelinebuilder, "opf.backend.gstreamer.pipelinebuilder")
+OPF_LOGGING_CATEGORY(log_gstreamer_pipelinebuilder, "opf.backend.gstreamer.pipelinebuilder")
 
 using namespace Openterface::GStreamer;
 
