@@ -2,6 +2,27 @@ name: Windows Code Signing Only
 
 on:
   workflow_dispatch:
+    inputs:
+      sign_amd64_installer:
+        description: 'Sign AMD64 installer'
+        required: false
+        type: boolean
+        default: true
+      sign_amd64_portable:
+        description: 'Sign AMD64 portable'
+        required: false
+        type: boolean
+        default: true
+      sign_arm64_installer:
+        description: 'Sign ARM64 installer'
+        required: false
+        type: boolean
+        default: true
+      sign_arm64_portable:
+        description: 'Sign ARM64 portable'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   sign-windows:
@@ -13,6 +34,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download Windows installer artifact
+        if: ${{ inputs.sign_amd64_installer }}
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: windows-build.yaml
@@ -54,6 +76,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Download Windows ARM64 installer artifact
         id: windows-arm64-installer
+        if: ${{ inputs.sign_arm64_installer }}
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: windows-arm64-build.yaml
@@ -78,7 +101,7 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: Openterface_QT
           signing-policy-slug: release-signing
-          artifact-configuration-slug: Openterface_Connect_win_installer_zip
+          artifact-configuration-slug: Openterface_Connect_win_arm64_installer
           github-artifact-id: ${{ steps.upload-arm64-installer.outputs.artifact-id }}
           wait-for-completion: true
           output-artifact-directory: artifacts/windows/arm64/signed
@@ -95,6 +118,7 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Download Windows ARM64 portable artifact
         id: windows-arm64-portable
+        if: ${{ inputs.sign_arm64_portable }}
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: windows-arm64-build.yaml
@@ -119,7 +143,7 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: Openterface_QT
           signing-policy-slug: release-signing
-          artifact-configuration-slug: Openterface_Connect_window_portable
+          artifact-configuration-slug: Openterface_Connect_win_arm64_portable
           github-artifact-id: ${{ steps.upload-arm64-portable.outputs.artifact-id }}
           wait-for-completion: true
           output-artifact-directory: artifacts/windows/arm64/portable/signed
