@@ -29,7 +29,7 @@ jobs:
       - name: Wait for required workflows
         run: |
           # Fixed list of workflows to wait for
-          WORKFLOWS=("windows-build.yaml" "windows-portable-build.yaml" "linux-build.yaml" "linux-portable-build.yaml" "arm64shared-lib-build.yml")
+          WORKFLOWS=("windows-build.yaml" "windows-portable-build.yaml" "windows-arm64-build.yaml" "linux-build.yaml" "linux-portable-build.yaml" "arm64shared-lib-build.yml")
           
           echo "Workflows to wait for:"
           for workflow in "${WORKFLOWS[@]}"; do
@@ -138,6 +138,90 @@ jobs:
           name: openterfaceQT.windows.amd.portable.exe
           path: artifacts/windows/signed/openterfaceQT-portable.exe
           retention-days: 30
+
+      # -----------------------------------------------------------------------
+      # Windows ARM64 INSTALLER signing
+      # -----------------------------------------------------------------------
+      - name: Download Windows ARM64 installer artifact
+        id: windows-arm64-installer
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-arm64-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT_windows_arm64_installer
+          path: artifacts/windows/arm64
+
+      - name: Upload Windows ARM64 installer artifact
+        id: upload-arm64-installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.arm64.installer.unsigned
+          path: artifacts/windows/arm64
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Submit ARM64 installer signing request
+        id: sign-arm64-installer
+        uses: signpath/github-action-submit-signing-request@v1.2
+        with:
+          api-token: ${{ secrets.CI_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: Openterface_QT
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: Openterface_Connect_win_installer_zip
+          github-artifact-id: ${{ steps.upload-arm64-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: artifacts/windows/arm64/signed
+
+      - name: Upload signed Windows ARM64 installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.arm64.installer
+          path: artifacts/windows/arm64/signed/openterfaceQT.windows.arm64.installer.exe
+          retention-days: 30
+
+      # -----------------------------------------------------------------------
+      # Windows ARM64 PORTABLE signing
+      # -----------------------------------------------------------------------
+      - name: Download Windows ARM64 portable artifact
+        id: windows-arm64-portable
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-arm64-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT_windows_arm64_portable
+          path: artifacts/windows/arm64/portable
+
+      - name: Upload Windows ARM64 portable artifact
+        id: upload-arm64-portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.arm64.portable.unsigned.exe
+          path: artifacts/windows/arm64/portable
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Submit ARM64 portable signing request
+        id: sign-arm64-portable
+        uses: signpath/github-action-submit-signing-request@v1.2
+        with:
+          api-token: ${{ secrets.CI_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: Openterface_QT
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: Openterface_Connect_window_portable
+          github-artifact-id: ${{ steps.upload-arm64-portable.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: artifacts/windows/arm64/portable/signed
+
+      - name: Upload signed Windows ARM64 portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceQT.windows.arm64.portable.exe
+          path: artifacts/windows/arm64/portable/signed/openterfaceQT.exe
+          retention-days: 30
       
       - name: List all downloaded artifacts
         run: |
@@ -235,6 +319,20 @@ jobs:
           name: openterfaceQT.windows.amd.portable.exe
           path: artifacts/windows/signed
 
+      - name: Download signed Windows ARM64 installer artifact
+        if: ${{ !inputs.skip_windows_signing }}
+        uses: actions/download-artifact@v4
+        with:
+          name: openterfaceQT.windows.arm64.installer
+          path: artifacts/windows/signed
+
+      - name: Download signed Windows ARM64 portable artifact
+        if: ${{ !inputs.skip_windows_signing }}
+        uses: actions/download-artifact@v4
+        with:
+          name: openterfaceQT.windows.arm64.portable.exe
+          path: artifacts/windows/signed
+
       - name: Download unsigned Windows installer artifact
         if: ${{ inputs.skip_windows_signing }}
         uses: dawidd6/action-download-artifact@v2
@@ -244,13 +342,31 @@ jobs:
           name: openterfaceQT.windows.amd64.installer
           path: artifacts/windows/unsigned
 
-      - name: Download unsigned Windows portable artifact  
+      - name: Download unsigned Windows portable artifact
         if: ${{ inputs.skip_windows_signing }}
         uses: dawidd6/action-download-artifact@v2
         with:
           workflow: windows-portable-build.yaml
           workflow_conclusion: success
           name: openterfaceQT.windows.amd64.portable.exe
+          path: artifacts/windows/unsigned
+
+      - name: Download unsigned Windows ARM64 installer artifact
+        if: ${{ inputs.skip_windows_signing }}
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-arm64-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT_windows_arm64_installer
+          path: artifacts/windows/unsigned
+
+      - name: Download unsigned Windows ARM64 portable artifact
+        if: ${{ inputs.skip_windows_signing }}
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: windows-arm64-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT_windows_arm64_portable
           path: artifacts/windows/unsigned
         
       - name: Create source archives
