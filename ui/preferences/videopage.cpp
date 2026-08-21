@@ -359,12 +359,15 @@ void VideoPage::setupUI()
         // Add default resolution options for FFmpeg backend
         if (videoFormatBox->count() == 0) {
             // Add common resolutions as defaults when no camera formats available
-            std::set<int> defaultFps = {30, 60, 120};
+            // Include the lower rates the capture chip offers (MS2109/MS2130
+            // expose 10/20/30/50/60 per resolution): on CPU-constrained hosts
+            // a lower framerate is the cheapest way to cut decode/display load.
+            std::set<int> defaultFps = {10, 20, 30, 60, 120};
             QVariant fpsVariant = QVariant::fromValue<std::set<int>>(defaultFps);
 
-            videoFormatBox->addItem("1920x1080 [30 - 60 Hz]", fpsVariant);
-            videoFormatBox->addItem("1280x720 [30 - 60 Hz]", fpsVariant);
-            videoFormatBox->addItem("640x480 [30 - 60 Hz]", fpsVariant);
+            videoFormatBox->addItem("1920x1080 [10 - 60 Hz]", fpsVariant);
+            videoFormatBox->addItem("1280x720 [10 - 60 Hz]", fpsVariant);
+            videoFormatBox->addItem("640x480 [10 - 60 Hz]", fpsVariant);
 
             // Set default resolution
             m_currentResolution = QSize(1920, 1080);
