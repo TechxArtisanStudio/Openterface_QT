@@ -77,6 +77,11 @@ public:
 
 private:
     bool InitializeInputStream(const QString& device_path, const QSize& resolution, int framerate);
+    // Linux/V4L2: open the device non-blocking and wait (bounded) for its first
+    // frame before the real, blocking open. A capture chip that delivers no
+    // frames would otherwise park the caller (the GUI thread on a device
+    // switch) in an uninterruptible VIDIOC_DQBUF forever.
+    bool ProbeDeviceDeliversFrames(const QString& device_path, const QSize& resolution, int framerate);
     bool FindVideoStream();
     bool SetupDecoder(FFmpegHardwareAccelerator* hw_accelerator);
     void WarmUpHardwareDecoder();
@@ -89,6 +94,7 @@ private:
     volatile bool interrupt_requested_;
     qint64 operation_start_time_;
     static constexpr qint64 kOperationTimeoutMs = 5000;
+    static constexpr qint64 kProbeTimeoutMs = 10000;   // first-frame wait in ProbeDeviceDeliversFrames
 };
 
 #endif // FFMPEG_DEVICE_MANAGER_H
