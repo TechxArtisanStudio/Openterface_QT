@@ -1,0 +1,93 @@
+# Maintainer: TechxArtisan <info@techxartisan.com>
+pkgname=openterfaceqt
+pkgver=0.5.28.230
+pkgrel=1
+pkgdesc="Openterface Mini-KVM — control a target computer remotely via USB (Qt6 frontend)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/TechxArtisanStudio/Openterface_QT"
+license=('AGPL-3.0-only')
+depends=(
+    # Qt6
+    'qt6-base'
+    'qt6-declarative'
+    'qt6-multimedia'
+    'qt6-svg'
+    'qt6-serialport'
+    'qt6-wayland'
+    # Multimedia
+    'ffmpeg'
+    'gstreamer'
+    'gst-plugins-base'
+    'gst-plugins-good'
+    # System libs
+    'libpulse'
+    'libxkbcommon'
+    'libusb'
+    'v4l-utils'       # provides libv4l
+    'libjpeg-turbo'
+    'zlib'
+    # Graphics stack
+    'libglvnd'
+    'wayland'
+    'libxcb'
+    'libx11'
+)
+optdepends=(
+    'libva: VA-API hardware-accelerated video decode'
+    'libvdpau: VDPAU hardware-accelerated video decode'
+)
+makedepends=(
+    'cmake'
+    'git'
+    'qt6-tools'
+    'extra-cmake-modules'
+)
+source=(
+    "${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz"
+    "openterfaceqt-udev.rules"
+)
+sha256sums=(
+    'SKIP'
+    'SKIP'
+)
+install="${pkgname}.install"
+
+build() {
+    cmake -B build -S "${pkgname}-${pkgver}" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DOPENTERFACE_BUILD_STATIC=OFF \
+        -DBUILD_SHARED_LIBS=ON
+    cmake --build build
+}
+
+package() {
+    # CMake handles: binary, desktop entry
+    DESTDIR="${pkgdir}" cmake --install build
+
+    # Icons (CMake expects them at paths that don't exist in this repo, so install manually)
+    for size in 256 128 64 32; do
+        if [ -f "${pkgname}-${pkgver}/images/icon_${size}.png" ]; then
+            install -Dm644 "${pkgname}-${pkgver}/images/icon_${size}.png" \
+                "${pkgdir}/usr/share/icons/hicolor/${size}x${size}/apps/com.openterface.openterfaceQT.png"
+        fi
+    done
+    if [ -f "${pkgname}-${pkgver}/images/icon_256.svg" ]; then
+        install -Dm644 "${pkgname}-${pkgver}/images/icon_256.svg" \
+            "${pkgdir}/usr/share/icons/hicolor/scalable/apps/com.openterface.openterfaceQT.svg"
+    fi
+
+    # Metainfo (AppStream) — not in CMake install rules
+    install -Dm644 "${pkgname}-${pkgver}/packaging/com.openterface.openterfaceQT.metainfo.xml" \
+        "${pkgdir}/usr/share/metainfo/com.openterface.openterfaceQT.metainfo.xml"
+
+    # udev rules for USB device access
+    install -Dm644 "openterfaceqt-udev.rules" \
+        "${pkgdir}/usr/lib/udev/rules.d/99-openterfaceqt.rules"
+
+    # Translations (compiled .qm files, not installed by CMake)
+    if [ -d "build/translations" ]; then
+        install -dm755 "${pkgdir}/usr/share/openterfaceQT/translations"
+        cp -a build/translations/*.qm "${pkgdir}/usr/share/openterfaceQT/translations/" 2>/dev/null || true
+    fi
+}
