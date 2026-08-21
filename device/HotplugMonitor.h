@@ -10,7 +10,7 @@
 #include <functional>
 #include "DeviceInfo.h"
 
-class DeviceManager;
+class IDeviceDiscovery;
 
 struct DeviceChangeEvent {
     QDateTime timestamp;
@@ -25,6 +25,8 @@ struct DeviceChangeEvent {
     }
 };
 
+Q_DECLARE_METATYPE(DeviceChangeEvent)
+
 class HotplugMonitor : public QObject
 {
     Q_OBJECT
@@ -32,7 +34,7 @@ class HotplugMonitor : public QObject
 public:
     using ChangeCallback = std::function<void(const DeviceChangeEvent&)>;
     
-    explicit HotplugMonitor(DeviceManager* deviceManager, QObject *parent = nullptr);
+    explicit HotplugMonitor(IDeviceDiscovery* deviceDiscovery, QObject *parent = nullptr);
     ~HotplugMonitor();
     
     void addCallback(ChangeCallback callback);
@@ -78,7 +80,7 @@ private:
     DeviceChangeEvent createChangeEvent(const QList<DeviceInfo>& current, 
                                       const QList<DeviceInfo>& previous);
     
-    DeviceManager* m_deviceManager;
+    IDeviceDiscovery* m_deviceDiscovery;
     QTimer* m_timer;
     QList<ChangeCallback> m_callbacks;
     QList<DeviceInfo> m_lastSnapshot;

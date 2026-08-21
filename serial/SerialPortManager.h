@@ -55,6 +55,15 @@ class SerialStateManager;
 class SerialStatistics;
 class SerialHotplugHandler;
 
+// Serial port state machine to prevent race conditions during hotplug
+enum class SerialPortState : uint8_t {
+    CLOSED = 0,           // No port instance or port closed
+    OPENING,              // Open in progress
+    OPEN,                 // Port open and ready
+    CLOSING,              // Close in progress (deleteLater pending)
+    ERROR_STATE           // Error occurred, reject new opens until cleared
+};
+
 // Chip type enumeration (kept for backward compatibility)
 // New code should use ChipTypeId from ChipStrategyFactory.h
 enum class ChipType : uint32_t {
@@ -351,6 +360,9 @@ private:
 
     // Indicates a baud-rate change is in progress; used to suppress transient errors
     std::atomic<bool> m_baudChangeInProgress{false};
+
+    // Serial port state machine to prevent race conditions
+    std::atomic<SerialPortState> m_portState{SerialPortState::CLOSED};
 
     // Flag set to true when device is detected as unplugged, preventing port operations until cleared
     // This prevents race conditions where open attempts occur while device is being removed

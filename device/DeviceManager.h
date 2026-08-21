@@ -8,6 +8,7 @@
 #include <QSet>
 #include <QLoggingCategory>
 #include "DeviceInfo.h"
+#include "IDeviceDiscovery.h"
 #include "HotplugMonitor.h"
 #include "HotplugDebounceManager.h"
 #include "../video/videohid.h"
@@ -19,7 +20,7 @@ class AudioManager;
 
 Q_DECLARE_LOGGING_CATEGORY(log_device_manager)
 
-class DeviceManager : public QObject
+class DeviceManager : public QObject, public IDeviceDiscovery
 {
     Q_OBJECT
     

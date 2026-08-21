@@ -1400,7 +1400,18 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         qCDebug(log_core_serial_conn) << "Cannot open port during shutdown";
         return false;
     }
-    
+
+    // CRITICAL FIX: Check state machine to prevent opens during close/error states
+    SerialPortState currentState = m_portState.load();
+    if (currentState == SerialPortState::CLOSING) {
+        qCWarning(log_core_serial_conn) << "Rejecting openPort - port is in CLOSING state (deleteLater pending)";
+        return false;
+    }
+    if (currentState == SerialPortState::ERROR_STATE) {
+        qCWarning(log_core_serial_conn) << "Rejecting openPort - port is in ERROR_STATE (device unplugged or error occurred)";
+        return false;
+    }
+
     // Check if device was just unplugged - if so, reject the open attempt to prevent "Access denied" errors
     // This is critical to avoid race conditions between device removal and port open operations
     if (m_deviceUnplugCleanupInProgress.load()) {
@@ -1417,24 +1428,41 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
             qCWarning(log_core_serial_hotplug) << "Transient unplug-cleanup flag set but port is present -> clearing flag and continuing open:" << portName;
             m_deviceUnplugCleanupInProgress.store(false);
             m_deviceUnpluggedDetected.store(false);
+            // Also clear error state if port is available again
+            SerialPortState expectedError = SerialPortState::ERROR_STATE;
+            m_portState.compare_exchange_strong(expectedError, SerialPortState::CLOSED);
         } else {
             qCWarning(log_core_serial_hotplug) << "Device unplugged cleanup in progress, rejecting open attempt for port:" << portName;
             qCWarning(log_core_serial_hotplug) << "This prevents race conditions that cause 'Access denied' errors during hotplug events";
             return false;
         }
     }
-    
+
+    // Transition to OPENING state
+    SerialPortState expected = SerialPortState::CLOSED;
+    if (!m_portState.compare_exchange_strong(expected, SerialPortState::OPENING)) {
+        // Check if already open
+        if (expected == SerialPortState::OPEN) {
+            qCDebug(log_core_serial_conn) << "Serial port is already opened.";
+            return true;
+        }
+        qCWarning(log_core_serial_conn) << "Cannot open port - invalid state transition from" << static_cast<int>(expected);
+        return false;
+    }
+
     QMutexLocker locker(&m_serialPortMutex);
-    
+
     // If there is an existing QSerialPort instance that is not open, delete it to avoid stale internal state (e.g., stale file descriptor / notifiers)
+    // FIX: Use deleteLater instead of direct delete to match closePortInternal's deletion strategy
     if (serialPort != nullptr && !serialPort->isOpen()) {
         qCDebug(log_core_serial_conn) << "Existing closed QSerialPort instance found - marking for deletion to ensure fresh instance before open.";
-        delete serialPort;
+        serialPort->deleteLater();
         serialPort = nullptr;  // Clear pointer temporarily
     }
 
     if (serialPort != nullptr && serialPort->isOpen()) {
         qCDebug(log_core_serial_conn) << "Serial port is already opened.";
+        m_portState.store(SerialPortState::OPEN);
         return true;
     }
 
@@ -1476,10 +1504,13 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         // Log buffer sizes after clearing to confirm the clear worked
         qCDebug(log_core_serial_conn) << "Serial buffer sizes after clear - bytesAvailable:" << serialPort->bytesAvailable()
                                  << "bytesToWrite:" << serialPort->bytesToWrite();
-        
-        
+
+
         // Reset error counters on successful connection
         resetErrorCounters();
+
+        // CRITICAL: Transition to OPEN state after successful open
+        m_portState.store(SerialPortState::OPEN);
 
         emit statusUpdate("");
         emit connectedPortChanged(portName, baudRate);
@@ -1490,6 +1521,9 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
                           .arg(serialPort->errorString())
                           .arg(static_cast<int>(lastError));
         qCWarning(log_core_serial_conn) << errorMsg;
+
+        // CRITICAL: Roll back to CLOSED state on failure
+        m_portState.store(SerialPortState::CLOSED);
 
         emit statusUpdate(errorMsg);
         return false;
@@ -1543,29 +1577,33 @@ void SerialPortManager::closePort() {
 
 void SerialPortManager::closePortInternal() {
     qCDebug(log_core_serial_conn) << "Close serial port";
-    
+
+    // CRITICAL: Transition to CLOSING state immediately to block new open attempts
+    SerialPortState previousState = m_portState.exchange(SerialPortState::CLOSING);
+    qCDebug(log_core_serial_conn) << "Port state transition:" << static_cast<int>(previousState) << "-> CLOSING";
+
     QMutexLocker locker(&m_serialPortMutex);
-    
+
     if (serialPort != nullptr) {
         qCDebug(log_core_serial_conn) << "Closing serial port instance:" << static_cast<void*>(serialPort);
-        
+
         if (serialPort->isOpen()) {
             // Disconnect all signals BEFORE any operations
             disconnect(serialPort, nullptr, this, nullptr);
-            
+
             qCDebug(log_core_serial_conn) << "Close serial port - current buffer sizes before close - bytesAvailable:" << serialPort->bytesAvailable()
                                      << "bytesToWrite:" << serialPort->bytesToWrite();
-            
+
             // Enhanced close procedure for better memory safety
             try {
                 // Flush any pending writes before closing
                 if (serialPort->bytesToWrite() > 0) {
                     serialPort->waitForBytesWritten(100); // Wait max 100ms
                 }
-                
+
                 // Clear the read buffer to prevent stale data issues
                 serialPort->clear();
-                
+
                 // Close synchronously in worker thread
                 serialPort->close();
                 qCDebug(log_core_serial_conn) << "Serial port closed";
@@ -1576,11 +1614,11 @@ void SerialPortManager::closePortInternal() {
                 qCWarning(log_core_serial_conn) << "Exception during serial port close";
             }
         }
-        
+
         // Enhanced deletion with additional safety measures
         // Store pointer but DO NOT clear serialPort immediately to avoid race conditions
         QObject* portPtr = serialPort;
-        
+
         // Schedule deletion for next event loop to avoid immediate socket notifier issues
         // Use QTimer::singleShot for more reliable deferred deletion
         QTimer::singleShot(0, this, [this, portPtr]() {
@@ -1593,12 +1631,17 @@ void SerialPortManager::closePortInternal() {
                     serialPort = nullptr;
                     qCDebug(log_core_serial_conn) << "SerialPort instance pointer cleared";
                 }
+                // CRITICAL: Transition to CLOSED state after deletion is scheduled
+                m_portState.store(SerialPortState::CLOSED);
+                qCDebug(log_core_serial_conn) << "Port state transition: CLOSING -> CLOSED";
             }
         });
     } else {
         qCDebug(log_core_serial_conn) << "Serial port is not opened (serialPort is nullptr).";
+        // Transition to CLOSED state even if no port instance
+        m_portState.store(SerialPortState::CLOSED);
     }
-    
+
     // Signal back to worker thread to complete the rest of the cleanup
     QMetaObject::invokeMethod(this, [this]() {
         completePortCloseCleanup();
@@ -2908,9 +2951,9 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
         qCWarning(log_core_serial_conn) << "Serial error occurred but serialPort instance is null! Error code:" << static_cast<int>(error);
         return;
     }
-    
+
     QString errorString = serialPort->errorString();
-    
+
     // If we're performing a controlled baud-rate change, suppress transient errors
     if (m_baudChangeInProgress.load()) {
         qCDebug(log_core_serial_config) << "Transient serial error during baud change suppressed:" << errorString << "Error code:" << static_cast<int>(error);
@@ -2933,34 +2976,42 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
     m_lastErrorLogTime.restart();
 
     qCWarning(log_core_serial_conn) << "Serial port error occurred:" << errorString << "Error code:" << static_cast<int>(error);
-    
-    // Check for device disconnection errors - if we detect the device is physically unplugged,
-    // stop the timers to prevent continuous failed command attempts
-    if (error == QSerialPort::UnknownError || 
-        errorString.contains("设备不识别此命令") || 
-        errorString.contains("拒绝访问") ||
-        errorString.contains("Access is denied")) {
-        
-        qCInfo(log_core_serial_conn) << "Device disconnection error detected, stopping periodic timers";
-        
+
+    // CRITICAL FIX: Check for device disconnection errors and transition to ERROR_STATE
+    // This prevents new connection attempts while the device is being removed
+    if (error == QSerialPort::ResourceError ||       // Error code 9 - device disconnected
+        error == QSerialPort::UnknownError ||
+        errorString.contains("设备不识别此命令") ||   // Chinese: "Device does not recognize this command"
+        errorString.contains("拒绝访问") ||          // Chinese: "Access is denied"
+        errorString.contains("Access is denied")) {  // English: "Access is denied"
+
+        qCInfo(log_core_serial_conn) << "Device disconnection error detected, transitioning to ERROR_STATE";
+
+        // CRITICAL: Transition to ERROR_STATE to block new open attempts
+        SerialPortState previousState = m_portState.exchange(SerialPortState::ERROR_STATE);
+        qCWarning(log_core_serial_conn) << "Port state transition:" << static_cast<int>(previousState) << "-> ERROR_STATE";
+
+        // Set the unplugged detection flag
+        m_deviceUnpluggedDetected.store(true);
+
         // Stop USB status check timer to prevent continuous CMD_CHECK_USB_STATUS commands
         if (m_usbStatusCheckTimer && m_usbStatusCheckTimer->isActive()) {
             m_usbStatusCheckTimer->stop();
             qCDebug(log_core_serial_config) << "USB status check timer stopped due to device error";
         }
-        
+
         // Stop GET_INFO timer to prevent continuous CMD_GET_INFO commands
         if (m_getInfoTimer && m_getInfoTimer->isActive()) {
             m_getInfoTimer->stop();
             qCDebug(log_core_serial_config) << "GET_INFO timer stopped due to device error";
         }
     }
-    
+
     // Record error in statistics module
     if (m_statistics) {
         m_statistics->recordConsecutiveError();
     }
-    
+
     // Report error to ConnectionWatchdog (Phase 3)
     if (m_watchdog) {
         m_watchdog->recordError();

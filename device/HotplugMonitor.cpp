@@ -1,5 +1,5 @@
 #include "HotplugMonitor.h"
-#include "DeviceManager.h"
+#include "IDeviceDiscovery.h"
 #include <QLoggingCategory>
 #include <QMutexLocker>
 #include <QtConcurrent>
@@ -7,17 +7,17 @@
 
 OPF_LOGGING_CATEGORY(log_hotplug_monitor, "opf.device.hotplug")
 
-HotplugMonitor::HotplugMonitor(DeviceManager* deviceManager, QObject *parent)
+HotplugMonitor::HotplugMonitor(IDeviceDiscovery* deviceDiscovery, QObject *parent)
     : QObject(parent)
-    , m_deviceManager(deviceManager)
+    , m_deviceDiscovery(deviceDiscovery)
     , m_timer(new QTimer(this))
     , m_running(false)
     , m_pollInterval(2000)
     , m_changeEventCount(0)
     , m_checkWatcher(new QFutureWatcher<void>(this))
 {
-    if (!m_deviceManager) {
-        qCWarning(log_hotplug_monitor) << "Invalid device manager provided";
+    if (!m_deviceDiscovery) {
+        qCWarning(log_hotplug_monitor) << "Invalid device discovery provider provided";
         return;
     }
 
@@ -65,19 +65,19 @@ void HotplugMonitor::start(int pollIntervalMs)
         return;
     }
     
-    if (!m_deviceManager) {
-        qCWarning(log_hotplug_monitor) << "Cannot start - no device manager";
+    if (!m_deviceDiscovery) {
+        qCWarning(log_hotplug_monitor) << "Cannot start - no device discovery provider";
         return;
     }
-    
+
     qCDebug(log_hotplug_monitor) << "Starting hotplug monitor with interval:" << pollIntervalMs << "ms";
     m_pollInterval = pollIntervalMs;
     m_timer->setInterval(m_pollInterval);
-    
+
     // Take initial snapshot
     {
         QMutexLocker locker(&m_mutex);
-        m_lastSnapshot = m_deviceManager->discoverDevices();
+        m_lastSnapshot = m_deviceDiscovery->discoverDevices();
         m_initialSnapshot = m_lastSnapshot;
     }
     
@@ -134,13 +134,13 @@ QList<DeviceInfo> HotplugMonitor::getLastSnapshot() const
 
 void HotplugMonitor::checkForChanges()
 {
-    if (!m_deviceManager) {
-        qCWarning(log_hotplug_monitor) << "No device manager available for change check";
+    if (!m_deviceDiscovery) {
+        qCWarning(log_hotplug_monitor) << "No device discovery provider available for change check";
         return;
     }
-    
+
     qCDebug(log_hotplug_monitor) << "Checking for device changes...";
-    QList<DeviceInfo> currentDevices = m_deviceManager->discoverDevices();
+    QList<DeviceInfo> currentDevices = m_deviceDiscovery->discoverDevices();
     
     // Get previous snapshot with mutex protection
     QList<DeviceInfo> previousSnapshot;
