@@ -1408,8 +1408,26 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         return false;
     }
     if (currentState == SerialPortState::ERROR_STATE) {
-        qCWarning(log_core_serial_conn) << "Rejecting openPort - port is in ERROR_STATE (device unplugged or error occurred)";
-        return false;
+        // Before rejecting, check if the device is actually available again.
+        // This handles the case where a transient error put us in ERROR_STATE
+        // but the device has since recovered (e.g., USB glitch resolved).
+        bool portPresent = false;
+        for (const QSerialPortInfo &pi : QSerialPortInfo::availablePorts()) {
+            if (pi.portName() == portName || portName.contains(pi.portName())) {
+                portPresent = true;
+                break;
+            }
+        }
+        if (portPresent) {
+            // Device is available - clear error state and allow reconnection
+            qCInfo(log_core_serial_conn) << "Port is in ERROR_STATE but device is available at" << portName << "- clearing error state and allowing reconnection";
+            m_portState.store(SerialPortState::CLOSED);
+            m_deviceUnpluggedDetected.store(false);
+            m_deviceUnplugCleanupInProgress.store(false);
+        } else {
+            qCWarning(log_core_serial_conn) << "Rejecting openPort - port is in ERROR_STATE and device is not available:" << portName;
+            return false;
+        }
     }
 
     // Check if device was just unplugged - if so, reject the open attempt to prevent "Access denied" errors
@@ -2979,8 +2997,9 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
 
     // CRITICAL FIX: Check for device disconnection errors and transition to ERROR_STATE
     // This prevents new connection attempts while the device is being removed
-    if (error == QSerialPort::ResourceError ||       // Error code 9 - device disconnected
-        error == QSerialPort::UnknownError ||
+    // NOTE: Only transition to ERROR_STATE for actual disconnection errors, NOT transient UnknownError
+    // which can fire for benign reasons like buffer overflows or timing issues.
+    if (error == QSerialPort::ResourceError ||       // Error code 9 - device physically disconnected
         errorString.contains("设备不识别此命令") ||   // Chinese: "Device does not recognize this command"
         errorString.contains("拒绝访问") ||          // Chinese: "Access is denied"
         errorString.contains("Access is denied")) {  // English: "Access is denied"
@@ -3005,6 +3024,9 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
             m_getInfoTimer->stop();
             qCDebug(log_core_serial_config) << "GET_INFO timer stopped due to device error";
         }
+    } else {
+        // Transient errors (UnknownError etc.) should not block future operations
+        qCDebug(log_core_serial_conn) << "Transient serial error logged but state machine not changed:" << errorString;
     }
 
     // Record error in statistics module
