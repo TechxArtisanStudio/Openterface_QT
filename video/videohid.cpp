@@ -738,6 +738,13 @@ bool VideoHid::switchToHIDDeviceByPortChain(const QString& portChain)
         if (wasInTransaction) {
             qCDebug(log_hid_device) << "Closing current HID device before switch";
             endTransaction();
+        } else if (m_deviceTransport && m_deviceTransport->isOpen()) {
+            // The transport auto-opens on read/write and stays open outside of
+            // transactions. An fd on the OLD path must not survive the switch:
+            // isOpen() would short-circuit every later open() and all traffic
+            // (polling, EEPROM reads) would keep going to the previous unit.
+            qCDebug(log_hid_device) << "Closing stale HID transport (opened outside a transaction) before switch";
+            m_deviceTransport->close();
         }
 
         // Update current device tracking
