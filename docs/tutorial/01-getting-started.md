@@ -49,10 +49,13 @@ sudo apt-get install -f   # fix missing deps if needed
 
 **Windows (Installer or Portable):**
 
+- **x64 (Intel / AMD):**
+  - Installer (.exe): Download `openterfaceQT_windows_amd64_installer.exe` from the Releases page, run it, and follow the prompts. The installer bundles any required drivers and creates Start Menu entries.
+  - Portable (exe): Download `openterfaceQT_windows_amd64_portable.exe` from the Releases Assets. Run the portable executable directly or extract it and run the contained `openterfaceQT.exe`. Portable builds do not modify the system and can be run from USB drives.
 
-- Installer (.exe): Download `openterfaceQT_windows_amd64_installer.exe` from the Releases page, run it, and follow the prompts. The installer bundles any required drivers and creates Start Menu entries.
-
-- Portable (exe): Download `openterfaceQT_windows_amd64_portable.exe` from the Releases Assets. Run the portable executable directly or extract it and run the contained `openterfaceQT.exe`. Portable builds do not modify the system and can be run from USB drives.
+- **ARM64 (Windows 11 on ARM — Snapdragon, Surface Pro X, etc.):**
+  - Pre-built ARM64 binaries (installer + portable `.exe`) are produced by the [Windows ARM64 Build](https://github.com/TechxArtisanStudio/Openterface_QT/actions/workflows/windows-arm64-build.yaml) CI workflow. Open a recent run on the Actions tab and download the `openterfaceQT_windows_arm64_portable` or `openterfaceQT_windows_arm64_installer` artifact.
+  - To build locally instead, see [BUILD.md — Using MSYS2 (Windows ARM64)](../BUILD.md#using-msys2-windows-arm64).
 
 Notes:
 - Portable builds may require the Microsoft Visual C++ Redistributable; if the app fails to start, install the redistributable from Microsoft's website.
