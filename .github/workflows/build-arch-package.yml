@@ -85,7 +85,7 @@ jobs:
           tar czf "${BUILD_DIR}/openterfaceqt-${{ steps.version.outputs.version }}.tar.gz" \
             --transform "s,^\.,openterfaceqt-${{ steps.version.outputs.version }}," \
             --exclude='.git' \
-            --exclude='build*' \
+            --exclude='./build' \
             --exclude='*.pkg.tar.*' \
             --exclude='pkgroot' \
             --exclude='rpmbuild*' \
