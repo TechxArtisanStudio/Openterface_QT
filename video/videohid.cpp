@@ -351,6 +351,7 @@ void VideoHid::handleScheduledConnect()
 void VideoHid::clearDevicePathCache() {
     qCDebug(log_hid_device) << "Clearing HID device path cache";
     m_cachedDevicePath.clear();
+    m_cachedPortChain.clear();
     m_lastPathQuery = std::chrono::steady_clock::now() - std::chrono::seconds(11); // Force refresh on next call
 }
 
@@ -619,7 +620,11 @@ QString VideoHid::findMatchingHIDDevice(const QString& portChain) const
     auto now = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_lastPathQuery).count();
     
-    if (!m_cachedDevicePath.isEmpty() && elapsed < 10) {
+    // The cache is only valid for the port chain it was resolved for: with
+    // several units attached a switch asked for a DIFFERENT chain within the
+    // cache window and got the previous unit's hidraw (headless --device bound
+    // to the wrong unit; rapid GUI switches likewise).
+    if (!m_cachedDevicePath.isEmpty() && m_cachedPortChain == portChain && elapsed < 10) {
         qCDebug(log_hid_device) << "Using cached HID device path:" << m_cachedDevicePath;
         return m_cachedDevicePath;
     }
@@ -675,6 +680,7 @@ QString VideoHid::findMatchingHIDDevice(const QString& portChain) const
             
             // Cache the found device path
             const_cast<VideoHid*>(this)->m_cachedDevicePath = selectedDevice.hidDevicePath;
+            const_cast<VideoHid*>(this)->m_cachedPortChain = portChain;
             
             return selectedDevice.hidDevicePath;
         }
@@ -748,6 +754,7 @@ bool VideoHid::switchToHIDDeviceByPortChain(const QString& portChain)
         clearDevicePathCache();
         
         m_cachedDevicePath = targetHIDPath;
+        m_cachedPortChain = portChain;
 
         // Re-open HID device with new path if it was previously open
         bool switchSuccess = true;
