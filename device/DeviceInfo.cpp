@@ -1,4 +1,5 @@
 #include "DeviceInfo.h"
+#include <QStringList>
 
 DeviceInfo::DeviceInfo(const QString& portChain)
     : portChain(portChain)
@@ -94,4 +95,40 @@ bool DeviceInfo::operator==(const DeviceInfo& other) const
 bool DeviceInfo::operator!=(const DeviceInfo& other) const
 {
     return !(*this == other);
+}
+
+QString DeviceInfo::displayPortChain(const QString &portChain)
+{
+    QString filtered;
+    for (QChar c : portChain) {
+        if (c.isDigit() && c != QChar('0')) {
+            filtered.append(c);
+        }
+    }
+    QStringList parts;
+    for (QChar c : filtered) {
+        parts << QString(c);
+    }
+    return parts.join('-');
+}
+
+QList<DeviceInfo> selectableDevices(const QList<DeviceInfo> &devices)
+{
+    QSet<QString> companionPortChains;
+    for (const DeviceInfo &d : devices) {
+        if (!d.companionPortChain.isEmpty()) {
+            companionPortChains.insert(d.companionPortChain);
+        }
+    }
+    QMap<QString, DeviceInfo> byPortChain;   // QMap: stable, sorted by port chain
+    for (const DeviceInfo &d : devices) {
+        if (d.portChain.isEmpty() || companionPortChains.contains(d.portChain)) {
+            continue;
+        }
+        auto it = byPortChain.find(d.portChain);
+        if (it == byPortChain.end() || d.getInterfaceCount() > it->getInterfaceCount()) {
+            byPortChain[d.portChain] = d;
+        }
+    }
+    return byPortChain.values();
 }

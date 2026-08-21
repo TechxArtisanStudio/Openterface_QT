@@ -35,6 +35,7 @@ class McpSseTransport;
 class CameraManager;
 class ScriptRunner;
 class ScriptExecutor;
+class DeviceCoordinator;
 class ASTNode;
 
 class McpServer : public QObject {
@@ -62,6 +63,8 @@ public:
 
     /** Set the ScriptExecutor (used for script execution tools). */
     void setScriptExecutor(ScriptExecutor* scriptExecutor);
+    /** GUI mode: let device_select use the Control -> Device path. */
+    void setDeviceCoordinator(DeviceCoordinator* coordinator);
 
     /** Inject a pre-built tool handler (optional — creates one internally if null). */
     void setToolHandler(McpToolHandler* handler);
@@ -136,6 +139,7 @@ private:
     CameraManager*  m_pendingCameraManager = nullptr;
     ScriptRunner*   m_pendingScriptRunner = nullptr;
     ScriptExecutor* m_pendingScriptExecutor = nullptr;
+    DeviceCoordinator* m_pendingDeviceCoordinator = nullptr;
 
     void applyPendingDependencies();
 

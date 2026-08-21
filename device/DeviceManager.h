@@ -42,6 +42,8 @@ public:
     
     // Device discovery
     QList<DeviceInfo> discoverDevices();
+    // discoverDevices() deduplicated to one entry per unit (see selectableDevices()).
+    QList<DeviceInfo> listSelectableDevices();
     void discoverDevicesAsync(); // Non-blocking async discovery
     QList<DeviceInfo> getDevicesByPortChain(const QString& portChain);
     QStringList getAvailablePortChains();
