@@ -17,6 +17,14 @@ Q_LOGGING_CATEGORY(log_edid_manager, "opf.edid.manager")
 
 namespace edid {
 
+std::atomic<bool> EdidSettingsManager::s_busy{false};
+
+void EdidSettingsManager::setState(State s)
+{
+    m_state = s;
+    s_busy.store(s != State::Idle);
+}
+
 EdidSettingsManager::EdidSettingsManager(QObject *parent)
     : QObject(parent)
     , m_fom(new FirmwareOperationManager(&VideoHid::getInstance(), ADDR_EEPROM, this))
@@ -90,11 +98,11 @@ bool EdidSettingsManager::startRead()
 
 void EdidSettingsManager::readIdentity()
 {
-    if (isBusy()) {
+    if (isBusy() || anyBusy()) {
         emit identityRead(false, EdidIdentity(), tr("An EDID operation is already in progress."));
         return;
     }
-    m_state = State::Reading;
+    setState(State::Reading);
     if (!startRead()) {
         finishRead(false, EdidIdentity(), tr("Failed to read firmware size from the device."));
     }
@@ -103,7 +111,7 @@ void EdidSettingsManager::readIdentity()
 void EdidSettingsManager::applySettings(const QString &newName, const QString &newSerial,
                                         const ResolutionModel *resolutions)
 {
-    if (isBusy()) {
+    if (isBusy() || anyBusy()) {
         emit settingsApplied(false, false, EdidIdentity(), EdidIdentity(),
                              tr("An EDID operation is already in progress."));
         return;
@@ -130,7 +138,7 @@ void EdidSettingsManager::applySettings(const QString &newName, const QString &n
     m_modifiedImage.clear();
     m_backupPath.clear();
 
-    m_state = State::ReadingForApply;
+    setState(State::ReadingForApply);
     if (!startRead()) {
         finishApply(false, false, tr("Failed to read firmware size from the device."));
     }
@@ -142,7 +150,7 @@ void EdidSettingsManager::cancel()
         return;
     }
     const State was = m_state;
-    m_state = State::Idle;
+    setState(State::Idle);
     m_fom->cancel();
     restartPolling();
     if (was == State::Reading) {
@@ -197,7 +205,7 @@ void EdidSettingsManager::onReadCompleted(bool success, const QByteArray &image,
             return;
         }
 
-        m_state = State::Writing;
+        setState(State::Writing);
         qCInfo(log_edid_manager) << "Writing EDID settings: name=" << m_newName << "serial=" << m_newSerial
                                  << "image bytes=" << m_modifiedImage.size();
         m_fom->writeFirmware(m_modifiedImage, tempPath(QStringLiteral("temp_firmware_update.bin")));
@@ -236,21 +244,21 @@ void EdidSettingsManager::onWriteCompleted(bool success)
         return;
     }
     // Read back and compare; "write returned success" is not evidence.
-    m_state = State::Verifying;
+    setState(State::Verifying);
     m_fom->readFirmware(static_cast<quint32>(m_modifiedImage.size()),
                         tempPath(QStringLiteral("temp_firmware_verify.bin")));
 }
 
 void EdidSettingsManager::finishRead(bool ok, const EdidIdentity &id, const QString &error)
 {
-    m_state = State::Idle;
+    setState(State::Idle);
     restartPolling();
     emit identityRead(ok, id, error);
 }
 
 void EdidSettingsManager::finishApply(bool ok, bool verified, const QString &error)
 {
-    m_state = State::Idle;
+    setState(State::Idle);
     restartPolling();
     EdidIdentity after = m_modifiedImage.isEmpty() ? EdidIdentity() : EdidIdentity::fromImage(m_modifiedImage);
     emit settingsApplied(ok, verified, m_before, after, error);

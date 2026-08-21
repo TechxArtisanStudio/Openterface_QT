@@ -26,6 +26,7 @@
 #include <QObject>
 #include <QByteArray>
 #include <QString>
+#include <atomic>
 
 #include "edididentity.h"
 
@@ -54,6 +55,11 @@ public:
     static bool validateField(const QString &text, const QString &fieldName, QString &errorMessage);
 
     bool isBusy() const { return m_state != State::Idle; }
+
+    // True while ANY manager in this process has an operation in flight.
+    // Two concurrent operations would stop/start HID polling underneath each
+    // other, so a second one is refused ("already in progress") instead.
+    static bool anyBusy() { return s_busy.load(); }
 
     // Path of the pre-write image saved by the last applySettings() call
     // (empty if none). This is the restore point.
@@ -92,6 +98,9 @@ private:
     void restartPolling();
     QString tempPath(const QString &name) const;
 
+    void setState(State s);
+
+    static std::atomic<bool> s_busy;
     FirmwareOperationManager *m_fom = nullptr;
     State m_state = State::Idle;
 

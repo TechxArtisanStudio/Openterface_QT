@@ -39,6 +39,7 @@
 #include "video/firmwareoperationmanager.h"
 #include "ui/advance/wchflash/WCHFlashWorker.h"
 #include "ui/advance/edid/edidsettingsmanager.h"
+#include "ui/advance/edid/edididentitycache.h"
 
 #include <QBuffer>
 #include <QFileInfo>
@@ -1042,6 +1043,9 @@ QJsonObject McpToolHandler::toolSystemStatus(const QJsonObject& args)
     serial["chip_type"] = chipName;
     status["serial"] = serial;
 
+    // --- Unit identity (cached EDID display name; no HID traffic here) ---
+    status["edid_name"] = edid::EdidIdentityCache::instance().currentDisplayName();
+
     // --- Camera ---
     QJsonObject camera;
     if (m_cameraManager) {
@@ -1339,6 +1343,9 @@ QJsonObject McpToolHandler::toolEdidSet(const QJsonObject& args)
         return errorResult(QString("EDID write completed but NOT VERIFIED: %1 Before: %2. Read-back: %3.%4")
             .arg(error, before.summary(), after.summary(), backupNote));
     }
+    // Let the menu / window title follow the rename without a restart.
+    edid::EdidIdentityCache::instance().refreshCurrent();
+
     return textResult(QString("EDID updated and verified by read-back. Before: %1. After: %2.%3 "
                               "REQUIRED next step: power-cycle the KVM (host USB power off, then on) -- "
                               "the video chip only presents the new EDID after a restart.")

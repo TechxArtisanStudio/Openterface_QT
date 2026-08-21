@@ -52,4 +52,21 @@ QString EdidIdentity::summary() const
         .arg(firmwareSize);
 }
 
+QString decorateLabel(const QString &label, const QString &name)
+{
+    if (name.isEmpty()) {
+        return label;
+    }
+    return QStringLiteral("%1 - %2").arg(name, label);
+}
+
+QString windowTitle(const QString &version, const QString &name)
+{
+    QString title = QStringLiteral("Openterface - %1").arg(version);
+    if (!name.isEmpty()) {
+        title += QStringLiteral(" - %1").arg(name);
+    }
+    return title;
+}
+
 } // namespace edid

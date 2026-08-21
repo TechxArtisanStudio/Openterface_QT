@@ -7,6 +7,8 @@
 #include "../../serial/SerialPortManager.h"
 #include "../../host/cameramanager.h"
 #include "../../video/videohid.h"
+#include "edid/edididentity.h"
+#include "edid/edididentitycache.h"
 #include "../globalsetting.h"
 #include <QLoggingCategory>
 #include <QHeaderView>
@@ -266,7 +268,11 @@ QString DeviceSelectorDialog::formatDeviceListItem(const DeviceInfo& device)
 QString DeviceSelectorDialog::formatCompleteDeviceListItem(const DeviceInfo& device)
 {
     QStringList parts;
-    
+    // EDID display name first when the unit has been identified
+    const QString edidName = edid::EdidIdentityCache::instance().displayName(device.portChain);
+    if (!edidName.isEmpty()) {
+        parts << edidName << "-";
+    }
     // Make port chain more prominent at the start with cleaner format
     parts << QString(tr("Port %1")).arg(device.portChain);
     parts << tr("- Openterface Mini KVM");

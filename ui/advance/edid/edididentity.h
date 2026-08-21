@@ -51,6 +51,10 @@ struct EdidIdentity
     QString summary() const;
 };
 
+// Pure label helpers shared by every consumer (device menu, selector, title).
+QString decorateLabel(const QString &label, const QString &name);       // "NAME - label", or label if no name
+QString windowTitle(const QString &version, const QString &name);       // "Openterface - v[ - NAME]"
+
 } // namespace edid
 
 Q_DECLARE_METATYPE(edid::EdidIdentity)
