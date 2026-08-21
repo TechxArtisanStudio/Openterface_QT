@@ -107,6 +107,14 @@ void McpServer::setScriptExecutor(ScriptExecutor* scriptExecutor)
     }
 }
 
+void McpServer::setDeviceCoordinator(DeviceCoordinator* coordinator)
+{
+    m_pendingDeviceCoordinator = coordinator;
+    if (m_toolHandler) {
+        m_toolHandler->setDeviceCoordinator(coordinator);
+    }
+}
+
 void McpServer::setToolHandler(McpToolHandler* handler)
 {
     if (m_ownsToolHandler && m_toolHandler) {
@@ -123,6 +131,7 @@ void McpServer::applyPendingDependencies()
     if (m_pendingCameraManager) m_toolHandler->setCameraManager(m_pendingCameraManager);
     if (m_pendingScriptRunner)  m_toolHandler->setScriptRunner(m_pendingScriptRunner);
     if (m_pendingScriptExecutor) m_toolHandler->setScriptExecutor(m_pendingScriptExecutor);
+    if (m_pendingDeviceCoordinator) m_toolHandler->setDeviceCoordinator(m_pendingDeviceCoordinator);
 }
 
 McpToolHandler* McpServer::toolHandler() const
