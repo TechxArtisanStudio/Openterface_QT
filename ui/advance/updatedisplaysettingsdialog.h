@@ -47,7 +47,7 @@
 
 // Forward declarations
 class VideoHid;
-class FirmwareOperationManager;
+namespace edid { class EdidSettingsManager; }
 class MainWindow;
 
 class UpdateDisplaySettingsDialog : public QDialog
@@ -118,9 +118,8 @@ private:
     QVBoxLayout *serialNumberLayout;
     QHBoxLayout *buttonLayout;
     
-    // Firmware operation manager
-    class FirmwareOperationManager *firmwareOperationManager;
-    QString m_tempFirmwarePath;
+    // EDID read/apply orchestration (shared with the preferences page and MCP)
+    edid::EdidSettingsManager *m_edidManager;
     bool m_operationFinished;  // Flag to avoid cancel handling after success/quit
     bool m_updateMode;        // Indicates read is part of update flow
 
@@ -149,7 +148,7 @@ private:
     
     // Helper methods
     void setupUI();
-    void ensureFirmwareOperationManager();
+    void ensureEdidManager();
     QGroupBox* buildSettingsSection(QCheckBox *&checkBox, QLineEdit *&lineEdit, QVBoxLayout *&sectionLayout,
                                     const QString &title, const QString &checkboxText, const QString &placeholderText);
     void buildProgressSection();
@@ -161,7 +160,6 @@ private:
     bool validateAsciiInput(const QString &text, int maxLen, const QString &fieldName, QString &errorMessage) const;
     bool collectUpdateChanges(QString &newName, QString &newSerial, QStringList &changesSummary) const;
     void shutdownFirmwareOperation(bool closeDialog = false);
-    bool processAndWriteFirmware();
 
     bool processFirmwareData(const QByteArray &firmwareData);
     void processFirmwareReadResult(bool success);
