@@ -47,7 +47,9 @@ sudo udevadm trigger
 
 Add your user to the required groups:
 ```bash
-sudo usermod -a -G dialout,video $USER
+sudo usermod -a -G dialout,video $USER   # Debian/Ubuntu/Fedora
+# On Arch Linux, use 'uucp' instead of 'dialout':
+sudo usermod -a -G uucp,video $USER
 sudo usermod -a -G plugdev $USER  # optional, for some distros
 ```
 
@@ -62,6 +64,7 @@ The `brltty` (Braille terminal) service commonly claims the CH9329/CH32V208 seri
 # Option 1: Remove brltty entirely (if you don't need Braille support)
 sudo apt remove brltty       # Debian/Ubuntu
 sudo dnf remove brltty       # Fedora
+sudo pacman -R brltty        # Arch Linux
 
 # Option 2: Blacklist the device from brltty (preferred)
 # Add a udev rule to prevent brltty from claiming the chip:
@@ -97,6 +100,7 @@ The project supports multiple Linux package formats:
 |--------|----------|-------|
 | `.deb` | Debian/Ubuntu | Direct installation via `dpkg -i` |
 | `.rpm` | Fedora/RHEL/openSUSE | Direct installation via `rpm -i` or `dnf install` |
+| `.pkg.tar.zst` | Arch Linux | Native package via `pacman -U`, uses system libraries |
 | AppImage | Portable, no install | Self-contained, runs anywhere |
 | Flatpak | Sandboxed | See [Flatpak section](#flatpak) below |
 | Nix Flake | Reproducible builds | See [NixOS section](#nixos--nix-flake) |

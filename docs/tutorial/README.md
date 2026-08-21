@@ -42,6 +42,7 @@ The Openterface Mini-KVM hardware device has:
 ## Quick Links to Existing Docs
 
 - [Build from Source](../BUILD.md) — Detailed compilation instructions
+- [Arch Linux Installation](../archlinux_installation.md) — Native pacman package guide
 - [Features List](../feature.md) — Complete feature checklist
 - [Preferences Pages](../preferences_pages_documentation.md) — Settings reference
 - [TCP Protocol](../tcp_protocol.md) — Remote control protocol spec

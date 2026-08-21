@@ -193,6 +193,40 @@ sudo zypper install -y \
     libvdpau1
 ```
 
+### Arch Linux
+
+```bash
+# All runtime dependencies (automatically installed by pacman)
+sudo pacman -S \
+    qt6-base \
+    qt6-declarative \
+    qt6-multimedia \
+    qt6-svg \
+    qt6-serialport \
+    qt6-wayland \
+    ffmpeg \
+    gstreamer \
+    gst-plugins-base \
+    gst-plugins-good \
+    libpulse \
+    libxkbcommon \
+    libusb \
+    v4l-utils \
+    libjpeg-turbo \
+    zlib \
+    libglvnd \
+    wayland \
+    libxcb \
+    libx11
+
+# Optional: Hardware acceleration
+sudo pacman -S \
+    libva \
+    libvdpau
+```
+
+> **Note:** The Arch Linux `.pkg.tar.zst` package declares all dependencies in its PKGBUILD, so `pacman -U` installs them automatically. No manual dependency installation needed.
+
 ## Checking Dependencies
 
 The pre-installation script (`preinst`) automatically checks for required dependencies before installation. You can also manually verify:
