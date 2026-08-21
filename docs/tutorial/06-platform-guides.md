@@ -127,6 +127,10 @@ flatpak run --device=all com.openterface.openterfaceQT
 
 ## Windows Deep Dive
 
+### Supported Architectures
+
+Openterface QT ships pre-built Windows binaries for **x64** (Intel / AMD, Windows 10+) on the [Releases page](https://github.com/TechxArtisanStudio/Openterface_QT/releases), and for **ARM64** (Windows 11 on ARM — Snapdragon, Surface Pro X, etc.) as CI artifacts from the [Windows ARM64 Build](https://github.com/TechxArtisanStudio/Openterface_QT/actions/workflows/windows-arm64-build.yaml) workflow. Both architectures produce an installer and a portable `.exe`. The ARM64 build is fully static (Qt + FFmpeg + app linked into a single `openterfaceQT.exe`) so it has no runtime DLL dependencies.
+
 ### Driver Installation
 
 **CH340 Serial Driver:**

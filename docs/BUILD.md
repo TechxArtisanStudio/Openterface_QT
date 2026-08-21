@@ -39,7 +39,9 @@ This guide provides detailed instructions for building Openterface QT from sourc
 
 ### Using MSYS2 (Windows ARM64)
 
-The project includes CI workflows that build a fully static ARM64 executable using MSYS2's **CLANGARM64** environment.
+> **Most users on Windows 11 ARM do not need to build from source.** Pre-built ARM64 binaries (installer + portable `.exe`) are produced by the [Windows ARM64 Build](https://github.com/TechxArtisanStudio/Openterface_QT/actions/workflows/windows-arm64-build.yaml) workflow on every successful run — open a recent run on the Actions tab and download the `openterfaceQT_windows_arm64_portable` or `openterfaceQT_windows_arm64_installer` artifact from the summary.
+
+The sections below are for developers who want to modify the code or build locally. The project includes CI workflows that build a fully static ARM64 executable using MSYS2's **CLANGARM64** environment.
 
 **Prerequisites:**
 
