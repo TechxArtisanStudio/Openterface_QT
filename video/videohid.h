@@ -199,6 +199,7 @@ private:
 
     // Cache for the discovered HID device path (cleared by clearDevicePathCache).
     QString m_cachedDevicePath;
+    QString m_cachedPortChain;     // port chain m_cachedDevicePath was resolved for
 
     // Polling thread used to poll device status periodically.
     class PollingThread; // forward-declared in videohid.cpp

@@ -108,6 +108,16 @@ bool LinuxHIDTransport::getDirect(uint8_t* buf, size_t len)
 
 QString LinuxHIDTransport::getHIDDevicePath()
 {
+    // Use the device VideoHid is bound to. It decides the path once, at
+    // start() / switchToHIDDeviceByPortChain(); re-deriving it here from the
+    // global "current port chain" on every open is wrong with several units
+    // attached: that setting is rewritten by the serial/composite switch steps
+    // and, when it names no HID device, the name-based fallback below returns
+    // the FIRST capture chip -- so polling and EEPROM reads silently drifted
+    // to other units after a switch.
+    if (m_owner && !m_owner->getCurrentHIDDevicePath().isEmpty()) {
+        return m_owner->getCurrentHIDDevicePath();
+    }
     if (m_owner) {
         QString portChain = GlobalSetting::instance().getOpenterfacePortChain();
         QString hidPath = m_owner->findMatchingHIDDevice(portChain);
