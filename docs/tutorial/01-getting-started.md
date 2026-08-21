@@ -27,7 +27,7 @@ Preferred installation method: download the suitable package for your OS/archite
 
 https://github.com/TechxArtisanStudio/Openterface_QT/releases
 
-Choose the appropriate asset (AppImage, .deb, .rpm, .tar.gz, or Windows `.exe`) and follow the platform steps below.
+Choose the appropriate asset (AppImage, .deb, .rpm, .pkg.tar.zst, .tar.gz, or Windows `.exe`) and follow the platform steps below.
 
 **Linux (AppImage / .deb / .tar.gz):**
 
@@ -83,6 +83,7 @@ make -j$(nproc)
 | Nix | Use the `flake.nix` in the repository root |
 | Debian/Ubuntu | Download `.deb` from releases, `sudo dpkg -i openterfaceQT.deb` |
 | Fedora/RHEL | Download `.rpm` from releases, `sudo dnf install ./openterfaceQT.rpm` |
+| Arch Linux | Download `.pkg.tar.zst` from releases, `sudo pacman -U openterfaceqt-*.pkg.tar.zst` |
 
 ---
 

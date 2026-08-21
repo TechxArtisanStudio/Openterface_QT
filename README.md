@@ -80,7 +80,7 @@ openterfaceQT
 | **Fedora** | 42+ | x64, ARM64 | ✅ Supported |
 | **Linux Mint** | 21.3+ | x64 | ✅ Supported |
 | **openSUSE** | Tumbleweed | x64 | ✅ Supported |
-| **Arch Linux** | Rolling | x64, ARM64 | ⚠️ Build from source only |
+| **Arch Linux** | Rolling | x64, ARM64 | ✅ Supported |
 | 🔋 **Raspberry Pi OS** | 64-bit | ARM64 | ✅ Supported |
 | 🔋 **Raspberry Pi OS** | 32-bit | ARM32 | ❌ Not supported (Qt too old) |
 
@@ -227,6 +227,19 @@ openterfaceQT
 ```
 
 > **Note:** You may need to log out and log back in for group permissions to take effect.
+
+#### Option 4: Arch Linux Package (pacman)
+
+For Arch Linux users, a native `.pkg.tar.zst` package is available from [GitHub Releases](https://github.com/TechxArtisanStudio/Openterface_QT/releases) or built by the [Arch Linux CI workflow](https://github.com/TechxArtisanStudio/Openterface_QT/actions/workflows/build-arch-package.yml):
+
+```bash
+# Download the package from GitHub Releases, then install:
+sudo pacman -U openterfaceqt-*.pkg.tar.zst
+```
+
+This automatically installs all runtime dependencies (Qt6, FFmpeg, GStreamer, etc.) from the Arch repos and configures udev rules for USB device access.
+
+For detailed instructions, see [Arch Linux Installation](docs/archlinux_installation.md).
 
 > 💡 **Permission issues?** See the [Linux Permission Access Guide](https://github.com/TechxArtisanStudio/Openterface_QT/wiki/Linux-permission-access) on our Wiki for detailed troubleshooting of device permissions.
 

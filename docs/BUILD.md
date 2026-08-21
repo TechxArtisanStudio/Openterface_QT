@@ -304,6 +304,58 @@ sudo zypper install -y \
 
 </details>
 
+<details>
+<summary><strong>🏗️ Arch Linux (click to expand)</strong></summary>
+
+**Option A: Install the pre-built package (recommended)**
+
+```bash
+# Download from GitHub Releases, then:
+sudo pacman -U openterfaceqt-*.pkg.tar.zst
+```
+
+This installs the binary, udev rules, icons, desktop entry, and all runtime dependencies automatically.
+
+**Option B: Build from source**
+
+```bash
+# Install build dependencies
+sudo pacman -Syu \
+    base-devel \
+    cmake \
+    git \
+    qt6-base \
+    qt6-declarative \
+    qt6-multimedia \
+    qt6-svg \
+    qt6-serialport \
+    qt6-wayland \
+    qt6-tools \
+    extra-cmake-modules \
+    ffmpeg \
+    gstreamer \
+    gst-plugins-base \
+    gst-plugins-good \
+    libpulse \
+    libxkbcommon \
+    libusb \
+    v4l-utils \
+    libjpeg-turbo \
+    zlib \
+    libglvnd \
+    wayland \
+    libxcb \
+    libx11
+```
+
+> **Tip:** You can also use the PKGBUILD from `packaging/archlinux/` to build a proper Arch package:
+> ```bash
+> cd packaging/archlinux
+> makepkg -si
+> ```
+
+</details>
+
 #### Step 2: Configure User Permissions
 
 ```bash
@@ -379,6 +431,25 @@ cmake .. \
 ```
 
 > **Note:** On Fedora, FFmpeg headers are at `/usr/include/ffmpeg/` and libraries at `/usr/lib64/`. Use `-DFFMPEG_PREFIX=/usr` (not `/usr/lib64`) to correctly locate both.
+
+**For Arch Linux (x86_64/ARM64):**
+```bash
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_PREFIX_PATH=/usr \
+    -DOPENTERFACE_BUILD_STATIC=OFF \
+    -DBUILD_SHARED_LIBS=ON \
+    -DUSE_SHARED_FFMPEG=ON \
+    -DGSTREAMER_PREFIX=/usr \
+    -DENABLE_QT_DEPLOY=OFF
+```
+
+> **Note:** Arch Linux uses system libraries (not bundled). The key flags:
+> - `-DCMAKE_PREFIX_PATH=/usr` — find Qt6 in system paths
+> - `-DUSE_SHARED_FFMPEG=ON` — use system FFmpeg instead of bundled
+> - `-DENABLE_QT_DEPLOY=OFF` — prevent bundling Qt6 libraries (keeps package small)
+> - `-DGSTREAMER_PREFIX=/usr` — use system GStreamer
 
 **For ARM64 (Raspberry Pi, etc.):**
 ```bash
