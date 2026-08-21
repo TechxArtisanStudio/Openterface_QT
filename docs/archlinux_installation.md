@@ -21,7 +21,7 @@ Download the latest `.pkg.tar.zst` from [GitHub Releases](https://github.com/Tec
 
 ```bash
 # Download the package (replace URL with the latest release)
-wget https://github.com/TechxArtisanStudio/Openterface_QT/releases/download/v0.5.28/openterfaceqt-0.5.28.230-1-x86_64.pkg.tar.zst
+wget https://github.com/TechxArtisanStudio/Openterface_QT/releases/download/v0.5.29/openterfaceqt-0.5.29.232-1-x86_64.pkg.tar.zst
 
 # Install — pacman auto-resolves all dependencies
 sudo pacman -U openterfaceqt-*.pkg.tar.zst
