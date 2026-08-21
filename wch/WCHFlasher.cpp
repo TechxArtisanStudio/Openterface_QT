@@ -36,10 +36,10 @@ void WCHFlasher::identify()
     if (resp.payload.size() < 2)
         throw WCHFlashError("Identify failed: response too short");
 
-    uint8_t chipID     = resp.payload[0];
-    uint8_t deviceType = resp.payload[1];
+    m_rawChipID     = resp.payload[0];
+    m_rawDeviceType = resp.payload[1];
 
-    m_chip = WCHChipDB::findChip(chipID, deviceType);
+    m_chip = WCHChipDB::findChip(m_rawChipID, m_rawDeviceType);
 }
 
 // ---------------------------------------------------------------------------
@@ -96,6 +96,12 @@ std::string WCHFlasher::getChipInfo() const
             oss << ", EEPROM: " << m_chip.eepromSize << " B";
     }
     oss << ")\n";
+    // Raw device-reported IDs for diagnostics
+    oss << "Device ID: chipID=0x"
+        << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
+        << static_cast<unsigned>(m_rawChipID)
+        << " deviceType=0x"
+        << std::setw(2) << static_cast<unsigned>(m_rawDeviceType) << "\n";
     oss << "UID: " << chipUID() << "\n";
     oss << "BTVER: " << bootloaderVersion();
     if (m_chip.supportsCodeFlashProtect)
@@ -169,6 +175,7 @@ void WCHFlasher::unprotect()
 {
     if (!m_codeFlashProtected) return;
 
+    // Step 1: Read current config
     reportProgress(nullptr, 0, "Reading config for unprotect...");
 
     auto packet = WCHPacketBuilder::readConfig(WCHConstants::CfgMaskRDPRUserDataWPR);
@@ -190,12 +197,51 @@ void WCHFlasher::unprotect()
     config[10] = 0xFF;
     config[11] = 0xFF;
 
+    // Step 2: Write the unprotect config
     auto wpacket = WCHPacketBuilder::writeConfig(WCHConstants::CfgMaskRDPRUserDataWPR,
                                                   config);
     auto wraw = doTransfer(wpacket, "writeConfig(unprotect)");
     WCHResponse wresp;
     if (!WCHResponse::parse(wraw, wresp) || !wresp.ok)
         throw WCHFlashError("Unprotect writeConfig failed");
+
+    // Step 3: Wait for the chip to apply the config change
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    // Step 4: Read back and verify RDPR == 0xA5 (unprotected)
+    auto vpacket = WCHPacketBuilder::readConfig(WCHConstants::CfgMaskRDPRUserDataWPR);
+    auto vraw = doTransfer(vpacket, "readConfig(verify unprotect)");
+    WCHResponse vresp;
+    if (!WCHResponse::parse(vraw, vresp) || !vresp.ok)
+        throw WCHFlashError("Unprotect verify readConfig failed");
+    if (vresp.payload.size() < 4)
+        throw WCHFlashError("Unprotect verify: response too short");
+
+    uint8_t rdpr = vresp.payload[2];
+    if (rdpr != 0xA5) {
+        // Retry once — some chips need a second attempt
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+        auto wraw2 = doTransfer(wpacket, "writeConfig(unprotect-retry)");
+        WCHResponse wresp2;
+        if (!WCHResponse::parse(wraw2, wresp2) || !wresp2.ok)
+            throw WCHFlashError("Unprotect retry writeConfig failed");
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        auto vraw2 = doTransfer(vpacket, "readConfig(verify-retry)");
+        WCHResponse vresp2;
+        if (!WCHResponse::parse(vraw2, vresp2) || !vresp2.ok)
+            throw WCHFlashError("Unprotect retry verify failed");
+        if (vresp2.payload.size() < 4 || vresp2.payload[2] != 0xA5) {
+            throw WCHFlashError(
+                "Unprotect failed: RDPR still 0x" +
+                ([&]{ std::ostringstream o; o << std::hex << std::uppercase
+                    << std::setw(2) << std::setfill('0')
+                    << static_cast<unsigned>(vresp2.payload[2]); return o.str(); })() +
+                " after retry. The chip may require a power cycle.");
+        }
+    }
 
     m_codeFlashProtected = false;
 }
@@ -371,6 +417,24 @@ void WCHFlasher::protect()
     if (!WCHResponse::parse(wraw, wresp) || !wresp.ok)
         throw WCHFlashError("Protect writeConfig failed");
 
+    // Verify: read back and confirm RDPR != 0xA5 (protected)
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    auto vpacket = WCHPacketBuilder::readConfig(WCHConstants::CfgMaskRDPRUserDataWPR);
+    auto vraw = doTransfer(vpacket, "readConfig(verify protect)");
+    WCHResponse vresp;
+    if (!WCHResponse::parse(vraw, vresp) || !vresp.ok)
+        throw WCHFlashError("Protect verify readConfig failed");
+    if (vresp.payload.size() < 4)
+        throw WCHFlashError("Protect verify: response too short");
+
+    uint8_t rdpr = vresp.payload[2];
+    if (rdpr == 0xA5) {
+        throw WCHFlashError(
+            "Protect failed: RDPR still 0xA5 (unprotected). "
+            "Firmware was flashed but flash protection could not be enabled.");
+    }
+
     m_codeFlashProtected = true;
 }
 
@@ -403,8 +467,11 @@ void WCHFlasher::flash(const std::vector<uint8_t>& firmware,
     // Stage 0: unprotect if needed
     reportProgress(progress, 0, "Checking flash protection...");
     if (m_codeFlashProtected) {
-        reportProgress(progress, 2, "Unprotecting flash...");
+        reportProgress(progress, 2, "Unprotecting flash (writing config)...");
         unprotect();
+        reportProgress(progress, 4, "Flash unprotected — verified RDPR=0xA5");
+    } else {
+        reportProgress(progress, 2, "Flash already unprotected");
     }
 
     // Stage 1: erase
@@ -421,6 +488,7 @@ void WCHFlasher::flash(const std::vector<uint8_t>& firmware,
     // Stage 4: protect
     reportProgress(progress, 96, "Re-protecting flash...");
     protect();
+    reportProgress(progress, 97, "Flash protection verified");
 
     // Stage 5: reset
     reportProgress(progress, 98, "Resetting device...");

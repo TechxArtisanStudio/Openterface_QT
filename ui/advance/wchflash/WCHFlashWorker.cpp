@@ -86,6 +86,11 @@ void WCHFlashWorker::connectDevice(int index)
         emit logMessage("Identifying chip...");
         m_impl->flasher = std::make_unique<WCHFlasher>(m_impl->transport.get());
 
+        // Log raw device-reported IDs for diagnostics
+        emit logMessage(QString("Raw device IDs: chipID=0x%1 deviceType=0x%2")
+            .arg(m_impl->flasher->rawChipID(), 2, 16, QChar('0')).toUpper()
+            .arg(m_impl->flasher->rawDeviceType(), 2, 16, QChar('0')).toUpper());
+
         QString info = QString::fromStdString(m_impl->flasher->getChipInfo());
         emit deviceConnected(info);
         emit logMessage("Device connected successfully");

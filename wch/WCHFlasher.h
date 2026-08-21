@@ -32,7 +32,11 @@ public:
 
     // --- Information ---
 
-    // Human-readable chip info string
+    // Raw chipID and deviceType reported by the device (for diagnostics)
+    uint8_t rawChipID() const { return m_rawChipID; }
+    uint8_t rawDeviceType() const { return m_rawDeviceType; }
+
+    // Human-readable chip info string (includes raw IDs for diagnostics)
     std::string getChipInfo() const;
 
     // Raw chip struct
@@ -67,6 +71,8 @@ public:
 private:
     WCHUSBTransport* m_transport;
     WCHChip          m_chip;
+    uint8_t          m_rawChipID = 0;         // raw chipID from device
+    uint8_t          m_rawDeviceType = 0;     // raw deviceType from device
     std::vector<uint8_t> m_uid;            // raw UID bytes
     std::vector<uint8_t> m_btver;          // bootloader version bytes [4]
     bool             m_codeFlashProtected = false;
