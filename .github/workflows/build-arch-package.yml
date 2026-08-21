@@ -2,7 +2,7 @@ name: Build Arch Linux Package
 
 on:
   push:
-    branches: [main, dev_270821_archlinux_build]
+    branches: [main]
     tags: ['v*']
     paths-ignore:
       - '**.md'
