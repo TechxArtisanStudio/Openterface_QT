@@ -314,6 +314,17 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "XCBCURSOR|XCB cursor support|libxcb-cursor.so|ERROR|qt6|/usr/lib/${UNAME_M}-linux-gnu /usr/lib"
     "XCB|X11 XCB|libxcb.so|ERROR|qt6|/usr/lib/${UNAME_M}-linux-gnu /usr/lib"
     "XCBUTIL|XCB utilities|libxcb-util.so|WARNING|qt6|/usr/lib/${UNAME_M}-linux-gnu /usr/lib"
+    "XCBICCCM|XCB ICCCM|libxcb-icccm.so|ERROR|qt6|/usr/lib/${UNAME_M}-linux-gnu /usr/lib"
+    "XCBIMAGE|XCB image|libxcb-image.so|ERROR|qt6|/usr/lib/${UNAME_M}-linux-gnu /usr/lib"
+    "XCBKEYSYMS|XCB keysyms|libxcb-keysyms.so|ERROR|qt6|/usr/lib/${UNAME_M}-linux-gnu /usr/lib"
+    "XCBRANDR|XCB randr|libxcb-randr.so|ERROR|qt6|/usr/lib/${UNAME_M}-linux-gnu /usr/lib"
+    "XCBRENDERUTIL|XCB render util|libxcb-render-util.so|ERROR|qt6|/usr/lib/${UNAME_M}-linux-gnu /usr/lib"
+    "XCBXKB|XCB XKB|libxcb-xkb.so|ERROR|qt6|/usr/lib/${UNAME_M}-linux-gnu /usr/lib"
+    "XCBSHM|XCB shared memory|libxcb-shm.so|ERROR|qt6|/usr/lib/${UNAME_M}-linux-gnu /usr/lib"
+    "XCBXFIXES|XCB xfixes|libxcb-xfixes.so|ERROR|qt6|/usr/lib/${UNAME_M}-linux-gnu /usr/lib"
+
+    # PCRE2 (required by Qt6 Core at runtime)
+    "PCRE2_16|PCRE2 16-bit|libpcre2-16.so|ERROR|qt6|/usr/lib/${UNAME_M}-linux-gnu /usr/lib"
 )
 
 # Process all library configurations
