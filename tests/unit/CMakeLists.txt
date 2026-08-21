@@ -23,3 +23,12 @@ target_include_directories(tst_edididentity PRIVATE ${OPF_REPO_ROOT})
 target_link_libraries(tst_edididentity PRIVATE Qt6::Core Qt6::Test)
 set_target_properties(tst_edididentity PROPERTIES AUTOMOC ON)
 add_test(NAME edididentity COMMAND tst_edididentity)
+
+add_executable(tst_deviceinfo
+    tst_deviceinfo.cpp
+    ${OPF_REPO_ROOT}/device/DeviceInfo.cpp
+)
+target_include_directories(tst_deviceinfo PRIVATE ${OPF_REPO_ROOT})
+target_link_libraries(tst_deviceinfo PRIVATE Qt6::Core Qt6::Test)
+set_target_properties(tst_deviceinfo PROPERTIES AUTOMOC ON)
+add_test(NAME deviceinfo COMMAND tst_deviceinfo)
