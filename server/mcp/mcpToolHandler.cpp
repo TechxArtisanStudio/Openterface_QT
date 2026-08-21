@@ -37,6 +37,7 @@
 #include "serial/SerialPortManager.h"
 #include "video/videohid.h"
 #include "video/firmwareoperationmanager.h"
+#include "ui/advance/edid/edidsettingsmanager.h"
 
 #include <QBuffer>
 #include <QJsonDocument>
@@ -361,6 +362,42 @@ QJsonArray McpToolHandler::listTools() const
         tools.append(tool);
     }
 
+    // ---- EDID identity tools ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_EDID_INFO;
+        tool["description"] = "Read the EDID identity stored in the video chip EEPROM: display name (0xFC descriptor), serial string (0xFF), PNP manufacturer id, product code and 32-bit serial. This is the identity a target computer sees as 'the monitor', and the only per-unit identifier readable from the host. HID polling pauses for a few seconds while the image is read.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        schema["properties"] = QJsonObject();
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_EDID_SET;
+        tool["description"] = "Write the EDID display name and/or serial string into the video chip EEPROM (same operation as Advanced -> Update Display Settings). Reads the image, saves a pre-write backup, applies the change, writes, then reads back and verifies. The device only presents the new EDID after a full power cycle (host USB power off/on); the app keeps running.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        QJsonObject nameProp;
+        nameProp["type"] = "string";
+        nameProp["description"] = "New display name, 1-13 printable ASCII characters. Omit to leave unchanged.";
+        props["display_name"] = nameProp;
+        QJsonObject serialProp;
+        serialProp["type"] = "string";
+        serialProp["description"] = "New serial string, 1-13 printable ASCII characters. Omit to leave unchanged.";
+        props["serial_number"] = serialProp;
+        schema["properties"] = props;
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
     return tools;
 }
 
@@ -388,6 +425,8 @@ QJsonObject McpToolHandler::callTool(const QString& name, const QJsonObject& arg
     if (name == MCP_TOOL_SCREEN_TO_MARKDOWN)         return toolScreenToMarkdown(arguments);
     if (name == MCP_TOOL_FIRMWARE_CHECK)             return toolFirmwareCheck(arguments);
     if (name == MCP_TOOL_FIRMWARE_UPDATE)            return toolFirmwareUpdate(arguments);
+    if (name == MCP_TOOL_EDID_INFO)                  return toolEdidInfo(arguments);
+    if (name == MCP_TOOL_EDID_SET)                   return toolEdidSet(arguments);
 
     return errorResult("Unknown tool: " + name);
 }
@@ -1173,6 +1212,104 @@ QJsonObject McpToolHandler::toolFirmwareUpdate(const QJsonObject& args)
         "REQUIRED next steps: quit this app, power off BOTH ends of the KVM "
         "(host USB power and target power), then re-energize the KVM before booting the target.")
         .arg(cur, latest));
+}
+
+// ---------------------------------------------------------------------------
+// EDID identity tools -- thin wrappers around edid::EdidSettingsManager, the
+// same object Advanced -> Update Display Settings drives.
+// ---------------------------------------------------------------------------
+QJsonObject McpToolHandler::toolEdidInfo(const QJsonObject& args)
+{
+    Q_UNUSED(args);
+    edid::EdidSettingsManager mgr;
+
+    QEventLoop loop;
+    bool done = false, ok = false;
+    edid::EdidIdentity identity;
+    QString error;
+    connect(&mgr, &edid::EdidSettingsManager::identityRead, &loop,
+        [&](bool success, const edid::EdidIdentity& id, const QString& err) {
+            ok = success; identity = id; error = err; done = true; loop.quit();
+        });
+
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timeout.start(60000);
+
+    mgr.readIdentity();
+    if (!done)
+        loop.exec();
+
+    if (!done) {
+        mgr.cancel();
+        return errorResult("EDID read TIMED OUT after 60s.");
+    }
+    if (!ok) {
+        return errorResult(QString("EDID read failed: %1").arg(error));
+    }
+    return textResult(QString("EDID identity: %1").arg(identity.summary()));
+}
+
+QJsonObject McpToolHandler::toolEdidSet(const QJsonObject& args)
+{
+    const QString newName   = args.value("display_name").toString().trimmed();
+    const QString newSerial = args.value("serial_number").toString().trimmed();
+    if (newName.isEmpty() && newSerial.isEmpty()) {
+        return errorResult("Nothing to set: pass display_name and/or serial_number.");
+    }
+    QString err;
+    if (!newName.isEmpty() && !edid::EdidSettingsManager::validateField(newName, "display_name", err)) {
+        return errorResult(err);
+    }
+    if (!newSerial.isEmpty() && !edid::EdidSettingsManager::validateField(newSerial, "serial_number", err)) {
+        return errorResult(err);
+    }
+
+    qCInfo(log_server_mcp_tool) << "EDID set requested: display_name=" << newName << "serial_number=" << newSerial;
+
+    edid::EdidSettingsManager mgr;
+
+    QEventLoop loop;
+    bool done = false, ok = false, verified = false;
+    edid::EdidIdentity before, after;
+    QString error;
+    int lastPct = 0;
+    connect(&mgr, &edid::EdidSettingsManager::progress, &loop, [&lastPct](int pct) { lastPct = pct; });
+    connect(&mgr, &edid::EdidSettingsManager::settingsApplied, &loop,
+        [&](bool success, bool isVerified, const edid::EdidIdentity& b, const edid::EdidIdentity& a, const QString& e) {
+            ok = success; verified = isVerified; before = b; after = a; error = e; done = true; loop.quit();
+        });
+
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timeout.start(120000);
+
+    mgr.applySettings(newName, newSerial);
+    if (!done)
+        loop.exec();
+
+    const QString backupNote = mgr.backupPath().isEmpty()
+        ? QString()
+        : QString(" Pre-write image saved at %1.").arg(mgr.backupPath());
+
+    if (!done) {
+        mgr.cancel();
+        return errorResult(QString("EDID write TIMED OUT after 120s at %1%. Device state unknown; "
+                                   "run edid_info before retrying.%2").arg(lastPct).arg(backupNote));
+    }
+    if (!ok) {
+        return errorResult(QString("EDID write FAILED: %1%2").arg(error, backupNote));
+    }
+    if (!verified) {
+        return errorResult(QString("EDID write completed but NOT VERIFIED: %1 Before: %2. Read-back: %3.%4")
+            .arg(error, before.summary(), after.summary(), backupNote));
+    }
+    return textResult(QString("EDID updated and verified by read-back. Before: %1. After: %2.%3 "
+                              "REQUIRED next step: power-cycle the KVM (host USB power off, then on) -- "
+                              "the video chip only presents the new EDID after a restart.")
+        .arg(before.summary(), after.summary(), backupNote));
 }
 
 // ==========================================================================

@@ -36,7 +36,7 @@
 #include <QString>
 
 class VideoHid;
-class FirmwareOperationManager;
+namespace edid { class EdidSettingsManager; }
 
 class EdidConfigPage : public QWidget
 {
@@ -81,9 +81,8 @@ private:
 
     QLabel *infoLabel;
 
-    // ---- Firmware operation state ----
-    FirmwareOperationManager *firmwareOperationManager;
-    QString m_tempFirmwarePath;
+    // ---- EDID read/apply orchestration (shared with the dialog and MCP) ----
+    edid::EdidSettingsManager *m_edidManager;
     QByteArray m_pendingFirmwareData;
     bool m_operationFinished;
     bool m_updateMode;
@@ -100,13 +99,12 @@ private:
     void updateDeviceStatus();
 
     // ---- Firmware/EDID logic (ported from UpdateDisplaySettingsDialog) ----
-    void ensureFirmwareOperationManager();
+    void ensureEdidManager();
     void loadCurrentEDIDSettings();
     void processFirmwareReadResult(bool success);
     bool processFirmwareData(const QByteArray &firmwareData);
     bool parseEdidBlock(const QByteArray &firmwareData, int &edidOffset, QByteArray &edidBlock) const;
     bool updateDisplayName(const QString &newName);
-    bool processAndWriteFirmware();
 
     // ---- State helpers ----
     void enableApplyButton();
