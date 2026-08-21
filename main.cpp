@@ -360,10 +360,12 @@ int main(int argc, char *argv[])
         if (!devices.isEmpty()) {
             qInfo() << "Found" << devices.size() << "device(s)";
             DeviceInfo device = devices.first();
+            // One entry per unit (discoverDevices() returns one per interface)
+            const QList<DeviceInfo> units = selectableDevices(devices);
             if (!headlessDevice.isEmpty()) {
                 bool found = false;
                 QStringList chains;
-                for (const DeviceInfo& d : devices) {
+                for (const DeviceInfo& d : units) {
                     chains << d.portChain;
                     if (d.portChain == headlessDevice) { device = d; found = true; }
                 }
@@ -371,7 +373,7 @@ int main(int argc, char *argv[])
                     qCritical() << "--device" << headlessDevice << "is not attached. Attached port chains:" << chains.join(", ");
                     return 2;
                 }
-            } else if (devices.size() > 1) {
+            } else if (units.size() > 1) {
                 qWarning() << "Several units attached and no --device given; using the first one:" << device.portChain
                            << "(use device_list / device_select over MCP to change)";
             }
