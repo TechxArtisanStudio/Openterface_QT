@@ -57,7 +57,10 @@ build() {
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DOPENTERFACE_BUILD_STATIC=OFF \
-        -DBUILD_SHARED_LIBS=ON
+        -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_PREFIX_PATH=/usr \
+        -DUSE_SHARED_FFMPEG=ON \
+        -DGSTREAMER_PREFIX=/usr
     cmake --build build
 }
 
