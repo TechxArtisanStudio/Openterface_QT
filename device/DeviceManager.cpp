@@ -378,6 +378,11 @@ void DeviceManager::stopHotplugMonitoring()
     emit monitoringStopped();
 }
 
+QList<DeviceInfo> DeviceManager::listSelectableDevices()
+{
+    return selectableDevices(discoverDevices());
+}
+
 QList<DeviceInfo> DeviceManager::getCurrentDevices() const
 {
     QMutexLocker locker(&m_mutex);

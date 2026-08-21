@@ -86,6 +86,13 @@ public:
      */
     void connectHotplugMonitor(HotplugMonitor *hotplugMonitor);
 
+public slots:
+    /**
+     * @brief Switch to the unit at the given port chain -- the menu action's
+     * path, also used by the MCP device_select tool.
+     */
+    DeviceManager::DeviceSwitchResult selectDevice(const QString &portChain);
+
 signals:
     /**
      * @brief Emitted when a device is successfully selected
