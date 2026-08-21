@@ -33,6 +33,7 @@ class CameraManager;
 class ScriptRunner;
 class ScriptExecutor;
 class ASTNode;
+class DeviceCoordinator;
 
 class McpToolHandler : public QObject {
     Q_OBJECT
@@ -44,6 +45,8 @@ public:
     void setCameraManager(CameraManager* cam);
     void setScriptRunner(ScriptRunner* runner);
     void setScriptExecutor(ScriptExecutor* executor);
+    // GUI mode only: route device_select through the same path as the Control -> Device menu.
+    void setDeviceCoordinator(DeviceCoordinator* coordinator);
 
     /** Return all tool definitions for "tools/list". */
     QJsonArray listTools() const;
@@ -58,6 +61,7 @@ signals:
 private:
     CameraManager* m_cameraManager = nullptr;
     ScriptRunner* m_scriptRunner = nullptr;
+    DeviceCoordinator* m_deviceCoordinator = nullptr;
     ScriptExecutor* m_scriptExecutor = nullptr;
 
     // --- Individual tool implementations ---
@@ -80,6 +84,10 @@ private:
     QJsonObject toolUsbSwitch(const QJsonObject& args);
     QJsonObject toolFirmwareCheck(const QJsonObject& args);
     QJsonObject toolFirmwareUpdate(const QJsonObject& args);
+    QJsonObject toolEdidInfo(const QJsonObject& args);
+    QJsonObject toolEdidSet(const QJsonObject& args);
+    QJsonObject toolDeviceList(const QJsonObject& args);
+    QJsonObject toolDeviceSelect(const QJsonObject& args);
 
     // --- Helpers ---
     static QJsonObject textResult(const QString& text);

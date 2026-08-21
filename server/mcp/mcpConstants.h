@@ -67,6 +67,10 @@
 #define MCP_TOOL_USB_SWITCH                "usb_switch"
 #define MCP_TOOL_FIRMWARE_CHECK            "firmware_check"
 #define MCP_TOOL_FIRMWARE_UPDATE           "firmware_update"
+#define MCP_TOOL_EDID_INFO                 "edid_info"
+#define MCP_TOOL_EDID_SET                  "edid_set"
+#define MCP_TOOL_DEVICE_LIST               "device_list"
+#define MCP_TOOL_DEVICE_SELECT             "device_select"
 
 // Default Named Pipe Name
 #define MCP_DEFAULT_PIPE_NAME "openterface-mcp"

@@ -251,6 +251,7 @@ int main(int argc, char *argv[])
     int mcpSsePort = 0;  // 0 = disabled
     QString overrideBackend;
     bool listBackends = false;
+    QString headlessDevice;   // --device <port chain>: unit to bind to in headless MCP mode
 
     for (int i = 1; i < argc; i++) {
         QString arg = QString::fromUtf8(argv[i]);
@@ -277,6 +278,9 @@ int main(int argc, char *argv[])
         } else if (arg == "--backend" && i + 1 < argc) {
             overrideBackend = QString::fromUtf8(argv[++i]);
             qInfo() << "Override media backend from command line:" << overrideBackend;
+        } else if (arg == "--device" && i + 1 < argc) {
+            headlessDevice = QString::fromUtf8(argv[++i]);
+            qInfo() << "Headless MCP mode will bind to device at port chain:" << headlessDevice;
         } else if (arg == "--list-backends") {
             listBackends = true;
         }
@@ -356,6 +360,23 @@ int main(int argc, char *argv[])
         if (!devices.isEmpty()) {
             qInfo() << "Found" << devices.size() << "device(s)";
             DeviceInfo device = devices.first();
+            // One entry per unit (discoverDevices() returns one per interface)
+            const QList<DeviceInfo> units = selectableDevices(devices);
+            if (!headlessDevice.isEmpty()) {
+                bool found = false;
+                QStringList chains;
+                for (const DeviceInfo& d : units) {
+                    chains << d.portChain;
+                    if (d.portChain == headlessDevice) { device = d; found = true; }
+                }
+                if (!found) {
+                    qCritical() << "--device" << headlessDevice << "is not attached. Attached port chains:" << chains.join(", ");
+                    return 2;
+                }
+            } else if (units.size() > 1) {
+                qWarning() << "Several units attached and no --device given; using the first one:" << device.portChain
+                           << "(use device_list / device_select over MCP to change)";
+            }
             fprintf(stderr, "[DEBUG] First device: portChain='%s', hidDevicePath='%s', cameraDevicePath='%s'\n",
                     device.portChain.toUtf8().constData(),
                     device.hidDevicePath.toUtf8().constData(),

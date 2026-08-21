@@ -2,6 +2,9 @@
 #define DEVICEINFO_H
 
 #include <QString>
+#include <QList>
+#include <QSet>
+#include <QMap>
 #include <QVariantMap>
 #include <QDateTime>
 
@@ -47,6 +50,10 @@ public:
     QVariantMap toMap() const;
     void fromMap(const QVariantMap& map);
     QString getUniqueKey() const;
+
+    // Human-readable port chain as shown in menus: strip zero digits, join
+    // the rest with '-' ("010203" -> "1-2-3"; "1-3" stays "1-3").
+    static QString displayPortChain(const QString &portChain);
     bool isValid() const;
     bool operator==(const DeviceInfo& other) const;
     bool operator!=(const DeviceInfo& other) const;
@@ -124,5 +131,12 @@ public:
         return portChain;
     }
 };
+
+// The list the user can choose from: one entry per unit. Drops entries whose
+// port chain is some other entry's companion chain (USB 3 composite units show
+// up twice), then keeps one entry per port chain, preferring the one with more
+// interfaces. Pure; shared by the device menu, the selector dialog and the MCP
+// device_list tool.
+QList<DeviceInfo> selectableDevices(const QList<DeviceInfo> &devices);
 
 #endif // DEVICEINFO_H
