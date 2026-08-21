@@ -8,6 +8,7 @@
 #include <QThread>
 #include <QLoggingCategory>
 #include <QMutexLocker>
+#include <memory>
 #include <QRegularExpression>
 #include <QFile>
 #include <QFileInfo>
@@ -128,14 +129,23 @@ void VideoHid::detectChipType() {
         m_chipType = previousChipType;
     }
 
-    m_chipImpl = ChipDetector::createChip(m_chipType, this);
+    // Build the new chip object first, then swap it in under the register-I/O
+    // mutex: the polling thread runs m_chipImpl->read4Byte() under that mutex
+    // (usbXdataRead4Byte), and replacing the unique_ptr deletes the old object.
+    // Swapping unlocked was a use-after-free on every device switch taken while
+    // polling was active (SIGSEGV in Ms2109sChip::read4Byte on the poll thread).
+    std::unique_ptr<VideoChip> newChip = ChipDetector::createChip(m_chipType, this);
 
     // Wire a default no-op progress tracker for Ms2130sChip firmware writes.
     // The actual per-write callback is injected via writeEeprom() at write time.
-    if (auto* ms2130s = dynamic_cast<Ms2130sChip*>(m_chipImpl.get())) {
+    if (auto* ms2130s = dynamic_cast<Ms2130sChip*>(newChip.get())) {
         ms2130s->onChunkWritten = [this](quint32 n) {
             written_size = n;
         };
+    }
+    {
+        QMutexLocker locker(&m_registerIoMutex);
+        m_chipImpl = std::move(newChip);
     }
 
     if (!m_chipImpl)
@@ -235,7 +245,10 @@ void VideoHid::stop() {
     // Close the HID device when stopping
     endTransaction();
     // Reset chip implementation and type to force re-detection on next start
-    m_chipImpl.reset();
+    {
+        QMutexLocker locker(&m_registerIoMutex);
+        m_chipImpl.reset();
+    }
     m_chipType = VideoChipType::UNKNOWN;
     qCDebug(log_hid_device)  << "VideoHid stopped successfully and chip state cleared.";
 }
