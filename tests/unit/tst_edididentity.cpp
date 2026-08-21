@@ -91,6 +91,18 @@ private slots:
         QVERIFY(!EdidIdentity::fromImage(img).valid);
     }
 
+    void decorateAndTitleHelpers()
+    {
+        QCOMPARE(edid::decorateLabel("Port 1-3 (/dev/ttyACM0)", QString()),
+                 QStringLiteral("Port 1-3 (/dev/ttyACM0)"));
+        QCOMPARE(edid::decorateLabel("Port 1-3 (/dev/ttyACM0)", "BRAIN-G4-KVM"),
+                 QStringLiteral("BRAIN-G4-KVM - Port 1-3 (/dev/ttyACM0)"));
+        QCOMPARE(edid::windowTitle("0.5.29", QString()),
+                 QStringLiteral("Openterface - 0.5.29"));
+        QCOMPARE(edid::windowTitle("0.5.29", "BRAIN-G4-KVM"),
+                 QStringLiteral("Openterface - 0.5.29 - BRAIN-G4-KVM"));
+    }
+
     void roundTripThroughUpdateHelpers()
     {
         // What the write path does (EDIDUtils update + checksum) must be

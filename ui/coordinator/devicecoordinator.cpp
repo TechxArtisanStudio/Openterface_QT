@@ -21,6 +21,7 @@
 */
 
 #include "devicecoordinator.h"
+#include "../advance/edid/edididentitycache.h"
 #include "host/cameramanager.h"
 #include "device/HotplugMonitor.h"
 #include "ui/globalsetting.h"
@@ -42,6 +43,12 @@ DeviceCoordinator::DeviceCoordinator(QMenu *deviceMenu, CameraManager *cameraMan
     , m_deviceMenuGroup(nullptr)
     , m_deviceAutoSelected(false)
 {
+    // Re-label the menu when a unit's EDID name becomes known.
+    connect(&edid::EdidIdentityCache::instance(), &edid::EdidIdentityCache::identityChanged,
+            this, [this](const QString &, const edid::EdidIdentity &) { updateDeviceMenu(); });
+    connect(&edid::EdidIdentityCache::instance(), &edid::EdidIdentityCache::currentChanged,
+            this, [this](const QString &) { updateDeviceMenu(); });
+
     qCDebug(log_ui_devicecoordinator) << "DeviceCoordinator created";
 }
 
@@ -161,6 +168,10 @@ void DeviceCoordinator::updateDeviceMenu()
         if (!serialInfo.isEmpty()) {
             displayText += QString(" (%1)").arg(serialInfo);
         }
+        // Prefix the EDID display name when this unit has been identified
+        // (see EdidIdentityCache): "BRAIN-G4-KVM - Port 1-3 (/dev/ttyACM0)".
+        displayText = edid::decorateLabel(
+            displayText, edid::EdidIdentityCache::instance().displayName(device.portChain));
 
         QAction *deviceAction = new QAction(displayText, this);
         deviceAction->setCheckable(true);
@@ -223,6 +234,14 @@ void DeviceCoordinator::onDeviceSelected(QAction *action)
     } else {
         qCWarning(log_ui_devicecoordinator) << "Device switch failed or partial:" << result.statusMessage;
         emit deviceSelected(portChain, false, result.statusMessage);
+    }
+    // The unit's identity follows the HID device, so refresh the cache
+    // whenever that part of the switch succeeded -- also on "partial" results
+    // (e.g. units without an audio interface). VideoHid does not always emit
+    // hidDeviceConnected on a switch (it returns early when it is already on
+    // the matching hidraw), hence the explicit refresh.
+    if (result.hidSuccess) {
+        edid::EdidIdentityCache::instance().refresh(portChain);
     }
     
     // Update device menu to reflect current selection
@@ -318,6 +337,7 @@ bool DeviceCoordinator::autoSelectFirstDevice()
         qCInfo(log_ui_devicecoordinator) << "✓ Auto-selected device successfully:" << result.statusMessage;
         emit deviceSelected(firstPortChain, true, result.statusMessage);
         emit deviceSwitchCompleted();
+        edid::EdidIdentityCache::instance().refresh(firstPortChain);
         return true;
     } else {
         qCWarning(log_ui_devicecoordinator) << "Auto-selection failed, retrying in 2 seconds:" << result.statusMessage;
@@ -329,6 +349,7 @@ bool DeviceCoordinator::autoSelectFirstDevice()
                 qCInfo(log_ui_devicecoordinator) << "✓ Auto-selected device successfully on retry:" << retryResult.statusMessage;
                 emit deviceSelected(firstPortChain, true, retryResult.statusMessage);
                 emit deviceSwitchCompleted();
+                edid::EdidIdentityCache::instance().refresh(firstPortChain);
             } else {
                 qCWarning(log_ui_devicecoordinator) << "Auto-selection failed on retry:" << retryResult.statusMessage;
                 emit deviceSelected(firstPortChain, false, retryResult.statusMessage);
