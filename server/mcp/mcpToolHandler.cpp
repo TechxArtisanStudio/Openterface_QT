@@ -1234,7 +1234,7 @@ QJsonObject McpToolHandler::toolDeviceList(const QJsonObject& args)
     const auto& cache = edid::EdidIdentityCache::instance();
 
     QJsonArray list;
-    for (const DeviceInfo& d : DeviceManager::getInstance().listSelectableDevices()) {
+    for (const DeviceInfo& d : DeviceManager::getInstance().listSelectableDevices(/*rediscover=*/false)) {
         QString label = QString("Port %1").arg(DeviceInfo::displayPortChain(d.portChain));
         if (!d.serialPortPath.isEmpty()) {
             label += QString(" (%1)").arg(d.serialPortPath);
@@ -1265,7 +1265,7 @@ QJsonObject McpToolHandler::toolDeviceSelect(const QJsonObject& args)
         return errorResult("Pass exactly one of port_chain or name.");
     }
 
-    const QList<DeviceInfo> devices = DeviceManager::getInstance().listSelectableDevices();
+    const QList<DeviceInfo> devices = DeviceManager::getInstance().listSelectableDevices(/*rediscover=*/false);
     if (!name.isEmpty()) {
         QStringList known;
         for (const DeviceInfo& d : devices) {

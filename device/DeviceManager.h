@@ -42,8 +42,10 @@ public:
     
     // Device discovery
     QList<DeviceInfo> discoverDevices();
-    // discoverDevices() deduplicated to one entry per unit (see selectableDevices()).
-    QList<DeviceInfo> listSelectableDevices();
+    // One entry per unit (see selectableDevices()). rediscover=true runs a full
+    // discoverDevices() scan (seconds on Linux); false uses the list the hotplug
+    // monitor keeps current and only scans when that list is empty.
+    QList<DeviceInfo> listSelectableDevices(bool rediscover = true);
     void discoverDevicesAsync(); // Non-blocking async discovery
     QList<DeviceInfo> getDevicesByPortChain(const QString& portChain);
     QStringList getAvailablePortChains();
