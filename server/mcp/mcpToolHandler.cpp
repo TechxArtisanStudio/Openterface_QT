@@ -152,7 +152,7 @@ QJsonArray McpToolHandler::listTools() const
         schema["type"] = "object";
         QJsonObject props;
         props["key"] = QJsonObject{{"type", "integer"}, {"description", "Qt key code (e.g., 65 for 'A', 16777220 for Enter)"}};
-        props["modifiers"] = QJsonObject{{"type", "integer"}, {"description", "Modifier bitmask: 1=Shift, 2=Ctrl, 4=Alt, 8=Meta/Win"}, {"default", 0}};
+        props["modifiers"] = QJsonObject{{"type", "integer"}, {"description", "Qt::KeyboardModifiers bitfield, as KeyboardManager expects: Shift=33554432 (0x02000000), Ctrl=67108864 (0x04000000), Alt=134217728 (0x08000000), Meta/Win=268435456 (0x10000000); OR them together. (Not 1/2/4/8.)"}, {"default", 0}};
         props["isKeyDown"] = QJsonObject{{"type", "boolean"}, {"description", "true = press, false = release"}, {"default", true}};
         props["side"] = QJsonObject{{"type", "string"}, {"description", "Which side of the keyboard for modifier keys: 'left' or 'right'. Only applies to Shift, Ctrl, Alt keys."}, {"enum", QJsonArray{"left", "right"}}};
         schema["properties"] = props;
