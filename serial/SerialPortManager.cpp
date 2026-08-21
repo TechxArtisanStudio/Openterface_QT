@@ -1577,24 +1577,19 @@ void SerialPortManager::closePortInternal() {
             }
         }
         
-        // Enhanced deletion with additional safety measures
-        // Store pointer but DO NOT clear serialPort immediately to avoid race conditions
+        // Hand the object to deleteLater() and drop our pointer NOW, under the
+        // mutex we already hold. deleteLater() is itself deferred to the next
+        // event-loop iteration of this (the object's own) thread, which is all
+        // the "socket notifier" safety the old QTimer::singleShot(0) detour
+        // bought -- and that detour was a use-after-free: a port switch queues
+        // closePort() and then onSerialPortConnected(); openPort() ran before
+        // the single-shot and did `delete serialPort` on this very object, after
+        // which the single-shot called deleteLater() on freed memory. The heap
+        // corruption surfaced one switch later as a crash in QSerialPort::close().
         QObject* portPtr = serialPort;
-        
-        // Schedule deletion for next event loop to avoid immediate socket notifier issues
-        // Use QTimer::singleShot for more reliable deferred deletion
-        QTimer::singleShot(0, this, [this, portPtr]() {
-            if (portPtr) {
-                qCDebug(log_core_serial_conn) << "Deleting serial port instance:" << static_cast<void*>(portPtr);
-                portPtr->deleteLater();
-                // Clear pointer only after scheduling deletion
-                QMutexLocker deleteLocker(&m_serialPortMutex);
-                if (serialPort == portPtr) {
-                    serialPort = nullptr;
-                    qCDebug(log_core_serial_conn) << "SerialPort instance pointer cleared";
-                }
-            }
-        });
+        serialPort = nullptr;
+        qCDebug(log_core_serial_conn) << "Deleting serial port instance:" << static_cast<void*>(portPtr);
+        portPtr->deleteLater();
     } else {
         qCDebug(log_core_serial_conn) << "Serial port is not opened (serialPort is nullptr).";
     }
