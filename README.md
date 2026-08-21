@@ -75,11 +75,12 @@ openterfaceQT
 | OS | Version | Architecture | Status |
 |---|---|---|---|
 | **Windows** | 10+ | x64 | ✅ Supported |
+| **Windows** | 11 | ARM64 | ✅ Supported |
 | **Ubuntu** | 22.04+ | x64, ARM64 | ✅ Supported |
 | **Fedora** | 42+ | x64, ARM64 | ✅ Supported |
 | **Linux Mint** | 21.3+ | x64 | ✅ Supported |
 | **openSUSE** | Tumbleweed | x64 | ✅ Supported |
-| **Arch Linux** | Rolling | x64, ARM64 | ⚠️ Build from source only |
+| **Arch Linux** | Rolling | x64, ARM64 | ✅ Supported |
 | 🔋 **Raspberry Pi OS** | 64-bit | ARM64 | ✅ Supported |
 | 🔋 **Raspberry Pi OS** | 32-bit | ARM32 | ❌ Not supported (Qt too old) |
 
@@ -89,10 +90,25 @@ openterfaceQT
 
 ### Windows Installation
 
-1. Download the latest installer from [GitHub Releases](https://github.com/TechxArtisanStudio/Openterface_QT/releases) (x86 architecture)
+**x64 (Windows 10 / 11 on Intel/AMD):**
+
+1. Download the latest installer from [GitHub Releases](https://github.com/TechxArtisanStudio/Openterface_QT/releases) — pick the `*_amd64_installer.exe` asset
 2. Run the installer — it will automatically install drivers and the application
 3. Launch **Openterface Mini-KVM** from your Start Menu or application folder
 4. Connect your Mini-KVM device via USB
+
+A portable x64 build is also available (`*_amd64_portable.exe`) — run it directly or extract and launch, no system changes required.
+
+**ARM64 (Windows 11 on ARM / Snapdragon / Surface Pro X, etc.):**
+
+Windows 11 on ARM is fully supported. A pre-built ARM64 binary is produced by every successful CI run on `main`:
+
+1. Go to the [Actions tab](https://github.com/TechxArtisanStudio/Openterface_QT/actions) and open a recent run of **Windows ARM64 Build**.
+2. Download the `openterfaceQT_windows_arm64_portable` or `openterfaceQT_windows_arm64_installer` artifact from the run's summary.
+3. For the installer: run it and follow the prompts. For the portable build: run the `.exe` directly.
+4. Launch **Openterface Mini-KVM** and connect your device via USB.
+
+Alternatively, build locally with MSYS2 — see [Build from Source → Using MSYS2 (Windows ARM64)](docs/BUILD.md#using-msys2-windows-arm64).
 
 > **Note:** On Windows 11 Version 22H2, some users report driver installation issues. If keyboard/mouse don't respond, manually install the CH340 driver from the [WCH website](https://www.wch-ic.com/downloads/CH341SER_EXE.html) or use the [repository driver](https://github.com/TechxArtisanStudio/Openterface_QT/blob/main/driver/windows/CH341SER.INF) with `pnputil -a CH341SER.INF` (run as Administrator).
 
@@ -211,6 +227,19 @@ openterfaceQT
 ```
 
 > **Note:** You may need to log out and log back in for group permissions to take effect.
+
+#### Option 4: Arch Linux Package (pacman)
+
+For Arch Linux users, a native `.pkg.tar.zst` package is available from [GitHub Releases](https://github.com/TechxArtisanStudio/Openterface_QT/releases) or built by the [Arch Linux CI workflow](https://github.com/TechxArtisanStudio/Openterface_QT/actions/workflows/build-arch-package.yml):
+
+```bash
+# Download the package from GitHub Releases, then install:
+sudo pacman -U openterfaceqt-*.pkg.tar.zst
+```
+
+This automatically installs all runtime dependencies (Qt6, FFmpeg, GStreamer, etc.) from the Arch repos and configures udev rules for USB device access.
+
+For detailed instructions, see [Arch Linux Installation](docs/archlinux_installation.md).
 
 > 💡 **Permission issues?** See the [Linux Permission Access Guide](https://github.com/TechxArtisanStudio/Openterface_QT/wiki/Linux-permission-access) on our Wiki for detailed troubleshooting of device permissions.
 
