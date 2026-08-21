@@ -292,8 +292,12 @@ int main(int argc, char *argv[])
         // Use offscreen platform — provides QInputMethod without needing a real display
         qputenv("QT_QPA_PLATFORM", "offscreen");
 
-        // Redirect all logging to stderr so we can see what's happening
-        qputenv("QT_LOGGING_RULES", "*.debug=true");
+        // Default to verbose logging in headless mode, but let the caller
+        // override it (e.g. QT_LOGGING_RULES='*.debug=false' to keep the
+        // per-frame decode-path debug output off the hot path).
+        if (!qEnvironmentVariableIsSet("QT_LOGGING_RULES")) {
+            qputenv("QT_LOGGING_RULES", "*.debug=true");
+        }
 
         QApplication app(argc, argv);
         qInfo() << "Starting MCP server in stdio transport mode (offscreen)...";
