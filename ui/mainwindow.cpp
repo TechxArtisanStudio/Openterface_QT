@@ -600,11 +600,19 @@ void MainWindow::onResolutionChange(const int& width, const int& height, const f
     GlobalVar::instance().setInputWidth(width);
     GlobalVar::instance().setInputHeight(height);
     GlobalVar::instance().setInputFps(fps);
+    // The capture resolution must follow the input signal, but the capture
+    // FRAME RATE is the user's choice (Preferences -> Video, stored as
+    // video/fps): sampling a 60 Hz input at 10 or 30 fps is exactly what a
+    // CPU-constrained or console-monitoring setup wants. This used to copy
+    // the input's refresh rate over that preference on every timing report
+    // (start-up, every device switch), so the preference never took effect.
     GlobalVar::instance().setCaptureWidth(width);
     GlobalVar::instance().setCaptureHeight(height);
-    GlobalVar::instance().setCaptureFps(fps);
+    const int captureFps = GlobalVar::instance().getCaptureFps() > 0
+                               ? GlobalVar::instance().getCaptureFps()
+                               : static_cast<int>(fps);
     m_statusBarManager->setInputResolution(width, height, fps, pixelClk);
-    m_statusBarManager->setCaptureResolution(width, height, fps);
+    m_statusBarManager->setCaptureResolution(width, height, captureFps);
     
     // No popup message for resolution changes
 }
