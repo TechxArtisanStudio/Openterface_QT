@@ -1017,77 +1017,50 @@ QStringList LinuxDeviceManager::associateSerialDevicesLinux(const QList<UdevDevi
 
 QString LinuxDeviceManager::findSerialPortByCompanionDeviceLinux(const UdevDeviceData& companionDevice, const QList<UdevDeviceData>& serialDevices)
 {
-    qCDebug(log_device_linux) << "Searching for serial port associated with companion device...";
-    
-    // Extract the companion port chain and analyze the hub structure
-    QString companionPortChain = companionDevice.portChain;
-    qCDebug(log_device_linux) << "Companion device port chain:" << companionPortChain;
-    qCDebug(log_device_linux) << "Companion device syspath:" << companionDevice.syspath;
-    
-    // For Generation 2, the topology is:
-    // USB Hub (General-purpose) -> contains both:
-    //   1. Serial device (1A86:FE0C) 
-    //   2. Companion device (345F:2130) - this is the Openterface device with camera/audio/HID
-    
-    // Find the parent hub of the companion device
-    QString companionHubPort = extractHubPortFromDevicePortLinux(companionPortChain);
-    qCDebug(log_device_linux) << "Companion device hub port:" << companionHubPort;
-    
-    // For Generation 2, calculate the expected serial port hub by incrementing the last number
-    // If companion is at "1-0", serial should be at "1-1"
-    QString expectedSerialHubPort = calculateExpectedSerialHubPortLinux(companionHubPort);
-    qCDebug(log_device_linux) << "Expected serial hub port:" << expectedSerialHubPort;
-    
-    for (const UdevDeviceData& serialDevice : serialDevices) {
-        // For Generation 2, we need to get the actual USB device port chain
-        // The serialDevice.portChain comes from the USB device with VID/PID 1A86:FE0C
-        QString serialPortChain = serialDevice.portChain;
-        QString serialHubPort = extractHubPortFromDevicePortLinux(serialPortChain);
-        
-        qCDebug(log_device_linux) << "Checking serial device:";
-        qCDebug(log_device_linux) << "  USB device syspath:" << serialDevice.syspath;
-        qCDebug(log_device_linux) << "  USB device port chain:" << serialPortChain;
-        qCDebug(log_device_linux) << "  USB device hub port:" << serialHubPort;
-        
-        // Primary check: does the serial hub port match our expected port (companion + 1)?
-        if (!expectedSerialHubPort.isEmpty() && serialHubPort == expectedSerialHubPort) {
-            qCDebug(log_device_linux) << "✓ Found serial device at expected hub port:" << expectedSerialHubPort;
-            qCDebug(log_device_linux) << "  Companion hub port:" << companionHubPort;
-            qCDebug(log_device_linux) << "  Serial hub port:" << serialHubPort;
-            
-            // Additional verification: check if they are indeed companion devices
-            if (isSerialDeviceAssociatedWithCompanionLinux(serialDevice, companionDevice)) {
-                qCDebug(log_device_linux) << "✓ Verified companion relationship";
-                return serialDevice.syspath;
-            }
-        }
-        
-        // Fallback check: if both devices are under the same parent hub (old logic)
-        if (!companionHubPort.isEmpty() && !serialHubPort.isEmpty() && 
-            companionHubPort == serialHubPort) {
-            qCDebug(log_device_linux) << "✓ Found serial device under same hub as companion device (fallback)";
-            qCDebug(log_device_linux) << "  Shared hub port:" << companionHubPort;
-            
-            // Additional verification: check if they are indeed companion devices
-            if (isSerialDeviceAssociatedWithCompanionLinux(serialDevice, companionDevice)) {
-                qCDebug(log_device_linux) << "✓ Verified companion relationship (fallback)";
-                return serialDevice.syspath;
-            }
-        }
-        
-        // Also check if they are direct siblings (same hub, different ports)
-        if (arePortChainsRelatedLinux(serialPortChain, companionPortChain)) {
-            qCDebug(log_device_linux) << "✓ Found related serial device (sibling relationship)";
-            
-            // Verify this is actually our target serial device
-            if (isSerialDeviceAssociatedWithCompanionLinux(serialDevice, companionDevice)) {
-                qCDebug(log_device_linux) << "✓ Verified sibling companion relationship";
+    // The rules are evaluated in PRIORITY ORDER ACROSS THE WHOLE LIST. The old
+    // loop applied all three rules to each serial in turn and returned on the
+    // first hit, so the loose "sibling" rule (equal port-chain prefix, i.e. any
+    // device on the same root hub) matched whatever serial udev listed first,
+    // before the exact "companion port + 1" match further down the list was
+    // ever considered. With several units on a flat bus that paired a unit
+    // with another unit's serial port: the screen followed the selection, the
+    // keystrokes did not.
+    const QString companionPortChain = companionDevice.portChain;
+    const QString companionHubPort = extractHubPortFromDevicePortLinux(companionPortChain);
+    const QString expectedSerialHubPort = calculateExpectedSerialHubPortLinux(companionHubPort);
+    qCDebug(log_device_linux) << "Searching for serial port associated with companion device at" << companionPortChain
+                              << "hub port" << companionHubPort << "expected serial hub port" << expectedSerialHubPort;
+
+    // 1. exact: serial at the expected port (companion port + 1)
+    if (!expectedSerialHubPort.isEmpty()) {
+        for (const UdevDeviceData& serialDevice : serialDevices) {
+            if (extractHubPortFromDevicePortLinux(serialDevice.portChain) == expectedSerialHubPort) {
+                qCDebug(log_device_linux) << "✓ Serial device at expected hub port" << expectedSerialHubPort << ":" << serialDevice.syspath;
                 return serialDevice.syspath;
             }
         }
     }
-    
-    qCDebug(log_device_linux) << "✗ No associated serial device found for companion device";
+    // 2. same hub as the companion
+    if (!companionHubPort.isEmpty()) {
+        for (const UdevDeviceData& serialDevice : serialDevices) {
+            const QString serialHubPort = extractHubPortFromDevicePortLinux(serialDevice.portChain);
+            if (!serialHubPort.isEmpty() && serialHubPort == companionHubPort
+                && isSerialDeviceAssociatedWithCompanionLinux(serialDevice, companionDevice)) {
+                qCDebug(log_device_linux) << "✓ Serial device under the companion's hub (fallback):" << serialDevice.syspath;
+                return serialDevice.syspath;
+            }
+        }
+    }
+    // 3. related port chains (siblings) -- weakest; on a flat bus this matches
+    //    any unit's serial, which associateSerialDevicesLinux() may repair.
+    for (const UdevDeviceData& serialDevice : serialDevices) {
+        if (arePortChainsRelatedLinux(serialDevice.portChain, companionPortChain)
+            && isSerialDeviceAssociatedWithCompanionLinux(serialDevice, companionDevice)) {
+            qCDebug(log_device_linux) << "✓ Related serial device (sibling relationship):" << serialDevice.syspath;
+            return serialDevice.syspath;
+        }
+    }
+    qCDebug(log_device_linux) << "✗ No associated serial device found for companion device" << companionPortChain;
     return QString();
 }
 
