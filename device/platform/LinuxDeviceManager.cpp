@@ -971,9 +971,13 @@ QStringList LinuxDeviceManager::associateSerialDevicesLinux(const QList<UdevDevi
     bool contested = false;
     for (auto it = claims.cbegin(); it != claims.cend(); ++it) if (it.value() > 1) contested = true;
     if (!contested) {
+        // udev lists a USB device and each of its interfaces separately, so
+        // count distinct USB devices (parentSyspath), not list entries.
+        QSet<QString> serialUsbDevices;
+        for (const UdevDeviceData& sd : serials) serialUsbDevices.insert(sd.parentSyspath);
         int unassigned = 0;
         for (const QString& sp : result) if (sp.isEmpty()) unassigned++;
-        if (unassigned > 0 && claims.size() < serials.size()) contested = true;
+        if (unassigned > 0 && claims.size() < serialUsbDevices.size()) contested = true;
     }
     if (!contested) {
         return result;
@@ -988,24 +992,30 @@ QStringList LinuxDeviceManager::associateSerialDevicesLinux(const QList<UdevDevi
     for (qint64 k : compKey) if (k < 0) { qCWarning(log_device_linux) << generation << "serial association contested but USB enumeration numbers unavailable; keeping topology result"; return result; }
     for (qint64 k : serKey)  if (k < 0) { qCWarning(log_device_linux) << generation << "serial association contested but USB enumeration numbers unavailable; keeping topology result"; return result; }
 
-    QSet<QString> taken;
+    QSet<QString> taken;   // parentSyspath (USB device) of serials already assigned
+    auto usbDeviceOf = [&](const QString& serialSyspath) -> QString {
+        for (const UdevDeviceData& sd : serials) if (sd.syspath == serialSyspath) return sd.parentSyspath;
+        return serialSyspath;
+    };
     QVector<bool> needs(companions.size(), false);
     for (int i = 0; i < companions.size(); ++i) {
         const QString& sp = result[i];
-        if (!sp.isEmpty() && claims.value(sp) == 1) { taken.insert(sp); } else { needs[i] = true; }
+        if (!sp.isEmpty() && claims.value(sp) == 1) { taken.insert(usbDeviceOf(sp)); } else { needs[i] = true; }
     }
     for (int i = 0; i < companions.size(); ++i) {
         if (!needs[i]) continue;
         int best = -1; qint64 bestDelta = std::numeric_limits<qint64>::max();
         for (int j = 0; j < serials.size(); ++j) {
-            if (taken.contains(serials[j].syspath)) continue;
+            if (taken.contains(serials[j].parentSyspath)) continue;
             const qint64 delta = serKey[j] - compKey[i];
             const qint64 score = delta >= 0 ? delta : (1000000 - delta);   // prefer "enumerated after"
             if (score < bestDelta) { bestDelta = score; best = j; }
         }
         const QString before = result[i];
-        result[i] = (best >= 0) ? serials[best].syspath : QString();
-        if (best >= 0) taken.insert(serials[best].syspath);
+        // hand back the USB device node itself (never an interface entry): that
+        // is what the tty resolution compares against
+        result[i] = (best >= 0) ? serials[best].parentSyspath : QString();
+        if (best >= 0) taken.insert(serials[best].parentSyspath);
         qCInfo(log_device_linux) << generation << "flat USB topology: companion at port" << companions[i].portChain
                                  << "(enum" << compKey[i] << ") paired by enumeration order with serial at port"
                                  << (best >= 0 ? serials[best].portChain : QString("<none>"))
@@ -1035,8 +1045,8 @@ QString LinuxDeviceManager::findSerialPortByCompanionDeviceLinux(const UdevDevic
     if (!expectedSerialHubPort.isEmpty()) {
         for (const UdevDeviceData& serialDevice : serialDevices) {
             if (extractHubPortFromDevicePortLinux(serialDevice.portChain) == expectedSerialHubPort) {
-                qCDebug(log_device_linux) << "✓ Serial device at expected hub port" << expectedSerialHubPort << ":" << serialDevice.syspath;
-                return serialDevice.syspath;
+                qCDebug(log_device_linux) << "✓ Serial device at expected hub port" << expectedSerialHubPort << ":" << serialDevice.parentSyspath;
+                return serialDevice.parentSyspath;
             }
         }
     }
@@ -1046,8 +1056,8 @@ QString LinuxDeviceManager::findSerialPortByCompanionDeviceLinux(const UdevDevic
             const QString serialHubPort = extractHubPortFromDevicePortLinux(serialDevice.portChain);
             if (!serialHubPort.isEmpty() && serialHubPort == companionHubPort
                 && isSerialDeviceAssociatedWithCompanionLinux(serialDevice, companionDevice)) {
-                qCDebug(log_device_linux) << "✓ Serial device under the companion's hub (fallback):" << serialDevice.syspath;
-                return serialDevice.syspath;
+                qCDebug(log_device_linux) << "✓ Serial device under the companion's hub (fallback):" << serialDevice.parentSyspath;
+                return serialDevice.parentSyspath;
             }
         }
     }
@@ -1056,8 +1066,8 @@ QString LinuxDeviceManager::findSerialPortByCompanionDeviceLinux(const UdevDevic
     for (const UdevDeviceData& serialDevice : serialDevices) {
         if (arePortChainsRelatedLinux(serialDevice.portChain, companionPortChain)
             && isSerialDeviceAssociatedWithCompanionLinux(serialDevice, companionDevice)) {
-            qCDebug(log_device_linux) << "✓ Related serial device (sibling relationship):" << serialDevice.syspath;
-            return serialDevice.syspath;
+            qCDebug(log_device_linux) << "✓ Related serial device (sibling relationship):" << serialDevice.parentSyspath;
+            return serialDevice.parentSyspath;
         }
     }
     qCDebug(log_device_linux) << "✗ No associated serial device found for companion device" << companionPortChain;
