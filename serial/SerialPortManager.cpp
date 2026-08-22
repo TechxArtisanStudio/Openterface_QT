@@ -623,7 +623,11 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
         }
 
         // Check if we're already using this port - avoid unnecessary switching
-        if (!m_currentSerialPortPath.isEmpty() && m_currentSerialPortPath == selectedDevice.serialPortPath) {
+        // Same unit AND same path: nothing to do. (Path alone is not enough: a
+        // mis-associated second unit can resolve to the same tty, and skipping
+        // then leaves the keyboard on the previous unit.)
+        if (!m_currentSerialPortPath.isEmpty() && m_currentSerialPortPath == selectedDevice.serialPortPath
+            && m_currentSerialPortChain == portChain) {
             qCDebug(log_core_serial_conn) << "Already using serial port:" << selectedDevice.serialPortPath << "- skipping switch";
             return true;
         }
