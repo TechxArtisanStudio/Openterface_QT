@@ -63,6 +63,7 @@ private:
                                             const QList<UdevDeviceData>& serials,
                                             const char* generation);
     static qint64 usbEnumerationKey(const QString& usbDeviceSyspath);   // busnum*1000+devnum, -1 if unknown
+    static QList<UdevDeviceData> usbDeviceNodesOnly(const QList<UdevDeviceData>& entries);
     
     // Blocking device discovery (for use in background thread)
     QList<DeviceInfo> discoverDevicesBlocking();
