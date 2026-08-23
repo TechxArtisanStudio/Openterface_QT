@@ -6,6 +6,33 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QHBoxLayout>
+#include <QKeyEvent>
+
+/**
+ * @brief QTextEdit subclass that emits sendRequested on Shift+Enter / Ctrl+Enter
+ * instead of inserting a newline. Plain Enter inserts a newline as usual.
+ */
+class ChatTextEdit : public QTextEdit
+{
+    Q_OBJECT
+public:
+    explicit ChatTextEdit(QWidget *parent = nullptr) : QTextEdit(parent) {}
+
+signals:
+    void sendRequested();
+
+protected:
+    void keyPressEvent(QKeyEvent *event) override
+    {
+        // Shift+Enter or Ctrl+Enter → send the message
+        if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
+            && (event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier))) {
+            emit sendRequested();
+            return;
+        }
+        QTextEdit::keyPressEvent(event);
+    }
+};
 
 /**
  * @brief Text input area with send/stop buttons and attachment preview.
@@ -37,7 +64,7 @@ private:
     void setupUI();
     void updateButtonState();
 
-    QTextEdit *m_textEdit;
+    ChatTextEdit *m_textEdit;
     QPushButton *m_sendBtn;
     QPushButton *m_stopBtn;
     QLabel *m_attachmentPreview;

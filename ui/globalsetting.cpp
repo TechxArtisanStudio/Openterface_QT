@@ -91,6 +91,16 @@ QMap<QString, QPair<bool, QString>> GlobalSetting::loadCategoryStates() const
     return states;
 }
 
+void GlobalSetting::setAILogEnabled(bool enabled)
+{
+    m_settings.setValue("log/ai", enabled);
+}
+
+bool GlobalSetting::getAILogEnabled() const
+{
+    return m_settings.value("log/ai", false).toBool();
+}
+
 void GlobalSetting::loadLogSettings()
 {
     auto states = loadCategoryStates();
@@ -817,12 +827,15 @@ QString GlobalSetting::getChatPlannerPrompt() const {
         "- Build a short, concrete plan that can be reviewed by the user.\n"
         "- Keep tasks simple and independent.\n"
         "- Available task agents/tools:\n"
-        "    - screen + capture_screen\n"
+        "    - screen + capture_screen (AI vision analysis - sends image to AI model)\n"
+        "    - screen + screen_to_markdown (OCR - extracts text using Tesseract, no vision needed)\n"
         "    - typing + type_text\n"
         "    - mouse + move_mouse\n"
         "    - mouse + left_click\n"
         "    - mouse + right_click\n"
         "    - mouse + double_click\n"
+        "- Use capture_screen when the AI model supports vision and you need visual understanding.\n"
+        "- Use screen_to_markdown when you need text extraction without vision, or when vision is unavailable.\n"
         "- Use typing tasks when the user intent requires entering text or keystrokes on target.\n"
         "- Use mouse tasks when the user intent requires cursor movement or clicks on target.\n"
         "- Do not execute tasks yourself.\n"
@@ -832,6 +845,7 @@ QString GlobalSetting::getChatPlannerPrompt() const {
         "    \"summary\": \"one short sentence about the plan\",\n"
         "    \"tasks\": [\n"
         "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"screen\", \"tool\": \"capture_screen\"},\n"
+        "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"screen\", \"tool\": \"screen_to_markdown\"},\n"
         "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"typing\", \"tool\": \"type_text\"},\n"
         "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"mouse\", \"tool\": \"left_click\"}\n"
         "    ]\n"
@@ -934,4 +948,52 @@ void GlobalSetting::setChatDockSide(const QString &side) {
 
 QString GlobalSetting::getChatDockSide() const {
     return m_settings.value("chat/dockSide", "right").toString();
+}
+
+void GlobalSetting::setChatTypingDelayMs(int ms) {
+    m_settings.setValue("chat/typingDelayMs", qBound(0, ms, 1000));
+}
+
+int GlobalSetting::getChatTypingDelayMs() const {
+    return qBound(0, m_settings.value("chat/typingDelayMs", 20).toInt(), 1000);
+}
+
+void GlobalSetting::setChatBatchSize(int size) {
+    m_settings.setValue("chat/batchSize", qBound(1, size, 50));
+}
+
+int GlobalSetting::getChatBatchSize() const {
+    return qBound(1, m_settings.value("chat/batchSize", 5).toInt(), 50);
+}
+
+void GlobalSetting::setChatMouseToKeyboardDelayMs(int ms) {
+    m_settings.setValue("chat/mouseToKeyboardDelayMs", qBound(0, ms, 5000));
+}
+
+int GlobalSetting::getChatMouseToKeyboardDelayMs() const {
+    return qBound(0, m_settings.value("chat/mouseToKeyboardDelayMs", 800).toInt(), 5000);
+}
+
+void GlobalSetting::setChatPostKeyboardSettleMs(int ms) {
+    m_settings.setValue("chat/postKeyboardSettleMs", qBound(0, ms, 5000));
+}
+
+int GlobalSetting::getChatPostKeyboardSettleMs() const {
+    return qBound(0, m_settings.value("chat/postKeyboardSettleMs", 400).toInt(), 5000);
+}
+
+void GlobalSetting::setChatPreCaptureDelayMs(int ms) {
+    m_settings.setValue("chat/preCaptureDelayMs", qBound(0, ms, 5000));
+}
+
+int GlobalSetting::getChatPreCaptureDelayMs() const {
+    return qBound(0, m_settings.value("chat/preCaptureDelayMs", 400).toInt(), 5000);
+}
+
+void GlobalSetting::setChatInitialTypingDelayMs(int ms) {
+    m_settings.setValue("chat/initialTypingDelayMs", qBound(0, ms, 5000));
+}
+
+int GlobalSetting::getChatInitialTypingDelayMs() const {
+    return qBound(0, m_settings.value("chat/initialTypingDelayMs", 500).toInt(), 5000);
 }

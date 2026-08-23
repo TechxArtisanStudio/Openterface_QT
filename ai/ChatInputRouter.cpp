@@ -28,7 +28,6 @@
 #include <algorithm>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ai_chat)
-Q_LOGGING_CATEGORY(log_ai_chat, "openterface.ai.chat")
 
 ChatInputRouter::ChatInputRouter(QObject *parent)
     : QObject(parent)

@@ -14,6 +14,9 @@ class ChatTraceDialog : public QDialog
 public:
     explicit ChatTraceDialog(QWidget *parent = nullptr);
 
+private slots:
+    void onClearClicked();
+
 private:
     void loadTrace();
 

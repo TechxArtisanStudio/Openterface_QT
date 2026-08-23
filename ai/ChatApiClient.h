@@ -82,6 +82,13 @@ signals:
 private:
     QNetworkAccessManager *m_networkManager;
 
+    /// Internal: actually perform the HTTP post. Always runs on the main thread.
+    void doPost(
+        const QNetworkRequest &request,
+        const QByteArray &body,
+        std::function<void(bool, const ChatCompletionResult &, const QString &)> callback,
+        const QString &model);
+
     struct PendingRequest {
         QNetworkReply *reply;
         std::function<void(bool, const ChatCompletionResult &, const QString &)> callback;

@@ -82,7 +82,8 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
 {
     // Initialize the list of settings pages for dirty-checking
     m_pages << logPage << videoPage << qobject_cast<PreferencePageBase*>(audioPage)
-            << targetControlPage << mcpPage;
+            << targetControlPage << mcpPage
+            << qobject_cast<PreferencePageBase*>(chatSettingsPage);
 
     ui->setupUi(this);
     createSettingTree();

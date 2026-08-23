@@ -373,10 +373,10 @@ set(UI_CHAT_SOURCES
     ui/chat/ChatInputWidget.cpp ui/chat/ChatInputWidget.h
     ui/chat/ChatPlanCardWidget.cpp ui/chat/ChatPlanCardWidget.h
     ui/chat/ChatSkillBar.cpp ui/chat/ChatSkillBar.h
+    ui/chat/ChatEmptyStateWidget.cpp ui/chat/ChatEmptyStateWidget.h
     ui/chat/ChatTraceDialog.cpp ui/chat/ChatTraceDialog.h
     ui/chat/ChatSettingsPage.cpp ui/chat/ChatSettingsPage.h
     ui/chat/QuickReplyWidget.h
-)
 )
 
 # Combine all source files

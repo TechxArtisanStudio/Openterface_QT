@@ -76,6 +76,16 @@ struct ScreenAnalysis {
 };
 
 /**
+ * Analysis mode for screen OCR.
+ * General mode is optimized for UI elements with coordinates.
+ * Terminal mode is optimized for monospaced command output.
+ */
+enum class AnalysisMode {
+    General,   // UI text with coordinates and element detection
+    Terminal   // Terminal/command output with preserved layout
+};
+
+/**
  * Screen analyzer that uses OCR to extract text and UI elements from screen captures.
  * Converts the screen to a structured Markdown representation for AI consumption.
  */
@@ -88,9 +98,11 @@ public:
      * Analyze a screen image and extract text/UI elements with coordinates.
      * @param frame The screen image to analyze
      * @param detailLevel "basic" or "detailed" - controls output verbosity
+     * @param mode General (UI) or Terminal (command output) - affects preprocessing and output format
      * @return ScreenAnalysis result with detected elements and Markdown output
      */
-    ScreenAnalysis analyzeScreen(const QImage& frame, const QString& detailLevel = "detailed");
+    ScreenAnalysis analyzeScreen(const QImage& frame, const QString& detailLevel = "detailed",
+                                 AnalysisMode mode = AnalysisMode::General);
 
     /**
      * Check if Tesseract OCR is properly initialized and available.
@@ -107,6 +119,7 @@ public:
 private:
     tesseract::TessBaseAPI* m_tesseract;
     bool m_initialized;
+    QImage m_previousFrame;   // Stored for differential OCR (change detection)
 #ifdef HAVE_OPENCV
     bool m_opencvAvailable;
 #endif
@@ -123,6 +136,37 @@ private:
      * @return List of detected text elements with coordinates
      */
     QList<TextElement> extractTextWithPositions(const QImage& frame);
+
+    /**
+     * Extract terminal text using OCR optimized for command output.
+     * Uses preprocessing and Tesseract settings tuned for monospaced text.
+     * @param frame The terminal image to process
+     * @return Plain text with preserved terminal layout
+     */
+    QString extractTerminalText(const QImage& frame);
+
+    /**
+     * Detect the region that changed between the current frame and the previous frame.
+     * Uses OpenCV absdiff to find pixel differences, then computes the bounding box
+     * of all changed areas. Useful for differential OCR — only processing the part
+     * of the screen that actually changed (e.g. new terminal output).
+     * @param currentFrame The current screen capture
+     * @param changedRect Output: bounding box of all changed pixels (in currentFrame coords)
+     * @param changeRatio Output: fraction of pixels that changed (0.0 to 1.0)
+     * @return true if a previous frame exists for comparison, false if this is the first frame
+     */
+    bool detectChangedRegion(const QImage& currentFrame, QRect& changedRect, float& changeRatio);
+
+    /**
+     * Store the current frame for next call's diff comparison.
+     * Called automatically after each terminal OCR.
+     */
+    void updatePreviousFrame(const QImage& frame);
+
+    /**
+     * Clear the stored previous frame (e.g. when starting a new session).
+     */
+    void clearPreviousFrame();
 
     /**
      * Convert detected text elements into UI elements (buttons, menus, etc.)
@@ -147,6 +191,15 @@ private:
                                            const QList<TextElement>& textElements);
 
     /**
+     * Preprocess image for terminal OCR.
+     * Applies grayscale conversion, adaptive thresholding, sharpening,
+     * and optional upscaling to improve terminal text recognition.
+     * @param frame The input image
+     * @return Preprocessed QImage optimized for terminal OCR
+     */
+    QImage preprocessForTerminal(const QImage& frame);
+
+    /**
      * Convert QImage to cv::Mat for OpenCV processing.
      * @param image The QImage to convert
      * @return OpenCV Mat in BGR format
@@ -161,6 +214,18 @@ private:
      * @return Markdown-formatted string
      */
     QString generateMarkdown(const ScreenAnalysis& analysis, const QString& detailLevel);
+
+    /**
+     * Generate terminal-friendly Markdown from extracted text.
+     * Preserves terminal layout and uses code block formatting.
+     * @param terminalText The extracted terminal text
+     * @param screenWidth Screen width for header
+     * @param screenHeight Screen height for header
+     * @param changedRect Optional: the changed region (for differential OCR context)
+     * @return Markdown-formatted string with terminal content
+     */
+    QString generateTerminalMarkdown(const QString& terminalText, int screenWidth, int screenHeight,
+                                     const QRect* changedRect = nullptr);
 
     /**
      * Convert pixel coordinates to MCP coordinates (0-4096 range).

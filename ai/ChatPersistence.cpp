@@ -8,7 +8,6 @@
 #include <QLoggingCategory>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ai_chat)
-Q_LOGGING_CATEGORY(log_ai_chat, "openterface.ai.chat")
 
 ChatPersistence::ChatPersistence(QObject *parent)
     : QObject(parent)
@@ -37,7 +36,12 @@ void ChatPersistence::saveHistory(
     QJsonObject root;
 
     QJsonArray msgsArr;
-    for (const auto &msg : messages) msgsArr.append(msg.toJson());
+    for (const auto &msg : messages) {
+        // Status-hint messages (step indicators like "Step 2/10 — examining
+        // screen...") are ephemeral display-only entries; don't persist them.
+        if (msg.isStatusHint) continue;
+        msgsArr.append(msg.toJson());
+    }
     root["messages"] = msgsArr;
 
     if (hasPlan) {

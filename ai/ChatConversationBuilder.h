@@ -63,6 +63,16 @@ public:
 
 private:
     explicit ChatConversationBuilder(QObject *parent = nullptr);
+
+    /**
+     * @brief Remove tool-call JSON from assistant message content.
+     *
+     * The UI keeps the full content for display, but when the message is sent
+     * back to the API, the raw JSON would cause the model to see its own
+     * tool_call and potentially repeat it. This returns just the human-readable
+     * portion, preserving any text before or after the JSON block.
+     */
+    QString stripToolCallJson(const QString &text) const;
 };
 
 #endif // CHAT_CONVERSATION_BUILDER_H

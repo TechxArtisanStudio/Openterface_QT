@@ -6,7 +6,6 @@
 #include <QThread>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ai_chat)
-Q_LOGGING_CATEGORY(log_ai_chat, "openterface.ai.chat")
 
 ChatGuideMode::ChatGuideMode(QObject *parent)
     : QObject(parent)

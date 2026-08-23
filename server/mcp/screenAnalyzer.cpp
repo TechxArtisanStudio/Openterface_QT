@@ -106,7 +106,8 @@ bool ScreenAnalyzer::initializeTesseract()
 #endif
 }
 
-ScreenAnalysis ScreenAnalyzer::analyzeScreen(const QImage& frame, const QString& detailLevel)
+ScreenAnalysis ScreenAnalyzer::analyzeScreen(const QImage& frame, const QString& detailLevel,
+                                             AnalysisMode mode)
 {
     ScreenAnalysis result;
     result.screenWidth = frame.width();
@@ -124,9 +125,52 @@ ScreenAnalysis ScreenAnalyzer::analyzeScreen(const QImage& frame, const QString&
         return result;
     }
 
-    qCInfo(log_screen_analyzer) << "Analyzing screen" << result.screenWidth << "x" << result.screenHeight;
+    qCInfo(log_screen_analyzer) << "Analyzing screen" << result.screenWidth << "x" << result.screenHeight
+                                << "mode:" << (mode == AnalysisMode::Terminal ? "Terminal" : "General");
 
-    // Extract text elements with positions
+    // Terminal mode: use specialized OCR for command output
+    if (mode == AnalysisMode::Terminal) {
+        qCInfo(log_screen_analyzer) << "Using terminal OCR mode";
+
+        // Detect changed region for differential OCR
+        QRect changedRect;
+        float changeRatio = 0.0f;
+        bool hasPrevious = detectChangedRegion(frame, changedRect, changeRatio);
+
+        QImage ocrRegion = frame;  // Default: full frame
+        bool usingRegion = false;
+
+        if (hasPrevious && changeRatio > 0.001f && changeRatio < 0.85f) {
+            // Significant change but not the whole screen — crop to changed area
+            // Add a small padding (20px) around the changed region to capture
+            // context lines above/below the change
+            int pad = 20;
+            int x1 = qMax(0, changedRect.x() - pad);
+            int y1 = qMax(0, changedRect.y() - pad);
+            int x2 = qMin(frame.width(), changedRect.right() + 1 + pad);
+            int y2 = qMin(frame.height(), changedRect.bottom() + 1 + pad);
+            ocrRegion = frame.copy(x1, y1, x2 - x1, y2 - y1);
+            usingRegion = true;
+            qCInfo(log_screen_analyzer) << "Differential OCR: changeRatio=" << changeRatio
+                                        << "region=" << changedRect
+                                        << "padded=" << ocrRegion.width() << "x" << ocrRegion.height();
+        } else if (hasPrevious) {
+            qCInfo(log_screen_analyzer) << "Differential OCR: no significant change (ratio="
+                                        << changeRatio << "), using full frame";
+        }
+
+        QString terminalText = extractTerminalText(ocrRegion);
+
+        // Update stored frame for next diff
+        updatePreviousFrame(frame);
+
+        result.markdownOutput = generateTerminalMarkdown(terminalText, result.screenWidth, result.screenHeight,
+                                                          usingRegion ? &changedRect : nullptr);
+        return result;
+    }
+
+    // General mode: extract text elements with positions for UI analysis
+    qCInfo(log_screen_analyzer) << "Using general OCR mode";
     result.textElements = extractTextWithPositions(frame);
     qCInfo(log_screen_analyzer) << "Detected" << result.textElements.size() << "text elements";
 
@@ -160,6 +204,10 @@ ScreenAnalysis ScreenAnalyzer::analyzeScreen(const QImage& frame, const QString&
 
     // Generate Markdown output
     result.markdownOutput = generateMarkdown(result, detailLevel);
+
+    // Keep the stored frame fresh even in general mode, so a subsequent terminal
+    // mode call doesn't compare against a stale frame from many iterations ago.
+    updatePreviousFrame(frame);
 
     return result;
 }
@@ -611,4 +659,282 @@ QList<UIElement> ScreenAnalyzer::detectButtonsVisually(const QImage& frame,
     return filtered;
 }
 
+QString ScreenAnalyzer::extractTerminalText(const QImage& frame)
+{
+    QString terminalText;
+
+#ifdef HAVE_TESSERACT
+    if (!m_tesseract) {
+        return "# Error\n\nTesseract not initialized\n";
+    }
+
+    // Preprocess image for terminal OCR if OpenCV is available
+    QImage processedFrame = frame;
+#ifdef HAVE_OPENCV
+    if (m_opencvAvailable) {
+        processedFrame = preprocessForTerminal(frame);
+    }
+#endif
+
+    // Convert to RGB32 format for Tesseract
+    QImage converted = processedFrame.convertToFormat(QImage::Format_RGB32);
+
+    // Configure Tesseract for terminal output
+    // PSM_SPARSE_TEXT finds text anywhere in the image without assuming a layout.
+    // This works better than PSM_SINGLE_BLOCK for terminal screenshots that don't
+    // fill the entire screen (e.g. a terminal window on a desktop with wallpaper).
+    // SINGLE_BLOCK assumes the whole image is one text block, which causes Tesseract
+    // to hallucinate text from wallpaper patterns when the terminal is small.
+    m_tesseract->SetPageSegMode(tesseract::PSM_SPARSE_TEXT);
+
+    // Set variables optimized for terminal/command output
+    m_tesseract->SetVariable("preserve_interword_spaces", "1");
+    m_tesseract->SetVariable("textord_heavy_line_nr", "0");
+    m_tesseract->SetVariable("language_model_ngram_on", "0");
+
+    // Set the image data
+    m_tesseract->SetImage(
+        converted.constBits(),
+        converted.width(),
+        converted.height(),
+        4,  // bytes per pixel (RGB32 = 4 bytes)
+        converted.bytesPerLine()
+    );
+
+    // Recognize and get full text
+    m_tesseract->Recognize(nullptr);
+    char* outText = m_tesseract->GetUTF8Text();
+
+    if (outText) {
+        terminalText = QString::fromUtf8(outText);
+        delete[] outText;
+    }
+
+    // Restore default PSM mode for subsequent general OCR calls
+    m_tesseract->SetPageSegMode(tesseract::PSM_AUTO);
+
+    qCInfo(log_screen_analyzer) << "Terminal OCR extracted" << terminalText.length() << "characters";
+#else
+    Q_UNUSED(frame)
+    terminalText = "# Error\n\nTesseract OCR not available\n";
+#endif
+
+    return terminalText;
+}
+
+#ifdef HAVE_OPENCV
+QImage ScreenAnalyzer::preprocessForTerminal(const QImage& frame)
+{
+    // Convert QImage to cv::Mat
+    cv::Mat mat = QImageToMat(frame);
+    if (mat.empty()) {
+        qCWarning(log_screen_analyzer) << "Failed to convert frame to Mat for preprocessing";
+        return frame;
+    }
+
+    // Step 1: Convert to grayscale
+    cv::Mat gray;
+    if (mat.channels() == 3) {
+        cv::cvtColor(mat, gray, cv::COLOR_BGR2GRAY);
+    } else {
+        gray = mat;
+    }
+
+    // Step 2: Upscale 2x if image is small (improves OCR for small terminal text)
+    // Only upscale if the text would be too small for Tesseract (< 15px height)
+    // Terminal text is typically ~16-20px in a 1080p terminal, so only upscale
+    // if the image is significantly smaller than 1080p.
+    cv::Mat scaled;
+    if (gray.rows < 600) {
+        cv::resize(gray, scaled, cv::Size(), 2.0, 2.0, cv::INTER_CUBIC);
+        qCDebug(log_screen_analyzer) << "Upscaled terminal image 2x for better OCR";
+    } else {
+        scaled = gray;
+    }
+
+    // Step 3: Optional slight sharpening to enhance text edges
+    // Use an unsharp mask: sharpened = original + amount * (original - blurred)
+    cv::Mat blurred, sharpened;
+    cv::GaussianBlur(scaled, blurred, cv::Size(0, 0), 1.0);
+    cv::addWeighted(scaled, 1.5, blurred, -0.5, 0, sharpened);
+
+    // Terminal screenshots already have high contrast with uniform lighting.
+    // Adaptive thresholding (designed for documents with uneven lighting) actually
+    // destroys terminal text quality by creating artifacts. Skip it entirely.
+    // Tesseract works best with the original grayscale + slight sharpening.
+
+    // Convert back to QImage (grayscale, not binary)
+    QImage result(sharpened.cols, sharpened.rows, QImage::Format_Grayscale8);
+    for (int y = 0; y < sharpened.rows; ++y) {
+        memcpy(result.scanLine(y), sharpened.ptr(y), sharpened.cols);
+    }
+
+    qCDebug(log_screen_analyzer) << "Terminal preprocessing complete:"
+                                 << "original" << frame.width() << "x" << frame.height()
+                                 << "-> processed" << result.width() << "x" << result.height();
+
+    return result;
+}
+#endif
+
 #endif // HAVE_OPENCV
+
+// ============================================================================
+// Non-OpenCV-dependent helpers (also available when OpenCV is absent)
+// ============================================================================
+
+QString ScreenAnalyzer::generateTerminalMarkdown(const QString& terminalText, int screenWidth, int screenHeight,
+                                                  const QRect* changedRect)
+{
+    QString md;
+
+    if (changedRect && !changedRect->isNull()) {
+        md += QString("# Terminal Output — changed region (%1x%2) at (%3,%4)-(%5,%6)\n\n")
+            .arg(changedRect->width()).arg(changedRect->height())
+            .arg(changedRect->x()).arg(changedRect->y())
+            .arg(changedRect->right()).arg(changedRect->bottom());
+        md += "_Only the changed part of the screen is shown below._\n\n";
+    } else {
+        md += QString("# Terminal Output (%1x%2)\n\n").arg(screenWidth).arg(screenHeight);
+    }
+
+    if (terminalText.trimmed().isEmpty()) {
+        md += "_No text detected in terminal._\n";
+    } else {
+        md += "```\n";
+        md += terminalText;
+        if (!terminalText.endsWith('\n')) {
+            md += '\n';
+        }
+        md += "```\n";
+    }
+
+    return md;
+}
+
+bool ScreenAnalyzer::detectChangedRegion(const QImage& currentFrame, QRect& changedRect, float& changeRatio)
+{
+    changedRect = QRect();
+    changeRatio = 0.0f;
+
+    if (m_previousFrame.isNull() || m_previousFrame.size() != currentFrame.size()) {
+        // No previous frame to compare, or size mismatch — can't detect changes.
+        // The size check matters because we store a downscaled copy; if the screen
+        // resolution changed between calls, the diff would be meaningless.
+        return false;
+    }
+
+#ifdef HAVE_OPENCV
+    // Convert both frames to grayscale Mats for comparison.
+    // We use the stored downscale copy vs. a fresh downscale of the current frame
+    // so both are at the same resolution for absdiff.
+    cv::Mat prevMat = QImageToMat(m_previousFrame);
+    cv::Mat currFullMat = QImageToMat(currentFrame);
+
+    if (prevMat.empty() || currFullMat.empty()) {
+        return false;
+    }
+
+    // Downscale current frame to match the stored previous frame size
+    cv::Mat currMat;
+    if (currFullMat.cols != prevMat.cols || currFullMat.rows != prevMat.rows) {
+        cv::resize(currFullMat, currMat, prevMat.size(), 0, 0, cv::INTER_AREA);
+    } else {
+        currMat = currFullMat;
+    }
+
+    cv::Mat prevGray, currGray;
+    cv::cvtColor(prevMat, prevGray, cv::COLOR_BGR2GRAY);
+    cv::cvtColor(currMat, currGray, cv::COLOR_BGR2GRAY);
+
+    // Compute absolute difference between frames
+    cv::Mat diff;
+    cv::absdiff(prevGray, currGray, diff);
+
+    // Threshold to find pixels that changed significantly.
+    // 20/255 filters out compression artifacts (H.264 introduces small per-pixel
+    // changes even on static frames) and ambient noise.
+    cv::Mat binary;
+    cv::threshold(diff, binary, 20, 255, cv::THRESH_BINARY);
+
+    // Morphological close to merge nearby changed pixels into connected regions.
+    // Without this, a single line of new terminal output would be detected as
+    // dozens of tiny fragments — each character a separate contour.
+    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+    cv::morphologyEx(binary, binary, cv::MORPH_CLOSE, kernel);
+
+    // Find contours of changed regions
+    std::vector<std::vector<cv::Point>> contours;
+    cv::findContours(binary, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+    if (contours.empty()) {
+        return true;  // Have previous, but no changes detected
+    }
+
+    // Compute bounding box that contains all changed regions.
+    // Work in the original (full-resolution) coordinate space so the rect can
+    // be used to crop the full-res frame for OCR.
+    int scale = 2;  // We store at half resolution, so multiply back up
+    int minX = currentFrame.width(), minY = currentFrame.height();
+    int maxX = 0, maxY = 0;
+    int totalChangedPixels = 0;
+
+    for (const auto& contour : contours) {
+        cv::Rect r = cv::boundingRect(contour);
+
+        // Filter out tiny noise contours
+        if (r.width < 5 || r.height < 5) continue;
+
+        // Scale up to full resolution
+        int fx = r.x * scale;
+        int fy = r.y * scale;
+        int fw = r.width * scale;
+        int fh = r.height * scale;
+
+        // Filter out very large contours that span most of the screen
+        // (full-screen refresh, cursor blink covering everything, etc.)
+        if (fw > currentFrame.width() * 0.9 && fh > currentFrame.height() * 0.9) {
+            // Full-screen change — fall back to full-frame OCR
+            return true;
+        }
+
+        minX = std::min(minX, fx);
+        minY = std::min(minY, fy);
+        maxX = std::max(maxX, fx + fw);
+        maxY = std::max(maxY, fy + fh);
+        totalChangedPixels += fw * fh;
+    }
+
+    if (maxX <= minX || maxY <= minY) {
+        return true;  // Have previous, but changes were too small to matter
+    }
+
+    changedRect = QRect(minX, minY, maxX - minX, maxY - minY);
+    int screenPixels = currentFrame.width() * currentFrame.height();
+    changeRatio = (screenPixels > 0) ? static_cast<float>(totalChangedPixels) / screenPixels : 0.0f;
+
+    qCDebug(log_screen_analyzer) << "Changed region:" << changedRect
+                                 << "ratio:" << changeRatio
+                                 << "contours:" << contours.size();
+    return true;
+#else
+    Q_UNUSED(currentFrame)
+    return false;
+#endif
+}
+
+void ScreenAnalyzer::updatePreviousFrame(const QImage& frame)
+{
+    // Store a downscaled copy to save memory. We only need it for diff comparison,
+    // not for high-res OCR. Half resolution is enough for change detection and
+    // keeps memory usage bounded (a 4K frame = ~8MB RGB vs ~2MB at half-res).
+    if (!frame.isNull()) {
+        m_previousFrame = frame.scaled(qMax(1, frame.width() / 2), qMax(1, frame.height() / 2),
+                                        Qt::IgnoreAspectRatio, Qt::FastTransformation);
+    }
+}
+
+void ScreenAnalyzer::clearPreviousFrame()
+{
+    m_previousFrame = QImage();
+}

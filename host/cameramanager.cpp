@@ -98,10 +98,13 @@ bool CameraManager::isMediaFoundationBackend() const
 }
 #endif
 
-QImage CameraManager::getLatestOriginalFrame() const
+QImage CameraManager::getLatestOriginalFrame()
 {
     if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
         return ffmpeg->getLatestOriginalFrame();
+    }
+    if (GStreamerBackendHandler* gst = getGStreamerBackend()) {
+        return gst->getLatestOriginalFrame();
     }
     return QImage();
 }

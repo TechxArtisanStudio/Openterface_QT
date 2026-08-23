@@ -51,6 +51,13 @@ public:
     QList<AgentToolCall> parseToolCalls(const QString &text) const;
 
     /**
+     * @brief Parse tool calls from Anthropic XML format (fallback).
+     *
+     * Matches: &lt;function name="tool"&gt;&lt;parameter name="arg"&gt;val&lt;/parameter&gt;&lt;/function&gt;
+     */
+    QList<AgentToolCall> parseXmlToolCalls(const QString &text) const;
+
+    /**
      * @brief Execute a list of tool calls and return aggregated result.
      */
     AgentToolExecutionResult executeToolCalls(const QList<AgentToolCall> &calls);
@@ -72,6 +79,13 @@ private:
     static double absoluteToNormalized(int value);
     static double doubleArg(const QVariant &value, bool *ok = nullptr);
     static int intArg(const QVariant &value, bool *ok = nullptr);
+
+    /// Estimate how long handlePastingCharacters will take to type `charCount`
+    /// characters, based on the current typing-delay and batch-size settings.
+    /// Used by executeToolCalls() to block the background thread until typing
+    /// on the main thread is expected to have finished, so subsequent tools
+    /// (e.g. press_key "enter") don't race with in-flight keystrokes.
+    static int estimateTypingDurationMs(int charCount);
 
     // Click with coordinate resolution
     struct ClickPoint { int x; int y; };

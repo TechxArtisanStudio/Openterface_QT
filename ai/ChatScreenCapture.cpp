@@ -1,15 +1,17 @@
 #include "ChatScreenCapture.h"
 #include "../host/cameramanager.h"
 #include <QFile>
+#include <QFileInfo>
 #include <QBuffer>
 #include <QDir>
 #include <QStandardPaths>
 #include <QDateTime>
 #include <QLoggingCategory>
 #include <QPainter>
+#include <QThread>
+#include <QMetaObject>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ai_chat)
-Q_LOGGING_CATEGORY(log_ai_chat, "openterface.ai.chat")
 
 ChatScreenCapture::ChatScreenCapture(QObject *parent)
     : QObject(parent)
@@ -38,24 +40,68 @@ QString ChatScreenCapture::tempFilePath() const
 QString ChatScreenCapture::captureScreen()
 {
     if (!m_cameraManager) {
-        qCWarning(log_ai_chat) << "AI screen capture failed: no CameraManager set";
+        qCWarning(log_ai_chat) << "AI screen capture: no CameraManager set";
         return QString();
     }
+
+    qint64 startTime = QDateTime::currentMSecsSinceEpoch();
+
+    // The GStreamer pipeline is NOT thread-safe — the capture MUST happen on
+    // the thread that owns m_cameraManager (the main thread). If we're being
+    // called from a worker thread (e.g. ChatManager's QtConcurrent::run),
+    // marshal the call to the main thread with BlockingQueuedConnection.
+    if (QThread::currentThread() != m_cameraManager->thread()) {
+        qCDebug(log_ai_chat) << "AI screen capture: marshaling to main thread via BlockingQueuedConnection";
+        QString result;
+        bool ok = QMetaObject::invokeMethod(this, [this, &result]() {
+            result = doCaptureScreen();
+        }, Qt::BlockingQueuedConnection);
+        if (!ok) {
+            qCWarning(log_ai_chat) << "AI screen capture: failed to marshal to main thread";
+            return QString();
+        }
+        qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - startTime;
+        qCDebug(log_ai_chat) << "AI screen capture: total time (including marshal) =" << elapsed << "ms";
+        return result;
+    }
+
+    QString result = doCaptureScreen();
+    qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - startTime;
+    qCDebug(log_ai_chat) << "AI screen capture: total time =" << elapsed << "ms";
+    return result;
+}
+
+QString ChatScreenCapture::doCaptureScreen()
+{
+    if (!m_cameraManager) {
+        qCWarning(log_ai_chat) << "AI screen capture: no CameraManager set";
+        return QString();
+    }
+
+    qCDebug(log_ai_chat) << "AI screen capture: requesting frame from CameraManager"
+                         << "(backend GStreamer:" << m_cameraManager->isGStreamerBackend()
+                         << "FFmpeg:" << m_cameraManager->isFFmpegBackend() << ")";
 
     QImage frame = m_cameraManager->getLatestOriginalFrame();
     if (frame.isNull()) {
-        qCWarning(log_ai_chat) << "AI screen capture failed: no frame available";
+        qCWarning(log_ai_chat) << "AI screen capture: frame is null/empty (no frame available from backend)";
         return QString();
     }
 
+    qCDebug(log_ai_chat) << "AI screen capture: got frame"
+                         << frame.width() << "x" << frame.height()
+                         << "format=" << frame.format();
+
     QString path = tempFilePath();
     if (frame.save(path, "JPEG", 85)) {
+        QFileInfo fi(path);
         qCDebug(log_ai_chat) << "AI screen capture success:" << path
+                             << "bytes=" << fi.size()
                              << "size=" << frame.width() << "x" << frame.height();
         emit screenshotCaptured(path);
         return path;
     } else {
-        qCWarning(log_ai_chat) << "AI screen capture failed: could not save to" << path;
+        qCWarning(log_ai_chat) << "AI screen capture: QImage.save() failed for" << path;
         return QString();
     }
 }

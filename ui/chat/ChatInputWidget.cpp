@@ -1,6 +1,5 @@
 #include "ChatInputWidget.h"
 #include <QVBoxLayout>
-#include <QKeySequence>
 #include <QPixmap>
 
 ChatInputWidget::ChatInputWidget(QWidget *parent)
@@ -29,13 +28,12 @@ void ChatInputWidget::setupUI()
 
     // Text edit + buttons
     auto *inputLayout = new QHBoxLayout();
-    m_textEdit = new QTextEdit();
+    m_textEdit = new ChatTextEdit();
     m_textEdit->setMaximumHeight(120);
-    m_textEdit->setPlaceholderText("Type a message... (Ctrl+Enter to send)");
+    m_textEdit->setPlaceholderText("Type a message... (Shift+Enter to send)");
 
     auto *btnLayout = new QVBoxLayout();
     m_sendBtn = new QPushButton("Send");
-    m_sendBtn->setShortcut(QKeySequence("Ctrl+Return"));
     m_stopBtn = new QPushButton("Stop");
     m_stopBtn->setVisible(false);
     m_stopBtn->setStyleSheet("background-color: #dc3545; color: white;");
@@ -45,6 +43,9 @@ void ChatInputWidget::setupUI()
     inputLayout->addWidget(m_textEdit, 1);
     inputLayout->addLayout(btnLayout);
     layout->addLayout(inputLayout);
+
+    // Send via Shift+Enter / Ctrl+Enter — handled by ChatTextEdit::keyPressEvent
+    connect(m_textEdit, &ChatTextEdit::sendRequested, this, &ChatInputWidget::onSendClicked);
 
     connect(m_sendBtn, &QPushButton::clicked, this, &ChatInputWidget::onSendClicked);
     connect(m_stopBtn, &QPushButton::clicked, this, [this]() { emit stopRequested(); });

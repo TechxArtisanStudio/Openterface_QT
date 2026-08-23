@@ -24,6 +24,7 @@
 #include <QWidget>
 #include <QVBoxLayout>
 #include <QScrollArea>
+#include <QStackedWidget>
 #include <QComboBox>
 #include <QPushButton>
 #include <QLabel>
@@ -31,7 +32,7 @@
 class ChatBubbleWidget;
 class ChatInputWidget;
 class ChatPlanCardWidget;
-class ChatSkillBar;
+class ChatEmptyStateWidget;
 
 /**
  * @brief AI Chat companion window docked beside the main window.
@@ -103,7 +104,7 @@ private:
     void updateModeUI();
     void refreshBubbles();
     void updatePlanCard();
-    void updateSkillBar();
+    void updateEmptyState();
     ChatBubbleWidget *createBubbleWidget(int index);
 
     // Layout
@@ -112,12 +113,16 @@ private:
     QComboBox *m_modeCombo;
     QPushButton *m_newSessionBtn;
     QPushButton *m_traceBtn;
-    ChatSkillBar *m_skillBar;
+    ChatEmptyStateWidget *m_emptyState;
     ChatPlanCardWidget *m_planCard;
+    QStackedWidget *m_stackedArea;
     QScrollArea *m_scrollArea;
     QWidget *m_messageContainer;
     QVBoxLayout *m_messageLayout;
     QLabel *m_errorLabel;
+    QPushButton *m_errorCopyBtn;
+    QWidget *m_errorRow;
+    QLabel *m_statusLabel;
     ChatInputWidget *m_inputWidget;
 
     // Bubble widgets (parallel to ChatManager messages)

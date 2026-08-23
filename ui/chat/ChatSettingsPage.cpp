@@ -31,7 +31,7 @@
 #include <QTabWidget>
 
 ChatSettingsPage::ChatSettingsPage(QWidget *parent)
-    : QWidget(parent)
+    : PreferencePageBase(parent)
 {
     setupUI();
     initChatSettings();
@@ -97,28 +97,80 @@ void ChatSettingsPage::setupUI()
     iterLayout->addStretch();
     modeLayout->addLayout(iterLayout);
 
+    // Typing delay and batch size
+    auto *typingLayout = new QHBoxLayout();
+    m_typingDelaySpin = new QSpinBox();
+    m_typingDelaySpin->setRange(0, 1000);
+    m_typingDelaySpin->setSuffix(tr(" ms"));
+    m_typingDelaySpin->setToolTip(tr("Delay between keystrokes when typing (0-1000ms)"));
+    typingLayout->addWidget(new QLabel(tr("Typing Delay:")));
+    typingLayout->addWidget(m_typingDelaySpin);
+    typingLayout->addSpacing(20);
+
+    m_batchSizeSpin = new QSpinBox();
+    m_batchSizeSpin->setRange(1, 50);
+    m_batchSizeSpin->setToolTip(tr("Number of characters typed before a pause (1-50)"));
+    typingLayout->addWidget(new QLabel(tr("Batch Size:")));
+    typingLayout->addWidget(m_batchSizeSpin);
+    typingLayout->addStretch();
+    modeLayout->addLayout(typingLayout);
+
+    // USB HID timing delays
+    auto *timingLayout = new QHBoxLayout();
+
+    m_mouseToKeyboardDelaySpin = new QSpinBox();
+    m_mouseToKeyboardDelaySpin->setRange(0, 5000);
+    m_mouseToKeyboardDelaySpin->setSuffix(tr(" ms"));
+    m_mouseToKeyboardDelaySpin->setToolTip(tr("Delay after mouse action before keyboard action (click → type). Gives target OS time to process click and shift focus."));
+    timingLayout->addWidget(new QLabel(tr("Mouse→Keyboard:")));
+    timingLayout->addWidget(m_mouseToKeyboardDelaySpin);
+    timingLayout->addSpacing(10);
+
+    m_postKeyboardSettleSpin = new QSpinBox();
+    m_postKeyboardSettleSpin->setRange(0, 5000);
+    m_postKeyboardSettleSpin->setSuffix(tr(" ms"));
+    m_postKeyboardSettleSpin->setToolTip(tr("Delay after keyboard action before next tool (type → capture). Lets target OS render the result."));
+    timingLayout->addWidget(new QLabel(tr("Post-Keyboard:")));
+    timingLayout->addWidget(m_postKeyboardSettleSpin);
+    timingLayout->addSpacing(10);
+
+    m_preCaptureDelaySpin = new QSpinBox();
+    m_preCaptureDelaySpin->setRange(0, 5000);
+    m_preCaptureDelaySpin->setSuffix(tr(" ms"));
+    m_preCaptureDelaySpin->setToolTip(tr("Delay before screen capture to let the screen update."));
+    timingLayout->addWidget(new QLabel(tr("Pre-Capture:")));
+    timingLayout->addWidget(m_preCaptureDelaySpin);
+    timingLayout->addStretch();
+    modeLayout->addLayout(timingLayout);
+
+    // Initial typing delay
+    auto *initialDelayLayout = new QHBoxLayout();
+    m_initialTypingDelaySpin = new QSpinBox();
+    m_initialTypingDelaySpin->setRange(0, 5000);
+    m_initialTypingDelaySpin->setSuffix(tr(" ms"));
+    m_initialTypingDelaySpin->setToolTip(tr("Delay before first character is typed. Gives target OS time to open windows (e.g., after ctrl+alt+t) and be ready for keystrokes."));
+    initialDelayLayout->addWidget(new QLabel(tr("Initial Typing Delay:")));
+    initialDelayLayout->addWidget(m_initialTypingDelaySpin);
+    initialDelayLayout->addStretch();
+    modeLayout->addLayout(initialDelayLayout);
+
     // Mode radio buttons
     auto *modeRadioLayout = new QHBoxLayout();
     auto *modeButtonGroup = new QButtonGroup(this);
 
-    m_chatModeRadio = new QRadioButton(tr("Chat"));
-    m_chatModeRadio->setToolTip(tr("Standard conversation with text responses"));
-    modeButtonGroup->addButton(m_chatModeRadio, 0);
-    modeRadioLayout->addWidget(m_chatModeRadio);
-
     m_agenticModeRadio = new QRadioButton(tr("Agent"));
     m_agenticModeRadio->setToolTip(tr("AI can directly execute actions on the target device"));
-    modeButtonGroup->addButton(m_agenticModeRadio, 1);
+    modeButtonGroup->addButton(m_agenticModeRadio, 0);
     modeRadioLayout->addWidget(m_agenticModeRadio);
 
     m_plannerModeRadio = new QRadioButton(tr("Planner"));
     m_plannerModeRadio->setToolTip(tr("AI creates a multi-step plan for approval before executing"));
-    modeButtonGroup->addButton(m_plannerModeRadio, 2);
+    modeButtonGroup->addButton(m_plannerModeRadio, 1);
     modeRadioLayout->addWidget(m_plannerModeRadio);
 
     m_guideModeRadio = new QRadioButton(tr("Guide"));
     m_guideModeRadio->setToolTip(tr("AI gives turn-by-turn guidance to accomplish your goal"));
-    modeButtonGroup->addButton(m_guideModeRadio, 3);
+    modeButtonGroup->addButton(m_guideModeRadio, 2);
     modeRadioLayout->addWidget(m_guideModeRadio);
 
     modeRadioLayout->addStretch();
@@ -159,6 +211,38 @@ void ChatSettingsPage::setupUI()
 
     scrollArea->setWidget(contentWidget);
     mainLayout->addWidget(scrollArea);
+
+    // ---- Apply / Revert / Cancel button bar (from PreferencePageBase) ----
+    createButtonBar(mainLayout);
+
+    // ---- Wire widget change signals to dirty-state checking ----
+    connect(m_apiBaseURLEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(m_apiKeyEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(m_modelEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(m_targetSystemCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_agentMaxIterationsSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_typingDelaySpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_batchSizeSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_mouseToKeyboardDelaySpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_postKeyboardSettleSpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_preCaptureDelaySpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_initialTypingDelaySpin, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, [this]{ checkDirtyState(); });
+    connect(m_agenticModeRadio, &QRadioButton::toggled, this, [this]{ checkDirtyState(); });
+    connect(m_plannerModeRadio, &QRadioButton::toggled, this, [this]{ checkDirtyState(); });
+    connect(m_guideModeRadio, &QRadioButton::toggled, this, [this]{ checkDirtyState(); });
+    connect(m_systemPromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(m_plannerPromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(m_screenTaskPromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(m_typingTaskPromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
+    connect(m_guidePromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
 }
 
 void ChatSettingsPage::initChatSettings()
@@ -180,15 +264,21 @@ void ChatSettingsPage::initChatSettings()
 
     m_agentMaxIterationsSpin->setValue(settings.getChatAgentMaxIterations());
 
+    // Typing/paste settings
+    m_typingDelaySpin->setValue(settings.getChatTypingDelayMs());
+    m_batchSizeSpin->setValue(settings.getChatBatchSize());
+    m_mouseToKeyboardDelaySpin->setValue(settings.getChatMouseToKeyboardDelayMs());
+    m_postKeyboardSettleSpin->setValue(settings.getChatPostKeyboardSettleMs());
+    m_preCaptureDelaySpin->setValue(settings.getChatPreCaptureDelayMs());
+    m_initialTypingDelaySpin->setValue(settings.getChatInitialTypingDelayMs());
+
     // Mode
     if (settings.getChatGuideModeEnabled()) {
         m_guideModeRadio->setChecked(true);
     } else if (settings.getChatPlannerModeEnabled()) {
         m_plannerModeRadio->setChecked(true);
-    } else if (settings.getChatAgenticModeEnabled()) {
-        m_agenticModeRadio->setChecked(true);
     } else {
-        m_chatModeRadio->setChecked(true);
+        m_agenticModeRadio->setChecked(true);  // Default to Agent mode
     }
 
     // Prompts
@@ -197,9 +287,12 @@ void ChatSettingsPage::initChatSettings()
     m_screenTaskPromptEdit->setPlainText(settings.getChatScreenTaskPrompt());
     m_typingTaskPromptEdit->setPlainText(settings.getChatTypingTaskPrompt());
     m_guidePromptEdit->setPlainText(settings.getChatGuidePrompt());
+
+    captureSnapshot();
+    clearDirty();
 }
 
-void ChatSettingsPage::applyChatSettings()
+void ChatSettingsPage::applySettings()
 {
     auto &settings = GlobalSetting::instance();
 
@@ -214,8 +307,16 @@ void ChatSettingsPage::applyChatSettings()
 
     settings.setChatAgentMaxIterations(m_agentMaxIterationsSpin->value());
 
+    // Typing/paste settings
+    settings.setChatTypingDelayMs(m_typingDelaySpin->value());
+    settings.setChatBatchSize(m_batchSizeSpin->value());
+    settings.setChatMouseToKeyboardDelayMs(m_mouseToKeyboardDelaySpin->value());
+    settings.setChatPostKeyboardSettleMs(m_postKeyboardSettleSpin->value());
+    settings.setChatPreCaptureDelayMs(m_preCaptureDelaySpin->value());
+    settings.setChatInitialTypingDelayMs(m_initialTypingDelaySpin->value());
+
     // Mode
-    settings.setChatAgenticModeEnabled(m_agenticModeRadio->isChecked());
+    settings.setChatAgenticModeEnabled(true);  // All modes use agentic features
     settings.setChatPlannerModeEnabled(m_plannerModeRadio->isChecked());
     settings.setChatGuideModeEnabled(m_guideModeRadio->isChecked());
 
@@ -236,10 +337,15 @@ void ChatSettingsPage::captureSnapshot()
     m_snap_model = m_modelEdit->text();
     m_snap_targetSystem = m_targetSystemCombo->currentText();
     m_snap_agentMaxIterations = m_agentMaxIterationsSpin->value();
-    if (m_guideModeRadio->isChecked()) m_snap_modeIndex = 3;
-    else if (m_plannerModeRadio->isChecked()) m_snap_modeIndex = 2;
-    else if (m_agenticModeRadio->isChecked()) m_snap_modeIndex = 1;
-    else m_snap_modeIndex = 0;
+    m_snap_typingDelay = m_typingDelaySpin->value();
+    m_snap_batchSize = m_batchSizeSpin->value();
+    m_snap_mouseToKeyboardDelay = m_mouseToKeyboardDelaySpin->value();
+    m_snap_postKeyboardSettle = m_postKeyboardSettleSpin->value();
+    m_snap_preCaptureDelay = m_preCaptureDelaySpin->value();
+    m_snap_initialTypingDelay = m_initialTypingDelaySpin->value();
+    if (m_guideModeRadio->isChecked()) m_snap_modeIndex = 2;
+    else if (m_plannerModeRadio->isChecked()) m_snap_modeIndex = 1;
+    else m_snap_modeIndex = 0;  // Default to Agent mode
     m_snap_systemPrompt = m_systemPromptEdit->toPlainText();
     m_snap_plannerPrompt = m_plannerPromptEdit->toPlainText();
     m_snap_screenTaskPrompt = m_screenTaskPromptEdit->toPlainText();
@@ -258,12 +364,18 @@ void ChatSettingsPage::revertToSnapshot()
     if (idx >= 0) m_targetSystemCombo->setCurrentIndex(idx);
 
     m_agentMaxIterationsSpin->setValue(m_snap_agentMaxIterations);
+    m_typingDelaySpin->setValue(m_snap_typingDelay);
+    m_batchSizeSpin->setValue(m_snap_batchSize);
+    m_mouseToKeyboardDelaySpin->setValue(m_snap_mouseToKeyboardDelay);
+    m_postKeyboardSettleSpin->setValue(m_snap_postKeyboardSettle);
+    m_preCaptureDelaySpin->setValue(m_snap_preCaptureDelay);
+    m_initialTypingDelaySpin->setValue(m_snap_initialTypingDelay);
 
     switch (m_snap_modeIndex) {
-        case 3: m_guideModeRadio->setChecked(true); break;
-        case 2: m_plannerModeRadio->setChecked(true); break;
-        case 1: m_agenticModeRadio->setChecked(true); break;
-        default: m_chatModeRadio->setChecked(true); break;
+        case 2: m_guideModeRadio->setChecked(true); break;
+        case 1: m_plannerModeRadio->setChecked(true); break;
+        case 0: m_agenticModeRadio->setChecked(true); break;
+        default: m_agenticModeRadio->setChecked(true); break;
     }
 
     m_systemPromptEdit->setPlainText(m_snap_systemPrompt);
@@ -271,4 +383,32 @@ void ChatSettingsPage::revertToSnapshot()
     m_screenTaskPromptEdit->setPlainText(m_snap_screenTaskPrompt);
     m_typingTaskPromptEdit->setPlainText(m_snap_typingTaskPrompt);
     m_guidePromptEdit->setPlainText(m_snap_guidePrompt);
+}
+
+bool ChatSettingsPage::valuesMatchSnapshot() const
+{
+    if (m_apiBaseURLEdit->text() != m_snap_apiBaseURL) return false;
+    if (m_apiKeyEdit->text() != m_snap_apiKey) return false;
+    if (m_modelEdit->text() != m_snap_model) return false;
+    if (m_targetSystemCombo->currentText() != m_snap_targetSystem) return false;
+    if (m_agentMaxIterationsSpin->value() != m_snap_agentMaxIterations) return false;
+    if (m_typingDelaySpin->value() != m_snap_typingDelay) return false;
+    if (m_batchSizeSpin->value() != m_snap_batchSize) return false;
+    if (m_mouseToKeyboardDelaySpin->value() != m_snap_mouseToKeyboardDelay) return false;
+    if (m_postKeyboardSettleSpin->value() != m_snap_postKeyboardSettle) return false;
+    if (m_preCaptureDelaySpin->value() != m_snap_preCaptureDelay) return false;
+    if (m_initialTypingDelaySpin->value() != m_snap_initialTypingDelay) return false;
+
+    int currentMode = 0;
+    if (m_guideModeRadio->isChecked()) currentMode = 2;
+    else if (m_plannerModeRadio->isChecked()) currentMode = 1;
+    if (currentMode != m_snap_modeIndex) return false;
+
+    if (m_systemPromptEdit->toPlainText() != m_snap_systemPrompt) return false;
+    if (m_plannerPromptEdit->toPlainText() != m_snap_plannerPrompt) return false;
+    if (m_screenTaskPromptEdit->toPlainText() != m_snap_screenTaskPrompt) return false;
+    if (m_typingTaskPromptEdit->toPlainText() != m_snap_typingTaskPrompt) return false;
+    if (m_guidePromptEdit->toPlainText() != m_snap_guidePrompt) return false;
+
+    return true;
 }

@@ -56,6 +56,9 @@ public:
     /// Read the trace file contents
     QString readTraceLog() const;
 
+    /// Clear (delete) the trace log file
+    void clearTraceLog();
+
     /// Format conversation messages for human-readable logging
     QString readableTraceParts(const QList<ChatApiMessage> &messages) const;
 

@@ -3,12 +3,12 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <QStandardPaths>
 #include <QLoggingCategory>
 #include <algorithm>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ai_chat)
-Q_LOGGING_CATEGORY(log_ai_chat, "openterface.ai.chat")
 
 ChatSkillManager::ChatSkillManager(QObject *parent)
     : QObject(parent)
@@ -104,6 +104,11 @@ QList<ChatSkill> ChatSkillManager::loadFromFolder(const QString &folderPath) con
     QList<ChatSkill> result;
     QDir dir(folderPath);
 
+    // IDs of skills that were shipped as built-ins in earlier versions but
+    // have since been removed. Skip them when loading so users who ran a
+    // previous version don't keep seeing a button that no longer belongs.
+    static const QSet<QString> deprecatedIDs = { "check-messages" };
+
     QStringList filters;
     filters << "*.json";
     QStringList files = dir.entryList(filters, QDir::Files, QDir::Name);
@@ -124,9 +129,13 @@ QList<ChatSkill> ChatSkillManager::loadFromFolder(const QString &folderPath) con
         }
 
         ChatSkill skill = ChatSkill::fromJson(doc.object());
-        if (!skill.id.isEmpty()) {
-            result.append(skill);
+        if (skill.id.isEmpty()) continue;
+        if (deprecatedIDs.contains(skill.id)) {
+            // Clean up the stale file so we don't re-parse it next launch
+            QFile::remove(filePath);
+            continue;
         }
+        result.append(skill);
     }
 
     return result;
@@ -134,25 +143,49 @@ QList<ChatSkill> ChatSkillManager::loadFromFolder(const QString &folderPath) con
 
 QList<ChatSkill> ChatSkillManager::builtInSkills() const
 {
-    QList<ChatSkill> skills;
+    // Built-in quick-action skills. Each becomes a button in the chat skill bar.
+    // Prompts instruct the agent to act on the TARGET machine (the KVM-connected
+    // remote computer), not the host running Openterface.
+    //
+    // captureScreen = true so the model gets a screenshot of the target before
+    // acting — it needs to know whether a terminal is already open, etc.
 
-    ChatSkill checkMessages;
-    checkMessages.id = "check-messages";
-    checkMessages.name = "Check Messages";
-    checkMessages.icon = "mail-message";
-    checkMessages.prompt = QStringLiteral(
-        "Look at this screenshot of the target machine and identify any unread or pending messages. "
-        "For every messaging app, notification badge, or chat window visible, report:\n\n"
-        "- App / Service name\n"
-        "- Sender name (exactly as shown)\n"
-        "- Number of unread messages (as shown by a badge or counter)\n"
-        "- Brief preview of the message text if readable\n\n"
-        "List each sender on its own line. "
-        "If no messaging apps or unread messages are visible, say so clearly."
-    );
-    checkMessages.captureScreen = true;
-    checkMessages.userLabel = "Check messages on target screen";
-    skills.append(checkMessages);
+    auto makeSkill = [](const QString &id, const QString &name,
+                        const QString &prompt, bool capture = true) {
+        ChatSkill s;
+        s.id = id;
+        s.name = name;
+        s.prompt = prompt;
+        s.captureScreen = capture;
+        return s;
+    };
 
-    return skills;
+    return {
+        makeSkill("check-ip", "Check IP",
+            "Check the IP address configuration on the target machine. "
+            "Open a terminal if needed, run 'ip addr' (or 'ifconfig'), and report "
+            "all network interfaces and their IP addresses."),
+
+        makeSkill("enable-ssh", "Enable SSH",
+            "Enable and start the SSH server on the target machine. "
+            "If on a Debian/Ubuntu-based system, run: sudo apt install -y openssh-server && sudo systemctl enable --now ssh. "
+            "If on a RHEL/Fedora-based system, run: sudo dnf install -y openssh-server && sudo systemctl enable --now sshd. "
+            "Then verify it's running with 'systemctl status ssh' (or 'sshd') and report the result."),
+
+        makeSkill("check-disk", "Check Disk",
+            "Check disk space usage on the target machine. "
+            "Open a terminal if needed, run 'df -h', and report the disk usage for all mounted filesystems."),
+
+        makeSkill("check-memory", "Check Memory",
+            "Check memory usage on the target machine. "
+            "Open a terminal if needed, run 'free -h', and report total, used, and available memory."),
+
+        makeSkill("check-system", "System Info",
+            "Show system information on the target machine. "
+            "Open a terminal if needed, run 'uname -a' and 'cat /etc/os-release', and report the OS name, version, kernel, and architecture."),
+
+        makeSkill("check-network", "Network Ports",
+            "Check listening network ports and connections on the target machine. "
+            "Open a terminal if needed, run 'ss -tuln', and report all listening ports and their associated services."),
+    };
 }

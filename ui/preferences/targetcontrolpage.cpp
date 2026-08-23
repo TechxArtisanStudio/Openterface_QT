@@ -78,10 +78,6 @@ void TargetControlPage::setupUI()
     operatingModeSeparator->setFrameShadow(QFrame::Sunken);
     operatingModeLayout->addWidget(operatingModeSeparator);
     operatingModeLayout->addSpacing(10);
-<<<<<<< HEAD
-=======
-
->>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
 
     QLabel *VIDPIDLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Custom target USB Composite Device VID and PID:")));
     QLabel *USBDescriptor = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Custom target USB descriptors: ")));
@@ -328,10 +324,6 @@ void TargetControlPage::initHardwareSetting()
     USBSerialNumberCheckBox->setChecked(enableFlagArray[0]);
     USBCustomStringDescriptorCheckBox->setChecked(enableFlagArray[3]);
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
     // Make the descriptor checkboxes enabled/disabled based on the master toggle
     VIDCheckBox->setEnabled(enableFlagArray[3]);
     PIDCheckBox->setEnabled(enableFlagArray[3]);

@@ -28,9 +28,12 @@
 #include <QJsonArray>
 #include <QLoggingCategory>
 #include <QHttpMultiPart>
+#include <QScopeGuard>
+#include <QTimer>
+#include <QThread>
+#include <QMetaObject>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ai_chat)
-Q_LOGGING_CATEGORY(log_ai_chat, "openterface.ai.chat")
 
 ChatApiClient::ChatApiClient(QObject *parent)
     : QObject(parent)
@@ -80,6 +83,15 @@ void ChatApiClient::sendCompletion(
         requestBody["enable_thinking"] = enableThinking.value();
     }
 
+    // Validate messages before sending — catch obvious issues that would cause 400 errors
+    for (int i = 0; i < messages.size(); ++i) {
+        const auto &msg = messages[i];
+        if (msg.contentParts.isEmpty() && msg.simpleText.isEmpty()) {
+            qCWarning(log_ai_chat) << "AI Chat: message" << i << "has empty content (role="
+                                   << chatRoleToString(msg.role) << ")";
+        }
+    }
+
     QJsonDocument doc(requestBody);
     QByteArray body = doc.toJson(QJsonDocument::Compact);
 
@@ -94,8 +106,41 @@ void ChatApiClient::sendCompletion(
                          << "messages=" << messages.count()
                          << "bodyBytes=" << body.size();
 
+    // Log first 500 chars of request body for debugging (helps diagnose 400 errors)
+    if (body.size() > 0) {
+        QString bodyPreview = QString::fromUtf8(body).left(500);
+        qCDebug(log_ai_chat) << "AI Chat request body preview:" << bodyPreview;
+    }
+
     emit requestStarted(url.toString(), body.size());
 
+    // The ChatApiClient (and its QNetworkAccessManager) live on the main thread,
+    // but sendCompletion() is called from a QtConcurrent worker thread.
+    // QNetworkAccessManager::post() and its child QNetworkReply/QTimer must be
+    // created on the main thread to avoid cross-thread parenting warnings and
+    // potential crashes. Marshal the entire network setup to the main thread.
+    if (QThread::currentThread() != this->thread()) {
+        qCDebug(log_ai_chat) << "ChatApiClient: marshaling post() to main thread";
+        bool ok = QMetaObject::invokeMethod(this, [this, request, body, callback, model]() {
+            doPost(request, body, callback, model);
+        }, Qt::QueuedConnection);
+        if (!ok) {
+            qCWarning(log_ai_chat) << "ChatApiClient: failed to marshal to main thread";
+            callback(false, ChatCompletionResult(), "Failed to schedule network request");
+        }
+        return;
+    }
+
+    // Already on the main thread — do the post directly
+    doPost(request, body, callback, model);
+}
+
+void ChatApiClient::doPost(
+    const QNetworkRequest &request,
+    const QByteArray &body,
+    std::function<void(bool, const ChatCompletionResult &, const QString &)> callback,
+    const QString &model)
+{
     // Send request
     QNetworkReply *reply = m_networkManager->post(request, body);
 
@@ -103,6 +148,20 @@ void ChatApiClient::sendCompletion(
     pending.reply = reply;
     pending.callback = callback;
     m_pendingRequests.append(pending);
+
+    // Network-level timeout: abort the reply if the server doesn't respond
+    // within 120s. This complements the QEventLoop timeout in sendCompletionSync()
+    // — without it, a stalled connection would leave the reply object alive
+    // (and the socket open) even after the event loop quits.
+    QTimer *timeoutTimer = new QTimer(reply);
+    timeoutTimer->setSingleShot(true);
+    QObject::connect(timeoutTimer, &QTimer::timeout, reply, [reply]() {
+        if (reply->isRunning()) {
+            qCWarning(log_ai_chat) << "AI Chat request aborted: 120s timeout";
+            reply->abort();
+        }
+    });
+    timeoutTimer->start(120000);
 
     connect(reply, &QNetworkReply::finished, this, [this, reply, model]() {
         // Find and remove the pending request
@@ -120,11 +179,28 @@ void ChatApiClient::sendCompletion(
             return;
         }
 
-        reply->deleteLater();
+        // IMPORTANT: do NOT call reply->deleteLater() here. We need the reply
+        // alive for readAll()/error()/attribute() below. Schedule deletion
+        // only at the very end of this handler via a guard lambda.
+        auto scheduleDelete = qScopeGuard([reply]() {
+            reply->deleteLater();
+        });
 
         // Check for network error
         if (reply->error() != QNetworkReply::NoError) {
-            QString errStr = reply->errorString();
+            // For HTTP errors (4xx/5xx), the response body contains the actual
+            // error details from the API. Read it before reporting the error —
+            // without it we only see "server replied with status code 400" with
+            // no indication of what's actually wrong.
+            QByteArray errorBody = reply->readAll();
+            int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            QString errStr;
+            if (httpStatus >= 400 && !errorBody.isEmpty()) {
+                QString body = QString::fromUtf8(errorBody).left(500);
+                errStr = QString("Chat API error %1: %2").arg(httpStatus).arg(body);
+            } else {
+                errStr = reply->errorString();
+            }
             qCWarning(log_ai_chat) << "AI Chat network error:" << errStr;
             ChatCompletionResult empty;
             if (found.callback) found.callback(false, empty, errStr);

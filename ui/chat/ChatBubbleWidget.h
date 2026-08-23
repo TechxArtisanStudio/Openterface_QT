@@ -25,6 +25,8 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QHBoxLayout>
+#include <QMouseEvent>
+#include <QTextBrowser>
 #include "ai/ChatTypes.h"
 
 class QuickReplyWidget;
@@ -56,10 +58,19 @@ private:
     void setupUI();
     void updateContent();
     void clearQuickReplies();
+    void showFullImage();
+    /// Preprocess content: convert tool-call JSON blocks and TOOL_RESULT
+    /// messages into readable markdown before rendering.
+    QString formatContentForDisplay(const QString &content) const;
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
 
     QVBoxLayout *m_layout;
+    QWidget *m_headerWidget;
     QLabel *m_roleLabel;
-    QLabel *m_contentLabel;
+    QPushButton *m_copyBtn;
+    QTextBrowser *m_contentBrowser;
     QLabel *m_attachmentLabel;
     QHBoxLayout *m_actionLayout;
     QHBoxLayout *m_quickReplyLayout;

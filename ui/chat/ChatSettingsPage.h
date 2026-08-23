@@ -23,7 +23,7 @@
 #ifndef CHAT_SETTINGS_PAGE_H
 #define CHAT_SETTINGS_PAGE_H
 
-#include <QWidget>
+#include "../preferences/preferencepagebase.h"
 #include <QLineEdit>
 #include <QComboBox>
 #include <QSpinBox>
@@ -41,8 +41,11 @@
  *   - Chat mode (Chat/Agent/Planner/Guide)
  *   - Agent max iterations
  *   - System prompt, Planner prompt, Guide prompt
+ *
+ * Inherits PreferencePageBase so it gets an Apply/Revert/Cancel button bar
+ * with dirty-state tracking.
  */
-class ChatSettingsPage : public QWidget
+class ChatSettingsPage : public PreferencePageBase
 {
     Q_OBJECT
 
@@ -51,9 +54,12 @@ public:
 
     void setupUI();
     void initChatSettings();
-    void applyChatSettings();
-    void captureSnapshot();
-    void revertToSnapshot();
+
+    // PreferencePageBase overrides
+    void applySettings() override;
+    void captureSnapshot() override;
+    bool valuesMatchSnapshot() const override;
+    void revertToSnapshot() override;
 
 signals:
     void chatSettingsChanged();
@@ -66,8 +72,15 @@ private:
     QComboBox   *m_targetSystemCombo;
     QSpinBox    *m_agentMaxIterationsSpin;
 
+    // Typing/Paste settings
+    QSpinBox    *m_typingDelaySpin;
+    QSpinBox    *m_batchSizeSpin;
+    QSpinBox    *m_mouseToKeyboardDelaySpin;
+    QSpinBox    *m_postKeyboardSettleSpin;
+    QSpinBox    *m_preCaptureDelaySpin;
+    QSpinBox    *m_initialTypingDelaySpin;
+
     // Mode selection
-    QRadioButton *m_chatModeRadio;
     QRadioButton *m_agenticModeRadio;
     QRadioButton *m_plannerModeRadio;
     QRadioButton *m_guideModeRadio;
@@ -85,7 +98,13 @@ private:
     QString m_snap_model;
     QString m_snap_targetSystem;
     int m_snap_agentMaxIterations;
-    int m_snap_modeIndex; // 0=chat, 1=agentic, 2=planner, 3=guide
+    int m_snap_modeIndex; // 0=agentic, 1=planner, 2=guide
+    int m_snap_typingDelay;
+    int m_snap_batchSize;
+    int m_snap_mouseToKeyboardDelay;
+    int m_snap_postKeyboardSettle;
+    int m_snap_preCaptureDelay;
+    int m_snap_initialTypingDelay;
     QString m_snap_systemPrompt;
     QString m_snap_plannerPrompt;
     QString m_snap_screenTaskPrompt;

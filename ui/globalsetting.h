@@ -44,6 +44,10 @@ public:
     QMap<QString, QPair<bool, QString>> loadCategoryStates() const;
     void loadLogSettings();  // Apply saved category filter rules at startup
 
+    /// AI Chat log toggle (separate from the main log settings to keep API stable)
+    void setAILogEnabled(bool enabled);
+    bool getAILogEnabled() const;
+
     void setFilterSettings(bool Chipinfo, bool keyboardPress, bool mideaKeyboard, bool mouseMoveABS, bool mouseMoveREL, bool HID);
 
     void getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool &mideaKeyboard, bool &mouseMoveABS, bool &mouseMoveREL, bool &HID);
@@ -240,6 +244,22 @@ public:
     int getChatWindowWidth() const;
     void setChatDockSide(const QString &side);
     QString getChatDockSide() const;
+
+    // AI Chat typing/paste delay settings
+    void setChatTypingDelayMs(int ms);
+    int getChatTypingDelayMs() const;
+    void setChatBatchSize(int size);
+    int getChatBatchSize() const;
+
+    // AI Chat timing delay settings (for USB HID synchronization)
+    void setChatMouseToKeyboardDelayMs(int ms);
+    int getChatMouseToKeyboardDelayMs() const;
+    void setChatPostKeyboardSettleMs(int ms);
+    int getChatPostKeyboardSettleMs() const;
+    void setChatPreCaptureDelayMs(int ms);
+    int getChatPreCaptureDelayMs() const;
+    void setChatInitialTypingDelayMs(int ms);
+    int getChatInitialTypingDelayMs() const;
 
 private:
     QSettings m_settings;

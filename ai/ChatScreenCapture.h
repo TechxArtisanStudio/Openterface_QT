@@ -63,6 +63,8 @@ signals:
 private:
     explicit ChatScreenCapture(QObject *parent = nullptr);
     QString tempFilePath() const;
+    /// Thread-safe internal capture (must be called on the main thread)
+    QString doCaptureScreen();
 
     CameraManager *m_cameraManager = nullptr;
 };

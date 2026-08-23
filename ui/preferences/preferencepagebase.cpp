@@ -40,7 +40,6 @@ void PreferencePageBase::createButtonBar(QVBoxLayout *parentLayout)
     m_revertButton->setFixedSize(80, 30);
     m_cancelButton->setFixedSize(80, 30);
 
-<<<<<<< HEAD
     // Add subtle drop shadow to each button for depth and visibility.
     // Especially useful on Linux where buttons can otherwise blend into the panel.
     auto addShadow = [](QPushButton* btn) {
@@ -54,8 +53,6 @@ void PreferencePageBase::createButtonBar(QVBoxLayout *parentLayout)
     addShadow(m_revertButton);
     addShadow(m_cancelButton);
 
-=======
->>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
     buttonLayout->addWidget(m_applyButton);
     buttonLayout->addWidget(m_revertButton);
     buttonLayout->addWidget(m_cancelButton);
@@ -131,7 +128,6 @@ void PreferencePageBase::updateButtonStyles()
 
 QString PreferencePageBase::defaultButtonStyle()
 {
-<<<<<<< HEAD
     // Flat palette-aware style consistent with the global QPushButton style
     // in main.cpp. The buttons also have a QGraphicsDropShadowEffect applied
     // per-widget in createButtonBar() for extra visual separation.
@@ -149,58 +145,26 @@ QString PreferencePageBase::defaultButtonStyle()
         "  color: palette(mid);"
         "  background-color: palette(button);"
         "  border: 1px solid palette(dark);"
-=======
-    return QStringLiteral(
-        "QPushButton {"
-        "  background-color: #ffffff;"
-        "  border: 1px solid #cccccc;"
-        "  border-radius: 4px;"
-        "  padding: 4px 16px;"
-        ""
-        ""
-        "  color: #333333;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: #f0f0f0;"
-        "  border-color: #999999;"
-        "}"
-        "QPushButton:pressed {"
-        "  background-color: #e0e0e0;"
->>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
         "}"
     );
 }
 
 QString PreferencePageBase::dirtyApplyButtonStyle()
 {
-<<<<<<< HEAD
     // Canonical brand orange (consistent with firmwarepage and other prominent CTAs).
     // White text on orange guarantees readability in both light and dark themes.
     return QStringLiteral(
         "QPushButton#applyButton {"
         "  background-color: #e8841a;"
         "  border: 1px solid #c46e14;"
-=======
-    return QStringLiteral(
-        "QPushButton#applyButton {"
-        "  background-color: #ff8c00;"
-        "  border: 1px solid #e07000;"
->>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
         "  color: white;"
         "  font-weight: bold;"
         "}"
         "QPushButton#applyButton:hover {"
-<<<<<<< HEAD
         "  background-color: #f59330;"
         "}"
         "QPushButton#applyButton:pressed {"
         "  background-color: #c46e14;"
-=======
-        "  background-color: #ff9920;"
-        "}"
-        "QPushButton#applyButton:pressed {"
-        "  background-color: #e07000;"
->>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
         "}"
     );
 }

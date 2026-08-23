@@ -1,14 +1,18 @@
 #include "ChatWindow.h"
 #include "ChatBubbleWidget.h"
+#include "ChatEmptyStateWidget.h"
 #include "ChatInputWidget.h"
 #include "ChatPlanCardWidget.h"
-#include "ChatSkillBar.h"
 #include "ChatTraceDialog.h"
 #include "ai/ChatManager.h"
 #include "ai/ChatSkillManager.h"
+#include "ai/ChatTypes.h"
 #include "ui/globalsetting.h"
 #include <QScrollBar>
 #include <QApplication>
+#include <QClipboard>
+#include <QPainter>
+#include <QStyleOption>
 
 ChatWindow::ChatWindow(QWidget *parent)
     : QWidget(parent)
@@ -28,25 +32,47 @@ ChatWindow::ChatWindow(QWidget *parent)
         refreshBubbles();
         scrollToBottom();
     });
+    connect(&mgr, &ChatManager::messageUpdated, this, [this](int index, const ChatMessage &msg) {
+        // Update just the specific bubble instead of rebuilding all
+        if (index >= 0 && index < m_bubbleWidgets.size()) {
+            m_bubbleWidgets[index]->setMessage(msg, index);
+        }
+    });
     connect(&mgr, &ChatManager::messagesChanged, this, [this]() {
         refreshBubbles();
     });
-    connect(&mgr, &ChatManager::sendingStateChanged, this, [this](bool sending) {
-        m_inputWidget->setSending(sending);
-    });
     connect(&mgr, &ChatManager::lastErrorChanged, this, [this](const QString &error) {
-        m_errorLabel->setVisible(!error.isEmpty());
+        m_errorRow->setVisible(!error.isEmpty());
         m_errorLabel->setText(error);
     });
     connect(&mgr, &ChatManager::planChanged, this, [this]() {
         updatePlanCard();
     });
+    connect(&mgr, &ChatManager::agentRequestStatusChanged, this,
+            [this](const QUuid & /*messageID*/, const GuideAutoNextStatus &status) {
+        if (status.phase == GuideAutoNextStatus::Thinking) {
+            m_statusLabel->setText(status.text);
+            m_statusLabel->setVisible(true);
+        } else {
+            // Completed / Failed / Cancelled — briefly show the terminal state
+            // only if it's noteworthy (Failed / Cancelled). Completed is silent.
+            m_statusLabel->setText(status.text);
+            m_statusLabel->setVisible(!status.text.isEmpty()
+                                      && status.phase != GuideAutoNextStatus::Completed);
+        }
+    });
+    connect(&mgr, &ChatManager::sendingStateChanged, this, [this](bool sending) {
+        m_inputWidget->setSending(sending);
+        if (!sending) {
+            m_statusLabel->setVisible(false);
+        }
+    });
 
-    // Connect skill manager
+    // Connect skill manager — populates the empty-state quick links
     connect(&ChatSkillManager::instance(), &ChatSkillManager::skillsChanged,
-            this, &ChatWindow::updateSkillBar);
+            this, &ChatWindow::updateEmptyState);
 
-    updateSkillBar();
+    updateEmptyState();
     updatePlanCard();
 }
 
@@ -61,15 +87,33 @@ void ChatWindow::setupUI()
     // Top bar: mode selector + new session + trace
     m_topBar = new QHBoxLayout();
     m_modeCombo = new QComboBox();
-    m_modeCombo->addItem("Chat");
     m_modeCombo->addItem("Agent");
     m_modeCombo->addItem("Planner");
     m_modeCombo->addItem("Guide");
 
-    m_newSessionBtn = new QPushButton("New");
+    m_newSessionBtn = new QPushButton();
+    {
+        QPixmap pix(20, 20);
+        pix.fill(Qt::transparent);
+        QPainter p(&pix);
+        p.setRenderHint(QPainter::Antialiasing);
+        QPen pen(palette().color(QPalette::WindowText), 2.0, Qt::SolidLine, Qt::RoundCap);
+        p.setPen(pen);
+        p.drawLine(5, 10, 15, 10); // horizontal
+        p.drawLine(10, 5, 10, 15); // vertical
+        m_newSessionBtn->setIcon(QIcon(pix));
+    }
+    m_newSessionBtn->setIconSize(QSize(20, 20));
     m_newSessionBtn->setToolTip("Clear chat history");
-    m_traceBtn = new QPushButton("Trace");
+    m_newSessionBtn->setFlat(true);
+    m_newSessionBtn->setFixedSize(28, 28);
+
+    m_traceBtn = new QPushButton();
+    m_traceBtn->setIcon(style()->standardIcon(QStyle::SP_FileDialogInfoView));
+    m_traceBtn->setIconSize(QSize(20, 20));
     m_traceBtn->setToolTip("View AI trace log");
+    m_traceBtn->setFlat(true);
+    m_traceBtn->setFixedSize(28, 28);
 
     m_topBar->addWidget(m_modeCombo);
     m_topBar->addStretch();
@@ -77,16 +121,21 @@ void ChatWindow::setupUI()
     m_topBar->addWidget(m_traceBtn);
     m_mainLayout->addLayout(m_topBar);
 
-    // Skill bar
-    m_skillBar = new ChatSkillBar();
-    m_mainLayout->addWidget(m_skillBar);
-
     // Plan card (hidden by default)
     m_planCard = new ChatPlanCardWidget();
     m_planCard->setVisible(false);
     m_mainLayout->addWidget(m_planCard);
 
-    // Message scroll area
+    // Stacked area: empty-state quick links (centered) OR message scroll area
+    m_stackedArea = new QStackedWidget();
+
+    // Page 0: Empty state with centered quick-link buttons
+    m_emptyState = new ChatEmptyStateWidget();
+    connect(m_emptyState, &ChatEmptyStateWidget::skillClicked,
+            this, &ChatWindow::onSkillClicked);
+    m_stackedArea->addWidget(m_emptyState);
+
+    // Page 1: Message scroll area
     m_scrollArea = new QScrollArea();
     m_scrollArea->setWidgetResizable(true);
     m_scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -99,14 +148,55 @@ void ChatWindow::setupUI()
     m_messageLayout->addStretch();
 
     m_scrollArea->setWidget(m_messageContainer);
-    m_mainLayout->addWidget(m_scrollArea, 1);
+    m_stackedArea->addWidget(m_scrollArea);
 
-    // Error label
+    // Start on the empty-state page
+    m_stackedArea->setCurrentIndex(0);
+    m_mainLayout->addWidget(m_stackedArea, 1);
+
+    // Error row: label + copy button
+    m_errorRow = new QWidget();
+    m_errorRow->setVisible(false);
+    auto *errorRowLayout = new QHBoxLayout(m_errorRow);
+    errorRowLayout->setContentsMargins(0, 0, 0, 0);
+    errorRowLayout->setSpacing(4);
+
     m_errorLabel = new QLabel();
     m_errorLabel->setStyleSheet("color: red; font-weight: bold;");
     m_errorLabel->setWordWrap(true);
-    m_errorLabel->setVisible(false);
-    m_mainLayout->addWidget(m_errorLabel);
+    errorRowLayout->addWidget(m_errorLabel, 1);
+
+    m_errorCopyBtn = new QPushButton();
+    {
+        QPixmap pix(16, 16);
+        pix.fill(Qt::transparent);
+        QPainter p(&pix);
+        p.setRenderHint(QPainter::Antialiasing);
+        QPen pen(palette().color(QPalette::WindowText), 1.2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
+        p.drawRect(2, 1, 9, 10);
+        p.drawRect(5, 4, 9, 10);
+        m_errorCopyBtn->setIcon(QIcon(pix));
+    }
+    m_errorCopyBtn->setIconSize(QSize(16, 16));
+    m_errorCopyBtn->setToolTip("Copy error message");
+    m_errorCopyBtn->setFlat(true);
+    m_errorCopyBtn->setFixedSize(24, 24);
+    m_errorCopyBtn->setCursor(Qt::PointingHandCursor);
+    connect(m_errorCopyBtn, &QPushButton::clicked, this, [this]() {
+        QApplication::clipboard()->setText(m_errorLabel->text());
+    });
+    errorRowLayout->addWidget(m_errorCopyBtn);
+
+    m_mainLayout->addWidget(m_errorRow);
+
+    // Iteration status label (shown during agentic runs, e.g. "Thinking (2/10)...")
+    m_statusLabel = new QLabel();
+    m_statusLabel->setStyleSheet("color: #666; font-style: italic;");
+    m_statusLabel->setWordWrap(true);
+    m_statusLabel->setVisible(false);
+    m_mainLayout->addWidget(m_statusLabel);
 
     // Input widget
     m_inputWidget = new ChatInputWidget();
@@ -119,7 +209,6 @@ void ChatWindow::setupUI()
     connect(m_traceBtn, &QPushButton::clicked, this, &ChatWindow::onTraceClicked);
     connect(m_planCard, &ChatPlanCardWidget::approveClicked, this, &ChatWindow::onPlanApproved);
     connect(m_planCard, &ChatPlanCardWidget::clearClicked, this, &ChatWindow::onPlanClearClicked);
-    connect(m_skillBar, &ChatSkillBar::skillClicked, this, &ChatWindow::onSkillClicked);
     connect(m_inputWidget, &ChatInputWidget::sendRequested, this, &ChatWindow::onSendClicked);
     connect(m_inputWidget, &ChatInputWidget::stopRequested, this, &ChatWindow::onStopClicked);
 }
@@ -132,8 +221,11 @@ void ChatWindow::clearAll()
         bubble->deleteLater();
     }
     m_bubbleWidgets.clear();
-    m_errorLabel->setVisible(false);
+    m_errorRow->setVisible(false);
+    m_statusLabel->setVisible(false);
     m_planCard->setVisible(false);
+    // Show the empty-state quick links
+    m_stackedArea->setCurrentIndex(0);
 }
 
 void ChatWindow::scrollToBottom()
@@ -166,11 +258,11 @@ void ChatWindow::onNewSessionClicked()
 
 void ChatWindow::onModeChanged(int index)
 {
-    // Map combo index to settings
+    // Map combo index to settings (Agent=0, Planner=1, Guide=2)
     GlobalSetting &gs = GlobalSetting::instance();
-    gs.setChatAgenticModeEnabled(index >= 1);  // Agent, Planner, Guide
-    gs.setChatPlannerModeEnabled(index == 2);
-    gs.setChatGuideModeEnabled(index == 3);
+    gs.setChatAgenticModeEnabled(true);  // All modes use agentic features
+    gs.setChatPlannerModeEnabled(index == 1);  // Planner mode
+    gs.setChatGuideModeEnabled(index == 2);  // Guide mode
     updateModeUI();
     emit modeChanged(index);
 }
@@ -236,9 +328,8 @@ void ChatWindow::onGuideCompleteClicked(int messageIndex)
 void ChatWindow::updateModeUI()
 {
     int mode = m_modeCombo->currentIndex();
-    // Update placeholder text based on mode
+    // Update placeholder text based on mode (Agent=0, Planner=1, Guide=2)
     QStringList placeholders = {
-        "Ask anything...",
         "Ask the agent to interact with the target...",
         "Describe a multi-step goal...",
         "Ask for step-by-step guidance..."
@@ -249,6 +340,13 @@ void ChatWindow::updateModeUI()
 void ChatWindow::refreshBubbles()
 {
     auto messages = ChatManager::instance().messages();
+
+    // Switch to messages page when there are messages
+    if (!messages.isEmpty()) {
+        m_stackedArea->setCurrentIndex(1);
+    } else {
+        m_stackedArea->setCurrentIndex(0);
+    }
 
     // Remove excess bubbles
     while (m_bubbleWidgets.size() > messages.size()) {
@@ -296,7 +394,7 @@ void ChatWindow::updatePlanCard()
     }
 }
 
-void ChatWindow::updateSkillBar()
+void ChatWindow::updateEmptyState()
 {
-    m_skillBar->setSkills(ChatSkillManager::instance().skills());
+    m_emptyState->setSkills(ChatSkillManager::instance().skills());
 }

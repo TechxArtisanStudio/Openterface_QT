@@ -40,7 +40,8 @@
 enum class ChatRole {
     System,
     User,
-    Assistant
+    Assistant,
+    Tool
 };
 
 inline QString chatRoleToString(ChatRole role) {
@@ -48,6 +49,7 @@ inline QString chatRoleToString(ChatRole role) {
         case ChatRole::System:    return "system";
         case ChatRole::User:      return "user";
         case ChatRole::Assistant: return "assistant";
+        case ChatRole::Tool:      return "tool";
     }
     return "user";
 }
@@ -55,6 +57,7 @@ inline QString chatRoleToString(ChatRole role) {
 inline ChatRole chatRoleFromString(const QString &str) {
     if (str == "system")    return ChatRole::System;
     if (str == "assistant") return ChatRole::Assistant;
+    if (str == "tool")      return ChatRole::Tool;
     return ChatRole::User;
 }
 
@@ -102,6 +105,14 @@ struct ChatMessage {
     QString guideShortcut;
     QString guideTool;
     QList<ChatQuickReply> quickReplies;
+    // Display-only hint: status step messages (e.g. "Step 2/10 — examining
+    // screen...") are not real AI responses. They're inserted by the agent
+    // loop to make progress visible. When loading from disk these are not
+    // restored — they only exist for the duration of the running request.
+    bool isStatusHint = false;
+    // Tool call ID for tool role messages (required by OpenAI API format).
+    // Links this tool result back to the assistant's tool call.
+    QString toolCallId;
 
     ChatMessage()
         : id(QUuid::createUuid()), role(ChatRole::User), createdAt(QDateTime::currentDateTime()) {}
@@ -135,6 +146,7 @@ struct ChatMessage {
         QJsonArray arr;
         for (const auto &qr : quickReplies) arr.append(qr.toJson());
         if (!arr.isEmpty()) obj["quickReplies"] = arr;
+        if (!toolCallId.isEmpty()) obj["toolCallId"] = toolCallId;
         return obj;
     }
 
@@ -152,6 +164,7 @@ struct ChatMessage {
         }
         m.guideShortcut = obj["guideShortcut"].toString();
         m.guideTool = obj["guideTool"].toString();
+        m.toolCallId = obj["toolCallId"].toString();
         QJsonArray arr = obj["quickReplies"].toArray();
         for (const auto &v : arr) m.quickReplies.append(ChatQuickReply::fromJson(v.toObject()));
         return m;
@@ -402,10 +415,11 @@ struct AgentToolExecutionResult {
     QString summary;
     QString attachmentFilePath;
     QString keyboardOnlyMacroData;
+    QString ocrText;  // OCR result from screen_to_markdown
 
     AgentToolExecutionResult() = default;
-    AgentToolExecutionResult(const QString &s, const QString &path, const QString &macroData = QString())
-        : summary(s), attachmentFilePath(path), keyboardOnlyMacroData(macroData) {}
+    AgentToolExecutionResult(const QString &s, const QString &path, const QString &macroData = QString(), const QString &ocr = QString())
+        : summary(s), attachmentFilePath(path), keyboardOnlyMacroData(macroData), ocrText(ocr) {}
 };
 
 // ============================================================================
@@ -544,6 +558,8 @@ struct ChatApiMessage {
     // Otherwise use simpleText.
     QString simpleText;
     QList<ChatApiContentPart> contentParts;
+    // Tool call ID (required for tool role messages in OpenAI API format).
+    QString toolCallId;
 
     static ChatApiMessage textMessage(ChatRole r, const QString &text) {
         ChatApiMessage m;
@@ -569,6 +585,10 @@ struct ChatApiMessage {
             QJsonArray arr;
             for (const auto &part : contentParts) arr.append(part.toJson());
             obj["content"] = arr;
+        }
+        // Include tool_call_id for tool messages (required by OpenAI API)
+        if (role == ChatRole::Tool && !toolCallId.isEmpty()) {
+            obj["tool_call_id"] = toolCallId;
         }
         return obj;
     }

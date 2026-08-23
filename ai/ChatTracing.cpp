@@ -6,7 +6,6 @@
 #include <QLoggingCategory>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ai_chat)
-Q_LOGGING_CATEGORY(log_ai_chat, "openterface.ai.chat")
 
 ChatTracing::ChatTracing(QObject *parent)
     : QObject(parent)
@@ -80,6 +79,18 @@ QString ChatTracing::readTraceLog() const
     QString content = file.readAll();
     file.close();
     return content;
+}
+
+void ChatTracing::clearTraceLog()
+{
+    QString path = traceFilePath();
+    if (QFile::exists(path)) {
+        if (QFile::remove(path)) {
+            qCDebug(log_ai_chat) << "AI trace log cleared:" << path;
+        } else {
+            qCWarning(log_ai_chat) << "Failed to remove AI trace log:" << path;
+        }
+    }
 }
 
 QString ChatTracing::readableTraceParts(const QList<ChatApiMessage> &messages) const

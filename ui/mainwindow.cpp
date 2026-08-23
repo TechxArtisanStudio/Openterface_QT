@@ -302,6 +302,7 @@ void MainWindow::onMcpSettingsApplied()
 
 void MainWindow::toggleChatWindow(bool visible)
 {
+    bool firstOpen = !m_chatWindow;
     if (!m_chatWindow) {
         m_chatWindow = new ChatWindow(this);
         m_chatWindow->setWindowTitle("AI Chat");
@@ -316,6 +317,13 @@ void MainWindow::toggleChatWindow(bool visible)
     }
 
     if (visible) {
+        if (firstOpen) {
+            // Start a new session on first open. Without this, the ChatManager
+            // singleton loads previously persisted history, so the first
+            // sendMessage() would display all old messages alongside the new one.
+            ChatManager::instance().clearHistory();
+        }
+
         m_chatWindow->show();
         m_chatWindow->raise();
         m_chatWindow->activateWindow();

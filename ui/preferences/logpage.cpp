@@ -399,16 +399,6 @@ void LogPage::setupUI()
     createButtonBar(logLayout);
 
     // Connect setting widgets to markDirty()
-<<<<<<< HEAD
-=======
-    connect(coreCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
-    connect(serialCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
-    connect(uiCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
-    connect(hostCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
-    connect(deviceCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
-    connect(backendCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
-    connect(scriptCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
->>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
     connect(storeLogCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
     connect(logFilePathLineEdit, &QLineEdit::textChanged, this, [this]{ checkDirtyState(); });
     connect(screenSaverCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
@@ -720,15 +710,11 @@ void LogPage::initLogSettings()
     clearDirty();
 }
 
-<<<<<<< HEAD
 void LogPage::applySettings()
 {
     // Apply filter rules
     QString logFilter = generateFilterRules();
     QLoggingCategory::setFilterRules(logFilter);
-=======
-void LogPage::applySettings() {
->>>>>>> 1b08b3c (fix(SystemKeyBlocker): include QWidget header for proper functionality (#577))
 
     // Save category states
     saveCategorySettings();
@@ -882,22 +868,4 @@ bool LogPage::valuesMatchSnapshot() const
         }
     }
     return true;
-}
-
-bool LogPage::valuesMatchSnapshot() const
-{
-    return coreCheckBox->isChecked() == m_snap_coreLog
-        && serialCheckBox->isChecked() == m_snap_serialLog
-        && uiCheckBox->isChecked() == m_snap_uiLog
-        && hostCheckBox->isChecked() == m_snap_hostLog
-        && deviceCheckBox->isChecked() == m_snap_deviceLog
-        && backendCheckBox->isChecked() == m_snap_backendLog
-        && scriptCheckBox->isChecked() == m_snap_scriptLog
-        && storeLogCheckBox->isChecked() == m_snap_storeLog
-        && logFilePathLineEdit->text() == m_snap_logFilePath
-        && screenSaverCheckBox->isChecked() == m_snap_screenSaver
-        && hideKeyboardInputCheckBox->isChecked() == m_snap_hideKeyboardInput
-        && floatingWindowCheckBox->isChecked() == m_snap_floatingWindow
-        && floatingWindowOpacitySlider->value() == m_snap_floatingWindowOpacity
-        && systemKeyBlockerCheckBox->isChecked() == m_snap_systemKeyBlocker;
 }
