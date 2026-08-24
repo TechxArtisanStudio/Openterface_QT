@@ -659,6 +659,63 @@ QList<UIElement> ScreenAnalyzer::detectButtonsVisually(const QImage& frame,
     return filtered;
 }
 
+#ifdef HAVE_OPENCV
+QImage ScreenAnalyzer::preprocessForTerminal(const QImage& frame)
+{
+    // Convert QImage to cv::Mat
+    cv::Mat mat = QImageToMat(frame);
+    if (mat.empty()) {
+        qCWarning(log_screen_analyzer) << "Failed to convert frame to Mat for preprocessing";
+        return frame;
+    }
+
+    // Step 1: Convert to grayscale
+    cv::Mat gray;
+    if (mat.channels() == 3) {
+        cv::cvtColor(mat, gray, cv::COLOR_BGR2GRAY);
+    } else {
+        gray = mat;
+    }
+
+    // Step 2: Upscale 2x if image is small (improves OCR for small terminal text)
+    // Only upscale if the text would be too small for Tesseract (< 15px height)
+    // Terminal text is typically ~16-20px in a 1080p terminal, so only upscale
+    // if the image is significantly smaller than 1080p.
+    cv::Mat scaled;
+    if (gray.rows < 600) {
+        cv::resize(gray, scaled, cv::Size(), 2.0, 2.0, cv::INTER_CUBIC);
+        qCDebug(log_screen_analyzer) << "Upscaled terminal image 2x for better OCR";
+    } else {
+        scaled = gray;
+    }
+
+    // Step 3: Optional slight sharpening to enhance text edges
+    // Use an unsharp mask: sharpened = original + amount * (original - blurred)
+    cv::Mat blurred, sharpened;
+    cv::GaussianBlur(scaled, blurred, cv::Size(0, 0), 1.0);
+    cv::addWeighted(scaled, 1.5, blurred, -0.5, 0, sharpened);
+
+    // Terminal screenshots already have high contrast with uniform lighting.
+    // Adaptive thresholding (designed for documents with uneven lighting) actually
+    // destroys terminal text quality by creating artifacts. Skip it entirely.
+    // Tesseract works best with the original grayscale + slight sharpening.
+
+    // Convert back to QImage (grayscale, not binary)
+    QImage result(sharpened.cols, sharpened.rows, QImage::Format_Grayscale8);
+    for (int y = 0; y < sharpened.rows; ++y) {
+        memcpy(result.scanLine(y), sharpened.ptr(y), sharpened.cols);
+    }
+
+    qCDebug(log_screen_analyzer) << "Terminal preprocessing complete:"
+                                 << "original" << frame.width() << "x" << frame.height()
+                                 << "-> processed" << result.width() << "x" << result.height();
+
+    return result;
+}
+#endif
+
+#endif // HAVE_OPENCV
+
 QString ScreenAnalyzer::extractTerminalText(const QImage& frame)
 {
     QString terminalText;
@@ -721,63 +778,6 @@ QString ScreenAnalyzer::extractTerminalText(const QImage& frame)
 
     return terminalText;
 }
-
-#ifdef HAVE_OPENCV
-QImage ScreenAnalyzer::preprocessForTerminal(const QImage& frame)
-{
-    // Convert QImage to cv::Mat
-    cv::Mat mat = QImageToMat(frame);
-    if (mat.empty()) {
-        qCWarning(log_screen_analyzer) << "Failed to convert frame to Mat for preprocessing";
-        return frame;
-    }
-
-    // Step 1: Convert to grayscale
-    cv::Mat gray;
-    if (mat.channels() == 3) {
-        cv::cvtColor(mat, gray, cv::COLOR_BGR2GRAY);
-    } else {
-        gray = mat;
-    }
-
-    // Step 2: Upscale 2x if image is small (improves OCR for small terminal text)
-    // Only upscale if the text would be too small for Tesseract (< 15px height)
-    // Terminal text is typically ~16-20px in a 1080p terminal, so only upscale
-    // if the image is significantly smaller than 1080p.
-    cv::Mat scaled;
-    if (gray.rows < 600) {
-        cv::resize(gray, scaled, cv::Size(), 2.0, 2.0, cv::INTER_CUBIC);
-        qCDebug(log_screen_analyzer) << "Upscaled terminal image 2x for better OCR";
-    } else {
-        scaled = gray;
-    }
-
-    // Step 3: Optional slight sharpening to enhance text edges
-    // Use an unsharp mask: sharpened = original + amount * (original - blurred)
-    cv::Mat blurred, sharpened;
-    cv::GaussianBlur(scaled, blurred, cv::Size(0, 0), 1.0);
-    cv::addWeighted(scaled, 1.5, blurred, -0.5, 0, sharpened);
-
-    // Terminal screenshots already have high contrast with uniform lighting.
-    // Adaptive thresholding (designed for documents with uneven lighting) actually
-    // destroys terminal text quality by creating artifacts. Skip it entirely.
-    // Tesseract works best with the original grayscale + slight sharpening.
-
-    // Convert back to QImage (grayscale, not binary)
-    QImage result(sharpened.cols, sharpened.rows, QImage::Format_Grayscale8);
-    for (int y = 0; y < sharpened.rows; ++y) {
-        memcpy(result.scanLine(y), sharpened.ptr(y), sharpened.cols);
-    }
-
-    qCDebug(log_screen_analyzer) << "Terminal preprocessing complete:"
-                                 << "original" << frame.width() << "x" << frame.height()
-                                 << "-> processed" << result.width() << "x" << result.height();
-
-    return result;
-}
-#endif
-
-#endif // HAVE_OPENCV
 
 // ============================================================================
 // Non-OpenCV-dependent helpers (also available when OpenCV is absent)
