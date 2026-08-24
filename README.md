@@ -45,6 +45,8 @@ Openterface Mini-KVM is a **compact KVM (Keyboard-Video-Mouse) switch** that let
 
 ### 🐧 Linux (Ubuntu/Debian)
 
+> **Requires Ubuntu 22.04+, Debian 12+, or equivalent** (glibc ≥ 2.32 + Qt6). Check your system: `ldd --version | head -1`. Older distros (e.g. Ubuntu 20.04) are **not supported** — see [System Requirements](docs/dependencies.md#system-requirements-glibc).
+
 **Fastest way (~30 seconds):**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh | bash
@@ -77,12 +79,15 @@ openterfaceQT
 | **Windows** | 10+ | x64 | ✅ Supported |
 | **Windows** | 11 | ARM64 | ✅ Supported |
 | **Ubuntu** | 22.04+ | x64, ARM64 | ✅ Supported |
+| **Ubuntu** | 20.04 | x64, ARM64 | ❌ Not supported (glibc 2.31, no Qt6) |
 | **Fedora** | 42+ | x64, ARM64 | ✅ Supported |
 | **Linux Mint** | 21.3+ | x64 | ✅ Supported |
 | **openSUSE** | Tumbleweed | x64 | ✅ Supported |
 | **Arch Linux** | Rolling | x64, ARM64 | ✅ Supported |
 | 🔋 **Raspberry Pi OS** | 64-bit | ARM64 | ✅ Supported |
 | 🔋 **Raspberry Pi OS** | 32-bit | ARM32 | ❌ Not supported (Qt too old) |
+
+> **⚠️ glibc requirement:** Pre-built binaries (`.deb`, `.rpm`, AppImage) require **glibc ≥ 2.32** (shipped by Ubuntu 22.04+, Fedora 36+, Debian 12+, openSUSE Leap 15.4+). This applies to AppImages as well — they do **not** bundle glibc. To check your system: `ldd --version | head -1`. If your glibc is older, see [Solutions for older glibc](docs/dependencies.md#solutions-for-older-glibc) below.
 
 ---
 

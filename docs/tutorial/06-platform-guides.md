@@ -24,7 +24,12 @@ The Openterface device requires access to three types of Linux device nodes:
 | HDMI Capture (MS2109) | USB | `534d:2109` | `/dev/bus/usb/...` |
 | HDMI Capture HID | hidraw | `534d:2109` | `/dev/hidrawN` |
 | Serial (CH9329) | ttyUSB | `1a86:7523` | `/dev/ttyUSBN` |
-| Serial (CH32V208) | ttyUSB | `1a86:fe0c` | `/dev/ttyUSBN` |
+| Serial (CH32V208) | **tty** | `1a86:fe0c` | `/dev/ttyACMN` |
+
+> **Important:** The CH32V208 presents as `/dev/ttyACM*` via CDC ACM, which belongs to the
+> `tty` subsystem — **not** `ttyACM` (which doesn't exist as a subsystem name). The `tty`
+> subsystem rule is critical: without it, `/dev/ttyACM*` stays root-only even though the
+> underlying USB device is accessible.
 
 ### udev Rules
 
@@ -35,6 +40,9 @@ SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="ua
 SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
 SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"
 ```
 
 Reload rules:
@@ -76,15 +84,18 @@ The application now includes detection and warnings for the BrlTTY conflict (see
 
 ### Wayland vs X11
 
-The application runs on both X11 and Wayland display servers. Qt determines the platform via `QT_QPA_PLATFORM`:
+The application runs on both X11 and Wayland display servers. Qt 6.5+ auto-detects the
+best platform via `QT_QPA_PLATFORM` — **do not set this manually** unless debugging.
 
 - **X11:** `QT_QPA_PLATFORM=xcb` (default on most X11 desktops)
 - **Wayland:** `QT_QPA_PLATFORM=wayland` (default on GNOME/Fedora, KDE Plasma 6)
 
-The application's `setupEnv()` function in `main.cpp` auto-detects the available display server. The GStreamer video overlay uses `GstVideoOverlay` API which works differently on X11 (XID embedding) vs Wayland (requires additional protocol support).
+The application's `setupEnv()` function in `main.cpp` lets Qt auto-detect the display
+server. The GStreamer video overlay uses `GstVideoOverlay` API which works differently
+on X11 (XID embedding) vs Wayland (requires additional protocol support).
 
 **Known issues on Wayland:**
-- Video embedding may fall back to XWayland if the GStreamer sink doesn't support Wayland natively
+- Video embedding may fall back to Xwayland if the GStreamer sink doesn't support Wayland natively
 - Some desktop compositors may not properly handle the video overlay window
 
 If you experience video display issues on Wayland, try forcing X11:
@@ -290,6 +301,7 @@ The flake includes udev rules that trigger on device connection:
 ```
 SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", RUN+="${pkgs.systemd}/bin/udevadm trigger"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", RUN+="${pkgs.systemd}/bin/udevadm trigger"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", RUN+="${pkgs.systemd}/bin/udevadm trigger"
 ```
 
 ### Reproducible Builds

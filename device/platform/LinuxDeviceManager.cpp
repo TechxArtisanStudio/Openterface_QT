@@ -338,15 +338,16 @@ struct udev_device* LinuxDeviceManager::findUsbParentDevice(struct udev_device* 
             }
         }
         
+        // udev_device_get_parent returns a borrowed ref tied to the child's
+        // lifetime, so ref it BEFORE unref'ing the child to avoid use-after-free.
         struct udev_device *next_parent = udev_device_get_parent(parent);
-        udev_device_unref(parent);
-        
         if (!next_parent) {
+            udev_device_unref(parent);
             break;
         }
-        
+        udev_device_ref(next_parent);  // take our own reference
+        udev_device_unref(parent);     // release the old reference
         parent = next_parent;
-        udev_device_ref(parent); // Add reference for next iteration
     }
     
     return nullptr;
