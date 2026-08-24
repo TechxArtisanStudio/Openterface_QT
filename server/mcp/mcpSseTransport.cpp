@@ -21,6 +21,7 @@
 */
 
 #include "mcpSseTransport.h"
+#include <QTimer>
 #include "mcpProtocol.h"
 #include "mcpToolHandler.h"
 
@@ -404,14 +405,25 @@ void McpSseTransport::handleSseRequest(QTcpSocket* socket)
     }
 
     // Send the "endpoint" event — tells the client the URL to POST to.
+    // NOTE: sendSseEvent() writes and flushes; if the peer has already gone
+    // away, QTcpSocket can emit disconnected() synchronously from inside
+    // flush(), which runs onSocketDisconnected() -> cleanupSession() and
+    // removes this very session. Keep only the id across the call and look
+    // the session up again afterwards.
+    const QString sessionId = session->id;
     QJsonObject endpointData;
     endpointData["endpoint"] = QString("%1?sessionId=%2")
                                    .arg(QLatin1String(MCP_SSE_PATH_MESSAGES))
-                                   .arg(session->id);
+                                   .arg(sessionId);
     sendSseEvent(session, QStringLiteral("endpoint"), endpointData);
+    session = nullptr;
+    if (!m_sessions.contains(sessionId)) {
+        qCInfo(log_server_mcp_sse) << "SSE client went away while the session was being created:" << sessionId;
+        return;
+    }
 
-    qCInfo(log_server_mcp_sse) << "SSE session created:" << session->id;
-    emit sessionCreated(session->id);
+    qCInfo(log_server_mcp_sse) << "SSE session created:" << sessionId;
+    emit sessionCreated(sessionId);
 }
 
 // ============================================================================
@@ -488,7 +500,11 @@ void McpSseTransport::cleanupSession(const QString& sessionId)
         session->socket->disconnectFromHost();
         session->socket = nullptr;  // prevent double-close in destructor
     }
-    delete session;
+    // The session is already out of m_sessions; free it from the event loop,
+    // not here: cleanupSession() can run re-entrantly from a socket signal
+    // emitted while a caller up the stack still holds the pointer
+    // (observed: SIGSEGV in handleSseRequest() after sendSseEvent()).
+    QTimer::singleShot(0, this, [session]() { delete session; });
     emit sessionDestroyed(sessionId);
 }
 
