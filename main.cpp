@@ -40,6 +40,9 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QTimer>
+#include <QMessageBox>
+#include <QClipboard>
+#include <QPushButton>
 #include <cstdio>
 
 // Stdio MCP transport support (headless mode for Claude Code)
@@ -725,6 +728,29 @@ int main(int argc, char *argv[])
             }
         });
     }
+
+    // Always check if CH9329 is present but CH340 driver is missing (independent of environment check)
+    // Silent if driver is installed; prompts user only when driver is missing
+    QTimer::singleShot(1000, [&app]() {
+        if (SerialPortManager::isCH9329PresentAndDriverMissing()) {
+            QMetaObject::invokeMethod(&app, []() {
+                qInfo() << "CH9329 detected but CH340 driver is missing - showing install prompt";
+                QMessageBox msgBox;
+                msgBox.setWindowTitle(QObject::tr("Install Driver"));
+                msgBox.setText(QObject::tr("The CH9329 chip requires the CH340 driver, but it is not installed.\n\n"
+                    "Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html \n\n"
+                    "After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.\n\n"
+                    "Please restart your computer after the driver installation."));
+                msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+                QPushButton *copyButton = msgBox.addButton(QObject::tr("Copy Link"), QMessageBox::ActionRole);
+                msgBox.exec();
+                if (msgBox.clickedButton() == copyButton) {
+                    QClipboard *clipboard = QApplication::clipboard();
+                    clipboard->setText("https://www.wch.cn/downloads/CH341SER.EXE.html");
+                }
+            }, Qt::QueuedConnection);
+        }
+    });
 
     qInfo() << "Entering application event loop (app.exec())";
     int result = app.exec();

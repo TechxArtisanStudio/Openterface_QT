@@ -699,6 +699,7 @@ void MainWindowInitializer::finalize()
 
     connect(&SerialPortManager::getInstance(), &SerialPortManager::connectedPortChanged, m_mainWindow, &MainWindow::onPortConnected);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, m_mainWindow, &MainWindow::onArmBaudratePerformanceRecommendation);
+    connect(&SerialPortManager::getInstance(), &SerialPortManager::driverInstallationRequired, m_mainWindow, &MainWindow::onDriverInstallationRequired);
 
     // Connect SystemKeyBlocker keyCaptured signal to HostManager
     // This ensures both HID report building AND status bar updates go through

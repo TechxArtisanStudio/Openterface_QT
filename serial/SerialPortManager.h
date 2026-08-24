@@ -189,6 +189,13 @@ public:
     ChipType getCurrentChipType() const { return m_currentChipType; }
     inline bool isChipTypeCH32V208() const { return m_currentChipType == ChipType::CH32V208; }
     inline bool isChipTypeCH9329() const { return m_currentChipType == ChipType::CH9329; }
+
+    // Check if CH340 driver is installed (required for CH9329 chip)
+    static bool checkCH340DriverInstalled();
+
+    // Check if CH9329 USB device is present but CH340 driver is missing
+    // Uses USB enumeration (not serial port) so it works even without driver
+    static bool isCH9329PresentAndDriverMissing();
     
     // New USB switch methods for CH32V208 serial port (firmware with new protocol)
     void switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)
@@ -224,6 +231,7 @@ signals:
     void serialPortReset(bool isStarted); // Serial port reset started/ended
     void statusUpdate(const QString &status); // General status update for UI
     void factoryReset(bool isStarted); // Factory reset started/ended
+    void driverInstallationRequired(); // Emitted when CH9329 detected but CH340 driver is missing
     
     void requestFactoryReset();
     void requestFactoryResetV191();

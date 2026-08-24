@@ -18,7 +18,7 @@ public:
     explicit EnvironmentSetupDialog(QWidget *parent = nullptr);
     ~EnvironmentSetupDialog();
     
-    // Static method to check if the CH340 driver is installed
+    // Static method to check environment setup (firmware, permissions, etc.)
     static bool checkEnvironmentSetup();
 
     static bool autoEnvironmentCheck();
@@ -29,28 +29,18 @@ protected:
 private slots:
     void accept() override;
     void reject() override;
-    void extractDriverFiles();
     void copyCommands();
     void openHelpLink();
-#ifdef _WIN32
-    void installDriverForWindows();
-#endif
 
 private:
     Ui::EnvironmentSetupDialog *ui;
-    static bool checkDriverInstalled();
     static const QString helpUrl;
 
-    static bool isDriverInstalled;
     static const QString tickHtml;
     static const QString crossHtml;
     static QString latestFirewareDescription;
     static bool isDevicePlugged;
     static FirmwareResult latestFirmware;
-    // bool isDevicePlugged;
-    
-    static bool detectDevice(uint16_t vendorID, uint16_t productID);
-    static bool checkDevicePermission(uint16_t vendorID, uint16_t productID);
 
 #ifdef __linux__
     static bool checkHidPermission();
@@ -59,7 +49,6 @@ private:
     static bool detectDevices(const std::vector<std::pair<uint16_t, uint16_t>>& devices);
     static bool checkPermissions(const std::vector<std::pair<uint16_t, uint16_t>>& devices, bool isSerial);
 
-    static const QString driverCommands;
     static const QString groupCommands;
     static const QString udevCommands;
     static const QString brlttyCommands;

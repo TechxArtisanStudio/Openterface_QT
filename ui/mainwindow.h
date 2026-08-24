@@ -237,6 +237,8 @@ private slots:
     
     void onArmBaudratePerformanceRecommendation(int currentBaudrate);
 
+    void onDriverInstallationRequired();
+
     void onToggleSwitchStateChanged(Qt::CheckState state);
 
 

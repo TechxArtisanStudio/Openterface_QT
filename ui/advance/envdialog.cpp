@@ -20,13 +20,6 @@
 #include <vector>
 #include <utility>
 #include <QMetaObject> // Include QMetaObject for invokeMethod
-#ifdef _WIN32 // Check if compiling on Windows
-#include <windows.h> // Include Windows API header
-#include <setupapi.h> // Include SetupAPI for device installation functions
-#include <devguid.h> // Include Device Guids
-#include <regstr.h> // Include Registry strings
-#endif
-
 #ifdef __linux__ // Check if compiling on Linux
 #include <fstream> // For file operations
 #include <string> // For std::string
@@ -36,7 +29,6 @@
 #include <QLabel> // Already included, but noting it's used for hyperlink
 #include <QFont> // Include QFont for system font information
 
-bool EnvironmentSetupDialog::isDriverInstalled = false;
 const QString EnvironmentSetupDialog::tickHtml = "<span style='color: green'>&#x2713;</span>";
 const QString EnvironmentSetupDialog::crossHtml = "<span style='color: red'>&#x2717;</span>";
 QString EnvironmentSetupDialog::latestFirewareDescription = QString("");
@@ -45,16 +37,6 @@ FirmwareResult EnvironmentSetupDialog::latestFirmware = FirmwareResult::Checking
 
 #ifdef __linux__
 // Define the static commands
-static const uint16_t openterfaceVID = 0x534d;
-static const uint16_t openterfacePID = 0x2109;
-static const uint16_t openterfaceV2VID = 0x345f;
-static const uint16_t openterfaceV2PID = 0x2109;
-static const uint16_t openterfaceV3VID = 0x345f;
-static const uint16_t openterfaceV3PID = 0x2132;
-static const uint16_t ch341VID = 0x1a86;
-static const uint16_t ch341PID = 0x7523;
-static const uint16_t serialVID = 0x1A86;
-static const uint16_t serialPID = 0xFE0C;
 libusb_context *context = nullptr;
 
 std::vector<std::pair<uint16_t, uint16_t>> openterfaceDevices = {
@@ -68,7 +50,6 @@ std::vector<std::pair<uint16_t, uint16_t>> serialDevices = {
     {0x1A86, 0xFE0C}
 };
 
-const QString EnvironmentSetupDialog::driverCommands = "# Build and install the driver\n make ; sudo make install\n\n";
 const QString EnvironmentSetupDialog::groupCommands = "# Add user to dialout group for serial access, and video group for camera access\n sudo usermod -a -G dialout,video $USER\n\n";
 const QString EnvironmentSetupDialog::udevCommands =
     "#Add udev rules for Openterface Mini-KVM\n"
@@ -130,16 +111,10 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui->step2Label->setVisible(false);
     ui->copyButton->setVisible(false);
     ui->commandsTextEdit->setVisible(false);
-    statusSummary += tr("The following steps help you install the driver and the Openterface firmware update. Current status:<br>");
+    statusSummary += tr("Firmware update status:<br>");
     QString latestDescription = latestFirewareDescription;
-    statusSummary += tr("◆ Driver Installed: ") + QString(isDriverInstalled? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestDescription);
     ui->descriptionLabel->setText(statusSummary);
-
-    // if(isDriverInstalled)
-    //     ui->descriptionLabel->setText(tickHtml + tr(" The driver is installed. No further action is required."));
-    // else
-    //     ui->descriptionLabel->setText(crossHtml + tr(" The driver is missing. Openterface Mini-KVM will install it automatically."));
 #else
     if(!isDevicePlugged){
         ui->descriptionLabel->setText(crossHtml + tr(" The device is not plugged in. Please plug it in and try again."));
@@ -154,17 +129,15 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     } 
     setFixedSize(450, 450);
     ui->commandsTextEdit->setVisible(true);
-    ui->step1Label->setVisible(!isDriverInstalled);
-    ui->extractButton->setVisible(!isDriverInstalled);
+    ui->step1Label->setVisible(false);
+    ui->extractButton->setVisible(false);
     ui->copyButton->setVisible(true);
     ui->step2Label->setVisible(true);
     ui->commandsTextEdit->setText(buildCommands());
-    connect(ui->extractButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::extractDriverFiles);
     connect(ui->copyButton, &QPushButton::clicked, this, &EnvironmentSetupDialog::copyCommands);
 
     // Create the status summary
-    statusSummary = tr("The following steps help you install the driver and access the device permissions and the Openterface firmware update. Current status:<br>");
-    statusSummary += tr("◆ Driver Installed: ") + QString(isDriverInstalled ? tickHtml : crossHtml) + "<br>";
+    statusSummary = tr("The following steps help you access the device permissions and the Openterface firmware update. Current status:<br>");
     statusSummary += tr("◆ In Serial Port Permission: ") + QString(isSerialPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ HID Permission: ") + QString(isHidPermission ? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ Video Permission: ") + QString(isVideoPermission ? tickHtml : crossHtml) + "<br>";
@@ -206,72 +179,13 @@ void EnvironmentSetupDialog::closeEvent(QCloseEvent *event)
     event->accept(); // Accept the close event
 }
 
-#ifdef _WIN32
-void EnvironmentSetupDialog::installDriverForWindows() {
-    // Windows-specific installation logic
-    QMessageBox msgBox(this);
-    msgBox.setWindowTitle(tr("Install Driver"));
-    msgBox.setText(tr("The driver is missing. Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html \n\n"
-        "After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.\n\n"
-        "Please restart your computer after the driver installation."));
-    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-    
-    // Add button for copy link
-    QPushButton *copyButton = msgBox.addButton(tr("Copy Link"), QMessageBox::ActionRole);
-    
-    QMessageBox::StandardButton reply = static_cast<QMessageBox::StandardButton>(msgBox.exec());
-    
-    // Check if the copy button was clicked
-    if (msgBox.clickedButton() == copyButton) {
-        QClipboard *clipboard = QApplication::clipboard();
-        clipboard->setText("https://www.wch.cn/downloads/CH341SER.EXE.html");
-    }
-}
-#endif
-
-// Add the new method for extracting driver files
-void EnvironmentSetupDialog::extractDriverFiles() {
-    // Open a file dialog to select the destination directory
-    QString selectedDir = QFileDialog::getExistingDirectory(this, tr("Select Destination Directory"), QDir::homePath());
-
-    if (selectedDir.isEmpty()) {
-        // If no directory was selected, return early
-        return;
-    }
-
-    QString tempDir = selectedDir + "/ch341-drivers"; // Create a subdirectory for the drivers
-    QDir().mkpath(tempDir); // Create the temporary directory if it doesn't exist
-
-    // List of resource files to copy
-    QStringList files = {":/drivers/linux/ch341.c", ":/drivers/linux/ch341.h", ":/drivers/linux/Makefile"}; // Add all necessary files
-    for (const QString &filePath : files) {
-        QFile resourceFile(filePath);
-        if (resourceFile.open(QIODevice::ReadOnly)) {
-            QString targetPath = tempDir + "/" + QFileInfo(filePath).fileName();
-            QFile targetFile(targetPath);
-            if (targetFile.open(QIODevice::WriteOnly)) {
-                targetFile.write(resourceFile.readAll()); // Read from resource and write to target
-                targetFile.close();
-            } else {
-            }
-            resourceFile.close();
-        } else {
-        }
-    }
-
-#ifdef __linux__
-    // Update the QTextEdit with the static commands
-    ui->commandsTextEdit->setPlainText("cd " + tempDir + "\n" + buildCommands());
-#endif
-}
-
 void EnvironmentSetupDialog::copyCommands() {
     // Copy the commands to the clipboard
     QClipboard *clipboard = QApplication::clipboard();
     clipboard->setText(ui->commandsTextEdit->toPlainText());
 }
 
-// Update the accept method to call the new installDriver method
+// Update the accept method
 void EnvironmentSetupDialog::accept()
 {
     // Update the setting
@@ -279,40 +193,6 @@ void EnvironmentSetupDialog::accept()
     settings.setValue("autoCheck", ui->autoCheckBox->isChecked());
     settings.sync();
 
-    #ifdef _WIN32
-    if(!isDriverInstalled)
-        installDriverForWindows();
-    #elif defined(__linux__)
-    if (!isDriverInstalled) {
-        // Only prompt for restart if driver was not installed (user needed to install CH340 driver)
-        QString statusSummary;
-        statusSummary += tr("Driver Installed: ") + QString(isDriverInstalled ? tr("Yes") : tr("No")) + "\n";
-        statusSummary += tr("Serial port Permission: ") + QString(isSerialPermission ? tr("Yes") : tr("No")) + "\n";
-        statusSummary += tr("HID Permission: ") + QString(isHidPermission ? tr("Yes") : tr("No")) + "\n";
-        statusSummary += tr("BRLTTY (brltty-udev.service) active: ") + QString(isBrlttyRunning ? tr("Yes (run the commands below to fix)") : tr("No")) + "\n";
-
-        // Append the status summary to the description label
-        ui->descriptionLabel->setText(ui->descriptionLabel->text() + "\n" + statusSummary);
-        QMessageBox::StandardButton reply = QMessageBox::question(
-            this,
-            tr("Restart Required"),
-            tr("The driver has been installed. A system restart and device re-plugging is required for the changes to take effect.\n\n"
-            "Would you like to restart your computer now?"),
-            QMessageBox::Yes | QMessageBox::No
-        );
-        if (reply == QMessageBox::Yes) {
-            QProcess::startDetached("reboot");
-        }else{
-            QMessageBox::information(
-                this,
-                tr("Restart Later"),
-                tr("Please remember to restart your computer and re-plug the device for the driver to work properly.")
-            );
-        }
-    }
-    // If isDriverInstalled is true (e.g., CH32V208 detected, or ch341 module already loaded),
-    // no restart prompt needed — just close the dialog.
-    #endif
     // Call the base class accept method to close the dialog
 
     QDialog::accept();
@@ -322,9 +202,6 @@ void EnvironmentSetupDialog::accept()
 #ifdef __linux__
 QString EnvironmentSetupDialog::buildCommands(){
     QString commands = "";
-    if (!isDriverInstalled) {
-        commands += driverCommands;
-    }
     if (!isSerialPermission || !isVideoPermission) {
         commands += groupCommands;
     }
@@ -605,85 +482,6 @@ void EnvironmentSetupDialog::reject()
 {
     QDialog::reject();
 }
-#ifdef __linux__
-bool EnvironmentSetupDialog::checkDevicePermission(uint16_t vendorID, uint16_t productID) {
-    libusb_device **dev_list = nullptr;
-    ssize_t dev_count = libusb_get_device_list(context, &dev_list);
-    if (dev_count < 0) {
-        qWarning() << "libusb_get_device_list failed: " << libusb_error_name(static_cast<int>(dev_count));
-        return false;
-    }
-
-    std::unique_ptr<libusb_device*[], void(*)(libusb_device**)> dev_list_guard(dev_list, [](libusb_device** list) {
-        libusb_free_device_list(list, 1);
-    });
-
-    for (ssize_t i =0; i < dev_count; i++) {
-        libusb_device *dev = dev_list[i];
-        libusb_device_descriptor desc;
-        int ret = libusb_get_device_descriptor(dev, &desc);
-        if (ret < 0) {
-            qWarning() << "libusb_get_device_descriptor failed: " << libusb_error_name(ret);
-            continue;
-        }
-        if (desc.idVendor == vendorID && desc.idProduct == productID) {
-            libusb_device_handle* handle = nullptr;
-            int ret = libusb_open(dev, &handle);
-            if (ret == LIBUSB_SUCCESS) {
-                // close the device handle
-                libusb_close(handle);
-                if (vendorID == ch341VID && productID == ch341PID) {
-                    isSerialPermission = true;
-                } else if (vendorID == openterfaceVID && productID == openterfacePID) {
-                    isHidPermission = true;
-                }
-                return true; 
-            } else if (ret == LIBUSB_ERROR_ACCESS) {
-                qWarning() << "Permission denied for the device";
-                return false;
-            } else if (ret == LIBUSB_ERROR_BUSY) {
-                qWarning() << "Device is busy";
-                return false;
-            } else {
-                qWarning() << "Failed to open device: " << libusb_error_name(ret);
-                return false;
-            }
-        }
-    }
-    return false;
-}
-
-bool EnvironmentSetupDialog::detectDevice(uint16_t vendorID, uint16_t productID) {
-    libusb_device **dev_list = nullptr;
-    ssize_t dev_count = libusb_get_device_list(context, &dev_list);
-    if (dev_count < 0) {
-        qWarning() << "libusb_get_device_list failed: " << libusb_error_name(static_cast<int>(dev_count));
-        return false;
-    }
-
-    std::unique_ptr<libusb_device*[], void(*)(libusb_device**)> dev_list_guard(dev_list, [](libusb_device** list) {
-        libusb_free_device_list(list, 1);
-    });
-
-    bool found = false;
-
-    for (ssize_t i =0; i < dev_count; i++) {
-        libusb_device *dev = dev_list[i];
-        libusb_device_descriptor desc;
-        int ret = libusb_get_device_descriptor(dev, &desc);
-        if (ret < 0) {
-            qWarning() << "libusb_get_device_descriptor failed: " << libusb_error_name(ret);
-            continue;
-        }
-        if (desc.idVendor == vendorID && desc.idProduct == productID) {
-            found = true;
-            isDevicePlugged = true;
-        }
-    }
-    return found;
-}
-
-#endif
 
 bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     // Ensure HID device is properly detected and chip type is identified before firmware check
@@ -705,7 +503,7 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     "<br>" + "Please update the firmware to the latest version." +
     "<br>" + "Click OK, then open File->Preferences->Video Firmware and use \"Firmware Update from Remote\".";
     #ifdef _WIN32
-    return checkDriverInstalled() && latestFirmware == FirmwareResult::Latest;
+    return latestFirmware == FirmwareResult::Latest;
     #elif defined(__linux__)
 
     // EnvironmentSetupDialog dialog;
@@ -732,112 +530,14 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     if (!checkSerialPermission) {
     } else {
     }
-    
+
     checkBrlttyRunning(); // No need to return value here
     checkVideoPermission(); // Check video device permissions
     bool checkPermission = checkPermissions(openterfaceDevices, false);
-    return (checkDriverInstalled() && checkSerialPermission && checkPermission && (latestFirmware == FirmwareResult::Latest) && !isBrlttyRunning) || skipCheck;
+    return (checkSerialPermission && checkPermission && (latestFirmware == FirmwareResult::Latest) && !isBrlttyRunning) || skipCheck;
     #else
     return true;
     #endif
-}
-
-bool EnvironmentSetupDialog::checkDriverInstalled() {
-#ifdef _WIN32 // Check if compiling on Windows
-    const GUID GUID_DEVINTERFACE_USB_DEVICE = { 0xA5DCBF10, 0x6530, 0x11D2, {0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED} };
-    HDEVINFO deviceInfoSet = SetupDiGetClassDevs(&GUID_DEVINTERFACE_USB_DEVICE, NULL, NULL, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
-    if (deviceInfoSet == INVALID_HANDLE_VALUE) {
-        return false;
-    }
-
-    SP_DEVINFO_DATA deviceInfoData;
-    deviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
-    WCHAR hwIdBuffer[256];
-    bool captureCardFound = false;
-    bool ch340Found = false;   // CH9329/CH340 - VID_1A86&PID_7523, requires CH340 driver
-    bool ch32Found = false;    // CH32V208    - VID_1A86&PID_FE0C, does NOT require CH340 driver
-
-    for (DWORD i = 0; SetupDiEnumDeviceInfo(deviceInfoSet, i, &deviceInfoData); i++) {
-        if (SetupDiGetDeviceRegistryPropertyW(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL,
-            (PBYTE)hwIdBuffer, sizeof(hwIdBuffer), NULL)) {
-            if (wcsstr(hwIdBuffer, L"USB\\VID_534D&PID_2109") != NULL ||
-                wcsstr(hwIdBuffer, L"USB\\VID_345F&PID_2109") != NULL ||
-                wcsstr(hwIdBuffer, L"USB\\VID_345F&PID_2132") != NULL) {
-                captureCardFound = true;
-            }
-            if (wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_7523") != NULL) {
-                ch340Found = true;
-            }
-            if (wcsstr(hwIdBuffer, L"USB\\VID_1A86&PID_FE0C") != NULL) {
-                ch32Found = true;
-            }
-        }
-    }
-
-    SetupDiDestroyDeviceInfoList(deviceInfoSet);
-
-    // CH32V208 (VID_1A86&PID_FE0C) uses its own driver, no CH340 driver needed
-    if (ch32Found) {
-        isDriverInstalled = true;
-        return true;
-    }
-
-    if (!captureCardFound && !ch340Found) {
-        return true;
-    }
-    if (captureCardFound && !ch340Found) {
-        return false;
-    }
-    isDriverInstalled = true;
-    return true;
-#elif defined(__linux__) // Check if compiling on Linux
-    // Log the start of the driver check
-
-    // First, check if only CH32V208 (VID_1A86, PID_FE0C) is present — it does NOT need the CH340 driver.
-    // CH32 uses a different driver (cdc_acm or ch34x), not ch341.
-    {
-        bool ch32Only = false;
-        bool ch340Present = false;
-        if (context != nullptr) {
-            libusb_device **list = nullptr;
-            ssize_t count = libusb_get_device_list(context, &list);
-            if (count >= 0 && list != nullptr) {
-                for (ssize_t i = 0; i < count; i++) {
-                    libusb_device_descriptor desc;
-                    if (libusb_get_device_descriptor(list[i], &desc) == 0) {
-                        if (desc.idVendor == 0x1A86 && desc.idProduct == 0xFE0C) {
-                            ch32Only = true;
-                        }
-                        if (desc.idVendor == 0x1A86 && desc.idProduct == 0x7523) {
-                            ch340Present = true;
-                        }
-                    }
-                }
-                libusb_free_device_list(list, 1);
-            }
-        }
-        // If CH32 is present but CH340 is not, skip the ch341 driver check entirely
-        if (ch32Only && !ch340Present) {
-            isDriverInstalled = true;
-            return true;
-        }
-    }
-
-    // Check if the ch341 driver module is loaded (required for CH340/CH9329)
-    std::string command = "cat /proc/modules | grep 'ch341'";
-    int result = system(command.c_str());
-    if (result == 0) {
-        isDriverInstalled = true;
-        return true; // Driver found via /proc/modules
-    }
-
-    isDriverInstalled = false;
-    return false; // Driver not found
-#else
-    // Implement logic for other platforms if needed
-
-    return false; // Assume not installed for non-Windows and non-Linux platforms
-#endif
 }
 
 void EnvironmentSetupDialog::openHelpLink() {

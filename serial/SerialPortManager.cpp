@@ -52,6 +52,12 @@ static constexpr uint8_t SCANCODE_SCROLLLOCK = 0x47;
 #include <unistd.h>
 #include <errno.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <setupapi.h>
+#include <devguid.h>
+#endif
+
 
 #include "log/opflogging.h"
 
@@ -758,6 +764,11 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     qCInfo(log_core_serial_config) << "Using chip strategy:" << m_chipStrategy->chipName();
     
     if (m_currentChipType == ChipType::CH9329) {
+        // Check if CH340 driver is installed for CH9329 chip
+        if (!checkCH340DriverInstalled()) {
+            qCWarning(log_core_serial_config) << "CH9329 detected but CH340 driver is not installed";
+            emit driverInstallationRequired();
+        }
         // Start async initialization for CH9329
         int tryBaudrate = determineBaudrate();
         initializeCH9329Async(portName, tryBaudrate);
@@ -2834,6 +2845,97 @@ ChipType SerialPortManager::detectChipType(const QString &portName) const
     
     qCWarning(log_core_serial_config) << "Unknown chip type for port" << portName;
     return ChipType::UNKNOWN;
+}
+
+// Check if CH340 driver is installed (required for CH9329 chip)
+bool SerialPortManager::checkCH340DriverInstalled() {
+#ifdef _WIN32
+    // Step 1: Check if CH340 COM port exists (indicates driver is working)
+    bool ch340ComPortFound = false;
+    const auto ports = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo& port : ports) {
+        if (port.vendorIdentifier() == 0x1A86 && port.productIdentifier() == 0x7523) {
+            ch340ComPortFound = true;
+            qCDebug(log_core_serial_config) << "CH340 COM port found:" << port.portName();
+            break;
+        }
+    }
+
+    if (ch340ComPortFound) {
+        qCDebug(log_core_serial_config) << "CH340 driver is installed (COM port found)";
+        return true; // COM port found → driver is working
+    }
+
+    // Step 2: No COM port found. Check if CH9329 USB device is physically present
+    // Use DIGCF_ALLCLASSES to enumerate ALL devices including those without drivers
+    bool ch9329UsbDeviceFound = false;
+    bool captureCardUsbDeviceFound = false;
+    HDEVINFO deviceInfoSet = SetupDiGetClassDevsW(NULL, NULL, NULL, DIGCF_PRESENT | DIGCF_ALLCLASSES);
+    if (deviceInfoSet == INVALID_HANDLE_VALUE) {
+        qCWarning(log_core_serial_config) << "SetupDiGetClassDevs failed:" << GetLastError();
+        return true; // Can't enumerate, assume OK
+    }
+
+    SP_DEVINFO_DATA deviceInfoData;
+    deviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+    WCHAR hwIdBuffer[256];
+
+    for (DWORD i = 0; SetupDiEnumDeviceInfo(deviceInfoSet, i, &deviceInfoData); i++) {
+        if (SetupDiGetDeviceRegistryPropertyW(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL,
+            (PBYTE)hwIdBuffer, sizeof(hwIdBuffer), NULL)) {
+            if (wcsstr(hwIdBuffer, L"VID_1A86") != NULL && wcsstr(hwIdBuffer, L"PID_7523") != NULL) {
+                ch9329UsbDeviceFound = true;
+                qCWarning(log_core_serial_config) << "CH9329 USB device found (no COM port):" << QString::fromWCharArray(hwIdBuffer);
+            }
+            if (wcsstr(hwIdBuffer, L"VID_534D") != NULL && wcsstr(hwIdBuffer, L"PID_2109") != NULL) {
+                captureCardUsbDeviceFound = true;
+            }
+            if (wcsstr(hwIdBuffer, L"VID_345F") != NULL && (wcsstr(hwIdBuffer, L"PID_2109") != NULL || wcsstr(hwIdBuffer, L"PID_2132") != NULL)) {
+                captureCardUsbDeviceFound = true;
+            }
+        }
+    }
+
+    SetupDiDestroyDeviceInfoList(deviceInfoSet);
+
+    qCWarning(log_core_serial_config) << "Driver check result: CH9329 USB device found=" << ch9329UsbDeviceFound
+                                     << "capture card found=" << captureCardUsbDeviceFound
+                                     << "CH340 COM port found=" << ch340ComPortFound;
+
+    // CH9329 USB device physically present but no COM port → driver missing
+    if (ch9329UsbDeviceFound) {
+        qCWarning(log_core_serial_config) << "CH9329 USB device present but no COM port → CH340 driver missing";
+        return false;
+    }
+
+    // No CH9329 USB device found at all, but capture card present
+    // This means the composite USB device might not be exposing CH9329 separately
+    // Check if we can infer: capture card present → CH9329 should be present → driver likely missing
+    if (captureCardUsbDeviceFound) {
+        qCWarning(log_core_serial_config) << "Openterface capture card found but CH9329 USB device not found → CH340 driver likely missing";
+        return false;
+    }
+
+    // No relevant device found at all → nothing to check
+    qCDebug(log_core_serial_config) << "No Openterface device found, skipping driver check";
+    return true;
+#elif defined(__linux__)
+    // Check if the ch341 driver module is loaded (required for CH340/CH9329)
+    std::string command = "cat /proc/modules | grep 'ch341'";
+    int result = system(command.c_str());
+    if (result == 0) {
+        return true; // Driver found via /proc/modules
+    }
+    return false; // Driver not found
+#else
+    return true; // Assume installed for other platforms
+#endif
+}
+
+// Check if CH9329 USB device is present but CH340 driver is missing
+// Uses USB device enumeration (not serial port), so it works even when driver is not installed
+bool SerialPortManager::isCH9329PresentAndDriverMissing() {
+    return !checkCH340DriverInstalled();
 }
 
 // ARM architecture detection and performance prompt
