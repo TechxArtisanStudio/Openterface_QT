@@ -24,6 +24,14 @@ shared-qt-complete-arm-opt.tar*
 email_service/*
 .codegraph/*
 
+# Qt MOC generated files
+moc/
+obj/
+
+# Qt generated UI and resource files
+ui_*.h
+qrc_*.*
+
 # Soak test artifacts (logs, screenshots, reports)
 tests/soak_test_logs/
 tests/soak_test_screenshots/
