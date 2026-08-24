@@ -320,10 +320,9 @@ int main(int argc, char *argv[])
             // Redirect stdout to stderr
             dup2(STDERR_FILENO, STDOUT_FILENO);
             // Store saved fd for later use by MCP server
-            const char* fdStr = QString::number(savedStdout).toUtf8().constData();
+            QByteArray fdStr = QString::number(savedStdout).toUtf8();
             qCDebug(log_app_main) << "Setting OPENTERFACE_SAVED_STDOUT=" << fdStr;
-            int result = setenv("OPENTERFACE_SAVED_STDOUT", fdStr, 1);
-            qCDebug(log_app_main) << "setenv result:" << result;
+            qputenv("OPENTERFACE_SAVED_STDOUT", fdStr);
         }
 
         // Use offscreen platform — provides QInputMethod without needing a real display
