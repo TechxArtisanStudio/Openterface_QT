@@ -118,9 +118,17 @@ The udev rules grant access to these USB devices:
 | Device | VID:PID | Subsystem |
 |--------|---------|-----------|
 | MS2109 HDMI Capture | 534d:2109 | usb, hidraw |
-| CH340 Serial (CH9329) | 1a86:7523 | ttyUSB, usb |
-| CH32V208 (normal mode) | 1a86:fe0c | usb |
+| CH340 Serial (CH9329) | 1a86:7523 | tty, ttyUSB, usb |
+| CH32V208 (normal mode) | 1a86:fe0c | tty, usb |
 | CH32V208 (ISP mode) | 1a86:55e0, 4348:55e0 | usb |
+
+The `tty` subsystem rules are critical: without them, `/dev/ttyACM*` and `/dev/ttyUSB*`
+stay root-only even though the underlying USB device is accessible. If keyboard input
+stops working after an update, verify the rules are loaded:
+
+```bash
+udevadm info -a -n /dev/ttyACM0 | grep -E 'SUBSYSTEM|idVendor|idProduct'
+```
 
 ## Troubleshooting
 
