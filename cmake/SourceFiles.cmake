@@ -348,7 +348,6 @@ set(LOG_SOURCES
     log/logcategoryregistry.cpp log/logcategoryregistry.h
     log/opflogging.h
 )
-)
 
 # AI chat backend sources
 set(AI_SOURCES

@@ -447,6 +447,15 @@ add_custom_command(TARGET openterfaceQT POST_BUILD
     COMMENT "Copying local launcher to build directory"
 )
 
+# =============================================================================
+# Testing (opt-in via -DBUILD_TESTING=ON)
+# =============================================================================
+option(BUILD_TESTING "Build the QtTest test suite" OFF)
+if(BUILD_TESTING)
+    message(STATUS "Testing enabled — building MCP test suite")
+    add_subdirectory(tests/mcp)
+endif()
+
 # Qt components already found above
 # =============================================================================
 # Installation Targets (Linux only)

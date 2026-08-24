@@ -83,12 +83,10 @@ private:
     QJsonObject toolScreenToMarkdown(const QJsonObject& args);
     QJsonObject toolFirmwareCheck(const QJsonObject& args);
     QJsonObject toolFirmwareUpdate(const QJsonObject& args);
-    QJsonObject toolScreenToMarkdown(const QJsonObject& args);
 
     // --- Helpers ---
     static QJsonObject textResult(const QString& text);
     static QJsonObject errorResult(const QString& message);
-    static QJsonObject imageResult(const QByteArray& base64Data, const QString& mimeType = "image/jpeg");
 
     static int parseMouseButton(const QString& button);
 };
