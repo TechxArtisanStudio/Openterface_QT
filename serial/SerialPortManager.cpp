@@ -2920,12 +2920,40 @@ bool SerialPortManager::checkCH340DriverInstalled() {
     qCDebug(log_core_serial_config) << "No Openterface device found, skipping driver check";
     return true;
 #elif defined(__linux__)
-    // Check if the ch341 driver module is loaded (required for CH340/CH9329)
+    // Step 1: Check if any Openterface USB device is connected
+    // Only check driver if device is actually present
+    bool deviceFound = false;
+    QDir usbDir("/sys/bus/usb/devices");
+    if (usbDir.exists()) {
+        const QStringList entries = usbDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString &entry : entries) {
+            QString vendorPath = "/sys/bus/usb/devices/" + entry + "/idVendor";
+            QString productPath = "/sys/bus/usb/devices/" + entry + "/idProduct";
+            QFile vendorFile(vendorPath);
+            QFile productFile(productPath);
+            if (vendorFile.open(QIODevice::ReadOnly) && productFile.open(QIODevice::ReadOnly)) {
+                QString vid = QString::fromUtf8(vendorFile.readLine()).trimmed().toUpper();
+                QString pid = QString::fromUtf8(productFile.readLine()).trimmed().toUpper();
+                // CH9329: 1a86:7523, Capture card: 534d:2109, 345f:2109, 345f:2132
+                if (vid == "1A86" && pid == "7523") deviceFound = true;
+                if (vid == "534D" && pid == "2109") deviceFound = true;
+                if (vid == "345F" && (pid == "2109" || pid == "2132")) deviceFound = true;
+            }
+        }
+    }
+
+    if (!deviceFound) {
+        qCDebug(log_core_serial_config) << "No Openterface USB device found on Linux, skipping driver check";
+        return true; // No device → nothing to check
+    }
+
+    // Step 2: Device found — check if ch341 driver module is loaded
     std::string command = "cat /proc/modules | grep 'ch341'";
     int result = system(command.c_str());
     if (result == 0) {
-        return true; // Driver found via /proc/modules
+        return true; // Driver found
     }
+    qCWarning(log_core_serial_config) << "Openterface device found but ch341 driver not loaded on Linux";
     return false; // Driver not found
 #else
     return true; // Assume installed for other platforms
