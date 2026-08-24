@@ -150,7 +150,8 @@ SOURCES += main.cpp \
     ui/customkey/customkeymanager.cpp \
     ui/customkey/customkeydialog.cpp \
     ui/customkey/virtualkeyboardpage.cpp \
-    SysKeyBlocker/SystemKeyBlocker.cpp
+    SysKeyBlocker/SystemKeyBlocker.cpp \
+    log/logcategoryregistry.cpp
 
 # Platform-specific backend handlers (exclude on Windows)
 !win32 {
@@ -317,7 +318,9 @@ HEADERS  += \
     ui/customkey/customkeymanager.h \
     ui/customkey/customkeydialog.h \
     ui/customkey/virtualkeyboardpage.h \
-    SysKeyBlocker/SystemKeyBlocker.h
+    SysKeyBlocker/SystemKeyBlocker.h \
+    log/logcategoryregistry.h \
+    log/opflogging.h
 
 FORMS    += \
     ui/mainwindow.ui \

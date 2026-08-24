@@ -5,8 +5,9 @@
 #include "windows/discoverers/Generation3Discoverer.h"
 #include "windows/discoverers/DeviceDiscoveryManager.h"
 #include <QDebug>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_device_windows, "opf.host.windows")
+OPF_LOGGING_CATEGORY(log_device_windows, "opf.host.windows")
 
 WindowsDeviceManager::WindowsDeviceManager(QObject *parent)
     : WindowsDeviceManager(std::make_unique<WinDeviceEnumerator>(), parent)

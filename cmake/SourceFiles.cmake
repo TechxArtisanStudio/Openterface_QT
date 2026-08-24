@@ -314,9 +314,16 @@ set(UI_PREFERENCES_SOURCES
     ui/preferences/edidconfigpage.cpp ui/preferences/edidconfigpage.h
 )
 
+# Log infrastructure
+set(LOG_SOURCES
+    log/logcategoryregistry.cpp log/logcategoryregistry.h
+    log/opflogging.h
+)
+
 # Combine all source files
 set(SOURCE_FILES
     ${COMMON_SOURCES}
+    ${LOG_SOURCES}
     ${DEVICE_SOURCES}
     ${HOST_SOURCES}
     ${REGEX_SOURCES}

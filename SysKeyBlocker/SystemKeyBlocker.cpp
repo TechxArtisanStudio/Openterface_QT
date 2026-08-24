@@ -26,6 +26,7 @@
 #include <QKeyEvent>
 #include <QMutex>
 #include <QMutexLocker>
+#include "log/opflogging.h"
 
 // ----- Windows -----
 #ifdef Q_OS_WIN
@@ -39,7 +40,7 @@
 #  include <X11/XKBlib.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_syskey, "opf.systemkey")
+OPF_LOGGING_CATEGORY(log_syskey, "opf.systemkey")
 
 namespace {
     // Guard to protect the lazy singleton

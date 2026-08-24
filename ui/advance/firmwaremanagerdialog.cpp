@@ -15,7 +15,6 @@
 #include <QMessageBox>
 #include <QApplication>
 
-
 FirmwareManagerDialog::FirmwareManagerDialog(QWidget *parent) :
     QDialog(parent),
     progressDialog(nullptr)
@@ -81,7 +80,6 @@ void FirmwareManagerDialog::onWriteFirmwareFromFileClick() {
         mainWindow->hide();
     }
 
-
     // Create and configure the progress dialog
     progressDialog = new QProgressDialog(tr("Writing firmware to EEPROM..."), tr("Cancel"), 0, 100, this);
     progressDialog->setWindowModality(Qt::WindowModal);
@@ -95,7 +93,6 @@ void FirmwareManagerDialog::onWriteFirmwareFromFileClick() {
 
     // Create the FirmwareWriter
     if (VideoHid::getInstance().getChipType() == VideoChipType::MS2130S) {
-        qDebug() << "MS2130S detected - using erase+4096B burst firmware write path";
     }
 
     QThread* thread = new QThread();
@@ -176,7 +173,6 @@ QString FirmwareManagerDialog::onSelectPathClicked() {
 }
 
 void FirmwareManagerDialog::onReadFromFileClicked() {
-    qDebug() << "onReadFromFileClicked";
     QString path = onSelectPathClicked();
     if (path.isEmpty()){
         QMessageBox::warning(this, tr("Warning"), tr("Please select a file path"));

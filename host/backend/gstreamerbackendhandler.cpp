@@ -61,8 +61,10 @@
 #include "gstreamer/externalgstrunner.h"
 #include "gstreamer/recordingmanager.h"
 
+#include "log/opflogging.h"
+
 // logging category for this translation unit
-Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
+OPF_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 
 // Small helper that maps common QEvent types to readable names used in debug logging
 static const char* qEventTypeName(QEvent::Type t)

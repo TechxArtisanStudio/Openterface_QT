@@ -49,7 +49,6 @@
 #include "host/cameramanager.h"
 #include "video/videohid.h"
 
-
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <crtdbg.h>
@@ -91,7 +90,6 @@ void writeLog(const QString &message){
         out << "[" << timestamp << "] " << message << "\n";
         logFile.close();
     } else {
-        qDebug() << "Failed to open log file:" << logFile.errorString();
     }
 }
 
@@ -133,15 +131,12 @@ void setupEnv(){
         
         // For static builds, be more conservative about platform selection
         #if defined(QT_STATIC) || defined(QT_STATICPLUGIN)
-        qDebug() << "Static build detected - using conservative platform selection";
         if (!x11Display.isEmpty()) {
             qputenv("QT_QPA_PLATFORM", "xcb");
-            qDebug() << "Static build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
         } else {
             // Try to set DISPLAY and use XCB for static builds
             qputenv("DISPLAY", ":0");
             qputenv("QT_QPA_PLATFORM", "xcb");
-            qDebug() << "Static build: No display detected, trying DISPLAY=:0 with xcb platform";
         }
         #else
         // For dynamic builds, let Qt auto-detect the best platform (Qt 6.5+).
@@ -152,7 +147,6 @@ void setupEnv(){
         // We only intervene when NO display is available at all — set DISPLAY=:0
         // and use XCB as a last-resort fallback (headless / SSH-without-X cases).
         if (!launcherDetected.isEmpty()) {
-            qDebug() << "Dynamic build: Using launcher script's platform detection:" << launcherDetected;
         } else if (!x11Display.isEmpty()) {
             // DISPLAY is set — XCB is the natural choice, but let Qt auto-detect
             // to pick up Wayland if the session is actually Wayland+xwayland.
@@ -166,11 +160,9 @@ void setupEnv(){
             // No display found at all — last-resort fallback for headless/edge cases.
             qputenv("DISPLAY", ":0");
             qputenv("QT_QPA_PLATFORM", "xcb");
-            qDebug() << "Dynamic build: No display detected, trying DISPLAY=:0 with xcb platform";
         }
         #endif
     } else {
-        qDebug() << "QT_QPA_PLATFORM already set by launcher or user:" << currentPlatform;
     }
 #endif
 }
@@ -178,7 +170,6 @@ void setupEnv(){
 void applyMediaBackendSetting(){
 #ifdef Q_OS_LINUX
     QString originalMediaBackend = qgetenv("QT_MEDIA_BACKEND");
-    qDebug() << "Original QT Media Backend:" << originalMediaBackend;
     
     // Get the media backend setting from GlobalSetting
     QString mediaBackend = GlobalSetting::instance().getMediaBackend();
@@ -231,21 +222,16 @@ void applyMediaBackendSetting(){
         // Overriding it here causes version conflicts on Fedora
         
         if (!qgetenv("GST_PLUGIN_PATH").isEmpty()) {
-            qDebug() << "✓ Using GStreamer plugins from launcher environment:";
-            qDebug() << "  GST_PLUGIN_PATH=" << qgetenv("GST_PLUGIN_PATH");
         } else {
-            qDebug() << "⚠ WARNING: GST_PLUGIN_PATH not set, GStreamer may use incorrect system plugins";
         }
         
         // Ensure video output works correctly
         qputenv("GST_VIDEO_OVERLAY", "1");
         
-        qDebug() << "Applied enhanced GStreamer-specific environment settings for video compatibility";
         // gstreamer not compatible with QT_MEDIA_BACKEND, so we set it to empty
     } else{
         // For other media backends, we can set a default or leave it empty
         qputenv("QT_MEDIA_BACKEND", mediaBackend.toUtf8());
-        qDebug() << "Set QT_MEDIA_BACKEND to:" << mediaBackend;
     }
 #endif
 }
@@ -757,7 +743,6 @@ int main(int argc, char *argv[])
     // Clean up GStreamer
     #ifdef HAVE_GSTREAMER
     gst_deinit();
-    qDebug() << "GStreamer deinitialized";
     #endif
     
     qInfo() << "Application cleanup complete, returning" << result;

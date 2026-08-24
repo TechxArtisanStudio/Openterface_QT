@@ -6,6 +6,7 @@
 #include <devguid.h>
 #include <objbase.h>
 #include <hidclass.h>
+#include "log/opflogging.h"
 
 extern "C"
 {
@@ -26,7 +27,7 @@ DEFINE_GUID(GUID_DEVINTERFACE_CAMERA_KSCATEGORY,
 
 // HID Interface GUID is already defined in hidclass.h
 
-Q_LOGGING_CATEGORY(log_win_enumerator, "opf.host.windows.enumerator")
+OPF_LOGGING_CATEGORY(log_win_enumerator, "opf.host.windows.enumerator")
 
 WinDeviceEnumerator::WinDeviceEnumerator(QObject* parent)
     : QObject(parent)

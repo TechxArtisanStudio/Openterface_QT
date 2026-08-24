@@ -29,9 +29,10 @@
 #include "KeyboardMouse.h"
 #include "SendKeyMaps.h"
 #include "global.h"
+#include "log/opflogging.h"
 
 
-Q_LOGGING_CATEGORY(log_script, "opf.scripts")
+OPF_LOGGING_CATEGORY(log_script, "opf.scripts")
 
 SemanticAnalyzer::SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* keyboardMouse, QObject* parent)
     : QObject(parent), mouseManager(mouseManager), keyboardMouse(keyboardMouse) {

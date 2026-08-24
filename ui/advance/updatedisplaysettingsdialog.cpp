@@ -86,7 +86,6 @@ UpdateDisplaySettingsDialog::UpdateDisplaySettingsDialog(QWidget *parent) :
 
 UpdateDisplaySettingsDialog::~UpdateDisplaySettingsDialog()
 {
-    qDebug() << "UpdateDisplaySettingsDialog destructor called";
 
     if (firmwareOperationManager) {
         firmwareOperationManager->cancel();
@@ -94,7 +93,6 @@ UpdateDisplaySettingsDialog::~UpdateDisplaySettingsDialog()
         firmwareOperationManager = nullptr;
     }
 
-    qDebug() << "UpdateDisplaySettingsDialog destructor completed";
     // Qt will automatically delete child widgets
 }
 
@@ -295,7 +293,6 @@ void UpdateDisplaySettingsDialog::setupResolutionTable()
 
 void UpdateDisplaySettingsDialog::closeEvent(QCloseEvent *event)
 {
-    qDebug() << "Dialog close event triggered";
     
     // If firmware reading is in progress, cancel it first
     if (progressGroup && progressGroup->isVisible()) {
@@ -530,7 +527,6 @@ void UpdateDisplaySettingsDialog::onResolutionItemChanged(QTableWidgetItem* item
 
 void UpdateDisplaySettingsDialog::loadCurrentEDIDSettings()
 {
-    qDebug() << "Loading current EDID settings from firmware...";
     
     // Get VideoHid instance and stop polling to prevent conflicts
     VideoHid& videoHid = VideoHid::getInstance();
@@ -550,8 +546,6 @@ void UpdateDisplaySettingsDialog::loadCurrentEDIDSettings()
         videoHid.start();
         return;
     }
-    
-    qDebug() << "Firmware size:" << firmwareSize << "bytes";
     
     // Show embedded progress components
     setProgressState(true, tr("Reading firmware data..."));
@@ -673,7 +667,6 @@ bool UpdateDisplaySettingsDialog::processFirmwareData(const QByteArray &firmware
     edid::EDIDUtils::logSupportedResolutions(edidBlock);
     edid::EDIDUtils::parseEDIDExtensionBlocks(firmwareData, edidOffset);
     readResolutionFromEDID(edidBlock, firmwareData);
-    qDebug() << "=== CURRENT EDID DESCRIPTORS ===";
     edid::EDIDUtils::showEDIDDescriptors(edidBlock);
 
     return true;
@@ -690,12 +683,10 @@ bool UpdateDisplaySettingsDialog::parseEdidBlock(const QByteArray &firmwareData,
     return true;
 }
 
-
 void UpdateDisplaySettingsDialog::restartPollingDelayed(const QString &reason)
 {
     QTimer::singleShot(500, this, [this, reason]() {
         VideoHid::getInstance().start();
-        qDebug() << "Polling restarted after" << reason;
     });
 }
 
@@ -705,7 +696,6 @@ void UpdateDisplaySettingsDialog::showErrorAndRestart(const QString &title, cons
     QMessageBox::critical(this, title, message);
     restartPollingDelayed(reason);
 }
-
 
 void UpdateDisplaySettingsDialog::onFirmwareReadError(const QString& errorMessage)
 {
@@ -725,11 +715,9 @@ void UpdateDisplaySettingsDialog::onFirmwareReadError(const QString& errorMessag
 void UpdateDisplaySettingsDialog::onCancelReadingClicked()
 {
     if (m_operationFinished) {
-        qDebug() << "Cancel ignored because operation is already finished";
         return;
     }
 
-    qDebug() << "User cancelled firmware reading";
     shutdownFirmwareOperation(true);
 
     setDialogControlsEnabled(true);
@@ -738,7 +726,6 @@ void UpdateDisplaySettingsDialog::onCancelReadingClicked()
     enableUpdateButton();
     restartPollingDelayed(tr("user cancellation"));
 }
-
 
 void UpdateDisplaySettingsDialog::populateResolutionTableFromModel()
 {
@@ -786,18 +773,14 @@ bool UpdateDisplaySettingsDialog::processAndWriteFirmware()
 
 bool UpdateDisplaySettingsDialog::updateDisplaySettings(const QString &newName, const QString &newSerial)
 {
-    qDebug() << "Starting display settings update...";
     if (displayNameCheckBox->isChecked()) {
-        qDebug() << "  Display name:" << newName;
     }
     if (serialNumberCheckBox->isChecked()) {
-        qDebug() << "  Serial number:" << newSerial;
     }
     
     // Stop polling before starting firmware operations to prevent HID access conflicts
     VideoHid& videoHid = VideoHid::getInstance();
     videoHid.stopPollingOnly();
-    qDebug() << "Polling stopped before firmware operation";
     
     setProgressState(true, tr("Updating display settings..."));
     
@@ -846,7 +829,6 @@ void UpdateDisplaySettingsDialog::onBackupFirmwareClicked()
 
 void UpdateDisplaySettingsDialog::stopAllDevices()
 {
-    qDebug() << "Stopping all devices...";
     
     // Stop VideoHid
     VideoHid::getInstance().stop();
@@ -859,12 +841,9 @@ void UpdateDisplaySettingsDialog::stopAllDevices()
     if (parentWindow) {
         // Try to cast to MainWindow to access device managers
         // This is a simplified approach - in practice you might want a more robust method
-        qDebug() << "Main window found, attempting to stop camera and audio managers...";
     } else {
-        qDebug() << "Main window not found, continuing with available device shutdowns...";
     }
     
-    qDebug() << "All accessible devices stopped.";
 }
 
 void UpdateDisplaySettingsDialog::hideMainWindow()

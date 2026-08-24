@@ -371,6 +371,7 @@ jobs:
           }
 
       - name: Download Qt artifact
+        if: needs.setup-env.outputs.qt-cache-hit != 'true'
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
@@ -395,6 +396,7 @@ jobs:
           if (Test-Path "${{ env.QT_PREFIX }}") { dir "${{ env.QT_PREFIX }}" } else { echo "${{ env.QT_PREFIX }} not found" }
 
       - name: Download FFmpeg artifact
+        if: needs.setup-env.outputs.ffmpeg-cache-hit != 'true'
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:

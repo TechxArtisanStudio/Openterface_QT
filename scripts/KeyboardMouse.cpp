@@ -33,7 +33,6 @@
 #include <queue>
 #include <QDebug>
 
-
 KeyboardMouse::KeyboardMouse(QObject *parent) : QObject(parent)
 {
     // Constructor implementation
@@ -44,36 +43,26 @@ void KeyboardMouse::addKeyPacket(const keyPacket& packet) {
     keyData.push(packet);
 }
 
-
 void KeyboardMouse::dataSend(){
     QMutexLocker locker(&queueMutex);
-    qDebug() << "[KeyboardMouse::dataSend] Starting to send" << keyData.size() << "key packet(s)";
     
     if (keyData.empty()) {
-        qDebug() << "[KeyboardMouse::dataSend] Queue is empty, nothing to send";
         return;
     }
     
     while(!keyData.empty()){
         const auto& packet = keyData.front();
-        qDebug() << "[KeyboardMouse::dataSend] Processing packet - Queue size:" << keyData.size()
-                 << "| KB:" << packet.keyboardSendOrNot 
-                 << "| Mouse:" << packet.mouseSendOrNot
-                 << "| Combined:" << packet.keyboardMouseSendOrNot;
         
         // Unlock while sending to prevent deadlock with serial operations
         locker.unlock();
         
         if(packet.keyboardSendOrNot) {
-            qDebug() << "[KeyboardMouse::dataSend] -> Sending keyboard keystroke";
             keyboardSend();
         }
         if(packet.mouseSendOrNot) {
-            qDebug() << "[KeyboardMouse::dataSend] -> Sending mouse action";
             mouseSend();
         }
         if(packet.keyboardMouseSendOrNot) {
-            qDebug() << "[KeyboardMouse::dataSend] -> Sending combined keyboard + mouse action";
             keyboardMouseSend();
         }
         
@@ -81,20 +70,16 @@ void KeyboardMouse::dataSend(){
         locker.relock();
         if (!keyData.empty()) {  // Check again before popping
             keyData.pop();
-            qDebug() << "[KeyboardMouse::dataSend] Packet sent - Remaining queue size:" << keyData.size();
         } else {
-            qDebug() << "[KeyboardMouse::dataSend] WARNING: Queue became empty unexpectedly";
             break;
         }
     }
-    qDebug() << "[KeyboardMouse::dataSend] All packets sent successfully";
 }
 
 void KeyboardMouse::keyboardSend(){
     QMutexLocker locker(&queueMutex);
     
     if (keyData.empty()) {
-        qDebug() << "[KeyboardMouse::keyboardSend] ERROR: Queue is empty!";
         return;
     }
     
@@ -106,10 +91,8 @@ void KeyboardMouse::keyboardSend(){
     
     locker.unlock();  // Unlock before serial operations
     
-    qDebug() << "[KeyboardMouse::keyboardSend] Sending key press data:" << data.toHex();
     emit SerialPortManager::getInstance().sendCommandAsync(data, false);
     QThread::msleep(clickInterval);
-    qDebug() << "[KeyboardMouse::keyboardSend] Sending key release data:" << release.toHex();
     emit SerialPortManager::getInstance().sendCommandAsync(release, false);
     QThread::msleep(clickInterval);
 }
@@ -126,7 +109,6 @@ void KeyboardMouse::mouseSend(){
     QMutexLocker locker(&queueMutex);
     
     if (keyData.empty()) {
-        qDebug() << "[KeyboardMouse::mouseSend] ERROR: Queue is empty!";
         return;
     }
     
@@ -135,7 +117,6 @@ void KeyboardMouse::mouseSend(){
     uint8_t clickCount = keyData.front().mouseClickCount;
     
     QString modeStr = (keyData.front().mouseMode == 0x02) ? "Absolute" : "Relative";
-    qDebug() << "[KeyboardMouse::mouseSend] Mouse action -" << modeStr << "mode |" << clickCount << "click(s)";
     
     if (keyData.front().mouseMode == 0x02) {
         data.append(MOUSE_ABS_ACTION_PREFIX);
@@ -154,13 +135,9 @@ void KeyboardMouse::mouseSend(){
     data.append(static_cast<char>(calculateChecksum(data)));
     release.append(static_cast<char>(calculateChecksum(release)));
     
-    qDebug() << "[KeyboardMouse::mouseSend] Press data:" << data.toHex();
-    qDebug() << "[KeyboardMouse::mouseSend] Release data:" << release.toHex();
-    
     locker.unlock();  // Unlock before serial operations
     
     for (int i = 0; i<clickCount; i++){
-        qDebug() << "[KeyboardMouse::mouseSend] Click" << (i+1) << "of" << clickCount;
         emit SerialPortManager::getInstance().sendCommandAsync(data, false);
         QThread::msleep(clickInterval);
         emit SerialPortManager::getInstance().sendCommandAsync(release, false);
@@ -172,11 +149,8 @@ void KeyboardMouse::keyboardMouseSend(){
     QMutexLocker locker(&queueMutex);
     
     if (keyData.empty()) {
-        qDebug() << "[KeyboardMouse::keyboardMouseSend] ERROR: Queue is empty!";
         return;
     }
-    
-    qDebug() << "[KeyboardMouse::keyboardMouseSend] Sending combined keyboard + mouse action";
     
     QByteArray mouseData;
     QByteArray mouseRelease;
@@ -205,9 +179,6 @@ void KeyboardMouse::keyboardMouseSend(){
     mouseData.append(static_cast<char>(calculateChecksum(mouseData)));
     mouseRelease.append(static_cast<char>(calculateChecksum(mouseRelease)));
     
-    qDebug() << "[KeyboardMouse::keyboardMouseSend] Keyboard press data:" << keyboardData.toHex();
-    qDebug() << "[KeyboardMouse::keyboardMouseSend] Mouse press data:" << mouseData.toHex();
-
     locker.unlock();  // Unlock before serial operations
 
     // Send press data for both devices
@@ -215,10 +186,8 @@ void KeyboardMouse::keyboardMouseSend(){
     emit SerialPortManager::getInstance().sendCommandAsync(mouseData, false);
 
     // Send release data for both devices
-    qDebug() << "[KeyboardMouse::keyboardMouseSend] Mouse release data:" << mouseRelease.toHex();
     emit SerialPortManager::getInstance().sendCommandAsync(mouseRelease, false);
     QThread::msleep(keyInterval);
-    qDebug() << "[KeyboardMouse::keyboardMouseSend] Keyboard release data:" << keyboardRelease.toHex();
     emit SerialPortManager::getInstance().sendCommandAsync(keyboardRelease, false);
 }
 

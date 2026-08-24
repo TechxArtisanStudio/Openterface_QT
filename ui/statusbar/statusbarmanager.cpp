@@ -3,8 +3,9 @@
 #include <QLoggingCategory>
 #include <QSvgRenderer>
 #include <QTimer>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_statusbarmanager, "opf.ui.statusbarmanager")
+OPF_LOGGING_CATEGORY(log_ui_statusbarmanager, "opf.ui.statusbarmanager")
 StatusBarManager::StatusBarManager(QStatusBar *statusBar, QObject *parent)
     : QObject(parent), m_statusBar(statusBar), m_messageTimer(new QTimer(this)), m_messageThrottleActive(false)
 {

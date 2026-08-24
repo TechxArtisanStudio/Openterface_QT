@@ -22,11 +22,11 @@
 
 #include "SerialStateManager.h"
 #include "SerialPortManager.h" // For ChipType enum
-#include <QLoggingCategory>
+#include "log/opflogging.h"
 #include <QMutexLocker>
 #include <QDebug>
 
-Q_LOGGING_CATEGORY(log_serial_state, "opf.serial.state")
+OPF_LOGGING_CATEGORY(log_serial_state, "opf.serial.state")
 
 SerialStateManager::SerialStateManager(QObject *parent)
     : QObject(parent)

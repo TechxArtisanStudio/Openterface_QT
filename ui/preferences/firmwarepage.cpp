@@ -368,22 +368,18 @@ void FirmwarePage::onCancelClicked()
 
 void FirmwarePage::onCheckForUpdatesClicked()
 {
-    qDebug() << "Checking for latest firmware version...";
     FirmwareResult firmwareStatus = VideoHid::getInstance().isLatestFirmware();
     std::string currentVersion = VideoHid::getInstance().getCurrentFirmwareVersion();
     std::string latestVersion = VideoHid::getInstance().getLatestFirmwareVersion();
-    qDebug() << "latestFirmwareVersion" << latestVersion.c_str();
 
     switch (firmwareStatus) {
     case FirmwareResult::Latest:
-        qDebug() << "Firmware is up to date.";
         QMessageBox::information(this, tr("Firmware Update"),
             tr("The firmware is up to date.\nCurrent version: ") +
             QString::fromStdString(currentVersion));
         break;
 
     case FirmwareResult::Upgradable: {
-        qDebug() << "Firmware is upgradable.";
         QString message = tr("Current firmware version: ") + QString::fromStdString(currentVersion) + tr("\n") +
                          tr("Latest firmware version: ") + QString::fromStdString(latestVersion) + tr("\n\n") +
                          tr("The update process will:\n") +
@@ -401,27 +397,21 @@ void FirmwarePage::onCheckForUpdatesClicked()
             message, QMessageBox::Yes | QMessageBox::No);
 
         if (ret != QMessageBox::Yes) {
-            qDebug() << "User cancelled firmware update";
             break;
         }
 
-        qDebug() << "User accepted firmware update, proceeding...";
         startOperation(Update);
 
         try {
             // Stop services
-            qDebug() << "Stopping main window operations first...";
             try {
                 VideoHid::getInstance().stop();
-                qDebug() << "Main window operations stopped successfully";
             } catch (...) {
                 qWarning() << "Exception while stopping main window operations - continuing anyway";
             }
 
-            qDebug() << "Stopping video HID polling only...";
             try {
                 VideoHid::getInstance().stopPollingOnly();
-                qDebug() << "Video HID polling stopped successfully";
             } catch (...) {
                 qWarning() << "Exception while stopping video HID polling - continuing anyway";
             }
@@ -429,10 +419,8 @@ void FirmwarePage::onCheckForUpdatesClicked()
             QThread::msleep(300);
             QCoreApplication::processEvents();
 
-            qDebug() << "Stopping serial port manager...";
             try {
                 SerialPortManager::getInstance().closePort();
-                qDebug() << "Serial port closed successfully";
                 QThread::msleep(200);
                 QCoreApplication::processEvents();
             } catch (...) {
@@ -441,8 +429,6 @@ void FirmwarePage::onCheckForUpdatesClicked()
 
             QCoreApplication::processEvents();
             QThread::msleep(200);
-
-            qDebug() << "Services stopped successfully, proceeding with firmware update...";
 
             statusLabel->setText(tr("Updating firmware... Please do not disconnect the device."));
 
@@ -471,7 +457,6 @@ void FirmwarePage::onCheckForUpdatesClicked()
     }
 
     case FirmwareResult::Timeout:
-        qDebug() << "Firmware fetch timeout.";
         QMessageBox::warning(this, tr("Firmware Update"),
             tr("Firmware retrieval timed out. Please check your network connection and try again.\nCurrent version: ") +
             QString::fromStdString(currentVersion));
@@ -530,7 +515,6 @@ void FirmwarePage::onWriteFirmwareClicked()
     startOperation(Write);
 
     if (VideoHid::getInstance().getChipType() == VideoChipType::MS2130S) {
-        qDebug() << "MS2130S detected - using erase+4096B burst firmware write path";
     }
 
     // Create worker thread for firmware write

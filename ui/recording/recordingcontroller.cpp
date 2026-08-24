@@ -40,7 +40,8 @@
 #include "../../host/backend/ffmpegbackendhandler.h"
 #endif
 
-Q_LOGGING_CATEGORY(log_ui_recordingcontroller, "opf.ui.recordingcontroller")
+#include "log/opflogging.h"
+OPF_LOGGING_CATEGORY(log_ui_recordingcontroller, "opf.ui.recordingcontroller")
 
 RecordingController::RecordingController(CameraManager *cameraManager, StatusBarManager *statusBarManager, QObject *parent)
     : QObject(parent)

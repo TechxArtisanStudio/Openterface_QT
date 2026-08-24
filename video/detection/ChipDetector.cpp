@@ -14,10 +14,10 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QLoggingCategory>
+#include "log/opflogging.h"
 
-// Reuse the HID logging category defined in videohid.cpp.
-Q_DECLARE_LOGGING_CATEGORY(log_host_hid)
+// Reuse the HID detect logging category defined in videohid.cpp.
+Q_DECLARE_LOGGING_CATEGORY(log_hid_detect)
 
 // 
 //  detect()
@@ -25,7 +25,7 @@ Q_DECLARE_LOGGING_CATEGORY(log_host_hid)
 VideoChipType ChipDetector::detect(const QString& devicePath, const QString& /*portChain*/)
 {
     if (devicePath.isEmpty()) {
-        qCDebug(log_host_hid) << "ChipDetector: empty device path";
+        qCDebug(log_hid_detect) << "ChipDetector: empty device path";
         return VideoChipType::UNKNOWN;
     }
 
@@ -43,9 +43,9 @@ VideoChipType ChipDetector::detect(const QString& devicePath, const QString& /*p
                 devicePath.contains(pid,    Qt::CaseInsensitive));
     };
 
-    if      (hasVidPid(QLatin1String("345F"), QLatin1String("2132"))) { isMS2130S = true; qCDebug(log_host_hid) << "ChipDetector: MS2130S (345F:2132)"; }
-    else if (hasVidPid(QLatin1String("345F"), QLatin1String("2109"))) { isMS2109S = true; qCDebug(log_host_hid) << "ChipDetector: MS2109S (345F:2109)"; }
-    else if (hasVidPid(QLatin1String("534D"), QLatin1String("2109"))) { isMS2109  = true; qCDebug(log_host_hid) << "ChipDetector: MS2109  (534D:2109)"; }
+    if      (hasVidPid(QLatin1String("345F"), QLatin1String("2132"))) { isMS2130S = true; qCDebug(log_hid_detect) << "ChipDetector: MS2130S (345F:2132)"; }
+    else if (hasVidPid(QLatin1String("345F"), QLatin1String("2109"))) { isMS2109S = true; qCDebug(log_hid_detect) << "ChipDetector: MS2109S (345F:2109)"; }
+    else if (hasVidPid(QLatin1String("534D"), QLatin1String("2109"))) { isMS2109  = true; qCDebug(log_hid_detect) << "ChipDetector: MS2109  (534D:2109)"; }
 
 #elif defined(__linux__)
     {
@@ -72,7 +72,7 @@ VideoChipType ChipDetector::detect(const QString& devicePath, const QString& /*p
                 };
                 const QString vid = readHex(vidFile);
                 const QString pid = readHex(pidFile);
-                qCDebug(log_host_hid) << "ChipDetector sysfs:" << cur << "vid=" << vid << "pid=" << pid;
+                qCDebug(log_hid_detect) << "ChipDetector sysfs:" << cur << "vid=" << vid << "pid=" << pid;
 
                 if      (vid == QLatin1String("345F") && pid == QLatin1String("2132")) { isMS2130S = true; break; }
                 else if (vid == QLatin1String("345F") && pid == QLatin1String("2109")) { isMS2109S = true; break; }
@@ -84,9 +84,9 @@ VideoChipType ChipDetector::detect(const QString& devicePath, const QString& /*p
         }
 
         if (!isMS2130S && !isMS2109S && !isMS2109) {
-            if      (devicePath.contains(QLatin1String("345F"), Qt::CaseInsensitive) && devicePath.contains(QLatin1String("2132"), Qt::CaseInsensitive)) { isMS2130S = true; qCDebug(log_host_hid) << "ChipDetector: MS2130S path fallback"; }
-            else if (devicePath.contains(QLatin1String("345F"), Qt::CaseInsensitive) && devicePath.contains(QLatin1String("2109"), Qt::CaseInsensitive)) { isMS2109S = true; qCDebug(log_host_hid) << "ChipDetector: MS2109S path fallback"; }
-            else if (devicePath.contains(QLatin1String("534D"), Qt::CaseInsensitive) && devicePath.contains(QLatin1String("2109"), Qt::CaseInsensitive)) { isMS2109  = true; qCDebug(log_host_hid) << "ChipDetector: MS2109  path fallback"; }
+            if      (devicePath.contains(QLatin1String("345F"), Qt::CaseInsensitive) && devicePath.contains(QLatin1String("2132"), Qt::CaseInsensitive)) { isMS2130S = true; qCDebug(log_hid_detect) << "ChipDetector: MS2130S path fallback"; }
+            else if (devicePath.contains(QLatin1String("345F"), Qt::CaseInsensitive) && devicePath.contains(QLatin1String("2109"), Qt::CaseInsensitive)) { isMS2109S = true; qCDebug(log_hid_detect) << "ChipDetector: MS2109S path fallback"; }
+            else if (devicePath.contains(QLatin1String("534D"), Qt::CaseInsensitive) && devicePath.contains(QLatin1String("2109"), Qt::CaseInsensitive)) { isMS2109  = true; qCDebug(log_hid_detect) << "ChipDetector: MS2109  path fallback"; }
         }
     }
 #endif
@@ -95,7 +95,7 @@ VideoChipType ChipDetector::detect(const QString& devicePath, const QString& /*p
     if (isMS2109S) return VideoChipType::MS2109S;
     if (isMS2109)  return VideoChipType::MS2109;
 
-    qCDebug(log_host_hid) << "ChipDetector: unknown chip for path:" << devicePath;
+    qCDebug(log_hid_detect) << "ChipDetector: unknown chip for path:" << devicePath;
     return VideoChipType::UNKNOWN;
 }
 
