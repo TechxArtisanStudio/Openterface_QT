@@ -114,7 +114,7 @@ make -j$(nproc)
 
 Once connected, the Mini-KVM enumerates as multiple USB devices:
 - **Video capture device** (MS2109/MS2109S/MS2130S chip) — appears as a webcam to the OS
-- **Serial device** (CH340/CH9329 or CH32V208 chip) — appears as `/dev/ttyUSB*` on Linux or `COM*` on Windows
+- **Serial device** (CH340/CH9329 or CH32V208 chip) — appears as `/dev/ttyUSB*` (CH9329) or `/dev/ttyACM*` (CH32V208) on Linux, `COM*` on Windows
 - **HID device** — used for firmware operations and register access
 
 ---

@@ -375,6 +375,9 @@ echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+=
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
 SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"
 ' | sudo tee /etc/udev/rules.d/51-openterface.rules
 
 sudo udevadm control --reload-rules
@@ -655,7 +658,7 @@ sudo apt remove brltty
 
 # Unplug and replug the Openterface device
 # Verify the serial port is now recognized:
-ls /dev/ttyUSB*
+ls /dev/ttyUSB* /dev/ttyACM*
 ```
 
 #### Permission Issues
