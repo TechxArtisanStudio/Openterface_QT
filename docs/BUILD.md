@@ -97,6 +97,9 @@ For the full static build including Qt and FFmpeg from source, see the [ARM64 CI
 
 ## Linux
 
+> **⚠️ Minimum OS requirement: Ubuntu 22.04+, Debian 12+, Fedora 36+, or equivalent (glibc ≥ 2.32 + Qt6).**
+> Both pre-built binaries and building from source require Qt6, which is only available as a distro package on these or newer releases. **Ubuntu 20.04, Debian 11, and older are not supported** — upgrade your OS or run in a container/VM.
+
 ### Option 1: One-Liner Release Installer (Fastest) ⚡
 
 **Install the latest release in seconds** (no compilation required):
@@ -187,6 +190,8 @@ If you prefer to build manually or need to customize the build process, follow t
 > - openSUSE: `/usr/lib64`
 
 #### Step 1: Install Dependencies
+
+> **⚠️ Qt6 is required and only available on recent distros.** The `qt6-*-dev` packages exist only in **Ubuntu 22.04+**, **Debian 12+**, **Fedora 36+** repos. On Ubuntu 20.04 or Debian 11, these packages **do not exist** and the build will fail. There is no shortcut — you must either upgrade your OS, use a container, or compile Qt6 from source (30+ min).
 
 Select the commands for your distribution:
 
@@ -370,6 +375,9 @@ echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+=
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
 SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"
 ' | sudo tee /etc/udev/rules.d/51-openterface.rules
 
 sudo udevadm control --reload-rules
@@ -650,7 +658,7 @@ sudo apt remove brltty
 
 # Unplug and replug the Openterface device
 # Verify the serial port is now recognized:
-ls /dev/ttyUSB*
+ls /dev/ttyUSB* /dev/ttyACM*
 ```
 
 #### Permission Issues
@@ -727,6 +735,33 @@ If you get architecture errors (like "x86_64-binfmt-P" or "cannot execute binary
 1. Make sure you're building on the same architecture you plan to run on
 2. Clean the build directory: `rm -rf build && mkdir build`
 3. Re-run the build process
+
+### GLIBC Version Mismatch (pre-built binaries)
+
+If you installed a pre-built `.deb`, `.rpm`, or AppImage and see errors like:
+
+```
+/lib/aarch64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found
+/lib/aarch64-linux-gnu/libm.so.6: version `GLIBC_2.35' not found
+```
+
+This means your system's glibc is older than 2.32 (the minimum required by pre-built binaries). Check with:
+
+```bash
+ldd --version | head -1
+```
+
+**Solutions:**
+
+1. **Upgrade your OS** to Ubuntu 22.04+, Debian 12+, Fedora 36+, or equivalent (recommended).
+2. **Use a container or VM** running a newer distro.
+3. **Build Qt6 from source first**, then build OpenterfaceQT — Qt6 is not available as a package on older distros (e.g. Ubuntu 20.04 only has Qt5). This is time-consuming (30+ minutes for Qt6 alone).
+
+> **Important:** Building OpenterfaceQT from source also requires Qt6. If your distro doesn't have Qt6 in its repos (anything older than Ubuntu 22.04 / Debian 12 / Fedora 36), building from source **will not** bypass the glibc requirement — you still need a newer OS or to compile Qt6 yourself.
+
+> **Do not** attempt to upgrade glibc in place — it is a core system library and replacing it can break your OS.
+
+See [Runtime Dependencies](dependencies.md#system-requirements-glibc) for the full glibc compatibility table.
 
 ---
 

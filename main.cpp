@@ -155,8 +155,13 @@ void setupEnv(){
             qputenv("QT_QPA_PLATFORM", "xcb");
         }
         #else
-        // For dynamic builds, prefer XCB for better compatibility
-        // Only use Wayland if explicitly set by launcher script
+        // For dynamic builds, let Qt auto-detect the best platform (Qt 6.5+).
+        // Manual overrides interfere with Qt's native Wayland/XCB detection and
+        // cause "No shell integration named" errors on pure Wayland sessions
+        // (Sway, Hyprland, etc.). See: https://forum.openterface.com/t/arch-linux-wayland-software-does-not-work/120
+        //
+        // We only intervene when NO display is available at all — set DISPLAY=:0
+        // and use XCB as a last-resort fallback (headless / SSH-without-X cases).
         if (!launcherDetected.isEmpty()) {
         } else if (!x11Display.isEmpty()) {
             // DISPLAY is set - use XCB
@@ -165,7 +170,7 @@ void setupEnv(){
             // Fallback to Wayland only if X11 is not available
             qputenv("QT_QPA_PLATFORM", "wayland");
         } else {
-            // No display found, try default settings
+            // No display found at all — last-resort fallback for headless/edge cases.
             qputenv("DISPLAY", ":0");
             qputenv("QT_QPA_PLATFORM", "xcb");
         }
