@@ -81,6 +81,7 @@ private:
     void identify();
     void readConfig();
     void deriveXorKey();
+    void reidentify();   // re-identify after device reset (unprotect)
 
     // Send command and parse response; throws on error
     std::vector<uint8_t> doTransfer(const std::vector<uint8_t>& packet,

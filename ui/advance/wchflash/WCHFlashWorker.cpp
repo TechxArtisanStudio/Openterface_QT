@@ -146,6 +146,8 @@ void WCHFlashWorker::flashFirmware(const QString& filePath)
 
         emit logMessage(QString("Firmware size: %1 bytes").arg(firmware.size()));
         emit progress(2, QString("Firmware loaded: %1 bytes").arg(firmware.size()));
+        emit logMessage(QString("Flash protected: %1")
+            .arg(m_impl->flasher->isCodeFlashProtected() ? "Yes" : "No"));
 
         // Flash with progress relay.
         // emit logMessage only for milestone messages, not every per-chunk
