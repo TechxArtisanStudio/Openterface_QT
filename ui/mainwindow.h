@@ -378,6 +378,9 @@ private:
     // --- MCP Server ---
     McpServer *m_mcpServer = nullptr;
 
+    // --- AI Chat Window ---
+    class ChatWindow *m_chatWindow = nullptr;
+
 public:
     CameraManager* getCameraManager() const { return m_cameraManager; }
 
@@ -385,9 +388,11 @@ public:
     McpServer* getMcpServer() { return m_mcpServer; }
 
     void initMcpServer();
+
 public slots:
     void toggleMcpServer(bool enabled);
     void onMcpSettingsApplied();
+    void toggleChatWindow(bool visible);
 
 };
 #endif // MAINWINDOW_H

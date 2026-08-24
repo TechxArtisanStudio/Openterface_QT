@@ -126,9 +126,9 @@ void VideoHid::detectChipType() {
     VideoChipType detectedType = ChipDetector::detect(m_currentHIDDevicePath, m_currentHIDPortChain);
 
     // If detection fails, preserve the last known good chip type.
-    if (detectedType == VideoChipType::UNKNOWN && previousChipType != VideoChipType::UNKNOWN) {
-        qCDebug(log_host_hid) << "ChipDetector returned UNKNOWN, keeping previous chip type";
-        detectedType = previousChipType;
+    if (m_chipType == VideoChipType::UNKNOWN && previousChipType != VideoChipType::UNKNOWN) {
+        qCDebug(log_hid_detect) << "ChipDetector returned UNKNOWN �?keeping previous chip type";
+        m_chipType = previousChipType;
     }
 
     // Build the new chip outside the lock; construction may do its own work.
@@ -151,7 +151,7 @@ void VideoHid::detectChipType() {
     }
 
     if (!m_chipImpl)
-        qCDebug(log_host_hid) << "Unknown chipset, no chip implementation created for:" << m_currentHIDDevicePath;
+        qCDebug(log_hid_detect) << "Unknown chipset �?no chip implementation created for:" << m_currentHIDDevicePath;
 
     if (previousChipType != detectedType) {
         auto chipName = [](VideoChipType t) -> const char* {
@@ -162,8 +162,8 @@ void VideoHid::detectChipType() {
             default:                     return "Unknown";
             }
         };
-        qCDebug(log_host_hid) << "Chip type changed from" << chipName(previousChipType)
-                              << "to" << chipName(detectedType);
+        qCDebug(log_hid_detect) << "Chip type changed from" << chipName(previousChipType)
+                              << "to" << chipName(m_chipType);
     }
 }
 

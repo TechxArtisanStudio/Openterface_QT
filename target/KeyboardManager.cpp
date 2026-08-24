@@ -24,6 +24,7 @@
 #include "KeyboardLayouts.h"
 #include "../serial/ch9329.h"
 #include "log/opflogging.h"
+#include "../ui/globalsetting.h"
 
 #include <QList>
 #include <QtConcurrent/QtConcurrent>
@@ -33,6 +34,8 @@
 #include <QThread>
 #include <cstdint>
 #include <array>
+#include <memory>
+#include <functional>
 
 // DEBUG: File-based logging for MCP keyboard issue
 #define DEBUG_LOG(msg) { \
@@ -763,7 +766,6 @@ void KeyboardManager::handlePasteChar(int key, int modifiers){
     }
     keyData[5] = control;
     keyData[7] = mappedKey;
-    // QThread::msleep(2);
     emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
     QThread::msleep(3);
     emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
@@ -827,23 +829,43 @@ bool KeyboardManager::isLockKey(int keycode) {
 }
 
 void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping) {
-    qCDebug(log_host_kb_special) << "Handle pasting characters now";
-    
-    // Store text and mapping for processing
-    QString remainingText = text;
-    QMap<uint8_t, int> mapping = charMapping;
-    
-    const int batchSize = 10;
-    const int delayBetweenBatches = 5; // Delay between batches in ms
-    const int delayBetweenChars = 3;    // Delay between characters in ms
-    
-    QTimer* pasteTimer = new QTimer(this);
-    connect(pasteTimer, &QTimer::timeout, this, [=]() mutable {
+    qCDebug(log_host_kb_special) << "Handle pasting characters now:" << text.length() << "chars, text=\"" << text << "\"";
+
+    // Use shared state + shared std::function so the recursive tick
+    // survives across QTimer::singleShot invocations, and cleans up
+    // automatically when no more ticks are pending.
+    struct PasteState {
+        QString remaining;
+        QMap<uint8_t, int> mapping;
+        int totalChars;
+        int typedChars;
+    };
+    auto state = std::make_shared<PasteState>();
+    state->remaining = text;
+    state->mapping = charMapping;
+    state->totalChars = text.length();
+    state->typedChars = 0;
+
+    const int batchSize = GlobalSetting::instance().getChatBatchSize();
+    const int delayBetweenBatches = GlobalSetting::instance().getChatTypingDelayMs();
+
+    qCDebug(log_host_kb_special) << "Paste config: batchSize=" << batchSize
+                                 << "delayBetweenBatches=" << delayBetweenBatches
+                                 << "perCharDelay=" << GlobalSetting::instance().getChatTypingDelayMs();
+
+    // Shared function — captured by value in lambdas below so the
+    // std::function outlives this method's stack frame.
+    auto tick = std::make_shared<std::function<void()>>();
+    *tick = [this, state, batchSize, delayBetweenBatches, tick]() {
+        if (state->typedChars == 0) {
+            qCDebug(log_host_kb_special) << "Paste tick STARTING — first character about to be sent"
+                                         << "(total=" << state->totalChars << ")";
+        }
         // Process up to batchSize characters
-        for (int i = 0; i < batchSize && !remainingText.isEmpty(); ++i) {
-            QChar ch = remainingText.at(0);
+        for (int i = 0; i < batchSize && !state->remaining.isEmpty(); ++i) {
+            QChar ch = state->remaining.at(0);
             uint8_t charString = ch.unicode();
-            int key = mapping[charString];
+            int key = state->mapping.value(charString, 0);
 
             bool needShift = needShiftWhenPaste(ch);
             bool needAltGr = needAltGrWhenPaste(ch);
@@ -853,21 +875,59 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
             if (needAltGr) modifiers |= Qt::GroupSwitchModifier;
 
             handlePasteChar(key, modifiers);
-            QThread::msleep(delayBetweenChars);
+            QThread::msleep(GlobalSetting::instance().getChatTypingDelayMs()); // delayBetweenChars
             emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
-            
-            remainingText.remove(0, 1);
+
+            state->typedChars++;
+            state->remaining.remove(0, 1);
         }
-        
-        // Stop timer if no more characters to process
-        if (remainingText.isEmpty()) {
-            pasteTimer->stop();
-            pasteTimer->deleteLater();
+
+        if (!state->remaining.isEmpty()) {
+            // Schedule next batch on the thread that owns `this`
+            QTimer::singleShot(delayBetweenBatches, this, [tick]() { (*tick)(); });
+        } else {
+            qCDebug(log_host_kb_special) << "Paste COMPLETE — all" << state->totalChars << "characters sent";
         }
+        // When no more work, `tick` shared_ptr goes out of scope in this
+        // lambda invocation, and (since no pending singleShot holds it
+        // anymore) the std::function is destroyed.
+    };
+
+    // Kick off the first tick on the thread that owns `this` (KeyboardManager).
+    // Captures `tick` by value (shared_ptr copy), so the function stays alive.
+    //
+    // IMPORTANT: Add an initial delay before the first character is typed.
+    // After a mouse click or keyboard shortcut (like ctrl+alt+t to open a terminal),
+    // the target OS needs time to process the action and shift keyboard focus to
+    // the target window. Without this delay, the first keystroke can arrive before
+    // the terminal has focus, causing it to be lost (e.g. "top" typed as "op"
+    // because the 't' arrived before the terminal acquired focus).
+    //
+    // The delay is configurable via getChatInitialTypingDelayMs() and gives most
+    // target systems enough time to:
+    // - Process a mouse click and shift focus to the clicked window
+    // - Open a new terminal window after ctrl+alt+t and give it focus
+    // - Render the window and be ready to receive keystrokes
+    //
+    // Additionally, we send a "priming" null key event before typing starts.
+    // After a modifier key sequence (like ctrl+alt+t), the CH9329 USB HID chip
+    // or target OS keyboard buffer may need a reset. Sending a null key event
+    // (all zeros) ensures the HID channel is in a clean state before the first
+    // real character is sent. Without this, the first character can be dropped
+    // even though it was transmitted successfully over serial.
+    //
+    // Use QTimer::singleShot to avoid blocking the main thread.
+    const int initialDelay = GlobalSetting::instance().getChatInitialTypingDelayMs();
+    qCDebug(log_host_kb_special) << "Paste scheduled via QTimer — first char will be sent after"
+                                 << initialDelay << "ms delay (total=" << state->totalChars << "chars)";
+    QTimer::singleShot(initialDelay, this, [this, tick, state]() {
+        // Send a priming null key event to reset the USB HID channel
+        // This ensures the CH9329 chip and target OS are ready for the first character
+        qCDebug(log_host_kb_special) << "Paste: sending priming null key event to reset USB HID channel";
+        emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
+        QThread::msleep(50);  // Give time for the null event to be processed
+        (*tick)();
     });
-    
-    // Start timer with delay between batches
-    pasteTimer->start(delayBetweenBatches);
 }
 
 void KeyboardManager::pasteTextToTarget(const QString &text) {
