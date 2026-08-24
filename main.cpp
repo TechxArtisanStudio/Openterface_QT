@@ -144,20 +144,26 @@ void setupEnv(){
             qDebug() << "Static build: No display detected, trying DISPLAY=:0 with xcb platform";
         }
         #else
-        // For dynamic builds, prefer XCB for better compatibility
-        // Only use Wayland if explicitly set by launcher script
+        // For dynamic builds, let Qt auto-detect the best platform (Qt 6.5+).
+        // Manual overrides interfere with Qt's native Wayland/XCB detection and
+        // cause "No shell integration named" errors on pure Wayland sessions
+        // (Sway, Hyprland, etc.). See: https://forum.openterface.com/t/arch-linux-wayland-software-does-not-work/120
+        //
+        // We only intervene when NO display is available at all — set DISPLAY=:0
+        // and use XCB as a last-resort fallback (headless / SSH-without-X cases).
         if (!launcherDetected.isEmpty()) {
             qDebug() << "Dynamic build: Using launcher script's platform detection:" << launcherDetected;
         } else if (!x11Display.isEmpty()) {
-            // DISPLAY is set - use XCB
-            qputenv("QT_QPA_PLATFORM", "xcb");
-            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
+            // DISPLAY is set — XCB is the natural choice, but let Qt auto-detect
+            // to pick up Wayland if the session is actually Wayland+xwayland.
+            qDebug() << "Dynamic build: DISPLAY is set, letting Qt auto-detect platform";
         } else if (!waylandDisplay.isEmpty()) {
-            // Fallback to Wayland only if X11 is not available
-            qputenv("QT_QPA_PLATFORM", "wayland");
-            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to wayland (WAYLAND_DISPLAY available, X11 not found)";
+            // Pure Wayland session — let Qt auto-detect (picks wayland + xdg-shell).
+            // Do NOT force QT_QPA_PLATFORM=wayland; that bypasses Qt's shell-integration
+            // auto-detection and triggers "No shell integration named" errors.
+            qDebug() << "Dynamic build: WAYLAND_DISPLAY is set, letting Qt auto-detect platform";
         } else {
-            // No display found, try default settings
+            // No display found at all — last-resort fallback for headless/edge cases.
             qputenv("DISPLAY", ":0");
             qputenv("QT_QPA_PLATFORM", "xcb");
             qDebug() << "Dynamic build: No display detected, trying DISPLAY=:0 with xcb platform";
