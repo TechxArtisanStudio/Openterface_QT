@@ -2866,9 +2866,10 @@ bool SerialPortManager::checkCH340DriverInstalled() {
         return true; // COM port found → driver is working
     }
 
-    // Step 2: No COM port found. Check if CH9329 USB device is physically present
+    // Step 2: No COM port found. Check if CH9329 or CH32 USB device is physically present
     // Use DIGCF_ALLCLASSES to enumerate ALL devices including those without drivers
     bool ch9329UsbDeviceFound = false;
+    bool ch32UsbDeviceFound = false;
     bool captureCardUsbDeviceFound = false;
     HDEVINFO deviceInfoSet = SetupDiGetClassDevsW(NULL, NULL, NULL, DIGCF_PRESENT | DIGCF_ALLCLASSES);
     if (deviceInfoSet == INVALID_HANDLE_VALUE) {
@@ -2887,6 +2888,10 @@ bool SerialPortManager::checkCH340DriverInstalled() {
                 ch9329UsbDeviceFound = true;
                 qCWarning(log_core_serial_config) << "CH9329 USB device found (no COM port):" << QString::fromWCharArray(hwIdBuffer);
             }
+            if (wcsstr(hwIdBuffer, L"VID_1A86") != NULL && wcsstr(hwIdBuffer, L"PID_FE0C") != NULL) {
+                ch32UsbDeviceFound = true;
+                qCDebug(log_core_serial_config) << "CH32V208 USB device found (does not need CH340 driver):" << QString::fromWCharArray(hwIdBuffer);
+            }
             if (wcsstr(hwIdBuffer, L"VID_534D") != NULL && wcsstr(hwIdBuffer, L"PID_2109") != NULL) {
                 captureCardUsbDeviceFound = true;
             }
@@ -2898,9 +2903,16 @@ bool SerialPortManager::checkCH340DriverInstalled() {
 
     SetupDiDestroyDeviceInfoList(deviceInfoSet);
 
-    qCWarning(log_core_serial_config) << "Driver check result: CH9329 USB device found=" << ch9329UsbDeviceFound
-                                     << "capture card found=" << captureCardUsbDeviceFound
-                                     << "CH340 COM port found=" << ch340ComPortFound;
+    qCWarning(log_core_serial_config) << "Driver check result: CH9329=" << ch9329UsbDeviceFound
+                                     << "CH32=" << ch32UsbDeviceFound
+                                     << "capture card=" << captureCardUsbDeviceFound
+                                     << "CH340 COM port=" << ch340ComPortFound;
+
+    // CH32V208 found — does not need CH340 driver, skip the check
+    if (ch32UsbDeviceFound) {
+        qCDebug(log_core_serial_config) << "CH32V208 USB device found — CH340 driver check not needed";
+        return true;
+    }
 
     // CH9329 USB device physically present but no COM port → driver missing
     if (ch9329UsbDeviceFound) {
@@ -2908,11 +2920,11 @@ bool SerialPortManager::checkCH340DriverInstalled() {
         return false;
     }
 
-    // No CH9329 USB device found at all, but capture card present
+    // No CH9329 or CH32 USB device found, but capture card present
     // This means the composite USB device might not be exposing CH9329 separately
-    // Check if we can infer: capture card present → CH9329 should be present → driver likely missing
+    // Infer: capture card present → CH9329 should be present → driver likely missing
     if (captureCardUsbDeviceFound) {
-        qCWarning(log_core_serial_config) << "Openterface capture card found but CH9329 USB device not found → CH340 driver likely missing";
+        qCWarning(log_core_serial_config) << "Openterface capture card found but CH9329/CH32 not found → CH340 driver likely missing";
         return false;
     }
 
@@ -2921,8 +2933,9 @@ bool SerialPortManager::checkCH340DriverInstalled() {
     return true;
 #elif defined(__linux__)
     // Step 1: Check if any Openterface USB device is connected
-    // Only check driver if device is actually present
-    bool deviceFound = false;
+    // Only check driver if CH9329 device is actually present
+    bool ch9329DeviceFound = false;
+    bool ch32DeviceFound = false;
     QDir usbDir("/sys/bus/usb/devices");
     if (usbDir.exists()) {
         const QStringList entries = usbDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
@@ -2934,26 +2947,32 @@ bool SerialPortManager::checkCH340DriverInstalled() {
             if (vendorFile.open(QIODevice::ReadOnly) && productFile.open(QIODevice::ReadOnly)) {
                 QString vid = QString::fromUtf8(vendorFile.readLine()).trimmed().toUpper();
                 QString pid = QString::fromUtf8(productFile.readLine()).trimmed().toUpper();
-                // CH9329: 1a86:7523, Capture card: 534d:2109, 345f:2109, 345f:2132
-                if (vid == "1A86" && pid == "7523") deviceFound = true;
-                if (vid == "534D" && pid == "2109") deviceFound = true;
-                if (vid == "345F" && (pid == "2109" || pid == "2132")) deviceFound = true;
+                // CH9329: 1a86:7523 — needs CH340 driver
+                if (vid == "1A86" && pid == "7523") ch9329DeviceFound = true;
+                // CH32V208: 1a86:fe0c — does NOT need CH340 driver
+                if (vid == "1A86" && pid == "FE0C") ch32DeviceFound = true;
             }
         }
     }
 
-    if (!deviceFound) {
-        qCDebug(log_core_serial_config) << "No Openterface USB device found on Linux, skipping driver check";
-        return true; // No device → nothing to check
+    // CH32V208 found — does not need CH340 driver, skip the check
+    if (ch32DeviceFound) {
+        qCDebug(log_core_serial_config) << "CH32V208 USB device found on Linux — CH340 driver check not needed";
+        return true;
     }
 
-    // Step 2: Device found — check if ch341 driver module is loaded
+    if (!ch9329DeviceFound) {
+        qCDebug(log_core_serial_config) << "No CH9329 USB device found on Linux, skipping driver check";
+        return true; // No CH9329 device → nothing to check
+    }
+
+    // Step 2: CH9329 device found — check if ch341 driver module is loaded
     std::string command = "cat /proc/modules | grep 'ch341'";
     int result = system(command.c_str());
     if (result == 0) {
         return true; // Driver found
     }
-    qCWarning(log_core_serial_config) << "Openterface device found but ch341 driver not loaded on Linux";
+    qCWarning(log_core_serial_config) << "CH9329 device found but ch341 driver not loaded on Linux";
     return false; // Driver not found
 #else
     return true; // Assume installed for other platforms
