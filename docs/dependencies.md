@@ -8,6 +8,42 @@ OpenterfaceQT relies on several system libraries for graphics rendering, audio o
 
 If you're installing manually (e.g., via `dpkg -i`), you may need to install these dependencies yourself.
 
+## System Requirements (glibc)
+
+Pre-built binaries (`.deb`, `.rpm`, and AppImage) are linked against **glibc ≥ 2.32**. Since AppImages do not bundle glibc (they rely on the host's), the same minimum applies to them.
+
+| Distro | Minimum version with glibc ≥ 2.32 |
+|---|---|
+| Ubuntu | 22.04 |
+| Debian | 12 (Bookworm) |
+| Fedora | 36 |
+| openSUSE Leap | 15.4 |
+| Arch Linux | Rolling (always current) |
+| Raspberry Pi OS | Bookworm (12) |
+
+### How to check
+
+```bash
+ldd --version | head -1
+```
+
+If the output shows a version below 2.32 (e.g. `ldd (Ubuntu GLIBC 2.31-...) 2.31`), pre-built binaries **will not run** — you will see errors like:
+
+```
+/lib/aarch64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found
+/lib/aarch64-linux-gnu/libm.so.6: version `GLIBC_2.35' not found
+```
+
+### Solutions for older glibc
+
+1. **Upgrade your OS** to a release that ships glibc ≥ 2.32 (recommended). This is the simplest path — both pre-built binaries and building from source require a recent OS.
+2. **Run in a container/VM** with a newer base image (e.g. Ubuntu 22.04 container) and forward the display.
+3. **Build Qt6 from source**, then build OpenterfaceQT against it — see [BUILD.md](BUILD.md). This is time-consuming (Qt6 takes 30+ minutes to compile) and only recommended if you cannot upgrade.
+
+> **Important:** Building OpenterfaceQT from source also requires Qt6, which is only available as a package on Ubuntu 22.04+, Debian 12+, Fedora 36+, and equivalent. On older systems like Ubuntu 20.04, Qt6 is not in the repos — you would need to build Qt6 itself from source first. **Upgrading your OS is strongly recommended.**
+
+> **Note:** Upgrading glibc in place on an existing system is not recommended — it is a core system library and replacing it can break the OS.
+
 ## Dependency Categories
 
 ### Graphics Libraries
@@ -192,6 +228,40 @@ sudo zypper install -y \
     libva-x11-2 \
     libvdpau1
 ```
+
+### Arch Linux
+
+```bash
+# All runtime dependencies (automatically installed by pacman)
+sudo pacman -S \
+    qt6-base \
+    qt6-declarative \
+    qt6-multimedia \
+    qt6-svg \
+    qt6-serialport \
+    qt6-wayland \
+    ffmpeg \
+    gstreamer \
+    gst-plugins-base \
+    gst-plugins-good \
+    libpulse \
+    libxkbcommon \
+    libusb \
+    v4l-utils \
+    libjpeg-turbo \
+    zlib \
+    libglvnd \
+    wayland \
+    libxcb \
+    libx11
+
+# Optional: Hardware acceleration
+sudo pacman -S \
+    libva \
+    libvdpau
+```
+
+> **Note:** The Arch Linux `.pkg.tar.zst` package declares all dependencies in its PKGBUILD, so `pacman -U` installs them automatically. No manual dependency installation needed.
 
 ## Checking Dependencies
 

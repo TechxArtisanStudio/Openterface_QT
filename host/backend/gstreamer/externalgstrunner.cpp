@@ -1,8 +1,9 @@
 #include "externalgstrunner.h"
 #include <QDebug>
 #include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_gst_runner_external, "opf.backend.gstreamer.runner.external")
+OPF_LOGGING_CATEGORY(log_gst_runner_external, "opf.backend.gstreamer.runner.external")
 
 ExternalGstRunner::ExternalGstRunner(QObject* parent)
     : QObject(parent), m_process(nullptr)

@@ -20,7 +20,6 @@
 * ========================================================================== *
 */
 
-
 #include "versioninfomanager.h"
 #include <QApplication>
 #include <QClipboard>
@@ -187,14 +186,12 @@ void VersionInfoManager::checkForUpdates(bool force)
 
     if (!force) {
         if (gs.getUpdateNeverRemind()) {
-            qDebug() << "Update check skipped: user chose 'never remind'";
             return;
         }
         qint64 last = gs.getUpdateLastChecked();
         qint64 now = QDateTime::currentSecsSinceEpoch();
         const qint64 THIRTY_DAYS = 30LL * 24 * 3600;
         if (last > 0 && (now - last) < THIRTY_DAYS) {
-            qDebug() << "Update check skipped: last checked" << (now - last) << "seconds ago";
             return;
         }
     }
@@ -403,7 +400,6 @@ void VersionInfoManager::handleUpdateCheckResponse(QNetworkReply *reply)
             }
         }
     } else {
-        qDebug() << "Update check failed:" << reply->errorString();
         // record the failed check to avoid tight retry loops
         gs.setUpdateLastChecked(QDateTime::currentSecsSinceEpoch());
     }

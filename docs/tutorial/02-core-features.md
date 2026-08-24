@@ -121,7 +121,7 @@ You can filter which message types are displayed:
 ### Serial Port Debugging
 
 The debug dialog shows:
-- Current serial port (`/dev/ttyUSB*` or `COM*`)
+- Current serial port (`/dev/ttyUSB*`, `/dev/ttyACM*`, or `COM*`)
 - Current baudrate (9600 or 115200)
 - Chip type (CH9329 or CH32V208)
 - Connection status

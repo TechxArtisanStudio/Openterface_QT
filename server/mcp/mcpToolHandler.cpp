@@ -22,7 +22,9 @@
 
 #include "mcpToolHandler.h"
 #include "mcpProtocol.h"
+#include "screenAnalyzer.h"
 #include "host/HostManager.h"
+#include "ui/globalsetting.h"
 #include "host/cameramanager.h"
 #include "target/MouseManager.h"
 #include "target/KeyboardManager.h"
@@ -34,6 +36,7 @@
 #include "scripts/AST.h"
 #include "serial/SerialPortManager.h"
 #include "video/videohid.h"
+#include "video/firmwareoperationmanager.h"
 
 #include <QBuffer>
 #include <QJsonDocument>
@@ -46,11 +49,13 @@
 #include <QTimer>
 #include <QThread>
 #include <QCoreApplication>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_server_mcp_tool, "opf.server.mcp.tool")
+OPF_LOGGING_CATEGORY(log_server_mcp_tool, "opf.server.mcp.tool")
 
 McpToolHandler::McpToolHandler(QObject *parent)
     : QObject(parent)
+    , m_screenAnalyzer(new ScreenAnalyzer())
 {
 }
 
@@ -77,13 +82,13 @@ QJsonArray McpToolHandler::listTools() const
     {
         QJsonObject tool;
         tool["name"] = MCP_TOOL_MOUSE_MOVE_ABSOLUTE;
-        tool["description"] = "Move the mouse cursor to an absolute position on the target computer. Coordinates are in the range 0-4096, where (0,0) is the top-left corner and (4096,4096) is the bottom-right corner.";
+        tool["description"] = "Move the mouse cursor to an absolute position on the target computer. Coordinates are in the range 0-4096, where (0,0) is the top-left corner and (4096,4096) is the bottom-right corner. Convert from pixel coordinates: MCP_x = pixel_x / screen_width * 4096, MCP_y = pixel_y / screen_height * 4096. Example: on a 1920x1080 screen, pixel (960, 540) = MCP (2048, 2048).";
 
         QJsonObject schema;
         schema["type"] = "object";
         QJsonObject props;
-        props["x"] = QJsonObject{{"type", "integer"}, {"description", "X coordinate (0-4096)"}, {"minimum", 0}, {"maximum", 4096}};
-        props["y"] = QJsonObject{{"type", "integer"}, {"description", "Y coordinate (0-4096)"}, {"minimum", 0}, {"maximum", 4096}};
+        props["x"] = QJsonObject{{"type", "integer"}, {"description", "X coordinate (0-4096). Formula: pixel_x / screen_width * 4096"}, {"minimum", 0}, {"maximum", 4096}};
+        props["y"] = QJsonObject{{"type", "integer"}, {"description", "Y coordinate (0-4096). Formula: pixel_y / screen_height * 4096"}, {"minimum", 0}, {"maximum", 4096}};
         schema["properties"] = props;
         schema["required"] = QJsonArray{"x", "y"};
         tool["inputSchema"] = schema;
@@ -93,13 +98,13 @@ QJsonArray McpToolHandler::listTools() const
     {
         QJsonObject tool;
         tool["name"] = MCP_TOOL_MOUSE_CLICK;
-        tool["description"] = "Click the mouse at a specific position on the target computer. Coordinate range: 0-4096. Supports left, right, and middle clicks, as well as double-click.";
+        tool["description"] = "Click the mouse at a specific position on the target computer. Coordinate range: 0-4096. Convert from pixel coordinates: MCP_x = pixel_x / screen_width * 4096, MCP_y = pixel_y / screen_height * 4096. Supports left, right, and middle clicks, as well as double-click.";
 
         QJsonObject schema;
         schema["type"] = "object";
         QJsonObject props;
-        props["x"] = QJsonObject{{"type", "integer"}, {"description", "X coordinate (0-4096)"}, {"minimum", 0}, {"maximum", 4096}};
-        props["y"] = QJsonObject{{"type", "integer"}, {"description", "Y coordinate (0-4096)"}, {"minimum", 0}, {"maximum", 4096}};
+        props["x"] = QJsonObject{{"type", "integer"}, {"description", "X coordinate (0-4096). Formula: pixel_x / screen_width * 4096"}, {"minimum", 0}, {"maximum", 4096}};
+        props["y"] = QJsonObject{{"type", "integer"}, {"description", "Y coordinate (0-4096). Formula: pixel_y / screen_height * 4096"}, {"minimum", 0}, {"maximum", 4096}};
         props["button"] = QJsonObject{{"type", "string"}, {"description", "Mouse button to click"}, {"enum", QJsonArray{"left", "right", "middle"}}, {"default", "left"}};
         props["count"] = QJsonObject{{"type", "integer"}, {"description", "Number of clicks (1 = single, 2 = double-click)"}, {"default", 1}, {"minimum", 1}, {"maximum", 10}};
         schema["properties"] = props;
@@ -144,15 +149,16 @@ QJsonArray McpToolHandler::listTools() const
     {
         QJsonObject tool;
         tool["name"] = MCP_TOOL_KEYBOARD_PRESS_KEY;
-        tool["description"] = "Press or release a keyboard key on the target computer. Uses Qt key codes (e.g., Qt::Key_A = 65, Qt::Key_Return = 16777220). Modifiers are a bitmask: 1=Shift, 2=Ctrl, 4=Alt, 8=Meta/Win.";
+        tool["description"] = "Press or release a keyboard key on the target computer. Accepts a Qt key code (integer) or a key name (string). Common names: A-Z, 0-9, Enter/Return, Escape, Tab, Backspace, Delete, Space, Up, Down, Left, Right, Home, End, PageUp, PageDown, Insert, F1-F12, Shift, Control, Alt, Meta/Super. Modifiers are a bitmask: 1=Shift, 2=Ctrl, 4=Alt, 8=Meta/Win.";
 
         QJsonObject schema;
         schema["type"] = "object";
         QJsonObject props;
-        props["key"] = QJsonObject{{"type", "integer"}, {"description", "Qt key code (e.g., 65 for 'A', 16777220 for Enter)"}};
+        props["key"] = QJsonObject{{"type", "string"}, {"description", "Qt key code (integer) or key name (string, e.g. 'A', 'Enter', 'Escape', 'Tab', 'F1', 'Control', 'Shift', 'Alt')"}};
         props["modifiers"] = QJsonObject{{"type", "integer"}, {"description", "Modifier bitmask: 1=Shift, 2=Ctrl, 4=Alt, 8=Meta/Win"}, {"default", 0}};
         props["isKeyDown"] = QJsonObject{{"type", "boolean"}, {"description", "true = press, false = release"}, {"default", true}};
         props["side"] = QJsonObject{{"type", "string"}, {"description", "Which side of the keyboard for modifier keys: 'left' or 'right'. Only applies to Shift, Ctrl, Alt keys."}, {"enum", QJsonArray{"left", "right"}}};
+        props["autoRelease"] = QJsonObject{{"type", "boolean"}, {"description", "If true (default), auto-release the key after press. Set false to hold the key (useful for modifier combos)."}, {"default", true}};
         schema["properties"] = props;
         schema["required"] = QJsonArray{"key"};
         tool["inputSchema"] = schema;
@@ -277,6 +283,22 @@ QJsonArray McpToolHandler::listTools() const
         tools.append(tool);
     }
 
+    // ---- Screen Analysis Tools ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_SCREEN_TO_MARKDOWN;
+        tool["description"] = "Capture the target screen and convert it to a structured Markdown representation with OCR-detected text and UI element locations. Returns coordinates (0-4096 range) for all detected elements, making it easy for AI to find buttons, menus, and interactive elements without needing vision. Requires Tesseract OCR to be installed and the feature to be enabled in Preferences -> MCP Server.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["detail_level"] = QJsonObject{{"type", "string"}, {"description", "Level of detail in output: 'basic' (only interactive elements) or 'detailed' (full breakdown with all text)"}, {"enum", QJsonArray{"basic", "detailed"}}, {"default", "detailed"}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
     // ---- Script Execution ----
     {
         QJsonObject tool;
@@ -309,6 +331,35 @@ QJsonArray McpToolHandler::listTools() const
         tools.append(tool);
     }
 
+    // ---- Firmware Tools ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_FIRMWARE_CHECK;
+        tool["description"] = "Check the video chip firmware version against the latest published release. Reports the current version, the latest version and whether an update is available. Downloads the latest firmware binary into memory as a side effect.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        schema["properties"] = QJsonObject();
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_FIRMWARE_UPDATE;
+        tool["description"] = "Update the video chip firmware to the latest published release. Stops all video/HID/serial activity, writes the firmware EEPROM and blocks until the write completes (up to 5 minutes). After success the app must be restarted and the device fully power-cycled (host USB power AND target power); video and control are dead until then.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["force"] = QJsonObject{{"type", "boolean"}, {"description", "Re-flash even if the device already reports the latest version (default false)"}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
     return tools;
 }
 
@@ -333,6 +384,9 @@ QJsonObject McpToolHandler::callTool(const QString& name, const QJsonObject& arg
     if (name == MCP_TOOL_VALIDATE_SCRIPT)             return toolValidateScript(arguments);
     if (name == MCP_TOOL_SYSTEM_STATUS)              return toolSystemStatus(arguments);
     if (name == MCP_TOOL_USB_SWITCH)                 return toolUsbSwitch(arguments);
+    if (name == MCP_TOOL_SCREEN_TO_MARKDOWN)         return toolScreenToMarkdown(arguments);
+    if (name == MCP_TOOL_FIRMWARE_CHECK)             return toolFirmwareCheck(arguments);
+    if (name == MCP_TOOL_FIRMWARE_UPDATE)            return toolFirmwareUpdate(arguments);
 
     return errorResult("Unknown tool: " + name);
 }
@@ -410,9 +464,68 @@ QJsonObject McpToolHandler::toolMouseScroll(const QJsonObject& args)
 // Keyboard Tool Implementations
 // ==========================================================================
 
+static int resolveKey(const QJsonValue& keyArg)
+{
+    if (keyArg.isDouble()) {
+        return keyArg.toInt();
+    }
+    QString name = keyArg.toString().toUpper();
+    if (name.isEmpty()) {
+        return 0;
+    }
+    static const QMap<QString, int> keyNameMap = {
+        {"ENTER", Qt::Key_Return}, {"RETURN", Qt::Key_Return},
+        {"ESCAPE", Qt::Key_Escape}, {"ESC", Qt::Key_Escape},
+        {"TAB", Qt::Key_Tab},
+        {"BACKSPACE", Qt::Key_Backspace},
+        {"DELETE", Qt::Key_Delete},
+        {"SPACE", Qt::Key_Space},
+        {"UP", Qt::Key_Up}, {"DOWN", Qt::Key_Down},
+        {"LEFT", Qt::Key_Left}, {"RIGHT", Qt::Key_Right},
+        {"HOME", Qt::Key_Home}, {"END", Qt::Key_End},
+        {"PAGEUP", Qt::Key_PageUp}, {"PAGEDOWN", Qt::Key_PageDown},
+        {"INSERT", Qt::Key_Insert},
+        {"PRINT", Qt::Key_Print}, {"PRINTSCREEN", Qt::Key_Print},
+        {"PAUSE", Qt::Key_Pause}, {"BREAK", Qt::Key_Pause},
+        {"MENU", Qt::Key_Menu}, {"CONTEXTMENU", Qt::Key_Menu},
+        {"CAPSLOCK", Qt::Key_CapsLock}, {"CAPS", Qt::Key_CapsLock},
+        {"NUMLOCK", Qt::Key_NumLock},
+        {"SCROLLLOCK", Qt::Key_ScrollLock},
+        {"F1", Qt::Key_F1}, {"F2", Qt::Key_F2}, {"F3", Qt::Key_F3},
+        {"F4", Qt::Key_F4}, {"F5", Qt::Key_F5}, {"F6", Qt::Key_F6},
+        {"F7", Qt::Key_F7}, {"F8", Qt::Key_F8}, {"F9", Qt::Key_F9},
+        {"F10", Qt::Key_F10}, {"F11", Qt::Key_F11}, {"F12", Qt::Key_F12},
+        {"F13", Qt::Key_F13}, {"F14", Qt::Key_F14}, {"F15", Qt::Key_F15},
+        {"SHIFT", Qt::Key_Shift},
+        {"CONTROL", Qt::Key_Control}, {"CTRL", Qt::Key_Control},
+        {"ALT", Qt::Key_Alt}, {"ALTGR", Qt::Key_AltGr},
+        {"META", Qt::Key_Meta}, {"SUPER", Qt::Key_Meta}, {"WIN", Qt::Key_Meta},
+        {"COMMAND", Qt::Key_Meta},
+    };
+    if (keyNameMap.contains(name)) {
+        return keyNameMap[name];
+    }
+    if (name.length() == 1) {
+        QChar c = name[0];
+        if (c.isLetter()) {
+            return Qt::Key_A + (c.toUpper().unicode() - 'A');
+        }
+        if (c.isDigit()) {
+            return Qt::Key_0 + (c.unicode() - '0');
+        }
+    }
+    return 0;
+}
+
 QJsonObject McpToolHandler::toolKeyboardPressKey(const QJsonObject& args)
 {
-    int keyCode = args.value("key").toInt();
+    QJsonValue keyArg = args.value("key");
+    int keyCode = resolveKey(keyArg);
+
+    if (keyArg.isString() && keyCode == 0) {
+        return errorResult("Unknown key name: " + keyArg.toString());
+    }
+
     int modifiers = args.value("modifiers").toInt(0);
     bool isKeyDown = args.value("isKeyDown").toBool(true);
     bool autoRelease = args.value("autoRelease").toBool(true);
@@ -466,11 +579,12 @@ QJsonObject McpToolHandler::toolKeyboardPressKey(const QJsonObject& args)
         QThread::msleep(30);
     }
 
+    QString keyName = keyArg.isString() ? keyArg.toString().toUpper() : QString::number(keyCode);
     QString sideStr = !side.isEmpty() ? QString(", side=%1").arg(side) : "";
     QString actionStr = isKeyDown ? (autoRelease ? "pressed+released" : "pressed") : "released";
-    return textResult(QString("Key %1 (code=%2, mods=%3%4)")
+    return textResult(QString("Key %1 (name=%2, code=%3, mods=%4%5)")
                      .arg(actionStr)
-                     .arg(keyCode).arg(modifiers).arg(sideStr));
+                     .arg(keyName).arg(keyCode).arg(modifiers).arg(sideStr));
 }
 
 // Convenience method: send Enter key as press+release atomically
@@ -915,6 +1029,141 @@ QJsonObject McpToolHandler::toolUsbSwitch(const QJsonObject& args)
     } else {
         return errorResult("Invalid USB target: '" + target + "'. Use 'host' or 'target'.");
     }
+}
+
+// ==========================================================================
+// Screen Analysis Tool
+// ==========================================================================
+
+QJsonObject McpToolHandler::toolScreenToMarkdown(const QJsonObject& args)
+{
+    // Check if the feature is enabled in settings
+    GlobalSetting &settings = GlobalSetting::instance();
+    if (!settings.getMcpScreenToMarkdown()) {
+        return errorResult("Screen to Markdown feature is disabled. Enable it in Preferences -> MCP Server.");
+    }
+
+    if (!m_cameraManager) {
+        return errorResult("CameraManager not initialized");
+    }
+
+    if (!m_screenAnalyzer) {
+        return errorResult("ScreenAnalyzer not initialized");
+    }
+
+    if (!m_screenAnalyzer->isAvailable()) {
+        return errorResult("OCR engine not available. Tesseract may not be installed.");
+    }
+
+    // Get detail level parameter
+    QString detailLevel = args.value("detail_level").toString("detailed");
+    if (detailLevel != "basic" && detailLevel != "detailed") {
+        detailLevel = "detailed";
+    }
+
+    // Get the current frame
+    QImage frame = m_cameraManager->getLatestOriginalFrame();
+    if (frame.isNull()) {
+        return errorResult("No frame available from camera");
+    }
+
+    qCInfo(log_server_mcp_tool) << "Analyzing screen with detail level:" << detailLevel;
+
+    // Analyze the screen
+    ScreenAnalysis analysis = m_screenAnalyzer->analyzeScreen(frame, detailLevel);
+
+    // Return the Markdown output
+    return textResult(analysis.markdownOutput);
+}
+
+// ==========================================================================
+// Firmware Tool Implementations
+// ==========================================================================
+
+QJsonObject McpToolHandler::toolFirmwareCheck(const QJsonObject& args)
+{
+    Q_UNUSED(args);
+    VideoHid& hid = VideoHid::getInstance();
+    FirmwareResult r = hid.isLatestFirmware();
+
+    QString status;
+    switch (r) {
+    case FirmwareResult::Latest:      status = "latest"; break;
+    case FirmwareResult::Upgradable:  status = "upgradable"; break;
+    case FirmwareResult::Timeout:     status = "network_timeout"; break;
+    case FirmwareResult::CheckFailed: status = "check_failed"; break;
+    default:                          status = "unknown"; break;
+    }
+
+    return textResult(QString("firmware status: %1 (current: %2, latest: %3)")
+        .arg(status,
+             QString::fromStdString(hid.getCurrentFirmwareVersion()),
+             QString::fromStdString(hid.getLatestFirmwareVersion())));
+}
+
+QJsonObject McpToolHandler::toolFirmwareUpdate(const QJsonObject& args)
+{
+    bool force = args.value("force").toBool(false);
+
+    VideoHid& hid = VideoHid::getInstance();
+    FirmwareResult r = hid.isLatestFirmware();
+    QString cur = QString::fromStdString(hid.getCurrentFirmwareVersion());
+    QString latest = QString::fromStdString(hid.getLatestFirmwareVersion());
+
+    if (r == FirmwareResult::Timeout || r == FirmwareResult::CheckFailed) {
+        return errorResult(QString("Firmware check failed (%1); no flash attempted. Current version: %2")
+            .arg(r == FirmwareResult::Timeout ? "network timeout" : "check failed", cur));
+    }
+    if (r == FirmwareResult::Latest && !force) {
+        return textResult(QString("Firmware already at latest version %1; nothing flashed. "
+            "Pass force=true to re-flash.").arg(cur));
+    }
+
+    qCInfo(log_server_mcp_tool) << "Firmware update starting:" << cur << "->" << latest;
+
+    // Same shutdown sequence as FirmwarePage::onCheckForUpdatesClicked():
+    // the EEPROM write must not compete with HID polling or serial traffic.
+    hid.stop();
+    hid.stopPollingOnly();
+    QThread::msleep(300);
+    SerialPortManager::getInstance().closePort();
+    QThread::msleep(200);
+
+    FirmwareOperationManager* mgr = hid.getFirmwareOperationManager();
+
+    QEventLoop loop;
+    bool done = false;
+    bool ok = false;
+    int lastPct = 0;
+    QMetaObject::Connection cProg = connect(mgr, &FirmwareOperationManager::progress,
+        &loop, [&lastPct](int pct) { lastPct = pct; });
+    QMetaObject::Connection cDone = connect(mgr, &FirmwareOperationManager::writeCompleted,
+        &loop, [&ok, &done, &loop](bool success) { ok = success; done = true; loop.quit(); });
+
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timeout.start(300000);
+
+    hid.loadFirmwareToEeprom();
+    if (!done)
+        loop.exec();
+
+    disconnect(cProg);
+    disconnect(cDone);
+
+    if (!done) {
+        return errorResult(QString("Firmware write TIMED OUT after 300s at %1%. "
+            "Device state unknown -- retry or investigate before power-cycling.").arg(lastPct));
+    }
+    if (!ok) {
+        return errorResult(QString("Firmware write FAILED at %1% (%2 -> %3). "
+            "Retry before power-cycling the device.").arg(lastPct).arg(cur, latest));
+    }
+    return textResult(QString("Firmware update SUCCESSFUL: %1 -> %2. "
+        "REQUIRED next steps: quit this app, power off BOTH ends of the KVM "
+        "(host USB power and target power), then re-energize the KVM before booting the target.")
+        .arg(cur, latest));
 }
 
 // ==========================================================================

@@ -10,8 +10,9 @@
 #include <QLineEdit>
 #include <QHeaderView>
 #include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_customkey_dialog, "opf.ui.customkeydialog")
+OPF_LOGGING_CATEGORY(log_customkey_dialog, "opf.ui.customkeydialog")
 
 // ─── KeyComboCaptureDialog ────────────────────────────────────────────────────
 
@@ -41,7 +42,15 @@ void KeyComboCaptureDialog::buildUI()
 
     currentComboLabel = new QLabel(this);
     currentComboLabel->setAlignment(Qt::AlignCenter);
-    currentComboLabel->setStyleSheet("font-size: 16px; font-weight: bold; color: #2196F3; padding: 10px; background: #f5f5f5; border-radius: 4px;");
+    // Flat palette-aware style — text and border always contrast with background
+    // on both light and dark themes.
+    currentComboLabel->setStyleSheet(
+        "font-size: 16px; font-weight: bold;"
+        " color: palette(text);"
+        " padding: 10px;"
+        " background: palette(base);"
+        " border: 1px solid palette(dark);"
+        " border-radius: 4px;");
     layout->addWidget(currentComboLabel);
 
     layout->addStretch();

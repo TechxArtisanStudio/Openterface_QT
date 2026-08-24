@@ -78,9 +78,12 @@ const QString EnvironmentSetupDialog::udevCommands =
     "echo 'SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"345f\", ATTRS{idProduct}==\"2109\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"345f\", ATTRS{idProduct}==\"2132\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "echo 'SUBSYSTEM==\"hidraw\", ATTRS{idVendor}==\"345f\", ATTRS{idProduct}==\"2132\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
-    "echo 'SUBSYSTEM==\"ttyUSB\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"7523\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    "echo 'SUBSYSTEM==\"tty\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"7523\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"7523\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
-    "echo 'SUBSYSTEM==\"ttyACM\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"fe0c\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
+    // NB: CH32V208 presents as /dev/ttyACM* — subsystem is \"tty\", NOT \"ttyACM\".
+    // The previous \"ttyACM\" rule matched nothing, which is why users following this
+    // guidance still saw \"serial permission check failed\".
+    "echo 'SUBSYSTEM==\"tty\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"fe0c\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "echo 'SUBSYSTEM==\"usb\", ATTRS{idVendor}==\"1a86\", ATTRS{idProduct}==\"fe0c\", TAG+=\"uaccess\"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules\n"
     "sudo udevadm control --reload-rules\n"
     "sudo udevadm trigger\n\n";
@@ -118,14 +121,10 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui->descriptionLabel->setTextFormat(Qt::RichText);
     ui->helpLabel->setTextFormat(Qt::RichText);
     
-
     checkEnvironmentSetup(); // Ensure the status variables are updated
     QSettings settings("Openterface", "EnvironmentSetup");
     bool autoCheck = settings.value("autoCheck", true).toBool();
     ui->autoCheckBox->setChecked(autoCheck);
-
-    
-
 
 #ifdef _WIN32
     setFixedSize(250, 140);
@@ -136,7 +135,6 @@ EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
     ui->commandsTextEdit->setVisible(false);
     statusSummary += tr("The following steps help you install the driver and the Openterface firmware update. Current status:<br>");
     QString latestDescription = latestFirewareDescription;
-    qDebug() << latestDescription;
     statusSummary += tr("◆ Driver Installed: ") + QString(isDriverInstalled? tickHtml : crossHtml) + "<br>";
     statusSummary += tr("◆ Latest Firmware: ") + QString(latestFirmware == FirmwareResult::Latest ? tickHtml : crossHtml) + QString(latestFirmware == FirmwareResult::Latest ?  QString(""): latestDescription);
     ui->descriptionLabel->setText(statusSummary);
@@ -214,7 +212,6 @@ void EnvironmentSetupDialog::closeEvent(QCloseEvent *event)
 #ifdef _WIN32
 void EnvironmentSetupDialog::installDriverForWindows() {
     // Windows-specific installation logic
-    qDebug() << "Attempting to install driver using pnputil.";
     QMessageBox msgBox(this);
     msgBox.setWindowTitle(tr("Install Driver"));
     msgBox.setText(tr("The driver is missing. Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html \n\n"
@@ -232,7 +229,6 @@ void EnvironmentSetupDialog::installDriverForWindows() {
         QClipboard *clipboard = QApplication::clipboard();
         clipboard->setText("https://www.wch.cn/downloads/CH341SER.EXE.html");
     }
-    qDebug() << "Driver installation command executed.";
 }
 #endif
 
@@ -259,13 +255,10 @@ void EnvironmentSetupDialog::extractDriverFiles() {
             if (targetFile.open(QIODevice::WriteOnly)) {
                 targetFile.write(resourceFile.readAll()); // Read from resource and write to target
                 targetFile.close();
-                qDebug() << "Copied " << QFileInfo(filePath).fileName() << " to " << tempDir;
             } else {
-                qDebug() << "Failed to open target file for writing: " << targetPath;
             }
             resourceFile.close();
         } else {
-            qDebug() << "Failed to open resource file: " << filePath;
         }
     }
 
@@ -348,10 +341,7 @@ QString EnvironmentSetupDialog::buildCommands(){
     return commands;
 }
 
-
-
 bool EnvironmentSetupDialog::checkHidPermission() {
-    qDebug() << "Checking HID permissions...";
     
     // First try to list all hidraw devices
     QDir devDir("/dev");
@@ -360,7 +350,6 @@ bool EnvironmentSetupDialog::checkHidPermission() {
     // Check if devices exist at all
     if (devices.isEmpty()) {
         // No devices found - but this could be normal if no HID devices are connected
-        qDebug() << "No hidraw devices found. If device is connected, may need udev rules.";
         
         // Also check if the udev rules are properly set up
         QProcess udevProcess;
@@ -369,7 +358,6 @@ bool EnvironmentSetupDialog::checkHidPermission() {
         
         if (udevProcess.exitCode() == 0) {
             // Rules exist, which is good for future devices
-            qDebug() << "Openterface udev rules found. Permissions will be correct when device is connected.";
             isHidPermission = true;
             return true;
         }
@@ -382,14 +370,12 @@ bool EnvironmentSetupDialog::checkHidPermission() {
     // Check if any device has proper permissions
     bool hasPermission = false;
     for (const QString& device : devices) {
-        qDebug() << "Checking device:" << device;
         // Check file permissions using QFileInfo
         QFileInfo fileInfo("/dev/" + device);
         if (!fileInfo.exists()) continue;
         
         if (fileInfo.isReadable() && fileInfo.isWritable()) {
             hasPermission = true;
-            qDebug() << "Found device with RW access: " << device;
             break;
         }
         
@@ -398,13 +384,11 @@ bool EnvironmentSetupDialog::checkHidPermission() {
         statProcess.start("stat", QStringList() << "-c" << "%a %G" << device);
         statProcess.waitForFinished();
         QString statOutput = statProcess.readAllStandardOutput().trimmed();
-        qDebug() << "Device " << device << " permissions: " << statOutput;
         
         // Check for 666 permissions (rw for all) or 664 permissions (rw for group)
         QString permString = statOutput.split(' ').first();
         if (permString == "666") {
             hasPermission = true;
-            qDebug() << "Device has 666 permissions (rw for everyone)";
             break;
         } else if (permString == "664" || permString == "660") {
             // Need to check if user belongs to the device group
@@ -417,20 +401,16 @@ bool EnvironmentSetupDialog::checkHidPermission() {
             
             if (groupsOutput.contains(groupName)) {
                 hasPermission = true;
-                qDebug() << "User is in group " << groupName 
-                          << " with access to " << device;
                 break;
             }
         }
     }
     
     isHidPermission = hasPermission;
-    qDebug() << "HID permissions check result: " << (hasPermission ? "Yes" : "No");
     return hasPermission;
 }
 
 bool EnvironmentSetupDialog::checkVideoPermission() {
-    qDebug() << "Checking video device permissions...";
     
     // First try to list all video devices
     QDir devDir("/dev");
@@ -439,7 +419,6 @@ bool EnvironmentSetupDialog::checkVideoPermission() {
     // Check if devices exist at all
     if (devices.isEmpty()) {
         // No devices found - but this could be normal if no video devices are connected
-        qDebug() << "No video devices found. If device is connected, may need udev rules.";
         
         // Also check if the udev rules are properly set up
         QProcess udevProcess;
@@ -448,7 +427,6 @@ bool EnvironmentSetupDialog::checkVideoPermission() {
         
         if (udevProcess.exitCode() == 0) {
             // Rules exist, which is good for future devices
-            qDebug() << "Openterface udev rules found. Video permissions will be correct when device is connected.";
             isVideoPermission = true;
             return true;
         }
@@ -461,14 +439,12 @@ bool EnvironmentSetupDialog::checkVideoPermission() {
     // Check if any device has proper permissions
     bool hasPermission = false;
     for (const QString& device : devices) {
-        qDebug() << "Checking device:" << device;
         // Check file permissions using QFileInfo
         QFileInfo fileInfo("/dev/" + device);
         if (!fileInfo.exists()) continue;
         
         if (fileInfo.isReadable() && fileInfo.isWritable()) {
             hasPermission = true;
-            qDebug() << "Found device with RW access: " << device;
             break;
         }
         
@@ -477,13 +453,11 @@ bool EnvironmentSetupDialog::checkVideoPermission() {
         statProcess.start("stat", QStringList() << "-c" << "%a %G" << "/dev/" + device);
         statProcess.waitForFinished();
         QString statOutput = statProcess.readAllStandardOutput().trimmed();
-        qDebug() << "Device " << device << " permissions: " << statOutput;
         
         // Check for 666 permissions (rw for all) or 664 permissions (rw for group)
         QString permString = statOutput.split(' ').first();
         if (permString == "666") {
             hasPermission = true;
-            qDebug() << "Device has 666 permissions (rw for everyone)";
             break;
         } else if (permString == "664" || permString == "660") {
             // Need to check if user belongs to the device group
@@ -496,15 +470,12 @@ bool EnvironmentSetupDialog::checkVideoPermission() {
             
             if (groupsOutput.contains(groupName)) {
                 hasPermission = true;
-                qDebug() << "User is in group " << groupName 
-                          << " with access to " << device;
                 break;
             }
         }
     }
     
     isVideoPermission = hasPermission;
-    qDebug() << "Video permissions check result: " << (hasPermission ? "Yes" : "No");
     return hasPermission;
 }
 
@@ -524,8 +495,6 @@ bool EnvironmentSetupDialog::checkBrlttyRunning() {
 
     QString udevState = queryService("brltty-udev.service");
     QString daemonState = queryService("brltty.service");
-    qDebug() << "brltty-udev.service state:" << udevState;
-    qDebug() << "brltty.service state:" << daemonState;
 
     bool eitherActive = (udevState == "active") || (daemonState == "active");
 
@@ -536,14 +505,11 @@ bool EnvironmentSetupDialog::checkBrlttyRunning() {
         procCheck.waitForFinished(2000);
         isBrlttyRunning = (procCheck.exitCode() == 0);
         if (isBrlttyRunning) {
-            qDebug() << "BRLTTY service(s) active and process running. It may interfere with device access.";
         } else {
-            qDebug() << "BRLTTY service(s) active but process not found. Treating as OK.";
         }
     } else {
         // Both masked / inactive / failed / not-found - safe
         isBrlttyRunning = false;
-        qDebug() << "Neither brltty-udev.service nor brltty.service is active. Good!";
     }
     return isBrlttyRunning;
 }
@@ -576,10 +542,6 @@ bool EnvironmentSetupDialog::detectDevices(const std::vector<std::pair<uint16_t,
             if (desc.idVendor == vid && desc.idProduct == pid) {
                 found = true;
                 isDevicePlugged = true;
-                qDebug() << "Device detected with VID: 0x" 
-                        << QString::number(vid, 16).rightJustified(4, '0')
-                        << " PID: 0x" 
-                        << QString::number(pid, 16).rightJustified(4, '0');
                 break;
             }
         }
@@ -612,7 +574,6 @@ bool EnvironmentSetupDialog::checkPermissions(const std::vector<std::pair<uint16
                 continue;
             }
             if (desc.idVendor == vid && desc.idProduct == pid) {
-                qDebug() << "Name of device" << desc.iProduct;
                 libusb_device_handle* handle = nullptr;
                 int ret = libusb_open(dev, &handle);
                 if (ret == LIBUSB_SUCCESS) {
@@ -620,10 +581,8 @@ bool EnvironmentSetupDialog::checkPermissions(const std::vector<std::pair<uint16
                     libusb_close(handle);
                     if (isSerial) {
                         isSerialPermission = true;
-                        qDebug() << "Permission check passed for serial device VID: 0x" << QString::number(vid, 16) << " PID: 0x" << QString::number(pid, 16);
                     } else {
                         isHidPermission = true;
-                        qDebug() << "Permission check passed for HID device VID: 0x" << QString::number(vid, 16) << " PID: 0x" << QString::number(pid, 16);
                     }
                     return true; 
                 } else if (ret == LIBUSB_ERROR_ACCESS) {
@@ -671,7 +630,6 @@ bool EnvironmentSetupDialog::checkDevicePermission(uint16_t vendorID, uint16_t p
             continue;
         }
         if (desc.idVendor == vendorID && desc.idProduct == productID) {
-            qDebug() << "Name of device" << desc.iProduct;
             libusb_device_handle* handle = nullptr;
             int ret = libusb_open(dev, &handle);
             if (ret == LIBUSB_SUCCESS) {
@@ -679,10 +637,8 @@ bool EnvironmentSetupDialog::checkDevicePermission(uint16_t vendorID, uint16_t p
                 libusb_close(handle);
                 if (vendorID == ch341VID && productID == ch341PID) {
                     isSerialPermission = true;
-                    qDebug() << "CH341 permission check passed.";
                 } else if (vendorID == openterfaceVID && productID == openterfacePID) {
                     isHidPermission = true;
-                    qDebug() << "Openterface permission check passed.";
                 }
                 return true; 
             } else if (ret == LIBUSB_ERROR_ACCESS) {
@@ -701,10 +657,6 @@ bool EnvironmentSetupDialog::checkDevicePermission(uint16_t vendorID, uint16_t p
 }
 
 bool EnvironmentSetupDialog::detectDevice(uint16_t vendorID, uint16_t productID) {
-    qDebug() << "Device detected with VID: 0x" 
-                    << QString::number(vendorID, 16).rightJustified(4, '0')
-                    << "PID: 0x" 
-                    << QString::number(productID, 16).rightJustified(4, '0');
     libusb_device **dev_list = nullptr;
     ssize_t dev_count = libusb_get_device_list(context, &dev_list);
     if (dev_count < 0) {
@@ -729,10 +681,6 @@ bool EnvironmentSetupDialog::detectDevice(uint16_t vendorID, uint16_t productID)
         if (desc.idVendor == vendorID && desc.idProduct == productID) {
             found = true;
             isDevicePlugged = true;
-            qDebug() << "Device detected with VID: 0x" 
-                    << QString::number(vendorID, 16).rightJustified(4, '0')
-                    << "PID: 0x" 
-                    << QString::number(productID, 16).rightJustified(4, '0');
         }
     }
     return found;
@@ -754,20 +702,14 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
     latestFirmware = videoHid.isLatestFirmware();
     std::string version = videoHid.getCurrentFirmwareVersion();
     std::string latestVersion = videoHid.getLatestFirmwareVersion();
-    qDebug() << "Chip type detection and firmware check initiated";
-    qDebug() << "Current firmware version: " << QString::fromStdString(version);
-    qDebug() << "Latest firmware version: " << QString::fromStdString(latestVersion);
-    qDebug() << "Firmware is latest: " << (latestFirmware == FirmwareResult::Latest ? "yes" : "no");
     
-    latestFirewareDescription ="<br>Current version: " + QString::fromStdString(version) + 
+    latestFirewareDescription ="<br>Current version: " + QString::fromStdString(version) +
     "<br>" + "Latest version: " + QString::fromStdString(latestVersion) +
-    "<br>" + "Please update driver to latest version." + 
-    "<br>" + "click OK then Advance->Firmware Update...";
-    qDebug() << latestFirewareDescription;
+    "<br>" + "Please update the firmware to the latest version." +
+    "<br>" + "Click OK, then open File->Preferences->Video Firmware and use \"Firmware Update from Remote\".";
     #ifdef _WIN32
     return checkDriverInstalled() && latestFirmware == FirmwareResult::Latest;
     #elif defined(__linux__)
-    qDebug() << "Checking if Openterface devices are on Linux.";
 
     // EnvironmentSetupDialog dialog;
     if (context == nullptr){
@@ -777,33 +719,26 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
             qWarning() << "Cannot proceed without libusb context. Skipping device checks.";
             return true; // Skip checks if libusb initialization fails
         }
-        qDebug() << "libusb initialized successfully.";
     }
 
     bool openterfacePlugged = detectDevices(openterfaceDevices);
     bool skipCheck = false;
     if (!openterfacePlugged) {
-        qDebug() << "No Openterface device plugged in";
         skipCheck = true;
     }
     bool serialPlugged = detectDevices(serialDevices);
     if (!serialPlugged) {
-        qDebug() << "No serial device plugged in";
     }else{
-        qDebug() << "Serial device plugged in";
     }
 
     bool checkSerialPermission = checkPermissions(serialDevices, true);
     if (!checkSerialPermission) {
-        qDebug() << "Serial permission check failed.";
     } else {
-        qDebug() << "Serial permission check passed.";
     }
     
     checkBrlttyRunning(); // No need to return value here
     checkVideoPermission(); // Check video device permissions
     bool checkPermission = checkPermissions(openterfaceDevices, false);
-    qDebug() << "Check permission result: " << checkPermission;
     return (checkDriverInstalled() && checkSerialPermission && checkPermission && (latestFirmware == FirmwareResult::Latest) && !isBrlttyRunning) || skipCheck;
     #else
     return true;
@@ -812,7 +747,6 @@ bool EnvironmentSetupDialog::checkEnvironmentSetup() {
 
 bool EnvironmentSetupDialog::checkDriverInstalled() {
 #ifdef _WIN32 // Check if compiling on Windows
-    qDebug() << "Checking if devices are present...";
     const GUID GUID_DEVINTERFACE_USB_DEVICE = { 0xA5DCBF10, 0x6530, 0x11D2, {0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED} };
     HDEVINFO deviceInfoSet = SetupDiGetClassDevs(&GUID_DEVINTERFACE_USB_DEVICE, NULL, NULL, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
     if (deviceInfoSet == INVALID_HANDLE_VALUE) {
@@ -845,30 +779,22 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
 
     SetupDiDestroyDeviceInfoList(deviceInfoSet);
 
-    qDebug() << "checkDriverInstalled: captureCardFound=" << captureCardFound
-             << "ch340Found=" << ch340Found << "ch32Found=" << ch32Found;
-
     // CH32V208 (VID_1A86&PID_FE0C) uses its own driver, no CH340 driver needed
     if (ch32Found) {
-        qDebug() << "CH32V208 detected (PID_FE0C) - CH340 driver not required";
         isDriverInstalled = true;
         return true;
     }
 
     if (!captureCardFound && !ch340Found) {
-        qDebug() << "Neither device found - skipping driver check";
         return true;
     }
     if (captureCardFound && !ch340Found) {
-        qDebug() << "Capture card found but CH340 (PID_7523) missing - need CH340 driver";
         return false;
     }
-    qDebug() << "Devices properly detected";
     isDriverInstalled = true;
     return true;
 #elif defined(__linux__) // Check if compiling on Linux
     // Log the start of the driver check
-    qDebug() << "Checking if driver is installed on Linux.";
 
     // First, check if only CH32V208 (VID_1A86, PID_FE0C) is present — it does NOT need the CH340 driver.
     // CH32 uses a different driver (cdc_acm or ch34x), not ch341.
@@ -895,7 +821,6 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
         }
         // If CH32 is present but CH340 is not, skip the ch341 driver check entirely
         if (ch32Only && !ch340Present) {
-            qDebug() << "CH32V208 detected (1A86:FE0C) without CH340 (1A86:7523) — CH340 driver not required";
             isDriverInstalled = true;
             return true;
         }
@@ -905,17 +830,14 @@ bool EnvironmentSetupDialog::checkDriverInstalled() {
     std::string command = "cat /proc/modules | grep 'ch341'";
     int result = system(command.c_str());
     if (result == 0) {
-        qDebug() << "Driver installation status: Installed (found via cat /proc/modules)";
         isDriverInstalled = true;
         return true; // Driver found via /proc/modules
     }
 
-    qDebug() << "Driver installation status: Not Installed";
     isDriverInstalled = false;
     return false; // Driver not found
 #else
     // Implement logic for other platforms if needed
-    qDebug() << "Driver check not implemented for this platform.";
 
     return false; // Assume not installed for non-Windows and non-Linux platforms
 #endif
@@ -930,6 +852,5 @@ bool EnvironmentSetupDialog::autoEnvironmentCheck() {
     // Check the config file for the auto-check preference
     QSettings settings("Openterface", "EnvironmentSetup");
     bool autoCheck = settings.value("autoCheck", true).toBool();
-    qDebug() << "Auto-check preference: " << (autoCheck ? "enabled" : "disabled");
     return autoCheck;
 }

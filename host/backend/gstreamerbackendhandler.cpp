@@ -38,6 +38,7 @@
 #include <QResizeEvent>
 #include <QGraphicsView>
 #include <QFile>
+#include <QScopeGuard>
 #include <QDir>
 #include <QFileInfo>
 #include <QLoggingCategory>
@@ -61,8 +62,10 @@
 #include "gstreamer/externalgstrunner.h"
 #include "gstreamer/recordingmanager.h"
 
+#include "log/opflogging.h"
+
 // logging category for this translation unit
-Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
+OPF_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 
 // Small helper that maps common QEvent types to readable names used in debug logging
 static const char* qEventTypeName(QEvent::Type t)
@@ -125,7 +128,7 @@ GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
       m_recordingSink(nullptr), m_recordingQueue(nullptr), m_recordingEncoder(nullptr),
       m_recordingVideoConvert(nullptr), m_recordingMuxer(nullptr), m_recordingFileSink(nullptr),
       m_recordingAppSink(nullptr), m_recordingTeeSrcPad(nullptr), m_captureAppSink(nullptr), m_captureQueue(nullptr),
-      m_recordingManager(nullptr),
+      m_captureVideoConvert(nullptr), m_captureCapsFilter(nullptr), m_recordingManager(nullptr),
       m_videoWidget(nullptr), m_graphicsVideoItem(nullptr), m_videoPane(nullptr),
     m_healthCheckTimer(nullptr), m_gstProcess(nullptr), m_pipelineRunning(false), m_selectedSink(),
       m_overlaySetupPending(false), m_recordingActive(false), m_recordingPaused(false),
@@ -605,6 +608,9 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
                 m_frameCount.store(0, std::memory_order_relaxed);
                 attachFrameProbe();
                 if (m_healthCheckTimer && !m_healthCheckTimer->isActive()) m_healthCheckTimer->start(1000);
+                // Pre-initialize capture appsink for AI screen capture
+                // This avoids lazy initialization latency during first capture request
+                createCaptureAppSink();
                 return true;
             }
 
@@ -636,6 +642,8 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
     m_frameCount.store(0, std::memory_order_relaxed);
     attachFrameProbe();
     if (m_healthCheckTimer && !m_healthCheckTimer->isActive()) m_healthCheckTimer->start(1000);
+    // Pre-initialize capture appsink for AI screen capture
+    createCaptureAppSink();
     return true;
     }
 
@@ -1572,6 +1580,12 @@ void GStreamerBackendHandler::handleOverlayResizeRebuildTimeout()
         return;
     }
 
+    // Skip rebuild if screenshot capture is in progress
+    if (m_captureInProgress.load()) {
+        qCDebug(log_gstreamer_backend) << "Overlay resize rebuild skipped: capture in progress";
+        return;
+    }
+
     if (!m_videoPane || !m_videoPane->getOverlayWidget()) {
         qCDebug(log_gstreamer_backend) << "Overlay resize rebuild skipped: no overlay widget available";
         return;
@@ -2246,7 +2260,11 @@ void GStreamerBackendHandler::takeImage(const QString& filePath)
         qCWarning(log_gstreamer_backend) << "Pipeline is not running";
         return;
     }
-    
+
+    // Set capture protection flag to prevent pipeline rebuilds during capture
+    m_captureInProgress.store(true);
+    auto captureGuard = qScopeGuard([this]() { m_captureInProgress.store(false); });
+
     // Create capture appsink if it doesn't exist
     if (!m_captureAppSink) {
         if (!createCaptureAppSink()) {
@@ -2254,29 +2272,29 @@ void GStreamerBackendHandler::takeImage(const QString& filePath)
             return;
         }
     }
-    
+
     // Get the latest sample from the pipeline
     GstSample* sample = getLatestSampleFromPipeline();
     if (!sample) {
         qCWarning(log_gstreamer_backend) << "Failed to get sample from pipeline";
         return;
     }
-    
+
     // Convert GStreamer sample to QImage
     QImage image = gstSampleToQImage(sample);
     gst_sample_unref(sample);
-    
+
     if (image.isNull()) {
         qCWarning(log_gstreamer_backend) << "Failed to convert GStreamer sample to QImage";
         return;
     }
-    
+
     // Save the image to file as JPEG
     if (!image.save(filePath, "JPG", 85)) {
         qCWarning(log_gstreamer_backend) << "Failed to save image to" << filePath;
         return;
     }
-    
+
     qCDebug(log_gstreamer_backend) << "Image captured and saved to" << filePath;
 #else
     qCWarning(log_gstreamer_backend) << "GStreamer not compiled in";
@@ -2290,7 +2308,11 @@ void GStreamerBackendHandler::takeAreaImage(const QString& filePath, const QRect
         qCWarning(log_gstreamer_backend) << "Pipeline is not running";
         return;
     }
-    
+
+    // Set capture protection flag to prevent pipeline rebuilds during capture
+    m_captureInProgress.store(true);
+    auto captureGuard = qScopeGuard([this]() { m_captureInProgress.store(false); });
+
     // Create capture appsink if it doesn't exist
     if (!m_captureAppSink) {
         if (!createCaptureAppSink()) {
@@ -2298,39 +2320,85 @@ void GStreamerBackendHandler::takeAreaImage(const QString& filePath, const QRect
             return;
         }
     }
-    
+
     // Get the latest sample from the pipeline
     GstSample* sample = getLatestSampleFromPipeline();
     if (!sample) {
         qCWarning(log_gstreamer_backend) << "Failed to get sample from pipeline";
         return;
     }
-    
+
     // Convert GStreamer sample to QImage
     QImage fullImage = gstSampleToQImage(sample);
     gst_sample_unref(sample);
-    
+
     if (fullImage.isNull()) {
         qCWarning(log_gstreamer_backend) << "Failed to convert GStreamer sample to QImage";
         return;
     }
-    
+
     // Extract the specified area from the image
     QImage areaImage = fullImage.copy(captureArea);
     if (areaImage.isNull()) {
         qCWarning(log_gstreamer_backend) << "Failed to extract area from image";
         return;
     }
-    
+
     // Save the area image to file as JPEG
     if (!areaImage.save(filePath, "JPG", 85)) {
         qCWarning(log_gstreamer_backend) << "Failed to save area image to" << filePath;
         return;
     }
-    
+
     qCDebug(log_gstreamer_backend) << "Area image captured and saved to" << filePath;
 #else
     qCWarning(log_gstreamer_backend) << "GStreamer not compiled in";
+#endif
+}
+
+QImage GStreamerBackendHandler::getLatestOriginalFrame()
+{
+#ifdef HAVE_GSTREAMER
+    if (!m_pipeline || !m_pipelineRunning) {
+        qCDebug(log_gstreamer_backend) << "GStreamer getLatestOriginalFrame: pipeline not running";
+        return QImage();
+    }
+
+    // Set capture protection flag to prevent pipeline rebuilds during capture
+    m_captureInProgress.store(true);
+    auto captureGuard = qScopeGuard([this]() { m_captureInProgress.store(false); });
+
+    // Ensure capture appsink exists (lazy init, same as takeImage)
+    if (!m_captureAppSink) {
+        qCDebug(log_gstreamer_backend) << "GStreamer getLatestOriginalFrame: creating capture appsink (lazy init)";
+        if (!createCaptureAppSink()) {
+            qCWarning(log_gstreamer_backend) << "GStreamer getLatestOriginalFrame: failed to create capture appsink";
+            return QImage();
+        }
+    }
+
+    qint64 startTime = QDateTime::currentMSecsSinceEpoch();
+    GstSample* sample = getLatestSampleFromPipeline();
+    if (!sample) {
+        qCDebug(log_gstreamer_backend) << "GStreamer getLatestOriginalFrame: no sample from pipeline after"
+                                       << (QDateTime::currentMSecsSinceEpoch() - startTime) << "ms";
+        return QImage();
+    }
+
+    QImage image = gstSampleToQImage(sample);
+    gst_sample_unref(sample);
+    if (image.isNull()) {
+        qCWarning(log_gstreamer_backend) << "GStreamer getLatestOriginalFrame: failed to convert sample";
+        return QImage();
+    }
+
+    qint64 totalTime = QDateTime::currentMSecsSinceEpoch() - startTime;
+    qCDebug(log_gstreamer_backend) << "GStreamer getLatestOriginalFrame: captured"
+                                   << image.width() << "x" << image.height()
+                                   << "in" << totalTime << "ms";
+    return image;
+#else
+    return QImage();
 #endif
 }
 
@@ -2338,12 +2406,22 @@ void GStreamerBackendHandler::takeAreaImage(const QString& filePath, const QRect
 GstSample* GStreamerBackendHandler::getLatestSampleFromPipeline()
 {
     if (!m_captureAppSink) {
+        qCDebug(log_gstreamer_backend) << "getLatestSampleFromPipeline: captureAppSink is null";
         return nullptr;
     }
-    
-    // Try to pull a sample with a short timeout (100ms) to avoid blocking
-    // Returns nullptr if no sample available instead of blocking indefinitely
-    GstSample* sample = gst_app_sink_try_pull_sample(GST_APP_SINK(m_captureAppSink), 100 * GST_MSECOND);
+
+    // Use a timeout that balances responsiveness with reliability.
+    // The capture runs on the main thread (via BlockingQueuedConnection from
+    // worker threads), so blocking too long stalls the GUI and video display.
+    // However, 50ms can be too short when the pipeline is under load or when
+    // the first sample needs to propagate through the capture branch.
+    // 150ms gives enough time for the pipeline to produce a frame at 30fps
+    // (33ms per frame) plus some headroom for initial buffer propagation,
+    // while still being short enough to keep the GUI responsive.
+    GstSample* sample = gst_app_sink_try_pull_sample(GST_APP_SINK(m_captureAppSink), 150 * GST_MSECOND);
+    if (!sample) {
+        qCWarning(log_gstreamer_backend) << "getLatestSampleFromPipeline: no sample after 150ms timeout";
+    }
     return sample; // Returns nullptr if no sample available or on error
 }
 
@@ -2376,7 +2454,10 @@ QImage GStreamerBackendHandler::gstSampleToQImage(GstSample* sample)
     QImage image;
     int width = videoInfo.width;
     int height = videoInfo.height;
-    
+
+    qCDebug(log_gstreamer_backend) << "gstSampleToQImage: format=" << GST_VIDEO_INFO_FORMAT(&videoInfo)
+                                    << "size=" << width << "x" << height;
+
     // Handle common video formats
     if (GST_VIDEO_INFO_FORMAT(&videoInfo) == GST_VIDEO_FORMAT_RGB) {
         image = QImage(mapInfo.data, width, height, QImage::Format_RGB888).copy();
@@ -2439,18 +2520,18 @@ bool GStreamerBackendHandler::createCaptureAppSink()
         qCWarning(log_gstreamer_backend) << "Pipeline not initialized";
         return false;
     }
-    
+
     if (m_captureAppSink) {
         return true; // Already created
     }
-    
+
     // Create the appsink element
     m_captureAppSink = gst_element_factory_make("appsink", "capture_appsink");
     if (!m_captureAppSink) {
         qCWarning(log_gstreamer_backend) << "Failed to create appsink element";
         return false;
     }
-    
+
     // Configure the appsink
     g_object_set(m_captureAppSink,
                  "emit-signals", FALSE,
@@ -2458,97 +2539,166 @@ bool GStreamerBackendHandler::createCaptureAppSink()
                  "drop", TRUE,
                  "sync", FALSE,
                  NULL);
-    
-    // Add to pipeline
-    gst_bin_add(GST_BIN(m_pipeline), m_captureAppSink);
-    
-    // Link appsink to the video stream via tee element
-    // The tee splits the video pipeline into display and recording branches
+
+    // Get the tee element
     GstElement* tee = gst_bin_get_by_name(GST_BIN(m_pipeline), "t");
-    if (tee) {
-        // Create a queue for the capture branch
-        m_captureQueue = gst_element_factory_make("queue", "capture-queue");
-        if (!m_captureQueue) {
-            qCWarning(log_gstreamer_backend) << "Failed to create capture queue";
-            gst_bin_remove(GST_BIN(m_pipeline), m_captureAppSink);
-            gst_object_unref(m_captureAppSink);
-            gst_object_unref(tee);
-            m_captureAppSink = nullptr;
-            return false;
-        }
-        
-        // Configure the queue
-        g_object_set(m_captureQueue,
-                     "max-size-buffers", 2,
-                     "leaky", 2, // GST_QUEUE_LEAK_DOWNSTREAM
-                     NULL);
-        
-        gst_bin_add(GST_BIN(m_pipeline), m_captureQueue);
-        
-        // Link tee -> queue -> appsink
-        if (!gst_element_link(tee, m_captureQueue)) {
-            qCWarning(log_gstreamer_backend) << "Failed to link tee to capture queue";
-            gst_bin_remove(GST_BIN(m_pipeline), m_captureQueue);
-            gst_bin_remove(GST_BIN(m_pipeline), m_captureAppSink);
-            gst_object_unref(m_captureQueue);
-            gst_object_unref(tee);
-            gst_object_unref(m_captureAppSink);
-            m_captureQueue = nullptr;
-            m_captureAppSink = nullptr;
-            return false;
-        }
-        
-        if (!gst_element_link(m_captureQueue, m_captureAppSink)) {
-            qCWarning(log_gstreamer_backend) << "Failed to link capture queue to appsink";
-            gst_bin_remove(GST_BIN(m_pipeline), m_captureQueue);
-            gst_bin_remove(GST_BIN(m_pipeline), m_captureAppSink);
-            gst_object_unref(m_captureQueue);
-            gst_object_unref(tee);
-            gst_object_unref(m_captureAppSink);
-            m_captureQueue = nullptr;
-            m_captureAppSink = nullptr;
-            return false;
-        }
-        
-        // Sync state with parent (should transition to PLAYING if pipeline is playing)
-        gst_element_sync_state_with_parent(m_captureQueue);
-        gst_element_sync_state_with_parent(m_captureAppSink);
-        
-        gst_object_unref(tee);
-        qCDebug(log_gstreamer_backend) << "Capture appsink linked to tee -> queue -> appsink";
-    } else {
+    if (!tee) {
         qCWarning(log_gstreamer_backend) << "Could not find tee element in pipeline";
-        gst_bin_remove(GST_BIN(m_pipeline), m_captureAppSink);
         gst_object_unref(m_captureAppSink);
         m_captureAppSink = nullptr;
         return false;
     }
-    
-    qCDebug(log_gstreamer_backend) << "Capture appsink created and linked to pipeline";
+
+    // Create all elements before adding to pipeline
+    m_captureVideoConvert = gst_element_factory_make("videoconvert", "capture_videoconvert");
+    if (!m_captureVideoConvert) {
+        qCWarning(log_gstreamer_backend) << "Failed to create capture videoconvert";
+        gst_object_unref(m_captureAppSink);
+        gst_object_unref(tee);
+        m_captureAppSink = nullptr;
+        return false;
+    }
+
+    m_captureCapsFilter = gst_element_factory_make("capsfilter", "capture_capsfilter");
+    if (!m_captureCapsFilter) {
+        qCWarning(log_gstreamer_backend) << "Failed to create capture capsfilter";
+        gst_object_unref(m_captureVideoConvert);
+        gst_object_unref(m_captureAppSink);
+        gst_object_unref(tee);
+        m_captureVideoConvert = nullptr;
+        m_captureAppSink = nullptr;
+        return false;
+    }
+
+    // Set caps to force RGB format
+    GstCaps* caps = gst_caps_from_string("video/x-raw,format=RGB");
+    g_object_set(m_captureCapsFilter, "caps", caps, NULL);
+    gst_caps_unref(caps);
+
+    m_captureQueue = gst_element_factory_make("queue", "capture-queue");
+    if (!m_captureQueue) {
+        qCWarning(log_gstreamer_backend) << "Failed to create capture queue";
+        gst_object_unref(m_captureCapsFilter);
+        gst_object_unref(m_captureVideoConvert);
+        gst_object_unref(m_captureAppSink);
+        gst_object_unref(tee);
+        m_captureCapsFilter = nullptr;
+        m_captureVideoConvert = nullptr;
+        m_captureAppSink = nullptr;
+        return false;
+    }
+
+    // Configure the queue
+    g_object_set(m_captureQueue,
+                 "max-size-buffers", 2,
+                 "leaky", 2, // GST_QUEUE_LEAK_DOWNSTREAM
+                 NULL);
+
+    // Add all elements to pipeline
+    gst_bin_add(GST_BIN(m_pipeline), m_captureAppSink);
+    gst_bin_add(GST_BIN(m_pipeline), m_captureVideoConvert);
+    gst_bin_add(GST_BIN(m_pipeline), m_captureCapsFilter);
+    gst_bin_add(GST_BIN(m_pipeline), m_captureQueue);
+
+    // Link tee -> videoconvert -> capsfilter -> queue -> appsink
+    bool linkOk = true;
+    if (!gst_element_link(tee, m_captureVideoConvert)) {
+        qCWarning(log_gstreamer_backend) << "Failed to link tee to capture videoconvert";
+        linkOk = false;
+    } else if (!gst_element_link(m_captureVideoConvert, m_captureCapsFilter)) {
+        qCWarning(log_gstreamer_backend) << "Failed to link capture videoconvert to capsfilter";
+        linkOk = false;
+    } else if (!gst_element_link(m_captureCapsFilter, m_captureQueue)) {
+        qCWarning(log_gstreamer_backend) << "Failed to link capture capsfilter to queue";
+        linkOk = false;
+    } else if (!gst_element_link(m_captureQueue, m_captureAppSink)) {
+        qCWarning(log_gstreamer_backend) << "Failed to link capture queue to appsink";
+        linkOk = false;
+    }
+
+    if (!linkOk) {
+        gst_object_unref(tee);
+        destroyCaptureAppSink();
+        return false;
+    }
+
+    // Sync state with parent
+    gst_element_sync_state_with_parent(m_captureVideoConvert);
+    gst_element_sync_state_with_parent(m_captureCapsFilter);
+    gst_element_sync_state_with_parent(m_captureQueue);
+    gst_element_sync_state_with_parent(m_captureAppSink);
+
+    gst_object_unref(tee);
+    qCDebug(log_gstreamer_backend) << "Capture appsink linked: tee -> videoconvert -> capsfilter -> queue -> appsink";
     return true;
 }
 
 void GStreamerBackendHandler::destroyCaptureAppSink()
 {
+    // IMPORTANT: Pipeline must be stopped before removing capture elements.
+    // Removing elements from a PLAYING pipeline can cause refcounting issues
+    // and crashes. If the pipeline is still running, just clear our pointers
+    // and let the pipeline cleanup handle the elements.
     if (m_pipeline && GST_IS_BIN(m_pipeline)) {
+        // Check if pipeline is still running — if so, skip element removal
+        // to avoid race conditions with the streaming thread.
+        GstState state, pending;
+        GstStateChangeReturn ret = gst_element_get_state(m_pipeline, &state, &pending, 0);
+        bool pipelineRunning = (ret != GST_STATE_CHANGE_FAILURE)
+                            && (state == GST_STATE_PLAYING || state == GST_STATE_PAUSED);
+
+        if (pipelineRunning) {
+            qCDebug(log_gstreamer_backend) << "destroyCaptureAppSink: pipeline still running,"
+                                            << "deferring element cleanup to pipeline stop";
+            // Just clear pointers — elements will be destroyed with the pipeline
+            m_captureCapsFilter = nullptr;
+            m_captureVideoConvert = nullptr;
+            m_captureQueue = nullptr;
+            m_captureAppSink = nullptr;
+            return;
+        }
+
+        if (m_captureCapsFilter) {
+            gst_bin_remove(GST_BIN(m_pipeline), m_captureCapsFilter);
+            gst_object_unref(m_captureCapsFilter);
+            m_captureCapsFilter = nullptr;
+        }
+
+        if (m_captureVideoConvert) {
+            gst_bin_remove(GST_BIN(m_pipeline), m_captureVideoConvert);
+            gst_object_unref(m_captureVideoConvert);
+            m_captureVideoConvert = nullptr;
+        }
+
         if (m_captureQueue) {
             gst_bin_remove(GST_BIN(m_pipeline), m_captureQueue);
             gst_object_unref(m_captureQueue);
             m_captureQueue = nullptr;
         }
-        
+
         if (m_captureAppSink) {
             gst_bin_remove(GST_BIN(m_pipeline), m_captureAppSink);
             gst_object_unref(m_captureAppSink);
             m_captureAppSink = nullptr;
         }
     } else {
-        // Fallback cleanup if pipeline is gone
+        // Fallback cleanup if pipeline is gone — only unref if we own the reference.
+        // Elements owned by a (now-destroyed) pipeline don't need explicit unref.
+        if (m_captureCapsFilter) {
+            gst_object_unref(m_captureCapsFilter);
+            m_captureCapsFilter = nullptr;
+        }
+
+        if (m_captureVideoConvert) {
+            gst_object_unref(m_captureVideoConvert);
+            m_captureVideoConvert = nullptr;
+        }
+
         if (m_captureQueue) {
             gst_object_unref(m_captureQueue);
             m_captureQueue = nullptr;
         }
-        
+
         if (m_captureAppSink) {
             gst_object_unref(m_captureAppSink);
             m_captureAppSink = nullptr;

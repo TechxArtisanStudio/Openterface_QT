@@ -7,6 +7,7 @@
 #include <devguid.h>
 #include <objbase.h>
 #include <hidclass.h>
+#include "log/opflogging.h"
 
 extern "C"
 {
@@ -17,7 +18,7 @@ extern "C"
 DEFINE_GUID(GUID_DEVINTERFACE_USB_DEVICE, 
     0xA5DCBF10, 0x6530, 0x11D2, 0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED);
 
-Q_LOGGING_CATEGORY(log_device_discoverer, "opf.host.windows.discoverer")
+OPF_LOGGING_CATEGORY(log_device_discoverer, "opf.host.windows.discoverer")
 
 BaseDeviceDiscoverer::BaseDeviceDiscoverer(std::shared_ptr<IDeviceEnumerator> enumerator, QObject* parent)
     : QObject(parent), m_enumerator(enumerator)

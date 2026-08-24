@@ -1,0 +1,152 @@
+name: Build Arch Linux Package
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'images/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packaging/archlinux/**'
+      - '.github/workflows/build-arch-package.yml'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'resources/version.h'
+  workflow_dispatch:
+
+jobs:
+  build-arch-package:
+    name: Build Arch Linux package
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Update system and install build tools
+        run: |
+          pacman -Syu --noconfirm \
+            base-devel \
+            git \
+            sudo
+
+      - name: Create non-root builder (makepkg refuses root)
+        run: |
+          useradd -m -G wheel builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(grep '#define APP_VERSION' resources/version.h | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Building openterfaceqt version: ${VERSION}"
+
+      - name: Install package dependencies
+        run: |
+          pacman -S --noconfirm --needed \
+            qt6-base \
+            qt6-declarative \
+            qt6-multimedia \
+            qt6-svg \
+            qt6-serialport \
+            qt6-wayland \
+            qt6-tools \
+            extra-cmake-modules \
+            ffmpeg \
+            gstreamer \
+            gst-plugins-base \
+            gst-plugins-good \
+            libpulse \
+            libxkbcommon \
+            libusb \
+            v4l-utils \
+            libjpeg-turbo \
+            zlib \
+            libglvnd \
+            wayland \
+            libxcb \
+            libx11
+
+      - name: Prepare build directory
+        run: |
+          BUILD_DIR=/home/builder/archpkg
+          SRC_DIR="${BUILD_DIR}/openterfaceqt-${{ steps.version.outputs.version }}"
+
+          sudo -u builder mkdir -p "${BUILD_DIR}"
+
+          # Create source tarball from the current checkout
+          # (--transform strips leading ./ and prefixes with pkgname-pkgver)
+          tar czf "${BUILD_DIR}/openterfaceqt-${{ steps.version.outputs.version }}.tar.gz" \
+            --transform "s,^\.,openterfaceqt-${{ steps.version.outputs.version }}," \
+            --exclude='.git' \
+            --exclude='./build' \
+            --exclude='*.pkg.tar.*' \
+            --exclude='pkgroot' \
+            --exclude='rpmbuild*' \
+            .
+
+          # Copy packaging files
+          cp packaging/archlinux/PKGBUILD "${BUILD_DIR}/"
+          cp packaging/archlinux/openterfaceqt-udev.rules "${BUILD_DIR}/"
+          cp packaging/archlinux/openterfaceqt.install "${BUILD_DIR}/"
+
+          # Update pkgver in PKGBUILD to match current source
+          sudo sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.version }}/" "${BUILD_DIR}/PKGBUILD"
+
+          # Give builder ownership
+          chown -R builder:builder "${BUILD_DIR}"
+
+      - name: Build package with makepkg
+        run: |
+          cd /home/builder/archpkg
+          sudo -u builder makepkg -s --noconfirm --skipchecksums
+
+      - name: Validate package with namcap
+        if: always()
+        run: |
+          pacman -S --noconfirm namcap
+          cd /home/builder/archpkg
+          # namcap is advisory — don't fail the build on warnings
+          sudo -u builder namcap PKGBUILD || true
+          for pkg in *.pkg.tar.zst; do
+            sudo -u builder namcap "$pkg" || true
+          done
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openterfaceqt-archlinux-${{ steps.version.outputs.version }}
+          path: /home/builder/archpkg/*.pkg.tar.zst
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload debug package (if built)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: openterfaceqt-archlinux-debug-${{ steps.version.outputs.version }}
+          path: /home/builder/archpkg/*-debug-*.pkg.tar.zst
+          if-no-files-found: ignore
+          retention-days: 7
+
+  summary:
+    name: Build summary
+    runs-on: ubuntu-latest
+    needs: build-arch-package
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "## Arch Linux Package Build" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ needs.build-arch-package.result }}" = "success" ]; then
+            echo "✅ Package built successfully" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "❌ Package build failed" >> "$GITHUB_STEP_SUMMARY"
+          fi

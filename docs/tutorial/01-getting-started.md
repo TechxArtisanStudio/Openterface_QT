@@ -27,7 +27,7 @@ Preferred installation method: download the suitable package for your OS/archite
 
 https://github.com/TechxArtisanStudio/Openterface_QT/releases
 
-Choose the appropriate asset (AppImage, .deb, .rpm, .tar.gz, or Windows `.exe`) and follow the platform steps below.
+Choose the appropriate asset (AppImage, .deb, .rpm, .pkg.tar.zst, .tar.gz, or Windows `.exe`) and follow the platform steps below.
 
 **Linux (AppImage / .deb / .tar.gz):**
 
@@ -49,10 +49,13 @@ sudo apt-get install -f   # fix missing deps if needed
 
 **Windows (Installer or Portable):**
 
+- **x64 (Intel / AMD):**
+  - Installer (.exe): Download `openterfaceQT_windows_amd64_installer.exe` from the Releases page, run it, and follow the prompts. The installer bundles any required drivers and creates Start Menu entries.
+  - Portable (exe): Download `openterfaceQT_windows_amd64_portable.exe` from the Releases Assets. Run the portable executable directly or extract it and run the contained `openterfaceQT.exe`. Portable builds do not modify the system and can be run from USB drives.
 
-- Installer (.exe): Download `openterfaceQT_windows_amd64_installer.exe` from the Releases page, run it, and follow the prompts. The installer bundles any required drivers and creates Start Menu entries.
-
-- Portable (exe): Download `openterfaceQT_windows_amd64_portable.exe` from the Releases Assets. Run the portable executable directly or extract it and run the contained `openterfaceQT.exe`. Portable builds do not modify the system and can be run from USB drives.
+- **ARM64 (Windows 11 on ARM — Snapdragon, Surface Pro X, etc.):**
+  - Pre-built ARM64 binaries (installer + portable `.exe`) are produced by the [Windows ARM64 Build](https://github.com/TechxArtisanStudio/Openterface_QT/actions/workflows/windows-arm64-build.yaml) CI workflow. Open a recent run on the Actions tab and download the `openterfaceQT_windows_arm64_portable` or `openterfaceQT_windows_arm64_installer` artifact.
+  - To build locally instead, see [BUILD.md — Using MSYS2 (Windows ARM64)](../BUILD.md#using-msys2-windows-arm64).
 
 Notes:
 - Portable builds may require the Microsoft Visual C++ Redistributable; if the app fails to start, install the redistributable from Microsoft's website.
@@ -80,6 +83,7 @@ make -j$(nproc)
 | Nix | Use the `flake.nix` in the repository root |
 | Debian/Ubuntu | Download `.deb` from releases, `sudo dpkg -i openterfaceQT.deb` |
 | Fedora/RHEL | Download `.rpm` from releases, `sudo dnf install ./openterfaceQT.rpm` |
+| Arch Linux | Download `.pkg.tar.zst` from releases, `sudo pacman -U openterfaceqt-*.pkg.tar.zst` |
 
 ---
 
@@ -110,7 +114,7 @@ make -j$(nproc)
 
 Once connected, the Mini-KVM enumerates as multiple USB devices:
 - **Video capture device** (MS2109/MS2109S/MS2130S chip) — appears as a webcam to the OS
-- **Serial device** (CH340/CH9329 or CH32V208 chip) — appears as `/dev/ttyUSB*` on Linux or `COM*` on Windows
+- **Serial device** (CH340/CH9329 or CH32V208 chip) — appears as `/dev/ttyUSB*` (CH9329) or `/dev/ttyACM*` (CH32V208) on Linux, `COM*` on Windows
 - **HID device** — used for firmware operations and register access
 
 ---

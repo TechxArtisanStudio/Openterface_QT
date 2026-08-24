@@ -61,7 +61,6 @@
 #include <QCloseEvent>
 #include <QByteArray>
 
-
 SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::SettingDialog)
@@ -77,12 +76,14 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     , controlChipFirmwarePage(new ControlChipFirmwarePage(this))
     , edidConfigPage(new EdidConfigPage(this))
     , virtualKeyboardPage(new VirtualKeyboardPage(this))
+    , chatSettingsPage(new ChatSettingsPage(this))
     , m_currentPageIndex(-1)
 
 {
     // Initialize the list of settings pages for dirty-checking
     m_pages << logPage << videoPage << qobject_cast<PreferencePageBase*>(audioPage)
-            << targetControlPage << mcpPage;
+            << targetControlPage << mcpPage
+            << qobject_cast<PreferencePageBase*>(chatSettingsPage);
 
     ui->setupUi(this);
     createSettingTree();
@@ -143,14 +144,14 @@ void SettingDialog::createSettingTree() {
         tr("Video Firmware"),       // 5
         tr("Control Chip Firmware"),// 6
         tr("EDID Configuration"),   // 7
-        tr("Virtual Keyboard")      // 8
+        tr("Virtual Keyboard"),     // 8
+        tr("AI Chat")              // 9
     };
     for (const QString &name : names) {     // add item to setting tree
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
     }
 }
-
 
 void SettingDialog::createPages() {
     // Wrap each page in a QScrollArea so content can scroll both vertically and horizontally
@@ -172,10 +173,10 @@ void SettingDialog::createPages() {
     addScrollablePage(controlChipFirmwarePage);
     addScrollablePage(edidConfigPage);
     addScrollablePage(virtualKeyboardPage);
+    addScrollablePage(chatSettingsPage);
 }
 
 void SettingDialog::createLayout() {
-    qDebug() << "createLayout";
     splitter = new QSplitter(Qt::Horizontal, this);
     splitter->addWidget(settingTree);
     splitter->addWidget(stackedWidget);
@@ -207,6 +208,7 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
     else if (itemText == tr("Control Chip Firmware")) newPageIndex = 6;
     else if (itemText == tr("EDID Configuration")) newPageIndex = 7;
     else if (itemText == tr("Virtual Keyboard")) newPageIndex = 8;
+    else if (itemText == tr("AI Chat")) newPageIndex = 9;
 
     // Only switch page if it is different from the current page
     if (newPageIndex != -1 && newPageIndex != m_currentPageIndex) {

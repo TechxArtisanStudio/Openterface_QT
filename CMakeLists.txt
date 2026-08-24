@@ -66,6 +66,29 @@ find_package(Qt6Required REQUIRED)
 # for Qt 6.5+ compatibility. See server/mcp/mcpSseTransport.h.
 find_package(Qt6 REQUIRED COMPONENTS Network OpenGL OpenGLWidgets Xml Concurrent DBus)
 
+# Find Tesseract OCR (optional - for screen_to_markdown feature)
+find_package(PkgConfig QUIET)
+if(PKG_CONFIG_FOUND)
+    pkg_check_modules(TESSERACT tesseract)
+    pkg_check_modules(LEPTONICA lept)
+endif()
+
+if(TESSERACT_FOUND AND LEPTONICA_FOUND)
+    message(STATUS "Tesseract OCR found - enabling screen_to_markdown feature")
+    add_compile_definitions(HAVE_TESSERACT)
+else()
+    message(WARNING "Tesseract OCR not found - screen_to_markdown feature will be disabled. Install with: sudo dnf install tesseract-devel leptonica-devel")
+endif()
+
+# Find OpenCV (optional - for visual button detection in screen_to_markdown)
+find_package(OpenCV QUIET COMPONENTS core imgproc)
+if(OpenCV_FOUND)
+    message(STATUS "OpenCV found (${OpenCV_VERSION}) - enabling visual button detection")
+    add_compile_definitions(HAVE_OPENCV)
+else()
+    message(STATUS "OpenCV not found - visual button detection disabled. Install with: sudo dnf install opencv-devel")
+endif()
+
 find_package(Threads REQUIRED)
 
 # Use standardized Qt setup if available (Qt >= 6.3); otherwise emulate basics for Qt 6.2
@@ -156,6 +179,20 @@ else()
 endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Gui Qt6::Network Qt6::Multimedia Qt6::MultimediaWidgets Qt6::SerialPort Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Xml Qt6::Svg Qt6::SvgWidgets Qt6::Concurrent Qt6::DBus ${QT_HTTPSERVER_LIB} Threads::Threads)
+
+# Link Tesseract OCR libraries if found
+if(TESSERACT_FOUND AND LEPTONICA_FOUND)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${TESSERACT_INCLUDE_DIRS} ${LEPTONICA_INCLUDE_DIRS})
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${TESSERACT_LIBRARIES} ${LEPTONICA_LIBRARIES})
+    message(STATUS "Linking Tesseract OCR libraries")
+endif()
+
+# Link OpenCV libraries if found
+if(OpenCV_FOUND)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${OpenCV_LIBRARIES})
+    message(STATUS "Linking OpenCV libraries (${OpenCV_LIBRARIES})")
+endif()
 
 # Link Windows HID and SetupAPI libraries
 if(WIN32)
@@ -409,6 +446,15 @@ add_custom_command(TARGET openterfaceQT POST_BUILD
         "$<TARGET_FILE_DIR:openterfaceQT>/openterfaceQT-launcher.sh"
     COMMENT "Copying local launcher to build directory"
 )
+
+# =============================================================================
+# Testing (opt-in via -DBUILD_TESTING=ON)
+# =============================================================================
+option(BUILD_TESTING "Build the QtTest test suite" OFF)
+if(BUILD_TESTING)
+    message(STATUS "Testing enabled — building MCP test suite")
+    add_subdirectory(tests/mcp)
+endif()
 
 # Qt components already found above
 # =============================================================================

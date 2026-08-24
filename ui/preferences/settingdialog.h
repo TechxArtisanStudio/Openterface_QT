@@ -52,6 +52,7 @@
 #include <QList>
 #include <QStringList>
 #include "../customkey/virtualkeyboardpage.h"
+#include "../chat/ChatSettingsPage.h"
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
 class QComboBox;
@@ -98,6 +99,7 @@ private:
     ControlChipFirmwarePage *controlChipFirmwarePage;
     EdidConfigPage *edidConfigPage;
     VirtualKeyboardPage *virtualKeyboardPage;
+    ChatSettingsPage *chatSettingsPage;
 
     QSplitter *splitter;
     int m_currentPageIndex;

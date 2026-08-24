@@ -119,6 +119,38 @@ void ControlChipFirmwarePage::setupUi()
     m_disconnectBtn = new QPushButton(tr("Disconnect"), deviceGroup);
     m_connectBtn->setEnabled(false);
     m_disconnectBtn->setEnabled(false);
+
+    // Style disabled buttons to be more visible
+    QString disabledBtnStyle = R"(
+        QPushButton:disabled {
+            background-color: #f0f0f0;
+            color: #666666;
+            border: 1px solid #cccccc;
+            border-radius: 4px;
+            padding: 5px 15px;
+        }
+        QPushButton {
+            background-color: #ffffff;
+            color: #333333;
+            border: 1px solid #bbbbbb;
+            border-radius: 4px;
+            padding: 5px 15px;
+        }
+        QPushButton:hover {
+            background-color: #e8e8e8;
+            border: 1px solid #999999;
+        }
+        QPushButton:pressed {
+            background-color: #d0d0d0;
+        }
+    )";
+    m_connectBtn->setStyleSheet(disabledBtnStyle);
+    m_disconnectBtn->setStyleSheet(disabledBtnStyle);
+
+    // Add tooltip to guide users
+    m_connectBtn->setToolTip(tr("Click 'Scan Devices' first to find available WCH devices"));
+    m_disconnectBtn->setToolTip(tr("Connect to a device first before disconnecting"));
+
     connectRow->addWidget(m_connectBtn);
     connectRow->addWidget(m_disconnectBtn);
     connectRow->addStretch();
@@ -153,6 +185,34 @@ void ControlChipFirmwarePage::setupUi()
     QFont flashFont = m_flashBtn->font();
     flashFont.setBold(true);
     m_flashBtn->setFont(flashFont);
+
+    // Style Flash button for better visibility when disabled
+    QString flashBtnStyle = R"(
+        QPushButton:disabled {
+            background-color: #f0f0f0;
+            color: #666666;
+            border: 2px solid #cccccc;
+            border-radius: 4px;
+            padding: 8px 20px;
+            font-weight: bold;
+        }
+        QPushButton {
+            background-color: #4CAF50;
+            color: white;
+            border: 2px solid #45a049;
+            border-radius: 4px;
+            padding: 8px 20px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #45a049;
+        }
+        QPushButton:pressed {
+            background-color: #3d8b40;
+        }
+    )";
+    m_flashBtn->setStyleSheet(flashBtnStyle);
+    m_flashBtn->setToolTip(tr("Connect to a device and select firmware file first"));
 
     // ---- Progress bar ----
     m_progressBar = new QProgressBar(this);
@@ -200,7 +260,67 @@ void ControlChipFirmwarePage::setConnectedState(bool connected)
 void ControlChipFirmwarePage::updateFlashButton()
 {
     // Keep as a private helper; called whenever state changes
-    m_flashBtn->setEnabled(m_connected && !m_firmwarePath.isEmpty() && !m_busy);
+    bool canFlash = m_connected && !m_firmwarePath.isEmpty() && !m_busy;
+    m_flashBtn->setEnabled(canFlash);
+
+    // Update button style based on connection state
+    if (canFlash) {
+        // Orange theme when connected and ready to flash
+        QString flashBtnStyle = R"(
+            QPushButton:disabled {
+                background-color: #f0f0f0;
+                color: #666666;
+                border: 2px solid #cccccc;
+                border-radius: 4px;
+                padding: 8px 20px;
+                font-weight: bold;
+            }
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                border: 2px solid #F57C00;
+                border-radius: 4px;
+                padding: 8px 20px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+            QPushButton:pressed {
+                background-color: #E65100;
+            }
+        )";
+        m_flashBtn->setStyleSheet(flashBtnStyle);
+        m_flashBtn->setToolTip(tr("Click to flash firmware to the connected device"));
+    } else {
+        // Default disabled style
+        QString flashBtnStyle = R"(
+            QPushButton:disabled {
+                background-color: #f0f0f0;
+                color: #666666;
+                border: 2px solid #cccccc;
+                border-radius: 4px;
+                padding: 8px 20px;
+                font-weight: bold;
+            }
+            QPushButton {
+                background-color: #f0f0f0;
+                color: #666666;
+                border: 2px solid #cccccc;
+                border-radius: 4px;
+                padding: 8px 20px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #e8e8e8;
+            }
+            QPushButton:pressed {
+                background-color: #d0d0d0;
+            }
+        )";
+        m_flashBtn->setStyleSheet(flashBtnStyle);
+        m_flashBtn->setToolTip(tr("Connect to a device and select firmware file first"));
+    }
 }
 
 // ---------------------------------------------------------------------------

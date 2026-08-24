@@ -63,6 +63,8 @@ RUN echo "deb http://ports.ubuntu.com/ubuntu-ports jammy main restricted univers
         libxv-dev \
         # bzip2 dev (required by FFmpeg static linking)
         libbz2-dev \
+        # PCRE2 (required by Qt6 Core at runtime - libpcre2-16)
+        libpcre2-dev \
         # RPM build tools (required by docker-build-rpm.sh)
         rpm \
         # Patchelf (required by docker-build-rpm.sh to set RPATH)

@@ -39,7 +39,9 @@ This guide provides detailed instructions for building Openterface QT from sourc
 
 ### Using MSYS2 (Windows ARM64)
 
-The project includes CI workflows that build a fully static ARM64 executable using MSYS2's **CLANGARM64** environment.
+> **Most users on Windows 11 ARM do not need to build from source.** Pre-built ARM64 binaries (installer + portable `.exe`) are produced by the [Windows ARM64 Build](https://github.com/TechxArtisanStudio/Openterface_QT/actions/workflows/windows-arm64-build.yaml) workflow on every successful run — open a recent run on the Actions tab and download the `openterfaceQT_windows_arm64_portable` or `openterfaceQT_windows_arm64_installer` artifact from the summary.
+
+The sections below are for developers who want to modify the code or build locally. The project includes CI workflows that build a fully static ARM64 executable using MSYS2's **CLANGARM64** environment.
 
 **Prerequisites:**
 
@@ -94,6 +96,9 @@ For the full static build including Qt and FFmpeg from source, see the [ARM64 CI
 ---
 
 ## Linux
+
+> **⚠️ Minimum OS requirement: Ubuntu 22.04+, Debian 12+, Fedora 36+, or equivalent (glibc ≥ 2.32 + Qt6).**
+> Both pre-built binaries and building from source require Qt6, which is only available as a distro package on these or newer releases. **Ubuntu 20.04, Debian 11, and older are not supported** — upgrade your OS or run in a container/VM.
 
 ### Option 1: One-Liner Release Installer (Fastest) ⚡
 
@@ -185,6 +190,8 @@ If you prefer to build manually or need to customize the build process, follow t
 > - openSUSE: `/usr/lib64`
 
 #### Step 1: Install Dependencies
+
+> **⚠️ Qt6 is required and only available on recent distros.** The `qt6-*-dev` packages exist only in **Ubuntu 22.04+**, **Debian 12+**, **Fedora 36+** repos. On Ubuntu 20.04 or Debian 11, these packages **do not exist** and the build will fail. There is no shortcut — you must either upgrade your OS, use a container, or compile Qt6 from source (30+ min).
 
 Select the commands for your distribution:
 
@@ -302,6 +309,58 @@ sudo zypper install -y \
 
 </details>
 
+<details>
+<summary><strong>🏗️ Arch Linux (click to expand)</strong></summary>
+
+**Option A: Install the pre-built package (recommended)**
+
+```bash
+# Download from GitHub Releases, then:
+sudo pacman -U openterfaceqt-*.pkg.tar.zst
+```
+
+This installs the binary, udev rules, icons, desktop entry, and all runtime dependencies automatically.
+
+**Option B: Build from source**
+
+```bash
+# Install build dependencies
+sudo pacman -Syu \
+    base-devel \
+    cmake \
+    git \
+    qt6-base \
+    qt6-declarative \
+    qt6-multimedia \
+    qt6-svg \
+    qt6-serialport \
+    qt6-wayland \
+    qt6-tools \
+    extra-cmake-modules \
+    ffmpeg \
+    gstreamer \
+    gst-plugins-base \
+    gst-plugins-good \
+    libpulse \
+    libxkbcommon \
+    libusb \
+    v4l-utils \
+    libjpeg-turbo \
+    zlib \
+    libglvnd \
+    wayland \
+    libxcb \
+    libx11
+```
+
+> **Tip:** You can also use the PKGBUILD from `packaging/archlinux/` to build a proper Arch package:
+> ```bash
+> cd packaging/archlinux
+> makepkg -si
+> ```
+
+</details>
+
 #### Step 2: Configure User Permissions
 
 ```bash
@@ -316,6 +375,9 @@ echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+=
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
 SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"
 ' | sudo tee /etc/udev/rules.d/51-openterface.rules
 
 sudo udevadm control --reload-rules
@@ -377,6 +439,25 @@ cmake .. \
 ```
 
 > **Note:** On Fedora, FFmpeg headers are at `/usr/include/ffmpeg/` and libraries at `/usr/lib64/`. Use `-DFFMPEG_PREFIX=/usr` (not `/usr/lib64`) to correctly locate both.
+
+**For Arch Linux (x86_64/ARM64):**
+```bash
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_PREFIX_PATH=/usr \
+    -DOPENTERFACE_BUILD_STATIC=OFF \
+    -DBUILD_SHARED_LIBS=ON \
+    -DUSE_SHARED_FFMPEG=ON \
+    -DGSTREAMER_PREFIX=/usr \
+    -DENABLE_QT_DEPLOY=OFF
+```
+
+> **Note:** Arch Linux uses system libraries (not bundled). The key flags:
+> - `-DCMAKE_PREFIX_PATH=/usr` — find Qt6 in system paths
+> - `-DUSE_SHARED_FFMPEG=ON` — use system FFmpeg instead of bundled
+> - `-DENABLE_QT_DEPLOY=OFF` — prevent bundling Qt6 libraries (keeps package small)
+> - `-DGSTREAMER_PREFIX=/usr` — use system GStreamer
 
 **For ARM64 (Raspberry Pi, etc.):**
 ```bash
@@ -577,7 +658,7 @@ sudo apt remove brltty
 
 # Unplug and replug the Openterface device
 # Verify the serial port is now recognized:
-ls /dev/ttyUSB*
+ls /dev/ttyUSB* /dev/ttyACM*
 ```
 
 #### Permission Issues
@@ -654,6 +735,33 @@ If you get architecture errors (like "x86_64-binfmt-P" or "cannot execute binary
 1. Make sure you're building on the same architecture you plan to run on
 2. Clean the build directory: `rm -rf build && mkdir build`
 3. Re-run the build process
+
+### GLIBC Version Mismatch (pre-built binaries)
+
+If you installed a pre-built `.deb`, `.rpm`, or AppImage and see errors like:
+
+```
+/lib/aarch64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found
+/lib/aarch64-linux-gnu/libm.so.6: version `GLIBC_2.35' not found
+```
+
+This means your system's glibc is older than 2.32 (the minimum required by pre-built binaries). Check with:
+
+```bash
+ldd --version | head -1
+```
+
+**Solutions:**
+
+1. **Upgrade your OS** to Ubuntu 22.04+, Debian 12+, Fedora 36+, or equivalent (recommended).
+2. **Use a container or VM** running a newer distro.
+3. **Build Qt6 from source first**, then build OpenterfaceQT — Qt6 is not available as a package on older distros (e.g. Ubuntu 20.04 only has Qt5). This is time-consuming (30+ minutes for Qt6 alone).
+
+> **Important:** Building OpenterfaceQT from source also requires Qt6. If your distro doesn't have Qt6 in its repos (anything older than Ubuntu 22.04 / Debian 12 / Fedora 36), building from source **will not** bypass the glibc requirement — you still need a newer OS or to compile Qt6 yourself.
+
+> **Do not** attempt to upgrade glibc in place — it is a core system library and replacing it can break your OS.
+
+See [Runtime Dependencies](dependencies.md#system-requirements-glibc) for the full glibc compatibility table.
 
 ---
 

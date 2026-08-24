@@ -34,8 +34,9 @@
 #include <QJsonObject>
 #include <QFile>
 #include <unistd.h>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_server_mcp, "opf.server.mcp")
+OPF_LOGGING_CATEGORY(log_server_mcp, "opf.server.mcp")
 
 McpServer::McpServer(QObject *parent)
     : QObject(parent)
@@ -135,8 +136,10 @@ McpToolHandler* McpServer::toolHandler() const
 
 void McpServer::handleMessage(const QString& jsonLine, QIODevice* device)
 {
+    fprintf(stderr, "[DEBUG-MCP] handleMessage called with: %s\n", jsonLine.toUtf8().left(100).constData());
     McpProtocol::Request req;
     if (!McpProtocol::parseRequest(jsonLine.toUtf8(), req)) {
+        fprintf(stderr, "[DEBUG-MCP] Failed to parse request\n");
         // Invalid JSON — send a parse error (no id available)
         QJsonObject errResp = McpProtocol::buildError(
             QVariant(), JSONRPC_ERROR_PARSE_ERROR,
@@ -144,6 +147,8 @@ void McpServer::handleMessage(const QString& jsonLine, QIODevice* device)
         sendResponse(errResp, device);
         return;
     }
+    fprintf(stderr, "[DEBUG-MCP] Parsed request, method: %s, isNotification: %d\n",
+            req.method.toUtf8().constData(), req.isNotification);
 
     // Notifications have no id — no response needed
     if (req.isNotification) {
@@ -212,10 +217,26 @@ void McpServer::handleMessage(const QString& jsonLine, QIODevice* device)
 void McpServer::sendResponse(const QJsonObject& response, QIODevice* device)
 {
     QByteArray data = McpProtocol::serialize(response);
+    fprintf(stderr, "[DEBUG-MCP] sendResponse called, data size: %d\n", data.size());
 
     if (device == m_stdoutFile) {
-        // For stdio mode, use POSIX write() to stdout to avoid QFile pipe issues
-        ssize_t written = ::write(STDOUT_FILENO, data.constData(), data.size());
+        // For stdio mode, use the saved stdout file descriptor if available
+        // (stdout was redirected to stderr in main.cpp to prevent debug output interference)
+        int outputFd = STDOUT_FILENO;
+        QByteArray savedFdStr = qgetenv("OPENTERFACE_SAVED_STDOUT");
+        fprintf(stderr, "[DEBUG-MCP] Saved fd env: '%s'\n", savedFdStr.constData());
+        if (!savedFdStr.isEmpty()) {
+            bool ok;
+            int savedFd = savedFdStr.toInt(&ok);
+            if (ok && savedFd >= 0) {
+                outputFd = savedFd;
+            }
+        }
+        fprintf(stderr, "[DEBUG-MCP] Using fd: %d\n", outputFd);
+
+        // Use POSIX write() to the correct output fd
+        ssize_t written = ::write(outputFd, data.constData(), data.size());
+        fprintf(stderr, "[DEBUG-MCP] Wrote %zd bytes to fd %d\n", written, outputFd);
         if (written == -1) {
             qCWarning(log_server_mcp) << "Failed to write to stdout";
         }
@@ -239,6 +260,7 @@ void McpServer::sendResponse(const QJsonObject& response, QIODevice* device)
 
 bool McpServer::startStdio()
 {
+    fprintf(stderr, "[DEBUG-MCP] startStdio() called\n");
     if (m_stdioMode) {
         qCWarning(log_server_mcp) << "MCP stdio mode already active";
         return true;
@@ -246,6 +268,7 @@ bool McpServer::startStdio()
 
     // Create tool handler if not injected
     if (!m_toolHandler) {
+        fprintf(stderr, "[DEBUG-MCP] Creating tool handler\n");
         m_toolHandler = new McpToolHandler(this);
         m_ownsToolHandler = true;
         applyPendingDependencies();
@@ -259,6 +282,7 @@ bool McpServer::startStdio()
         m_stdinFile = nullptr;
         return false;
     }
+    fprintf(stderr, "[DEBUG-MCP] stdin opened\n");
 
     m_stdoutFile = new QFile(this);
     if (!m_stdoutFile->open(stdout, QIODevice::WriteOnly | QIODevice::Unbuffered)) {
@@ -278,6 +302,7 @@ bool McpServer::startStdio()
     m_stdinPollTimer->start(10);  // Poll every 10ms
 
     m_stdioMode = true;
+    fprintf(stderr, "[DEBUG-MCP] MCP stdio transport started successfully\n");
     qCInfo(log_server_mcp) << "MCP stdio transport started";
     emit started();
     emit stdioReady();
@@ -287,7 +312,9 @@ bool McpServer::startStdio()
 
 void McpServer::onStdinReadyRead()
 {
+    fprintf(stderr, "[DEBUG-MCP] onStdinReadyRead called\n");
     if (!m_stdinFile || !m_stdoutFile) {
+        fprintf(stderr, "[DEBUG-MCP] stdin or stdout file not open\n");
         return;
     }
 
@@ -295,6 +322,7 @@ void McpServer::onStdinReadyRead()
     // with Unbuffered mode (it checks an internal buffer that's always empty).
     char buffer[4096];
     ssize_t bytesRead = ::read(STDIN_FILENO, buffer, sizeof(buffer));
+    fprintf(stderr, "[DEBUG-MCP] Read %zd bytes from stdin\n", bytesRead);
 
     if (bytesRead > 0) {
         m_stdinBuffer.append(buffer, bytesRead);

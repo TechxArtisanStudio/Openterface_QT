@@ -1,0 +1,25 @@
+# openterfaceqt install scriptlet
+
+post_install() {
+    udevadm control --reload-rules
+    udevadm trigger
+    cat <<'EOF'
+
+  OpenterfaceQT has been installed.
+
+  To access the KVM device without root, add your user to the
+  'video' and 'uucp' groups, then log out and back in:
+
+    sudo usermod -a -G video,uucp $USER
+
+EOF
+}
+
+post_upgrade() {
+    udevadm control --reload-rules
+    udevadm trigger
+}
+
+post_remove() {
+    udevadm control --reload-rules
+}

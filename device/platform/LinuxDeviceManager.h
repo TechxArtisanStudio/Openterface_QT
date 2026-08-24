@@ -8,7 +8,9 @@
 #include <QVariantMap>
 #include <QFuture>
 #include <QFutureWatcher>
+#include <QMutex>
 #include <QtConcurrent>
+#include <atomic>
 
 #ifdef HAVE_LIBUDEV
 struct udev;
@@ -85,13 +87,14 @@ private:
 #endif
     
     // Cache management
+    mutable QMutex m_cacheMutex;  // Protects m_cachedDevices and m_lastCacheUpdate
     QList<DeviceInfo> m_cachedDevices;
     QDateTime m_lastCacheUpdate;
     static const int CACHE_TIMEOUT_MS = 5000; // 1 second cache
-    
+
     // Async discovery
     QFutureWatcher<QList<DeviceInfo>>* m_futureWatcher;
-    bool m_discoveryInProgress;
+    std::atomic<bool> m_discoveryInProgress{false};
 };
 
 #endif // LINUXDEVICEMANAGER_H

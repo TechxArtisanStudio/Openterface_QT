@@ -32,8 +32,9 @@
 #include <QFrame>
 #include <QLoggingCategory>
 #include <QPushButton>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_mcp_page, "opf.ui.mcp.page")
+OPF_LOGGING_CATEGORY(log_ui_mcp_page, "opf.ui.mcp.page")
 
 // ---- Presets for the SSE bind-address combo ----
 static const char *kBindPresetAny       = "0.0.0.0";
@@ -86,6 +87,20 @@ void McpPage::setupUI()
         tr("Stdio communicates via standard input/output (for local AI clients).\n"
            "SSE (Server-Sent Events) allows remote HTTP clients."));
     basicForm->addRow(tr("Transport Mode:"), m_transportCombo);
+
+    // Screen to Markdown feature
+    m_screenToMarkdownCheckBox = new QCheckBox(tr("Enable Screen to Markdown (OCR)"));
+    m_screenToMarkdownCheckBox->setToolTip(
+        tr("Enable the screen_to_markdown MCP tool which uses OCR to extract text\n"
+           "and UI elements from the target screen. This helps AI agents find buttons\n"
+           "and navigate interfaces without vision capabilities."));
+    basicForm->addRow(m_screenToMarkdownCheckBox);
+
+    // Status label showing Tesseract availability
+    m_screenToMarkdownStatusLabel = new QLabel();
+    m_screenToMarkdownStatusLabel->setStyleSheet(commentsFontSize + " QLabel { color: #666; }");
+    m_screenToMarkdownStatusLabel->setWordWrap(true);
+    basicForm->addRow(m_screenToMarkdownStatusLabel);
 
     mainLayout->addWidget(basicGroup);
 
@@ -234,6 +249,12 @@ void McpPage::initMcpSettings()
     // Show/hide SSE group based on transport mode
     m_sseGroup->setVisible(transportIdx == 1);
 
+    // Screen to Markdown feature
+    m_screenToMarkdownCheckBox->setChecked(s.getMcpScreenToMarkdown());
+
+    // Check Tesseract availability and update status label
+    updateTesseractStatus();
+
     // SSE
     m_ssePortSpin->setValue(s.getMcpSsePort());
 
@@ -275,6 +296,9 @@ void McpPage::applySettings()
 
     QString transport = m_transportCombo->currentData().toString();
     s.setMcpTransport(transport);
+
+    // Screen to Markdown feature
+    s.setMcpScreenToMarkdown(m_screenToMarkdownCheckBox->isChecked());
 
     s.setMcpSsePort(m_ssePortSpin->value());
 
@@ -330,10 +354,39 @@ void McpPage::onBindAddressPresetChanged(int index)
     }
 }
 
+void McpPage::updateTesseractStatus()
+{
+#ifdef HAVE_TESSERACT
+    m_screenToMarkdownStatusLabel->setText(
+        tr("✓ Tesseract OCR is available. Screen to Markdown feature is enabled."));
+    m_screenToMarkdownCheckBox->setEnabled(true);
+#else
+    QString installInstructions;
+#ifdef Q_OS_LINUX
+    installInstructions = tr(
+        "To enable this feature, install Tesseract OCR:\n"
+        "• Fedora/RHEL: sudo dnf install tesseract tesseract-devel leptonica-devel\n"
+        "• Ubuntu/Debian: sudo apt-get install tesseract-ocr libtesseract-dev libleptonica-dev\n"
+        "Then rebuild the application.");
+#elif defined(Q_OS_WIN)
+    installInstructions = tr(
+        "To enable this feature, install Tesseract OCR for Windows:\n"
+        "• Download from: https://github.com/UB-Mannheim/tesseract/wiki\n"
+        "• Install and add to PATH, then rebuild the application.");
+#else
+    installInstructions = tr("Install Tesseract OCR and rebuild the application to enable this feature.");
+#endif
+    m_screenToMarkdownStatusLabel->setText(installInstructions);
+    m_screenToMarkdownCheckBox->setEnabled(false);
+    m_screenToMarkdownCheckBox->setChecked(false);
+#endif
+}
+
 void McpPage::captureSnapshot()
 {
     m_snap_enableChecked = m_enableCheckBox->isChecked();
     m_snap_transportIndex = m_transportCombo->currentIndex();
+    m_snap_screenToMarkdownChecked = m_screenToMarkdownCheckBox->isChecked();
     m_snap_ssePort = m_ssePortSpin->value();
     m_snap_sseBindPresetIndex = m_sseBindPresetCombo->currentIndex();
     m_snap_sseBindCustom = m_sseBindCustomEdit->text();
@@ -349,6 +402,7 @@ void McpPage::revertToSnapshot()
 {
     m_enableCheckBox->setChecked(m_snap_enableChecked);
     m_transportCombo->setCurrentIndex(m_snap_transportIndex);
+    m_screenToMarkdownCheckBox->setChecked(m_snap_screenToMarkdownChecked);
     m_ssePortSpin->setValue(m_snap_ssePort);
     m_sseBindPresetCombo->setCurrentIndex(m_snap_sseBindPresetIndex);
     m_sseBindCustomEdit->setText(m_snap_sseBindCustom);

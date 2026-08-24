@@ -72,6 +72,7 @@ SOURCES += main.cpp \
     server/mcp/mcpProtocol.cpp \
     server/mcp/mcpToolHandler.cpp \
     server/mcp/mcpSseTransport.cpp \
+    server/mcp/screenAnalyzer.cpp \
     target/KeyboardLayouts.cpp \
     target/KeyboardManager.cpp \
     target/MouseManager.cpp \
@@ -150,7 +151,27 @@ SOURCES += main.cpp \
     ui/customkey/customkeymanager.cpp \
     ui/customkey/customkeydialog.cpp \
     ui/customkey/virtualkeyboardpage.cpp \
-    SysKeyBlocker/SystemKeyBlocker.cpp
+    SysKeyBlocker/SystemKeyBlocker.cpp \
+    log/logcategoryregistry.cpp \
+    ai/ChatAgentTypes.cpp \
+    ai/ChatApiClient.cpp \
+    ai/ChatConversationBuilder.cpp \
+    ai/ChatGuideMode.cpp \
+    ai/ChatInputRouter.cpp \
+    ai/ChatManager.cpp \
+    ai/ChatPersistence.cpp \
+    ai/ChatScreenCapture.cpp \
+    ai/ChatSkillManager.cpp \
+    ai/ChatToolExecution.cpp \
+    ai/ChatTracing.cpp \
+    ui/chat/ChatBubbleWidget.cpp \
+    ui/chat/ChatInputWidget.cpp \
+    ui/chat/ChatPlanCardWidget.cpp \
+    ui/chat/ChatSettingsPage.cpp \
+    ui/chat/ChatSkillBar.cpp \
+    ui/chat/ChatEmptyStateWidget.cpp \
+    ui/chat/ChatTraceDialog.cpp \
+    ui/chat/ChatWindow.cpp
 
 # Platform-specific backend handlers (exclude on Windows)
 !win32 {
@@ -237,6 +258,7 @@ HEADERS  += \
     server/mcp/mcpToolHandler.h \
     server/mcp/mcpConstants.h \
     server/mcp/mcpSseTransport.h \
+    server/mcp/screenAnalyzer.h \
     target/KeyboardLayouts.h \
     target/KeyboardManager.h \
     target/MouseManager.h \
@@ -317,7 +339,30 @@ HEADERS  += \
     ui/customkey/customkeymanager.h \
     ui/customkey/customkeydialog.h \
     ui/customkey/virtualkeyboardpage.h \
-    SysKeyBlocker/SystemKeyBlocker.h
+    SysKeyBlocker/SystemKeyBlocker.h \
+    log/logcategoryregistry.h \
+    log/opflogging.h \
+    ai/ChatAgentTypes.h \
+    ai/ChatApiClient.h \
+    ai/ChatConversationBuilder.h \
+    ai/ChatGuideMode.h \
+    ai/ChatInputRouter.h \
+    ai/ChatManager.h \
+    ai/ChatPersistence.h \
+    ai/ChatScreenCapture.h \
+    ai/ChatSkillManager.h \
+    ai/ChatToolExecution.h \
+    ai/ChatTracing.h \
+    ai/ChatTypes.h \
+    ui/chat/ChatBubbleWidget.h \
+    ui/chat/ChatInputWidget.h \
+    ui/chat/ChatPlanCardWidget.h \
+    ui/chat/ChatSettingsPage.h \
+    ui/chat/ChatSkillBar.h \
+    ui/chat/ChatEmptyStateWidget.h \
+    ui/chat/ChatTraceDialog.h \
+    ui/chat/ChatWindow.h \
+    ui/chat/QuickReplyWidget.h
 
 FORMS    += \
     ui/mainwindow.ui \
@@ -417,6 +462,33 @@ unix {
         DEFINES += HAVE_LIBUDEV HAVE_GSTREAMER HAVE_FFMPEG HAVE_LIBJPEG_TURBO HAVE_LIBUSB
         # Add VA-API libraries AFTER FFmpeg pkg-config libraries to ensure proper linking order
         LIBS += -lva -lva-drm -lva-x11
+
+        # Optional: Tesseract OCR for screen_to_markdown
+        TESSERACT_PKG = $$system(pkg-config --exists tesseract && echo yes)
+        equals(TESSERACT_PKG, yes) {
+            PKGCONFIG += tesseract lept
+            DEFINES += HAVE_TESSERACT
+            message("Tesseract OCR found - enabling screen_to_markdown feature")
+        } else {
+            message("Tesseract OCR not found - screen_to_markdown feature will be disabled")
+        }
+
+        # Optional: OpenCV for visual button detection in screen_to_markdown
+        OPENCV4_PKG = $$system(pkg-config --exists opencv4 && echo yes)
+        OPENCV_PKG = $$system(pkg-config --exists opencv && echo yes)
+        !isEmpty(OPENCV4_PKG) {
+            OPENCV_VERSION = $$system(pkg-config --modversion opencv4)
+            PKGCONFIG += opencv4
+            DEFINES += HAVE_OPENCV
+            message("OpenCV found ($$OPENCV_VERSION) - enabling visual button detection")
+        } else:!isEmpty(OPENCV_PKG) {
+            OPENCV_VERSION = $$system(pkg-config --modversion opencv)
+            PKGCONFIG += opencv4 opencv
+            DEFINES += HAVE_OPENCV
+            message("OpenCV found ($$OPENCV_VERSION) - enabling visual button detection")
+        } else {
+            message("OpenCV not found - visual button detection disabled. Install with: sudo dnf install opencv-devel")
+        }
     }
 
     RESOURCES += driver/linux/drivers.qrc

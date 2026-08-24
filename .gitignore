@@ -19,6 +19,12 @@ CmakeLists.txt.user
 debug.log
 build-script/libusb-build-temp/*
 .claude/*
+obj/*
+moc/*
+rcc/*
+ui_*
+
+
 # Docker image exports (very large)
 shared-qt-complete-arm-opt.tar*
 email_service/*
@@ -33,5 +39,4 @@ ui_*.h
 qrc_*.*
 
 # Soak test artifacts (logs, screenshots, reports)
-tests/soak_test_logs/
-tests/soak_test_screenshots/
+tests/soak_test_*s

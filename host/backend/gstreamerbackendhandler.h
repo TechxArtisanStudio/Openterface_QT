@@ -129,6 +129,7 @@ public:
     // Image capture methods
     void takeImage(const QString& filePath);
     void takeAreaImage(const QString& filePath, const QRect& captureArea);
+    QImage getLatestOriginalFrame();
     
     // Advanced recording methods
     bool isPipelineReady() const;
@@ -195,6 +196,8 @@ private:
     // Image capture pipeline elements
     GstElement* m_captureAppSink;    // For image capture from main pipeline
     GstElement* m_captureQueue;      // Queue for capture branch
+    GstElement* m_captureVideoConvert; // Videoconvert for capture branch (ensures RGB format)
+    GstElement* m_captureCapsFilter; // Capsfilter to force RGB format
     // Recording manager (encapsulates recording branch logic)
     class RecordingManager* m_recordingManager;
     
@@ -208,10 +211,13 @@ private:
 
     // Track all objects with installed event filters for cleanup during destruction
     QSet<QObject*> m_watchedObjects;
-    
+
     // Destruction state - signals to event filter to exit early
     std::atomic<bool> m_isDestructing{false};
-    
+
+    // Capture protection - prevents pipeline rebuilds during screenshot capture
+    std::atomic<bool> m_captureInProgress{false};
+
     // Pipeline state
     bool m_pipelineRunning;
     QString m_selectedSink; // textual name of the selected video sink element

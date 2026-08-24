@@ -33,6 +33,7 @@ class CameraManager;
 class ScriptRunner;
 class ScriptExecutor;
 class ASTNode;
+class ScreenAnalyzer;
 
 class McpToolHandler : public QObject {
     Q_OBJECT
@@ -59,6 +60,7 @@ private:
     CameraManager* m_cameraManager = nullptr;
     ScriptRunner* m_scriptRunner = nullptr;
     ScriptExecutor* m_scriptExecutor = nullptr;
+    ScreenAnalyzer* m_screenAnalyzer = nullptr;
 
     // --- Individual tool implementations ---
     QJsonObject toolMouseMoveAbsolute(const QJsonObject& args);
@@ -78,11 +80,13 @@ private:
     QJsonObject toolValidateScript(const QJsonObject& args);
     QJsonObject toolSystemStatus(const QJsonObject& args);
     QJsonObject toolUsbSwitch(const QJsonObject& args);
+    QJsonObject toolScreenToMarkdown(const QJsonObject& args);
+    QJsonObject toolFirmwareCheck(const QJsonObject& args);
+    QJsonObject toolFirmwareUpdate(const QJsonObject& args);
 
     // --- Helpers ---
     static QJsonObject textResult(const QString& text);
     static QJsonObject errorResult(const QString& message);
-    static QJsonObject imageResult(const QByteArray& base64Data, const QString& mimeType = "image/jpeg");
 
     static int parseMouseButton(const QString& button);
 };

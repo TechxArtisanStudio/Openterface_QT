@@ -22,8 +22,14 @@ Requires:       mesa-libGL
 # Audio support
 Requires:       pulseaudio-libs
 
-# Video capture support  
+# Video capture support
 Requires:       libv4l
+
+# Hardware acceleration (VA-API) - CRITICAL for video decoding
+# libva must be system library to avoid symbol conflicts with system libavutil
+Requires:       libva
+Requires:       libva-drm
+Requires:       libva-x11
 
 # Keyboard input (works for both Wayland and X11)
 # libxkbcommon is available on all Fedora versions
@@ -146,11 +152,10 @@ cp %{_sourcedir}/libusb*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || 
 cp %{_sourcedir}/libbz2*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 cp %{_sourcedir}/libz*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 
-# Hardware acceleration libraries
-cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libva.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libva-drm.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libva-x11.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+# Hardware acceleration libraries - use system libraries, do NOT bundle
+# libva is now a system dependency (see Requires: section above)
+# Bundling libva causes symbol incompatibilities with system libavutil (vaMapBuffer2)
+# cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 cp %{_sourcedir}/libvdpau.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 
 # GStreamer and multimedia libraries (from gstreamer subdirectory)
@@ -555,8 +560,8 @@ OPENGL_DEPS=(
 # App will fallback to Wayland if X11 is not available, so these are optional
 # User can install them manually for X11 support if needed
 
+# libva is now a REQUIRED system dependency (not bundled to avoid symbol conflicts)
 HWACCEL_DEPS=(
-    "libva"
     "libvdpau"
 )
 
@@ -811,16 +816,7 @@ if [ -d /usr/lib/openterfaceqt ]; then
         fi
     fi
     
-    # Hardware acceleration libraries (VA-API)
-    if ls /usr/lib/openterfaceqt/libva.so.* >/dev/null 2>&1; then
-        base_va=$(ls -1 /usr/lib/openterfaceqt/libva.so.* 2>/dev/null | head -1)
-        if [ -n "$base_va" ] && [ ! -L /usr/lib/openterfaceqt/libva.so.2 ]; then
-            ln -sf "$(basename "$base_va")" /usr/lib/openterfaceqt/libva.so.2 2>/dev/null || true
-            echo "  ✅ Created symlink: libva.so.2 -> $(basename "$base_va")"
-        fi
-    fi
-    
-    # Hardware acceleration libraries (VDPAU)
+    # Hardware acceleration libraries (VDPAU only - libva is now system dependency)
     if ls /usr/lib/openterfaceqt/libvdpau.so.* >/dev/null 2>&1; then
         base_vdpau=$(ls -1 /usr/lib/openterfaceqt/libvdpau.so.* 2>/dev/null | head -1)
         if [ -n "$base_vdpau" ] && [ ! -L /usr/lib/openterfaceqt/libvdpau.so.1 ]; then
@@ -828,24 +824,9 @@ if [ -d /usr/lib/openterfaceqt ]; then
             echo "  ✅ Created symlink: libvdpau.so.1 -> $(basename "$base_vdpau")"
         fi
     fi
-    
-    # VA-API X11 extension
-    if ls /usr/lib/openterfaceqt/libva-x11.so.* >/dev/null 2>&1; then
-        base_vax11=$(ls -1 /usr/lib/openterfaceqt/libva-x11.so.* 2>/dev/null | head -1)
-        if [ -n "$base_vax11" ] && [ ! -L /usr/lib/openterfaceqt/libva-x11.so.2 ]; then
-            ln -sf "$(basename "$base_vax11")" /usr/lib/openterfaceqt/libva-x11.so.2 2>/dev/null || true
-            echo "  ✅ Created symlink: libva-x11.so.2 -> $(basename "$base_vax11")"
-        fi
-    fi
-    
-    # VA-API DRM extension
-    if ls /usr/lib/openterfaceqt/libva-drm.so.* >/dev/null 2>&1; then
-        base_vadrm=$(ls -1 /usr/lib/openterfaceqt/libva-drm.so.* 2>/dev/null | head -1)
-        if [ -n "$base_vadrm" ] && [ ! -L /usr/lib/openterfaceqt/libva-drm.so.2 ]; then
-            ln -sf "$(basename "$base_vadrm")" /usr/lib/openterfaceqt/libva-drm.so.2 2>/dev/null || true
-            echo "  ✅ Created symlink: libva-drm.so.2 -> $(basename "$base_vadrm")"
-        fi
-    fi
+
+    # NOTE: libva is now a system dependency, not bundled
+    # This prevents symbol conflicts with system libavutil (vaMapBuffer2)
     
     # USB device access
     if ls /usr/lib/openterfaceqt/libusb-1.0.so.* >/dev/null 2>&1; then

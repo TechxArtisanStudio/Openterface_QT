@@ -20,13 +20,13 @@
 * ========================================================================== *
 */
 
-
 #include "globalsetting.h"
 #include "global.h"
 #include <QMutex>
 #include <QFile>
 #include <QDateTime>
 #include <QSettings>
+#include <QSet>
 
 GlobalSetting::GlobalSetting(QObject *parent)
     : QObject(parent),
@@ -60,29 +60,74 @@ void GlobalSetting::getFilterSettings(bool &Chipinfo, bool &keyboardPress, bool 
     HID = m_settings.value("filter/HID", true).toBool();
 }
 
-void GlobalSetting::setLogSettings(bool core, bool serial, bool ui, bool host, bool device, bool backend, bool script)
+void GlobalSetting::saveCategoryStates(const QMap<QString, QPair<bool, QString>>& states)
 {
-    m_settings.setValue("log/core", core);
-    m_settings.setValue("log/serial", serial);
-    m_settings.setValue("log/ui", ui);
-    m_settings.setValue("log/host", host);
-    m_settings.setValue("log/device", device);
-    m_settings.setValue("log/backend", backend);
-    m_settings.setValue("log/script", script);
+    for (auto it = states.constBegin(); it != states.constEnd(); ++it) {
+        const QString& category = it.key();
+        bool enabled = it.value().first;
+        QString level = it.value().second;
+        m_settings.setValue(QString("log/category/%1/enabled").arg(category), enabled);
+        m_settings.setValue(QString("log/category/%1/level").arg(category), level);
+    }
+}
+
+QMap<QString, QPair<bool, QString>> GlobalSetting::loadCategoryStates() const
+{
+    QMap<QString, QPair<bool, QString>> states;
+    // Find all unique category names from keys like "log/category/<cat>/enabled"
+    QSet<QString> categories;
+    for (const QString& key : m_settings.allKeys()) {
+        if (key.startsWith("log/category/") && key.endsWith("/enabled")) {
+            QString cat = key.mid(QString("log/category/").size(),
+                                  key.size() - QString("log/category/").size() - QString("/enabled").size());
+            categories.insert(cat);
+        }
+    }
+    for (const QString& category : categories) {
+        bool enabled = m_settings.value(QString("log/category/%1/enabled").arg(category), true).toBool();
+        QString level = m_settings.value(QString("log/category/%1/level").arg(category), "Info").toString();
+        states.insert(category, qMakePair(enabled, level));
+    }
+    return states;
+}
+
+void GlobalSetting::setAILogEnabled(bool enabled)
+{
+    m_settings.setValue("log/ai", enabled);
+}
+
+bool GlobalSetting::getAILogEnabled() const
+{
+    return m_settings.value("log/ai", false).toBool();
 }
 
 void GlobalSetting::loadLogSettings()
 {
-    QString logFilter = "";
-    logFilter += m_settings.value("log/core", false).toBool() ? "opf.core.*=true\n" : "opf.core.*=false\n";
-    logFilter += m_settings.value("log/ui", false).toBool() ? "opf.ui.*=true\n" : "opf.ui.*=false\n";
-    logFilter += m_settings.value("log/host", false).toBool() ? "opf.host.*=true\n" : "opf.host.*=false\n";
-    logFilter += m_settings.value("log/serial", false).toBool() ? "opf.core.serial=true\n" : "opf.core.serial=false\n";
-    logFilter += m_settings.value("log/device", false).toBool() ? "opf.device.*=true\n" : "opf.device.*=false\n";
-    logFilter += m_settings.value("log/backend", false).toBool() ? "opf.backend.*=true\n" : "opf.backend.*=false\n";
-    logFilter += m_settings.value("log/script", false).toBool() ? "opf.scripts.*=true\n" : "opf.scripts.*=false\n";
-    QLoggingCategory::setFilterRules(logFilter);
-    qDebug() << "Log filter rules set to:\n" << logFilter;
+    auto states = loadCategoryStates();
+    if (states.isEmpty()) {
+        return;
+    }
+
+    QStringList rules;
+    for (auto it = states.constBegin(); it != states.constEnd(); ++it) {
+        const QString& category = it.key();
+        bool enabled = it.value().first;
+        QString level = it.value().second;
+
+        if (!enabled) {
+            rules << QString("%1=false").arg(category);
+        } else {
+            QString levelLower = level.toLower().trimmed();
+            if (levelLower == "off") {
+                rules << QString("%1=false").arg(category);
+            } else {
+                rules << QString("%1.%2=true").arg(category, levelLower);
+            }
+        }
+    }
+    if (!rules.isEmpty()) {
+        QLoggingCategory::setFilterRules(rules.join('\n'));
+    }
 }
 
 void GlobalSetting::setLogStoreSettings(bool storeLog, QString logFilePath){
@@ -171,11 +216,9 @@ void GlobalSetting::setPID(QString pid){
     m_settings.setValue("serial/pid", pid);
 }
 
-
 void GlobalSetting::setSerialNumber(QString serialNumber){
     m_settings.setValue("serial/serialnumber", serialNumber);
 }
-
 
 void GlobalSetting::setUSBEnabelFlag(QString enableflag){
     m_settings.setValue("serial/enableflag", enableflag);
@@ -209,7 +252,6 @@ bool GlobalSetting::getHideKeyboardInput() const {
     return m_settings.value("keyboard/hideInput", false).toBool();
 }
 
-
 void GlobalSetting::setSystemKeyBlockerEnabled(bool enabled) {
     m_settings.setValue("keyboard/systemKeyBlocker", enabled);
 }
@@ -217,7 +259,6 @@ void GlobalSetting::setSystemKeyBlockerEnabled(bool enabled) {
 bool GlobalSetting::getSystemKeyBlockerEnabled() const {
     return m_settings.value("keyboard/systemKeyBlocker", false).toBool();
 }
-
 
 void GlobalSetting::setMouseAutoHideEnable(bool enable){
     m_settings.setValue("mouse/autoHide", enable);
@@ -301,7 +342,6 @@ bool GlobalSetting::getUpdateNeverRemind() const
 
 // Port chain management for Openterface devices
 void GlobalSetting::setOpenterfacePortChain(const QString& portChain) {
-    qDebug() << "Logging Openterface port chain:" << portChain;
     m_settings.setValue("openterface/portChain", portChain);
     m_settings.sync(); // Ensure immediate write to storage
 }
@@ -311,14 +351,12 @@ QString GlobalSetting::getOpenterfacePortChain() const {
 }
 
 void GlobalSetting::clearOpenterfacePortChain() {
-    qDebug() << "Clearing Openterface port chain";
     m_settings.remove("openterface/portChain");
     m_settings.sync();
 }
 
 // Serial port baudrate management
 void GlobalSetting::setSerialPortBaudrate(int baudrate) {
-    qDebug() << "Storing serial port baudrate:" << baudrate;
     m_settings.setValue("serial/baudrate", baudrate);
     m_settings.sync(); // Ensure immediate write to storage
 }
@@ -328,14 +366,12 @@ int GlobalSetting::getSerialPortBaudrate() const {
 }
 
 void GlobalSetting::clearSerialPortBaudrate() {
-    qDebug() << "Clearing stored serial port baudrate";
     m_settings.remove("serial/baudrate");
     m_settings.sync();
 }
 
 // ARM architecture baudrate performance prompt
 void GlobalSetting::setArmBaudratePromptDisabled(bool disabled) {
-    qDebug() << "Setting ARM baudrate prompt disabled:" << disabled;
     m_settings.setValue("serial/armBaudratePromptDisabled", disabled);
     m_settings.sync();
 }
@@ -345,7 +381,6 @@ bool GlobalSetting::getArmBaudratePromptDisabled() const {
 }
 
 void GlobalSetting::resetArmBaudratePrompt() {
-    qDebug() << "Resetting ARM baudrate prompt setting";
     m_settings.remove("serial/armBaudratePromptDisabled");
     m_settings.sync();
 }
@@ -356,14 +391,12 @@ void GlobalSetting::resetArmBaudratePrompt() {
 QByteArray GlobalSetting::convertStringToByteArray(QString str) {
     QStringList hexParts = str.split(" ", Qt::SkipEmptyParts);
 
-
     QString hexString = hexParts.join("");
     
     bool ok;
     int64_t value = hexString.toInt(&ok, 16);
     if (!ok) {
         // Handle the error, e.g., by returning an empty QByteArray or throwing an exception
-        qDebug() << str << "Error converting string";
         return QByteArray();
     }
 
@@ -670,4 +703,297 @@ void GlobalSetting::setMcpSseMaxSessions(int max) {
 
 int GlobalSetting::getMcpSseMaxSessions() const {
     return m_settings.value("mcp/sseMaxSessions", 16).toInt();
+}
+
+void GlobalSetting::setMcpScreenToMarkdown(bool enabled) {
+    m_settings.setValue("mcp/screenToMarkdown", enabled);
+}
+
+bool GlobalSetting::getMcpScreenToMarkdown() const {
+    return m_settings.value("mcp/screenToMarkdown", false).toBool();
+}
+
+// ============================================================================
+// AI Chat Settings
+// ============================================================================
+
+void GlobalSetting::setChatApiBaseURL(const QString &url) {
+    m_settings.setValue("chat/apiBaseURL", url);
+}
+
+QString GlobalSetting::getChatApiBaseURL() const {
+    return m_settings.value("chat/apiBaseURL", "https://api.openai.com/v1").toString();
+}
+
+void GlobalSetting::setChatApiKey(const QString &key) {
+    m_settings.setValue("chat/apiKey", key);
+}
+
+QString GlobalSetting::getChatApiKey() const {
+    // Also check environment variable as fallback
+    QString key = m_settings.value("chat/apiKey", "").toString();
+    if (key.isEmpty()) {
+        key = QString::fromUtf8(qgetenv("OPENAI_API_KEY"));
+    }
+    return key;
+}
+
+void GlobalSetting::setChatModel(const QString &model) {
+    m_settings.setValue("chat/model", model);
+}
+
+QString GlobalSetting::getChatModel() const {
+    return m_settings.value("chat/model", "gpt-4o-mini").toString();
+}
+
+void GlobalSetting::setChatTargetSystem(const QString &system) {
+    m_settings.setValue("chat/targetSystem", system);
+}
+
+QString GlobalSetting::getChatTargetSystem() const {
+    return m_settings.value("chat/targetSystem", "linux").toString();
+}
+
+void GlobalSetting::setChatAgentMaxIterations(int max) {
+    m_settings.setValue("chat/agentMaxIterations", qBound(1, max, 30));
+}
+
+int GlobalSetting::getChatAgentMaxIterations() const {
+    return qBound(1, m_settings.value("chat/agentMaxIterations", 10).toInt(), 30);
+}
+
+void GlobalSetting::setChatAgenticModeEnabled(bool enabled) {
+    m_settings.setValue("chat/agenticMode", enabled);
+}
+
+bool GlobalSetting::getChatAgenticModeEnabled() const {
+    return m_settings.value("chat/agenticMode", false).toBool();
+}
+
+void GlobalSetting::setChatPlannerModeEnabled(bool enabled) {
+    m_settings.setValue("chat/plannerMode", enabled);
+}
+
+bool GlobalSetting::getChatPlannerModeEnabled() const {
+    return m_settings.value("chat/plannerMode", false).toBool();
+}
+
+void GlobalSetting::setChatGuideModeEnabled(bool enabled) {
+    m_settings.setValue("chat/guideMode", enabled);
+}
+
+bool GlobalSetting::getChatGuideModeEnabled() const {
+    return m_settings.value("chat/guideMode", false).toBool();
+}
+
+void GlobalSetting::setChatSystemPrompt(const QString &prompt) {
+    m_settings.setValue("chat/systemPrompt", prompt);
+}
+
+QString GlobalSetting::getChatSystemPrompt() const {
+    return m_settings.value("chat/systemPrompt",
+        "You are Openterface Assistant, an on-device KVM copilot.\n\n"
+        "Capabilities:\n"
+        "- You can analyze the latest shared screen image from the target computer.\n"
+        "- You can suggest keyboard and mouse actions for the user to execute through Openterface.\n\n"
+        "Operating style:\n"
+        "- Be concise, practical, and step-by-step.\n"
+        "- Prefer short action plans with checkpoints.\n"
+        "- If screen details are unclear, ask for a fresh screenshot or zoomed area.\n"
+        "- State assumptions explicitly when uncertain.\n\n"
+        "Control guidance:\n"
+        "- Provide exact key names and mouse actions (click, double-click, right-click, drag).\n"
+        "- For text entry, provide the exact text to type.\n"
+        "- For risky actions (delete, reset, install, security changes), ask for confirmation first.\n\n"
+        "Safety and scope:\n"
+        "- Do not invent screen content you cannot see.\n"
+        "- Do not claim actions were executed; only provide guidance.\n"
+        "- Prioritize non-destructive troubleshooting before invasive changes.\n"
+        "- Protect privacy: avoid requesting secrets unless absolutely required.\n"
+    ).toString();
+}
+
+void GlobalSetting::setChatPlannerPrompt(const QString &prompt) {
+    m_settings.setValue("chat/plannerPrompt", prompt);
+}
+
+QString GlobalSetting::getChatPlannerPrompt() const {
+    return m_settings.value("chat/plannerPrompt",
+        "You are the Openterface Main Agent.\n\n"
+        "Your job is to understand the user's intent, inspect the current target screen when available, "
+        "and produce a structured execution plan before any task runs.\n\n"
+        "Rules:\n"
+        "- Return ONLY JSON.\n"
+        "- Build a short, concrete plan that can be reviewed by the user.\n"
+        "- Keep tasks simple and independent.\n"
+        "- Available task agents/tools:\n"
+        "    - screen + capture_screen (AI vision analysis - sends image to AI model)\n"
+        "    - screen + screen_to_markdown (OCR - extracts text using Tesseract, no vision needed)\n"
+        "    - typing + type_text\n"
+        "    - mouse + move_mouse\n"
+        "    - mouse + left_click\n"
+        "    - mouse + right_click\n"
+        "    - mouse + double_click\n"
+        "- Use capture_screen when the AI model supports vision and you need visual understanding.\n"
+        "- Use screen_to_markdown when you need text extraction without vision, or when vision is unavailable.\n"
+        "- Use typing tasks when the user intent requires entering text or keystrokes on target.\n"
+        "- Use mouse tasks when the user intent requires cursor movement or clicks on target.\n"
+        "- Do not execute tasks yourself.\n"
+        "- Do not invent screen details that are not visible.\n\n"
+        "Schema:\n"
+        "{\n"
+        "    \"summary\": \"one short sentence about the plan\",\n"
+        "    \"tasks\": [\n"
+        "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"screen\", \"tool\": \"capture_screen\"},\n"
+        "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"screen\", \"tool\": \"screen_to_markdown\"},\n"
+        "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"typing\", \"tool\": \"type_text\"},\n"
+        "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"mouse\", \"tool\": \"left_click\"}\n"
+        "    ]\n"
+        "}\n"
+    ).toString();
+}
+
+void GlobalSetting::setChatScreenTaskPrompt(const QString &prompt) {
+    m_settings.setValue("chat/screenTaskPrompt", prompt);
+}
+
+QString GlobalSetting::getChatScreenTaskPrompt() const {
+    return m_settings.value("chat/screenTaskPrompt",
+        "You are the Openterface Screen Task Agent.\n\n"
+        "You are responsible for exactly one task and may rely on the latest target screen image as your only tool context.\n\n"
+        "Rules:\n"
+        "- Return ONLY JSON.\n"
+        "- Focus only on the assigned task.\n"
+        "- Do not plan future tasks.\n"
+        "- Do not claim actions were executed.\n"
+        "- If the screen is unclear, report that directly.\n\n"
+        "Schema:\n"
+        "{\n"
+        "    \"status\": \"completed\" | \"failed\",\n"
+        "    \"result_summary\": \"short result for the user\"\n"
+        "}\n"
+    ).toString();
+}
+
+void GlobalSetting::setChatTypingTaskPrompt(const QString &prompt) {
+    m_settings.setValue("chat/typingTaskPrompt", prompt);
+}
+
+QString GlobalSetting::getChatTypingTaskPrompt() const {
+    return m_settings.value("chat/typingTaskPrompt",
+        "You are the Openterface Typing Task Agent.\n\n"
+        "You are responsible for one typing task and one tool only: type_text.\n\n"
+        "Rules:\n"
+        "- Return ONLY JSON.\n"
+        "- Focus only on the current task.\n"
+        "- For plain typing, provide text_to_type.\n"
+        "- For keyboard/function keys, use angle-bracket format (example: <ctrl>l, <cmd><space>, <enter>, <f1>).\n"
+        "- Provide either text_to_type or shortcut.\n\n"
+        "Schema:\n"
+        "{\n"
+        "    \"status\": \"completed\" | \"failed\",\n"
+        "    \"text_to_type\": \"exact text to type on target (optional)\",\n"
+        "    \"shortcut\": \"keyboard combo like Ctrl+L (optional)\",\n"
+        "    \"result_summary\": \"short summary for the user\"\n"
+        "}\n"
+    ).toString();
+}
+
+void GlobalSetting::setChatGuidePrompt(const QString &prompt) {
+    m_settings.setValue("chat/guidePrompt", prompt);
+}
+
+QString GlobalSetting::getChatGuidePrompt() const {
+    return m_settings.value("chat/guidePrompt",
+        "You are the Openterface Guide Mode Agent.\n\n"
+        "Provide turn-by-turn guidance for the user to accomplish their goal on the target screen.\n\n"
+        "Rules:\n"
+        "- Return ONLY JSON.\n"
+        "- Provide one clear step at a time.\n"
+        "- If a clickable target is identified, set target_box with normalized coordinates (0.0-1.0).\n"
+        "- If a keyboard shortcut is more appropriate, set tool and tool_input.\n"
+        "- Prefer keyboard shortcuts over mouse clicks when both are viable.\n"
+        "- If the target is unclear, set needs_clarification=true.\n\n"
+        "Schema:\n"
+        "{\n"
+        "    \"next_step\": \"clear instruction for the next step\",\n"
+        "    \"tool\": \"left_click|right_click|double_click|shortcut (optional)\",\n"
+        "    \"tool_input\": \"shortcut like Ctrl+S or key combo (optional)\",\n"
+        "    \"target_box\": {\"x\": 0.0-1.0, \"y\": 0.0-1.0, \"width\": 0.0-1.0, \"height\": 0.0-1.0},\n"
+        "    \"needs_clarification\": true|false,\n"
+        "    \"clarification\": \"what to clarify (if needed)\"\n"
+        "}\n"
+    ).toString();
+}
+
+void GlobalSetting::setChatWindowVisible(bool visible) {
+    m_settings.setValue("chat/windowVisible", visible);
+}
+
+bool GlobalSetting::getChatWindowVisible() const {
+    return m_settings.value("chat/windowVisible", false).toBool();
+}
+
+void GlobalSetting::setChatWindowWidth(int width) {
+    m_settings.setValue("chat/windowWidth", qBound(320, width, 800));
+}
+
+int GlobalSetting::getChatWindowWidth() const {
+    return qBound(320, m_settings.value("chat/windowWidth", 420).toInt(), 800);
+}
+
+void GlobalSetting::setChatDockSide(const QString &side) {
+    m_settings.setValue("chat/dockSide", side);
+}
+
+QString GlobalSetting::getChatDockSide() const {
+    return m_settings.value("chat/dockSide", "right").toString();
+}
+
+void GlobalSetting::setChatTypingDelayMs(int ms) {
+    m_settings.setValue("chat/typingDelayMs", qBound(0, ms, 1000));
+}
+
+int GlobalSetting::getChatTypingDelayMs() const {
+    return qBound(0, m_settings.value("chat/typingDelayMs", 20).toInt(), 1000);
+}
+
+void GlobalSetting::setChatBatchSize(int size) {
+    m_settings.setValue("chat/batchSize", qBound(1, size, 50));
+}
+
+int GlobalSetting::getChatBatchSize() const {
+    return qBound(1, m_settings.value("chat/batchSize", 5).toInt(), 50);
+}
+
+void GlobalSetting::setChatMouseToKeyboardDelayMs(int ms) {
+    m_settings.setValue("chat/mouseToKeyboardDelayMs", qBound(0, ms, 5000));
+}
+
+int GlobalSetting::getChatMouseToKeyboardDelayMs() const {
+    return qBound(0, m_settings.value("chat/mouseToKeyboardDelayMs", 800).toInt(), 5000);
+}
+
+void GlobalSetting::setChatPostKeyboardSettleMs(int ms) {
+    m_settings.setValue("chat/postKeyboardSettleMs", qBound(0, ms, 5000));
+}
+
+int GlobalSetting::getChatPostKeyboardSettleMs() const {
+    return qBound(0, m_settings.value("chat/postKeyboardSettleMs", 400).toInt(), 5000);
+}
+
+void GlobalSetting::setChatPreCaptureDelayMs(int ms) {
+    m_settings.setValue("chat/preCaptureDelayMs", qBound(0, ms, 5000));
+}
+
+int GlobalSetting::getChatPreCaptureDelayMs() const {
+    return qBound(0, m_settings.value("chat/preCaptureDelayMs", 400).toInt(), 5000);
+}
+
+void GlobalSetting::setChatInitialTypingDelayMs(int ms) {
+    m_settings.setValue("chat/initialTypingDelayMs", qBound(0, ms, 5000));
+}
+
+int GlobalSetting::getChatInitialTypingDelayMs() const {
+    return qBound(0, m_settings.value("chat/initialTypingDelayMs", 500).toInt(), 5000);
 }

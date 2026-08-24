@@ -45,7 +45,8 @@
 #include <sys/times.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_ui_statuswidget, "opf.ui.statuswidget")
+#include "log/opflogging.h"
+OPF_LOGGING_CATEGORY(log_ui_statuswidget, "opf.ui.statuswidget")
 
 StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0), m_captureHeight(0), m_captureFramerate(0.0) {
     keyboardIndicatorsLabel = new QLabel("", this);
@@ -56,23 +57,23 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     capsLockBtn = new QPushButton("CAPS", this);
     scrollLockBtn = new QPushButton("SCROLL", this);
     
-    // Configure button properties and styles
+    // Flat palette-aware style so lock indicators are clearly visible on any
+    // system theme. palette(buttonText) always contrasts with palette(button).
     QString buttonStyleSheet = R"(
         QPushButton {
-            background-color: #f0f0f0;
-            border: 1px solid #cccccc;
+            background-color: palette(button);
+            border: 1px solid palette(dark);
             border-radius: 3px;
             padding: 2px 4px;
-            color: #333333;
+            color: palette(buttonText);
             font-weight: bold;
             font-size: 10px;
         }
         QPushButton:hover {
-            background-color: #e0e0e0;
-            border: 1px solid #999999;
+            background-color: palette(midlight);
         }
         QPushButton:pressed {
-            background-color: #d0d0d0;
+            background-color: palette(mid);
         }
         QPushButton:checked {
             background-color: #4CAF50;
@@ -159,7 +160,6 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     #endif
 
     qCDebug(log_ui_statuswidget) << "Detected CPU core count:" << m_cpuCoreCount;
-
 
     // Setup CPU monitoring timer
     cpuTimer = new QTimer(this);
@@ -257,7 +257,6 @@ void StatusWidget::setCaptureResolution(const int &width, const int &height, con
     m_captureHeight = height;
     m_captureFramerate = fps;
 
-    
     // Update the input resolution tooltip to include capture information
     QString currentTooltip = inputResolutionLabel->toolTip();
     
@@ -283,7 +282,6 @@ void StatusWidget::setConnectedPort(const QString &port, const int &baudrate) {
     // Check if the new state is the same as the current state to avoid unnecessary updates
     if (m_lastPort == port && m_lastBaudrate == baudrate) {
         // States are the same, skip the update
-        qDebug() << "[StatusWidget] Skipping duplicate state update - port:" << port << "baudrate:" << baudrate;
         return;
     }
 
@@ -294,25 +292,20 @@ void StatusWidget::setConnectedPort(const QString &port, const int &baudrate) {
     QString displayText;
     
     // Debug logging to understand port and baudrate values
-    qDebug() << "[StatusWidget] setConnectedPort called with port:" << port << "baudrate:" << baudrate;
     
     // Handle different cases for port and baudrate
     if (port == "NA" || port.isEmpty()) {
         // No valid port or specifically marked as "NA" - show Not Connected
         displayText = "Not Connected";
-        qDebug() << "[StatusWidget] Showing 'Not Connected' status";
     } else if (baudrate > 0) {
         // Valid baudrate - show port and baudrate
         displayText = QString("%1@%2").arg(port).arg(baudrate);
-        qDebug() << "[StatusWidget] Showing port and baudrate:" << displayText;
     } else if (baudrate == 0 && !port.isEmpty()) {
         // Baudrate is 0 but port is valid - show just the port name
         displayText = port;
-        qDebug() << "[StatusWidget] Showing port name only:" << displayText;
     } else {
         // Other cases - show the port name
         displayText = port;
-        qDebug() << "[StatusWidget] Showing port name (fallback):" << displayText;
     }
     
     connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", displayText));
