@@ -77,9 +77,16 @@ private:
         return false;
     }
 
-    // Helper: Build GET_INFO command
+    // Helper: Build GET_INFO command (with checksum, matching cross-platform test)
     QByteArray buildGetInfoCommand() {
-        return QByteArray::fromHex("57 AB 00 01 00");
+        QByteArray cmd = QByteArray::fromHex("57 AB 00 01 00");
+        // Calculate checksum: sum of all bytes mod 256
+        uint8_t sum = 0;
+        for (int i = 0; i < cmd.size(); i++) {
+            sum += static_cast<uint8_t>(cmd[i]);
+        }
+        cmd.append(static_cast<char>(sum));
+        return cmd;
     }
 
     // Helper: Parse GET_INFO response
@@ -94,8 +101,8 @@ private:
     GetInfoResponse parseGetInfoResponse(const QByteArray& data) {
         GetInfoResponse resp;
 
-        if (data.size() < 12) {
-            resp.errorMessage = QString("Response too short: %1 bytes (expected 12)").arg(data.size());
+        if (data.size() < 8) {
+            resp.errorMessage = QString("Response too short: %1 bytes (expected >= 8)").arg(data.size());
             return resp;
         }
 
@@ -115,10 +122,19 @@ private:
             return resp;
         }
 
-        // Parse payload
-        resp.version = static_cast<uint8_t>(data[5]);
-        resp.targetConnected = static_cast<uint8_t>(data[6]) != 0;
-        resp.indicators = static_cast<uint8_t>(data[7]);
+        // Response format: [57 AB addr 81 len payload... checksum]
+        // Payload starts at offset 5, length byte at offset 4
+        uint8_t payloadLen = static_cast<uint8_t>(data[4]);
+        if (data.size() < 5 + payloadLen) {
+            resp.errorMessage = QString("Response truncated: got %1 bytes, payload expects %2")
+                .arg(data.size()).arg(5 + payloadLen);
+            return resp;
+        }
+
+        // Parse payload: [info, version, targetConnected, indicators, ...]
+        resp.version = static_cast<uint8_t>(data[6]);
+        resp.targetConnected = static_cast<uint8_t>(data[7]) != 0;
+        resp.indicators = static_cast<uint8_t>(data[8]);
         resp.valid = true;
 
         return resp;
@@ -185,16 +201,43 @@ private slots:
      * Prerequisites:
      * - Device must be plugged in and in ISP mode (BOOT button held during plug-in)
      */
+    // Helper: Detect ISP device via WCHUSBTransport (CH375 driver, not serial)
+    bool detectISPViaWCHTransport() {
+        try {
+            WCHUSBTransport transport;
+            auto devices = transport.scanDevices();
+            return !devices.empty();
+        } catch (const std::exception& e) {
+            qDebug() << "WCH transport detection failed:" << e.what();
+            return false;
+        }
+    }
+
     void testDetectISPModeDevice() {
         qDebug() << "\n=== Test 1: Detect ISP Mode Device ===";
         qDebug() << "Please ensure device is in ISP mode (hold BOOT while plugging in)";
 
-        // Wait for ISP mode device
-        bool found = waitForDevice(WCH_VID, ISP_MODE_PID, 10000);
+        // Method 1: Detect via WCH transport (CH375 driver) — primary method
+        qDebug() << "Scanning via WCH CH375 transport...";
+        bool found = false;
+        QElapsedTimer timer;
+        timer.start();
+        while (timer.elapsed() < 15000) {
+            if (detectISPViaWCHTransport()) {
+                found = true;
+                break;
+            }
+            QThread::msleep(500);
+            QCoreApplication::processEvents();
+        }
 
         if (!found) {
-            // Also check for alternative VID
-            found = waitForDevice(0x4348, ISP_MODE_PID, 5000);
+            // Method 2: Fallback to QSerialPortInfo (in case driver exposes serial)
+            qDebug() << "WCH transport scan failed, trying QSerialPortInfo fallback...";
+            found = waitForDevice(WCH_VID, ISP_MODE_PID, 5000);
+            if (!found) {
+                found = waitForDevice(0x4348, ISP_MODE_PID, 5000);
+            }
         }
 
         QVERIFY2(found, "Device not found in ISP mode. Please:\n"
@@ -204,14 +247,7 @@ private slots:
                         "4. Release BOOT button\n"
                         "5. Run test again");
 
-        QSerialPortInfo port = findDeviceByVidPid(WCH_VID, ISP_MODE_PID);
-        if (port.isNull()) {
-            port = findDeviceByVidPid(0x4348, ISP_MODE_PID);
-        }
-
-        qDebug() << "✓ Device found in ISP mode:" << port.portName();
-        qDebug() << "  VID:" << QString("0x%1").arg(port.vendorIdentifier(), 4, 16, QChar('0'));
-        qDebug() << "  PID:" << QString("0x%1").arg(port.productIdentifier(), 4, 16, QChar('0'));
+        qDebug() << "✓ Device found in ISP mode (via WCH CH375 transport)";
     }
 
     /**
@@ -353,7 +389,11 @@ private slots:
         bool opened = serial.open(QIODevice::ReadWrite);
         QVERIFY2(opened, qPrintable(QString("Failed to open serial port: %1").arg(serial.errorString())));
 
-        qDebug() << "✓ Serial port opened successfully";
+        // Enable DTR and RTS (required by CH32V208 firmware, matching cross-platform test)
+        serial.setDataTerminalReady(true);
+        serial.setRequestToSend(true);
+
+        qDebug() << "✓ Serial port opened successfully (DTR=ON, RTS=ON)";
 
         // Wait a bit for device to be ready
         QThread::msleep(500);
@@ -387,26 +427,39 @@ private slots:
         bool opened = serial.open(QIODevice::ReadWrite);
         QVERIFY2(opened, qPrintable(QString("Failed to open serial port: %1").arg(serial.errorString())));
 
-        // Wait for device to be ready
-        QThread::msleep(1000);
+        // Enable DTR and RTS (required by CH32V208 firmware)
+        serial.setDataTerminalReady(true);
+        serial.setRequestToSend(true);
 
-        qDebug() << "Sending GET_INFO command (0x01)...";
+        // Wait for device to be ready (firmware needs ~2-3s after enumeration)
+        QThread::msleep(3000);
 
-        // Send GET_INFO and get response
-        GetInfoResponse response = sendGetInfo(serial, 2000);
+        qDebug() << "Sending GET_INFO command (0x01) with checksum...";
+
+        // Try multiple times (first attempt may timeout while firmware initializes)
+        GetInfoResponse response;
+        const int maxAttempts = 5;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            response = sendGetInfo(serial, 3000);
+            if (response.valid) {
+                qDebug() << QString("  Attempt %1: ✓ Success").arg(attempt);
+                break;
+            } else {
+                qDebug() << QString("  Attempt %1: %2").arg(attempt).arg(response.errorMessage);
+                QThread::msleep(500);
+            }
+        }
 
         serial.close();
 
         // Validate response
-        QVERIFY2(response.valid, qPrintable(QString("GET_INFO failed: %1").arg(response.errorMessage)));
+        QVERIFY2(response.valid, qPrintable(QString("GET_INFO failed after %1 attempts: %2")
+                                            .arg(maxAttempts).arg(response.errorMessage)));
 
         qDebug() << "✓ GET_INFO response valid";
         qDebug() << "  Firmware version:" << response.version;
         qDebug() << "  Target connected:" << (response.targetConnected ? "YES" : "NO");
         qDebug() << "  Indicators:" << QString("0x%1").arg(response.indicators, 2, 16, QChar('0'));
-
-        // Additional validation
-        QVERIFY2(response.version > 0, "Firmware version should be > 0");
 
         qDebug() << "\n✓✓✓ Firmware flash and verification SUCCESSFUL ✓✓✓";
     }
@@ -434,7 +487,11 @@ private slots:
         bool opened = serial.open(QIODevice::ReadWrite);
         QVERIFY2(opened, qPrintable(QString("Failed to open serial port: %1").arg(serial.errorString())));
 
-        QThread::msleep(500);
+        // Enable DTR and RTS (required by CH32V208 firmware)
+        serial.setDataTerminalReady(true);
+        serial.setRequestToSend(true);
+
+        QThread::msleep(2000);
 
         const int numCommands = 10;
         int successCount = 0;

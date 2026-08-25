@@ -25,6 +25,7 @@
 #ifdef _WIN32
 // ---- Windows: Win32 serial API ----
 #include <windows.h>
+#include <setupapi.h>
 
 struct SerialPort {
     HANDLE handle = INVALID_HANDLE_VALUE;
