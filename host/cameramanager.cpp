@@ -111,7 +111,6 @@ QImage CameraManager::getLatestOriginalFrame()
     if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
         return ffmpeg->getLatestOriginalFrame();
     }
-#ifndef Q_OS_WIN
     if (GStreamerBackendHandler* gst = getGStreamerBackend()) {
         return gst->getLatestOriginalFrame();
     }
