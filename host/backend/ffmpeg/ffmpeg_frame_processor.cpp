@@ -274,12 +274,15 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
                 // preserving fit with centering (letterboxing/pillarboxing).  Scaling to
                 // a narrow target with KeepAspectRatio would shrink the video unnecessarily.
 
-                // Update frame count and store frames
+                // Update frame count and store frames.  QImage is implicitly
+                // shared (copy-on-write), so plain assignment is enough — the
+                // same approach the FFmpeg path below already uses.  The two
+                // deep copies here cost 2 x ~6 MB of memcpy per 1080p frame.
                 frame_count_++;
                 if (frame_count_ > startup_frames_to_skip_) {
                     QMutexLocker locker(&mutex_);
-                    latest_frame_ = turbojpeg_result.copy();
-                    latest_original_frame_ = turbojpeg_result.copy();
+                    latest_frame_ = turbojpeg_result;
+                    latest_original_frame_ = turbojpeg_result;
                 }
 
                 return turbojpeg_result;
