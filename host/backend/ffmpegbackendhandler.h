@@ -134,14 +134,14 @@ public slots:
 public:
 
     // Video recording methods
-    bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000);
-    bool stopRecording();
-    void pauseRecording();
-    void resumeRecording();
-    bool isRecording() const;
+    bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000) override;
+    bool stopRecording() override;
+    void pauseRecording() override;
+    void resumeRecording() override;
+    bool isRecording() const override;
     bool isPaused() const;
-    QString getCurrentRecordingPath() const;
-    qint64 getRecordingDuration() const; // in milliseconds
+    QString getCurrentRecordingPath() const override;
+    qint64 getRecordingDuration() const override; // in milliseconds
     
     // Advanced recording methods
     bool isCameraReady() const;
@@ -185,7 +185,7 @@ public:
     // Stub for MOC compatibility (might be leftover from autocomplete)
     void checkDeviceReconnection() { /* stub */ }
 
-    bool readFrame();
+    bool readFrame() override;
 
     void setVideoOutput(QGraphicsVideoItem* videoItem);
     void setVideoOutput(VideoPane* videoPane);

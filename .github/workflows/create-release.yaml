@@ -338,6 +338,14 @@ jobs:
           name: openterfaceQT_linux_amd64.AppImage
           path: artifacts/linux/appimage
 
+      - name: Download Arch Linux package artifact
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: linux-build.yaml
+          workflow_conclusion: success
+          name: openterfaceQT_linux_amd64.pkg.tar.zst
+          path: artifacts/linux/archlinux
+
       - name: Download signed Windows installer artifact
         if: ${{ !inputs.skip_windows_signing && inputs.sign_amd64_installer }}
         uses: actions/download-artifact@v4

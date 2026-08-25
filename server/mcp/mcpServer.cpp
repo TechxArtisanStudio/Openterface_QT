@@ -136,10 +136,10 @@ McpToolHandler* McpServer::toolHandler() const
 
 void McpServer::handleMessage(const QString& jsonLine, QIODevice* device)
 {
-    fprintf(stderr, "[DEBUG-MCP] handleMessage called with: %s\n", jsonLine.toUtf8().left(100).constData());
+    qCDebug(log_server_mcp) << "handleMessage called with:" << jsonLine.left(100);
     McpProtocol::Request req;
     if (!McpProtocol::parseRequest(jsonLine.toUtf8(), req)) {
-        fprintf(stderr, "[DEBUG-MCP] Failed to parse request\n");
+        qCDebug(log_server_mcp) << "Failed to parse request";
         // Invalid JSON — send a parse error (no id available)
         QJsonObject errResp = McpProtocol::buildError(
             QVariant(), JSONRPC_ERROR_PARSE_ERROR,
@@ -147,8 +147,8 @@ void McpServer::handleMessage(const QString& jsonLine, QIODevice* device)
         sendResponse(errResp, device);
         return;
     }
-    fprintf(stderr, "[DEBUG-MCP] Parsed request, method: %s, isNotification: %d\n",
-            req.method.toUtf8().constData(), req.isNotification);
+    qCDebug(log_server_mcp) << "Parsed request, method:" << req.method
+                            << "isNotification:" << req.isNotification;
 
     // Notifications have no id — no response needed
     if (req.isNotification) {
@@ -217,14 +217,14 @@ void McpServer::handleMessage(const QString& jsonLine, QIODevice* device)
 void McpServer::sendResponse(const QJsonObject& response, QIODevice* device)
 {
     QByteArray data = McpProtocol::serialize(response);
-    fprintf(stderr, "[DEBUG-MCP] sendResponse called, data size: %d\n", data.size());
+    qCDebug(log_server_mcp) << "sendResponse called, data size:" << data.size();
 
     if (device == m_stdoutFile) {
         // For stdio mode, use the saved stdout file descriptor if available
         // (stdout was redirected to stderr in main.cpp to prevent debug output interference)
         int outputFd = STDOUT_FILENO;
         QByteArray savedFdStr = qgetenv("OPENTERFACE_SAVED_STDOUT");
-        fprintf(stderr, "[DEBUG-MCP] Saved fd env: '%s'\n", savedFdStr.constData());
+        qCDebug(log_server_mcp) << "Saved fd env:" << savedFdStr;
         if (!savedFdStr.isEmpty()) {
             bool ok;
             int savedFd = savedFdStr.toInt(&ok);
@@ -232,11 +232,11 @@ void McpServer::sendResponse(const QJsonObject& response, QIODevice* device)
                 outputFd = savedFd;
             }
         }
-        fprintf(stderr, "[DEBUG-MCP] Using fd: %d\n", outputFd);
+        qCDebug(log_server_mcp) << "Using fd:" << outputFd;
 
         // Use POSIX write() to the correct output fd
         ssize_t written = ::write(outputFd, data.constData(), data.size());
-        fprintf(stderr, "[DEBUG-MCP] Wrote %zd bytes to fd %d\n", written, outputFd);
+        qCDebug(log_server_mcp) << "Wrote" << written << "bytes to fd" << outputFd;
         if (written == -1) {
             qCWarning(log_server_mcp) << "Failed to write to stdout";
         }
@@ -260,7 +260,7 @@ void McpServer::sendResponse(const QJsonObject& response, QIODevice* device)
 
 bool McpServer::startStdio()
 {
-    fprintf(stderr, "[DEBUG-MCP] startStdio() called\n");
+    qCDebug(log_server_mcp) << "startStdio() called";
     if (m_stdioMode) {
         qCWarning(log_server_mcp) << "MCP stdio mode already active";
         return true;
@@ -268,7 +268,7 @@ bool McpServer::startStdio()
 
     // Create tool handler if not injected
     if (!m_toolHandler) {
-        fprintf(stderr, "[DEBUG-MCP] Creating tool handler\n");
+        qCDebug(log_server_mcp) << "Creating tool handler";
         m_toolHandler = new McpToolHandler(this);
         m_ownsToolHandler = true;
         applyPendingDependencies();
@@ -282,7 +282,7 @@ bool McpServer::startStdio()
         m_stdinFile = nullptr;
         return false;
     }
-    fprintf(stderr, "[DEBUG-MCP] stdin opened\n");
+    qCDebug(log_server_mcp) << "stdin opened";
 
     m_stdoutFile = new QFile(this);
     if (!m_stdoutFile->open(stdout, QIODevice::WriteOnly | QIODevice::Unbuffered)) {
@@ -302,7 +302,7 @@ bool McpServer::startStdio()
     m_stdinPollTimer->start(10);  // Poll every 10ms
 
     m_stdioMode = true;
-    fprintf(stderr, "[DEBUG-MCP] MCP stdio transport started successfully\n");
+    qCDebug(log_server_mcp) << "MCP stdio transport started successfully";
     qCInfo(log_server_mcp) << "MCP stdio transport started";
     emit started();
     emit stdioReady();
@@ -312,9 +312,9 @@ bool McpServer::startStdio()
 
 void McpServer::onStdinReadyRead()
 {
-    fprintf(stderr, "[DEBUG-MCP] onStdinReadyRead called\n");
+    qCDebug(log_server_mcp) << "[DEBUG-MCP] onStdinReadyRead called";
     if (!m_stdinFile || !m_stdoutFile) {
-        fprintf(stderr, "[DEBUG-MCP] stdin or stdout file not open\n");
+        qCDebug(log_server_mcp) << "[DEBUG-MCP] stdin or stdout file not open";
         return;
     }
 

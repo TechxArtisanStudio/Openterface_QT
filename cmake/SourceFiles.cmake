@@ -24,8 +24,6 @@ set(DEVICE_SOURCES
     device/HotplugDebounceManager.cpp device/HotplugDebounceManager.h
     device/platform/AbstractPlatformDeviceManager.cpp device/platform/AbstractPlatformDeviceManager.h
     device/platform/DeviceFactory.cpp device/platform/DeviceFactory.h
-    device/platform/windows/WinDeviceEnumerator.h device/platform/windows/WinDeviceEnumerator.cpp
-    device/platform/windows/IDeviceEnumerator.h
 )
 
 if(WIN32)
