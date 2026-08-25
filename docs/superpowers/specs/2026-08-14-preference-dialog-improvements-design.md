@@ -196,9 +196,9 @@ void closeEvent(QCloseEvent *event) override;
 ```
 if (hasUnsavedChanges()) {
     result = promptSaveDiscardCancel()
-    Save   → applyAllDirtyPages(), then switch
+    Save    → applyAllDirtyPages(), then switch
     Discard → switch directly
-    Cancel → restore previous tree selection, return
+    Cancel  → restore previous tree selection, return
 }
 ```
 
@@ -206,17 +206,17 @@ if (hasUnsavedChanges()) {
 ```
 if (hasUnsavedChanges()) {
     result = promptSaveDiscardCancel()
-    Save   → applyAllDirtyPages(), accept close
+    Save    → applyAllDirtyPages(), accept close
     Discard → accept close
-    Cancel → ignore close event (prevent closing)
+    Cancel  → ignore close event (prevent closing)
 }
 ```
 
 ### Unsaved Changes Dialog
 ```
-Title: "未保存的更改"
-Text: "你有未保存的更改。"
-Info: "是否保存更改？"
+Title: "Unsaved Changes"
+Text: "You have unsaved changes."
+Info: "Do you want to save your changes?"
 Buttons: Save | Discard | Cancel
 Default: Save
 ```

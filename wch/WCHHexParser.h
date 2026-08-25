@@ -17,7 +17,7 @@
 //   0x02 — extended segment address
 //   0x04 — extended linear address
 //
-// Gaps between data records are padded with 0xFF.
+// Gaps between data records are padded with 0x00 (matches wchisp behavior).
 // ---------------------------------------------------------------------------
 class WCHHexParser {
 public:

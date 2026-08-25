@@ -57,16 +57,16 @@ A `QWidget` subclass that encapsulates all control chip firmware UI and logic. R
 
 ```
 TargetControlFirmwarePage : QWidget
-├── Device 区域
+├── Device Section
 │   ├── m_scanBtn (QPushButton)           — "Scan Devices"
 │   ├── m_deviceCombo (QComboBox)         — device list
 │   ├── m_connectBtn (QPushButton)        — "Connect"
 │   └── m_disconnectBtn (QPushButton)     — "Disconnect"
 │
-├── Chip Information 区域
+├── Chip Information Section
 │   └── m_chipInfoLabel (QLabel)          — chip details, Monospace font
 │
-├── Firmware 区域
+├── Firmware Section
 │   ├── m_firmwareLabel (QLabel)          — selected file path
 │   └── m_browseBtn (QPushButton)         — "Browse..."
 │

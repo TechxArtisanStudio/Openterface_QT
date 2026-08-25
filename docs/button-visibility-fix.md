@@ -1,19 +1,19 @@
-# Control Firmware 页面按钮可见性修复
+# Control Firmware Page Button Visibility Fix
 
-## 问题描述
+## Problem Description
 
-在 Preferences > Control Firmware 页面中，Connect、Disconnect 和 Flash 按钮在未 scan device 时看不清楚，因为：
-1. 按钮在初始化时被设置为禁用状态（`setEnabled(false)`）
-2. 禁用的按钮在某些主题下显示为浅灰色，难以辨认
-3. 没有明确的视觉提示告诉用户需要先执行什么操作
+In the Preferences > Control Firmware page, the Connect, Disconnect, and Flash buttons are hard to see when no device has been scanned, because:
+1. The buttons are set to disabled state during initialization (`setEnabled(false)`)
+2. Disabled buttons appear as light gray on some themes, making them hard to distinguish
+3. There is no clear visual cue telling the user what action to perform first
 
-## 修复方案
+## Fix Approach
 
-### 1. 为 Connect 和 Disconnect 按钮添加样式表
+### 1. Added stylesheets for Connect and Disconnect buttons
 
-**文件**: `ui/preferences/controlchipfirmwarepage.cpp`
+**File**: `ui/preferences/controlchipfirmwarepage.cpp`
 
-添加了自定义样式表，使禁用状态下的按钮更清晰可见：
+Added a custom stylesheet to make disabled buttons more visible:
 
 ```cpp
 QString disabledBtnStyle = R"(
@@ -43,12 +43,12 @@ m_connectBtn->setStyleSheet(disabledBtnStyle);
 m_disconnectBtn->setStyleSheet(disabledBtnStyle);
 ```
 
-**效果**：
-- 禁用状态：浅灰色背景（#f0f0f0），深灰色文本（#666666），清晰的边框
-- 启用状态：白色背景，深色文本
-- 鼠标悬停和点击状态也有明显的视觉反馈
+**Effect**:
+- Disabled state: light gray background (#f0f0f0), dark gray text (#666666), clear border
+- Enabled state: white background, dark text
+- Hover and press states also have clear visual feedback
 
-### 2. 为 Flash 按钮添加样式表
+### 2. Added stylesheet for Flash button
 
 ```cpp
 QString flashBtnStyle = R"(
@@ -78,12 +78,12 @@ QString flashBtnStyle = R"(
 m_flashBtn->setStyleSheet(flashBtnStyle);
 ```
 
-**效果**：
-- 禁用状态：浅灰色背景，深灰色文本，粗体边框
-- 启用状态：绿色背景（#4CAF50），白色文本，加粗字体
-- 明显的视觉区分，Flash 按钮更加突出
+**Effect**:
+- Disabled state: light gray background, dark gray text, bold border
+- Enabled state: green background (#4CAF50), white text, bold font
+- Clear visual distinction, making the Flash button more prominent
 
-### 3. 添加提示信息（Tooltip）
+### 3. Added tooltips
 
 ```cpp
 m_connectBtn->setToolTip(tr("Click 'Scan Devices' first to find available WCH devices"));
@@ -91,82 +91,82 @@ m_disconnectBtn->setToolTip(tr("Connect to a device first before disconnecting")
 m_flashBtn->setToolTip(tr("Connect to a device and select firmware file first"));
 ```
 
-**效果**：
-- 鼠标悬停在按钮上时会显示提示文本
-- 明确告诉用户需要先执行什么操作
-- 提升用户体验
+**Effect**:
+- Tooltip text appears when hovering over buttons
+- Clearly tells the user what action to perform first
+- Improves user experience
 
-## 按钮状态逻辑
+## Button State Logic
 
-按钮的启用/禁用逻辑保持不变：
+The button enable/disable logic remains unchanged:
 
-### Connect 按钮
-- **禁用条件**：已连接设备 或 未扫描到设备
-- **启用条件**：未连接设备 且 已扫描到设备（`m_deviceCombo->count() > 0`）
-- **状态更新**：在 `setConnectedState()` 和 `onDevicesFound()` 中更新
+### Connect Button
+- **Disabled condition**: Device is connected OR no devices have been scanned
+- **Enabled condition**: No device is connected AND devices have been scanned (`m_deviceCombo->count() > 0`)
+- **State updated**: In `setConnectedState()` and `onDevicesFound()`
 
-### Disconnect 按钮
-- **禁用条件**：未连接设备
-- **启用条件**：已连接设备
-- **状态更新**：在 `setConnectedState()` 中更新
+### Disconnect Button
+- **Disabled condition**: No device is connected
+- **Enabled condition**: Device is connected
+- **State updated**: In `setConnectedState()`
 
-### Flash 按钮
-- **禁用条件**：未连接设备 或 未选择固件文件 或 正在操作
-- **启用条件**：已连接设备 且 已选择固件文件 且 未在进行操作
-- **状态更新**：在 `updateFlashButton()` 中更新
+### Flash Button
+- **Disabled condition**: No device is connected OR no firmware file is selected OR an operation is in progress
+- **Enabled condition**: Device is connected AND firmware file is selected AND no operation is in progress
+- **State updated**: In `updateFlashButton()`
 
-## 视觉改进对比
+## Visual Improvement Comparison
 
-### 修复前
-- 禁用按钮：系统默认灰色，可能难以看清
-- 无提示信息
-- 按钮之间视觉差异不明显
+### Before Fix
+- Disabled buttons: system default gray, possibly hard to see
+- No tooltips
+- No significant visual distinction between buttons
 
-### 修复后
-- 禁用按钮：浅灰色背景，深灰色文本，清晰的边框
-- 有明确的提示信息
-- Connect/Disconnect 按钮与 Flash 按钮有明显的视觉区分
-- 鼠标悬停和点击有视觉反馈
+### After Fix
+- Disabled buttons: light gray background, dark gray text, clear border
+- Clear tooltips
+- Connect/Disconnect buttons are visually distinct from the Flash button
+- Hover and press states have visual feedback
 
-## 测试步骤
+## Test Steps
 
-1. 重新编译应用：
+1. Rebuild the application:
    ```bash
    cd build
    make
    ```
 
-2. 运行应用：
+2. Run the application:
    ```bash
    ./openterfaceQT
    ```
 
-3. 打开 Preferences > Control Firmware 页面
+3. Open Preferences > Control Firmware page
 
-4. 验证：
-   - ✅ Connect 和 Disconnect 按钮在未 scan 时清晰可见（灰色但可辨认）
-   - ✅ Flash 按钮在未连接时清晰可见（灰色但可辨认）
-   - ✅ 鼠标悬停在按钮上时显示提示信息
-   - ✅ 点击 "Scan Devices" 后，如果有设备，Connect 按钮变为可用状态（白色背景）
-   - ✅ 连接设备后，Disconnect 按钮变为可用状态
-   - ✅ 选择固件文件后，Flash 按钮变为可用状态（绿色背景）
+4. Verify:
+   - ✅ Connect and Disconnect buttons are clearly visible when not scanned (gray but recognizable)
+   - ✅ Flash button is clearly visible when not connected (gray but recognizable)
+   - ✅ Tooltip text appears when hovering over buttons
+   - ✅ After clicking "Scan Devices", if devices are found, the Connect button becomes enabled (white background)
+   - ✅ After connecting a device, the Disconnect button becomes enabled
+   - ✅ After selecting a firmware file, the Flash button becomes enabled (green background)
 
-## 相关文件
+## Related Files
 
-- `ui/preferences/controlchipfirmwarepage.cpp` - 主要修改文件
-- `ui/preferences/controlchipfirmwarepage.h` - 头文件（未修改）
+- `ui/preferences/controlchipfirmwarepage.cpp` - Main modified file
+- `ui/preferences/controlchipfirmwarepage.h` - Header file (unchanged)
 
-## 兼容性
+## Compatibility
 
-- ✅ 不影响现有功能
-- ✅ 不影响按钮状态逻辑
-- ✅ 只改善视觉效果
-- ✅ 支持所有 Qt 主题（使用 QSS 样式表）
+- ✅ Does not affect existing functionality
+- ✅ Does not affect button state logic
+- ✅ Only improves visual appearance
+- ✅ Supports all Qt themes (uses QSS stylesheets)
 
-## 后续建议
+## Future Suggestions
 
-如果需要进一步改善，可以考虑：
-1. 添加动画效果，当按钮状态改变时平滑过渡
-2. 使用图标增强按钮的视觉识别
-3. 添加步骤指示器，显示当前操作流程（Scan → Connect → Select Firmware → Flash）
-4. 在按钮旁边添加状态文本，如 "Waiting for scan..." / "Ready to connect" 等
+For further improvements, consider:
+1. Adding animation effects for smooth transitions when button states change
+2. Using icons to enhance button visual identification
+3. Adding a step indicator showing the current workflow (Scan → Connect → Select Firmware → Flash)
+4. Adding status text next to buttons, such as "Waiting for scan..." / "Ready to connect"

@@ -257,7 +257,9 @@ std::vector<uint8_t> WCHUSBTransport::transfer(const std::vector<uint8_t>& comma
 #include <libusb-1.0/libusb.h>
 
 #include <cstring>
+#include <chrono>
 #include <sstream>
+#include <thread>
 #include <iomanip>
 
 // ---------------------------------------------------------------------------
@@ -377,17 +379,12 @@ void WCHUSBTransport::open(int deviceIndex)
 
     m_handle = handle;
 
-#if defined(__linux__)
-    if (libusb_kernel_driver_active(m_handle, k_iface) == 1) {
-        rc = libusb_detach_kernel_driver(m_handle, k_iface);
-        if (rc < 0) {
-            libusb_close(m_handle);
-            m_handle = nullptr;
-            throw WCHTransportError(std::string("Failed to detach kernel driver: ") +
-                                    libusb_error_name(rc));
-        }
-    }
-#endif
+    // NOTE: intentionally NOT calling libusb_reset_device or
+    // libusb_detach_kernel_driver here.  The reference implementation (wchisp)
+    // does neither — a bus reset can put the WCH ISP bootloader into an
+    // undefined state, and detaching the kernel driver is unnecessary because
+    // the ISP bootloader does not bind to any in-kernel driver (it uses raw
+    // bulk endpoints, not a CDC/ACM or HID class driver).
 
     rc = libusb_set_configuration(m_handle, 1);
     if (rc < 0 && rc != LIBUSB_ERROR_BUSY) {
@@ -438,6 +435,10 @@ std::vector<uint8_t> WCHUSBTransport::transfer(const std::vector<uint8_t>& comma
                                 libusb_error_name(rc));
     if (transferred != static_cast<int>(command.size()))
         throw WCHTransportError("Bulk write: incomplete transfer");
+
+    // Small delay between bulk OUT and bulk IN — required on some Linux
+    // platforms (noted in wchisp reference: "required for some Linux platform").
+    std::this_thread::sleep_for(std::chrono::microseconds(1));
 
     std::vector<uint8_t> recvBuf(k_maxPkt, 0);
     int recvLen = 0;

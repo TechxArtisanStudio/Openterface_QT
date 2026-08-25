@@ -60,7 +60,8 @@ public:
 
     // Individual stages (available for fine-grained control)
     void unprotect();
-    void erase(uint32_t firmwareSize);
+    void erase(uint32_t firmwareSize);  // erase code flash to fit firmwareSize bytes
+    void eraseData(uint16_t sectors);  // erase N 1KiB sectors of data flash (EEPROM)
     void program(const std::vector<uint8_t>& firmware,
                  const WCHProgressCallback& progress = nullptr);
     void verify(const std::vector<uint8_t>& firmware,

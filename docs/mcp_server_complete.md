@@ -1197,7 +1197,7 @@ MCP SSE transport on port 8080
 Camera ready! First frame: 1920x1080
 
 # HID device issue
-[DEBUG-HID] open failed: /dev/hidraw4, error: 权限不够
+[DEBUG-HID] open failed: /dev/hidraw4, error: Permission denied
 
 # HID device working
 [DEBUG-HID] Device opened successfully, fd=29
@@ -1235,7 +1235,7 @@ Example for Ctrl+A:
 
 **Symptom:**
 ```
-[DEBUG-HID] open failed: /dev/hidraw4, error: 权限不够
+[DEBUG-HID] open failed: /dev/hidraw4, error: Permission denied
 ```
 
 **Fix:** Apply the udev rule (see §5.3), then restart the app.

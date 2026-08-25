@@ -151,8 +151,10 @@ done:
     uint32_t maxAddr = sparseMap.rbegin()->first;
     size_t totalSize = static_cast<size_t>(maxAddr - minAddr + 1);
 
-    // Build contiguous array padded with 0xFF
-    std::vector<uint8_t> result(totalSize, 0xFF);
+    // Build contiguous array padded with 0x00 (matches wchisp behavior).
+    // Gaps between Intel HEX data segments are filled with 0x00, NOT 0xFF.
+    // This matches wchisp's merge_sections() which uses vec![0u8; total_size].
+    std::vector<uint8_t> result(totalSize, 0x00);
     for (const auto& kv : sparseMap) {
         result[kv.first - minAddr] = kv.second;
     }

@@ -28,3 +28,11 @@ email_service/*
 # Soak test artifacts (logs, screenshots, reports)
 tests/soak_test_logs/
 tests/soak_test_screenshots/
+
+# Test build artifacts: ignore compiled binaries and CMake generated files,
+# but keep source code (.cpp, .h, .sh, CMakeLists.txt)
+tests/build/*
+!tests/build/*.cpp
+!tests/build/*.h
+!tests/build/*.sh
+!tests/build/CMakeLists.txt

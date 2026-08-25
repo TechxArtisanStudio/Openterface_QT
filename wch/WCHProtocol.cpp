@@ -74,6 +74,16 @@ std::vector<uint8_t> WCHPacketBuilder::erase(uint32_t sectors)
 }
 
 // ---------------------------------------------------------------------------
+// dataErase  [cmd=0xA9][len=2][sectors as uint16 LE]
+// ---------------------------------------------------------------------------
+std::vector<uint8_t> WCHPacketBuilder::dataErase(uint16_t sectors)
+{
+    std::vector<uint8_t> payload;
+    appendU16LE(payload, sectors);
+    return makePacket(WCHCommands::DataErase, payload);
+}
+
+// ---------------------------------------------------------------------------
 // program / verify  [cmd][len][addr:u32LE][padding:u8][data...]
 // ---------------------------------------------------------------------------
 static std::vector<uint8_t> makeProgramVerify(uint8_t cmd,

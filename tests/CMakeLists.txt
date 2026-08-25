@@ -72,3 +72,43 @@ add_executable(test_serial_port_race
 )
 target_link_libraries(test_serial_port_race PRIVATE Qt6::Core Qt6::Test Qt6::Concurrent Qt6::SerialPort)
 add_test(NAME SerialPortRace COMMAND test_serial_port_race)
+
+# Test 6: Firmware flashing systematic tests (Linux serial port reconnection)
+add_executable(test_firmware_flashing
+    hotplug/test_firmware_flashing.cpp
+    ${HOTPLUG_SOURCES}
+)
+target_link_libraries(test_firmware_flashing PRIVATE Qt6::Core Qt6::Test Qt6::Concurrent Qt6::SerialPort)
+add_test(NAME FirmwareFlashing COMMAND test_firmware_flashing)
+
+# Test 7: Real firmware flashing integration test (requires hardware)
+# This test actually flashes firmware to a real device
+# Requires WCH library and actual hardware
+find_library(WCH_LIB NAMES WCH CH375DLL64 PATHS ${PROJECT_ROOT}/lib)
+if(WCH_LIB OR UNIX)  # On Unix, we use libusb which should be available
+    add_executable(test_real_firmware_flashing
+        hotplug/test_real_firmware_flashing.cpp
+        ${PROJECT_ROOT}/wch/WCHFlasher.cpp
+        ${PROJECT_ROOT}/wch/WCHUSBTransport.cpp
+        ${PROJECT_ROOT}/wch/WCHProtocol.cpp
+        ${PROJECT_ROOT}/wch/WCHHexParser.cpp
+        ${PROJECT_ROOT}/wch/WCHDevice.cpp
+    )
+    target_link_libraries(test_real_firmware_flashing
+        PRIVATE Qt6::Core Qt6::Test Qt6::SerialPort)
+
+    # Link libusb on Linux/Mac, WCH driver on Windows
+    if(UNIX)
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(LIBUSB REQUIRED libusb-1.0)
+        target_include_directories(test_real_firmware_flashing PRIVATE ${LIBUSB_INCLUDE_DIRS})
+        target_link_libraries(test_real_firmware_flashing PRIVATE ${LIBUSB_LIBRARIES})
+    elseif(WIN32)
+        if(WCH_LIB)
+            target_link_libraries(test_real_firmware_flashing PRIVATE ${WCH_LIB})
+        endif()
+        target_link_libraries(test_real_firmware_flashing PRIVATE setupapi)
+    endif()
+
+    add_test(NAME RealFirmwareFlashing COMMAND test_real_firmware_flashing)
+endif()

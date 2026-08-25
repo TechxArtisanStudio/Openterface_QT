@@ -7,6 +7,27 @@
 #include <thread>
 #include <chrono>
 #include <cstdlib>
+#include <algorithm>
+
+// ---------------------------------------------------------------------------
+// extendFirmwareToSectorBoundary — pad firmware to 1024-byte boundary.
+// Mirrors wchisp src/main.rs extend_firmware_to_sector_boundary().
+// Padding uses 0x00 to match wchisp behavior (erased flash is 0xFF;
+// after XOR with the key, the actual byte written differs, but the
+// resulting flash content is correct).
+// ---------------------------------------------------------------------------
+static std::vector<uint8_t> extendFirmwareToSectorBoundary(
+    const std::vector<uint8_t>& firmware)
+{
+    constexpr size_t kSectorSize = 1024;
+    if (firmware.size() % kSectorSize == 0)
+        return firmware;  // already aligned
+
+    std::vector<uint8_t> padded = firmware;
+    size_t remain = kSectorSize - (firmware.size() % kSectorSize);
+    padded.insert(padded.end(), remain, 0x00);  // 0x00 padding, matches wchisp
+    return padded;
+}
 
 // ---------------------------------------------------------------------------
 // Constructor: identify device and read config
@@ -56,7 +77,9 @@ void WCHFlasher::readConfig()
     if (resp.payload.size() < 18)
         throw WCHFlashError("ReadConfig: response too short");
 
-    // Layout: [2 status bytes][RDPR @ 2][...][BTVER 4 bytes @ 14][UID @ 18...]
+    // Layout: [2 status bytes][RDPR @ 2][nRDPR @ 3][USER @ 4][nUSER @ 5]
+    //         [DATA0 @ 6][nDATA0 @ 7][DATA1 @ 8][nDATA1 @ 9]
+    //         [WPR @ 10..13][BTVER @ 14..17][UID @ 18...]
     m_codeFlashProtected = m_chip.supportsCodeFlashProtect &&
                            (resp.payload[2] != 0xA5);
 
@@ -66,6 +89,46 @@ void WCHFlasher::readConfig()
     size_t uidEnd   = std::min(uidStart + static_cast<size_t>(m_chip.uidSize),
                                resp.payload.size());
     m_uid.assign(resp.payload.begin() + uidStart, resp.payload.begin() + uidEnd);
+
+    // For CH32V20x (deviceType 0x19), adjust flash size based on SRAM_CODE_MODE.
+    // The USER byte bits [7:6] select how total silicon area is split between
+    // Code Flash and SRAM.  The chip database stores the default (smallest)
+    // flash size; we patch it up here if the user configuration maps more
+    // area to code flash.
+    //
+    // Reference: CH32V20x RM "32.6 User option bytes" → SRAM_CODE_MODE field,
+    // and wchisp devices/0x19-CH32V20x.yaml.
+    if (m_chip.deviceType == 0x19) {
+        uint8_t userByte = resp.payload[4];
+        uint8_t sramCodeMode = (userByte >> 6) & 0x03;
+
+        // V4B (chipID 0x80-0x83, CH32V208 family): larger total flash
+        // V4C (chipID 0x30-0x37, CH32V203 family): smaller total flash
+        bool isV4B = (m_rawChipID >= 0x80 && m_rawChipID <= 0x83);
+
+        uint32_t newFlashSize = 0;
+        if (isV4B) {
+            // CH32V208 variants (first value in each SRAM_CODE_MODE row)
+            switch (sramCodeMode) {
+                case 0b00: newFlashSize = 192 * 1024; break;
+                case 0b01: newFlashSize = 224 * 1024; break;
+                case 0b10: newFlashSize = 256 * 1024; break;
+                case 0b11: newFlashSize = 228 * 1024; break;
+            }
+        } else {
+            // CH32V203 variants (second value in each SRAM_CODE_MODE row)
+            switch (sramCodeMode) {
+                case 0b00: newFlashSize = 128 * 1024; break;
+                case 0b01: newFlashSize = 144 * 1024; break;
+                case 0b10: newFlashSize = 160 * 1024; break;
+                case 0b11: newFlashSize = 160 * 1024; break;
+            }
+        }
+
+        if (newFlashSize > 0 && newFlashSize != m_chip.flashSize) {
+            m_chip.flashSize = newFlashSize;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -211,10 +274,49 @@ void WCHFlasher::unprotect()
     if (!WCHResponse::parse(wraw, wresp) || !wresp.ok)
         throw WCHFlashError("Unprotect writeConfig failed");
 
-    // Step 3: Reset the device so the config change takes effect.
-    // The device reboots immediately and drops the USB connection.
+    // Step 3: Reset device so the config change takes effect.
+    // On WCH ISP bootloader, config changes (especially RDPR) only apply after
+    // a device reset.  Without this, the flash remains protected and subsequent
+    // erase/program will silently fail.
     m_codeFlashProtected = false;
     reset();
+
+    // Step 4: Reconnect — the device reboots and re-enumerates on USB.
+    // We close the stale transport handle, wait for re-enumeration, then
+    // reopen and re-identify before continuing with erase/program.
+    m_transport->close();
+
+    constexpr int kMaxAttempts = 10;
+    bool reconnected = false;
+    for (int attempt = 0; attempt < kMaxAttempts && !reconnected; ++attempt) {
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        auto names = m_transport->scanDevices();
+        if (names.empty()) continue;
+        for (size_t i = 0; i < names.size(); ++i) {
+            try {
+                m_transport->open(static_cast<int>(i));
+                auto pkt = WCHPacketBuilder::identify(m_rawChipID, m_rawDeviceType);
+                auto raw = m_transport->transfer(pkt);
+                WCHResponse r;
+                if (WCHResponse::parse(raw, r) && r.ok &&
+                    r.payload.size() >= 2 &&
+                    r.payload[0] == m_rawChipID &&
+                    r.payload[1] == m_rawDeviceType) {
+                    reconnected = true;
+                    break;
+                }
+                m_transport->close();
+            } catch (const std::exception&) {
+                m_transport->close();
+            }
+        }
+    }
+    if (!reconnected)
+        throw WCHFlashError("Device did not come back after unprotect reset.");
+
+    // Re-read config and derive fresh XOR key
+    readConfig();
+    deriveXorKey();
 }
 
 // ---------------------------------------------------------------------------
@@ -243,13 +345,17 @@ void WCHFlasher::reidentify()
 }
 
 // ---------------------------------------------------------------------------
-// erase
+// erase — erase code flash to fit `firmwareSize` bytes of firmware.
+// Matches wchisp: sectors = binary.len() / SECTOR_SIZE + 1, with a minimum
+// of min_erase_sector_number (8 for deviceType 0x19, 4 for 0x10).
 // ---------------------------------------------------------------------------
 void WCHFlasher::erase(uint32_t firmwareSize)
 {
-    uint32_t sectors = (firmwareSize + WCHConstants::SectorSize - 1) /
-                        WCHConstants::SectorSize;
-    if (sectors == 0) sectors = 1;
+    uint32_t sectors = firmwareSize / WCHConstants::SectorSize + 1;
+
+    // Enforce minimum erase sector count (matches wchisp min_erase_sector_number)
+    uint32_t minSectors = (m_chip.deviceType == 0x10) ? 4 : 8;
+    if (sectors < minSectors) sectors = minSectors;
 
     auto packet = WCHPacketBuilder::erase(sectors);
     auto raw = doTransfer(packet, "erase");
@@ -257,6 +363,21 @@ void WCHFlasher::erase(uint32_t firmwareSize)
     WCHResponse resp;
     if (!WCHResponse::parse(raw, resp) || !resp.ok)
         throw WCHFlashError("Erase failed");
+}
+
+// ---------------------------------------------------------------------------
+// eraseData — erase `sectors` 1KiB sectors of data flash (EEPROM).
+// ---------------------------------------------------------------------------
+void WCHFlasher::eraseData(uint16_t sectors)
+{
+    if (sectors == 0) return;
+
+    auto packet = WCHPacketBuilder::dataErase(sectors);
+    auto raw = doTransfer(packet, "dataErase");
+
+    WCHResponse resp;
+    if (!WCHResponse::parse(raw, resp) || !resp.ok)
+        throw WCHFlashError("Data flash erase failed");
 }
 
 // ---------------------------------------------------------------------------
@@ -369,13 +490,26 @@ void WCHFlasher::verify(const std::vector<uint8_t>& firmware,
         if (!WCHResponse::parse(raw, resp) || !resp.ok)
             throw WCHFlashError("Verify failed at offset 0x" +
                                  std::to_string(offset));
-        // wchisp checks payload[0] for verify result:
-        // 0x00 = match, anything else = mismatch
-        if (!resp.payload.empty() && resp.payload[0] != 0x00)
-            throw WCHFlashError(
-                "Verify MISMATCH at offset 0x" +
-                std::to_string(offset) +
-                " — flash contents differ from firmware file");
+
+        // Match wchisp (flashing.rs:452): the device signals verify match/mismatch
+        // in payload[0], NOT in the status byte.  wchisp's Response::from_raw has
+        // an `if true` that ignores the status byte entirely, so the payload check
+        // is the only real verification.  Without this, a mismatch (payload[0]!=0)
+        // with status=0x00 would silently pass.
+        if (resp.payload.empty() || resp.payload[0] != 0x00) {
+            std::ostringstream msg;
+            msg << "Verify MISMATCH at offset 0x" << std::hex << offset
+                << " (payload[0]=0x"
+                << (resp.payload.empty() ? std::string("??")
+                                          : ([&]{
+                                                char b[3];
+                                                std::snprintf(b, sizeof(b), "%02X",
+                                                              resp.payload[0]);
+                                                return std::string(b);
+                                            })())
+                << ")";
+            throw WCHFlashError(msg.str());
+        }
 
         offset += thisChunkSize;
         ++chunkIndex;
@@ -390,12 +524,7 @@ void WCHFlasher::verify(const std::vector<uint8_t>& firmware,
 }
 
 // ---------------------------------------------------------------------------
-// protect — re-enable flash protection after a successful flash.
-//
-// Note: the new config only takes effect after the NEXT device reset.
-// We do NOT verify by reading back — the read would still show 0xA5 until
-// the device is reset, which causes a false error.  The final reset() call
-// in the flash pipeline applies the protection.
+// protect
 // ---------------------------------------------------------------------------
 void WCHFlasher::protect()
 {
@@ -411,12 +540,12 @@ void WCHFlasher::protect()
 
     std::vector<uint8_t> config(resp.payload.begin() + 2,
                                 resp.payload.begin() + 14);
-    config[0] = 0x00;   // RDPR  = 0x00 → protected
-    config[1] = 0xFF;   // nRDPR = ~RDPR
-    config[8]  = 0x00;  // WPR[0]
-    config[9]  = 0x00;  // WPR[1]
-    config[10] = 0x00;  // WPR[2]
-    config[11] = 0x00;  // WPR[3]
+    config[0] = 0x00;
+    config[1] = 0x00;
+    config[8] = 0x00;
+    config[9] = 0x00;
+    config[10] = 0x00;
+    config[11] = 0x00;
 
     auto wpacket = WCHPacketBuilder::writeConfig(WCHConstants::CfgMaskRDPRUserDataWPR,
                                                   config);
@@ -430,130 +559,72 @@ void WCHFlasher::protect()
 
 // ---------------------------------------------------------------------------
 // reset — send ispEnd(1) to reboot the device into user firmware.
-// The device drops the USB connection immediately; callers must wait for
-// re-enumeration before any further transfers.
+// reason=0 resets to ISP mode, reason=1 resets to user firmware.
+// The device may drop the USB connection before responding, which is expected.
 // ---------------------------------------------------------------------------
 void WCHFlasher::reset()
 {
-    auto packet = WCHPacketBuilder::ispEnd(1);
+    auto packet = WCHPacketBuilder::ispEnd(1);  // Use 1 to boot user firmware
     try {
-        m_transport->transfer(packet);
-    } catch (const WCHTransportError&) {
-        // After ispEnd the device reboots immediately and drops the USB
-        // connection.  The read side of the transfer will therefore fail —
-        // this is expected and not an error.
+        auto raw = doTransfer(packet, "ispEnd");
+        WCHResponse resp;
+        if (!WCHResponse::parse(raw, resp) || !resp.ok) {
+            // Non-fatal: device may have rebooted before responding
+        }
+    } catch (const WCHFlashError&) {
+        // Expected: device drops USB immediately after ispEnd
     }
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 }
 
 // ---------------------------------------------------------------------------
 // flash — full pipeline
 //
-// unprotect → reset → wait for USB re-enumeration → reopen transport →
-// reidentify → erase → program → verify → protect → reset
-//
-// The unprotect step resets the device so the flash-protection config change
-// actually takes effect.  After the reset the USB connection drops; we close
-// the stale transport handle, wait for the device to come back, rescan, and
-// reopen before continuing.
+// Matches wchisp main.rs Flash subcommand:
+//   [unprotect if needed] → erase → sleep(1s) → program → sleep(500ms)
+//   → verify → reset
 // ---------------------------------------------------------------------------
-void WCHFlasher::flash(const std::vector<uint8_t>& firmware,
+void WCHFlasher::flash(const std::vector<uint8_t>& rawFirmware,
                         const WCHProgressCallback& progress)
 {
-    if (firmware.empty())
+    if (rawFirmware.empty())
         throw WCHFlashError("Firmware data is empty");
 
-    // Stage 0: unprotect if needed
+    // Pad firmware to 1024-byte sector boundary (matches wchisp)
+    auto firmware = extendFirmwareToSectorBoundary(rawFirmware);
+
+    // Stage 0: unprotect if needed (wchisp Flash subcommand does NOT call
+    // unprotect; but we keep it for compatibility with protected devices
+    // since the reference config unprotect is a separate subcommand)
     reportProgress(progress, 0, "Checking flash protection...");
     if (m_codeFlashProtected) {
-        reportProgress(progress, 2, "Unprotecting flash (writing config + reset)...");
-        unprotect();   // writes config, then resets device (USB drops)
-
-        // ---- reconnect after device reboot ----
-        // The device needs several seconds to re-enumerate on USB and for
-        // the bootloader to initialize.  We close the stale handle, then
-        // repeatedly rescan + open until the device responds.
-        reportProgress(progress, 3, "Waiting for device to reboot...");
-        m_transport->close();
-
-        constexpr int kMaxAttempts = 8;
-        bool reconnected = false;
-
-        for (int attempt = 0; attempt < kMaxAttempts && !reconnected; ++attempt)
-        {
-            // Wait before each attempt (longer on first attempts)
-            int waitSec = (attempt < 3) ? 2 : 3;
-            reportProgress(progress, 3,
-                "Waiting for device... attempt " +
-                std::to_string(attempt + 1) + "/" +
-                std::to_string(kMaxAttempts));
-            std::this_thread::sleep_for(std::chrono::seconds(waitSec));
-
-            // Rescan — find which CH375 index the device appeared at
-            auto names = m_transport->scanDevices();
-            if (names.empty())
-                continue;
-
-            // Try to open each found device and verify it answers identify
-            for (size_t i = 0; i < names.size(); ++i) {
-                try {
-                    m_transport->open(static_cast<int>(i));
-                    // Quick identify to confirm it's our chip
-                    auto pkt = WCHPacketBuilder::identify(m_chip.chipID,
-                                                          m_chip.deviceType);
-                    auto raw = m_transport->transfer(pkt);
-                    WCHResponse r;
-                    if (WCHResponse::parse(raw, r) && r.ok &&
-                        r.payload.size() >= 2 &&
-                        r.payload[0] == m_chip.chipID &&
-                        r.payload[1] == m_chip.deviceType)
-                    {
-                        reconnected = true;
-                        break;   // transport is open and verified
-                    }
-                    // Not our device — close and try next
-                    m_transport->close();
-                } catch (const std::exception&) {
-                    m_transport->close();
-                }
-            }
-        }
-
-        if (!reconnected)
-            throw WCHFlashError(
-                "Device did not come back after unprotect reset. "
-                "Please physically disconnect and reconnect the device, "
-                "then click Connect and try flashing again.");
-
-        // Re-read config (RDPR should now be 0xA5) and derive fresh XOR key
-        reportProgress(progress, 4, "Re-identifying device after reset...");
-        readConfig();
-        deriveXorKey();
-
-        reportProgress(progress, 5, "Flash unprotected — device reconnected");
-    } else {
-        reportProgress(progress, 2, "Flash already unprotected");
+        reportProgress(progress, 2, "Unprotecting flash...");
+        unprotect();
     }
 
     // Stage 1: erase
-    reportProgress(progress, 6, "Erasing flash...");
+    reportProgress(progress, 5, "Erasing flash...");
     erase(static_cast<uint32_t>(firmware.size()));
     reportProgress(progress, 10, "Erase complete");
+
+    // wchisp: sleep 1s after erase
+    std::this_thread::sleep_for(std::chrono::seconds(1));
 
     // Stage 2: program (progress 10–50%)
     program(firmware, progress);
 
+    // wchisp: sleep 500ms between flash and verify
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
     // Stage 3: verify (progress 50–95%)
     verify(firmware, progress);
 
-    // NOTE: we intentionally do NOT re-protect flash here.
-    // On WCH CH32V chips (including CH32V208), changing RDPR from 0xA5
-    // (unprotected) to 0x00 (protected) triggers an automatic code flash
-    // erase as a security side-effect.  This would erase the firmware we
-    // just wrote.  The reference tool (ch32-rs/wchisp) also does NOT call
-    // protect after flashing — see src/flashing.rs.
-    // The flash remains unprotected (RDPR=0xA5) after programming.
+    // NOTE: we intentionally do NOT call protect() here.
+    // On WCH CH32V chips, changing RDPR from 0xA5 to 0x00 triggers an
+    // automatic code flash erase as a security side-effect.
+    // wchisp also does NOT call protect after flashing.
 
-    // Stage 4: reset device to boot new firmware
+    // Stage 4: reset
     reportProgress(progress, 96, "Resetting device...");
     reset();
 
