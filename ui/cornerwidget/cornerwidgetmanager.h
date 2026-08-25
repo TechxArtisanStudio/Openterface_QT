@@ -9,6 +9,7 @@
 #include <QSvgRenderer>
 #include <QPainter>
 #include <QApplication>
+#include <QEvent>
 #include "ui/toolbar/toggleswitch.h"
 
 class CornerWidgetManager : public QObject {
@@ -53,6 +54,9 @@ private:
     void setButtonIcon(QPushButton *button, const QString &iconPath);
     void updateAllIcons();
     QColor getIconColor() const;
+
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
     QWidget *cornerWidget;
     QComboBox *keyboardLayoutComboBox;
