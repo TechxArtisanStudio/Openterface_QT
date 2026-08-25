@@ -125,7 +125,6 @@
     </property>
     <addaction name="actionEnvironmentSetup"/>
     <addaction name="actionResetSerialPort"/>
-    <addaction name="actionResetHID"/>
     <addaction name="actionFactory_reset_HID"/>
     <addaction name="actionSerialConsole"/>
     <addaction name="actionScriptTool"/>

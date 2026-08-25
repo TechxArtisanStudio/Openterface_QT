@@ -291,22 +291,13 @@ jobs:
             sudo -u builder namcap "$pkg" || true
           done
 
-      - name: Upload package artifact
+      - name: Upload Arch Linux package
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceqt-archlinux-${{ steps.version.outputs.version }}
+          name: openterfaceQT_linux_amd64.pkg.tar.zst
           path: /home/builder/archpkg/*.pkg.tar.zst
           if-no-files-found: error
           retention-days: 30
-
-      - name: Upload debug package (if built)
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: openterfaceqt-archlinux-debug-${{ steps.version.outputs.version }}
-          path: /home/builder/archpkg/*-debug-*.pkg.tar.zst
-          if-no-files-found: ignore
-          retention-days: 7
 
   summary:
     name: Build summary
