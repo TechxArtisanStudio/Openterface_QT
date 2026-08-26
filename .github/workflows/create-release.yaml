@@ -118,7 +118,7 @@ jobs:
       - name: Upload signed AMD64 installer
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.amd.installer
+          name: openterfaceQT_windows_amd64_installer_signed
           path: artifacts/windows/signed/openterfaceQT.windows.amd64.installer.exe
           retention-days: 30
 
@@ -165,7 +165,7 @@ jobs:
       - name: Upload signed AMD64 portable
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.amd.portable.exe
+          name: openterfaceQT_windows_amd64_portable_signed
           path: artifacts/windows/signed/openterfaceQT-portable.exe
           retention-days: 30
 
@@ -212,7 +212,7 @@ jobs:
       - name: Upload signed ARM64 installer
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.arm64.installer
+          name: openterfaceQT_windows_arm64_installer_signed
           path: artifacts/windows/arm64/signed/openterfaceQT.windows.arm64.installer.exe
           retention-days: 30
 
@@ -259,7 +259,7 @@ jobs:
       - name: Upload signed ARM64 portable
         uses: actions/upload-artifact@v4
         with:
-          name: openterfaceQT.windows.arm64.portable.exe
+          name: openterfaceQT_windows_arm64_portable_signed
           path: artifacts/windows/arm64/portable/signed/openterfaceQT.exe
           retention-days: 30
   create-release:
@@ -350,29 +350,29 @@ jobs:
         if: ${{ !inputs.skip_windows_signing && inputs.sign_amd64_installer }}
         uses: actions/download-artifact@v4
         with:
-          name: openterfaceQT.windows.amd.installer
+          name: openterfaceQT_windows_amd64_installer_signed
           path: artifacts/windows/signed
 
       - name: Download signed Windows portable artifact
         if: ${{ !inputs.skip_windows_signing && inputs.sign_amd64_portable }}
         uses: actions/download-artifact@v4
         with:
-          name: openterfaceQT.windows.amd.portable.exe
+          name: openterfaceQT_windows_amd64_portable_signed
           path: artifacts/windows/signed
 
       - name: Download signed Windows ARM64 installer artifact
         if: ${{ !inputs.skip_windows_signing && inputs.sign_arm64_installer }}
         uses: actions/download-artifact@v4
         with:
-          name: openterfaceQT.windows.arm64.installer
-          path: artifacts/windows/signed
+          name: openterfaceQT_windows_arm64_installer_signed
+          path: artifacts/windows/arm64/signed
 
       - name: Download signed Windows ARM64 portable artifact
         if: ${{ !inputs.skip_windows_signing && inputs.sign_arm64_portable }}
         uses: actions/download-artifact@v4
         with:
-          name: openterfaceQT.windows.arm64.portable.exe
-          path: artifacts/windows/signed
+          name: openterfaceQT_windows_arm64_portable_signed
+          path: artifacts/windows/arm64/portable/signed
 
       - name: Download unsigned Windows installer artifact
         if: ${{ inputs.skip_windows_signing || !inputs.sign_amd64_installer }}
@@ -380,7 +380,7 @@ jobs:
         with:
           workflow: windows-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.windows.amd64.installer
+          name: openterfaceQT_windows_amd64_installer
           path: artifacts/windows/unsigned
 
       - name: Download unsigned Windows portable artifact
@@ -389,7 +389,7 @@ jobs:
         with:
           workflow: windows-portable-build.yaml
           workflow_conclusion: success
-          name: openterfaceQT.windows.amd64.portable.exe
+          name: openterfaceQT-portable.exe
           path: artifacts/windows/unsigned
 
       - name: Download unsigned Windows ARM64 installer artifact
@@ -410,53 +410,66 @@ jobs:
           name: openterfaceQT_windows_arm64_portable
           path: artifacts/windows/unsigned
         
-      - name: Create source archives
-        run: |
-          # Create directory for source archives
-          mkdir -p artifacts/source
-          
-          # Get version for naming
-          VERSION=$(grep -oP '#define APP_VERSION "\K[^"]+' resources/version.h)
-          SOURCE_PKG_NAME="openterfaceQT_${VERSION}_source"
-          
-          # Create a temp directory for preparing the source
-          TEMP_SRC_DIR=$(mktemp -d)
-          echo "Created temp directory: $TEMP_SRC_DIR"
-          
-          # Copy source to temp directory, excluding unwanted files
-          rsync -a --exclude=".git" --exclude="build" --exclude="debug" \
-                   --exclude="release" --exclude=".DS_Store" --exclude="*.o" \
-                   --exclude="*.a" --exclude="*.so" --exclude="*.dll" \
-                   --exclude="*.dylib" --exclude="moc_*" --exclude="ui_*" \
-                   --exclude="qrc_*" --exclude=".qmake.stash" --exclude="*.user" \
-                   --exclude="Makefile*" --exclude="*.autosave" \
-                   --exclude="tmp" --exclude="*.log" \
-                   --exclude="*.json" --exclude="*.qm" --exclude="*.md"  \
-                   --exclude="artifacts" --exclude=".github/workflows/*.log" \
-                   . $TEMP_SRC_DIR/
-          
-          # Create source code zip from the temp directory
-          (cd $TEMP_SRC_DIR && zip -r "$GITHUB_WORKSPACE/artifacts/source/${SOURCE_PKG_NAME}.zip" .)
-          
-          # Create source code tar.gz from the temp directory
-          (cd $TEMP_SRC_DIR && tar -czf "$GITHUB_WORKSPACE/artifacts/source/${SOURCE_PKG_NAME}.tar.gz" .)
-          
-          # Check if archives were created successfully
-          if [ -f "artifacts/source/${SOURCE_PKG_NAME}.zip" ] && [ -f "artifacts/source/${SOURCE_PKG_NAME}.tar.gz" ]; then
-            echo "Created source archives successfully:"
-            ls -lh artifacts/source/
-          else
-            echo "Failed to create source archives!"
-            exit 1
-          fi
-          
-          # Clean up
-          rm -rf $TEMP_SRC_DIR
       - name: List all downloaded artifacts
         run: |
           echo "Downloaded artifacts:"
           find artifacts -type f | sort
-          
+
+      - name: Rename Windows artifacts to match upstream format
+        run: |
+          echo "Renaming Windows artifacts..."
+
+          # Rename signed Windows artifacts (if they exist)
+          if [ -f "artifacts/windows/signed/openterfaceQT.windows.amd64.installer.exe" ]; then
+            mv "artifacts/windows/signed/openterfaceQT.windows.amd64.installer.exe" "artifacts/windows/signed/openterfaceQT_windows_amd64_installer.exe"
+            echo "Renamed: openterfaceQT.windows.amd64.installer.exe -> openterfaceQT_windows_amd64_installer.exe"
+          fi
+
+          if [ -f "artifacts/windows/signed/openterfaceQT-portable.exe" ]; then
+            mv "artifacts/windows/signed/openterfaceQT-portable.exe" "artifacts/windows/signed/openterfaceQT_windows_amd64_portable.exe"
+            echo "Renamed: openterfaceQT-portable.exe -> openterfaceQT_windows_amd64_portable.exe"
+          fi
+
+          if [ -f "artifacts/windows/arm64/signed/openterfaceQT.windows.arm64.installer.exe" ]; then
+            mv "artifacts/windows/arm64/signed/openterfaceQT.windows.arm64.installer.exe" "artifacts/windows/arm64/signed/openterfaceQT_windows_arm64_installer.exe"
+            echo "Renamed: openterfaceQT.windows.arm64.installer.exe -> openterfaceQT_windows_arm64_installer.exe"
+          fi
+
+          if [ -f "artifacts/windows/arm64/portable/signed/openterfaceQT.exe" ]; then
+            mv "artifacts/windows/arm64/portable/signed/openterfaceQT.exe" "artifacts/windows/arm64/portable/signed/openterfaceQT_windows_arm64_portable.exe"
+            echo "Renamed: openterfaceQT.exe -> openterfaceQT_windows_arm64_portable.exe"
+          fi
+
+          # Rename unsigned Windows artifacts (if they exist)
+          if [ -f "artifacts/windows/unsigned/openterfaceQT_windows_amd64_installer/openterfaceQT_windows_amd64_installer.exe" ]; then
+            mv "artifacts/windows/unsigned/openterfaceQT_windows_amd64_installer/openterfaceQT_windows_amd64_installer.exe" "artifacts/windows/unsigned/openterfaceQT_windows_amd64_installer.exe"
+            rmdir "artifacts/windows/unsigned/openterfaceQT_windows_amd64_installer" 2>/dev/null || true
+            echo "Renamed unsigned: amd64 installer extracted from subdirectory"
+          elif [ -f "artifacts/windows/unsigned/openterfaceQT.windows.amd64.installer.exe" ]; then
+            mv "artifacts/windows/unsigned/openterfaceQT.windows.amd64.installer.exe" "artifacts/windows/unsigned/openterfaceQT_windows_amd64_installer.exe"
+            echo "Renamed unsigned: openterfaceQT.windows.amd64.installer.exe -> openterfaceQT_windows_amd64_installer.exe"
+          fi
+
+          if [ -f "artifacts/windows/unsigned/openterfaceQT-portable.exe" ]; then
+            mv "artifacts/windows/unsigned/openterfaceQT-portable.exe" "artifacts/windows/unsigned/openterfaceQT_windows_amd64_portable.exe"
+            echo "Renamed unsigned: openterfaceQT-portable.exe -> openterfaceQT_windows_amd64_portable.exe"
+          fi
+
+          if [ -f "artifacts/windows/unsigned/openterfaceQT_windows_arm64_installer/openterfaceQT_windows_arm64_installer.exe" ]; then
+            mv "artifacts/windows/unsigned/openterfaceQT_windows_arm64_installer/openterfaceQT_windows_arm64_installer.exe" "artifacts/windows/unsigned/openterfaceQT_windows_arm64_installer.exe"
+            rmdir "artifacts/windows/unsigned/openterfaceQT_windows_arm64_installer" 2>/dev/null || true
+            echo "Renamed unsigned: arm64 installer extracted from subdirectory"
+          fi
+
+          if [ -f "artifacts/windows/unsigned/openterfaceQT_windows_arm64_portable/openterfaceQT.exe" ]; then
+            mv "artifacts/windows/unsigned/openterfaceQT_windows_arm64_portable/openterfaceQT.exe" "artifacts/windows/unsigned/openterfaceQT_windows_arm64_portable.exe"
+            rmdir "artifacts/windows/unsigned/openterfaceQT_windows_arm64_portable" 2>/dev/null || true
+            echo "Renamed unsigned: arm64 portable extracted from subdirectory"
+          fi
+
+          echo "Final artifacts:"
+          find artifacts -type f | sort
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -464,12 +477,11 @@ jobs:
           name: v${{ steps.extract_version.outputs.APP_VERSION }}
           body: |
             ## Change Log
-            
+
             ${{ steps.changelog.outputs.CHANGELOG }}
-            
+
           draft: ${{ github.event.inputs.draft }}
           prerelease: ${{ github.event.inputs.prerelease }}
           files: |
             artifacts/linux/**/*
             artifacts/windows/**/*
-            artifacts/source/**/*
