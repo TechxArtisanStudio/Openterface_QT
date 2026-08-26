@@ -54,8 +54,11 @@ public:
     // Send ISP key seed (30 zero bytes)
     static std::vector<uint8_t> ispKey(const std::vector<uint8_t>& key);
 
-    // Erase N sectors
+    // Erase N sectors of code flash
     static std::vector<uint8_t> erase(uint32_t sectors);
+
+    // Erase N sectors of data flash (EEPROM)
+    static std::vector<uint8_t> dataErase(uint16_t sectors);
 
     // Write encrypted chunk to code flash
     static std::vector<uint8_t> program(uint32_t address, uint8_t padding,

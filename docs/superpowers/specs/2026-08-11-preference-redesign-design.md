@@ -2,85 +2,85 @@
 
 ## Overview
 
-合并 `SettingDialog`（Preferences）和 `AdvancedSettingsDialog` 为统一的 Preferences 对话框，并将底部全局 OK/Apply/Cancel 三个按钮改为每个设置页内嵌自己的三个按钮：**Apply（应用）/ Revert（恢复）/ Cancel（关闭）**。
+Merge `SettingDialog` (Preferences) and `AdvancedSettingsDialog` into a unified Preferences dialog, and replace the three global OK/Apply/Cancel buttons at the bottom with each settings page embedding its own three buttons: **Apply / Revert / Cancel (Close)**.
 
-## 核心决策
+## Core Decisions
 
-| 决策项 | 结论 |
-|--------|------|
-| Revert 按钮语义 | **快照模式（B 方案）**：记录页面打开时的值作为基准，Revert 恢复到该快照。Apply 之后不更新快照。 |
-| 按钮名称 | **Revert**（中文：恢复） |
-| 对话框合并方式 | **平铺到同一个列表**，不再区分 General / Advanced |
-| 页面分类 | 设置页（需要三按钮）vs 操作页（保留现有按钮） |
+| Decision | Conclusion |
+|----------|------------|
+| Revert button semantics | **Snapshot mode (Option B)**: record the page's values at open time as the baseline. Revert restores to that snapshot. The snapshot is NOT updated after Apply. |
+| Button name | **Revert** |
+| Dialog merge approach | **Flatten into a single list** — no longer distinguish General / Advanced |
+| Page classification | Settings pages (require three buttons) vs. Operation pages (keep existing buttons) |
 
-## 页面清单
+## Page Inventory
 
-合并后的 Preferences 对话框包含以下页面：
+The merged Preferences dialog contains the following pages:
 
-| 页面 | 来源 | 类型 | 是否需要 Apply / Revert / Cancel |
-|------|------|------|----------------------------------|
-| General（原 LogPage） | SettingDialog | 设置页 | ✅ 需要 |
-| Video | SettingDialog | 设置页 | ✅ 需要 |
-| Audio | SettingDialog | 设置页 | ✅ 需要 |
-| Target Control | SettingDialog | 设置页 | ✅ 需要 |
-| MCP | AdvancedSettingsDialog | 设置页 | ✅ 需要 |
-| Video Firmware | AdvancedSettingsDialog | 操作页 | ❌ 保留现有按钮 |
-| Control Chip Firmware | AdvancedSettingsDialog | 操作页 | ❌ 保留现有按钮 |
-| EDID Configuration | AdvancedSettingsDialog | 操作页 | ❌ 保留现有按钮 |
-| Virtual Keyboard | AdvancedSettingsDialog | 操作页 | ❌ 保留现有按钮（拖拽编辑 + 自动保存） |
+| Page | Source | Type | Requires Apply / Revert / Cancel |
+|------|--------|------|----------------------------------|
+| General (formerly LogPage) | SettingDialog | Settings page | ✅ Yes |
+| Video | SettingDialog | Settings page | ✅ Yes |
+| Audio | SettingDialog | Settings page | ✅ Yes |
+| Target Control | SettingDialog | Settings page | ✅ Yes |
+| MCP | AdvancedSettingsDialog | Settings page | ✅ Yes |
+| Video Firmware | AdvancedSettingsDialog | Operation page | ❌ Keep existing buttons |
+| Control Chip Firmware | AdvancedSettingsDialog | Operation page | ❌ Keep existing buttons |
+| EDID Configuration | AdvancedSettingsDialog | Operation page | ❌ Keep existing buttons |
+| Virtual Keyboard | AdvancedSettingsDialog | Operation page | ❌ Keep existing buttons (drag-edit + auto-save) |
 
-**分类标准：**
-- **设置页** = 用户修改控件值，Apply 把值写到 GlobalSetting，Revert 丢弃未保存的改动
-- **操作页** = 触发硬件操作（固件读写、EDID 写入等），本身是动作，不需要"保存/恢复"语义
+**Classification criteria:**
+- **Settings page** = user modifies control values; Apply writes values to GlobalSetting; Revert discards unsaved changes
+- **Operation page** = triggers hardware operations (firmware read/write, EDID write, etc.); inherently action-oriented, no "save/revert" semantics needed
 
-## 按钮栏设计
+## Button Bar Design
 
-### 布局
+### Layout
 
-每个设置页底部新增按钮栏：
+Each settings page gets a button bar at the bottom:
 
 ```
-[ Apply (应用) ]  [ Revert (恢复) ]  [ Cancel (关闭) ]
+[ Apply ]  [ Revert ]  [ Cancel (Close) ]
 ```
 
-- 按钮栏右对齐（通过左侧 `addStretch()`）
-- 按钮尺寸：固定 80×30（与现有风格一致）
-- 按钮栏是页面自己布局的一部分
+- Button bar is right-aligned (via `addStretch()` on the left)
+- Button size: fixed 80×30 (consistent with existing style)
+- The button bar is part of the page's own layout
 
-### 三个按钮的语义
+### Semantics of the Three Buttons
 
-| 按钮 | 中文名 | 功能 |
-|------|--------|------|
-| **Apply** | 应用 | 把当前控件的值写入 GlobalSetting（持久化 + 立即生效），不关闭对话框 |
-| **Revert** | 恢复 | 把所有控件恢复到打开页面时的快照值（丢弃所有未保存的修改） |
-| **Cancel** | 关闭 | 关闭整个对话框，不保存任何当前未 Apply 的修改 |
+| Button | Function |
+|--------|----------|
+| **Apply** | Write current control values to GlobalSetting (persist + take effect immediately); does not close the dialog |
+| **Revert** | Restore all controls to the snapshot values captured when the page was opened (discard all unsaved changes) |
+| **Cancel** | Close the entire dialog without saving any changes that haven't been Applied |
 
-### Snapshot（快照）机制
+### Snapshot Mechanism
 
-每个设置页需要实现三个方法：
+Each settings page must implement three methods:
 
 ```cpp
-void captureSnapshot();   // 记录打开时所有控件的当前值
-void applySettings();     // 把控件当前值写入 GlobalSetting（已有）
-void revertToSnapshot();  // 把控件恢复到 captureSnapshot 记录的快照值
+void captureSnapshot();   // Record current values of all controls at page open time
+void applySettings();     // Write current control values to GlobalSetting (already exists)
+void revertToSnapshot();  // Restore controls to the snapshot values recorded by captureSnapshot
 ```
 
-**关键规则：**
+**Key rules:**
 
-1. `captureSnapshot()` 在页面初始化时调用一次（即 `init*Settings()` 内部末尾）
-2. **Apply 之后不更新快照** — 这是选择的 B 方案语义
-3. 快照用类型安全的成员变量存储每个控件的值
+1. `captureSnapshot()` is called once during page initialization (i.e., at the end of `init*Settings()`)
+2. **The snapshot is NOT updated after Apply** — this is the chosen Option B semantics
+3. Snapshot values are stored in type-safe member variables for each control
 
-**示例（McpPage 的快照）：**
+**Example (McpPage snapshot):**
 
 ```cpp
-// 快照成员
+// Snapshot members
 bool    m_snap_enableChecked;
 int     m_snap_transportIndex;
 int     m_snap_ssePort;
 int     m_snap_sseBindPresetIndex;
 QString m_snap_sseBindCustom;
-// ... 其余 SSE 字段
+// ... remaining SSE fields
 
 void McpPage::captureSnapshot() {
     m_snap_enableChecked      = m_enableCheckBox->isChecked();
@@ -97,13 +97,13 @@ void McpPage::revertToSnapshot() {
     m_ssePortSpin->setValue(m_snap_ssePort);
     m_sseBindPresetCombo->setCurrentIndex(m_snap_sseBindPresetIndex);
     m_sseBindCustomEdit->setText(m_snap_sseBindCustom);
-    // ... 触发关联的 UI 状态更新（如 SSE group 的显示/隐藏）
+    // ... trigger associated UI state updates (e.g., SSE group show/hide)
 }
 ```
 
-### 按钮栏辅助函数
+### Button Bar Helper Function
 
-为了避免在每个页面重复写按钮栏创建代码，在 `SettingDialog` 中提供辅助函数：
+To avoid duplicating button bar creation code in every page, `SettingDialog` provides a helper function:
 
 ```cpp
 struct PageButtons {
@@ -119,23 +119,23 @@ PageButtons SettingDialog::createPageButtons(
 );
 ```
 
-每个设置页在 `setupUI()` 末尾调用这个辅助函数，传入自己的 Apply 和 Revert 回调。
+Each settings page calls this helper at the end of `setupUI()`, passing its own Apply and Revert callbacks.
 
-### Cancel 按钮的统一处理
+### Unified Cancel Button Handling
 
-Cancel 按钮连接到 `QDialog::reject()`，关闭对话框。所有页面的 Cancel 行为一致。
+The Cancel button is connected to `QDialog::reject()`, which closes the dialog. Cancel behavior is consistent across all pages.
 
-**注意：** Cancel 关闭前不弹窗询问是否保存。如果用户改动了但没 Apply，直接丢弃。
+**Note:** Cancel does not prompt to ask whether to save. If the user made changes but didn't Apply, they are simply discarded.
 
-## 各页面具体改动
+## Per-Page Changes
 
-### LogPage（General 页面）
+### LogPage (General page)
 
-- 在 `setupUI()` 末尾添加按钮栏
-- 新增 `captureSnapshot()` 和 `revertToSnapshot()` 方法
-- 在 `initLogSettings()` 末尾调用 `captureSnapshot()`
+- Add button bar at the end of `setupUI()`
+- Add `captureSnapshot()` and `revertToSnapshot()` methods
+- Call `captureSnapshot()` at the end of `initLogSettings()`
 
-**快照字段：**
+**Snapshot fields:**
 
 ```cpp
 bool m_snap_coreLog, m_snap_serialLog, m_snap_uiLog, m_snap_hostLog;
@@ -149,16 +149,16 @@ int m_snap_floatingWindowOpacity;
 bool m_snap_systemKeyBlocker;
 ```
 
-**Apply 回调：** 调用现有的 `applyLogsettings()`
-**Revert 回调：** 调用 `revertToSnapshot()`
+**Apply callback:** call existing `applyLogsettings()`
+**Revert callback:** call `revertToSnapshot()`
 
 ### VideoPage
 
-- 在 `setupUI()` 末尾添加按钮栏
-- 新增 `captureSnapshot()` 和 `revertToSnapshot()` 方法
-- 在 `initVideoSettings()` 末尾调用 `captureSnapshot()`
+- Add button bar at the end of `setupUI()`
+- Add `captureSnapshot()` and `revertToSnapshot()` methods
+- Call `captureSnapshot()` at the end of `initVideoSettings()`
 
-**快照字段：**
+**Snapshot fields:**
 
 ```cpp
 int m_snap_videoFormatIndex;
@@ -167,19 +167,19 @@ int m_snap_fpsIndex;
 QSize m_snap_resolution;
 bool m_snap_customResolutionChecked;
 int m_snap_customWidth, m_snap_customHeight;
-// ... 其余视频相关控件
+// ... remaining video-related controls
 ```
 
-**Apply 回调：** 调用现有的 `applyVideoSettings()`
-**Revert 回调：** 调用 `revertToSnapshot()`
+**Apply callback:** call existing `applyVideoSettings()`
+**Revert callback:** call `revertToSnapshot()`
 
 ### AudioPage
 
-- 在 `setupUI()` 末尾添加按钮栏
-- 新增 `captureSnapshot()` 和 `revertToSnapshot()` 方法
-- 在 `loadSettings()` 末尾调用 `captureSnapshot()`
+- Add button bar at the end of `setupUI()`
+- Add `captureSnapshot()` and `revertToSnapshot()` methods
+- Call `captureSnapshot()` at the end of `loadSettings()`
 
-**快照字段：**
+**Snapshot fields:**
 
 ```cpp
 int m_snap_audioCodecIndex;
@@ -192,16 +192,16 @@ bool m_snap_enableAudio;
 int m_snap_volume;
 ```
 
-**Apply 回调：** 调用现有的 `saveSettings()`
-**Revert 回调：** 调用 `revertToSnapshot()`
+**Apply callback:** call existing `saveSettings()`
+**Revert callback:** call `revertToSnapshot()`
 
 ### TargetControlPage
 
-- 在 `setupUI()` 末尾添加按钮栏
-- 新增 `captureSnapshot()` 和 `revertToSnapshot()` 方法
-- 在 `initHardwareSetting()` 末尾调用 `captureSnapshot()`
+- Add button bar at the end of `setupUI()`
+- Add `captureSnapshot()` and `revertToSnapshot()` methods
+- Call `captureSnapshot()` at the end of `initHardwareSetting()`
 
-**快照字段：**
+**Snapshot fields:**
 
 ```cpp
 bool m_snap_vidChecked, m_snap_pidChecked;
@@ -213,16 +213,16 @@ bool m_snap_usbCustomStringChecked;
 int m_snap_operatingMode;  // 0=Full, 1=KeyboardOnly, 2=KeyboardMouse, 3=CustomHID
 ```
 
-**Apply 回调：** 调用现有的 `applyHardwareSetting()`
-**Revert 回调：** 调用 `revertToSnapshot()`
+**Apply callback:** call existing `applyHardwareSetting()`
+**Revert callback:** call `revertToSnapshot()`
 
 ### McpPage
 
-- 在 `setupUI()` 末尾添加按钮栏
-- 新增 `captureSnapshot()` 和 `revertToSnapshot()` 方法
-- 在 `initMcpSettings()` 末尾调用 `captureSnapshot()`
+- Add button bar at the end of `setupUI()`
+- Add `captureSnapshot()` and `revertToSnapshot()` methods
+- Call `captureSnapshot()` at the end of `initMcpSettings()`
 
-**快照字段：**
+**Snapshot fields:**
 
 ```cpp
 bool m_snap_enableChecked;
@@ -238,25 +238,25 @@ int m_snap_sseCleanupInterval;
 int m_snap_sseMaxSessions;
 ```
 
-**Apply 回调：** 调用现有的 `applyMcpSettings()`
-**Revert 回调：** 调用 `revertToSnapshot()`
+**Apply callback:** call existing `applyMcpSettings()`
+**Revert callback:** call `revertToSnapshot()`
 
-### 操作页（不改）
+### Operation Pages (unchanged)
 
-以下页面不添加 Apply/Revert/Cancel 按钮栏，保留现有按钮：
+The following pages do NOT get an Apply/Revert/Cancel button bar; they keep their existing buttons:
 
-- **FirmwarePage** — 保留 Check for Updates / Backup / Write / Cancel
-- **ControlChipFirmwarePage** — 保留 Scan / Connect / Disconnect / Flash
-- **EdidConfigPage** — 保留 Read / Apply / Cancel Reading（这是固件操作，不是设置保存）
-- **VirtualKeyboardPage** — 保留拖拽编辑 + 自动保存机制
+- **FirmwarePage** — keep Check for Updates / Backup / Write / Cancel
+- **ControlChipFirmwarePage** — keep Scan / Connect / Disconnect / Flash
+- **EdidConfigPage** — keep Read / Apply / Cancel Reading (this is a firmware operation, not a settings save)
+- **VirtualKeyboardPage** — keep drag-edit + auto-save mechanism
 
-## 对话框合并实现
+## Dialog Merge Implementation
 
-### SettingDialog 重构
+### SettingDialog Refactoring
 
-类名保持 `SettingDialog` 不变。
+The class name remains `SettingDialog` unchanged.
 
-**新增成员（从 AdvancedSettingsDialog 迁移）：**
+**New members (migrated from AdvancedSettingsDialog):**
 
 ```cpp
 FirmwarePage *firmwarePage;
@@ -266,7 +266,7 @@ EdidConfigPage *edidConfigPage;
 VirtualKeyboardPage *virtualKeyboardPage;
 ```
 
-**createSettingTree() 修改：**
+**createSettingTree() modification:**
 
 ```cpp
 QStringList names = {
@@ -282,57 +282,57 @@ QStringList names = {
 };
 ```
 
-**createPages() 修改：** 依次 addScrollablePage 所有 9 个页面。
+**createPages() modification:** call `addScrollablePage` for all 9 pages in sequence.
 
-**删除：**
-- `buttonWidget` 成员
-- `createButtons()` 方法
-- `handleOkButton()` 方法
-- `applyAccrodingPage()` 方法
+**Deletions:**
+- `buttonWidget` member
+- `createButtons()` method
+- `handleOkButton()` method
+- `applyAccrodingPage()` method
 
-**changePage() 修改：** 支持 9 个页面的索引映射。
+**changePage() modification:** support index mapping for all 9 pages.
 
-### 对外接口
+### Public Interface
 
-保留原有 getter 方法 + 新增迁移页面的 getter：
+Keep existing getter methods + add getters for migrated pages:
 
 ```cpp
 TargetControlPage* getTargetControlPage();
 VideoPage* getVideoPage();
 LogPage* getLogPage();
-McpPage* getMcpPage();                      // 新增
-FirmwarePage* getFirmwarePage();            // 新增
-VirtualKeyboardPage* getVirtualKeyboardPage();  // 新增
+McpPage* getMcpPage();                      // New
+FirmwarePage* getFirmwarePage();            // New
+VirtualKeyboardPage* getVirtualKeyboardPage();  // New
 ```
 
-新增可选的 `selectPage(const QString& pageName)` 方法。
+Add optional `selectPage(const QString& pageName)` method.
 
-## MainWindow 改动
+## MainWindow Changes
 
-### 合并对话框入口
+### Merging Dialog Entry Points
 
-- 保留 `configureSettings()` 打开合并后的 `SettingDialog`
-- 删除 `configureAdvancedSettings()` 方法
-- 原来调用 `configureAdvancedSettings()` 的菜单项改为调用 `configureSettings()`
+- Keep `configureSettings()` to open the merged `SettingDialog`
+- Delete `configureAdvancedSettings()` method
+- Menu items that previously called `configureAdvancedSettings()` now call `configureSettings()`
 
-### 信号连接重构
+### Signal Connection Refactoring
 
-在 `configureSettings()` 中合并所有信号连接：
+Merge all signal connections inside `configureSettings()`:
 
 ```cpp
 void MainWindow::configureSettings() {
     if (!settingDialog) {
         settingDialog = new SettingDialog(m_cameraManager, this);
 
-        // 原有连接（LogPage, VideoPage）
+        // Existing connections (LogPage, VideoPage)
         LogPage* logPage = settingDialog->getLogPage();
         connect(logPage, &LogPage::ScreenSaverInhibitedChanged, ...);
-        // ... 其余 LogPage 连接
+        // ... remaining LogPage connections
         
         VideoPage* videoPage = settingDialog->getVideoPage();
         connect(videoPage, &VideoPage::videoSettingsChanged, ...);
         
-        // 新增连接（从 AdvancedSettingsDialog 迁移过来的）
+        // New connections (migrated from AdvancedSettingsDialog)
         McpPage* mcpPage = settingDialog->getMcpPage();
         connect(mcpPage, &McpPage::mcpSettingsChanged, this, &MainWindow::onMcpSettingsApplied);
 
@@ -340,7 +340,7 @@ void MainWindow::configureSettings() {
         connect(firmwarePage, &FirmwarePage::firmwareUpdateCompleted,
                 this, []() { QApplication::quit(); });
         
-        // 对话框关闭清理
+        // Dialog close cleanup
         connect(settingDialog, &QDialog::finished, this, [this]() {
             settingDialog->deleteLater();
             settingDialog = nullptr;
@@ -354,113 +354,118 @@ void MainWindow::configureSettings() {
 }
 ```
 
-### 头文件改动
+### Header File Changes
 
-**mainwindow.h：**
-- 删除 `class AdvancedSettingsDialog;` 前向声明
-- 删除 `AdvancedSettingsDialog *advancedSettingsDialog;` 成员变量
-- 删除 `void configureAdvancedSettings();` 方法声明
+**mainwindow.h:**
+- Delete `class AdvancedSettingsDialog;` forward declaration
+- Delete `AdvancedSettingsDialog *advancedSettingsDialog;` member variable
+- Delete `void configureAdvancedSettings();` method declaration
 
-**mainwindow.cpp：**
-- 删除 `#include "ui/preferences/advancedsettingsdialog.h"`
-- 删除 `configureAdvancedSettings()` 方法实现
-- 更新菜单连接
+**mainwindow.cpp:**
+- Delete `#include "ui/preferences/advancedsettingsdialog.h"`
+- Delete `configureAdvancedSettings()` method implementation
+- Update menu connections
 
-## 构建系统与文件清单
+## Build System and File Inventory
 
-### CMakeLists.txt 改动
+### CMakeLists.txt Changes
 
-从源文件列表中删除：
+Remove from source file list:
 ```cmake
 ui/preferences/advancedsettingsdialog.cpp
 ui/preferences/advancedsettingsdialog.h
 ```
 
-### 头文件改动汇总
+### Header File Changes Summary
 
-| 文件 | 改动 |
-|------|------|
-| `settingdialog.h` | 新增 5 个页面成员；删除 `buttonWidget`；删除 `createButtons()`, `handleOkButton()`, `applyAccrodingPage()`；新增 `createPageButtons()` 辅助方法；新增 getter 方法；新增 `selectPage()` |
-| `logpage.h` | 新增 `captureSnapshot()`, `revertToSnapshot()` 方法声明；新增 `m_snap_*` 快照成员 |
-| `videopage.h` | 同上 |
-| `audiopage.h` | 同上 |
-| `targetcontrolpage.h` | 同上 |
-| `mcppage.h` | 同上 |
-| `mainwindow.h` | 删除 `AdvancedSettingsDialog` 相关声明 |
+| File | Changes |
+|------|---------|
+| `settingdialog.h` | Add 5 page members; delete `buttonWidget`; delete `createButtons()`, `handleOkButton()`, `applyAccrodingPage()`; add `createPageButtons()` helper method; add getter methods; add `selectPage()` |
+| `logpage.h` | Add `captureSnapshot()`, `revertToSnapshot()` method declarations; add `m_snap_*` snapshot members |
+| `videopage.h` | Same as above |
+| `audiopage.h` | Same as above |
+| `targetcontrolpage.h` | Same as above |
+| `mcppage.h` | Same as above |
+| `mainwindow.h` | Delete `AdvancedSettingsDialog`-related declarations |
 
-### 源文件改动汇总
+### Source File Changes Summary
 
-| 文件 | 改动 |
-|------|------|
-| `settingdialog.cpp` | 合并 AdvancedSettingsDialog 的页面创建和初始化逻辑；删除全局按钮栏代码；changePage() 扩展支持 9 个页面 |
-| `logpage.cpp` | setupUI() 末尾添加按钮栏；实现 captureSnapshot() 和 revertToSnapshot() |
-| `videopage.cpp` | 同上 |
-| `audiopage.cpp` | 同上 |
-| `targetcontrolpage.cpp` | 同上 |
-| `mcppage.cpp` | 同上 |
-| `mainwindow.cpp` | configureSettings() 中合并所有信号连接；删除 configureAdvancedSettings()；更新菜单连接 |
+| File | Changes |
+|------|---------|
+| `settingdialog.cpp` | Merge AdvancedSettingsDialog's page creation and initialization logic; delete global button bar code; expand changePage() to support 9 pages |
+| `logpage.cpp` | Add button bar at end of setupUI(); implement captureSnapshot() and revertToSnapshot() |
+| `videopage.cpp` | Same as above |
+| `audiopage.cpp` | Same as above |
+| `targetcontrolpage.cpp` | Same as above |
+| `mcppage.cpp` | Same as above |
+| `mainwindow.cpp` | Merge all signal connections in configureSettings(); delete configureAdvancedSettings(); update menu connections |
 
-### 文件删除清单
+### File Deletion List
 
 ```
-ui/preferences/advancedsettingsdialog.cpp   # 删除
-ui/preferences/advancedsettingsdialog.h     # 删除
+ui/preferences/advancedsettingsdialog.cpp   # Delete
+ui/preferences/advancedsettingsdialog.h     # Delete
 ```
 
-### 不需要改动的文件
+### Files That Do Not Need Changes
 
-- `firmwarepage.cpp/h` — 不改
-- `controlchipfirmwarepage.cpp/h` — 不改
-- `edidconfigpage.cpp/h` — 不改
-- `virtualkeyboardpage.cpp/h` — 不改
+- `firmwarepage.cpp/h` — no changes
+- `controlchipfirmwarepage.cpp/h` — no changes
+- `edidconfigpage.cpp/h` — no changes
+- `virtualkeyboardpage.cpp/h` — no changes
 
-## 边界情况
+## Edge Cases
 
-### Cancel 不弹窗确认
-用户在任何页面有未 Apply 的改动时点 Cancel，直接关闭对话框。不弹出 "是否保存" 的提示。
+### Cancel Does Not Prompt for Confirmation
 
-### 多次打开对话框
-每次打开对话框，所有设置页都会重新 `init*Settings()`，从 GlobalSetting 读取最新值并调用 `captureSnapshot()`。快照总是最新的磁盘值。
+When the user clicks Cancel on any page with unapplied changes, the dialog closes directly. No "Do you want to save?" prompt is shown.
 
-### Apply 后立即 Revert
-Apply 把值写入 GlobalSetting。Revert 恢复到打开时的快照（不更新快照）。所以如果用户改了 A → Apply → 改了 B → Revert → 回到 A（不是 Apply 之后的 A'）。
+### Opening the Dialog Multiple Times
 
-### 切换页面时没有未保存提示
-切换页面时直接切换，当前页面的未 Apply 改动保留在控件中。用户可以在当前页面继续改，也可以点 Revert 丢弃。
+Each time the dialog is opened, all settings pages re-run `init*Settings()`, reading the latest values from GlobalSetting and calling `captureSnapshot()`. The snapshot is always the latest on-disk values.
 
-### 操作进行中关闭对话框
-FirmwarePage 等硬件操作页的阻止关闭逻辑属于它们自身的职责，不在本次设计范围内。
+### Revert Immediately After Apply
 
-## 测试策略
+Apply writes values to GlobalSetting. Revert restores to the snapshot from when the page was opened (the snapshot is not updated). So if the user changes A → Apply → changes B → Revert → returns to A (not A' which was the post-Apply state).
 
-### 手动测试清单
+### No Unsaved Prompt When Switching Pages
 
-**基础功能：**
-1. 打开 Preferences，确认 9 个页面都在左侧树中
-2. 点击每个页面，确认能正常切换
-3. 确认每个设置页底部都有三个按钮
-4. 确认操作页保留原有按钮
+When switching pages, the switch happens directly. Unapplied changes on the current page remain in the controls. The user can continue editing on the current page or click Revert to discard.
 
-**Apply / Revert / Cancel 测试：**
-5. 在 General 页面改值 → Apply → 确认 GlobalSetting 被更新
-6. 在 General 页面改值 → Revert → 确认控件恢复到打开时的值
-7. 在 General 页面改值 → Cancel → 确认对话框关闭，GlobalSetting 未被修改
-8. 重新打开对话框，确认上一步的改动确实没保存
+### Closing Dialog During Operation
 
-**MCP 页面专项：**
-9. 改传输模式 → Apply → 确认 mcpSettingsChanged 信号被触发
-10. 改 SSE 端口 → Revert → 确认端口恢复
-11. 改多个值 → Cancel → 确认对话框关闭，MCP 配置不变
+The block-close logic for hardware operation pages like FirmwarePage is their own responsibility and is outside the scope of this design.
 
-**跨页面：**
-12. 在 Video 页面改值 → 切到 Audio → 切回 Video → 确认 Video 的改动还在
-13. 在多个页面改值 → Cancel → 确认所有页面都没保存
+## Testing Strategy
 
-**信号连接：**
-14. 修改 MCP 配置并 Apply → 确认 MCP 服务器重启
-15. 修改 System Key Blocker 并 Apply → 确认行为变化
+### Manual Testing Checklist
 
-### 回归测试
+**Basic functionality:**
+1. Open Preferences — confirm all 9 pages appear in the left sidebar tree
+2. Click each page — confirm it switches correctly
+3. Confirm each settings page has three buttons at the bottom
+4. Confirm operation pages retain their original buttons
 
-- 原有 SettingDialog 的功能不应受影响
-- 原 AdvancedSettingsDialog 中的页面功能不应受影响
+**Apply / Revert / Cancel testing:**
+5. Change a value on the General page → Apply → confirm GlobalSetting is updated
+6. Change a value on the General page → Revert → confirm controls restore to the values from when the page was opened
+7. Change a value on the General page → Cancel → confirm the dialog closes and GlobalSetting is not modified
+8. Reopen the dialog — confirm the previous changes were indeed not saved
+
+**MCP page specific tests:**
+9. Change transport mode → Apply → confirm `mcpSettingsChanged` signal is triggered
+10. Change SSE port → Revert → confirm port value is restored
+11. Change multiple values → Cancel → confirm dialog closes and MCP configuration is unchanged
+
+**Cross-page:**
+12. Change a value on the Video page → switch to Audio → switch back to Video → confirm Video's changes are still there
+13. Change values on multiple pages → Cancel → confirm no pages' changes were saved
+
+**Signal connections:**
+14. Modify MCP configuration and Apply → confirm MCP server restarts
+15. Modify System Key Blocker and Apply → confirm behavior changes
+
+### Regression Testing
+
+- Existing SettingDialog functionality should not be affected
+- Pages from the former AdvancedSettingsDialog should not be affected

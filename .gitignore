@@ -1,5 +1,6 @@
 *.pro.user.*
 build/*
+build-tests/*
 release/*
 aqtinstall.log
 debug/*
@@ -40,3 +41,11 @@ qrc_*.*
 
 # Soak test artifacts (logs, screenshots, reports)
 tests/soak_test_*s
+
+# Test build artifacts: ignore compiled binaries and CMake generated files,
+# but keep source code (.cpp, .h, .sh, CMakeLists.txt)
+tests/build/*
+!tests/build/*.cpp
+!tests/build/*.h
+!tests/build/*.sh
+!tests/build/CMakeLists.txt

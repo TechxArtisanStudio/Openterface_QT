@@ -1124,7 +1124,7 @@ the GUI mode with full MainWindow initialization.
 ### Permission errors in server logs
 
 ```
-[DEBUG-HID] open failed: /dev/hidraw4, error: 权限不够
+[DEBUG-HID] open failed: /dev/hidraw4, error: Permission denied
 ```
 
 **Fix:** See the main MCP guide §5.3 — apply the udev rule for HID device access.

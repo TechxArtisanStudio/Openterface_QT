@@ -52,6 +52,12 @@ static constexpr uint8_t SCANCODE_SCROLLLOCK = 0x47;
 #include <unistd.h>
 #include <errno.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <setupapi.h>
+#include <devguid.h>
+#endif
+
 
 #include "log/opflogging.h"
 
@@ -758,6 +764,11 @@ void SerialPortManager::onSerialPortConnected(const QString &portName){
     qCInfo(log_core_serial_config) << "Using chip strategy:" << m_chipStrategy->chipName();
     
     if (m_currentChipType == ChipType::CH9329) {
+        // Check if CH340 driver is installed for CH9329 chip
+        if (!checkCH340DriverInstalled()) {
+            qCWarning(log_core_serial_config) << "CH9329 detected but CH340 driver is not installed";
+            emit driverInstallationRequired();
+        }
         // Start async initialization for CH9329
         int tryBaudrate = determineBaudrate();
         initializeCH9329Async(portName, tryBaudrate);
@@ -1400,7 +1411,36 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         qCDebug(log_core_serial_conn) << "Cannot open port during shutdown";
         return false;
     }
-    
+
+    // CRITICAL FIX: Check state machine to prevent opens during close/error states
+    SerialPortState currentState = m_portState.load();
+    if (currentState == SerialPortState::CLOSING) {
+        qCWarning(log_core_serial_conn) << "Rejecting openPort - port is in CLOSING state (deleteLater pending)";
+        return false;
+    }
+    if (currentState == SerialPortState::ERROR_STATE) {
+        // Before rejecting, check if the device is actually available again.
+        // This handles the case where a transient error put us in ERROR_STATE
+        // but the device has since recovered (e.g., USB glitch resolved).
+        bool portPresent = false;
+        for (const QSerialPortInfo &pi : QSerialPortInfo::availablePorts()) {
+            if (pi.portName() == portName || portName.contains(pi.portName())) {
+                portPresent = true;
+                break;
+            }
+        }
+        if (portPresent) {
+            // Device is available - clear error state and allow reconnection
+            qCInfo(log_core_serial_conn) << "Port is in ERROR_STATE but device is available at" << portName << "- clearing error state and allowing reconnection";
+            m_portState.store(SerialPortState::CLOSED);
+            m_deviceUnpluggedDetected.store(false);
+            m_deviceUnplugCleanupInProgress.store(false);
+        } else {
+            qCWarning(log_core_serial_conn) << "Rejecting openPort - port is in ERROR_STATE and device is not available:" << portName;
+            return false;
+        }
+    }
+
     // Check if device was just unplugged - if so, reject the open attempt to prevent "Access denied" errors
     // This is critical to avoid race conditions between device removal and port open operations
     if (m_deviceUnplugCleanupInProgress.load()) {
@@ -1417,24 +1457,41 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
             qCWarning(log_core_serial_hotplug) << "Transient unplug-cleanup flag set but port is present -> clearing flag and continuing open:" << portName;
             m_deviceUnplugCleanupInProgress.store(false);
             m_deviceUnpluggedDetected.store(false);
+            // Also clear error state if port is available again
+            SerialPortState expectedError = SerialPortState::ERROR_STATE;
+            m_portState.compare_exchange_strong(expectedError, SerialPortState::CLOSED);
         } else {
             qCWarning(log_core_serial_hotplug) << "Device unplugged cleanup in progress, rejecting open attempt for port:" << portName;
             qCWarning(log_core_serial_hotplug) << "This prevents race conditions that cause 'Access denied' errors during hotplug events";
             return false;
         }
     }
-    
+
+    // Transition to OPENING state
+    SerialPortState expected = SerialPortState::CLOSED;
+    if (!m_portState.compare_exchange_strong(expected, SerialPortState::OPENING)) {
+        // Check if already open
+        if (expected == SerialPortState::OPEN) {
+            qCDebug(log_core_serial_conn) << "Serial port is already opened.";
+            return true;
+        }
+        qCWarning(log_core_serial_conn) << "Cannot open port - invalid state transition from" << static_cast<int>(expected);
+        return false;
+    }
+
     QMutexLocker locker(&m_serialPortMutex);
-    
+
     // If there is an existing QSerialPort instance that is not open, delete it to avoid stale internal state (e.g., stale file descriptor / notifiers)
+    // FIX: Use deleteLater instead of direct delete to match closePortInternal's deletion strategy
     if (serialPort != nullptr && !serialPort->isOpen()) {
         qCDebug(log_core_serial_conn) << "Existing closed QSerialPort instance found - marking for deletion to ensure fresh instance before open.";
-        delete serialPort;
+        serialPort->deleteLater();
         serialPort = nullptr;  // Clear pointer temporarily
     }
 
     if (serialPort != nullptr && serialPort->isOpen()) {
         qCDebug(log_core_serial_conn) << "Serial port is already opened.";
+        m_portState.store(SerialPortState::OPEN);
         return true;
     }
 
@@ -1476,10 +1533,13 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         // Log buffer sizes after clearing to confirm the clear worked
         qCDebug(log_core_serial_conn) << "Serial buffer sizes after clear - bytesAvailable:" << serialPort->bytesAvailable()
                                  << "bytesToWrite:" << serialPort->bytesToWrite();
-        
-        
+
+
         // Reset error counters on successful connection
         resetErrorCounters();
+
+        // CRITICAL: Transition to OPEN state after successful open
+        m_portState.store(SerialPortState::OPEN);
 
         emit statusUpdate("");
         emit connectedPortChanged(portName, baudRate);
@@ -1490,6 +1550,9 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
                           .arg(serialPort->errorString())
                           .arg(static_cast<int>(lastError));
         qCWarning(log_core_serial_conn) << errorMsg;
+
+        // CRITICAL: Roll back to CLOSED state on failure
+        m_portState.store(SerialPortState::CLOSED);
 
         emit statusUpdate(errorMsg);
         return false;
@@ -1543,29 +1606,33 @@ void SerialPortManager::closePort() {
 
 void SerialPortManager::closePortInternal() {
     qCDebug(log_core_serial_conn) << "Close serial port";
-    
+
+    // CRITICAL: Transition to CLOSING state immediately to block new open attempts
+    SerialPortState previousState = m_portState.exchange(SerialPortState::CLOSING);
+    qCDebug(log_core_serial_conn) << "Port state transition:" << static_cast<int>(previousState) << "-> CLOSING";
+
     QMutexLocker locker(&m_serialPortMutex);
-    
+
     if (serialPort != nullptr) {
         qCDebug(log_core_serial_conn) << "Closing serial port instance:" << static_cast<void*>(serialPort);
-        
+
         if (serialPort->isOpen()) {
             // Disconnect all signals BEFORE any operations
             disconnect(serialPort, nullptr, this, nullptr);
-            
+
             qCDebug(log_core_serial_conn) << "Close serial port - current buffer sizes before close - bytesAvailable:" << serialPort->bytesAvailable()
                                      << "bytesToWrite:" << serialPort->bytesToWrite();
-            
+
             // Enhanced close procedure for better memory safety
             try {
                 // Flush any pending writes before closing
                 if (serialPort->bytesToWrite() > 0) {
                     serialPort->waitForBytesWritten(100); // Wait max 100ms
                 }
-                
+
                 // Clear the read buffer to prevent stale data issues
                 serialPort->clear();
-                
+
                 // Close synchronously in worker thread
                 serialPort->close();
                 qCDebug(log_core_serial_conn) << "Serial port closed";
@@ -1576,11 +1643,11 @@ void SerialPortManager::closePortInternal() {
                 qCWarning(log_core_serial_conn) << "Exception during serial port close";
             }
         }
-        
+
         // Enhanced deletion with additional safety measures
         // Store pointer but DO NOT clear serialPort immediately to avoid race conditions
         QObject* portPtr = serialPort;
-        
+
         // Schedule deletion for next event loop to avoid immediate socket notifier issues
         // Use QTimer::singleShot for more reliable deferred deletion
         QTimer::singleShot(0, this, [this, portPtr]() {
@@ -1593,12 +1660,17 @@ void SerialPortManager::closePortInternal() {
                     serialPort = nullptr;
                     qCDebug(log_core_serial_conn) << "SerialPort instance pointer cleared";
                 }
+                // CRITICAL: Transition to CLOSED state after deletion is scheduled
+                m_portState.store(SerialPortState::CLOSED);
+                qCDebug(log_core_serial_conn) << "Port state transition: CLOSING -> CLOSED";
             }
         });
     } else {
         qCDebug(log_core_serial_conn) << "Serial port is not opened (serialPort is nullptr).";
+        // Transition to CLOSED state even if no port instance
+        m_portState.store(SerialPortState::CLOSED);
     }
-    
+
     // Signal back to worker thread to complete the rest of the cleanup
     QMetaObject::invokeMethod(this, [this]() {
         completePortCloseCleanup();
@@ -2775,6 +2847,144 @@ ChipType SerialPortManager::detectChipType(const QString &portName) const
     return ChipType::UNKNOWN;
 }
 
+// Check if CH340 driver is installed (required for CH9329 chip)
+bool SerialPortManager::checkCH340DriverInstalled() {
+#ifdef _WIN32
+    // Step 1: Check if CH340 COM port exists (indicates driver is working)
+    bool ch340ComPortFound = false;
+    const auto ports = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo& port : ports) {
+        if (port.vendorIdentifier() == 0x1A86 && port.productIdentifier() == 0x7523) {
+            ch340ComPortFound = true;
+            qCDebug(log_core_serial_config) << "CH340 COM port found:" << port.portName();
+            break;
+        }
+    }
+
+    if (ch340ComPortFound) {
+        qCDebug(log_core_serial_config) << "CH340 driver is installed (COM port found)";
+        return true; // COM port found → driver is working
+    }
+
+    // Step 2: No COM port found. Check if CH9329 or CH32 USB device is physically present
+    // Use DIGCF_ALLCLASSES to enumerate ALL devices including those without drivers
+    bool ch9329UsbDeviceFound = false;
+    bool ch32UsbDeviceFound = false;
+    bool captureCardUsbDeviceFound = false;
+    HDEVINFO deviceInfoSet = SetupDiGetClassDevsW(NULL, NULL, NULL, DIGCF_PRESENT | DIGCF_ALLCLASSES);
+    if (deviceInfoSet == INVALID_HANDLE_VALUE) {
+        qCWarning(log_core_serial_config) << "SetupDiGetClassDevs failed:" << GetLastError();
+        return true; // Can't enumerate, assume OK
+    }
+
+    SP_DEVINFO_DATA deviceInfoData;
+    deviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+    WCHAR hwIdBuffer[256];
+
+    for (DWORD i = 0; SetupDiEnumDeviceInfo(deviceInfoSet, i, &deviceInfoData); i++) {
+        if (SetupDiGetDeviceRegistryPropertyW(deviceInfoSet, &deviceInfoData, SPDRP_HARDWAREID, NULL,
+            (PBYTE)hwIdBuffer, sizeof(hwIdBuffer), NULL)) {
+            if (wcsstr(hwIdBuffer, L"VID_1A86") != NULL && wcsstr(hwIdBuffer, L"PID_7523") != NULL) {
+                ch9329UsbDeviceFound = true;
+                qCWarning(log_core_serial_config) << "CH9329 USB device found (no COM port):" << QString::fromWCharArray(hwIdBuffer);
+            }
+            if (wcsstr(hwIdBuffer, L"VID_1A86") != NULL && wcsstr(hwIdBuffer, L"PID_FE0C") != NULL) {
+                ch32UsbDeviceFound = true;
+                qCDebug(log_core_serial_config) << "CH32V208 USB device found (does not need CH340 driver):" << QString::fromWCharArray(hwIdBuffer);
+            }
+            if (wcsstr(hwIdBuffer, L"VID_534D") != NULL && wcsstr(hwIdBuffer, L"PID_2109") != NULL) {
+                captureCardUsbDeviceFound = true;
+            }
+            if (wcsstr(hwIdBuffer, L"VID_345F") != NULL && (wcsstr(hwIdBuffer, L"PID_2109") != NULL || wcsstr(hwIdBuffer, L"PID_2132") != NULL)) {
+                captureCardUsbDeviceFound = true;
+            }
+        }
+    }
+
+    SetupDiDestroyDeviceInfoList(deviceInfoSet);
+
+    qCWarning(log_core_serial_config) << "Driver check result: CH9329=" << ch9329UsbDeviceFound
+                                     << "CH32=" << ch32UsbDeviceFound
+                                     << "capture card=" << captureCardUsbDeviceFound
+                                     << "CH340 COM port=" << ch340ComPortFound;
+
+    // CH32V208 found — does not need CH340 driver, skip the check
+    if (ch32UsbDeviceFound) {
+        qCDebug(log_core_serial_config) << "CH32V208 USB device found — CH340 driver check not needed";
+        return true;
+    }
+
+    // CH9329 USB device physically present but no COM port → driver missing
+    if (ch9329UsbDeviceFound) {
+        qCWarning(log_core_serial_config) << "CH9329 USB device present but no COM port → CH340 driver missing";
+        return false;
+    }
+
+    // No CH9329 or CH32 USB device found, but capture card present
+    // This means the composite USB device might not be exposing CH9329 separately
+    // Infer: capture card present → CH9329 should be present → driver likely missing
+    if (captureCardUsbDeviceFound) {
+        qCWarning(log_core_serial_config) << "Openterface capture card found but CH9329/CH32 not found → CH340 driver likely missing";
+        return false;
+    }
+
+    // No relevant device found at all → nothing to check
+    qCDebug(log_core_serial_config) << "No Openterface device found, skipping driver check";
+    return true;
+#elif defined(__linux__)
+    // Step 1: Check if any Openterface USB device is connected
+    // Only check driver if CH9329 device is actually present
+    bool ch9329DeviceFound = false;
+    bool ch32DeviceFound = false;
+    QDir usbDir("/sys/bus/usb/devices");
+    if (usbDir.exists()) {
+        const QStringList entries = usbDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString &entry : entries) {
+            QString vendorPath = "/sys/bus/usb/devices/" + entry + "/idVendor";
+            QString productPath = "/sys/bus/usb/devices/" + entry + "/idProduct";
+            QFile vendorFile(vendorPath);
+            QFile productFile(productPath);
+            if (vendorFile.open(QIODevice::ReadOnly) && productFile.open(QIODevice::ReadOnly)) {
+                QString vid = QString::fromUtf8(vendorFile.readLine()).trimmed().toUpper();
+                QString pid = QString::fromUtf8(productFile.readLine()).trimmed().toUpper();
+                // CH9329: 1a86:7523 — needs CH340 driver
+                if (vid == "1A86" && pid == "7523") ch9329DeviceFound = true;
+                // CH32V208: 1a86:fe0c — does NOT need CH340 driver
+                if (vid == "1A86" && pid == "FE0C") ch32DeviceFound = true;
+            }
+        }
+    }
+
+    // CH32V208 found — does not need CH340 driver, skip the check
+    if (ch32DeviceFound) {
+        qCDebug(log_core_serial_config) << "CH32V208 USB device found on Linux — CH340 driver check not needed";
+        return true;
+    }
+
+    if (!ch9329DeviceFound) {
+        qCDebug(log_core_serial_config) << "No CH9329 USB device found on Linux, skipping driver check";
+        return true; // No CH9329 device → nothing to check
+    }
+
+    // Step 2: CH9329 device found — check if ch341 driver module is loaded
+    std::string command = "cat /proc/modules | grep 'ch341'";
+    int result = system(command.c_str());
+    if (result == 0) {
+        return true; // Driver found
+    }
+    qCWarning(log_core_serial_config) << "CH9329 device found but ch341 driver not loaded on Linux";
+    return false; // Driver not found
+#else
+    return true; // Assume installed for other platforms
+#endif
+}
+
+// Check if CH9329 USB device is present but CH340 driver is missing
+// Uses USB device enumeration (not serial port), so it works even when driver is not installed
+bool SerialPortManager::isCH9329PresentAndDriverMissing() {
+    return !checkCH340DriverInstalled();
+}
+
 // ARM architecture detection and performance prompt
 bool SerialPortManager::isArmArchitecture() {
     QString architecture = QSysInfo::currentCpuArchitecture();
@@ -2908,9 +3118,9 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
         qCWarning(log_core_serial_conn) << "Serial error occurred but serialPort instance is null! Error code:" << static_cast<int>(error);
         return;
     }
-    
+
     QString errorString = serialPort->errorString();
-    
+
     // If we're performing a controlled baud-rate change, suppress transient errors
     if (m_baudChangeInProgress.load()) {
         qCDebug(log_core_serial_config) << "Transient serial error during baud change suppressed:" << errorString << "Error code:" << static_cast<int>(error);
@@ -2933,34 +3143,46 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
     m_lastErrorLogTime.restart();
 
     qCWarning(log_core_serial_conn) << "Serial port error occurred:" << errorString << "Error code:" << static_cast<int>(error);
-    
-    // Check for device disconnection errors - if we detect the device is physically unplugged,
-    // stop the timers to prevent continuous failed command attempts
-    if (error == QSerialPort::UnknownError || 
-        errorString.contains("设备不识别此命令") || 
-        errorString.contains("拒绝访问") ||
-        errorString.contains("Access is denied")) {
-        
-        qCInfo(log_core_serial_conn) << "Device disconnection error detected, stopping periodic timers";
-        
+
+    // CRITICAL FIX: Check for device disconnection errors and transition to ERROR_STATE
+    // This prevents new connection attempts while the device is being removed
+    // NOTE: Only transition to ERROR_STATE for actual disconnection errors, NOT transient UnknownError
+    // which can fire for benign reasons like buffer overflows or timing issues.
+    if (error == QSerialPort::ResourceError ||       // Error code 9 - device physically disconnected
+        errorString.contains("设备不识别此命令") ||   // Chinese: "Device does not recognize this command"
+        errorString.contains("拒绝访问") ||          // Chinese: "Access is denied"
+        errorString.contains("Access is denied")) {  // English: "Access is denied"
+
+        qCInfo(log_core_serial_conn) << "Device disconnection error detected, transitioning to ERROR_STATE";
+
+        // CRITICAL: Transition to ERROR_STATE to block new open attempts
+        SerialPortState previousState = m_portState.exchange(SerialPortState::ERROR_STATE);
+        qCWarning(log_core_serial_conn) << "Port state transition:" << static_cast<int>(previousState) << "-> ERROR_STATE";
+
+        // Set the unplugged detection flag
+        m_deviceUnpluggedDetected.store(true);
+
         // Stop USB status check timer to prevent continuous CMD_CHECK_USB_STATUS commands
         if (m_usbStatusCheckTimer && m_usbStatusCheckTimer->isActive()) {
             m_usbStatusCheckTimer->stop();
             qCDebug(log_core_serial_config) << "USB status check timer stopped due to device error";
         }
-        
+
         // Stop GET_INFO timer to prevent continuous CMD_GET_INFO commands
         if (m_getInfoTimer && m_getInfoTimer->isActive()) {
             m_getInfoTimer->stop();
             qCDebug(log_core_serial_config) << "GET_INFO timer stopped due to device error";
         }
+    } else {
+        // Transient errors (UnknownError etc.) should not block future operations
+        qCDebug(log_core_serial_conn) << "Transient serial error logged but state machine not changed:" << errorString;
     }
-    
+
     // Record error in statistics module
     if (m_statistics) {
         m_statistics->recordConsecutiveError();
     }
-    
+
     // Report error to ConnectionWatchdog (Phase 3)
     if (m_watchdog) {
         m_watchdog->recordError();

@@ -7,28 +7,11 @@
 //  No Zadig / WinUSB driver replacement needed.
 // ============================================================================
 
+#include "WCHProtocol.h"
+#include "WCHDevice.h"
+
 #include <sstream>
 #include <iomanip>
-#include <algorithm>
-#include <cctype>
-
-// Return lowercase copy of s
-static std::string strLower(std::string s)
-{
-    std::transform(s.begin(), s.end(), s.begin(),
-                   [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
-    return s;
-}
-
-// Check whether a device-name path contains the ISP VID/PID
-static bool nameMatchesISP(const std::string& name)
-{
-    std::string lo = strLower(name);
-    bool vid = (lo.find("vid_4348") != std::string::npos ||
-                lo.find("vid_1a86") != std::string::npos);
-    bool pid =  lo.find("pid_55e0") != std::string::npos;
-    return vid && pid;
-}
 
 // ---------------------------------------------------------------------------
 // loadDll
@@ -99,40 +82,88 @@ bool WCHUSBTransport::isOpen() const
 
 // ---------------------------------------------------------------------------
 // scanDevices -- probe CH375 device indices 0..15
+// Sends an ISP identify command to each device to verify it is a genuine
+// WCH ISP bootloader (VID/PID name matching alone is unreliable).
 // ---------------------------------------------------------------------------
 std::vector<std::string> WCHUSBTransport::scanDevices()
 {
     m_scannedDevices.clear();
     std::vector<std::string> names;
 
+    // Build ISP identify packet: [cmd=0xA1][len=0x12][0x00][deviceID=0][deviceType=0]["MCU ISP & WCH.CN"]
+    auto identifyPacket = WCHPacketBuilder::identify(0, 0);
+
     for (ULONG idx = 0; idx < 16; ++idx) {
         HANDLE h = m_fnOpen(idx);
         if (h == INVALID_HANDLE_VALUE)
             continue;   // no device at this index
 
-        // Read device name to filter VID/PID if the function is available
-        std::string devName;
-        if (m_fnName) {
-            char buf[260] = {};
-            if (m_fnName(idx, buf))
-                devName = buf;
+        // Try to identify the device by sending an ISP identify command.
+        // Only genuine WCH ISP bootloaders will respond correctly.
+        bool isISP = false;
+        uint8_t detectedChipID = 0;
+        uint8_t detectedDeviceType = 0;
+
+        m_fnTimeout(idx,
+                     static_cast<ULONG>(k_timeout),
+                     static_cast<ULONG>(k_timeout));
+
+        // Write the identify command
+        std::vector<uint8_t> wbuf(identifyPacket);
+        ULONG wlen = static_cast<ULONG>(wbuf.size());
+        if (m_fnWrite(idx, wbuf.data(), &wlen) &&
+            wlen == static_cast<ULONG>(identifyPacket.size()))
+        {
+            // Read response
+            std::vector<uint8_t> rbuf(static_cast<size_t>(k_maxPkt), 0);
+            ULONG rlen = static_cast<ULONG>(k_maxPkt);
+            if (m_fnRead(idx, rbuf.data(), &rlen) && rlen >= 4)
+            {
+                uint8_t status = rbuf[1];
+                uint16_t payloadLen = static_cast<uint16_t>(rbuf[2]) |
+                                      (static_cast<uint16_t>(rbuf[3]) << 8);
+                if (status == 0x00 &&
+                    rlen >= static_cast<ULONG>(4 + payloadLen) &&
+                    payloadLen >= 2)
+                {
+                    isISP = true;
+                    detectedChipID     = rbuf[4];
+                    detectedDeviceType = rbuf[5];
+                }
+            }
         }
 
-        m_fnClose(idx);  // close immediately -- just checking existence
+        m_fnClose(idx);  // close immediately -- will reopen in open()
 
-        // If we obtained a name, require it to match ISP VID/PID; otherwise accept
-        if (!devName.empty() && !nameMatchesISP(devName))
+        if (!isISP)
             continue;
+
+        // Look up chip name from database
+        std::string chipName;
+        try {
+            auto chip = WCHChipDB::findChip(detectedChipID, detectedDeviceType);
+            chipName = chip.name;
+        } catch (...) {
+            std::ostringstream unk;
+            unk << "Unknown(chipID=0x"
+                << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
+                << static_cast<unsigned>(detectedChipID)
+                << ", deviceType=0x"
+                << std::setw(2) << static_cast<unsigned>(detectedDeviceType)
+                << ")";
+            chipName = unk.str();
+        }
 
         DeviceEntry entry;
         entry.ch375Index = idx;
 
         std::ostringstream oss;
-        oss << "WCH ISP Device " << m_scannedDevices.size()
-            << " (CH375 index=" << idx;
-        if (!devName.empty())
-            oss << "\n  " << devName;
-        oss << ")";
+        oss << chipName
+            << " (CH375 index=" << idx
+            << ", ID=0x" << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
+            << static_cast<unsigned>(detectedChipID) << "/0x"
+            << std::setw(2) << static_cast<unsigned>(detectedDeviceType)
+            << ")";
         entry.displayName = oss.str();
 
         m_scannedDevices.push_back(entry);
@@ -226,7 +257,9 @@ std::vector<uint8_t> WCHUSBTransport::transfer(const std::vector<uint8_t>& comma
 #include <libusb-1.0/libusb.h>
 
 #include <cstring>
+#include <chrono>
 #include <sstream>
+#include <thread>
 #include <iomanip>
 
 // ---------------------------------------------------------------------------
@@ -346,17 +379,12 @@ void WCHUSBTransport::open(int deviceIndex)
 
     m_handle = handle;
 
-#if defined(__linux__)
-    if (libusb_kernel_driver_active(m_handle, k_iface) == 1) {
-        rc = libusb_detach_kernel_driver(m_handle, k_iface);
-        if (rc < 0) {
-            libusb_close(m_handle);
-            m_handle = nullptr;
-            throw WCHTransportError(std::string("Failed to detach kernel driver: ") +
-                                    libusb_error_name(rc));
-        }
-    }
-#endif
+    // NOTE: intentionally NOT calling libusb_reset_device or
+    // libusb_detach_kernel_driver here.  The reference implementation (wchisp)
+    // does neither — a bus reset can put the WCH ISP bootloader into an
+    // undefined state, and detaching the kernel driver is unnecessary because
+    // the ISP bootloader does not bind to any in-kernel driver (it uses raw
+    // bulk endpoints, not a CDC/ACM or HID class driver).
 
     rc = libusb_set_configuration(m_handle, 1);
     if (rc < 0 && rc != LIBUSB_ERROR_BUSY) {
@@ -407,6 +435,10 @@ std::vector<uint8_t> WCHUSBTransport::transfer(const std::vector<uint8_t>& comma
                                 libusb_error_name(rc));
     if (transferred != static_cast<int>(command.size()))
         throw WCHTransportError("Bulk write: incomplete transfer");
+
+    // Small delay between bulk OUT and bulk IN — required on some Linux
+    // platforms (noted in wchisp reference: "required for some Linux platform").
+    std::this_thread::sleep_for(std::chrono::microseconds(1));
 
     std::vector<uint8_t> recvBuf(k_maxPkt, 0);
     int recvLen = 0;

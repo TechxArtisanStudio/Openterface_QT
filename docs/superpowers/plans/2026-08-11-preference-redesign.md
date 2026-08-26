@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Revert button semantics: snapshot mode (B) — record values when page opens, Revert restores to that snapshot. Apply does NOT update the snapshot.
-- Button names: Apply (应用) / Revert (恢复) / Cancel (关闭)
+- Button names: Apply / Revert / Cancel
 - Settings pages get 3 buttons; action pages (Firmware, Control Chip Firmware, EDID, Virtual Keyboard) keep existing buttons
 - All 9 pages merged into a single flat tree (no General/Advanced distinction)
 - Class name remains `SettingDialog` (no rename)

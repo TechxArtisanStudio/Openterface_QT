@@ -1213,6 +1213,26 @@ void MainWindow::onArmBaudratePerformanceRecommendation(int currentBaudrate)
     }
 }
 
+void MainWindow::onDriverInstallationRequired()
+{
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(tr("Install Driver"));
+    msgBox.setText(tr("The CH9329 chip requires the CH340 driver, but it is not installed.\n\n"
+        "Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html \n\n"
+        "After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.\n\n"
+        "Please restart your computer after the driver installation."));
+    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+
+    QPushButton *copyButton = msgBox.addButton(tr("Copy Link"), QMessageBox::ActionRole);
+
+    msgBox.exec();
+
+    if (msgBox.clickedButton() == copyButton) {
+        QClipboard *clipboard = QApplication::clipboard();
+        clipboard->setText("https://www.wch.cn/downloads/CH341SER.EXE.html");
+    }
+}
+
 void MainWindow::imageSaved(int id, const QString &fileName)
 {
     Q_UNUSED(id);

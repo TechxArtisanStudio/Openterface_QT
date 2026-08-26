@@ -55,6 +55,15 @@ class SerialStateManager;
 class SerialStatistics;
 class SerialHotplugHandler;
 
+// Serial port state machine to prevent race conditions during hotplug
+enum class SerialPortState : uint8_t {
+    CLOSED = 0,           // No port instance or port closed
+    OPENING,              // Open in progress
+    OPEN,                 // Port open and ready
+    CLOSING,              // Close in progress (deleteLater pending)
+    ERROR_STATE           // Error occurred, reject new opens until cleared
+};
+
 // Chip type enumeration (kept for backward compatibility)
 // New code should use ChipTypeId from ChipStrategyFactory.h
 enum class ChipType : uint32_t {
@@ -180,6 +189,13 @@ public:
     ChipType getCurrentChipType() const { return m_currentChipType; }
     inline bool isChipTypeCH32V208() const { return m_currentChipType == ChipType::CH32V208; }
     inline bool isChipTypeCH9329() const { return m_currentChipType == ChipType::CH9329; }
+
+    // Check if CH340 driver is installed (required for CH9329 chip)
+    static bool checkCH340DriverInstalled();
+
+    // Check if CH9329 USB device is present but CH340 driver is missing
+    // Uses USB enumeration (not serial port) so it works even without driver
+    static bool isCH9329PresentAndDriverMissing();
     
     // New USB switch methods for CH32V208 serial port (firmware with new protocol)
     void switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)
@@ -215,6 +231,7 @@ signals:
     void serialPortReset(bool isStarted); // Serial port reset started/ended
     void statusUpdate(const QString &status); // General status update for UI
     void factoryReset(bool isStarted); // Factory reset started/ended
+    void driverInstallationRequired(); // Emitted when CH9329 detected but CH340 driver is missing
     
     void requestFactoryReset();
     void requestFactoryResetV191();
@@ -351,6 +368,9 @@ private:
 
     // Indicates a baud-rate change is in progress; used to suppress transient errors
     std::atomic<bool> m_baudChangeInProgress{false};
+
+    // Serial port state machine to prevent race conditions
+    std::atomic<SerialPortState> m_portState{SerialPortState::CLOSED};
 
     // Flag set to true when device is detected as unplugged, preventing port operations until cleared
     // This prevents race conditions where open attempts occur while device is being removed

@@ -99,7 +99,7 @@ The MenuCoordinator supports these languages by default:
 - **Danish** (da)
 - **Japanese** (ja)
 - **Swedish** (se)
-- **中文** (zh)
+- **Chinese** (zh)
 
 ### Signal/Slot Architecture
 ```cpp
