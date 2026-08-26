@@ -400,6 +400,17 @@ void CameraManager::onImageCaptured(int id, const QImage& img){
     copyRect = QRect(0, 0, m_video_width, m_video_height);
 }
 
+void CameraManager::onFFmpegCaptureError(const QString& error) {
+    qCWarning(log_ui_camera) << "FFmpeg capture error:" << error;
+    emit cameraActiveChanged(false);
+    emit cameraError(error);
+}
+
+void CameraManager::onMediaFoundationError(const QString& error) {
+    qCWarning(log_ui_camera) << "Media Foundation backend error:" << error;
+    emit cameraError(error);
+}
+
 void CameraManager::takeImage(const QString& file)
 {
     if (!m_backendHandler) {
@@ -1419,13 +1430,9 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
                 videoPane->enableDirectFFmpegMode(true);
                 ffmpegHandler->setVideoOutput(videoPane);
 
-                // Capture errors from FFmpeg backend — use Qt::UniqueConnection to avoid duplicate connects
+                // Capture errors from FFmpeg backend
                 connect(ffmpegHandler, &FFmpegBackendHandler::captureError,
-                        this, [this](const QString& error) {
-                            qCWarning(log_ui_camera) << "FFmpeg capture error:" << error;
-                            emit cameraActiveChanged(false);
-                            emit cameraError(error);
-                        }, Qt::UniqueConnection);
+                        this, &CameraManager::onFFmpegCaptureError, Qt::UniqueConnection);
 
                 // Connect camera active changed to VideoPane (UniqueConnection)
                 connect(this, &CameraManager::cameraActiveChanged, videoPane, &VideoPane::onCameraActiveChanged, Qt::UniqueConnection);
@@ -1593,10 +1600,7 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
 
             // Connect error signals
             connect(mfHandler, &MfBackendHandler::backendError,
-                    this, [this](const QString& error) {
-                        qCWarning(log_ui_camera) << "Media Foundation backend error:" << error;
-                        emit cameraError(error);
-                    }, Qt::UniqueConnection);
+                    this, &CameraManager::onMediaFoundationError, Qt::UniqueConnection);
 
             // Connect camera active changed to VideoPane
             connect(this, &CameraManager::cameraActiveChanged, videoPane, &VideoPane::onCameraActiveChanged, Qt::UniqueConnection);
