@@ -24,7 +24,12 @@ The Openterface device requires access to three types of Linux device nodes:
 | HDMI Capture (MS2109) | USB | `534d:2109` | `/dev/bus/usb/...` |
 | HDMI Capture HID | hidraw | `534d:2109` | `/dev/hidrawN` |
 | Serial (CH9329) | ttyUSB | `1a86:7523` | `/dev/ttyUSBN` |
-| Serial (CH32V208) | ttyUSB | `1a86:fe0c` | `/dev/ttyUSBN` |
+| Serial (CH32V208) | **tty** | `1a86:fe0c` | `/dev/ttyACMN` |
+
+> **Important:** The CH32V208 presents as `/dev/ttyACM*` via CDC ACM, which belongs to the
+> `tty` subsystem — **not** `ttyACM` (which doesn't exist as a subsystem name). The `tty`
+> subsystem rule is critical: without it, `/dev/ttyACM*` stays root-only even though the
+> underlying USB device is accessible.
 
 ### udev Rules
 
@@ -35,6 +40,9 @@ SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="ua
 SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
 SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"
 ```
 
 Reload rules:
@@ -47,7 +55,9 @@ sudo udevadm trigger
 
 Add your user to the required groups:
 ```bash
-sudo usermod -a -G dialout,video $USER
+sudo usermod -a -G dialout,video $USER   # Debian/Ubuntu/Fedora
+# On Arch Linux, use 'uucp' instead of 'dialout':
+sudo usermod -a -G uucp,video $USER
 sudo usermod -a -G plugdev $USER  # optional, for some distros
 ```
 
@@ -62,6 +72,7 @@ The `brltty` (Braille terminal) service commonly claims the CH9329/CH32V208 seri
 # Option 1: Remove brltty entirely (if you don't need Braille support)
 sudo apt remove brltty       # Debian/Ubuntu
 sudo dnf remove brltty       # Fedora
+sudo pacman -R brltty        # Arch Linux
 
 # Option 2: Blacklist the device from brltty (preferred)
 # Add a udev rule to prevent brltty from claiming the chip:
@@ -73,15 +84,18 @@ The application now includes detection and warnings for the BrlTTY conflict (see
 
 ### Wayland vs X11
 
-The application runs on both X11 and Wayland display servers. Qt determines the platform via `QT_QPA_PLATFORM`:
+The application runs on both X11 and Wayland display servers. Qt 6.5+ auto-detects the
+best platform via `QT_QPA_PLATFORM` — **do not set this manually** unless debugging.
 
 - **X11:** `QT_QPA_PLATFORM=xcb` (default on most X11 desktops)
 - **Wayland:** `QT_QPA_PLATFORM=wayland` (default on GNOME/Fedora, KDE Plasma 6)
 
-The application's `setupEnv()` function in `main.cpp` auto-detects the available display server. The GStreamer video overlay uses `GstVideoOverlay` API which works differently on X11 (XID embedding) vs Wayland (requires additional protocol support).
+The application's `setupEnv()` function in `main.cpp` lets Qt auto-detect the display
+server. The GStreamer video overlay uses `GstVideoOverlay` API which works differently
+on X11 (XID embedding) vs Wayland (requires additional protocol support).
 
 **Known issues on Wayland:**
-- Video embedding may fall back to XWayland if the GStreamer sink doesn't support Wayland natively
+- Video embedding may fall back to Xwayland if the GStreamer sink doesn't support Wayland natively
 - Some desktop compositors may not properly handle the video overlay window
 
 If you experience video display issues on Wayland, try forcing X11:
@@ -97,6 +111,7 @@ The project supports multiple Linux package formats:
 |--------|----------|-------|
 | `.deb` | Debian/Ubuntu | Direct installation via `dpkg -i` |
 | `.rpm` | Fedora/RHEL/openSUSE | Direct installation via `rpm -i` or `dnf install` |
+| `.pkg.tar.zst` | Arch Linux | Native package via `pacman -U`, uses system libraries |
 | AppImage | Portable, no install | Self-contained, runs anywhere |
 | Flatpak | Sandboxed | See [Flatpak section](#flatpak) below |
 | Nix Flake | Reproducible builds | See [NixOS section](#nixos--nix-flake) |
@@ -126,6 +141,10 @@ flatpak run --device=all com.openterface.openterfaceQT
 ---
 
 ## Windows Deep Dive
+
+### Supported Architectures
+
+Openterface QT ships pre-built Windows binaries for **x64** (Intel / AMD, Windows 10+) on the [Releases page](https://github.com/TechxArtisanStudio/Openterface_QT/releases), and for **ARM64** (Windows 11 on ARM — Snapdragon, Surface Pro X, etc.) as CI artifacts from the [Windows ARM64 Build](https://github.com/TechxArtisanStudio/Openterface_QT/actions/workflows/windows-arm64-build.yaml) workflow. Both architectures produce an installer and a portable `.exe`. The ARM64 build is fully static (Qt + FFmpeg + app linked into a single `openterfaceQT.exe`) so it has no runtime DLL dependencies.
 
 ### Driver Installation
 
@@ -282,6 +301,7 @@ The flake includes udev rules that trigger on device connection:
 ```
 SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", RUN+="${pkgs.systemd}/bin/udevadm trigger"
 SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", RUN+="${pkgs.systemd}/bin/udevadm trigger"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", RUN+="${pkgs.systemd}/bin/udevadm trigger"
 ```
 
 ### Reproducible Builds

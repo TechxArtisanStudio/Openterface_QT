@@ -120,7 +120,10 @@ void VideoHid::detectChipType() {
     qCDebug(log_hid_detect) << "Detecting chip type from device path:" << m_currentHIDDevicePath;
     qCDebug(log_hid_detect) << "Current port chain:" << m_currentHIDPortChain;
 
-    m_chipType = ChipDetector::detect(m_currentHIDDevicePath, m_currentHIDPortChain);
+    // Detect chip type first (may do USB I/O), then swap under the I/O mutex.
+    // The mutex serializes this swap with usbXdataRead4Byte() so the polling
+    // thread never dereferences a deleted chip object (use-after-free -> SEGV).
+    VideoChipType detectedType = ChipDetector::detect(m_currentHIDDevicePath, m_currentHIDPortChain);
 
     // If detection fails, preserve the last known good chip type.
     if (m_chipType == VideoChipType::UNKNOWN && previousChipType != VideoChipType::UNKNOWN) {
@@ -128,20 +131,29 @@ void VideoHid::detectChipType() {
         m_chipType = previousChipType;
     }
 
-    m_chipImpl = ChipDetector::createChip(m_chipType, this);
+    // Build the new chip outside the lock; construction may do its own work.
+    auto newChip = ChipDetector::createChip(detectedType, this);
 
     // Wire a default no-op progress tracker for Ms2130sChip firmware writes.
     // The actual per-write callback is injected via writeEeprom() at write time.
-    if (auto* ms2130s = dynamic_cast<Ms2130sChip*>(m_chipImpl.get())) {
+    if (auto* ms2130s = dynamic_cast<Ms2130sChip*>(newChip.get())) {
         ms2130s->onChunkWritten = [this](quint32 n) {
             written_size = n;
         };
     }
 
+    // Atomic swap under the I/O mutex: polling thread either sees old chip
+    // (and finishes its current read) or the new one - never a dangling ptr.
+    {
+        QMutexLocker locker(&m_registerIoMutex);
+        m_chipImpl = std::move(newChip);
+        m_chipType = detectedType;
+    }
+
     if (!m_chipImpl)
         qCDebug(log_hid_detect) << "Unknown chipset �?no chip implementation created for:" << m_currentHIDDevicePath;
 
-    if (previousChipType != m_chipType) {
+    if (previousChipType != detectedType) {
         auto chipName = [](VideoChipType t) -> const char* {
             switch (t) {
             case VideoChipType::MS2109:  return "MS2109";

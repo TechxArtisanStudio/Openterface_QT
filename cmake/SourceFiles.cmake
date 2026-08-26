@@ -24,8 +24,6 @@ set(DEVICE_SOURCES
     device/HotplugDebounceManager.cpp device/HotplugDebounceManager.h
     device/platform/AbstractPlatformDeviceManager.cpp device/platform/AbstractPlatformDeviceManager.h
     device/platform/DeviceFactory.cpp device/platform/DeviceFactory.h
-    device/platform/windows/WinDeviceEnumerator.h device/platform/windows/WinDeviceEnumerator.cpp
-    device/platform/windows/IDeviceEnumerator.h
 )
 
 if(WIN32)
@@ -165,6 +163,7 @@ set(SERVER_SOURCES
     server/mcp/mcpToolHandler.cpp server/mcp/mcpToolHandler.h
     server/mcp/mcpConstants.h
     server/mcp/mcpSseTransport.cpp server/mcp/mcpSseTransport.h
+    server/mcp/screenAnalyzer.cpp server/mcp/screenAnalyzer.h
 )
 
 # Target sources
@@ -314,10 +313,67 @@ set(UI_PREFERENCES_SOURCES
     ui/preferences/edidconfigpage.cpp ui/preferences/edidconfigpage.h
 )
 
+# AI chat backend sources
+set(AI_SOURCES
+    ai/ChatTypes.h
+    ai/ChatApiClient.cpp ai/ChatApiClient.h
+    ai/ChatManager.cpp ai/ChatManager.h
+    ai/ChatInputRouter.cpp ai/ChatInputRouter.h
+    ai/ChatScreenCapture.cpp ai/ChatScreenCapture.h
+    ai/ChatConversationBuilder.cpp ai/ChatConversationBuilder.h
+    ai/ChatToolExecution.cpp ai/ChatToolExecution.h
+    ai/ChatAgentTypes.cpp ai/ChatAgentTypes.h
+    ai/ChatPersistence.cpp ai/ChatPersistence.h
+    ai/ChatTracing.cpp ai/ChatTracing.h
+    ai/ChatSkillManager.cpp ai/ChatSkillManager.h
+    ai/ChatGuideMode.cpp ai/ChatGuideMode.h
+)
+
+# AI chat UI sources
+set(UI_CHAT_SOURCES
+    ui/chat/ChatWindow.cpp ui/chat/ChatWindow.h
+    ui/chat/ChatBubbleWidget.cpp ui/chat/ChatBubbleWidget.h
+    ui/chat/ChatInputWidget.cpp ui/chat/ChatInputWidget.h
+    ui/chat/ChatPlanCardWidget.cpp ui/chat/ChatPlanCardWidget.h
+    ui/chat/ChatSkillBar.cpp ui/chat/ChatSkillBar.h
+    ui/chat/ChatTraceDialog.cpp ui/chat/ChatTraceDialog.h
+    ui/chat/ChatSettingsPage.cpp ui/chat/ChatSettingsPage.h
+    ui/chat/QuickReplyWidget.h
+)
+
 # Log infrastructure
 set(LOG_SOURCES
     log/logcategoryregistry.cpp log/logcategoryregistry.h
     log/opflogging.h
+)
+
+# AI chat backend sources
+set(AI_SOURCES
+    ai/ChatTypes.h
+    ai/ChatApiClient.cpp ai/ChatApiClient.h
+    ai/ChatManager.cpp ai/ChatManager.h
+    ai/ChatInputRouter.cpp ai/ChatInputRouter.h
+    ai/ChatScreenCapture.cpp ai/ChatScreenCapture.h
+    ai/ChatConversationBuilder.cpp ai/ChatConversationBuilder.h
+    ai/ChatToolExecution.cpp ai/ChatToolExecution.h
+    ai/ChatAgentTypes.cpp ai/ChatAgentTypes.h
+    ai/ChatPersistence.cpp ai/ChatPersistence.h
+    ai/ChatTracing.cpp ai/ChatTracing.h
+    ai/ChatSkillManager.cpp ai/ChatSkillManager.h
+    ai/ChatGuideMode.cpp ai/ChatGuideMode.h
+)
+
+# AI chat UI sources
+set(UI_CHAT_SOURCES
+    ui/chat/ChatWindow.cpp ui/chat/ChatWindow.h
+    ui/chat/ChatBubbleWidget.cpp ui/chat/ChatBubbleWidget.h
+    ui/chat/ChatInputWidget.cpp ui/chat/ChatInputWidget.h
+    ui/chat/ChatPlanCardWidget.cpp ui/chat/ChatPlanCardWidget.h
+    ui/chat/ChatSkillBar.cpp ui/chat/ChatSkillBar.h
+    ui/chat/ChatEmptyStateWidget.cpp ui/chat/ChatEmptyStateWidget.h
+    ui/chat/ChatTraceDialog.cpp ui/chat/ChatTraceDialog.h
+    ui/chat/ChatSettingsPage.cpp ui/chat/ChatSettingsPage.h
+    ui/chat/QuickReplyWidget.h
 )
 
 # Combine all source files
@@ -348,6 +404,8 @@ set(SOURCE_FILES
     ${UI_CUSTOMKEY_SOURCES}
     ${SYSKEYBLOCKER_SOURCES}
     ${WCH_SOURCES}
+    ${AI_SOURCES}
+    ${UI_CHAT_SOURCES}
 )
 
 # Print source files summary

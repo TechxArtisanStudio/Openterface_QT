@@ -107,6 +107,7 @@ QPair<QByteArray, bool> Ms2109sChip::read4Byte(quint16 address)
             }
         }
 #else
+        result[0] = 0x00;
         if (m_transport->sendFeatureReport(reinterpret_cast<uint8_t*>(ctrlData.data()), ctrlData.size())) {
             if (m_transport->getFeatureReport(reinterpret_cast<uint8_t*>(result.data()), result.size())) {
                 readResult[0] = result[4];
@@ -137,6 +138,7 @@ QPair<QByteArray, bool> Ms2109sChip::read4Byte(quint16 address)
             }
         }
 #else
+        result[0] = 0x01;
         if (m_transport->sendFeatureReport(reinterpret_cast<uint8_t*>(ctrlData.data()), ctrlData.size())) {
             if (m_transport->getFeatureReport(reinterpret_cast<uint8_t*>(result.data()), result.size())) {
                 readResult[0] = result[4];
@@ -231,6 +233,7 @@ QPair<QByteArray, bool> Ms2130sChip::read4Byte(quint16 address)
         }
 #else
         QByteArray result(11, 0);
+        result[0] = 0x01;
         if (m_transport->sendFeatureReport(reinterpret_cast<uint8_t*>(ctrlData.data()), ctrlData.size())) {
             if (m_transport->getFeatureReport(reinterpret_cast<uint8_t*>(result.data()), result.size())) {
                 readResult[0] = result[4];
@@ -274,6 +277,7 @@ QPair<QByteArray, bool> Ms2130sChip::read4Byte(quint16 address)
         }
 #else
         QByteArray result(11, 0);
+        result[0] = 0x00;
         if (m_transport->sendFeatureReport(reinterpret_cast<uint8_t*>(ctrlData.data()), ctrlData.size())) {
             if (m_transport->getFeatureReport(reinterpret_cast<uint8_t*>(result.data()), result.size())) {
                 readResult[0] = result[4];
@@ -283,6 +287,7 @@ QPair<QByteArray, bool> Ms2130sChip::read4Byte(quint16 address)
         if (!success) {
             ctrlData[0] = 0x01;
             QByteArray result2(11, 0);
+            result2[0] = 0x01;
             if (m_transport->sendFeatureReport(reinterpret_cast<uint8_t*>(ctrlData.data()), ctrlData.size())) {
                 if (m_transport->getFeatureReport(reinterpret_cast<uint8_t*>(result2.data()), result2.size())) {
                     readResult[0] = result2[4];
@@ -298,6 +303,7 @@ QPair<QByteArray, bool> Ms2130sChip::read4Byte(quint16 address)
         QByteArray ctrlData(65, 0);
         QByteArray result(65, 0);
         ctrlData[0] = 0x00;
+        result[0] = 0x00;
         ctrlData[1] = MS2130S_CMD_XDATA_READ;
         ctrlData[2] = static_cast<char>((address >> 8) & 0xFF);
         ctrlData[3] = static_cast<char>(address & 0xFF);

@@ -324,7 +324,7 @@ Check if the device is properly enumerated:
 lsusb | grep -E "534d|1a86"
 
 # Check serial port
-ls /dev/ttyUSB*
+ls /dev/ttyUSB* /dev/ttyACM*
 
 # Check HID devices
 ls /dev/hidraw*

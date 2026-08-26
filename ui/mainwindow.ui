@@ -125,7 +125,6 @@
     </property>
     <addaction name="actionEnvironmentSetup"/>
     <addaction name="actionResetSerialPort"/>
-    <addaction name="actionResetHID"/>
     <addaction name="actionFactory_reset_HID"/>
     <addaction name="actionSerialConsole"/>
     <addaction name="actionScriptTool"/>
@@ -134,6 +133,7 @@
     <addaction name="actionTCPServer"/>
     <addaction name="actionDeviceSelector"/>
     <addaction name="actionKeyboardMapEditor"/>
+    <addaction name="actionAIChat"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -149,6 +149,14 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Q</string>
+   </property>
+  </action>
+  <action name="actionAIChat">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>AI Chat</string>
    </property>
   </action>
   <action name="actionSettings">

@@ -29,6 +29,7 @@
 #include "target/KeyboardLayouts.h"
 #include "ui/languagemanager.h"
 #include "ui/customkey/customkeymanager.h"
+#include "log/opflogging.h"
 #include <QMetaType>
 #include <QCoreApplication>
 #include <QtPlugin>
@@ -44,6 +45,18 @@
 #include <QClipboard>
 #include <QPushButton>
 #include <cstdio>
+#include <cstdlib>
+
+// For stdout redirection in stdio mode
+#ifdef Q_OS_WIN
+#include <io.h>
+#define dup _dup
+#define dup2 _dup2
+#define STDOUT_FILENO _fileno(stdout)
+#define STDERR_FILENO _fileno(stderr)
+#else
+#include <unistd.h>
+#endif
 
 // Stdio MCP transport support (headless mode for Claude Code)
 #include "server/mcp/mcpServer.h"
@@ -76,6 +89,9 @@ Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
 
 // Define global shutdown flag
 QAtomicInteger<int> g_applicationShuttingDown(0);
+
+// Logging category for main application startup
+OPF_LOGGING_CATEGORY(log_app_main, "opf.app.main")
 
 // GStreamer includes
 #ifdef HAVE_GSTREAMER
@@ -142,8 +158,13 @@ void setupEnv(){
             qputenv("QT_QPA_PLATFORM", "xcb");
         }
         #else
-        // For dynamic builds, prefer XCB for better compatibility
-        // Only use Wayland if explicitly set by launcher script
+        // For dynamic builds, let Qt auto-detect the best platform (Qt 6.5+).
+        // Manual overrides interfere with Qt's native Wayland/XCB detection and
+        // cause "No shell integration named" errors on pure Wayland sessions
+        // (Sway, Hyprland, etc.). See: https://forum.openterface.com/t/arch-linux-wayland-software-does-not-work/120
+        //
+        // We only intervene when NO display is available at all — set DISPLAY=:0
+        // and use XCB as a last-resort fallback (headless / SSH-without-X cases).
         if (!launcherDetected.isEmpty()) {
         } else if (!x11Display.isEmpty()) {
             // DISPLAY is set - use XCB
@@ -152,7 +173,7 @@ void setupEnv(){
             // Fallback to Wayland only if X11 is not available
             qputenv("QT_QPA_PLATFORM", "wayland");
         } else {
-            // No display found, try default settings
+            // No display found at all — last-resort fallback for headless/edge cases.
             qputenv("DISPLAY", ":0");
             qputenv("QT_QPA_PLATFORM", "xcb");
         }
@@ -292,13 +313,34 @@ int main(int argc, char *argv[])
     // We use the offscreen platform so no real display is needed.
     bool mcpHeadlessMode = !autoStartMcp && (mcpStdioMode || (mcpSsePort > 0));
     if (mcpHeadlessMode) {
+        qCDebug(log_app_main) << "Entering mcpHeadlessMode block";
+        // In stdio mode, redirect stdout to stderr to prevent debug output from
+        // interfering with JSON-RPC protocol. We'll reopen stdout later for JSON-RPC only.
+        if (mcpStdioMode) {
+            // Save original stdout file descriptor
+            int savedStdout = dup(STDOUT_FILENO);
+            qCDebug(log_app_main) << "Saved stdout fd:" << savedStdout;
+            // Redirect stdout to stderr
+            dup2(STDERR_FILENO, STDOUT_FILENO);
+            // Store saved fd for later use by MCP server
+            QByteArray fdStr = QString::number(savedStdout).toUtf8();
+            qCDebug(log_app_main) << "Setting OPENTERFACE_SAVED_STDOUT=" << fdStr;
+            qputenv("OPENTERFACE_SAVED_STDOUT", fdStr);
+        }
+
         // Use offscreen platform — provides QInputMethod without needing a real display
         qputenv("QT_QPA_PLATFORM", "offscreen");
 
-        // Redirect all logging to stderr so we can see what's happening
-        qputenv("QT_LOGGING_RULES", "*.debug=true");
+        // Default to verbose logging in headless mode, but let the caller
+        // override it (e.g. QT_LOGGING_RULES='*.debug=false' to keep the
+        // per-frame decode-path debug output off the hot path).
+        if (!qEnvironmentVariableIsSet("QT_LOGGING_RULES")) {
+            qputenv("QT_LOGGING_RULES", "*.debug=true");
+        }
 
+        qCDebug(log_app_main) << "Creating QApplication...";
         QApplication app(argc, argv);
+        qCDebug(log_app_main) << "QApplication created";
         qInfo() << "Starting MCP server in stdio transport mode (offscreen)...";
 
         // Load keyboard layouts — required by KeyboardManager (used by MCP tools)
@@ -306,48 +348,46 @@ int main(int argc, char *argv[])
         KeyboardLayoutManager::getInstance().loadLayouts(":/config/keyboards");
         qInfo() << "Keyboard layouts loaded";
 
+        qCDebug(log_app_main) << "Creating CameraManager...";
         // Create CameraManager on the heap — must outlive McpServer so capture_screen works.
         // Parented to &app for automatic cleanup on exit.
         CameraManager* cameraManager = new CameraManager(&app);
+        qCDebug(log_app_main) << "CameraManager created";
         qInfo() << "CameraManager created for stdio mode";
 
+        qCDebug(log_app_main) << "Starting camera initialization...";
         // Start VideoHid — required to initialize the video chip (MS2109/MS2130S) HID
         // interface so the HDMI input is routed to the USB capture device. Without this,
         // the capture device produces valid but black frames. GUI mode does the same in
         // MainWindowInitializer::deferredInitializeCamera().
-        fprintf(stderr, "[DEBUG] Starting VideoHid...\n");
-        fprintf(stderr, "[DEBUG] Current port chain: '%s'\n",
-                GlobalSetting::instance().getOpenterfacePortChain().toUtf8().constData());
+        qCDebug(log_app_main) << "Starting VideoHid...";
+        qCDebug(log_app_main) << "Current port chain:" << GlobalSetting::instance().getOpenterfacePortChain();
         VideoHid::getInstance().start();
-        fprintf(stderr, "[DEBUG] VideoHid started, HID device opened: %s\n",
-                VideoHid::getInstance().isOpen() ? "yes" : "no");
-        fprintf(stderr, "[DEBUG] VideoHid currentHIDDevicePath: '%s'\n",
-                VideoHid::getInstance().getCurrentHIDDevicePath().toUtf8().constData());
+        qCDebug(log_app_main) << "VideoHid started, HID device opened:" << (VideoHid::getInstance().isOpen() ? "yes" : "no");
+        qCDebug(log_app_main) << "VideoHid currentHIDDevicePath:" << VideoHid::getInstance().getCurrentHIDDevicePath();
         // Check HDMI connection status
         QThread::msleep(200);  // Brief delay for HID to stabilize
         bool hdmiConnected = VideoHid::getInstance().isHdmiConnected();
-        fprintf(stderr, "[DEBUG] HDMI connected: %s\n", hdmiConnected ? "yes" : "no");
+        qCDebug(log_app_main) << "HDMI connected:" << (hdmiConnected ? "yes" : "no");
 
         // Read input resolution from MS2109
         auto resolution = VideoHid::getInstance().getResolution();
-        fprintf(stderr, "[DEBUG] MS2109 detected input resolution: %dx%d\n", resolution.first, resolution.second);
+        qCDebug(log_app_main) << "MS2109 detected input resolution:" << resolution.first << "x" << resolution.second;
 
-        fprintf(stderr, "[DEBUG] GPIO0 (hard switch): %s\n",
-                VideoHid::getInstance().getGpio0() ? "target" : "host");
-        fprintf(stderr, "[DEBUG] SPDIFOUT (soft switch): %s\n",
-                VideoHid::getInstance().getSpdifout() ? "target" : "host");
+        qCDebug(log_app_main) << "GPIO0 (hard switch):" << (VideoHid::getInstance().getGpio0() ? "target" : "host");
+        qCDebug(log_app_main) << "SPDIFOUT (soft switch):" << (VideoHid::getInstance().getSpdifout() ? "target" : "host");
         QString fw = QString::fromStdString(VideoHid::getInstance().getFirmwareVersion());
-        fprintf(stderr, "[DEBUG] Firmware version: %s\n", fw.toUtf8().constData());
+        qCDebug(log_app_main) << "Firmware version:" << fw;
 
         // CRITICAL: Explicitly set the SPDIFOUT register in stdio mode.
         // GUI mode does this via setupEventCallbacks() -> VideoHid::setEventCallback(m_mainWindow)
         // which triggers setSpdifout() in the async firmware read block. Without this,
         // the MS2109 chip may not output valid video.
-        fprintf(stderr, "[DEBUG] Explicitly setting SPDIFOUT register...\n");
+        qCDebug(log_app_main) << "Explicitly setting SPDIFOUT register...";
         bool spdifout = VideoHid::getInstance().getSpdifout();
-        fprintf(stderr, "[DEBUG] Current SPDIFOUT=%d\n", spdifout ? 1 : 0);
+        qCDebug(log_app_main) << "Current SPDIFOUT=" << spdifout;
         VideoHid::getInstance().setSpdifout(spdifout);
-        fprintf(stderr, "[DEBUG] SPDIFOUT register set\n");
+        qCDebug(log_app_main) << "SPDIFOUT register set";
         QThread::msleep(100);
 
         qInfo() << "VideoHid started";
@@ -355,19 +395,19 @@ int main(int argc, char *argv[])
         // Discover and connect to device hardware
         qInfo() << "Discovering Openterface devices...";
         QList<DeviceInfo> devices = DeviceManager::getInstance().discoverDevices();
-        fprintf(stderr, "[DEBUG] Discovered %d devices\n", static_cast<int>(devices.size()));
+        qCDebug(log_app_main) << "Discovered" << devices.size() << "devices";
         if (!devices.isEmpty()) {
             qInfo() << "Found" << devices.size() << "device(s)";
             DeviceInfo device = devices.first();
-            fprintf(stderr, "[DEBUG] First device: portChain='%s', hidDevicePath='%s', cameraDevicePath='%s'\n",
-                    device.portChain.toUtf8().constData(),
-                    device.hidDevicePath.toUtf8().constData(),
-                    device.cameraDevicePath.toUtf8().constData());
+            qCDebug(log_app_main) << "First device: portChain=" << device.portChain
+                                  << "hidDevicePath=" << device.hidDevicePath
+                                  << "cameraDevicePath=" << device.cameraDevicePath;
             qInfo() << "Switching to device:" << device.getInterfaceSummary();
             auto result = DeviceManager::getInstance().switchToDeviceByPortChainWithCamera(
                 device.portChain, cameraManager);
-            fprintf(stderr, "[DEBUG] switchToDeviceByPortChainWithCamera result: success=%d, message='%s'\n",
-                    result.success, result.statusMessage.toUtf8().constData());
+            qCDebug(log_app_main) << "switchToDeviceByPortChainWithCamera result: success=" << result.success
+                                  << "message=" << result.statusMessage;
+            qCDebug(log_app_main) << "Device connection completed";
             if (result.success) {
                 qInfo() << "Device connected successfully:" << result.statusMessage;
             } else {
@@ -376,13 +416,14 @@ int main(int argc, char *argv[])
 
             // Wait a bit for camera to initialize
             QThread::msleep(1000);
-            fprintf(stderr, "[DEBUG] Checking if camera has frames...\n");
+            qCDebug(log_app_main) << "Checking if camera has frames...";
             QImage testFrame = cameraManager->getLatestOriginalFrame();
-            fprintf(stderr, "[DEBUG] Test frame: isNull=%d, size=%dx%d\n",
-                    testFrame.isNull(), testFrame.width(), testFrame.height());
+            qCDebug(log_app_main) << "Test frame: isNull=" << testFrame.isNull()
+                                  << "size=" << testFrame.width() << "x" << testFrame.height();
 
             // Wait for serial port to be ready (it's initialized asynchronously)
             qInfo() << "Waiting for serial port to initialize...";
+            qCDebug(log_app_main) << "Starting serial port wait loop...";
             QEventLoop waitLoop;
             QTimer timeoutTimer;
             timeoutTimer.setSingleShot(true);
@@ -403,6 +444,7 @@ int main(int argc, char *argv[])
             timeoutTimer.start(5000); // 5 second timeout
             waitLoop.exec();
             timeoutTimer.stop();
+            qCDebug(log_app_main) << "Serial port wait loop completed, serialReady=" << serialReady;
 
             if (!serialReady) {
                 qWarning() << "Serial port did not become ready within timeout";
@@ -454,8 +496,10 @@ int main(int argc, char *argv[])
             }
         }
 
+        qCDebug(log_app_main) << "About to start camera wait loop...";
         // Wait for camera to produce its first frame (FFmpeg backend starts async)
         qInfo() << "Waiting for camera to produce first frame...";
+        qCDebug(log_app_main) << "Starting camera wait loop...";
         {
             int maxWaitMs = 5000;
             int waitedMs = 0;
@@ -464,6 +508,7 @@ int main(int argc, char *argv[])
                 waitedMs += 200;
                 QCoreApplication::processEvents();
             }
+            qCDebug(log_app_main) << "Camera wait loop completed, waited" << waitedMs << "ms";
             if (cameraManager->getLatestOriginalFrame().isNull()) {
                 qWarning() << "Camera did not produce a frame within" << maxWaitMs << "ms";
                 qWarning() << "capture_screen tool may return errors until a frame is available";
@@ -473,15 +518,19 @@ int main(int argc, char *argv[])
             }
         }
 
+        qCDebug(log_app_main) << "About to create MCP server...";
         McpServer* mcpServer = new McpServer(&app);
+        qCDebug(log_app_main) << "MCP server created";
         mcpServer->setCameraManager(cameraManager);
 
         // Start stdio transport if requested
         if (mcpStdioMode) {
+            qCDebug(log_app_main) << "Starting MCP stdio transport";
             if (!mcpServer->startStdio()) {
                 qCritical() << "Failed to start MCP stdio transport";
                 return 1;
             }
+            qCDebug(log_app_main) << "MCP stdio transport started successfully";
         }
 
         // Start SSE transport if requested

@@ -87,6 +87,11 @@ bool LinuxHIDTransport::getFeatureReport(uint8_t* buf, size_t len)
     if (!isOpen() && !open()) return false;
 
     std::vector<uint8_t> buffer(len, 0);
+
+    if (len > 0) {
+        // copy at least Report ID
+        buffer[0] = buf[0];
+    }
     int res = ioctl(m_hidFd, HIDIOCGFEATURE(buffer.size()), buffer.data());
     if (res < 0) {
         qCDebug(log_linux_transport) << "getFeatureReport failed:" << strerror(errno);

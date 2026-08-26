@@ -2085,7 +2085,7 @@ void SerialPortManager::readData() {
         qCDebug(log_core_serial_rx).nospace().noquote() << "RX (" << serialPort->portName() << "@"
             << (serialPort ? serialPort->baudRate() : 0) << "bps): " << packet.toHex(' ');
 
-        // RX-DIAG: fprintf to stderr so responses are visible in sse_server.log
+        // Log diagnostic info about the received command
         {
             uint8_t cmdCode = packet.size() > 3 ? static_cast<uint8_t>(packet[3]) : 0;
             uint8_t statusByte = packet.size() > 5 ? static_cast<uint8_t>(packet[5]) : 0xFF;
@@ -2102,9 +2102,9 @@ void SerialPortManager::readData() {
                 case 0x99: cmdName = "USB_STATUS_RSP"; break;
                 default: break;
             }
-            fprintf(stderr, "[RX-DIAG] Received: [%s] cmd=0x%02x(%s) status=0x%02x size=%d\n",
-                    packet.toHex(' ').constData(), cmdCode, cmdName, statusByte, packet.size());
-            fflush(stderr);
+            qCDebug(log_core_serial_rx) << "[RX-DIAG] cmd=0x" << Qt::hex << Qt::uppercasedigits << cmdCode
+                                        << "(" << cmdName << ") status=0x" << statusByte
+                                        << "size=" << packet.size();
         }
 
         // Also explicitly log RX to file during diagnostics

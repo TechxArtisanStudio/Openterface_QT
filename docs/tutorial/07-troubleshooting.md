@@ -43,8 +43,9 @@ Common problems and their solutions for the Openterface Mini-KVM application.
 
 3. **Check device nodes:**
    ```bash
-   ls /dev/hidraw*   # HID video chip
-   ls /dev/ttyUSB*   # serial chip
+   ls /dev/hidraw*          # HID video chip
+   ls /dev/ttyUSB*          # CH9329 serial chip
+   ls /dev/ttyACM*          # CH32V208 serial chip (CDC ACM — subsystem is "tty")
    ```
 
 ### Solutions
@@ -53,7 +54,7 @@ Common problems and their solutions for the Openterface Mini-KVM application.
 |---------|-----|
 | Device not in `lsusb` | Try a different USB cable/port. The device needs USB 2.0+ |
 | Device appears but no nodes | Check udev rules (see [Platform Guides](06-platform-guides.md#linux-deep-dive)) |
-| "Permission denied" on nodes | Add user to `dialout` and `video` groups, reload udev rules |
+| "Permission denied" on nodes | Add user to `dialout` (or `uucp` on Arch) and `video` groups, reload udev rules |
 | Device detected then disappears | `brltty` may be claiming the serial port — see [BrlTTY conflict](#brltty-conflict) |
 
 ### Port Chain Deduplication
@@ -71,7 +72,7 @@ The `DeviceManager` uses a **port chain** abstraction to deduplicate devices acr
 The `brltty` service claims USB serial devices, including the CH9329/CH32V208 chip. Symptoms:
 - Device is detected (`lsusb` shows it)
 - Serial port appears briefly then disappears
-- `/dev/ttyUSB*` returns "Device or resource busy"
+- `/dev/ttyUSB*` or `/dev/ttyACM*` returns "Device or resource busy"
 
 **Fix:**
 ```bash

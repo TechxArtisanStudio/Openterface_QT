@@ -213,9 +213,17 @@ void CornerWidgetManager::setupConnections()
     });
 
     // Re-color SVG icons when system theme/palette changes
-    connect(qApp, &QApplication::paletteChanged, this, [this]() {
+    qApp->installEventFilter(this);
+}
+
+bool CornerWidgetManager::eventFilter(QObject *obj, QEvent *event)
+{
+    if (obj == qApp && event->type() == QEvent::ApplicationPaletteChange) {
         updateAllIcons();
-    });
+        // Return false so the event continues to propagate to other listeners
+        return false;
+    }
+    return QObject::eventFilter(obj, event);
 }
 
 void CornerWidgetManager::initializeKeyboardLayouts(const QStringList &layouts, const QString &defaultLayout)

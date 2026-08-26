@@ -98,11 +98,23 @@ bool CameraManager::isMediaFoundationBackend() const
 }
 #endif
 
-QImage CameraManager::getLatestOriginalFrame() const
+QImage CameraManager::getLatestOriginalFrame()
 {
+#ifdef Q_OS_WIN
+    // Windows: only the FFmpeg backend supports frame retrieval.
+    // QtBackendHandler and MfBackendHandler do not implement getLatestOriginalFrame().
     if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
         return ffmpeg->getLatestOriginalFrame();
     }
+#else
+    // Linux / other platforms: dispatch based on the active backend type.
+    if (FFmpegBackendHandler* ffmpeg = getFFmpegBackend()) {
+        return ffmpeg->getLatestOriginalFrame();
+    }
+    if (GStreamerBackendHandler* gst = getGStreamerBackend()) {
+        return gst->getLatestOriginalFrame();
+    }
+#endif
     return QImage();
 }
 

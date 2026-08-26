@@ -66,9 +66,12 @@ private slots:
     void onBindAddressPresetChanged(int index);
 
 private:
+    void updateTesseractStatus();
     // ---- Basic settings ----
     QCheckBox    *m_enableCheckBox;
     QComboBox    *m_transportCombo;
+    QCheckBox    *m_screenToMarkdownCheckBox;
+    QLabel       *m_screenToMarkdownStatusLabel;
 
     // ---- SSE settings ----
     QGroupBox    *m_sseGroup;
@@ -86,6 +89,7 @@ private:
     // Snapshot members
     bool m_snap_enableChecked;
     int m_snap_transportIndex;
+    bool m_snap_screenToMarkdownChecked;
     int m_snap_ssePort;
     int m_snap_sseBindPresetIndex;
     QString m_snap_sseBindCustom;

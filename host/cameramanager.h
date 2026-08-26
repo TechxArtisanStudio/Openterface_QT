@@ -72,7 +72,7 @@ public:
     MultimediaBackendHandler* getBackendHandler() const;
 
     // Returns the latest camera frame at native (unscaled) resolution.
-    QImage getLatestOriginalFrame() const;
+    QImage getLatestOriginalFrame();
     
     // Video output management
     void setVideoOutput(QGraphicsVideoItem* videoOutput);
