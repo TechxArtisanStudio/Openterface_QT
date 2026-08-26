@@ -26,6 +26,10 @@ public:
 
 private:
     QProcess* m_process;
+
+private slots:
+    void onProcessError(QProcess::ProcessError e);
+
 signals:
     void started();
     void failed(const QString& error);

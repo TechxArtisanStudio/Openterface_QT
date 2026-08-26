@@ -144,6 +144,8 @@ public slots:
     
 private slots:
     void onImageCaptured(int id, const QImage& img);
+    void onFFmpegCaptureError(const QString& error);
+    void onMediaFoundationError(const QString& error);
 
 private:
     // Backend handler management
