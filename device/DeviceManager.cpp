@@ -104,18 +104,10 @@ void DeviceManager::discoverDevicesAsync()
     if (auto* linuxManager = qobject_cast<LinuxDeviceManager*>(m_platformManager)) {
         // Connect to Linux-specific async discovery signals
         connect(linuxManager, &LinuxDeviceManager::devicesDiscovered,
-                this, [this](const QList<DeviceInfo>& devices) {
-                    QMutexLocker locker(&m_mutex);
-                    m_currentDevices = devices;
-                    qCDebug(log_device_manager) << "Async discovery completed with" << devices.size() << "devices";
-                    emit devicesChanged(devices);
-                }, Qt::UniqueConnection);
-        
+                this, &DeviceManager::onLinuxDevicesDiscovered, Qt::UniqueConnection);
+
         connect(linuxManager, &LinuxDeviceManager::discoveryError,
-                this, [this](const QString& error) {
-                    qCWarning(log_device_manager) << "Async discovery error:" << error;
-                    emit errorOccurred(error);
-                }, Qt::UniqueConnection);
+                this, &DeviceManager::onLinuxDiscoveryError, Qt::UniqueConnection);
         
         linuxManager->discoverDevicesAsync();
     } else
@@ -455,6 +447,22 @@ void DeviceManager::onHotplugTimerTimeout()
     
     emit devicesChanged(currentDevices);
 }
+
+#ifdef Q_OS_LINUX
+void DeviceManager::onLinuxDevicesDiscovered(const QList<DeviceInfo>& devices)
+{
+    QMutexLocker locker(&m_mutex);
+    m_currentDevices = devices;
+    qCDebug(log_device_manager) << "Async discovery completed with" << devices.size() << "devices";
+    emit devicesChanged(devices);
+}
+
+void DeviceManager::onLinuxDiscoveryError(const QString& error)
+{
+    qCWarning(log_device_manager) << "Async discovery error:" << error;
+    emit errorOccurred(error);
+}
+#endif
 
 void DeviceManager::compareDeviceSnapshots(const QList<DeviceInfo>& current,
                                           const QList<DeviceInfo>& previous)

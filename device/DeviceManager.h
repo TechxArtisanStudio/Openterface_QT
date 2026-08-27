@@ -162,6 +162,10 @@ signals:
     
 private slots:
     void onHotplugTimerTimeout();
+#ifdef Q_OS_LINUX
+    void onLinuxDevicesDiscovered(const QList<DeviceInfo>& devices);
+    void onLinuxDiscoveryError(const QString& error);
+#endif
     
 private:
     // Private constructor for singleton
