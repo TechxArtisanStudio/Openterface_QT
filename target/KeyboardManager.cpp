@@ -745,6 +745,29 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
     }
 }
 
+void KeyboardManager::releaseAllKeys()
+{
+    if (currentMappedKeyCodes.isEmpty() && currentModifiers == 0) {
+        return;
+    }
+
+    qCDebug(log_host_kb_state) << "Releasing all guest keys after focus/window loss"
+               << "pressedKeys=" << currentMappedKeyCodes.size()
+               << "modifiers=0x" << Qt::hex << currentModifiers;
+
+    // An empty keyboard report releases every regular key and modifier held by
+    // the guest, including any key whose release never reached Qt.
+    QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;
+    keyData[5] = 0;
+    for (int i = 7; i < keyData.size(); ++i) {
+        keyData[i] = 0;
+    }
+    emit SerialPortManager::getInstance().sendCommandAsync(keyData, false);
+
+    currentMappedKeyCodes.clear();
+    currentModifiers = 0;
+}
+
 void KeyboardManager::handlePasteChar(int key, int modifiers){
     unsigned int control = 0x00;
     QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;

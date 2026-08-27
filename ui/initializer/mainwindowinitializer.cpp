@@ -714,6 +714,15 @@ void MainWindowInitializer::finalize()
             &KeyboardManager::getInstance(), &KeyboardManager::handleKeyboardAction);
     qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to HostManager";
 
+    // Release all keys on focus loss
+    connect(qApp, &QApplication::applicationStateChanged, m_mainWindow,
+            [](Qt::ApplicationState state) {
+                if (state != Qt::ApplicationActive) {
+                    qCDebug(log_ui_mainwindowinitializer) << "Application became inactive; releasing guest keys";
+                    HostManager::getInstance().releaseAllKeys();
+                }
+            });
+
     // Always install the keyboard hook when the window is shown.
     // The hook captures ALL keystrokes and forwards them to the target.
     // The SystemBlocker toggle controls whether the hook also swallows events
@@ -772,4 +781,3 @@ void MainWindowInitializer::finalize()
     
     qCDebug(log_ui_mainwindowinitializer) << "Finalization complete";
 }
-

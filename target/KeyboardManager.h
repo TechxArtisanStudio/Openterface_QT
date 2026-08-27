@@ -49,6 +49,7 @@ public:
     }
 
     void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown, unsigned int nativeVirtualKey = 0);
+    void releaseAllKeys();
     void handlePasteChar(int key, int modifiers);
 
     /*
