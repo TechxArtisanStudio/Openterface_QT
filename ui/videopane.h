@@ -112,6 +112,11 @@ public slots:
     void onCameraDeviceSwitchComplete(const QString& device);
     void onCameraActiveChanged(bool active);
 
+    /// Handle keyboard events captured by SystemKeyBlocker's native hook.
+    /// Constructs a QKeyEvent and routes it through the same InputHandler path
+    /// as normal keyPressEvent(), ensuring unified keyboard handling.
+    void handleCapturedKey(int qtKeyCode, int modifiers, bool isKeyDown, quint32 nativeVk);
+
 protected:
     bool event(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;

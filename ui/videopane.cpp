@@ -944,20 +944,49 @@ void VideoPane::wheelEvent(QWheelEvent *event)
     event->accept();
 }
 
+void VideoPane::handleCapturedKey(int qtKeyCode, int modifiers, bool isKeyDown, quint32 nativeVk)
+{
+    // Route SystemKeyBlocker captured keys through the same InputHandler path
+    // as normal keyPressEvent/keyReleaseEvent. This ensures unified handling:
+    // key mapping, Esc timer, status bar updates, etc. all work the same way.
+    QEvent::Type type = isKeyDown ? QEvent::KeyPress : QEvent::KeyRelease;
+    QKeyEvent event(type, qtKeyCode, Qt::KeyboardModifiers(modifiers), nativeVk, false, 0);
+
+    if (m_inputHandler) {
+        if (isKeyDown) {
+            m_inputHandler->handleKeyPress(&event);
+        } else {
+            m_inputHandler->handleKeyRelease(&event);
+        }
+    }
+}
+
 bool VideoPane::event(QEvent *event)
 {
+    // Log all key events for debugging
+    if (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) {
+        QKeyEvent *ke = static_cast<QKeyEvent *>(event);
+        qCDebug(log_ui_video) << "VideoPane::event() received key event:"
+                              << (event->type() == QEvent::KeyPress ? "KeyPress" : "KeyRelease")
+                              << "key:" << ke->key();
+    }
+
     // Intercept Tab/Backtab before QGraphicsView/QWidget base class processes them
     // for focus navigation. Without this, Tab key events may never reach keyPressEvent
     // on Windows where the platform plugin handles Tab for dialog navigation.
     if (event->type() == QEvent::KeyPress) {
         QKeyEvent *ke = static_cast<QKeyEvent *>(event);
         if (ke->key() == Qt::Key_Tab || ke->key() == Qt::Key_Backtab) {
+            qCDebug(log_ui_video) << "VideoPane::event() intercepted Tab/Backtab KeyPress, forwarding to keyPressEvent";
+            ke->accept();
             keyPressEvent(ke);
             return true;
         }
     } else if (event->type() == QEvent::KeyRelease) {
         QKeyEvent *ke = static_cast<QKeyEvent *>(event);
         if (ke->key() == Qt::Key_Tab || ke->key() == Qt::Key_Backtab) {
+            qCDebug(log_ui_video) << "VideoPane::event() intercepted Tab/Backtab KeyRelease, forwarding to keyReleaseEvent";
+            ke->accept();
             keyReleaseEvent(ke);
             return true;
         }
@@ -967,6 +996,9 @@ bool VideoPane::event(QEvent *event)
 
 void VideoPane::keyPressEvent(QKeyEvent *event)
 {
+    qCDebug(log_ui_video) << "VideoPane::keyPressEvent called with key:" << event->key()
+                          << "isActive:" << SystemKeyBlocker::instance().isActive()
+                          << "hasFocus:" << hasFocus();
     // Forward to InputHandler when SystemKeyBlocker is not active
     // (When active, the hook handles keyboard forwarding to avoid duplicates)
     if (!SystemKeyBlocker::instance().isActive() && m_inputHandler) {
@@ -1037,7 +1069,11 @@ void VideoPane::keyPressEvent(QKeyEvent *event)
     }
     
     // Pass unhandled events to base class
-    QGraphicsView::keyPressEvent(event);
+    // But for Tab/Backtab, don't call base class - it may do focus navigation
+    // that interferes with KeyRelease delivery
+    if (event->key() != Qt::Key_Tab && event->key() != Qt::Key_Backtab) {
+        QGraphicsView::keyPressEvent(event);
+    }
 }
 
 void VideoPane::keyReleaseEvent(QKeyEvent *event)
@@ -1049,7 +1085,11 @@ void VideoPane::keyReleaseEvent(QKeyEvent *event)
     }
 
     // Pass unhandled events to base class
-    QGraphicsView::keyReleaseEvent(event);
+    // But for Tab/Backtab, don't call base class - it may do focus navigation
+    // that interferes with KeyRelease delivery
+    if (event->key() != Qt::Key_Tab && event->key() != Qt::Key_Backtab) {
+        QGraphicsView::keyReleaseEvent(event);
+    }
 }
 
 void VideoPane::mousePressEvent(QMouseEvent *event)

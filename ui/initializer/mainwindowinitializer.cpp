@@ -719,12 +719,17 @@ void MainWindowInitializer::finalize()
     connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, m_mainWindow, &MainWindow::onArmBaudratePerformanceRecommendation);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::driverInstallationRequired, m_mainWindow, &MainWindow::onDriverInstallationRequired);
 
-    // Connect SystemKeyBlocker keyCaptured signal to HostManager
-    // This ensures both HID report building AND status bar updates go through
-    // HostManager::handleKeyboardAction (not KeyboardManager directly)
-    connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::keyCaptured,
-            &HostManager::getInstance(), &HostManager::handleKeyboardAction);
-    qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to HostManager";
+    // Connect SystemKeyBlocker keyCaptured signal to VideoPane's handleCapturedKey slot.
+    // This unifies both keyboard paths:
+    //   Path 1 (blocker OFF): QKeyEvent → VideoPane::keyPressEvent → InputHandler → HostManager
+    //   Path 2 (blocker ON):  keyCaptured → VideoPane::handleCapturedKey → InputHandler → HostManager
+    // Both paths go through the same InputHandler → HostManager pipeline, ensuring
+    // consistent key mapping, Esc timer handling, and status bar updates.
+    if (m_videoPane) {
+        connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::keyCaptured,
+                m_videoPane, &VideoPane::handleCapturedKey);
+        qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to VideoPane (unified path)";
+    }
 
     // SystemKeyBlocker is NOT started automatically on launch.
     // By default, keyboard events flow through VideoPane::keyPressEvent → InputHandler → HostManager.
