@@ -946,11 +946,18 @@ void VideoPane::wheelEvent(QWheelEvent *event)
 
 void VideoPane::handleCapturedKey(int qtKeyCode, int modifiers, bool isKeyDown, quint32 nativeVk)
 {
+    qCDebug(log_ui_video) << "VideoPane::handleCapturedKey called with qtKeyCode:" << qtKeyCode
+                          << "(0x" << Qt::hex << qtKeyCode << Qt::dec << ")"
+                          << "modifiers:" << Qt::hex << modifiers << Qt::dec
+                          << "nativeVk:" << Qt::hex << nativeVk << Qt::dec
+                          << "isKeyDown:" << isKeyDown;
     // Route SystemKeyBlocker captured keys through the same InputHandler path
     // as normal keyPressEvent/keyReleaseEvent. This ensures unified handling:
     // key mapping, Esc timer, status bar updates, etc. all work the same way.
     QEvent::Type type = isKeyDown ? QEvent::KeyPress : QEvent::KeyRelease;
-    QKeyEvent event(type, qtKeyCode, Qt::KeyboardModifiers(modifiers), nativeVk, false, 0);
+    // QKeyEvent constructor: (type, key, modifiers, nativeScanCode, nativeVirtualKey, nativeModifiers)
+    // nativeVk is the X11 keysym (e.g. 0xFFEB for XK_Super_L), which is the nativeVirtualKey
+    QKeyEvent event(type, qtKeyCode, Qt::KeyboardModifiers(modifiers), 0, nativeVk, 0);
 
     if (m_inputHandler) {
         if (isKeyDown) {
@@ -997,6 +1004,9 @@ bool VideoPane::event(QEvent *event)
 void VideoPane::keyPressEvent(QKeyEvent *event)
 {
     qCDebug(log_ui_video) << "VideoPane::keyPressEvent called with key:" << event->key()
+                          << "(0x" << Qt::hex << event->key() << Qt::dec << ")"
+                          << "modifiers:" << Qt::hex << event->modifiers() << Qt::dec
+                          << "nativeVirtualKey:" << Qt::hex << event->nativeVirtualKey() << Qt::dec
                           << "isActive:" << SystemKeyBlocker::instance().isActive()
                           << "hasFocus:" << hasFocus();
     // Forward to InputHandler when SystemKeyBlocker is not active
@@ -1078,6 +1088,10 @@ void VideoPane::keyPressEvent(QKeyEvent *event)
 
 void VideoPane::keyReleaseEvent(QKeyEvent *event)
 {
+    qCDebug(log_ui_video) << "VideoPane::keyReleaseEvent called with key:" << event->key()
+                          << "(0x" << Qt::hex << event->key() << Qt::dec << ")"
+                          << "modifiers:" << Qt::hex << event->modifiers() << Qt::dec
+                          << "nativeVirtualKey:" << Qt::hex << event->nativeVirtualKey() << Qt::dec;
     // Forward to InputHandler when SystemKeyBlocker is not active
     // (When active, the hook handles keyboard forwarding to avoid duplicates)
     if (!SystemKeyBlocker::instance().isActive() && m_inputHandler) {

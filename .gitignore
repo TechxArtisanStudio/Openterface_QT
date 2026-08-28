@@ -51,17 +51,22 @@ tests/build/*
 !tests/build/CMakeLists.txt
 
 # Keyboard test build artifacts
+tests/keyboard/build/*
 tests/cmake_build/*
 tests/keyboard_build/*
 
 # Test binary files
 tests/keyboard/test_keyboard_routing
 tests/keyboard/test_keyboard_logic
+tests/keyboard/test_keyboard_send_flow
+tests/keyboard/test_keyboard_blocker
 tests/keyboard/*_autogen*
 tests/keyboard/CMakeFiles/*
 tests/keyboard/CMakeCache.txt
 tests/keyboard/Makefile
 tests/keyboard/cmake_install.cmake
+tests/keyboard/*.o
+tests/keyboard/*.moc
 
 # Build artifacts (qmake generated)
 openterfaceQT

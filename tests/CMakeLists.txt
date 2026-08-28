@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(openterface-hotplug-tests LANGUAGES CXX)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Test Concurrent SerialPort)
+find_package(Qt6 REQUIRED COMPONENTS Core Test Concurrent SerialPort Widgets Gui)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -112,3 +112,36 @@ if(WCH_LIB OR UNIX)  # On Unix, we use libusb which should be available
 
     add_test(NAME RealFirmwareFlashing COMMAND test_real_firmware_flashing)
 endif()
+
+# Test 8: Keyboard routing tests (SystemKeyBlocker ON/OFF)
+add_executable(test_keyboard_routing
+    keyboard/test_keyboard_routing.cpp
+    ${PROJECT_ROOT}/SysKeyBlocker/SystemKeyBlocker.cpp
+    ${PROJECT_ROOT}/log/logcategoryregistry.cpp
+)
+
+# Platform-specific SystemKeyBlocker implementation
+if(WIN32)
+    target_sources(test_keyboard_routing PRIVATE
+        ${PROJECT_ROOT}/SysKeyBlocker/SystemKeyBlocker_win.cpp
+    )
+else()
+    target_sources(test_keyboard_routing PRIVATE
+        ${PROJECT_ROOT}/SysKeyBlocker/SystemKeyBlocker_x11.cpp
+    )
+    target_link_libraries(test_keyboard_routing PRIVATE X11)
+endif()
+
+target_include_directories(test_keyboard_routing PRIVATE
+    ${PROJECT_ROOT}
+    ${PROJECT_ROOT}/SysKeyBlocker
+)
+target_link_libraries(test_keyboard_routing PRIVATE Qt6::Core Qt6::Test Qt6::Widgets Qt6::Gui)
+add_test(NAME KeyboardRouting COMMAND test_keyboard_routing)
+
+# Test 9: Keyboard event handling logic (no GUI required)
+add_executable(test_keyboard_logic
+    keyboard/test_keyboard_logic.cpp
+)
+target_link_libraries(test_keyboard_logic PRIVATE Qt6::Core Qt6::Test Qt6::Gui)
+add_test(NAME KeyboardLogic COMMAND test_keyboard_logic)
