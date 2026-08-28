@@ -105,6 +105,7 @@ signals:
     void mouseMoved(const QPoint& position, const QString& event);
     void videoPaneResized(const QSize& newSize);  // Signal for video pane resize events
     void viewportSizeChanged(const QSize& size);   // Signal for viewport size changes
+    void newVideoFrameReceived();                  // Emitted when a new video frame is displayed
 
 public slots:
     void onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice);

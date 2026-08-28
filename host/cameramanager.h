@@ -13,6 +13,7 @@
 #include "host/multimediabackend.h"
 #include "../device/DeviceInfo.h"
 #include <QLoggingCategory>
+#include <QDateTime>
 
 // Forward declarations
 class GStreamerBackendHandler;
@@ -86,6 +87,12 @@ public:
     
     // Check if there's an active camera device
     bool hasActiveCameraDevice() const;
+
+    // Check if the camera is actively streaming (receiving frames within last 5 seconds)
+    bool isCameraStreaming() const;
+
+    // Called by VideoPane when a new frame is received (updates frame timestamp)
+    void onNewVideoFrameReceived();
     
     // Auto-switch to new device when hotplug event occurs (only if no active device)
     bool tryAutoSwitchToNewDevice(const QString& portChain);
@@ -196,6 +203,7 @@ private:
     QCameraDevice m_currentCameraDevice;
     QString m_currentCameraDeviceId;
     QString m_currentCameraPortChain;  // Track the port chain of current camera device
+    qint64 m_lastFrameTimestamp = 0;   // Timestamp (ms since epoch) of last received frame
     QList<QCameraDevice> m_availableCameraDevices;
     
     // Recording management

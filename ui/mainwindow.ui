@@ -129,6 +129,7 @@
     <addaction name="actionSerialConsole"/>
     <addaction name="actionScriptTool"/>
     <addaction name="actionHardwareDiagnostics"/>
+    <addaction name="actionHotplugTest"/>
     <addaction name="actionRecordingSettings"/>
     <addaction name="actionTCPServer"/>
     <addaction name="actionDeviceSelector"/>
@@ -284,6 +285,17 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+Shift+D</string>
+   </property>
+  </action>
+  <action name="actionHotplugTest">
+   <property name="text">
+    <string>Hotplug Recovery Test</string>
+   </property>
+   <property name="toolTip">
+    <string>Run guided hotplug recovery test wizard</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+H</string>
    </property>
   </action>
   <action name="actionTCPServer">

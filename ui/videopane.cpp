@@ -1416,7 +1416,8 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
         m_scene->invalidate(updateRect, QGraphicsScene::ForegroundLayer);
         m_scene->update(updateRect);
         viewport()->update();
-        
+
+        emit newVideoFrameReceived();
         return;
     }
 
@@ -1446,6 +1447,8 @@ void VideoPane::updateVideoFrame(const QPixmap& frame)
     m_scene->invalidate(updateRect, QGraphicsScene::ForegroundLayer);
     m_scene->update(updateRect);
     viewport()->update();
+
+    emit newVideoFrameReceived();
 }
 
 void VideoPane::enableDirectFFmpegMode(bool enable)

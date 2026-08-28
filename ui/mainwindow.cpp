@@ -49,6 +49,7 @@
 #include "ui/preferences/firmwarepage.h"
 #include "ui/advance/envdialog.h"
 #include "ui/advance/devicediagnosticsdialog.h"
+#include "ui/hotplug/HotplugTestDialog.h"
 #include "ui/customkey/customkeydialog.h"
 
 #include <QCameraDevice>
@@ -2179,6 +2180,13 @@ void MainWindow::showHardwareDiagnostics() {
     });
     
     diagnosticsDialog->show();
+}
+
+void MainWindow::showHotplugTest() {
+    qCDebug(log_ui_mainwindow) << "Opening hotplug test wizard dialog";
+    auto* dialog = new HotplugTestDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
 }
 
 // void MainWindow::activateFileMenu()

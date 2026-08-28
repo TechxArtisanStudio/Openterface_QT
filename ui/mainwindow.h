@@ -230,6 +230,7 @@ private slots:
     void updateFirmware();
 
     void showHardwareDiagnostics();
+    void showHotplugTest();
 
     void onRepeatingKeystrokeChanged(int index);
 

@@ -28,6 +28,8 @@
 #include "../global.h"
 #include "../device/DeviceManager.h"
 #include "../device/HotplugMonitor.h"
+#include "../device/DeviceLifecycleManager.h"
+#include "../host/HostManager.h"
 #include "../ui/globalsetting.h"
 #include "../device/platform/AbstractPlatformDeviceManager.h"
 #include "videohidchip.h"
@@ -46,9 +48,54 @@ VideoHid::VideoHid(QObject *parent) : QObject(parent), m_inTransaction(false) {
     // Initialize current device tracking
     m_currentHIDDevicePath.clear();
     m_currentHIDPortChain.clear();
-    
-    // Connect to hotplug monitor for automatic device management
-    connectToHotplugMonitor();
+
+    // Connect to DeviceLifecycleManager for centralized hotplug management (Phase 3 migration)
+    {
+        auto& lifecycle = DeviceLifecycleManager::getInstance();
+
+        // shouldConnectHID → switchToHIDDeviceByPortChain, report result
+        connect(&lifecycle, &DeviceLifecycleManager::shouldConnectHid,
+            this, [this](const QString& sessionKey, const QString& portChain) {
+                qCInfo(log_hid_device) << "[Lifecycle] shouldConnectHid:"
+                                       << "session=" << sessionKey << "portChain=" << portChain;
+                bool success = switchToHIDDeviceByPortChain(portChain);
+                if (success) {
+                    qCInfo(log_hid_device) << "[Lifecycle] HID connected for session" << sessionKey;
+                    DeviceLifecycleManager::getInstance().notifyInterfaceConnected(
+                        sessionKey, InterfaceType::Hid);
+                } else {
+                    qCWarning(log_hid_device) << "[Lifecycle] HID connect failed for session" << sessionKey;
+                    DeviceLifecycleManager::getInstance().notifyInterfaceFailed(
+                        sessionKey, InterfaceType::Hid, "switchToHIDDeviceByPortChain failed");
+                }
+            });
+
+        // shouldDisconnectHID → stop HID, report
+        connect(&lifecycle, &DeviceLifecycleManager::shouldDisconnectHid,
+            this, [this](const QString& sessionKey) {
+                qCInfo(log_hid_device) << "[Lifecycle] shouldDisconnectHid for session" << sessionKey;
+                if (m_inTransaction) {
+                    endTransaction();
+                }
+                m_currentHIDDevicePath.clear();
+                m_currentHIDPortChain.clear();
+                DeviceLifecycleManager::getInstance().notifyInterfaceDisconnected(
+                    sessionKey, InterfaceType::Hid);
+            });
+
+        // shouldReleaseHidState → release stuck keys and mouse buttons on the target
+        connect(&lifecycle, &DeviceLifecycleManager::shouldReleaseHidState,
+            this, [this](const QString& sessionKey) {
+                qCInfo(log_hid_device) << "[Lifecycle] shouldReleaseHidState for session" << sessionKey;
+                HostManager::getInstance().getKeyboardManager().releaseAllKeys();
+                HostManager::getInstance().getMouseManager().releaseAllButtons();
+            });
+
+        qCInfo(log_hid_device) << "VideoHid connected to DeviceLifecycleManager";
+    }
+
+    // NOTE: Old hotplug monitor connection disabled — DeviceLifecycleManager handles this now.
+    // connectToHotplugMonitor();
 
     // Create the platform-specific transport (owns device handle and all HID I/O).
 #ifdef _WIN32

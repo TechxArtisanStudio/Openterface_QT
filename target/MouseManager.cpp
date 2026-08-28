@@ -166,3 +166,27 @@ void MouseManager::stopAutoMoveMouse() {
         mouseMoverThread = nullptr;
     }
 }
+
+void MouseManager::releaseAllButtons() {
+    if (currentMouseButton == 0 && !isDragging) {
+        return;  // Nothing held — skip
+    }
+
+    qCDebug(log_mouse_abs) << "releaseAllButtons: clearing button state 0x"
+                           << QString::number(currentMouseButton, 16)
+                           << "dragging:" << isDragging;
+
+    // Send a mouse report with no buttons pressed at the last known position
+    QByteArray data;
+    data.append(MOUSE_ABS_ACTION_PREFIX);
+    data.append(static_cast<char>(0));  // no buttons
+    data.append(static_cast<char>(lastX & 0xFF));
+    data.append(static_cast<char>((lastX >> 8) & 0xFF));
+    data.append(static_cast<char>(lastY & 0xFF));
+    data.append(static_cast<char>((lastY >> 8) & 0xFF));
+    data.append(static_cast<char>(0));  // no wheel
+    SerialPortManager::getInstance().sendCommandAsync(data, false);
+
+    currentMouseButton = 0;
+    isDragging = false;
+}

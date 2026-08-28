@@ -24,6 +24,7 @@ INCLUDEPATH += $$PWD
 SOURCES += main.cpp \
     device/DeviceInfo.cpp \
     device/DeviceManager.cpp \
+    device/DeviceLifecycleManager.cpp \
     device/HotplugMonitor.cpp \
     device/HotplugDebounceManager.cpp \
     device/platform/AbstractPlatformDeviceManager.cpp \
@@ -171,7 +172,9 @@ SOURCES += main.cpp \
     ui/chat/ChatSkillBar.cpp \
     ui/chat/ChatEmptyStateWidget.cpp \
     ui/chat/ChatTraceDialog.cpp \
-    ui/chat/ChatWindow.cpp
+    ui/chat/ChatWindow.cpp \
+    ui/hotplug/HotplugTestWizard.cpp \
+    ui/hotplug/HotplugTestDialog.cpp
 
 # Platform-specific backend handlers (exclude on Windows)
 !win32 {
@@ -202,6 +205,8 @@ HEADERS  += \
     global.h \
     device/DeviceInfo.h \
     device/DeviceManager.h \
+    device/DeviceSession.h \
+    device/DeviceLifecycleManager.h \
     device/HotplugMonitor.h \
     device/HotplugDebounceManager.h \
     device/platform/AbstractPlatformDeviceManager.h \
@@ -362,7 +367,9 @@ HEADERS  += \
     ui/chat/ChatEmptyStateWidget.h \
     ui/chat/ChatTraceDialog.h \
     ui/chat/ChatWindow.h \
-    ui/chat/QuickReplyWidget.h
+    ui/chat/QuickReplyWidget.h \
+    ui/hotplug/HotplugTestWizard.h \
+    ui/hotplug/HotplugTestDialog.h
 
 FORMS    += \
     ui/mainwindow.ui \

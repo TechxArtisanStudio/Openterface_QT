@@ -80,6 +80,10 @@ public:
 
     void sendKey(int keyCode, int modifiers, bool isKeyDown);
 
+    // Release all currently held keys and modifiers — sends a zero-byte HID report.
+    // Called on device disconnect to prevent stuck keys on the target.
+    void releaseAllKeys();
+
     void setKeyboardLayout(const QString& layoutName);
 
 private:

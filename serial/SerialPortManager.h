@@ -283,6 +283,7 @@ private slots:
     void onSerialPortConnectionSuccess(const QString &portName);
     void onUsbStatusCheckTimeout();  // New slot for USB status check timer
     void onGetInfoTimeout();  // New slot for periodic GET_INFO requests
+    void handleTargetUsbStatusChanged(bool connected);  // Detect target restart and trigger RTS recovery
     
     
 private:
@@ -377,6 +378,15 @@ private:
     std::atomic<bool> m_deviceUnpluggedDetected{false};
     std::atomic<bool> m_deviceUnplugCleanupInProgress{false};
 
+    // Target-side recovery state: set true when target USB disconnects detected (target restart).
+    // Blocks new commands and escalates recovery to RTS hardware reset until target reconnects.
+    std::atomic<bool> m_targetRecoveryInProgress{false};
+    QTimer* m_targetDisconnectRecoveryTimer = nullptr;  // Debounce timer for target disconnect recovery
+
+    // Host-side RTS recovery state: set true when CH32V208 becomes unresponsive on host USB
+    // (error code 6 after error code 8). Triggers RTS hardware reset to recover the chip.
+    std::atomic<bool> m_rtsRecoveryInProgress{false};
+
     // Legacy error counters removed - handled by SerialStatistics and ConnectionWatchdog
     QTimer* m_connectionWatchdog;
     QTimer* m_errorRecoveryTimer;
@@ -450,6 +460,10 @@ private:
     
     // Enhanced error handling
     void handleSerialError(QSerialPort::SerialPortError error);
+    // Trigger RTS hardware reset when CH32V208 becomes unresponsive on host USB
+    // (e.g., after target restart causes chip to enter bad state).
+    // This recovers the chip without requiring physical replug on host side.
+    void triggerRtsRecoveryForUnresponsiveDevice();
     // Attempt to resynchronize the buffer to the next valid header sequence (0x57 0xAB).
     // If resynchronization succeeds and completeData contains at least the minimal packet length,
     // return true. Otherwise update m_incompleteDataBuffer accordingly and return false.

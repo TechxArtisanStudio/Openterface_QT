@@ -32,6 +32,7 @@
 #include "../../serial/SerialPortManager.h"
 #include "../../device/DeviceManager.h"
 #include "../../device/HotplugMonitor.h"
+#include "../../device/DeviceLifecycleManager.h"
 #include "../help/helppane.h"
 #include "../videopane.h"
 #include "../../video/videohid.h"
@@ -374,6 +375,7 @@ void MainWindowInitializer::connectActionSignals()
     connect(m_ui->actionScriptTool, &QAction::triggered, m_mainWindow, &MainWindow::showScriptTool);
     connect(m_ui->actionRecordingSettings, &QAction::triggered, m_mainWindow, &MainWindow::showRecordingSettings);
     connect(m_ui->actionHardwareDiagnostics, &QAction::triggered, m_mainWindow, &MainWindow::showHardwareDiagnostics);
+    connect(m_ui->actionHotplugTest, &QAction::triggered, m_mainWindow, &MainWindow::showHotplugTest);
     connect(m_ui->actionAIChat, &QAction::toggled, m_mainWindow, &MainWindow::toggleChatWindow);
     // Connect baudrate actions to the MenuCoordinator which handles baudrate logic
     // Use the QActionGroup triggered(QAction*) signal to call the MenuCoordinator slot.
@@ -538,17 +540,27 @@ void MainWindowInitializer::deferredInitializeCamera()
     CornerWidgetManager* cornerWidgetManager = m_cornerWidgetManager;
     QTimer::singleShot(300, m_mainWindow, [audioManager, cornerWidgetManager]() {
         audioManager->initializeAudio();
-        
+
         // Restore mute state from settings
         bool isMuted = GlobalSetting::instance().getAudioMuted();
         if (isMuted) {
             audioManager->setVolume(0.0);
         }
-        
+
         // Update the mute button to reflect the saved state
         if (cornerWidgetManager) {
             cornerWidgetManager->restoreMuteState(isMuted);
         }
+    });
+
+    // Perform initial device discovery — detect already-connected devices and start
+    // the DeviceLifecycleManager state machine. This must run after all subsystems
+    // (SerialPortManager, VideoHid, CameraManager) have connected to the lifecycle manager.
+    // Use a longer delay (2s) to allow USB enumeration to complete for all composite
+    // device interfaces (CH32V208 serial, HID, camera may enumerate at different times).
+    QTimer::singleShot(2000, m_mainWindow, []() {
+        qInfo() << "Triggering initial device discovery via DeviceLifecycleManager...";
+        DeviceLifecycleManager::getInstance().performInitialDiscovery();
     });
 }
 

@@ -298,11 +298,31 @@ void BotherDeviceDiscoverer::findIntegratedDeviceFromSiblings(DeviceInfo& device
                     qCDebug(log_device_discoverer) << "    Integrated device has" << integratedUsb.siblings.size() << "siblings";
                 }
 
-                // Adopt integrated device identity into deviceInfo (COMPOSITE-first)
-                deviceInfo.portChain = integratedUsb.portChain;
+                // Adopt integrated device identity into deviceInfo.
+                // CRITICAL FIX for USB 3.0: The serial device (CH32V208, 1A86:FE0C) and the
+                // composite device (KVMGO, 345F:2132) may be on DIFFERENT USB port chains
+                // (e.g. serial on 0004-0003-0002, composite on 0004-0003-0004).
+                // We must keep them separate:
+                //   portChain         = serial device's chain  (for serial port routing)
+                //   companionPortChain = composite device's chain (for HID/Camera/Audio routing)
+                // Previously this unconditionally set portChain = integratedUsb.portChain,
+                // which caused the serial and composite to share one port chain and created
+                // duplicate sessions that fought over the same HID/Camera interfaces.
                 deviceInfo.deviceInstanceId = integratedUsb.deviceInstanceId;
                 deviceInfo.platformSpecific = serialDevice.deviceInfo; // start with serial device info as base
                 deviceInfo.platformSpecific["generation"] = "Generation 2 (integrated)";
+
+                if (serialDevice.portChain != integratedUsb.portChain) {
+                    // USB 3.0: serial and composite on different chains
+                    // Keep serialDevice.portChain (already set when deviceInfo was initialized)
+                    deviceInfo.companionPortChain = integratedUsb.portChain;
+                    deviceInfo.hasCompanionDevice = true;
+                    qCDebug(log_device_discoverer) << "USB 3.0: serial chain:" << serialDevice.portChain
+                                                  << "companion (composite) chain:" << integratedUsb.portChain;
+                } else {
+                    // USB 2.0: same chain for serial and composite
+                    deviceInfo.portChain = integratedUsb.portChain;
+                }
 
                 // Store siblings and children for debugging
                 QVariantList siblingVariants2, childrenVariants2;
