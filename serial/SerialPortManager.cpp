@@ -1402,10 +1402,10 @@ void SerialPortManager::handleTargetUsbStatusChanged(bool connected)
             qCInfo(log_core_serial_watchdog) << "Initiating RTS hardware reset to reinitialize CH32V208...";
             factoryResetHipChip();
 
-            // Safety timeout: if target doesn't reconnect within 20s, clear the recovery
-            // flag and resume normal operation. The factory reset will have reopened the
-            // serial port and restarted the watchdog by then. If the target is still
-            // disconnected, the user will need to manually intervene.
+            // Safety timeout: if target doesn't reconnect within 20s after RTS reset,
+            // the CH32V208's target-side USB interface didn't recover. On Linux, emit
+            // serialRecoveryFailed() so DeviceLifecycleManager can trigger USB hub port
+            // reset as a last resort (forces full USB re-enumeration of the composite device).
             QTimer::singleShot(20000, this, [this]() {
                 if (m_targetRecoveryInProgress.load()) {
                     qCWarning(log_core_serial_watchdog) << "Safety timeout: target didn't reconnect after 20s, clearing recovery flag";
@@ -1420,6 +1420,17 @@ void SerialPortManager::handleTargetUsbStatusChanged(bool connected)
                     if (m_getInfoTimer && !m_getInfoTimer->isActive()) {
                         m_getInfoTimer->start();
                     }
+
+#ifdef __linux__
+                    // CH32V208 target-side USB didn't recover after RTS reset.
+                    // Emit serialRecoveryFailed() to trigger USB hub port reset via
+                    // DeviceLifecycleManager → UsbPortResetter.
+                    if (isChipTypeCH32V208()) {
+                        qCWarning(log_core_serial_watchdog) << "CH32V208 target-side USB didn't recover after RTS reset"
+                                                            << "— emitting serialRecoveryFailed() for USB hub port reset";
+                        emit serialRecoveryFailed();
+                    }
+#endif
                 }
             });
         });
@@ -1690,6 +1701,9 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         return false;
     }
 
+    // Reset fatal error guard — new open attempt means previous error state is cleared
+    m_fatalErrorHandled.store(false);
+
     // CRITICAL FIX: Check state machine to prevent opens during close/error states
     SerialPortState currentState = m_portState.load();
     if (currentState == SerialPortState::CLOSING) {
@@ -1700,12 +1714,18 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         // Before rejecting, check if the device is actually available again.
         // This handles the case where a transient error put us in ERROR_STATE
         // but the device has since recovered (e.g., USB glitch resolved).
+        // First try port name match, then fall back to VID/PID matching for Linux
+        // where device node names can change after re-enumeration (e.g., ttyACM0 -> ttyACM1).
         bool portPresent = false;
         for (const QSerialPortInfo &pi : QSerialPortInfo::availablePorts()) {
             if (pi.portName() == portName || portName.contains(pi.portName())) {
                 portPresent = true;
                 break;
             }
+        }
+        if (!portPresent) {
+            // Port name didn't match — try VID/PID fallback (handles Linux device node renaming)
+            portPresent = isKnownDevicePresent();
         }
         if (portPresent) {
             // Device is available - clear error state and allow reconnection
@@ -1724,12 +1744,18 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     if (m_deviceUnplugCleanupInProgress.load()) {
         // If the OS already reports the port as present, clear the transient cleanup guard and continue.
         // This prevents a stuck flag from permanently blocking open attempts (observed in the field).
+        // First try port name match, then fall back to VID/PID matching for Linux
+        // where device node names can change after re-enumeration (e.g., ttyACM0 -> ttyACM1).
         bool portPresent = false;
         for (const QSerialPortInfo &pi : QSerialPortInfo::availablePorts()) {
             if (pi.portName() == portName || portName.contains(pi.portName())) {
                 portPresent = true;
                 break;
             }
+        }
+        if (!portPresent) {
+            // Port name didn't match — try VID/PID fallback (handles Linux device node renaming)
+            portPresent = isKnownDevicePresent();
         }
         if (portPresent) {
             qCWarning(log_core_serial_hotplug) << "Transient unplug-cleanup flag set but port is present -> clearing flag and continuing open:" << portName;
@@ -3405,6 +3431,14 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
         return;
     }
 
+    // Fatal error guard: once we've handled a fatal error (ResourceError) and closed
+    // the port, ignore all subsequent errors. This prevents a flood of millions of
+    // error signals from a broken USB device from overwhelming the event loop and
+    // preventing the main thread from processing recovery signals (e.g., serialRecoveryFailed).
+    if (m_fatalErrorHandled.load()) {
+        return;
+    }
+
     QString errorString = serialPort->errorString();
 
     // If we're performing a controlled baud-rate change, suppress transient errors
@@ -3502,6 +3536,13 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
 
             m_deviceUnpluggedDetected.store(true);
 
+            // CRITICAL: Mark fatal error as handled IMMEDIATELY to prevent re-entry.
+            // When a USB device fails with error code 6, QSerialPort can fire error signals
+            // at an enormous rate (~73,000/sec). Without this guard, handleSerialError would
+            // be called millions of times, flooding the log and overwhelming the event loop,
+            // preventing the main thread from processing recovery signals like serialRecoveryFailed().
+            m_fatalErrorHandled.store(true);
+
             // Stop periodic timers
             if (m_usbStatusCheckTimer && m_usbStatusCheckTimer->isActive()) {
                 m_usbStatusCheckTimer->stop();
@@ -3511,6 +3552,30 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
                 m_getInfoTimer->stop();
                 qCDebug(log_core_serial_config) << "GET_INFO timer stopped due to device error";
             }
+
+            // On Linux, after target PC restart the CH32V208 may fail to re-enumerate (USB error -71).
+            // The sysfs entry may persist as stale or disappear, but HotplugMonitor may not detect
+            // the removal. Emit serialRecoveryFailed() so DeviceLifecycleManager can trigger
+            // USB hub port reset as a last-resort recovery. UsbPortResetter checks if the composite
+            // device is still present before attempting reset.
+#ifdef __linux__
+            if (isChipTypeCH32V208()) {
+                qCWarning(log_core_serial_conn) << "CH32V208 serial device disappeared from availablePorts()"
+                                                 << "— emitting serialRecoveryFailed() for USB hub port reset";
+                emit serialRecoveryFailed();
+            }
+#endif
+
+            // CRITICAL: Close the serial port IMMEDIATELY to stop the error flood.
+            // After a fatal disconnect (error 6, device gone), QSerialPort keeps firing
+            // error signals because the port is still "open" in a broken state. Each error
+            // signal triggers handleSerialError, generating millions of log messages that
+            // overwhelm the event loop. Closing the port disconnects the error signal and
+            // releases the OS handle, stopping the flood at its source.
+            // This is essential for the serialRecoveryFailed() signal (queued to main thread)
+            // to be processed in a timely manner.
+            qCInfo(log_core_serial_conn) << "Closing broken serial port immediately to stop error flood";
+            closePortInternal();
         }
     } else if (isUnknownDeviceError) {
         // Error code 8: "A device attached to the system is not functioning"
@@ -3575,6 +3640,14 @@ void SerialPortManager::triggerRtsRecoveryForUnresponsiveDevice()
         if (m_watchdog && !m_watchdog->isRunning()) {
             m_watchdog->start();
         }
+        // RTS recovery failed — the device is likely not truly present on the USB bus
+        // (e.g., CH32V208 failed to enumerate after target restart, USB error -71).
+        // Emit signal so DeviceLifecycleManager can trigger USB hub port reset as fallback.
+#ifdef __linux__
+        qCWarning(log_core_serial_conn) << "RTS recovery failed on Linux — emitting serialRecoveryFailed()"
+                                         << "to trigger USB hub port reset";
+        emit serialRecoveryFailed();
+#endif
         return;
     }
 
@@ -3998,6 +4071,35 @@ bool SerialPortManager::isSerialPortValid() const
     }
     
     return true;
+}
+
+bool SerialPortManager::isKnownDevicePresent() const
+{
+    // Check if any device with known VID/PID (CH9329 or CH32V208) is present on the USB bus.
+    // This is used as a fallback when port name matching fails, which can happen on Linux
+    // when the device node name changes after re-enumeration (e.g., ttyACM0 -> ttyACM1).
+    const QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo &info : ports) {
+        if (!info.hasVendorIdentifier() || !info.hasProductIdentifier()) {
+            continue;
+        }
+        const quint16 vid = info.vendorIdentifier();
+        const quint16 pid = info.productIdentifier();
+
+        // CH9329: VID 0x1A86, PID 0x7523
+        if (vid == 0x1A86 && pid == 0x7523) {
+            qCDebug(log_core_serial_conn) << "Known device present: CH9329 at" << info.portName()
+                                          << "(VID:PID =" << QString::number(vid, 16) << ":" << QString::number(pid, 16) << ")";
+            return true;
+        }
+        // CH32V208: VID 0x1A86, PID 0xFE0C
+        if (vid == 0x1A86 && pid == 0xFE0C) {
+            qCDebug(log_core_serial_conn) << "Known device present: CH32V208 at" << info.portName()
+                                          << "(VID:PID =" << QString::number(vid, 16) << ":" << QString::number(pid, 16) << ")";
+            return true;
+        }
+    }
+    return false;
 }
 
 void SerialPortManager::checkAndLogAsyncMessageStatistics()

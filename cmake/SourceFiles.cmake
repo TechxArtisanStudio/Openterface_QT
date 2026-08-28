@@ -48,6 +48,7 @@ set(HOST_SOURCES
     host/audiothread.cpp host/audiothread.h
     host/cameramanager.cpp host/cameramanager.h
     host/usbcontrol.cpp host/usbcontrol.h
+    host/UsbPortResetter.cpp host/UsbPortResetter.h
     host/multimediabackend.cpp host/multimediabackend.h
     host/imagecapturer.cpp host/imagecapturer.h
     host/backend/ffmpegbackendhandler.cpp host/backend/ffmpegbackendhandler.h

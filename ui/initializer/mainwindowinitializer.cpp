@@ -721,32 +721,17 @@ void MainWindowInitializer::finalize()
 
     // Connect SystemKeyBlocker keyCaptured signal to HostManager
     // This ensures both HID report building AND status bar updates go through
-    // the same HostManager::keyboardManager instance (not the KeyboardManager singleton)
+    // HostManager::handleKeyboardAction (not KeyboardManager directly)
     connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::keyCaptured,
-            &KeyboardManager::getInstance(), &KeyboardManager::handleKeyboardAction);
+            &HostManager::getInstance(), &HostManager::handleKeyboardAction);
     qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to HostManager";
 
-    // Always install the keyboard hook when the window is shown.
-    // The hook captures ALL keystrokes and forwards them to the target.
-    // The SystemBlocker toggle controls whether the hook also swallows events
-    // (Blocker ON: local OS doesn't see keys) or passes them through
-    // (Blocker OFF: local OS also sees keys).
-    // This ensures ALL keyboard events flow through ONE code path.
-    QTimer::singleShot(100, m_mainWindow, [this]() {
-        if (!m_mainWindow->isVisible()) {
-            qCWarning(log_ui_mainwindowinitializer) << "SystemKeyBlocker: window not visible yet, cannot start";
-            return;
-        }
-        quintptr hwnd = m_videoPane ? m_videoPane->winId() : 0;
-        if (SystemKeyBlocker::instance().start(hwnd)) {
-            // Set initial swallow state from saved settings
-            bool swallowEnabled = GlobalSetting::instance().getSystemKeyBlockerEnabled();
-            SystemKeyBlocker::instance().setSwallowEnabled(swallowEnabled);
-            qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker hook installed, swallow=" << swallowEnabled;
-        } else {
-            qCWarning(log_ui_mainwindowinitializer) << "SystemKeyBlocker hook failed to install";
-        }
-    });
+    // SystemKeyBlocker is NOT started automatically on launch.
+    // By default, keyboard events flow through VideoPane::keyPressEvent → InputHandler → HostManager.
+    // SystemKeyBlocker is an optional feature that the user can enable from Settings.
+    // When enabled, it intercepts keyboard events at the OS level (useful for capturing
+    // system keys like Super/Alt+Tab on X11/Windows).
+    qCInfo(log_ui_mainwindowinitializer) << "SystemKeyBlocker not auto-started — keyboard events flow through VideoPane::keyPressEvent by default";
 
     // Focus-based shortcut disabling: when VideoPane has focus and the
     // SystemBlocker swallow is OFF, disable all QShortcut/QAction objects

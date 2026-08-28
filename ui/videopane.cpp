@@ -40,6 +40,9 @@
 
 #ifdef Q_OS_LINUX
 #include <X11/Xlib.h>
+// Undefine X11 macros that conflict with Qt enum names
+#undef KeyPress
+#undef KeyRelease
 #endif
 
 #include "log/opflogging.h"
@@ -939,6 +942,27 @@ void VideoPane::wheelEvent(QWheelEvent *event)
         m_inputHandler->handleWheelEvent(event);
     }
     event->accept();
+}
+
+bool VideoPane::event(QEvent *event)
+{
+    // Intercept Tab/Backtab before QGraphicsView/QWidget base class processes them
+    // for focus navigation. Without this, Tab key events may never reach keyPressEvent
+    // on Windows where the platform plugin handles Tab for dialog navigation.
+    if (event->type() == QEvent::KeyPress) {
+        QKeyEvent *ke = static_cast<QKeyEvent *>(event);
+        if (ke->key() == Qt::Key_Tab || ke->key() == Qt::Key_Backtab) {
+            keyPressEvent(ke);
+            return true;
+        }
+    } else if (event->type() == QEvent::KeyRelease) {
+        QKeyEvent *ke = static_cast<QKeyEvent *>(event);
+        if (ke->key() == Qt::Key_Tab || ke->key() == Qt::Key_Backtab) {
+            keyReleaseEvent(ke);
+            return true;
+        }
+    }
+    return QGraphicsView::event(event);
 }
 
 void VideoPane::keyPressEvent(QKeyEvent *event)

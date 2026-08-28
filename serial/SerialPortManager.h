@@ -232,6 +232,11 @@ signals:
     void statusUpdate(const QString &status); // General status update for UI
     void factoryReset(bool isStarted); // Factory reset started/ended
     void driverInstallationRequired(); // Emitted when CH9329 detected but CH340 driver is missing
+
+    // Emitted when serial recovery (RTS reset) has failed and the device is not truly present
+    // on the USB bus. DeviceLifecycleManager uses this to trigger USB hub port reset as a
+    // last-resort recovery mechanism (Linux only, for CH32V208 enumeration failure after target restart).
+    void serialRecoveryFailed();
     
     void requestFactoryReset();
     void requestFactoryResetV191();
@@ -301,6 +306,10 @@ private:
     
     // SerialPort validation helper with detailed diagnostics
     bool isSerialPortValid() const;
+
+    // Check if a known device (CH9329/CH32V208) is present on the USB bus by VID/PID.
+    // Used as a fallback when port name matching fails (e.g., Linux device node renaming).
+    bool isKnownDevicePresent() const;
     
     // Thread-safe baudrate setting (must be called from worker thread to access serialPort)
     bool setBaudRateInternal(int baudRate);
@@ -386,6 +395,11 @@ private:
     // Host-side RTS recovery state: set true when CH32V208 becomes unresponsive on host USB
     // (error code 6 after error code 8). Triggers RTS hardware reset to recover the chip.
     std::atomic<bool> m_rtsRecoveryInProgress{false};
+
+    // Fatal error handling guard: set true when error code 6 (ResourceError) is handled.
+    // Prevents duplicate handling and ensures the serial port is closed immediately to
+    // stop the error flood (millions of error signals from broken USB device).
+    std::atomic<bool> m_fatalErrorHandled{false};
 
     // Legacy error counters removed - handled by SerialStatistics and ConnectionWatchdog
     QTimer* m_connectionWatchdog;

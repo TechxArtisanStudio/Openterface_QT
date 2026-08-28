@@ -34,6 +34,7 @@ SOURCES += main.cpp \
     host/audiothread.cpp \
     host/cameramanager.cpp \
     host/usbcontrol.cpp \
+    host/UsbPortResetter.cpp \
     host/multimediabackend.cpp \
     host/imagecapturer.cpp \
     host/backend/qtmultimediabackendhandler.cpp \
@@ -218,6 +219,7 @@ HEADERS  += \
     host/audiothread.h \
     host/cameramanager.h \
     host/usbcontrol.h \
+    host/UsbPortResetter.h \
     host/multimediabackend.h \
     host/imagecapturer.h \
     host/backend/qtmultimediabackendhandler.h \

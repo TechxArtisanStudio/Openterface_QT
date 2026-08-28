@@ -31,6 +31,8 @@
 
 #include "DeviceSession.h"
 
+class UsbPortResetter;
+
 Q_DECLARE_LOGGING_CATEGORY(log_lifecycle)
 
 // Forward declarations
@@ -111,7 +113,12 @@ private:
     // Fast reconnect window timer
     QTimer* m_fastReconnectTimer = nullptr;
     QTimer* m_staleCleanupTimer = nullptr;
+    QTimer* m_usbPortResetTimer = nullptr;  // Delayed USB port reset attempt
     QString m_fastReconnectSessionKey;  // Which session to watch during fast reconnect
+
+    // USB port reset for serial recovery (Linux only)
+    UsbPortResetter* m_usbPortResetter = nullptr;
+    bool m_usbPortResetAttempted = false;  // Prevent multiple reset attempts per recovery window
 
     // Connection sequence order
     static constexpr InterfaceType CONNECT_ORDER[] = {
@@ -154,6 +161,14 @@ private:
 
     // ── Fast reconnect window ──
     void onFastReconnectTimerTimeout();
+    void attemptUsbPortResetForSerialRecovery();
+    void onUsbPortResetCompleted(bool success);
+
+    // ── Direct serial recovery trigger (bypasses fast reconnect window) ──
+    // Called when SerialPortManager detects that the serial device has failed
+    // (error code 6, RTS recovery failed) but HotplugMonitor hasn't detected
+    // device removal (common on Linux where sysfs entries persist as stale).
+    void handleSerialRecoveryFailed();
 
     // ── Session matching ──
     QString findSessionKeyForDevice(const DeviceInfo& device) const;

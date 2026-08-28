@@ -49,3 +49,21 @@ tests/build/*
 !tests/build/*.h
 !tests/build/*.sh
 !tests/build/CMakeLists.txt
+
+# Keyboard test build artifacts
+tests/cmake_build/*
+tests/keyboard_build/*
+
+# Test binary files
+tests/keyboard/test_keyboard_routing
+tests/keyboard/test_keyboard_logic
+tests/keyboard/*_autogen*
+tests/keyboard/CMakeFiles/*
+tests/keyboard/CMakeCache.txt
+tests/keyboard/Makefile
+tests/keyboard/cmake_install.cmake
+
+# Build artifacts (qmake generated)
+openterfaceQT
+.qmake.stash
+Makefile

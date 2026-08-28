@@ -24,6 +24,8 @@
 #include "DeviceManager.h"
 #include "HotplugMonitor.h"
 #include "DeviceInfo.h"
+#include "host/UsbPortResetter.h"
+#include "serial/SerialPortManager.h"
 
 #include <QDateTime>
 #include <QLoggingCategory>
@@ -62,6 +64,39 @@ DeviceLifecycleManager::DeviceLifecycleManager(QObject* parent)
     connect(m_staleCleanupTimer, &QTimer::timeout,
             this, &DeviceLifecycleManager::cleanupStaleSessions);
     m_staleCleanupTimer->start();
+
+    // USB port reset for serial recovery (Linux only)
+    // When CH32V208 fails to enumerate after target restart, we can reset the parent
+    // hub port to force re-enumeration. The timer fires after a delay to allow normal
+    // hotplug detection to work first.
+#ifdef __linux__
+    m_usbPortResetter = new UsbPortResetter(this);
+    connect(m_usbPortResetter, &UsbPortResetter::resetCompleted,
+            this, &DeviceLifecycleManager::onUsbPortResetCompleted);
+
+    m_usbPortResetTimer = new QTimer(this);
+    m_usbPortResetTimer->setSingleShot(true);
+    connect(m_usbPortResetTimer, &QTimer::timeout,
+            this, &DeviceLifecycleManager::attemptUsbPortResetForSerialRecovery);
+
+    // Connect SerialPortManager's serialRecoveryFailed signal.
+    // This signal is emitted when SerialPortManager detects error code 6 on a CH32V208
+    // device and either: (a) the device is present but RTS recovery failed, or
+    // (b) the device disappeared from availablePorts() (sysfs stale/missing).
+    // This bypasses the normal fast reconnect window requirement, since HotplugMonitor
+    // may not detect the removal on Linux (sysfs entries persist as stale).
+    //
+    // IMPORTANT: Defer this connection via QTimer::singleShot(0, ...) to avoid
+    // initializing SerialPortManager too early. Calling SerialPortManager::getInstance()
+    // in the DeviceLifecycleManager constructor causes SerialPortManager to be created
+    // before its dependencies (serial port, worker thread) are properly set up, which
+    // blocks the application startup sequence.
+    QTimer::singleShot(0, this, [this]() {
+        connect(&SerialPortManager::getInstance(), &SerialPortManager::serialRecoveryFailed,
+                this, &DeviceLifecycleManager::handleSerialRecoveryFailed);
+        qCInfo(log_lifecycle) << "serialRecoveryFailed signal connected (deferred)";
+    });
+#endif
 
     qCInfo(log_lifecycle) << "DeviceLifecycleManager initialized";
 }
@@ -674,9 +709,21 @@ void DeviceLifecycleManager::startFastReconnectWindow(const QString& sessionKey)
 {
     m_fastReconnectSessionKey = sessionKey;
     m_fastReconnectTimer->start(300);  // Check every 300ms
+    m_usbPortResetAttempted = false;   // Reset flag for this recovery window
 
     qCInfo(log_lifecycle) << "Fast reconnect window started for" << sessionKey
                           << "(60s, 300ms poll)";
+
+    // Schedule USB port reset attempt after 5 seconds
+    // This gives the normal hotplug detection a chance to work first.
+    // If the serial device still hasn't appeared after 5s, the CH32V208 likely
+    // failed to enumerate (USB error -71), and we need to reset the hub port.
+#ifdef __linux__
+    if (m_usbPortResetTimer) {
+        m_usbPortResetTimer->start(5000);  // 5 second delay
+        qCInfo(log_lifecycle) << "USB port reset scheduled in 5s if serial device doesn't appear";
+    }
+#endif
 
     // Schedule a one-shot to stop the window after 60s
     QTimer::singleShot(60000, this, [this, sessionKey]() {
@@ -702,7 +749,14 @@ void DeviceLifecycleManager::stopFastReconnectWindow()
         m_fastReconnectTimer->stop();
         qCInfo(log_lifecycle) << "Fast reconnect window stopped";
     }
+#ifdef __linux__
+    if (m_usbPortResetTimer && m_usbPortResetTimer->isActive()) {
+        m_usbPortResetTimer->stop();
+        qCInfo(log_lifecycle) << "USB port reset timer stopped (device recovered normally)";
+    }
+#endif
     m_fastReconnectSessionKey.clear();
+    m_usbPortResetAttempted = false;
 }
 
 void DeviceLifecycleManager::onFastReconnectTimerTimeout()
@@ -710,6 +764,115 @@ void DeviceLifecycleManager::onFastReconnectTimerTimeout()
     // The fast reconnect timer just ensures the event loop is spinning.
     // Actual device reappearance is detected by HotplugMonitor → onDeviceChangesDetected.
     // This timer exists to enable the 60s expiry one-shot to fire promptly.
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USB port reset for serial recovery (Linux only)
+// ─────────────────────────────────────────────────────────────────────────────
+
+void DeviceLifecycleManager::attemptUsbPortResetForSerialRecovery()
+{
+#ifdef __linux__
+    if (m_usbPortResetAttempted) {
+        qCInfo(log_lifecycle) << "USB port reset already attempted - skipping";
+        return;
+    }
+
+    // Check if we still have a session in Recovering state with serial missing
+    if (m_fastReconnectSessionKey.isEmpty()) {
+        qCInfo(log_lifecycle) << "No active fast reconnect window - skipping USB port reset";
+        return;
+    }
+
+    if (!m_sessions.contains(m_fastReconnectSessionKey)) {
+        qCInfo(log_lifecycle) << "Session no longer exists - skipping USB port reset";
+        return;
+    }
+
+    const auto& session = m_sessions[m_fastReconnectSessionKey];
+
+    // Only attempt reset if session is still in Recovering state
+    if (session.state != DeviceSessionState::Recovering) {
+        qCInfo(log_lifecycle) << "Session state is" << sessionStateToString(session.state)
+                              << "- skipping USB port reset";
+        return;
+    }
+
+    // Check if serial interface is missing (Absent or still Disconnected)
+    bool serialMissing = (session.serial.state == InterfaceState::Absent
+                          || session.serial.state == InterfaceState::Disconnected);
+
+    if (!serialMissing) {
+        qCInfo(log_lifecycle) << "Serial interface is present - skipping USB port reset";
+        return;
+    }
+
+    // Check if composite device (HID/Camera) is still present - this indicates
+    // the physical device is connected but the serial chip failed to enumerate
+    bool compositePresent = (session.hid.state != InterfaceState::Absent
+                             || session.camera.state != InterfaceState::Absent);
+
+    if (!compositePresent) {
+        qCInfo(log_lifecycle) << "No composite device present - skipping USB port reset"
+                              << "(device fully disconnected, not enumeration failure)";
+        return;
+    }
+
+    // All conditions met: serial missing but composite present → attempt port reset
+    m_usbPortResetAttempted = true;
+    qCInfo(log_lifecycle) << "Serial device missing but composite present - attempting USB hub port reset";
+
+    if (m_usbPortResetter) {
+        m_usbPortResetter->resetHubPortsForSerialRecovery();
+    }
+#else
+    Q_UNUSED(m_usbPortResetAttempted);
+#endif
+}
+
+void DeviceLifecycleManager::onUsbPortResetCompleted(bool success)
+{
+#ifdef __linux__
+    if (success) {
+        qCInfo(log_lifecycle) << "USB hub port reset completed - waiting for serial device to re-enumerate";
+        // The HotplugMonitor will detect the serial device when it re-enumerates
+        // and trigger the normal recovery flow via onDeviceDetected()
+    } else {
+        qCWarning(log_lifecycle) << "USB hub port reset failed - serial device may remain unavailable";
+    }
+#else
+    Q_UNUSED(success);
+#endif
+}
+
+void DeviceLifecycleManager::handleSerialRecoveryFailed()
+{
+#ifdef __linux__
+    qCWarning(log_lifecycle) << "Serial recovery failed signal received —"
+                              << "SerialPortManager reports CH32V208 is not truly present on USB bus";
+
+    if (m_usbPortResetAttempted) {
+        qCInfo(log_lifecycle) << "USB port reset already attempted in this recovery window — skipping";
+        return;
+    }
+
+    // Direct trigger: bypass the fast reconnect window requirement.
+    // This path is reached when SerialPortManager detects error code 6 but
+    // HotplugMonitor hasn't detected device removal (sysfs stale entries on Linux).
+    // The UsbPortResetter will check if the composite device (345F:2132) is still
+    // present on the USB bus before attempting hub port reset.
+    m_usbPortResetAttempted = true;
+    qCInfo(log_lifecycle) << "Direct USB port reset trigger — composite device present,"
+                          << "serial missing (detected by SerialPortManager error path)";
+
+    if (m_usbPortResetter) {
+        m_usbPortResetter->resetHubPortsForSerialRecovery();
+    } else {
+        qCWarning(log_lifecycle) << "UsbPortResetter not available";
+    }
+#else
+    Q_UNUSED(m_usbPortResetAttempted);
+#endif
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
