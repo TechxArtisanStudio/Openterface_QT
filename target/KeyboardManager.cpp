@@ -993,6 +993,25 @@ void KeyboardManager::sendKey(int keyCode, int modifiers, bool isKeyDown) {
     handleKeyboardAction(keyCode, modifiers, isKeyDown);
 }
 
+void KeyboardManager::releaseAllKeys() {
+    if (currentMappedKeyCodes.isEmpty() && currentModifiers == 0) {
+        return;  // Nothing held — skip
+    }
+
+    qCDebug(log_host_kb_state) << "releaseAllKeys: clearing"
+                               << currentMappedKeyCodes.size() << "keys and modifiers 0x"
+                               << QString::number(currentModifiers, 16);
+
+    // Build a zero HID report to release all keys on the target
+    QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;
+    // keyData[5] (modifier byte) and keyData[7..12] (keycode array) are already zero
+    // in the CMD_SEND_KB_GENERAL_DATA template — just send it as-is.
+    SerialPortManager::getInstance().sendCommandAsync(keyData, false);
+
+    currentMappedKeyCodes.clear();
+    currentModifiers = 0;
+}
+
 void KeyboardManager::getKeyboardLayout() {
     QInputMethod *inputMethod = QGuiApplication::inputMethod();
     m_locale = inputMethod->locale();

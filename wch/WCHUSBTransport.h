@@ -35,7 +35,7 @@ public:
 //            No Zadig / WinUSB driver change required.
 // Linux/Mac: uses libusb-1.0 (user-space, no extra driver needed).
 //
-// Target device: VID 0x4348 or 0x1A86, PID 0x55E0
+// Target device: VID 0x4348, PID 0x55E0
 // Bulk EP OUT 0x02, EP IN 0x82
 // ---------------------------------------------------------------------------
 class WCHUSBTransport {
@@ -122,7 +122,6 @@ private:
     // Shared constants
     // -----------------------------------------------------------------------
     static constexpr uint16_t k_vid1    = 0x4348;
-    static constexpr uint16_t k_vid2    = 0x1A86;
     static constexpr uint16_t k_pid     = 0x55E0;
     static constexpr uint8_t  k_epOut   = 0x02;
     static constexpr uint8_t  k_epIn    = 0x82;

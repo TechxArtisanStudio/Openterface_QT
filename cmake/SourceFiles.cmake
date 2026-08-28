@@ -20,6 +20,8 @@ endif()
 set(DEVICE_SOURCES
     device/DeviceInfo.cpp device/DeviceInfo.h
     device/DeviceManager.cpp device/DeviceManager.h
+    device/DeviceSession.h
+    device/DeviceLifecycleManager.cpp device/DeviceLifecycleManager.h
     device/HotplugMonitor.cpp device/HotplugMonitor.h
     device/HotplugDebounceManager.cpp device/HotplugDebounceManager.h
     device/platform/AbstractPlatformDeviceManager.cpp device/platform/AbstractPlatformDeviceManager.h
@@ -46,6 +48,7 @@ set(HOST_SOURCES
     host/audiothread.cpp host/audiothread.h
     host/cameramanager.cpp host/cameramanager.h
     host/usbcontrol.cpp host/usbcontrol.h
+    host/UsbPortResetter.cpp host/UsbPortResetter.h
     host/multimediabackend.cpp host/multimediabackend.h
     host/imagecapturer.cpp host/imagecapturer.h
     host/backend/ffmpegbackendhandler.cpp host/backend/ffmpegbackendhandler.h
@@ -376,6 +379,12 @@ set(UI_CHAT_SOURCES
     ui/chat/QuickReplyWidget.h
 )
 
+# Hotplug test framework
+set(UI_HOTPLUG_SOURCES
+    ui/hotplug/HotplugTestWizard.cpp ui/hotplug/HotplugTestWizard.h
+    ui/hotplug/HotplugTestDialog.cpp ui/hotplug/HotplugTestDialog.h
+)
+
 # Combine all source files
 set(SOURCE_FILES
     ${COMMON_SOURCES}
@@ -406,6 +415,7 @@ set(SOURCE_FILES
     ${WCH_SOURCES}
     ${AI_SOURCES}
     ${UI_CHAT_SOURCES}
+    ${UI_HOTPLUG_SOURCES}
 )
 
 # Print source files summary

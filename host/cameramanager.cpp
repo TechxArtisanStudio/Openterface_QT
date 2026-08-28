@@ -27,7 +27,7 @@
 #include "global.h"
 #include "../ui/globalsetting.h"
 #include "../device/DeviceManager.h"
-#include "../device/HotplugMonitor.h"
+#include "../device/DeviceLifecycleManager.h"
 #include "../device/HotplugMonitor.h"
 #include <QGraphicsVideoItem>
 #include <QTimer>
@@ -53,9 +53,62 @@ CameraManager::CameraManager(QObject *parent)
     initializeBackendHandler();
     // Setup Windows-specific hotplug monitoring
     setupWindowsHotplugMonitoring();
-    
-    // Connect to hotplug monitor for all platforms
-    connectToHotplugMonitor();  // Disabled to avoid clash with MainWindow camera initialization
+
+    // NOTE: Old hotplug monitor connection disabled — DeviceLifecycleManager handles this now.
+    // connectToHotplugMonitor();  // Disabled to avoid clash with MainWindow camera initialization
+
+    // Connect to DeviceLifecycleManager for centralized hotplug management (Phase 4 migration)
+    {
+        auto& lifecycle = DeviceLifecycleManager::getInstance();
+
+        connect(&lifecycle, &DeviceLifecycleManager::shouldConnectCamera,
+            this, [this](const QString& sessionKey, const QString& portChain) {
+                qCInfo(log_ui_camera) << "[Lifecycle] shouldConnectCamera:"
+                                      << "session=" << sessionKey << "portChain=" << portChain;
+
+                // If camera is already streaming, just notify success without re-initializing.
+                // This prevents a deadlock when the old init path (deferredInitializeCamera)
+                // already started the camera before the lifecycle manager's discovery phase runs.
+                // The port chain may differ (old path uses serial chain, lifecycle uses companion
+                // chain) but the physical camera is the same device.
+                if (isCameraStreaming()) {
+                    qCInfo(log_ui_camera) << "[Lifecycle] Camera already streaming on"
+                                          << m_currentCameraPortChain
+                                          << "— skipping re-init for" << portChain;
+                    DeviceLifecycleManager::getInstance().notifyInterfaceConnected(
+                        sessionKey, InterfaceType::Camera);
+                    return;
+                }
+
+                // On Windows, refresh Qt camera device list first
+                if (isWindowsPlatform()) {
+                    onVideoInputsChanged();
+                }
+
+                bool success = switchToCameraDeviceByPortChain(portChain);
+                if (success) {
+                    startCamera();
+                    qCInfo(log_ui_camera) << "[Lifecycle] Camera connected for session" << sessionKey;
+                    DeviceLifecycleManager::getInstance().notifyInterfaceConnected(
+                        sessionKey, InterfaceType::Camera);
+                } else {
+                    qCWarning(log_ui_camera) << "[Lifecycle] Camera connect failed for session" << sessionKey;
+                    DeviceLifecycleManager::getInstance().notifyInterfaceFailed(
+                        sessionKey, InterfaceType::Camera, "switchToCameraDeviceByPortChain failed");
+                }
+            });
+
+        connect(&lifecycle, &DeviceLifecycleManager::shouldDisconnectCamera,
+            this, [this](const QString& sessionKey) {
+                qCInfo(log_ui_camera) << "[Lifecycle] shouldDisconnectCamera for session" << sessionKey;
+                stopCamera();
+                deactivateCameraByPortChain(m_currentCameraPortChain);
+                DeviceLifecycleManager::getInstance().notifyInterfaceDisconnected(
+                    sessionKey, InterfaceType::Camera);
+            });
+
+        qCInfo(log_ui_camera) << "CameraManager connected to DeviceLifecycleManager";
+    }
     
     // Initialize available camera devices
     m_availableCameraDevices = getAvailableCameraDevices();
@@ -1419,6 +1472,10 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
         qCWarning(log_ui_camera) << "Cannot initialize camera with null VideoPane";
         return false;
     }
+
+    // Wire up frame timestamp tracking (for test framework and streaming detection)
+    connect(videoPane, &VideoPane::newVideoFrameReceived,
+            this, &CameraManager::onNewVideoFrameReceived, Qt::UniqueConnection);
     
     // Check if we're using FFmpeg backend for direct capture
     if (isFFmpegBackend() && m_backendHandler) {
@@ -1637,6 +1694,19 @@ bool CameraManager::hasActiveCameraDevice() const
 {
     // Check if we have a valid device tracked
     return !m_currentCameraDevice.isNull() && !m_currentCameraDeviceId.isEmpty();
+}
+
+bool CameraManager::isCameraStreaming() const
+{
+    if (!hasActiveCameraDevice()) return false;
+    if (m_lastFrameTimestamp <= 0) return false;
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    return (now - m_lastFrameTimestamp) < 5000;  // Frames received within last 5s
+}
+
+void CameraManager::onNewVideoFrameReceived()
+{
+    m_lastFrameTimestamp = QDateTime::currentMSecsSinceEpoch();
 }
 
 QString CameraManager::getCurrentCameraPortChain() const

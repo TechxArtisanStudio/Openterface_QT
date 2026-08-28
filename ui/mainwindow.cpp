@@ -49,6 +49,7 @@
 #include "ui/preferences/firmwarepage.h"
 #include "ui/advance/envdialog.h"
 #include "ui/advance/devicediagnosticsdialog.h"
+#include "ui/hotplug/HotplugTestDialog.h"
 #include "ui/customkey/customkeydialog.h"
 
 #include <QCameraDevice>
@@ -839,15 +840,23 @@ void MainWindow::configureSettings() {
             if (m_floatingWindow) m_floatingWindow->setWindowOpacityValue(opacity);
         });
         connect(logPage, &LogPage::systemKeyBlockerToggled, this, [this](bool enabled) {
-            // The hook is always running when the app is focused.
-            // The toggle only controls whether the hook swallows events (Blocker ON)
-            // or passes them through (Blocker OFF). Both states forward keys to target.
-            SystemKeyBlocker::instance().setSwallowEnabled(enabled);
             GlobalSetting::instance().setSystemKeyBlockerEnabled(enabled);
-            // Re-sync shortcuts: when swallow is OFF and VideoPane has focus,
-            // disable app shortcuts so keys reach the target
+            if (enabled) {
+                // Start SystemKeyBlocker: intercept all keyboard events at OS level
+                quintptr hwnd = 0; // Use default top-level window
+                if (SystemKeyBlocker::instance().start(hwnd)) {
+                    SystemKeyBlocker::instance().setSwallowEnabled(true);
+                    qCInfo(log_ui_mainwindow) << "SystemKeyBlocker enabled — keyboard events captured at OS level";
+                } else {
+                    qCWarning(log_ui_mainwindow) << "SystemKeyBlocker failed to start";
+                }
+            } else {
+                // Stop SystemKeyBlocker: keyboard events flow through VideoPane::keyPressEvent
+                SystemKeyBlocker::instance().stop();
+                qCInfo(log_ui_mainwindow) << "SystemKeyBlocker disabled — keyboard events flow through VideoPane";
+            }
+            // Re-sync shortcuts
             syncShortcutsState();
-            qCDebug(log_ui_mainwindow) << "SystemKeyBlocker swallow" << (enabled ? "enabled" : "disabled");
         });
         m_statusBarManager->setHideKeyboardInput(GlobalSetting::instance().getHideKeyboardInput());
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
@@ -2179,6 +2188,13 @@ void MainWindow::showHardwareDiagnostics() {
     });
     
     diagnosticsDialog->show();
+}
+
+void MainWindow::showHotplugTest() {
+    qCDebug(log_ui_mainwindow) << "Opening hotplug test wizard dialog";
+    auto* dialog = new HotplugTestDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
 }
 
 // void MainWindow::activateFileMenu()

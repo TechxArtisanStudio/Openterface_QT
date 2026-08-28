@@ -135,6 +135,10 @@ public:
     void startAutoMoveMouse();
     void stopAutoMoveMouse();
 
+    // Release all held mouse buttons — sends a zero-button report.
+    // Called on device disconnect to prevent stuck buttons on the target.
+    void releaseAllButtons();
+
     void reset() {
         // Reset any internal state
         // For example, clear any stored coordinates or button states

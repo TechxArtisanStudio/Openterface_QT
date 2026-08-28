@@ -168,7 +168,6 @@ void HotplugMonitor::checkForChanges()
         for (const auto& device : event.addedDevices) {
             qCDebug(log_hotplug_monitor) << "  + Added device:" << device.portChain << ", pid:" << device.pid << "vid:" << device.vid;
             emit newDevicePluggedIn(device);
-            break;
         }
         for (const auto& device : event.removedDevices) {
             qCDebug(log_hotplug_monitor) << "  - Removed device:" << device.portChain << ", pid:" << device.pid << "vid:" << device.vid;

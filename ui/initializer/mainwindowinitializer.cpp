@@ -32,6 +32,7 @@
 #include "../../serial/SerialPortManager.h"
 #include "../../device/DeviceManager.h"
 #include "../../device/HotplugMonitor.h"
+#include "../../device/DeviceLifecycleManager.h"
 #include "../help/helppane.h"
 #include "../videopane.h"
 #include "../../video/videohid.h"
@@ -374,6 +375,7 @@ void MainWindowInitializer::connectActionSignals()
     connect(m_ui->actionScriptTool, &QAction::triggered, m_mainWindow, &MainWindow::showScriptTool);
     connect(m_ui->actionRecordingSettings, &QAction::triggered, m_mainWindow, &MainWindow::showRecordingSettings);
     connect(m_ui->actionHardwareDiagnostics, &QAction::triggered, m_mainWindow, &MainWindow::showHardwareDiagnostics);
+    connect(m_ui->actionHotplugTest, &QAction::triggered, m_mainWindow, &MainWindow::showHotplugTest);
     connect(m_ui->actionAIChat, &QAction::toggled, m_mainWindow, &MainWindow::toggleChatWindow);
     // Connect baudrate actions to the MenuCoordinator which handles baudrate logic
     // Use the QActionGroup triggered(QAction*) signal to call the MenuCoordinator slot.
@@ -538,17 +540,27 @@ void MainWindowInitializer::deferredInitializeCamera()
     CornerWidgetManager* cornerWidgetManager = m_cornerWidgetManager;
     QTimer::singleShot(300, m_mainWindow, [audioManager, cornerWidgetManager]() {
         audioManager->initializeAudio();
-        
+
         // Restore mute state from settings
         bool isMuted = GlobalSetting::instance().getAudioMuted();
         if (isMuted) {
             audioManager->setVolume(0.0);
         }
-        
+
         // Update the mute button to reflect the saved state
         if (cornerWidgetManager) {
             cornerWidgetManager->restoreMuteState(isMuted);
         }
+    });
+
+    // Perform initial device discovery — detect already-connected devices and start
+    // the DeviceLifecycleManager state machine. This must run after all subsystems
+    // (SerialPortManager, VideoHid, CameraManager) have connected to the lifecycle manager.
+    // Use a longer delay (2s) to allow USB enumeration to complete for all composite
+    // device interfaces (CH32V208 serial, HID, camera may enumerate at different times).
+    QTimer::singleShot(2000, m_mainWindow, []() {
+        qInfo() << "Triggering initial device discovery via DeviceLifecycleManager...";
+        DeviceLifecycleManager::getInstance().performInitialDiscovery();
     });
 }
 
@@ -707,34 +719,24 @@ void MainWindowInitializer::finalize()
     connect(&SerialPortManager::getInstance(), &SerialPortManager::armBaudratePerformanceRecommendation, m_mainWindow, &MainWindow::onArmBaudratePerformanceRecommendation);
     connect(&SerialPortManager::getInstance(), &SerialPortManager::driverInstallationRequired, m_mainWindow, &MainWindow::onDriverInstallationRequired);
 
-    // Connect SystemKeyBlocker keyCaptured signal to HostManager
-    // This ensures both HID report building AND status bar updates go through
-    // the same HostManager::keyboardManager instance (not the KeyboardManager singleton)
-    connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::keyCaptured,
-            &KeyboardManager::getInstance(), &KeyboardManager::handleKeyboardAction);
-    qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to HostManager";
+    // Connect SystemKeyBlocker keyCaptured signal to VideoPane's handleCapturedKey slot.
+    // This unifies both keyboard paths:
+    //   Path 1 (blocker OFF): QKeyEvent → VideoPane::keyPressEvent → InputHandler → HostManager
+    //   Path 2 (blocker ON):  keyCaptured → VideoPane::handleCapturedKey → InputHandler → HostManager
+    // Both paths go through the same InputHandler → HostManager pipeline, ensuring
+    // consistent key mapping, Esc timer handling, and status bar updates.
+    if (m_videoPane) {
+        connect(&SystemKeyBlocker::instance(), &SystemKeyBlocker::keyCaptured,
+                m_videoPane, &VideoPane::handleCapturedKey);
+        qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to VideoPane (unified path)";
+    }
 
-    // Always install the keyboard hook when the window is shown.
-    // The hook captures ALL keystrokes and forwards them to the target.
-    // The SystemBlocker toggle controls whether the hook also swallows events
-    // (Blocker ON: local OS doesn't see keys) or passes them through
-    // (Blocker OFF: local OS also sees keys).
-    // This ensures ALL keyboard events flow through ONE code path.
-    QTimer::singleShot(100, m_mainWindow, [this]() {
-        if (!m_mainWindow->isVisible()) {
-            qCWarning(log_ui_mainwindowinitializer) << "SystemKeyBlocker: window not visible yet, cannot start";
-            return;
-        }
-        quintptr hwnd = m_videoPane ? m_videoPane->winId() : 0;
-        if (SystemKeyBlocker::instance().start(hwnd)) {
-            // Set initial swallow state from saved settings
-            bool swallowEnabled = GlobalSetting::instance().getSystemKeyBlockerEnabled();
-            SystemKeyBlocker::instance().setSwallowEnabled(swallowEnabled);
-            qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker hook installed, swallow=" << swallowEnabled;
-        } else {
-            qCWarning(log_ui_mainwindowinitializer) << "SystemKeyBlocker hook failed to install";
-        }
-    });
+    // SystemKeyBlocker is NOT started automatically on launch.
+    // By default, keyboard events flow through VideoPane::keyPressEvent → InputHandler → HostManager.
+    // SystemKeyBlocker is an optional feature that the user can enable from Settings.
+    // When enabled, it intercepts keyboard events at the OS level (useful for capturing
+    // system keys like Super/Alt+Tab on X11/Windows).
+    qCInfo(log_ui_mainwindowinitializer) << "SystemKeyBlocker not auto-started — keyboard events flow through VideoPane::keyPressEvent by default";
 
     // Focus-based shortcut disabling: when VideoPane has focus and the
     // SystemBlocker swallow is OFF, disable all QShortcut/QAction objects

@@ -105,13 +105,20 @@ signals:
     void mouseMoved(const QPoint& position, const QString& event);
     void videoPaneResized(const QSize& newSize);  // Signal for video pane resize events
     void viewportSizeChanged(const QSize& size);   // Signal for viewport size changes
+    void newVideoFrameReceived();                  // Emitted when a new video frame is displayed
 
 public slots:
     void onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice);
     void onCameraDeviceSwitchComplete(const QString& device);
     void onCameraActiveChanged(bool active);
 
+    /// Handle keyboard events captured by SystemKeyBlocker's native hook.
+    /// Constructs a QKeyEvent and routes it through the same InputHandler path
+    /// as normal keyPressEvent(), ensuring unified keyboard handling.
+    void handleCapturedKey(int qtKeyCode, int modifiers, bool isKeyDown, quint32 nativeVk);
+
 protected:
+    bool event(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;

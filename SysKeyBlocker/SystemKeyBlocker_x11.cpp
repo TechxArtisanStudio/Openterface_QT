@@ -286,6 +286,10 @@ public:
 
     void resetModifierState() { m_modState = ModifierKeyState{}; }
 
+    /// Whether the X11 display connection was opened successfully.
+    /// Returns false on Wayland or when XOpenDisplay failed.
+    bool isValid() const { return m_dpy != nullptr; }
+
 private:
     struct ModifierKeyState {
         bool lShift = false;
@@ -395,6 +399,17 @@ bool SystemKeyBlocker::startImpl(quintptr /*nativeParentHwnd*/)
 {
     qCInfo(log_syskey) << "=== startImpl() called ===";
 
+    // Check if running on Wayland — X11 keyboard capture doesn't work on Wayland
+    // because native events are Wayland protocol events, not XCB events.
+    // Also, XOpenDisplay typically fails on pure Wayland sessions.
+    const QString platform = QGuiApplication::platformName();
+    if (platform.contains("wayland", Qt::CaseInsensitive)) {
+        qCWarning(log_syskey) << "Running on Wayland platform (" << platform
+                              << ") — X11 keyboard capture is not supported. "
+                              << "Keyboard events will be handled via VideoPane::keyPressEvent.";
+        return false;
+    }
+
     // Get our visible top-level window ID for the capture filter
     ::Window tlw = 0;
     const QWindowList topLevels = QGuiApplication::topLevelWindows();
@@ -417,6 +432,16 @@ bool SystemKeyBlocker::startImpl(quintptr /*nativeParentHwnd*/)
     // - No separate Display connection, no polling timer, no synchronous X calls
     qCInfo(log_syskey) << "Creating X11KeyCaptureFilter (passive capture, no XGrabKeyboard)...";
     m_x11Filter = new X11KeyCaptureFilter(this, tlw);
+
+    // Verify the filter initialized successfully (XOpenDisplay succeeded)
+    if (!m_x11Filter->isValid()) {
+        qCWarning(log_syskey) << "X11KeyCaptureFilter failed to open X display — "
+                              << "cannot capture keyboard. Keyboard events will be "
+                              << "handled via VideoPane::keyPressEvent.";
+        delete m_x11Filter;
+        m_x11Filter = nullptr;
+        return false;
+    }
 
     qCInfo(log_syskey) << "Installing native event filter on Qt's connection...";
     QCoreApplication::instance()->installNativeEventFilter(m_x11Filter);

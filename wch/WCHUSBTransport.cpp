@@ -307,7 +307,7 @@ std::vector<std::string> WCHUSBTransport::scanDevices()
         if (libusb_get_device_descriptor(dev, &desc) < 0)
             continue;
 
-        if ((desc.idVendor == k_vid1 || desc.idVendor == k_vid2) &&
+        if (desc.idVendor == k_vid1 &&
             desc.idProduct == k_pid)
         {
             DeviceEntry entry;

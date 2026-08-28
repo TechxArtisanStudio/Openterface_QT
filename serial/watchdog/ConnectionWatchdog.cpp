@@ -345,6 +345,17 @@ void ConnectionWatchdog::executeRecovery()
                 m_recoveryHandler->onRecoveryFailed();
             }
         } else {
+            // Clear Recovering state before scheduling the retry timer.
+            // Without this, scheduleRecovery() would return immediately because
+            // of the guard "m_connectionState == ConnectionState::Recovering" at line 371.
+            // That guard exists to prevent concurrent recovery attempts, but once
+            // performRecovery() has returned (synchronously), we're no longer actively
+            // recovering — we're just waiting for the retry timer. If we don't clear
+            // the state here, no retry is ever scheduled and recovery is permanently stuck.
+            // The retry timer's own lambda still checks this state at fire time, so
+            // setting Connected here is safe.
+            setConnectionState(ConnectionState::Connected);
+
             // Schedule another recovery attempt
             scheduleRecovery();
         }
