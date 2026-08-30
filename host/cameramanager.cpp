@@ -368,10 +368,10 @@ void CameraManager::startCamera()
         }
         
 #ifdef Q_OS_WIN
-        // On Windows builds, only the FFmpeg backend is supported.
-        // For Linux build, both FFmepg and GStreamer backends are supported.
-        if (!isFFmpegBackend()) {
-            qCWarning(log_backend) << "Only FFmpeg backend is supported on Windows";
+        // On Windows builds, FFmpeg and Media Foundation backends are supported.
+        // For Linux build, both FFmpeg and GStreamer backends are supported.
+        if (!isFFmpegBackend() && !isMediaFoundationBackend()) {
+            qCWarning(log_backend) << "Only FFmpeg and Media Foundation backends are supported on Windows";
             return;
         }
 #endif
@@ -986,6 +986,20 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice, cons
             qCDebug(log_ui_camera) << "Set device path in GStreamer backend:" << devicePath;
         }
         #endif
+
+#ifdef Q_OS_WIN
+        if (MfBackendHandler* mfHandler = qobject_cast<MfBackendHandler*>(m_backendHandler.get())) {
+            // For MF, use the cameraDevicePath from DeviceInfo (symbolic link)
+            // rather than the Qt QCamera-based convertCameraDeviceToPath.
+            DeviceInfo mfDevInfo = DeviceManager::getInstance().getCurrentSelectedDevice();
+            if (!mfDevInfo.cameraDevicePath.isEmpty()) {
+                mfHandler->setDevicePath(mfDevInfo.cameraDevicePath);
+                qCDebug(log_ui_camera) << "Set camera symbolic link in MF backend:" << mfDevInfo.cameraDevicePath;
+            } else {
+                qCWarning(log_ui_camera) << "No camera symbolic link available for MF backend";
+            }
+        }
+#endif
 
         // Start camera with new device
         startCamera();
@@ -1670,6 +1684,21 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
 
             mfHandler->setResolution(resolution);
             mfHandler->setFramerate(framerate);
+
+            // Pass the camera device symbolic link to the MF handler.
+            // The Windows device enumerator resolves this to the \\?\usb#... form
+            // that MF's MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK expects.
+            // Without this, devicePath_ stays empty and startCamera() blindly
+            // auto-selects the first device from MFEnumDeviceSources (often wrong).
+            DeviceInfo mfSelectedDevice = DeviceManager::getInstance().getCurrentSelectedDevice();
+            if (!mfSelectedDevice.cameraDevicePath.isEmpty()) {
+                mfHandler->setDevicePath(mfSelectedDevice.cameraDevicePath);
+                qCDebug(log_ui_camera) << "MF: using camera symbolic link:"
+                                       << mfSelectedDevice.cameraDevicePath;
+            } else {
+                qCWarning(log_ui_camera) << "MF: no camera device path in selected device,"
+                                            " falling back to auto-select first MF device";
+            }
 
             if (startCapture) {
                 mfHandler->startCamera();

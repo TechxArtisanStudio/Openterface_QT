@@ -284,12 +284,24 @@ bool MfCaptureManager::initialize(const QString& deviceSymbolicLink, const QSize
         return false;
     }
 
-    // Try NV12 first (most widely supported), then RGB24
-    GUID subtypes[] = { MFVideoFormat_NV12, MFVideoFormat_RGB24, MFVideoFormat_YUY2 };
+    // Try RGB24 first (MF does the pixel conversion in hardware, no sws_scale
+    // needed). Fall back to NV12, then YUY2 if the device doesn't support RGB24.
+    // NOTE: order matters — the frame processor is initialized with whatever
+    // format we actually got from MF, so we must track the chosen format.
+    struct FormatEntry {
+        GUID subtype;
+        const char* name;
+    };
+    FormatEntry subtypes[] = {
+        { MFVideoFormat_RGB24, "RGB24" },
+        { MFVideoFormat_NV12,  "NV12"  },
+        { MFVideoFormat_YUY2,  "YUY2"  },
+    };
     bool typeSet = false;
+    const char* chosenFormatName = nullptr;
 
-    for (const auto& subtype : subtypes) {
-        hr = mediaType->SetGUID(MF_MT_SUBTYPE, subtype);
+    for (const auto& entry : subtypes) {
+        hr = mediaType->SetGUID(MF_MT_SUBTYPE, entry.subtype);
         if (FAILED(hr)) continue;
 
         hr = MFSetAttributeSize(mediaType, MF_MT_FRAME_SIZE, resolution.width(), resolution.height());
@@ -304,7 +316,8 @@ bool MfCaptureManager::initialize(const QString& deviceSymbolicLink, const QSize
         hr = sourceReader_->SetCurrentMediaType(0, nullptr, mediaType);
         if (SUCCEEDED(hr)) {
             typeSet = true;
-            qCInfo(log_multimedia_backend) << "Media type set successfully";
+            chosenFormatName = entry.name;
+            qCInfo(log_multimedia_backend) << "Media type set successfully:" << entry.name;
             break;
         }
     }
@@ -317,10 +330,14 @@ bool MfCaptureManager::initialize(const QString& deviceSymbolicLink, const QSize
         return false;
     }
 
-    // Initialize frame processor with NV12 (our preferred format)
+    // Initialize frame processor with the ACTUAL format MF is producing.
+    // This is critical — passing the wrong format to sws_scale causes
+    // color corruption / invalid images.
     frameProcessor_ = new MfFrameProcessor();
-    if (!frameProcessor_->initialize(resolution.width(), resolution.height(), "NV12")) {
-        qCCritical(log_multimedia_backend) << "Failed to initialize frame processor";
+    if (!frameProcessor_->initialize(resolution.width(), resolution.height(),
+                                     QString::fromUtf8(chosenFormatName))) {
+        qCCritical(log_multimedia_backend) << "Failed to initialize frame processor for"
+                                           << chosenFormatName;
         cleanupMediaFoundation();
         return false;
     }

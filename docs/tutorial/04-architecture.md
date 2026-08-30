@@ -232,6 +232,22 @@ Linux-only backend. Runs GStreamer pipelines either in-process (`InProcessGstRun
 - `QtBackendHandler`: Windows-specific, wraps `QMediaRecorder` and `QMediaCaptureSession`.
 - `QtMultimediaBackendHandler`: Minimal fallback for platforms where FFmpeg/GStreamer are unavailable. No recording support.
 
+### MfBackendHandler (Media Foundation)
+
+**Files:** [`host/backend/mf/mfbackendhandler.h`](host/backend/mf/mfbackendhandler.h), [`host/backend/mf/mf_capture_manager.h`](host/backend/mf/mf_capture_manager.h)
+
+Windows-only backend built on the native Media Foundation API (`IMFSourceReader`). Preferred when DirectShow has trouble claiming the device, or when a lower-CPU path is desired — MF can delegate format conversion to the driver.
+
+| Component | File | Responsibility |
+|-----------|------|---------------|
+| `MfBackendHandler` | [`host/backend/mf/mfbackendhandler.h`](host/backend/mf/mfbackendhandler.h) | Backend lifecycle, FPS timer, frame delivery to `VideoPane` |
+| `MfCaptureManager` | [`host/backend/mf/mf_capture_manager.h`](host/backend/mf/mf_capture_manager.h) | Activates the device from the symbolic link, owns the source reader and capture thread |
+| `MfCaptureThread` | same | QThread that calls `IMFSourceReader::ReadSample` in a loop |
+| `MfFrameProcessor` | [`host/backend/mf/mf_frame_processor.h`](host/backend/mf/mf_frame_processor.h) | Converts the device's native pixel format (NV12/YUY2/RGB24) to `QImage::Format_BGR888` using FFmpeg's `sws_scale` |
+| `MfDeviceEnumerator` | [`host/backend/mf/mf_device_enumerator.h`](host/backend/mf/mf_device_enumerator.h) | Enumerates video capture devices via `MFEnumDeviceSources` (used only for auto-select fallback) |
+
+**Pixel format note:** MF's `MFVideoFormat_RGB24` uses the Windows bitmap byte order (B, G, R), which matches `QImage::Format_BGR888` directly. The frame processor therefore has a fast path that skips `sws_scale` entirely for RGB24 input, and uses `AV_PIX_FMT_BGR24` as the sws_scale destination for NV12/YUY2 inputs to keep the output layout consistent.
+
 ### Hardware Acceleration
 
 **File:** [`host/backend/ffmpeg/ffmpeg_hardware_accelerator.h`](host/backend/ffmpeg/ffmpeg_hardware_accelerator.h)

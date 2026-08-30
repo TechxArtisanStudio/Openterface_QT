@@ -47,9 +47,12 @@ bool MfFrameProcessor::initialize(int width, int height, const QString& inputFor
     }
 
 #ifdef HAVE_FFMPEG
+    // Output BGR24 — matches MFVideoFormat_RGB24's byte layout (B, G, R) and
+    // QImage::Format_BGR888. Keeping the output in BGR throughout avoids an
+    // unnecessary byte-swap pass on the fast path.
     swsContext_ = sws_getContext(
         width_, height_, srcFormat,
-        width_, height_, AV_PIX_FMT_RGB24,
+        width_, height_, AV_PIX_FMT_BGR24,
         SWS_BILINEAR, nullptr, nullptr, nullptr
     );
 
@@ -59,7 +62,7 @@ bool MfFrameProcessor::initialize(int width, int height, const QString& inputFor
         return false;
     }
 
-    rgbBufferSize_ = width_ * height_ * 3; // RGB24
+    rgbBufferSize_ = width_ * height_ * 3; // BGR24
     rgbBuffer_ = new uchar[rgbBufferSize_];
 #else
     qCCritical(log_multimedia_backend) << "FFmpeg not available for frame conversion";
@@ -74,38 +77,77 @@ bool MfFrameProcessor::initialize(int width, int height, const QString& inputFor
 
 QImage MfFrameProcessor::processFrame(const uchar* data, int dataSize)
 {
-    if (!data || !swsContext_ || dataSize <= 0) {
+    if (!data || dataSize <= 0) {
         return QImage();
     }
 
 #ifdef HAVE_FFMPEG
-    const uint8_t* srcSlice[1] = { data };
-    int srcStride[1] = { 0 };
+    // Fast path: MF's MFVideoFormat_RGB24 stores bytes in BGR order (B, G, R)
+    // per the Windows bitmap convention. QImage::Format_BGR888 matches that
+    // layout exactly, so no byte reordering is needed — just copy.
+    // (If we used Format_RGB888 here, red and blue would be swapped: red
+    // objects would appear purple/cyan.)
+    if (inputFormat_ == "RGB24") {
+        const int expected = width_ * height_ * 3;
+        if (dataSize < expected) {
+            qCWarning(log_multimedia_backend) << "RGB24 buffer too small:"
+                                              << dataSize << "<" << expected;
+            return QImage();
+        }
+        // Construct QImage over the source buffer, then .copy() into our
+        // owned memory so it outlives the MF buffer lock.
+        return QImage(data, width_, height_, width_ * 3, QImage::Format_BGR888).copy();
+    }
 
-    // Calculate source stride based on format
-    if (inputFormat_ == "NV12") {
-        srcStride[0] = width_; // NV12 stride is width for Y plane
-    } else if (inputFormat_ == "YUY2" || inputFormat_ == "YUYV") {
-        srcStride[0] = width_ * 2; // YUY2 is 2 bytes per pixel
-    } else if (inputFormat_ == "RGB24") {
-        srcStride[0] = width_ * 3;
-    } else if (inputFormat_ == "RGB32") {
-        srcStride[0] = width_ * 4;
-    } else {
-        srcStride[0] = width_; // Default
+    if (!swsContext_) {
+        qCWarning(log_multimedia_backend) << "sws context null for format" << inputFormat_;
+        return QImage();
     }
 
     uint8_t* dstSlice[1] = { rgbBuffer_ };
     int dstStride[1] = { width_ * 3 };
 
-    sws_scale(
-        swsContext_,
-        srcSlice, srcStride,
-        0, height_,
-        dstSlice, dstStride
-    );
+    if (inputFormat_ == "NV12") {
+        // NV12 is a 2-plane format:
+        //   Plane 0: Y samples,      stride = width, size = width * height
+        //   Plane 1: interleaved UV, stride = width, size = width * height/2
+        // Total size = width * height * 3/2.
+        // The MF sample buffer is contiguous, so the UV plane starts at
+        // data + width*height.
+        const int ySize = width_ * height_;
+        if (dataSize < ySize + ySize / 2) {
+            qCWarning(log_multimedia_backend) << "NV12 buffer too small:"
+                                              << dataSize << "<" << (ySize + ySize / 2);
+            return QImage();
+        }
+        const uint8_t* srcSlice[2] = { data, data + ySize };
+        int srcStride[2] = { width_, width_ };
 
-    return QImage(rgbBuffer_, width_, height_, dstStride[0], QImage::Format_RGB888).copy();
+        sws_scale(swsContext_,
+                  srcSlice, srcStride,
+                  0, height_,
+                  dstSlice, dstStride);
+    } else {
+        // Single-plane formats (YUY2, RGB32, etc.)
+        const uint8_t* srcSlice[1] = { data };
+        int srcStride[1] = { 0 };
+
+        if (inputFormat_ == "YUY2" || inputFormat_ == "YUYV") {
+            srcStride[0] = width_ * 2;
+        } else if (inputFormat_ == "RGB32") {
+            srcStride[0] = width_ * 4;
+        } else {
+            srcStride[0] = width_;
+        }
+
+        sws_scale(swsContext_,
+                  srcSlice, srcStride,
+                  0, height_,
+                  dstSlice, dstStride);
+    }
+
+    // sws_scale output is BGR24 (matches MFVideoFormat_RGB24 convention)
+    return QImage(rgbBuffer_, width_, height_, dstStride[0], QImage::Format_BGR888).copy();
 #else
     Q_UNUSED(dataSize);
     return QImage();
