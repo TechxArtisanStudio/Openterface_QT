@@ -438,7 +438,7 @@ openterfaceQT [OPTIONS]
 
 | Argument                    | Description                                                |
 |-----------------------------|------------------------------------------------------------|
-| `--backend <NAME>`          | Select media backend (`ffmpeg`, `mediafoundation`, `qt`, `gstreamer`, `qtmultimedia`). Persisted to settings. |
+| `--backend <NAME>`          | Select media backend (`ffmpeg`, `mediafoundation`, `gstreamer`). Persisted to settings. |
 | `--list-backends`           | Print available media backends for the current platform and exit. |
 | `--mcp-stdio`               | Enable stdio transport (headless mode)                     |
 | `--mcp-pipe`                | Enable Named Pipe transport mode                           |
@@ -451,7 +451,7 @@ openterfaceQT [OPTIONS]
 **Media backend notes**:
 
 - `--backend` overrides the stored preference **and** persists the choice for subsequent launches. For a one-shot override, set via Settings UI and restore afterwards, or edit the `video/mediaBackend` key in the registry/config directly.
-- On Windows, available backends are `ffmpeg` (default, DirectShow), `mediafoundation` (native Windows Media Foundation), and `qt` (Qt Multimedia). On Linux, `ffmpeg` (V4L2) and `gstreamer`.
+- On Windows, available backends are `ffmpeg` (default, DirectShow) and `mediafoundation` (native Windows Media Foundation). On Linux, `ffmpeg` (V4L2) and `gstreamer`.
 - `--backend` is ignored in headless MCP mode (`--mcp-stdio` / `--mcp-sse-port`): the headless path reads the stored backend directly. Set the backend first with a GUI launch or by editing the setting, then start in headless mode.
 - Unknown backend names fall back to FFmpeg with a warning.
 

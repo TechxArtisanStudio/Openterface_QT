@@ -28,7 +28,7 @@ The codebase follows a modular directory layout where each directory owns a dist
 | Directory | Purpose | Key Classes |
 |-----------|---------|-------------|
 | [`ui/`](ui/) | GUI widgets, dialogs, preferences, toolbars, coordinators | `MainWindow`, `VideoPane`, `DeviceCoordinator`, `MenuCoordinator`, `WindowLayoutCoordinator`, `GlobalSetting` |
-| [`host/`](host/) | Video/audio capture backends, camera management, USB control | `CameraManager`, `MultimediaBackendHandler`, `FFmpegBackendHandler`, `GStreamerBackendHandler`, `QtBackendHandler`, `QtMultimediaBackendHandler`, `AudioManager` |
+| [`host/`](host/) | Video/audio capture backends, camera management, USB control | `CameraManager`, `MultimediaBackendHandler`, `FFmpegBackendHandler`, `GStreamerBackendHandler`, `MfBackendHandler`, `AudioManager` |
 | [`serial/`](serial/) | Serial port communication, protocol parsing, chip strategies | `SerialPortManager`, `SerialProtocol`, `IChipStrategy`, `CH9329Strategy`, `CH32V208Strategy`, `ChipStrategyFactory`, `ConnectionWatchdog`, `SerialCommandCoordinator` |
 | [`video/`](video/) | HID transport for video capture chips, firmware operations | `VideoHid`, `IHIDTransport`, `LinuxHIDTransport`, `WindowsHIDTransport`, `VideoChip`, `Ms2109Chip`, `Ms2109sChip`, `Ms2130sChip`, `FirmwareOperationManager` |
 | [`device/`](device/) | Platform-agnostic device enumeration, hotplug monitoring | `DeviceManager`, `DeviceInfo`, `HotplugMonitor`, `AbstractPlatformDeviceManager` |
@@ -177,9 +177,8 @@ The video capture system uses a **pluggable backend** pattern with a factory sel
 CameraManager
   └── MultimediaBackendHandler (abstract base)
         ├── FFmpegBackendHandler     (default, most feature-complete)
-        ├── GStreamerBackendHandler  (Linux only)
-        ├── QtBackendHandler         (Windows-specific)
-        └── QtMultimediaBackendHandler (minimal fallback)
+        ├── MfBackendHandler         (Windows Media Foundation)
+        └── GStreamerBackendHandler  (Linux only)
 ```
 
 ### Base Class: `MultimediaBackendHandler`
@@ -224,13 +223,6 @@ Supports direct V4L2 capture, hardware-accelerated decoding (VAAPI, V4L2-M2M), T
 **File:** [`host/backend/gstreamerbackendhandler.h`](host/backend/gstreamerbackendhandler.h)
 
 Linux-only backend. Runs GStreamer pipelines either in-process (`InProcessGstRunner`) or externally via `gst-launch-1.0` subprocess (`ExternalGstRunner`). Supports multiple recording strategies (valve-based tee, frame-based appsink, direct filesink).
-
-### QtBackendHandler / QtMultimediaBackendHandler
-
-**Files:** [`host/backend/qtbackendhandler.h`](host/backend/qtbackendhandler.h), [`host/backend/qtmultimediabackendhandler.h`](host/backend/qtmultimediabackendhandler.h)
-
-- `QtBackendHandler`: Windows-specific, wraps `QMediaRecorder` and `QMediaCaptureSession`.
-- `QtMultimediaBackendHandler`: Minimal fallback for platforms where FFmpeg/GStreamer are unavailable. No recording support.
 
 ### MfBackendHandler (Media Foundation)
 

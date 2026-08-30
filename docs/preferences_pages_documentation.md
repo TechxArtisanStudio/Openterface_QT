@@ -180,11 +180,6 @@ Can also be set from the command line with `--backend <name>` (see [`MCP_SERVER.
 - Requires the Windows SDK redistributable (shipped with Windows)
 - Use when DirectShow has trouble claiming the device, or for lower CPU usage on supported hardware
 
-**Qt Multimedia** (Windows only, `qt`):
-- Qt's own multimedia wrapper
-- Useful for debugging or when other backends fail
-- Less flexible than FFmpeg / MF; does not support all device configurations
-
 **GStreamer** (Linux only):
 - Alternative multimedia framework
 - May provide better performance on some Linux configurations

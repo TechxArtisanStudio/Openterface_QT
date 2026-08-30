@@ -191,17 +191,14 @@ The application itself does **not** require admin elevation to run — device ac
 
 ### Media Backend Selection (Windows)
 
-Windows builds ship three multimedia backends. The active backend can be changed at runtime via **Preferences → Video → Media Backend** or at launch via the CLI flag `--backend <name>` (the choice is persisted to `HKCU\Software\TechxArtisan\Openterface\video\mediaBackend`).
+Windows builds ship two multimedia backends. The active backend can be changed at runtime via **Preferences → Video → Media Backend** or at launch via the CLI flag `--backend <name>` (the choice is persisted to `HKCU\Software\TechxArtisan\Openterface\video\mediaBackend`).
 
 | Backend | ID | Notes |
 |---|---|---|
 | FFmpeg (DirectShow) | `ffmpeg` | Default. Most mature path. Uses the `FFmpegBackendHandler` composition. |
 | Media Foundation | `mediafoundation` | Native Windows API (`IMFSourceReader`). Lower CPU on some devices, because the driver can do format conversion in hardware. |
-| Qt Multimedia | `qt` | Wraps `QMediaCaptureSession`. Useful as a fallback. Known to fail on the MS2130S composite device because the Windows device enumerator cannot resolve the camera interface for that topology — see note below. |
 
 **Choosing Media Foundation:** use it when FFmpeg/DirectShow cannot claim the device, or when you want lower CPU usage on hardware that supports in-driver conversion. The MF path prefers `MFVideoFormat_RGB24` so the driver does the conversion; the frame processor has a fast path that skips `sws_scale` entirely for RGB24 and only runs it for NV12/YUY2 fallbacks.
-
-**Known issue — Qt backend on composite USB video devices:** the Windows device enumerator (`WinDeviceEnumerator::getAllInterfacePathsForDevice`) walks composite device children looking for a camera interface by `KSCATEGORY_CAPTURE`. On the MS2130S (VID:PID `345F:2132`) the camera interface is registered on the MI_00 child but the enumerator fails to match it, so the Qt backend has no device to open. FFmpeg (which has its own DirectShow enumeration) and MF (which uses the device symbolic link directly) are unaffected. Fixing this requires teaching the enumerator to walk the composite children's interface GUIDs — patches welcome.
 
 ---
 

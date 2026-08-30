@@ -148,8 +148,7 @@ The video backend affects compatibility:
 |---------|----------|----------|
 | FFmpeg | All | Most reliable, hardware acceleration |
 | GStreamer | Linux | Pipeline flexibility |
-| Qt Multimedia | Windows | Simple setups |
-| Qt | Windows | Native QMediaRecorder |
+| Media Foundation | Windows | Lower CPU usage, native API |
 
 **Switch backend:** **Preferences → Video → Media Backend**. Restart the application after changing.
 
@@ -351,7 +350,7 @@ Switching the target control mode repeatedly can cause the application to crash.
 
 ### Qt Multimedia During Shutdown
 
-The application uses `g_applicationShuttingDown` (atomic flag) to prevent Qt Multimedia operations during shutdown. If you see crashes during close, ensure:
+The application uses `g_applicationShuttingDown` (atomic flag) to prevent Qt Multimedia operations (recording, capture session) during shutdown. If you see crashes during close, ensure:
 - You are running a recent version
 - The shutdown flag is properly checked before Qt Multimedia calls
 
