@@ -2055,8 +2055,12 @@ void SerialPortManager::completePortCloseCleanup() {
     stopConnectionWatchdog();
     
     // Use the existing signal for port state changes
+    // ponytail: capture state at emit time, not at queue time — prevents stale
+    // "Port disconnected" from overwriting "Port connected" during close/reopen cycles
     QMetaObject::invokeMethod(this, [this]() {
-        emit statusUpdate("Port disconnected");
+        if (!serialPort || !serialPort->isOpen()) {
+            emit statusUpdate("Port disconnected");
+        }
     }, Qt::QueuedConnection);
 }
 
