@@ -204,6 +204,7 @@ void MainWindow::startServer(){
     // 6. Mark server as running and update status indicator
     m_tcpServerRunning = true;
     if (m_statusBarManager) {
+        m_statusBarManager->setTcpServerVisible(true);
         m_statusBarManager->setStatusUpdate(QString("TCP Server running on port %1").arg(SERVER_PORT));
     }
 
@@ -351,7 +352,8 @@ void MainWindow::stopServer(){
     // Mark server as stopped and update status indicator
     m_tcpServerRunning = false;
     if (m_statusBarManager) {
-        m_statusBarManager->setStatusUpdate(QString("TCP Server stopped"));
+        m_statusBarManager->setTcpServerVisible(false);
+        m_statusBarManager->setStatusUpdate(QString());
     }
     
     // Update menu action to show server is stopped

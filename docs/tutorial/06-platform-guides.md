@@ -189,6 +189,17 @@ The installer requires administrator privileges to:
 
 The application itself does **not** require admin elevation to run — device access is granted through the standard Windows HID and COM port APIs.
 
+### Media Backend Selection (Windows)
+
+Windows builds ship two multimedia backends. The active backend can be changed at runtime via **Preferences → Video → Media Backend** or at launch via the CLI flag `--backend <name>` (the choice is persisted to `HKCU\Software\TechxArtisan\Openterface\video\mediaBackend`).
+
+| Backend | ID | Notes |
+|---|---|---|
+| FFmpeg (DirectShow) | `ffmpeg` | Default. Most mature path. Uses the `FFmpegBackendHandler` composition. |
+| Media Foundation | `mediafoundation` | Native Windows API (`IMFSourceReader`). Lower CPU on some devices, because the driver can do format conversion in hardware. |
+
+**Choosing Media Foundation:** use it when FFmpeg/DirectShow cannot claim the device, or when you want lower CPU usage on hardware that supports in-driver conversion. The MF path prefers `MFVideoFormat_RGB24` so the driver does the conversion; the frame processor has a fast path that skips `sws_scale` entirely for RGB24 and only runs it for NV12/YUY2 fallbacks.
+
 ---
 
 ## Raspberry Pi

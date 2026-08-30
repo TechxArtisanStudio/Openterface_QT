@@ -162,15 +162,25 @@ Example: `1920x1080 (30) - MJPEG`
 
 **Media Backend**: Selects which multimedia framework handles video Output and processing.
 
+Can also be set from the command line with `--backend <name>` (see [`MCP_SERVER.md`](MCP_SERVER.md) CLI reference). `--backend` persists the choice, so the same value is used by subsequent launches including headless MCP mode.
+
 #### Available Backends:
 
-**FFmpeg**:
+**FFmpeg** (Windows, Linux):
 - Most mature and widely compatible
 - Best performance on most systems
 - Excellent codec support
+- Uses DirectShow on Windows, V4L2 on Linux
 - Recommended default for most users
 
-**GStreamer**:
+**Media Foundation** (Windows only):
+- Native Windows capture framework (since Windows 7)
+- Lower CPU usage than DirectShow for some devices, because the driver can do format conversion in hardware
+- Supported pixel formats: RGB24 (preferred, MF does the conversion), NV12, YUY2
+- Requires the Windows SDK redistributable (shipped with Windows)
+- Use when DirectShow has trouble claiming the device, or for lower CPU usage on supported hardware
+
+**GStreamer** (Linux only):
 - Alternative multimedia framework
 - May provide better performance on some Linux configurations
 - Useful if FFmpeg has compatibility issues

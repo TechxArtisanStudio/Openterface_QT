@@ -53,11 +53,12 @@ void StatusBarManager::initStatusBar()
     keyLayout->addWidget(keyLabel);
     m_statusBar->addWidget(keyContainer);
 
-    // TCP Server keys display
+    // TCP Server keys display - hidden by default, shown when TCP server starts
     tcpKeyLabel = new QLabel(m_statusBar);
     tcpKeyLabel->setFixedWidth(150);
     tcpKeyLabel->setText("TCP: -");
     tcpKeyLabel->setStyleSheet("color: #0066cc;");
+    tcpKeyLabel->hide();
     m_statusBar->addWidget(tcpKeyLabel);
 
     QWidget *statusMessageContainer = new QWidget(m_statusBar);
@@ -162,6 +163,11 @@ void StatusBarManager::onTcpServerKeyHandled(const QString& key)
         tcpKeyLabel->setText("TCP: -");
         tcpKeyLabel->setStyleSheet("color: #0066cc;");
     }
+}
+
+void StatusBarManager::setTcpServerVisible(bool visible)
+{
+    tcpKeyLabel->setVisible(visible);
 }
 
 void StatusBarManager::onLastMouseLocation(const QPoint& location, const QString& mouseEvent)
