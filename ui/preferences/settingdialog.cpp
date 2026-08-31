@@ -25,6 +25,11 @@
 #include "logpage.h"
 #include "targetcontrolpage.h"
 #include "videopage.h"
+#include "firmwarepage.h"
+#include "controlchipfirmwarepage.h"
+#include "mcppage.h"
+#include "edidconfigpage.h"
+#include "../customkey/virtualkeyboardpage.h"
 #include "host/cameramanager.h"
 
 #include <QCamera>
@@ -43,16 +48,18 @@
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QStackedWidget>
+#include <QScrollArea>
+#include <QSplitter>
 #include <QDebug>
 #include <QLoggingCategory>
 #include <QSettings>
 #include <QElapsedTimer>
-#include <qtimer.h>
 #include <QList>
 #include <QSerialPortInfo>
 #include <QLineEdit>
+#include <QMessageBox>
+#include <QCloseEvent>
 #include <QByteArray>
-
 
 SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     : QDialog(parent)
@@ -63,38 +70,55 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     , logPage(new LogPage(this))
     , audioPage(new AudioPage(this))
     , videoPage(new VideoPage(cameraManager, this))
+    , mcpPage(new McpPage(this))
     , targetControlPage(new TargetControlPage(this))
-    , buttonWidget(new QWidget(this))
+    , firmwarePage(new FirmwarePage(this))
+    , controlChipFirmwarePage(new ControlChipFirmwarePage(this))
+    , edidConfigPage(new EdidConfigPage(this))
+    , virtualKeyboardPage(new VirtualKeyboardPage(this))
+    , chatSettingsPage(new ChatSettingsPage(this))
     , m_currentPageIndex(-1)
-    , m_changingPage(false)
-    , m_pageChangeTimer(new QTimer(this))
 
 {
+    // Initialize the list of settings pages for dirty-checking
+    m_pages << logPage << videoPage << qobject_cast<PreferencePageBase*>(audioPage)
+            << targetControlPage << mcpPage
+            << qobject_cast<PreferencePageBase*>(chatSettingsPage);
+
     ui->setupUi(this);
     createSettingTree();
     createPages();
-    createButtons();
     createLayout();
+
+    // Set dialog size and allow free resizing
+    resize(800, 600);
+
+    // Set initial splitter sizes: 4/27 tree (~15%), 23/27 content
+    QList<int> sizes;
+    int totalWidth = width();
+    sizes << totalWidth * 4 / 27 << totalWidth * 23 / 27;
+    splitter->setSizes(sizes);
 
     setWindowTitle(tr("Preferences"));
     logPage->initLogSettings();
     videoPage->initVideoSettings();
     targetControlPage->initHardwareSetting();
-    // Connect the tree widget's currentItemChanged signal to a slot
-    connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
-    
-    // Connect timer to reset the changing page flag
-    connect(m_pageChangeTimer, &QTimer::timeout, this, [this]() {
-        m_changingPage = false;
-        m_pageChangeTimer->stop();
-    });
-    
-    // Set initial page to General (index 0)
+    mcpPage->initMcpSettings();
+
+    // Force clear dirty state after all init - some widget signals may fire during init
+    for (auto *page : m_pages) {
+        if (page) page->clearDirty();
+    }
+
+    // Set initial page to General (index 0) - before connecting signal to avoid spurious changePage
     if (settingTree->topLevelItemCount() > 0) {
-        settingTree->setCurrentItem(settingTree->topLevelItem(0));
         m_currentPageIndex = 0;
         stackedWidget->setCurrentIndex(0);
+        settingTree->setCurrentItem(settingTree->topLevelItem(0));
     }
+
+    // Connect signal AFTER all init is complete to avoid false unsaved-changes triggers
+    connect(settingTree, &QTreeWidget::currentItemChanged, this, &SettingDialog::changePage);
 }
 
 SettingDialog::~SettingDialog()
@@ -108,66 +132,64 @@ void SettingDialog::createSettingTree() {
     settingTree->setHeaderHidden(true);
     settingTree->setSelectionMode(QAbstractItemView::SingleSelection);
 
-    settingTree->setMaximumSize(QSize(200, 1000));
-    settingTree->setMinimumWidth(110);
     settingTree->setRootIsDecorated(false);
 
     // QStringList names = {"Log"};
-    QStringList names = {tr("General"), tr("Video"), tr("Audio"), tr("Target Control")};
+    QStringList names = {
+        tr("General"),              // 0
+        tr("Video"),                // 1
+        tr("Audio"),                // 2
+        tr("Target Control"),       // 3
+        tr("MCP"),                  // 4
+        tr("Video Firmware"),       // 5
+        tr("Control Chip Firmware"),// 6
+        tr("EDID Configuration"),   // 7
+        tr("Virtual Keyboard"),     // 8
+        tr("AI Chat")              // 9
+    };
     for (const QString &name : names) {     // add item to setting tree
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
     }
 }
 
-
 void SettingDialog::createPages() {
-    // Add pages to the stacked widget
-    stackedWidget->addWidget(logPage);
-    stackedWidget->addWidget(videoPage);
-    stackedWidget->addWidget(audioPage);
-    stackedWidget->addWidget(targetControlPage);
-}
+    // Wrap each page in a QScrollArea so content can scroll both vertically and horizontally
+    auto addScrollablePage = [this](QWidget *page) {
+        QScrollArea *scrollArea = new QScrollArea(this);
+        scrollArea->setWidget(page);
+        scrollArea->setWidgetResizable(true);
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        stackedWidget->addWidget(scrollArea);
+    };
 
-void SettingDialog::createButtons(){
-    QPushButton *okButton = new QPushButton(tr("OK"));
-    QPushButton *applyButton = new QPushButton(tr("Apply"));
-    QPushButton *cancelButton = new QPushButton(tr("Cancel"));
-
-    okButton->setFixedSize(80, 30);
-    applyButton->setFixedSize(80, 30);
-    cancelButton->setFixedSize(80, 30);
-
-    QHBoxLayout *buttonLayout = new QHBoxLayout(buttonWidget);
-    buttonLayout->addStretch();
-    buttonLayout->addWidget(okButton);
-    buttonLayout->addWidget(applyButton);
-    buttonLayout->addWidget(cancelButton);
-
-    connect(okButton, &QPushButton::clicked, this, &SettingDialog::handleOkButton);
-    connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
-    connect(applyButton, &QPushButton::clicked, this, &SettingDialog::applyAccrodingPage);
+    addScrollablePage(logPage);
+    addScrollablePage(videoPage);
+    addScrollablePage(audioPage);
+    addScrollablePage(targetControlPage);
+    addScrollablePage(mcpPage);
+    addScrollablePage(firmwarePage);
+    addScrollablePage(controlChipFirmwarePage);
+    addScrollablePage(edidConfigPage);
+    addScrollablePage(virtualKeyboardPage);
+    addScrollablePage(chatSettingsPage);
 }
 
 void SettingDialog::createLayout() {
-    qDebug() << "createLayout";
-    QHBoxLayout *selectLayout = new QHBoxLayout;
-    selectLayout->addWidget(settingTree);
-    selectLayout->addWidget(stackedWidget);
-    
-    QVBoxLayout *mainLayout = new QVBoxLayout;
-    mainLayout->addLayout(selectLayout);
-    mainLayout->addWidget(buttonWidget);
+    splitter = new QSplitter(Qt::Horizontal, this);
+    splitter->addWidget(settingTree);
+    splitter->addWidget(stackedWidget);
+    splitter->setStretchFactor(1, 1);
+    splitter->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+    mainLayout->addWidget(splitter, 1);
 
     setLayout(mainLayout);
 }
 
 void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous) {
-
-    // If we're already changing pages, ignore this call
-    if (m_changingPage) {
-        return;
-    }
 
     if (!current) {
         current = previous;
@@ -177,56 +199,37 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
     QString itemText = current->text(0);
     int newPageIndex = -1;
 
-    if (itemText == tr("General")) {
-        newPageIndex = 0;
-    } else if (itemText == tr("Video")) {
-        newPageIndex = 1;
-    } else if (itemText == tr("Audio")) {
-        newPageIndex = 2;
-    } else if (itemText == tr("Target Control")) {
-        newPageIndex = 3;
-    }
+    if (itemText == tr("General")) newPageIndex = 0;
+    else if (itemText == tr("Video")) newPageIndex = 1;
+    else if (itemText == tr("Audio")) newPageIndex = 2;
+    else if (itemText == tr("Target Control")) newPageIndex = 3;
+    else if (itemText == tr("MCP")) newPageIndex = 4;
+    else if (itemText == tr("Video Firmware")) newPageIndex = 5;
+    else if (itemText == tr("Control Chip Firmware")) newPageIndex = 6;
+    else if (itemText == tr("EDID Configuration")) newPageIndex = 7;
+    else if (itemText == tr("Virtual Keyboard")) newPageIndex = 8;
+    else if (itemText == tr("AI Chat")) newPageIndex = 9;
 
-    // Only switch page if it's different from the current page
+    // Only switch page if it is different from the current page
     if (newPageIndex != -1 && newPageIndex != m_currentPageIndex) {
-        m_changingPage = true;  // Set guard
-        
+        // Check for unsaved changes before switching
+        if (hasUnsavedChanges()) {
+            auto result = promptSaveDiscardCancel();
+            if (result == QMessageBox::Save) {
+                applyAllDirtyPages();
+            } else if (result == QMessageBox::Cancel) {
+                // Restore previous selection, block signals to avoid recursion
+                settingTree->blockSignals(true);
+                if (previous) settingTree->setCurrentItem(previous);
+                settingTree->blockSignals(false);
+                return;
+            }
+            // Discard: proceed without saving
+        }
         stackedWidget->setCurrentIndex(newPageIndex);
         m_currentPageIndex = newPageIndex;
-        
-        // Start timer to reset the guard after a short delay (200ms)
-        // This prevents rapid clicking while allowing the UI to remain responsive
-        m_pageChangeTimer->start(200);
     }
 
-}
-
-void SettingDialog::applyAccrodingPage(){
-    int currentPageIndex = stackedWidget->currentIndex();
-    switch (currentPageIndex)
-    {
-    // sequence Log Video Audio
-    case 0:
-        logPage->applyLogsettings();
-        break;
-    case 1:
-        videoPage->applyVideoSettings();
-        break;
-    case 2:
-        break;
-    case 3:
-        targetControlPage->applyHardwareSetting();
-        break;
-    default:
-        break;
-    }
-}
-
-void SettingDialog::handleOkButton() {
-    logPage->applyLogsettings();
-    videoPage->applyVideoSettings();
-    targetControlPage->applyHardwareSetting();
-    accept();
 }
 
 TargetControlPage* SettingDialog::getTargetControlPage() {
@@ -240,3 +243,95 @@ VideoPage* SettingDialog::getVideoPage() {
 LogPage* SettingDialog::getLogPage() {
     return logPage;
 }
+
+McpPage* SettingDialog::getMcpPage() {
+    return mcpPage;
+}
+
+FirmwarePage* SettingDialog::getFirmwarePage() {
+    return firmwarePage;
+}
+
+VirtualKeyboardPage* SettingDialog::getVirtualKeyboardPage() {
+    return virtualKeyboardPage;
+}
+
+void SettingDialog::selectPage(const QString& pageName) {
+    for (int i = 0; i < settingTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem *item = settingTree->topLevelItem(i);
+        if (item->text(0) == pageName) {
+            settingTree->setCurrentItem(item);
+            return;
+        }
+    }
+}
+
+bool SettingDialog::hasUnsavedChanges() const
+{
+    for (auto *page : m_pages) {
+        if (page && page->isDirty()) return true;
+    }
+    return false;
+}
+
+QStringList SettingDialog::dirtyPageNames() const
+{
+    QStringList names;
+    for (int i = 0; i < settingTree->topLevelItemCount() && i < m_pages.size(); ++i) {
+        if (m_pages[i] && m_pages[i]->isDirty()) {
+            names << settingTree->topLevelItem(i)->text(0);
+        }
+    }
+    return names;
+}
+
+void SettingDialog::applyAllDirtyPages()
+{
+    for (auto *page : m_pages) {
+        if (page && page->isDirty()) {
+            page->applySettings();
+            page->captureSnapshot();
+            page->clearDirty();
+        }
+    }
+}
+
+QMessageBox::StandardButton SettingDialog::promptSaveDiscardCancel()
+{
+    QStringList names = dirtyPageNames();
+    QString detail;
+    if (!names.isEmpty()) {
+        detail = tr("Modified pages: %1").arg(names.join(", "));
+    }
+
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(tr("Unsaved Changes"));
+    msgBox.setText(tr("You have unsaved changes."));
+    msgBox.setInformativeText(tr("Do you want to save your changes?"));
+    if (!detail.isEmpty()) {
+        msgBox.setDetailedText(detail);
+    }
+    msgBox.setStandardButtons(QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
+    msgBox.setDefaultButton(QMessageBox::Save);
+    return static_cast<QMessageBox::StandardButton>(msgBox.exec());
+}
+
+void SettingDialog::closeEvent(QCloseEvent *event)
+{
+    if (hasUnsavedChanges()) {
+        auto result = promptSaveDiscardCancel();
+        if (result == QMessageBox::Save) {
+            applyAllDirtyPages();
+            reject();  // emits finished signal so MainWindow can clean up
+        } else if (result == QMessageBox::Cancel) {
+            event->ignore();
+            return;
+        } else {
+            // Discard
+            reject();
+        }
+    } else {
+        reject();
+    }
+}
+

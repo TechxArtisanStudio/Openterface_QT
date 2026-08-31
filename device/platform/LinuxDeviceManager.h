@@ -8,7 +8,9 @@
 #include <QVariantMap>
 #include <QFuture>
 #include <QFutureWatcher>
+#include <QMutex>
 #include <QtConcurrent>
+#include <atomic>
 
 #ifdef HAVE_LIBUDEV
 struct udev;
@@ -48,6 +50,20 @@ private:
         QString parentSyspath;
         QVariantMap properties;
     };
+
+    // Serial <-> companion association for all companions at once. Runs the
+    // topology-based findSerialPortByCompanionDeviceLinux() per companion, then
+    // repairs contested results (two companions on one serial, or companions
+    // left without one while serials are unclaimed) by USB enumeration order:
+    // a unit's companion and serial enumerate back-to-back at power-up, so on a
+    // flat bus (VM pass-through, no internal hub visible) BUSNUM/DEVNUM pairs
+    // them where port arithmetic cannot. Returns one serial syspath per
+    // companion (empty if none).
+    QStringList associateSerialDevicesLinux(const QList<UdevDeviceData>& companions,
+                                            const QList<UdevDeviceData>& serials,
+                                            const char* generation);
+    static qint64 usbEnumerationKey(const QString& usbDeviceSyspath);   // busnum*1000+devnum, -1 if unknown
+    static QList<UdevDeviceData> usbDeviceNodesOnly(const QList<UdevDeviceData>& entries);
     
     // Blocking device discovery (for use in background thread)
     QList<DeviceInfo> discoverDevicesBlocking();
@@ -85,13 +101,14 @@ private:
 #endif
     
     // Cache management
+    mutable QMutex m_cacheMutex;  // Protects m_cachedDevices and m_lastCacheUpdate
     QList<DeviceInfo> m_cachedDevices;
     QDateTime m_lastCacheUpdate;
     static const int CACHE_TIMEOUT_MS = 5000; // 1 second cache
-    
+
     // Async discovery
     QFutureWatcher<QList<DeviceInfo>>* m_futureWatcher;
-    bool m_discoveryInProgress;
+    std::atomic<bool> m_discoveryInProgress{false};
 };
 
 #endif // LINUXDEVICEMANAGER_H

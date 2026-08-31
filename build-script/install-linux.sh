@@ -11,10 +11,10 @@
 # Run this command to download and execute the script directly:
 # curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh | bash
 #
-# By default, the script will checkout and build the STABLE_APP_VERSION defined in resources/version.h
+# By default, the script builds the LATEST STABLE VERSION (currently v0.5.17)
 #
 # To install a specific version/tag instead:
-# BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh)
+# BUILD_VERSION="v0.3.19" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh)
 #
 # To use the latest development version:
 # BUILD_VERSION="main" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/refs/heads/main/build-script/install-linux.sh)
@@ -230,7 +230,7 @@ sudo apt-get install -y --allow-unauthenticated \
     ffmpeg
 
 echo "👥 Setting up user permissions..."
-sudo usermod -a -G dialout $USER
+sudo usermod -a -G dialout,video $USER
 sudo usermod -a -G uucp $USER
 
 echo "🔐 Setting up device permissions..."
@@ -238,6 +238,13 @@ echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TA
 echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules
 echo 'SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules
 echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules
+# CH32V208 companion device (presents as /dev/ttyACM* via CDC ACM) — tty subsystem rule
+# is required so non-root users can open the serial port for keyboard I/O.
+echo 'SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules
+echo 'SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules
+echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules
+echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="55e0", TAG+="uaccess"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules
+echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="4348", ATTRS{idProduct}=="55e0", TAG+="uaccess"' | sudo tee -a /etc/udev/rules.d/51-openterface.rules
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 

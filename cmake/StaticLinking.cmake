@@ -5,9 +5,13 @@ function(force_static_compression_libraries target)
     if(WIN32)
         message(STATUS "Forcing static linking of compression libraries for ${target}")
         
-        # Define MINGW_ROOT if not set
+        # Define MINGW_ROOT if not set (architecture-aware default)
         if(NOT DEFINED MINGW_ROOT)
-            set(MINGW_ROOT "C:/msys64/mingw64")
+            if(OPENTERFACE_IS_ARM64)
+                set(MINGW_ROOT "C:/msys64/clangarm64")
+            else()
+                set(MINGW_ROOT "C:/msys64/mingw64")
+            endif()
         endif()
         
         # List of compression libraries to force static linking
@@ -41,6 +45,19 @@ function(force_static_compression_libraries target)
             message(WARNING "Missing static compression libraries: ${MISSING_LIBS}")
             message(WARNING "Install them with: pacman -S ${MISSING_LIBS}")
         endif()
+
+        # PCRE2 is required by Qt6 Core for regular expressions
+        # Qt static build must have been compiled with -DPCRE2_STATIC
+        set(PCRE2_LIBRARY "${MINGW_ROOT}/lib/libpcre2-16.a")
+        if(EXISTS "${PCRE2_LIBRARY}")
+            list(APPEND STATIC_LIB_PATHS "${PCRE2_LIBRARY}")
+            message(STATUS "  Found PCRE2 library: ${PCRE2_LIBRARY}")
+        else()
+            message(WARNING "  PCRE2 not found at ${PCRE2_LIBRARY} - Qt6 regex will fail to link")
+        endif()
+
+        # Define PCRE2_STATIC so our code doesn't generate __imp_ references either
+        target_compile_definitions(${target} PRIVATE PCRE2_STATIC)
         
         # Link found static libraries
         if(STATIC_LIB_PATHS)

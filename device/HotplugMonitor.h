@@ -5,10 +5,12 @@
 #include <QTimer>
 #include <QDateTime>
 #include <QMutex>
+#include <QFuture>
+#include <QFutureWatcher>
 #include <functional>
 #include "DeviceInfo.h"
 
-class DeviceManager;
+class IDeviceDiscovery;
 
 struct DeviceChangeEvent {
     QDateTime timestamp;
@@ -23,6 +25,8 @@ struct DeviceChangeEvent {
     }
 };
 
+Q_DECLARE_METATYPE(DeviceChangeEvent)
+
 class HotplugMonitor : public QObject
 {
     Q_OBJECT
@@ -30,7 +34,7 @@ class HotplugMonitor : public QObject
 public:
     using ChangeCallback = std::function<void(const DeviceChangeEvent&)>;
     
-    explicit HotplugMonitor(DeviceManager* deviceManager, QObject *parent = nullptr);
+    explicit HotplugMonitor(IDeviceDiscovery* deviceDiscovery, QObject *parent = nullptr);
     ~HotplugMonitor();
     
     void addCallback(ChangeCallback callback);
@@ -62,6 +66,11 @@ signals:
     void monitoringStarted();
     void monitoringStopped();
     void errorOccurred(const QString& error);
+
+    // Fast scan signals
+    void fastScanStarted(int intervalMs);
+    void fastScanEnded();
+    void deviceRapidlyReconnected(const QString& deviceId, const QString& devicePath);
     
 private slots:
     void checkForChangesSlot();
@@ -71,7 +80,7 @@ private:
     DeviceChangeEvent createChangeEvent(const QList<DeviceInfo>& current, 
                                       const QList<DeviceInfo>& previous);
     
-    DeviceManager* m_deviceManager;
+    IDeviceDiscovery* m_deviceDiscovery;
     QTimer* m_timer;
     QList<ChangeCallback> m_callbacks;
     QList<DeviceInfo> m_lastSnapshot;
@@ -81,6 +90,9 @@ private:
     int m_changeEventCount;
     QDateTime m_lastChangeTime;
     mutable QMutex m_mutex;
+
+    // Background task lifecycle management
+    QFutureWatcher<void>* m_checkWatcher;  // Tracks the running checkForChanges task
 };
 
 #endif // HOTPLUGMONITOR_H

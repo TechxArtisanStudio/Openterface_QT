@@ -34,6 +34,7 @@
 #include "../target/mouseeventdto.h"
 #include "../ui/statusevents.h"
 #include "../target/KeyboardLayouts.h"
+#include "../ui/customkey/customkeymanager.h"
 
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_host)
@@ -71,12 +72,20 @@ public:
 
     void handleFunctionKey(int keyCode, int modifiers);
 
+    void handleKeySequence(const QList<KeyStep>& steps);
+
+    void handleKeyCombo(const QList<int>& keyCodes);
+
     void setRepeatingKeystroke(int interval);
 
     void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown, unsigned int nativeVirtualKey = 0);
 
     void setKeyboardLayout(const QString& layoutName);
-    
+
+    // Accessors for MCP Server (and other direct consumers)
+    MouseManager& getMouseManager() { return mouseManager; }
+    KeyboardManager& getKeyboardManager() { return keyboardManager; }
+
 private:
     explicit HostManager(QObject *parent = nullptr);
     MouseManager mouseManager;

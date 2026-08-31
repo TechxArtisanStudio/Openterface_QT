@@ -150,7 +150,7 @@ private:
 
     bool _isSwitchOnTarget = true;
 
-    bool toolbarVisible = true;
+    bool toolbarVisible = false;  // Default: toolbar is hidden
     int toolbarHeight = 0;
 
     bool m_mouseAutoHide = true;

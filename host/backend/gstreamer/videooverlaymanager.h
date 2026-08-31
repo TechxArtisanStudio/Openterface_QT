@@ -24,12 +24,13 @@ public:
     static bool embedVideoInVideoPane(void* pipeline, ::VideoPane* videoPane);
 
     // Setup overlay for a specific videoSink element and windowId
+    // videoResolution: used to calculate aspect-ratio-preserving render rectangle
     // Accept optional targets to set render rectangle / widget bindings
-    static bool setupVideoOverlay(void* videoSink, WId windowId, QWidget* videoWidget = nullptr, QGraphicsVideoItem* graphicsVideoItem = nullptr);
+    static bool setupVideoOverlay(void* videoSink, WId windowId, const QSize& videoResolution, QWidget* videoWidget = nullptr, QGraphicsVideoItem* graphicsVideoItem = nullptr);
 
     // Setup overlay for current pipeline given a windowId
     // Accept optional targets so the manager can configure render rectangle or widget binding
-    static bool setupVideoOverlayForPipeline(void* pipeline, WId windowId, QWidget* videoWidget = nullptr, QGraphicsVideoItem* graphicsVideoItem = nullptr);
+    static bool setupVideoOverlayForPipeline(void* pipeline, WId windowId, const QSize& videoResolution, QWidget* videoWidget = nullptr, QGraphicsVideoItem* graphicsVideoItem = nullptr);
 
     // Attempt to complete pending overlay setup using the available targets
     // Returns true when overlay completed (sets pending=false), false otherwise

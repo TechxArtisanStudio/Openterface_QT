@@ -29,6 +29,7 @@ set(mainwindow_resource_files
     "ui/../images/laptop.svg"
     "ui/../images/monitor.svg"
     "ui/../images/usbplug.svg"
+    "ui/../images/cpu.svg"
     "ui/../images/startRecord.svg"
     "ui/../images/stopRecord.svg"
     "ui/../images/audio.svg"
@@ -84,6 +85,12 @@ set(languages_resources_files
     "config/languages/openterface_ja.qm"
     "config/languages/openterface_se.qm"
     "config/languages/openterface_zh.qm"
+    "config/languages/openterface_es.qm"
+    "config/languages/openterface_it.qm"
+    "config/languages/openterface_ko.qm"
+    "config/languages/openterface_pt.qm"
+    "config/languages/openterface_ru.qm"
+    "config/languages/openterface_ro.qm"
 )
 
 qt_add_resources(openterfaceQT "languages"
@@ -97,18 +104,23 @@ qt_add_resources(openterfaceQT "languages"
         --compress 2
 )
 
-set(qmake_immediate_resource_files
-    "openterfaceQT.rc"
+set(customkeys_resource_files
+    "config/customkeys/default.json"
 )
 
-qt_add_resources(openterfaceQT "qmake_immediate"
+qt_add_resources(openterfaceQT "customkeys"
     PREFIX
-        "/"
+        "/config/customkeys"
+    BASE
+        "config/customkeys"
     FILES
-        ${qmake_immediate_resource_files}
+        ${customkeys_resource_files}
     OPTIONS
         --compress 2
 )
+
+# Windows resource file is handled separately in CMakeLists.txt via target_sources
+# It should NOT be added as a Qt resource
 
 set(app_icons_resource_files
     "images/icon_128.png"
@@ -156,7 +168,6 @@ if(WIN32)
                 target_include_directories(openterfaceQT PRIVATE "C:/libusb/include")
             endif()
             target_link_libraries(openterfaceQT PRIVATE
-                hid
                 ${LIBUSB_LIBRARY}
                 ole32
                 oleaut32
@@ -167,7 +178,6 @@ if(WIN32)
         else()
             message(WARNING "libusb-1.0 not found for Windows - trying with default name")
             target_link_libraries(openterfaceQT PRIVATE
-                hid
                 libusb-1.0
                 ole32
                 oleaut32
@@ -179,7 +189,6 @@ if(WIN32)
     else()
         message(STATUS "USB functionality disabled by USE_USB=OFF")
         target_link_libraries(openterfaceQT PRIVATE
-            hid
             ole32
             oleaut32
             setupapi
@@ -341,9 +350,14 @@ install(FILES ${CMAKE_SOURCE_DIR}/packaging/com.openterface.openterfaceQT.deskto
 )
 
 # Install metainfo file (for AppStream)
-install(FILES ${CMAKE_SOURCE_DIR}/com.openterface.openterfaceQT.metainfo.xml
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
-)
+set(OPENTERFACE_METAINFO_FILE "${CMAKE_SOURCE_DIR}/packaging/com.openterface.openterfaceQT.metainfo.xml")
+if(EXISTS "${OPENTERFACE_METAINFO_FILE}")
+    install(FILES "${OPENTERFACE_METAINFO_FILE}"
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
+    )
+else()
+    message(WARNING "Metainfo file not found: ${OPENTERFACE_METAINFO_FILE}")
+endif()
 
 # Guard deploy script generation for Qt < 6.3 on Ubuntu 22.04
 if(COMMAND qt_generate_deploy_app_script)
@@ -352,12 +366,21 @@ if(COMMAND qt_generate_deploy_app_script)
         set(ENABLE_QT_DEPLOY ON)
     endif()
     if(ENABLE_QT_DEPLOY)
-        qt_generate_deploy_app_script(
-            TARGET openterfaceQT
-            FILENAME_VARIABLE deploy_script    
-            NO_UNSUPPORTED_PLATFORM_ERROR
-        )
-        install(SCRIPT ${deploy_script})
+        # Try new syntax first (Qt 6.5+), fall back to old syntax
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")
+            qt_generate_deploy_app_script(
+                TARGET openterfaceQT
+                OUTPUT_SCRIPT deploy_script    
+                NO_UNSUPPORTED_PLATFORM_ERROR
+            )
+            install(SCRIPT ${deploy_script})
+        else()
+            # Older CMake versions don't support OUTPUT_SCRIPT
+            qt_generate_deploy_app_script(
+                TARGET openterfaceQT
+                NO_UNSUPPORTED_PLATFORM_ERROR
+            )
+        endif()
     else()
         message(STATUS "Qt deploy disabled (ENABLE_QT_DEPLOY=OFF); skipping deploy script generation")
     endif()

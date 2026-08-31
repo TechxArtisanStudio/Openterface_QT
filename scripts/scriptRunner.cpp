@@ -5,6 +5,10 @@
 #include <QThread>
 #include <QMetaObject>
 #include <QDebug>
+#include <QLoggingCategory>
+#include "log/opflogging.h"
+
+OPF_LOGGING_CATEGORY(log_script_runner, "opf.scripts.scriptrunner")
 
 ScriptRunner::ScriptRunner(ScriptTool* tool, ScriptExecutor* executor, QObject* parent)
     : QObject(parent), m_tool(tool), m_executor(executor)
@@ -13,20 +17,55 @@ ScriptRunner::ScriptRunner(ScriptTool* tool, ScriptExecutor* executor, QObject* 
 
 void ScriptRunner::runTree(std::shared_ptr<ASTNode> tree, QObject* originSender)
 {
+    qCDebug(log_script_runner) << "ScriptRunner::runTree called with tree:" << (tree ? "valid" : "null") << "from sender:" << originSender;
+    
+    // Prevent duplicate execution
+    {
+        QMutexLocker locker(&runMutex);
+        if (isRunning.load()) {
+            qCWarning(log_script_runner) << "Script already running! Ignoring duplicate runTree call.";
+            emit analysisFinished(originSender, false);
+            return;
+        }
+        isRunning.store(true);
+        qCDebug(log_script_runner) << "Script execution started - isRunning set to true";
+    }
+    
     if (!tree) {
+        isRunning.store(false);
+        emit analysisFinished(originSender, false);
+        return;
+    }
+
+    // Verify that executor and its managers are properly initialized
+    if (!m_executor) {
+        qWarning() << "Error: ScriptExecutor is not initialized";
+        isRunning.store(false);
+        emit analysisFinished(originSender, false);
+        return;
+    }
+    
+    MouseManager* mouseManager = m_executor->getMouseManager();
+    KeyboardMouse* keyboardMouse = m_executor->getKeyboardMouse();
+    
+    if (!mouseManager || !keyboardMouse) {
+        qWarning() << "Error: MouseManager or KeyboardMouse not initialized in ScriptExecutor";
+        isRunning.store(false);
         emit analysisFinished(originSender, false);
         return;
     }
 
     QThread* workerThread = new QThread;
-    SemanticAnalyzer* workerAnalyzer = new SemanticAnalyzer(nullptr, nullptr);
+    SemanticAnalyzer* workerAnalyzer = new SemanticAnalyzer(mouseManager, keyboardMouse);
     workerAnalyzer->moveToThread(workerThread);
 
-    // Route capture signals to executor so UI can respond
+    // Route capture signals directly from SemanticAnalyzer to ScriptExecutor for UI forwarding
     if (m_executor) {
+        qCDebug(log_script_runner) << "Connecting capture signals from SemanticAnalyzer to ScriptExecutor";
         connect(workerAnalyzer, &SemanticAnalyzer::captureImg, m_executor, &ScriptExecutor::captureImg, Qt::QueuedConnection);
         connect(workerAnalyzer, &SemanticAnalyzer::captureAreaImg, m_executor, &ScriptExecutor::captureAreaImg, Qt::QueuedConnection);
-        connect(workerAnalyzer, &SemanticAnalyzer::commandData, m_executor, &ScriptExecutor::executeCommand, Qt::QueuedConnection);
+    } else {
+        qCDebug(log_script_runner) << "WARNING: m_executor is null, capture signals won't be forwarded";
     }
 
     // Connect command increase to the script tool UI
@@ -36,6 +75,8 @@ void ScriptRunner::runTree(std::shared_ptr<ASTNode> tree, QObject* originSender)
 
     // When analysis finishes, emit up and stop thread
     connect(workerAnalyzer, &SemanticAnalyzer::analysisFinished, this, [this, originSender, workerThread](bool success){
+        qCDebug(log_script_runner) << "Analysis finished with success:" << success << "- Resetting isRunning flag";
+        isRunning.store(false);
         emit analysisFinished(originSender, success);
         workerThread->quit();
     });

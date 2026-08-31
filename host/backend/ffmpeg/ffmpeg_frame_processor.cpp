@@ -44,7 +44,7 @@ FFmpegFrameProcessor::FFmpegFrameProcessor()
     , last_target_width_(-1)
     , last_target_height_(-1)
     , scaling_algorithm_(SWS_BILINEAR)
-    , frame_drop_threshold_display_(17)    // allow ~16.66ms (60fps) intervals to pass reliably
+    , frame_drop_threshold_display_(8)     // allow ~8.33ms (120fps) intervals to pass reliably - adjusted to exactly 8.33ms for 120fps support
     , frame_drop_threshold_recording_(33)  // Restore: ~30fps capable (drop if >33ms processing)
     , last_process_time_(0)
     , dropped_frames_(0)
@@ -188,6 +188,12 @@ QImage FFmpegFrameProcessor::GetLatestOriginalFrame() const
     return latest_original_frame_.copy();
 }
 
+QSize FFmpegFrameProcessor::GetNativeJpegSize() const
+{
+    QMutexLocker locker(&mutex_);
+    return native_jpeg_size_;
+}
+
 bool FFmpegFrameProcessor::ShouldDropFrame(bool is_recording)
 {
     // Use high-resolution elapsed time (microsecond precision) to avoid millisecond rounding errors.
@@ -264,25 +270,22 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
             QImage turbojpeg_result = DecodeMJPEGWithTurboJPEG(packet, targetSize, handle);
             if (!turbojpeg_result.isNull()) {
                 // qCDebug(log_ffmpeg_backend) << "Successfully decoded with TurboJPEG acceleration";
-                // Success with TurboJPEG - store frames and return
-                QImage originalResult = turbojpeg_result;
-                QImage result = turbojpeg_result;
-                
-                // Apply scaling if needed
-                if (targetSize.isValid() && !targetSize.isEmpty() && 
-                    targetSize != QSize(turbojpeg_result.width(), turbojpeg_result.height())) {
-                    result = turbojpeg_result.scaled(targetSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-                }
-                
-                // Update frame count and store frames
+                // Don't scale here — the display layer (VideoPane) handles aspect-ratio-
+                // preserving fit with centering (letterboxing/pillarboxing).  Scaling to
+                // a narrow target with KeepAspectRatio would shrink the video unnecessarily.
+
+                // Update frame count and store frames.  QImage is implicitly
+                // shared (copy-on-write), so plain assignment is enough — the
+                // same approach the FFmpeg path below already uses.  The two
+                // deep copies here cost 2 x ~6 MB of memcpy per 1080p frame.
                 frame_count_++;
                 if (frame_count_ > startup_frames_to_skip_) {
                     QMutexLocker locker(&mutex_);
-                    latest_frame_ = result.copy();
-                    latest_original_frame_ = originalResult.copy();
+                    latest_frame_ = turbojpeg_result;
+                    latest_original_frame_ = turbojpeg_result;
                 }
-                
-                return result.copy();
+
+                return turbojpeg_result;
             }
         }
         qCDebug(log_ffmpeg_backend) << "TurboJPEG failed, falling back to CPU decode";
@@ -294,8 +297,8 @@ QImage FFmpegFrameProcessor::ProcessPacketToImage(AVPacket* packet, AVCodecConte
     return ProcessWithFFmpegDecoding(packet, codec_context, is_recording, targetSize);
 }
 
-QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodecContext* codec_context, 
-                                                      bool is_recording, const QSize& targetSize)
+QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodecContext* codec_context,
+                                                      bool /*is_recording*/, const QSize& targetSize)
 {
     if (!temp_frame_) {
         temp_frame_ = make_av_frame();
@@ -307,12 +310,21 @@ QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodec
     // Send packet to decoder
     int ret = avcodec_send_packet(codec_context, packet);
     if (ret < 0) {
+        char errbuf[AV_ERROR_MAX_STRING_SIZE];
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+        qCWarning(log_ffmpeg_backend) << "avcodec_send_packet failed:" << QString::fromUtf8(errbuf)
+                                      << "packet size:" << packet->size;
         return QImage();
     }
-    
+
     // Receive frame from decoder
     ret = avcodec_receive_frame(codec_context, AV_FRAME_RAW(temp_frame_));
     if (ret < 0) {
+        if (ret != AVERROR(EAGAIN) && ret != AVERROR_EOF) {
+            char errbuf[AV_ERROR_MAX_STRING_SIZE];
+            av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+            qCWarning(log_ffmpeg_backend) << "avcodec_receive_frame failed:" << QString::fromUtf8(errbuf);
+        }
         return QImage();
     }
     
@@ -355,9 +367,12 @@ QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodec
     QImage originalResult;
     
     if (needOriginal) {
-        // Need both original and scaled versions
-        originalResult = ConvertFrameToImage(frame_to_convert, QSize());
-        result = ConvertFrameToImage(frame_to_convert, targetSize);
+        // OPTIMIZATION: Convert NV12→RGB once at full resolution, then use Qt's
+        // fast RGB rescaler for the display-size copy.  This avoids running the
+        // comparatively expensive sws_scale (YUV→RGB) twice on the same frame.
+        originalResult = ConvertFrameToImage(frame_to_convert, QSize());  // full-res RGB
+        result = originalResult.scaled(targetSize, Qt::IgnoreAspectRatio, // pure RGB resize
+                                       Qt::SmoothTransformation);
     } else {
         // Only need one version (either scaled or original)
         result = ConvertFrameToImage(frame_to_convert, targetSize.isValid() ? targetSize : QSize());
@@ -377,15 +392,17 @@ QImage FFmpegFrameProcessor::ProcessWithFFmpegDecoding(AVPacket* packet, AVCodec
             return QImage();
         }
         
-        // Store frames
+        // Store frames.  QImage uses Qt's COW (copy-on-write) ref-counting which is
+        // thread-safe for shared ownership, so no redundant deep copy is needed here.
+        // The mutex protects the assignment of the pointer/ref-count itself.
         {
             QMutexLocker locker(&mutex_);
-            latest_frame_ = result.copy();  // Frame for display
-            latest_original_frame_ = originalResult.copy();  // Original frame for screenshots
+            latest_frame_ = result;          // Frame for display (COW shared, deep copy on first write)
+            latest_original_frame_ = originalResult;  // Original frame for screenshots
         }
     }
     
-    return result.copy();  // Deep copy for thread safety
+    return result;  // result is a freshly-allocated QImage; no extra deep copy needed
 }
 
 QImage FFmpegFrameProcessor::ConvertFrameToImage(AVFrame* frame, const QSize& targetSize)
@@ -489,7 +506,11 @@ QImage FFmpegFrameProcessor::ConvertWithScalingToImage(AVFrame* frame, const QSi
     UpdateScalingContext(width, height, format, QSize(targetWidth, targetHeight));
     
     // CRITICAL FIX: Allocate image BEFORE locking mutex to reduce lock time
-    QImage image(targetWidth, targetHeight, QImage::Format_RGB888);
+    // OPTIMIZATION: Use ARGB32 (32-bit aligned, 4 bytes/pixel) instead of RGB888
+    // (24-bit unaligned, 3 bytes/pixel).  sws_scale writes BGRA which maps directly
+    // to QImage::Format_ARGB32 on little-endian platforms (BGRA bytes = 0xAARRGGBB).
+    // 32-bit alignment lets SIMD gather/scatter operate on natural word boundaries.
+    QImage image(targetWidth, targetHeight, QImage::Format_ARGB32);
     if (image.isNull()) {
         return QImage();
     }
@@ -519,7 +540,7 @@ QImage FFmpegFrameProcessor::ConvertWithScalingToImage(AVFrame* frame, const QSi
         return QImage();
     }
     
-    return image.copy();  // Ensure thread-safe copy
+    return image;  // image was constructed fresh above with its own storage; no copy needed
 }
 
 #ifdef HAVE_LIBJPEG_TURBO
@@ -538,40 +559,52 @@ QImage FFmpegFrameProcessor::DecodeMJPEGWithTurboJPEG(AVPacket* packet, const QS
         return QImage();
     }
     
+    // Store native dimensions before any DCT scaling is applied
+    {
+        QMutexLocker locker(&mutex_);
+        native_jpeg_size_ = QSize(width, height);
+    }
+    
     // Determine target size for scaling
     int target_width = width;
     int target_height = height;
-    bool need_scaling = false;
-    
+
     if (targetSize.isValid() && !targetSize.isEmpty()) {
-        // TurboJPEG supports built-in scaling to 1/8, 1/4, 1/2, 1, 2x, 4x, 8x
-        // Choose the closest scaling factor
-        double scale_x = static_cast<double>(targetSize.width()) / width;
-        double scale_y = static_cast<double>(targetSize.height()) / height;
-        double scale = qMin(scale_x, scale_y);
-        
-        if (scale <= 0.125) {
-            target_width = width / 8;
-            target_height = height / 8;
-        } else if (scale <= 0.25) {
-            target_width = width / 4;
-            target_height = height / 4;
-        } else if (scale <= 0.5) {
-            target_width = width / 2;
-            target_height = height / 2;
-        } else if (scale >= 8.0) {
-            target_width = width * 8;
-            target_height = height * 8;
-        } else if (scale >= 4.0) {
-            target_width = width * 4;
-            target_height = height * 4;
-        } else if (scale >= 2.0) {
-            target_width = width * 2;
-            target_height = height * 2;
+        // TurboJPEG supports built-in DCT scaling at discrete ratios:
+        // 1/8, 1/4, 1/2, 1x, 2x, 4x, 8x.
+        //
+        // CRITICAL: Only use DCT downscaling when BOTH dimensions exceed the target.
+        // Using qMin(scale_x, scale_y) on mismatched aspect ratios causes one
+        // dimension to be unnecessarily shrunk. For example, a 960x540 image
+        // targeting a 1315x262 viewport has scale_x=1.37, scale_y=0.49.
+        // qMin picks 0.49 → 1/2 DCT scale → 480x270, making the width half
+        // of what the viewport can display, leaving large black bars.
+        //
+        // Instead: only DCT-downscale when the image is strictly larger than
+        // the target in both dimensions. Otherwise decode at full resolution
+        // and let the caller's Qt rescaler handle the final fit.
+        bool widthExceeds = targetSize.width() < width;
+        bool heightExceeds = targetSize.height() < height;
+
+        if (widthExceeds && heightExceeds) {
+            // Both dimensions need shrinking — pick the DCT scale based on the
+            // more aggressive ratio (the dimension that needs the most reduction).
+            double scale_x = static_cast<double>(targetSize.width()) / width;
+            double scale_y = static_cast<double>(targetSize.height()) / height;
+            double scale = qMin(scale_x, scale_y);
+
+            if (scale <= 0.125) {
+                target_width = width / 8;
+                target_height = height / 8;
+            } else if (scale <= 0.25) {
+                target_width = width / 4;
+                target_height = height / 4;
+            } else if (scale <= 0.5) {
+                target_width = width / 2;
+                target_height = height / 2;
+            }
         }
-        // else keep original size
-        
-        need_scaling = (target_width != width || target_height != height);
+        // else: keep original size — caller will handle final scaling
     }
     
     // Create QImage for output
@@ -588,8 +621,11 @@ QImage FFmpegFrameProcessor::DecodeMJPEGWithTurboJPEG(AVPacket* packet, const QS
         return QImage();
     }
     
-    // qCDebug(log_ffmpeg_backend) << "TurboJPEG decoded MJPEG:" << width << "x" << height 
+    // qCDebug(log_ffmpeg_backend) << "TurboJPEG decoded MJPEG:" << width << "x" << height
     //                            << "to" << target_width << "x" << target_height;
+    qCDebug(log_ffmpeg_backend) << "TurboJPEG decoded: native" << width << "x" << height
+                               << "-> decoded" << target_width << "x" << target_height
+                               << "(DCT scale applied:" << (target_width != width || target_height != height) << ")";
     
     return image;
 }
@@ -634,26 +670,34 @@ void FFmpegFrameProcessor::UpdateScalingContext(int width, int height, AVPixelFo
                                << width << "x" << height 
                                << "to" << targetWidth << "x" << targetHeight
                                << "from format" << format << "(" << (format_name ? format_name : "unknown") << ")"
-                               << "to RGB24 (24-bit RGB)"
+                               << "to BGRA (32-bit aligned, AV_PIX_FMT_BGRA → QImage::Format_ARGB32)"
                                << "with algorithm" << algorithm_name;
     
     // OPTIMIZATION: Choose scaling algorithm based on performance needs
     int scaling_flags;
     
-    if (targetSize.isValid() && (targetSize.width() == width && targetSize.height() == height)) {
-        // No scaling needed - use fastest point sampling
+    // Select the fastest algorithm that is correct for the operation:
+    //  - Format-only conversion with no geometry change (common NV12→BGRA path):
+    //    SWS_POINT — nearest-neighbour at 1:1 is identical in quality to any other
+    //    filter and avoids the multi-tap coefficient arithmetic entirely.
+    //  - Actual spatial downscale/upscale:
+    //    SWS_BILINEAR — visually indistinguishable from bicubic for ≤2× ratio
+    //    changes typical on a KVM display widget, and ~3× faster.
+    bool sameSize = (!targetSize.isValid() ||
+                    (targetSize.width() == width && targetSize.height() == height));
+    if (sameSize) {
         scaling_flags = SWS_POINT;
-        qCDebug(log_ffmpeg_backend) << "Using point sampling (no scaling needed)";
+        qCDebug(log_ffmpeg_backend) << "Using point sampling (format-only conversion, no resize)";
     } else {
-        // Real scaling needed - use fast bilinear for low latency
-        scaling_flags = SWS_BICUBIC;
-        qCDebug(log_ffmpeg_backend) << "Using bicubic scaling for better quality";
+        scaling_flags = SWS_BILINEAR;
+        qCDebug(log_ffmpeg_backend) << "Using bilinear scaling (resize to"
+                                   << targetWidth << "x" << targetHeight << ")";
     }
     
     sws_context_ = sws_getContext(
         width, height, format,
-        targetWidth, targetHeight, AV_PIX_FMT_RGB24,
-        scaling_flags,  // Optimized for performance
+        targetWidth, targetHeight, AV_PIX_FMT_BGRA,  // 32-bit aligned; faster SIMD than RGB24
+        scaling_flags,
         nullptr, nullptr, nullptr
     );
     

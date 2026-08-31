@@ -23,18 +23,21 @@
 
 #include "semanticAnalyzer.h"
 #include <stdexcept>
-#include <QDebug>
+#include <QLoggingCategory>
 #include <QString>
+#include <QThread>
 #include "KeyboardMouse.h"
+#include "SendKeyMaps.h"
 #include "global.h"
+#include "log/opflogging.h"
 
 
-Q_LOGGING_CATEGORY(log_script, "opf.scripts")
+OPF_LOGGING_CATEGORY(log_script, "opf.scripts")
 
 SemanticAnalyzer::SemanticAnalyzer(MouseManager* mouseManager, KeyboardMouse* keyboardMouse, QObject* parent)
     : QObject(parent), mouseManager(mouseManager), keyboardMouse(keyboardMouse) {
     if (!mouseManager) {
-        qDebug(log_script) << "MouseManager is not initialized!";
+        qCDebug(log_script) << "MouseManager is not initialized!";
     }
 }
 
@@ -51,7 +54,7 @@ void SemanticAnalyzer::analyzeTree(std::shared_ptr<ASTNode> tree) {
 
 bool SemanticAnalyzer::analyze(const ASTNode* node) {
     if (!node) {
-        qDebug(log_script) << "Received null node in analyze method.";
+        qCDebug(log_script) << "Received null node in analyze method.";
         return false;
     }
 
@@ -60,7 +63,7 @@ bool SemanticAnalyzer::analyze(const ASTNode* node) {
         case ASTNodeType::StatementList:
             // Process each statement in the list
             for (const auto& child : node->getChildren()) {
-                qDebug(log_script) << "Analyzing child node.";
+                qCDebug(log_script) << "Analyzing child node.";
                 if (!analyze(child.get())){
                     analysisSuccess = false;
                 }
@@ -69,24 +72,20 @@ bool SemanticAnalyzer::analyze(const ASTNode* node) {
             break;
             
         case ASTNodeType::CommandStatement:
-            qDebug(log_script) << "Analyzing command statement.";
+            qCDebug(log_script) << "Analyzing command statement.";
             emit commandIncrease();
-            // Handle Sleep locally in worker thread, others via main thread
+            // Execute all commands directly in SemanticAnalyzer
             {
                 const CommandStatementNode* cmd = static_cast<const CommandStatementNode*>(node);
-                QString commandName = cmd->getCommandName();
-                if (commandName == "Sleep") {
-                    analyzeSleepStatement(cmd);
-                } else {
-                    emit commandData(node);
-                }
+                qCDebug(log_script) << "Command name:" << cmd->getCommandName();
+                analyzeCommandStatement(cmd);
             }
             break;
             
         default:
             // Process any child nodes
             for (const auto& child : node->getChildren()) {
-                qDebug(log_script) << "Analyzing default child node.";
+                qCDebug(log_script) << "Analyzing default child node.";
                 if (!analyze(child.get())){
                     analysisSuccess = false;
                 }
@@ -100,17 +99,23 @@ void SemanticAnalyzer::resetParameters() {
     if (mouseManager) {
         // Reset mouse manager state
         mouseManager->reset();
-        qDebug(log_script) << "Reset parameters for next statement";
+        qCDebug(log_script) << "Reset parameters for next statement";
     } else {
-        qDebug(log_script) << "MouseManager is not available for reset!";
+        qCDebug(log_script) << "MouseManager is not available for reset!";
     }
 }
 
-void SemanticAnalyzer::analyzeCommandStetement(const CommandStatementNode* node){
+void SemanticAnalyzer::analyzeCommandStatement(const CommandStatementNode* node){
     QString commandName = node->getCommandName();
     
     if(commandName == "Click"){
         analyzeClickStatement(node);
+    }
+    if(commandName == "MouseMove"){
+        analyzeMouseMove(node);
+    }
+    if(commandName == "Scroll"){
+        analyzeScrollStatement(node);
     }
     if(commandName == "Send"){
         analyzeSendStatement(node);
@@ -239,7 +244,7 @@ void SemanticAnalyzer::analyzeSleepStatement(const CommandStatementNode* node){
     const auto& options = node->getOptions();
 
     if (options.empty()){
-        qDebug(log_script) << "No sleep time set";
+        qCDebug(log_script) << "No sleep time set";
         return;
     }
     for (const auto& token : options){
@@ -250,7 +255,7 @@ void SemanticAnalyzer::analyzeSleepStatement(const CommandStatementNode* node){
         if (!ok || sleepTime < 0) {
             continue; // Exit if the sleep time is invalid
         }else{
-            qDebug(log_script) << "Sleeping for" << sleepTime << "milliseconds";
+            qCDebug(log_script) << "Sleeping for" << sleepTime << "milliseconds";
             QThread::msleep(sleepTime); // Introduce the delay
         }
     }
@@ -260,124 +265,185 @@ void SemanticAnalyzer::analyzeSendStatement(const CommandStatementNode* node) {
     const auto& options = node->getOptions();
     
     if (options.empty()) {
-        qDebug(log_script) << "No keys provided for Send command";
+        qCDebug(log_script) << "No keys provided for Send command";
         return;
     }
 
-    // Combine all tokens into a single string, excluding quotes
-    QString tmpKeys;
-    bool append = false;
-    for (const auto& token : options) {
-        if (token =="\"")append = true;
-        if (append) tmpKeys.append(QString::fromStdString(token));
+    if (!keyboardMouse) {
+        qCDebug(log_script) << "Send: keyboardMouse is null";
+        return;
     }
 
-    tmpKeys.replace(QRegularExpression("^\"|\"$"), "");
-
+    // Build the key string from options
+    // String literals are now handled by Lexer as single STRING tokens
+    // with internal spaces preserved; wrapper quotes are stripped by Lexer.
+    // No need for quote-stripping logic here.
+    QString tmpKeys;
+    for (const auto& option : options) {
+        tmpKeys.append(QString::fromStdString(option));
+    }
     qCDebug(log_script) << "Processing keys:" << tmpKeys;
 
     int pos = 0;
-    while (pos < tmpKeys.length()) {
-        std::array<uint8_t, 6> general = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    int packetCount = 0;
+    const int MAX_PACKETS = tmpKeys.length() * 2 + 10;  // 2 packets per char (press+release) + margin
+
+    // backtickEscapeMap and shiftRequiredChars are defined in SendKeyMaps.h
+
+    while (pos < tmpKeys.length() && packetCount < MAX_PACKETS) {
+        std::array<uint8_t, 6> general = {0x00,0x00,0x00,0x00,0x00,0x00};
         uint8_t control = 0x00;
-        
-        // Check for control characters first
-        QRegularExpressionMatch controlMatch = regex.controlKeyRegex.match(tmpKeys, pos);
-        if (controlMatch.hasMatch() && controlMatch.capturedStart() == pos) {
-            // Process control key sequence
-            int keyIndex = 0;
-            int keyPos = 0;
-            QString controlChar = controlMatch.captured(1);
-            QString keys = controlMatch.captured(2);
-            control = controldata.value(controlChar[0]);
-            
-            // Process the keys after the control character
-            
-            while (keyPos < keys.length() && keyIndex < 6) {
-                if (keys[keyPos] == '{') {
-                    // Handle braced key
-                    QRegularExpressionMatch braceMatch = regex.braceKeyRegex.match(keys, keyPos);
-                    QRegularExpressionMatch clickMatch;
-                    if (braceMatch.hasMatch()) {
-                        QString keyName = braceMatch.captured(1);
-                        if (keydata.value(keyName)){
-                            general[keyIndex++] = keydata.value(keyName);
-                            keyPos = braceMatch.capturedEnd();
-                            continue;
-                        }else {
-                            clickMatch = regex.sendEmbedRegex.match(keyName);
-                            keyName.remove("Click");
-                            MouseParams params =  parserClickParam(keyName);
-                            keyPacket pack(general, control, params.mode, params.mouseButton, params.wheelDelta, params.coord);
-                            keyboardMouse->addKeyPacket(pack);
-                            pos = tmpKeys.length();
-                            keyPos = braceMatch.capturedEnd();
-                            qCDebug(log_script) << "position of mouse key last" << braceMatch.capturedEnd();
-                            break;
-                        }
-                    }
-                }
-                // Handle single character
-                general[keyIndex++] = keydata.value(keys[keyPos]);
-                keyPos++;
-                qCDebug(log_script) << "test for the position";
-            }
-            
-            keyPacket pack(general, control);
-            keyboardMouse->addKeyPacket(pack);
-            
-            pos = controlMatch.capturedEnd();
-        } else {
-            // Check for braced keys
-            QRegularExpressionMatch braceMatch = regex.braceKeyRegex.match(tmpKeys, pos);
-            QRegularExpressionMatch clickMatch;
-            if (braceMatch.hasMatch() && braceMatch.capturedStart() == pos) {
-                
-                QString keyName = braceMatch.captured(1);
-                if (keydata.value(keyName)){
-                    general[0] = keydata.value(keyName);
-                    keyPacket pack(general, control);
-                    keyboardMouse->addKeyPacket(pack);
-                } 
-                else {
-                    clickMatch = regex.sendEmbedRegex.match(keyName);
-                    keyName.remove("Click");
-                    qDebug(log_script) << "key: " << keyName;
-                    MouseParams params =  parserClickParam(keyName);
-                    keyPacket pack(params.mode, params.mouseButton, params.wheelDelta, params.coord); // Last param 0x00 is mouseRollWheel
-                    qCDebug(log_script) << "after key packet";
-                    keyboardMouse->addKeyPacket(pack);
-                }
-                
-                pos = braceMatch.capturedEnd();
-            } else {
-                // Handle single character
-                qCDebug(log_script) << "handling single character";
-                if (tmpKeys[pos].isUpper()){
-                    control = 0x02;     // shift press let the char become upper while send data
-                    qCDebug(log_script) << "Data is Upper case";
-                }
-                general[0] = keydata.value(tmpKeys[pos]);
-                pos++;
-                keyPacket pack(general, control);
+
+        // [Phase 4] Backtick escape sequences (highest priority, before modifier check)
+        if (tmpKeys[pos] == '`' && pos + 1 < tmpKeys.length()) {
+            QChar nextCh = tmpKeys[pos + 1];
+            if (backtickEscapeMap.contains(nextCh)) {
+                QPair<uint8_t, bool> entry = backtickEscapeMap.value(nextCh);
+                general[0] = entry.first;
+                uint8_t escCtrl = entry.second ? 0x02 : 0x00;
+                keyPacket pack(general, escCtrl);
                 keyboardMouse->addKeyPacket(pack);
+                packetCount++;
+                std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
+                keyPacket releasePack(release, 0x00);
+                keyboardMouse->addKeyPacket(releasePack);
+                packetCount++;
+                qCDebug(log_script) << "Added backtick escape:" << nextCh;
+                pos += 2;
+                continue;
             }
+            // Unrecognized backtick sequence: skip the backtick itself
+            qCDebug(log_script) << "Send: unrecognized backtick escape:" << tmpKeys[pos + 1] << "(skipping)";
+            pos++;
+            continue;
         }
 
-        // keyPacket pack(general, control);
-        // keyboardMouse->addKeyPacket(pack);
+        // [Phase 3] Accumulate AHK modifier prefixes: ^=Ctrl, !=Alt, +=Shift, #=Win
+        // Multiple modifiers may be combined (e.g. "^+c" = Ctrl+Shift+C)
+        int modifierStartPos = pos;  // Record position for error reporting
+        while (pos < tmpKeys.length() && controldata.contains(QString(tmpKeys[pos]))) {
+            control |= controldata.value(QString(tmpKeys[pos]));
+            qCDebug(log_script) << "Added modifier prefix at pos" << pos << ":" << tmpKeys[pos] << "(control now:" << QString("0x%1").arg(control, 2, 16, QChar('0')) << ")";
+            pos++;
+        }
+        
+        // Check if we have modifiers but no key to apply them to
+        if (pos >= tmpKeys.length() && control != 0x00) {
+            qCDebug(log_script) << "Send: ERROR - modifier prefix(es) at position" << modifierStartPos 
+                                << "with no key to modify. Use backtick escape for literal symbols: `^, `!, `+, `#";
+            break;  // Stop processing
+        }
+        
+        if (pos >= tmpKeys.length()) break;
+
+        // Check brace key (e.g., {Enter}, {Tab}) — re-evaluated after modifier advance
+        QRegularExpressionMatch braceMatch = regex.braceKeyRegex.match(tmpKeys, pos);
+        if (braceMatch.hasMatch() && braceMatch.capturedStart() == pos) {
+            QString keyName = braceMatch.captured(1);
+
+            // Check if this is a Click command
+            if (keyName.startsWith("Click", Qt::CaseInsensitive)) {
+                // Extract coordinates from "Click x, y"
+                QRegularExpression clickRegex(R"(Click\s+(\d+)\s*,\s*(\d+))", QRegularExpression::CaseInsensitiveOption);
+                QRegularExpressionMatch clickMatch = clickRegex.match(keyName);
+
+                if (clickMatch.hasMatch() && mouseManager) {
+                    int x = clickMatch.captured(1).toInt();
+                    int y = clickMatch.captured(2).toInt();
+                    qCDebug(log_script) << "Send: executing click at:" << x << "," << y;
+
+                    // Send any pending keyboard packets first
+                    if (packetCount > 0) {
+                        qCDebug(log_script) << "Send: sending" << packetCount << "packets before click";
+                        keyboardMouse->dataSend();
+                        packetCount = 0;
+                    }
+
+                    // Perform mouse click: press, wait, release
+                    mouseManager->handleAbsoluteMouseAction(x, y, Qt::LeftButton, 0);  // Press
+                    QThread::msleep(5);  // Wait 5ms
+                    mouseManager->handleAbsoluteMouseAction(x, y, 0, 0);  // Release
+                } else {
+                    qCDebug(log_script) << "Send: invalid Click format or mouseManager null:" << keyName;
+                }
+                pos = braceMatch.capturedEnd();
+                continue;
+            }
+
+            // Normalize key name: capitalize first letter
+            if (!keyName.isEmpty()) {
+                keyName = keyName.at(0).toUpper() + keyName.mid(1).toLower();
+            }
+            if (keydata.contains(keyName)) {
+                general[0] = keydata.value(keyName);
+                keyPacket pack(general, control);
+                keyboardMouse->addKeyPacket(pack);
+                packetCount++;
+                qCDebug(log_script) << "Added brace key press:" << keyName 
+                                   << "(HID:" << QString("0x%1").arg(general[0], 2, 16, QChar('0')) 
+                                   << ", modifiers:" << QString("0x%1").arg(control, 2, 16, QChar('0')) << ")";
+
+                // Send key release
+                std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
+                keyPacket releasePack(release, 0x00);
+                keyboardMouse->addKeyPacket(releasePack);
+                packetCount++;
+            } else {
+                qCDebug(log_script) << "Send: unsupported brace key:" << keyName << "(skipping)";
+                // Changed from return to continue: unknown brace key skips rather than aborting
+            }
+            pos = braceMatch.capturedEnd();
+            continue;
+        }
+
+        // Handle simple character
+        QChar ch = tmpKeys[pos];
+        // [Phase 2] Detect Shift requirement for uppercase letters and symbol characters
+        if (ch.isUpper() || shiftRequiredChars.contains(ch)) control |= 0x02;
+        QString chStr(ch);
+
+        if (keydata.contains(chStr)) {
+            general[0] = keydata.value(chStr);
+            keyPacket pack(general, control);
+            keyboardMouse->addKeyPacket(pack);
+            packetCount++;
+            qCDebug(log_script) << "Added char press:" << ch 
+                               << "(HID:" << QString("0x%1").arg(general[0], 2, 16, QChar('0')) 
+                               << ", modifiers:" << QString("0x%1").arg(control, 2, 16, QChar('0')) << ")";
+
+            // Send key release
+            std::array<uint8_t, 6> release = {0x00,0x00,0x00,0x00,0x00,0x00};
+            keyPacket releasePack(release, 0x00);
+            keyboardMouse->addKeyPacket(releasePack);
+            packetCount++;
+        } else {
+            qCDebug(log_script) << "Send: unsupported char:" << ch << "(skipping)";
+            // Changed from return to continue: unknown character is skipped instead of aborting
+        }
+        pos++;
     }
 
+    if (packetCount >= MAX_PACKETS) {
+        qCDebug(log_script) << "Send: packet count exceeded limit";
+        return;
+    }
+
+    qCDebug(log_script) << "Send: sending" << packetCount << "packets";
     keyboardMouse->dataSend();
-    qCDebug(log_script) << "test";
 }
 
 void SemanticAnalyzer::analyzeClickStatement(const CommandStatementNode* node) {
     const auto& options = node->getOptions();
     if (options.empty()) {
-        qDebug(log_script) << "No coordinates provided for Click command";
+        qCDebug(log_script) << "No coordinates provided for Click command";
         return;
     }
+    
+    if (!mouseManager) {
+        qCDebug(log_script) << "Error: MouseManager is not initialized, cannot process Click command";
+        return;
+    }
+    
     // for(const auto& token : options){
         
     // }
@@ -385,21 +451,24 @@ void SemanticAnalyzer::analyzeClickStatement(const CommandStatementNode* node) {
     QPoint coords = parseCoordinates(options);
     int mouseButton = parseMouseButton(options);  // This will be fresh for each statement
 
-    qDebug(log_script) << "Executing click at:" << coords.x() << "," << coords.y() 
+    qCDebug(log_script) << "Executing click at:" << coords.x() << "," << coords.y() 
              << "with button:" << mouseButton;
 
     try {
-        mouseManager->handleAbsoluteMouseAction(coords.x(), coords.y(), mouseButton, 0);
+        // Perform mouse click: press, wait, release
+        mouseManager->handleAbsoluteMouseAction(coords.x(), coords.y(), mouseButton, 0);  // Press
+        QThread::msleep(50);  // Wait 50ms
+        mouseManager->handleAbsoluteMouseAction(coords.x(), coords.y(), 0, 0);  // Release
     } catch (const std::exception& e) {
-        qDebug(log_script) << "Exception caught in handleAbsoluteMouseAction:" << e.what();
+        qCDebug(log_script) << "Exception caught in handleAbsoluteMouseAction:" << e.what();
     } catch (...) {
-        qDebug(log_script) << "Unknown exception caught in handleAbsoluteMouseAction.";
+        qCDebug(log_script) << "Unknown exception caught in handleAbsoluteMouseAction.";
     }
 }
 
 QPoint SemanticAnalyzer::parseCoordinates(const std::vector<std::string>& options) {
     if (options.empty()) {
-        qDebug(log_script) << "No coordinate components";
+        qCDebug(log_script) << "No coordinate components";
         return QPoint(0, 0);
     }
     
@@ -430,11 +499,11 @@ QPoint SemanticAnalyzer::parseCoordinates(const std::vector<std::string>& option
     }
     
     if (!foundComma || (!okX && !okY)) {
-        qDebug(log_script) << "Invalid coordinate format, using defaults";
+        qCDebug(log_script) << "Invalid coordinate format, using defaults";
         return QPoint(0, 0);
     }
     
-    qDebug(log_script) << "Parsed coordinates:" << x << "," << y;
+    qCDebug(log_script) << "Parsed coordinates:" << x << "," << y;
     return QPoint(x, y);
 }
 
@@ -454,7 +523,7 @@ int SemanticAnalyzer::parseMouseButton(const std::vector<std::string>& options) 
         }
     }
     
-    // qDebug(log_script) << "Parsed mouse button:" << mouseButton << "from options:" << options;
+    // qCDebug(log_script) << "Parsed mouse button:" << mouseButton << "from options:" << options;
 
     return mouseButton;
 }
@@ -462,12 +531,28 @@ int SemanticAnalyzer::parseMouseButton(const std::vector<std::string>& options) 
 void SemanticAnalyzer::analyzeMouseMove(const CommandStatementNode* node) {
     const auto& options = node->getOptions();
     if (options.empty()) {
-        qDebug(log_script) << "No coordinates provided for MouseMove command";
+        qCDebug(log_script) << "No coordinates provided for Move command";
         return;
     }
     
-    // Parse coordinates and speed from options
-    // QPoint coords = parseCoordinates(options);
+    if (!mouseManager) {
+        qCDebug(log_script) << "Error: MouseManager is not initialized, cannot process Move command";
+        return;
+    }
+    
+    // Parse coordinates from options
+    QPoint coords = parseCoordinates(options);
+
+    qCDebug(log_script) << "Executing move to:" << coords.x() << "," << coords.y();
+
+    try {
+        // Move without clicking (mouseButton = 0)
+        mouseManager->handleAbsoluteMouseAction(coords.x(), coords.y(), 0, 0);
+    } catch (const std::exception& e) {
+        qCDebug(log_script) << "Exception caught in handleAbsoluteMouseAction:" << e.what();
+    } catch (...) {
+        qCDebug(log_script) << "Unknown exception caught in handleAbsoluteMouseAction.";
+    }
 }
 
 MouseParams SemanticAnalyzer::parserClickParam(const QString& command) {
@@ -529,7 +614,7 @@ MouseParams SemanticAnalyzer::parserClickParam(const QString& command) {
             // Relative coordinates are single bytes
             params.coord.rel.x = static_cast<uint8_t>(std::min(std::max(numData[0], -128), 127) & 0xFF);
             params.coord.rel.y = static_cast<uint8_t>(std::min(std::max(numData[1], -128), 127) & 0xFF);
-            qDebug(log_script) << "rel coordinates: " << (int)params.coord.rel.x << ", " << (int)params.coord.rel.y;
+            qCDebug(log_script) << "rel coordinates: " << (int)params.coord.rel.x << ", " << (int)params.coord.rel.y;
         } else {
             // Absolute coordinates are 2 bytes each
             int x = (numData[0] * 4096) / GlobalVar::instance().getInputWidth();
@@ -539,7 +624,7 @@ MouseParams SemanticAnalyzer::parserClickParam(const QString& command) {
             params.coord.abs.x[1] = static_cast<uint8_t>((x >> 8) & 0xFF);
             params.coord.abs.y[0] = static_cast<uint8_t>(y & 0xFF);
             params.coord.abs.y[1] = static_cast<uint8_t>((y >> 8) & 0xFF);
-            qDebug(log_script) << "abs coordinates: " << x << " " << GlobalVar::instance().getInputWidth() 
+            qCDebug(log_script) << "abs coordinates: " << x << " " << GlobalVar::instance().getInputWidth() 
                              << ", " << y << " " << GlobalVar::instance().getInputHeight();
         }
     }
@@ -551,4 +636,44 @@ MouseParams SemanticAnalyzer::parserClickParam(const QString& command) {
     // keyPacket pack(Mode, _mouseButton, 0x00, coord); // Last param 0x00 is mouseRollWheel
     // qCDebug(log_script) << "after key packet";
     // keyboardMouse->addKeyPacket(pack);
+}
+
+void SemanticAnalyzer::analyzeScrollStatement(const CommandStatementNode* node) {
+    const auto& options = node->getOptions();
+    if (options.empty()) {
+        qCDebug(log_script) << "Scroll: no parameters provided. Usage: Scroll up|down";
+        return;
+    }
+
+    if (!mouseManager) {
+        qCDebug(log_script) << "Scroll: MouseManager is not initialized";
+        return;
+    }
+
+    // Parse direction: first token should be "up" or "down"
+    QString direction = QString::fromStdString(options[0]).toLower();
+    int scrollDirection = 1;  // default: up
+
+    if (direction == "down") {
+        scrollDirection = -1;
+    } else if (direction != "up") {
+        qCDebug(log_script) << "Scroll: unknown direction" << direction << "(defaulting to up)";
+    }
+
+    // Parse lines: second token (optional, default 1)
+    int lines = 1;
+    if (options.size() >= 2) {
+        bool ok = false;
+        int value = QString::fromStdString(options[1]).toInt(&ok);
+        if (ok && value > 0) {
+            lines = value;
+        } else {
+            qCDebug(log_script) << "Scroll: invalid lines value" << QString::fromStdString(options[1]) << "(defaulting to 1)";
+        }
+    }
+
+    qCDebug(log_script) << "Scroll: direction=" << (scrollDirection > 0 ? "up" : "down")
+                        << "lines=" << lines;
+
+    mouseManager->scrollWheel(scrollDirection);
 }

@@ -3,8 +3,9 @@
 #include <QLoggingCategory>
 #include <QSvgRenderer>
 #include <QTimer>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_statusbarmanager, "opf.ui.statusbarmanager")
+OPF_LOGGING_CATEGORY(log_ui_statusbarmanager, "opf.ui.statusbarmanager")
 StatusBarManager::StatusBarManager(QStatusBar *statusBar, QObject *parent)
     : QObject(parent), m_statusBar(statusBar), m_messageTimer(new QTimer(this)), m_messageThrottleActive(false)
 {
@@ -51,6 +52,14 @@ void StatusBarManager::initStatusBar()
     keyLayout->addWidget(keyPressedLabel);
     keyLayout->addWidget(keyLabel);
     m_statusBar->addWidget(keyContainer);
+
+    // TCP Server keys display - hidden by default, shown when TCP server starts
+    tcpKeyLabel = new QLabel(m_statusBar);
+    tcpKeyLabel->setFixedWidth(150);
+    tcpKeyLabel->setText("TCP: -");
+    tcpKeyLabel->setStyleSheet("color: #0066cc;");
+    tcpKeyLabel->hide();
+    m_statusBar->addWidget(tcpKeyLabel);
 
     QWidget *statusMessageContainer = new QWidget(m_statusBar);
     QHBoxLayout *statusMessageLayout = new QHBoxLayout(statusMessageContainer);
@@ -138,7 +147,27 @@ void StatusBarManager::showDeviceUnplugged(const QString& portChain)
 void StatusBarManager::onLastKeyPressed(const QString& key)
 {
     updateKeyboardIcon(key);
-    keyLabel->setText(key);
+    if (m_hideKeyboardInput && !key.isEmpty()) {
+        keyLabel->setText(QString(1, QChar(0x2022)));
+    } else {
+        keyLabel->setText(key);
+    }
+}
+
+void StatusBarManager::onTcpServerKeyHandled(const QString& key)
+{
+    if (!key.isEmpty()) {
+        tcpKeyLabel->setText(QString("TCP: %1").arg(key));
+        tcpKeyLabel->setStyleSheet("color: #0066cc; font-weight: bold;");
+    } else {
+        tcpKeyLabel->setText("TCP: -");
+        tcpKeyLabel->setStyleSheet("color: #0066cc;");
+    }
+}
+
+void StatusBarManager::setTcpServerVisible(bool visible)
+{
+    tcpKeyLabel->setVisible(visible);
 }
 
 void StatusBarManager::onLastMouseLocation(const QPoint& location, const QString& mouseEvent)
@@ -157,9 +186,6 @@ void StatusBarManager::onLastMouseLocation(const QPoint& location, const QString
     QPixmap pixmap = recolorSvg(svgPath, iconColor, QSize(12, 12));
     mouseLabel->setPixmap(pixmap);
 
-    int capture_width = m_statusWidget->getCaptureWidth() > 5000 ? 0 : m_statusWidget->getCaptureWidth();
-    int capture_height = m_statusWidget->getCaptureHeight() > 5000 ? 0 : m_statusWidget->getCaptureHeight();
-    
     int mouse_x = location.x();
     int mouse_y = location.y();
 
@@ -278,5 +304,18 @@ void StatusBarManager::showRecordingIndicator(bool show)
 {
     if (m_statusWidget) {
         m_statusWidget->showRecordingTime(show);
+    }
+}
+
+void StatusBarManager::setHideKeyboardInput(bool hide)
+{
+    m_hideKeyboardInput = hide;
+    if (hide) {
+        QString currentKey = keyLabel->text();
+        if (!currentKey.isEmpty()) {
+            keyLabel->setText(QString(1, QChar(0x2022)));
+        }
+    } else {
+        keyLabel->setText("");
     }
 }

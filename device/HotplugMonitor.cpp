@@ -1,33 +1,40 @@
 #include "HotplugMonitor.h"
-#include "DeviceManager.h"
+#include "IDeviceDiscovery.h"
 #include <QLoggingCategory>
 #include <QMutexLocker>
 #include <QtConcurrent>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_hotplug_monitor, "opf.device.hotplug")
+OPF_LOGGING_CATEGORY(log_hotplug_monitor, "opf.device.hotplug")
 
-HotplugMonitor::HotplugMonitor(DeviceManager* deviceManager, QObject *parent)
+HotplugMonitor::HotplugMonitor(IDeviceDiscovery* deviceDiscovery, QObject *parent)
     : QObject(parent)
-    , m_deviceManager(deviceManager)
+    , m_deviceDiscovery(deviceDiscovery)
     , m_timer(new QTimer(this))
     , m_running(false)
     , m_pollInterval(2000)
     , m_changeEventCount(0)
+    , m_checkWatcher(new QFutureWatcher<void>(this))
 {
-    if (!m_deviceManager) {
-        qCWarning(log_hotplug_monitor) << "Invalid device manager provided";
+    if (!m_deviceDiscovery) {
+        qCWarning(log_hotplug_monitor) << "Invalid device discovery provider provided";
         return;
     }
-    
+
     m_timer->setSingleShot(false);
     connect(m_timer, &QTimer::timeout, this, &HotplugMonitor::checkForChangesSlot);
-    
+
     qCDebug(log_hotplug_monitor) << "Hotplug monitor created";
 }
 
 HotplugMonitor::~HotplugMonitor()
 {
     stop();
+    // Wait for any in-flight background check to complete before destroying
+    if (m_checkWatcher && m_checkWatcher->isRunning()) {
+        qCDebug(log_hotplug_monitor) << "Waiting for background check to finish before destruction";
+        m_checkWatcher->waitForFinished();
+    }
     clearCallbacks();
     qCDebug(log_hotplug_monitor) << "Hotplug monitor destroyed";
 }
@@ -38,9 +45,9 @@ void HotplugMonitor::addCallback(ChangeCallback callback)
     qCDebug(log_hotplug_monitor) << "Added callback, total callbacks:" << m_callbacks.size();
 }
 
-void HotplugMonitor::removeCallback(ChangeCallback callback)
+void HotplugMonitor::removeCallback(ChangeCallback /*callback*/)
 {
-    // Note: This is a simplified removal - in practice you might want to use 
+    // Note: This is a simplified removal - in practice you might want to use
     // a more sophisticated callback management system
     qCDebug(log_hotplug_monitor) << "Callback removal requested (simplified implementation)";
 }
@@ -58,19 +65,19 @@ void HotplugMonitor::start(int pollIntervalMs)
         return;
     }
     
-    if (!m_deviceManager) {
-        qCWarning(log_hotplug_monitor) << "Cannot start - no device manager";
+    if (!m_deviceDiscovery) {
+        qCWarning(log_hotplug_monitor) << "Cannot start - no device discovery provider";
         return;
     }
-    
+
     qCDebug(log_hotplug_monitor) << "Starting hotplug monitor with interval:" << pollIntervalMs << "ms";
     m_pollInterval = pollIntervalMs;
     m_timer->setInterval(m_pollInterval);
-    
+
     // Take initial snapshot
     {
         QMutexLocker locker(&m_mutex);
-        m_lastSnapshot = m_deviceManager->discoverDevices();
+        m_lastSnapshot = m_deviceDiscovery->discoverDevices();
         m_initialSnapshot = m_lastSnapshot;
     }
     
@@ -127,13 +134,13 @@ QList<DeviceInfo> HotplugMonitor::getLastSnapshot() const
 
 void HotplugMonitor::checkForChanges()
 {
-    if (!m_deviceManager) {
-        qCWarning(log_hotplug_monitor) << "No device manager available for change check";
+    if (!m_deviceDiscovery) {
+        qCWarning(log_hotplug_monitor) << "No device discovery provider available for change check";
         return;
     }
-    
+
     qCDebug(log_hotplug_monitor) << "Checking for device changes...";
-    QList<DeviceInfo> currentDevices = m_deviceManager->discoverDevices();
+    QList<DeviceInfo> currentDevices = m_deviceDiscovery->discoverDevices();
     
     // Get previous snapshot with mutex protection
     QList<DeviceInfo> previousSnapshot;
@@ -161,7 +168,6 @@ void HotplugMonitor::checkForChanges()
         for (const auto& device : event.addedDevices) {
             qCDebug(log_hotplug_monitor) << "  + Added device:" << device.portChain << ", pid:" << device.pid << "vid:" << device.vid;
             emit newDevicePluggedIn(device);
-            break;
         }
         for (const auto& device : event.removedDevices) {
             qCDebug(log_hotplug_monitor) << "  - Removed device:" << device.portChain << ", pid:" << device.pid << "vid:" << device.vid;
@@ -276,8 +282,17 @@ DeviceChangeEvent HotplugMonitor::getInitialState() const
 
 void HotplugMonitor::checkForChangesSlot()
 {
+    // If a previous check is still running, skip this tick to avoid queuing up
+    // background tasks faster than they can complete (prevents thread pool exhaustion)
+    if (m_checkWatcher->isRunning()) {
+        qCDebug(log_hotplug_monitor) << "Previous check still running, skipping this tick";
+        return;
+    }
+
     // Run device discovery in background thread to avoid blocking UI
-    QtConcurrent::run([this]() {
+    // Use QPointer to safely detect if HotplugMonitor is destroyed mid-task
+    QFuture<void> future = QtConcurrent::run([this]() {
         checkForChanges();
     });
+    m_checkWatcher->setFuture(future);
 }

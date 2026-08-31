@@ -85,10 +85,18 @@ std::unique_ptr<ASTNode> Parser::parseStatement() {
 std::unique_ptr<ASTNode> Parser::parseCommandStatement() {
     QString tmp = QString::fromStdString(currentToken().value);
     advance(); // Move past the COMMAND token
-    
+
+    // Skip leading whitespace immediately after command name
+    while (currentToken().type == AHKTokenType::WHITESPACE) {
+        advance();
+    }
+
     std::vector<std::string> options;
     while (currentToken().type != AHKTokenType::NEWLINE &&
            currentToken().type != AHKTokenType::ENDOFFILE) {
+        // Keep ALL tokens including WHITESPACE — spaces between unquoted
+        // arguments must be preserved for Send command character concatenation.
+        // Commands that parse numeric params (Click, Sleep) ignore non-numeric tokens.
         options.push_back(currentToken().value);
         advance();
     }

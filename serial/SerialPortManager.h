@@ -55,6 +55,15 @@ class SerialStateManager;
 class SerialStatistics;
 class SerialHotplugHandler;
 
+// Serial port state machine to prevent race conditions during hotplug
+enum class SerialPortState : uint8_t {
+    CLOSED = 0,           // No port instance or port closed
+    OPENING,              // Open in progress
+    OPEN,                 // Port open and ready
+    CLOSING,              // Close in progress (deleteLater pending)
+    ERROR_STATE           // Error occurred, reject new opens until cleared
+};
+
 // Chip type enumeration (kept for backward compatibility)
 // New code should use ChipTypeId from ChipStrategyFactory.h
 enum class ChipType : uint32_t {
@@ -101,11 +110,16 @@ public:
     bool getCapsLockState();
     bool getScrollLockState();
 
-    bool writeData(const QByteArray &data);
+    Q_INVOKABLE bool writeData(const QByteArray &data);
     bool writeDataInThread(const QByteArray &data);
     bool sendAsyncCommand(const QByteArray &data, bool force);
     bool sendResetCommand();
     QByteArray sendSyncCommand(const QByteArray &data, bool force);
+    
+    // Lock key toggle commands (high-level interface)
+    bool toggleNumLock();        // Send NumLock toggle command to device
+    bool toggleCapsLock();       // Send CapsLock toggle command to device
+    bool toggleScrollLock();     // Send ScrollLock toggle command to device
 
     bool reconfigureHidChip(int targetBaudrate = DEFAULT_BAUDRATE);
     bool factoryResetHipChipV191();
@@ -134,6 +148,8 @@ public:
     bool switchSerialPortByPortChain(const QString& portChain);
     QString getCurrentSerialPortPath() const;
     QString getCurrentSerialPortChain() const;
+    bool isPortReady() const { return ready.load(); }
+    bool isPortOpen() const;
     
     // Hotplug monitoring integration
     void connectToHotplugMonitor();
@@ -173,6 +189,13 @@ public:
     ChipType getCurrentChipType() const { return m_currentChipType; }
     inline bool isChipTypeCH32V208() const { return m_currentChipType == ChipType::CH32V208; }
     inline bool isChipTypeCH9329() const { return m_currentChipType == ChipType::CH9329; }
+
+    // Check if CH340 driver is installed (required for CH9329 chip)
+    static bool checkCH340DriverInstalled();
+
+    // Check if CH9329 USB device is present but CH340 driver is missing
+    // Uses USB enumeration (not serial port) so it works even without driver
+    static bool isCH9329PresentAndDriverMissing();
     
     // New USB switch methods for CH32V208 serial port (firmware with new protocol)
     void switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)
@@ -208,6 +231,12 @@ signals:
     void serialPortReset(bool isStarted); // Serial port reset started/ended
     void statusUpdate(const QString &status); // General status update for UI
     void factoryReset(bool isStarted); // Factory reset started/ended
+    void driverInstallationRequired(); // Emitted when CH9329 detected but CH340 driver is missing
+
+    // Emitted when serial recovery (RTS reset) has failed and the device is not truly present
+    // on the USB bus. DeviceLifecycleManager uses this to trigger USB hub port reset as a
+    // last-resort recovery mechanism (Linux only, for CH32V208 enumeration failure after target restart).
+    void serialRecoveryFailed();
     
     void requestFactoryReset();
     void requestFactoryResetV191();
@@ -218,6 +247,9 @@ signals:
     
     void logMessage(const QString& msg);
     
+    // New signal for applying hardware settings in worker thread
+    void requestApplyHardwareSetting(int baudrate, uint8_t mode, bool needFactoryReset);
+    
 private slots:
     void observeSerialPortNotification();
     void readData();
@@ -227,6 +259,9 @@ private slots:
     
     void handleFactoryReset();
     void handleFactoryResetV191();
+    
+    // Hardware setting application (runs in worker thread)
+    void applyHardwareSettingInternal(int baudrate, uint8_t mode, bool needFactoryReset);
     
     // New async restart methods to replace blocking operations
     void restartPortInternalAsync(const QString &portName, qint32 baudRate);
@@ -253,6 +288,7 @@ private slots:
     void onSerialPortConnectionSuccess(const QString &portName);
     void onUsbStatusCheckTimeout();  // New slot for USB status check timer
     void onGetInfoTimeout();  // New slot for periodic GET_INFO requests
+    void handleTargetUsbStatusChanged(bool connected);  // Detect target restart and trigger RTS recovery
     
     
 private:
@@ -270,6 +306,10 @@ private:
     
     // SerialPort validation helper with detailed diagnostics
     bool isSerialPortValid() const;
+
+    // Check if a known device (CH9329/CH32V208) is present on the USB bus by VID/PID.
+    // Used as a fallback when port name matching fails (e.g., Linux device node renaming).
+    bool isKnownDevicePresent() const;
     
     // Thread-safe baudrate setting (must be called from worker thread to access serialPort)
     bool setBaudRateInternal(int baudRate);
@@ -339,10 +379,27 @@ private:
     // Indicates a baud-rate change is in progress; used to suppress transient errors
     std::atomic<bool> m_baudChangeInProgress{false};
 
+    // Serial port state machine to prevent race conditions
+    std::atomic<SerialPortState> m_portState{SerialPortState::CLOSED};
+
     // Flag set to true when device is detected as unplugged, preventing port operations until cleared
     // This prevents race conditions where open attempts occur while device is being removed
     std::atomic<bool> m_deviceUnpluggedDetected{false};
     std::atomic<bool> m_deviceUnplugCleanupInProgress{false};
+
+    // Target-side recovery state: set true when target USB disconnects detected (target restart).
+    // Blocks new commands and escalates recovery to RTS hardware reset until target reconnects.
+    std::atomic<bool> m_targetRecoveryInProgress{false};
+    QTimer* m_targetDisconnectRecoveryTimer = nullptr;  // Debounce timer for target disconnect recovery
+
+    // Host-side RTS recovery state: set true when CH32V208 becomes unresponsive on host USB
+    // (error code 6 after error code 8). Triggers RTS hardware reset to recover the chip.
+    std::atomic<bool> m_rtsRecoveryInProgress{false};
+
+    // Fatal error handling guard: set true when error code 6 (ResourceError) is handled.
+    // Prevents duplicate handling and ensures the serial port is closed immediately to
+    // stop the error flood (millions of error signals from broken USB device).
+    std::atomic<bool> m_fatalErrorHandled{false};
 
     // Legacy error counters removed - handled by SerialStatistics and ConnectionWatchdog
     QTimer* m_connectionWatchdog;
@@ -369,6 +426,16 @@ private:
     QByteArray m_incompleteDataBuffer;
     QMutex m_bufferMutex;
     static const int MAX_BUFFER_SIZE = 256; // Maximum buffer size to prevent memory issues
+
+    // Hotplug recovery state
+    int m_initRetryCount = 0;
+    static constexpr int MAX_INIT_RETRIES = 3;
+    QString m_pendingInitPortName;
+    int m_pendingInitBaudrate = 0;
+
+    // Port chain delayed clear to prevent race conditions during rapid hotplug
+    QTimer* m_portChainClearTimer = nullptr;
+    QString m_pendingPortChainClear;
     
     // Sync command handling to prevent race conditions
     std::atomic<bool> m_pendingSyncCommand = false;
@@ -407,6 +474,10 @@ private:
     
     // Enhanced error handling
     void handleSerialError(QSerialPort::SerialPortError error);
+    // Trigger RTS hardware reset when CH32V208 becomes unresponsive on host USB
+    // (e.g., after target restart causes chip to enter bad state).
+    // This recovers the chip without requiring physical replug on host side.
+    void triggerRtsRecoveryForUnresponsiveDevice();
     // Attempt to resynchronize the buffer to the next valid header sequence (0x57 0xAB).
     // If resynchronization succeeds and completeData contains at least the minimal packet length,
     // return true. Otherwise update m_incompleteDataBuffer accordingly and return false.
@@ -422,6 +493,13 @@ private:
     void initializeCH9329Async(const QString &portName, int tryBaudrate);
     void initializeCH32V208Sync(const QString &portName);
     void attemptCH9329Connection(const QString &portName, const QList<int> &baudOrder, int baudIndex, int cycle, int maxCycles);
+
+    // Hotplug recovery: delayed retry when initialization fails during rapid plug/unplug
+    void scheduleInitRetry(const QString& portName, int baudrate);
+    void attemptInitRetry();
+
+    // Port chain protection: cancel pending clear when a new device connects
+    void cancelPendingPortChainClear();
     
     QString statusCodeToString(uint8_t status) {
         switch (status) {

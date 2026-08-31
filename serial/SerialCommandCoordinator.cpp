@@ -27,6 +27,8 @@
 #include <QLoggingCategory>
 #include <QEventLoop>
 #include <QElapsedTimer>
+#include <QFile>
+#include <QTextStream>
 
 // Declare the unified serial logging category (defined in SerialPortManager.cpp)
 Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
@@ -50,16 +52,39 @@ SerialCommandCoordinator::~SerialCommandCoordinator()
 
 bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const QByteArray &data, bool force)
 {
+    // DEBUG: Log to file for MCP keyboard diagnostics
+    {
+        QFile debugLog("/tmp/serial-command-debug.log");
+        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+            QTextStream out(&debugLog);
+            out << "=== sendAsyncCommand called ===\n";
+            out << "m_ready: " << m_ready << "\n";
+            out << "force: " << force << "\n";
+            out << "serialPort: " << (void*)serialPort << "\n";
+            out << "serialPort->isOpen(): " << (serialPort ? serialPort->isOpen() : false) << "\n";
+            out << "data: " << QString::fromLatin1(data.toHex(' ')) << "\n";
+            debugLog.close();
+        }
+    }
+
     if (!force && !m_ready) {
-        qCDebug(log_core_serial) << "Cannot send async command: not ready";
+        qCWarning(log_core_serial) << "⚠️ COMMAND DROPPED: not ready (m_ready=" << m_ready << ", force=" << force << ")";
+        // Log dropped command
+        QFile debugLog("/tmp/serial-command-debug.log");
+        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+            QTextStream out(&debugLog);
+            out << "⚠️ COMMAND DROPPED: m_ready=" << m_ready << "\n";
+            out << "   data: " << QString::fromLatin1(data.toHex(' ')) << "\n";
+            debugLog.close();
+        }
         return false;
     }
-    
+
     if (m_isShuttingDown || !serialPort || !serialPort->isOpen()) {
-        qCDebug(log_core_serial) << "Cannot send async command: shutting down or port not open";
+        qCWarning(log_core_serial) << "⚠️ COMMAND DROPPED: port not available";
         return false;
     }
-    
+
     QByteArray command = data;
     emit dataSent(data);
 
@@ -67,7 +92,7 @@ bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const Q
     {
         QString portName = serialPort ? serialPort->portName() : QString();
         int baudrate = serialPort ? serialPort->baudRate() : 0;
-        qCDebug(log_core_serial).nospace().noquote() << "TX (" << portName << "@" << baudrate << "bps): " << data.toHex(' ');
+        qCInfo(log_core_serial).nospace().noquote() << "TX (" << portName << "@" << baudrate << "bps): " << data.toHex(' ');
         // Also log to diagnostics file if enabled
         if (SerialPortManager::getInstance().getSerialLogFilePath().contains("serial_log_diagnostics")) {
             SerialPortManager::getInstance().log(QString("TX (%1@%2bps): %3").arg(portName).arg(baudrate).arg(QString(data.toHex(' '))));
@@ -85,15 +110,17 @@ bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const Q
     if (m_lastCommandTime.isValid() && m_lastCommandTime.elapsed() < m_commandDelayMs) {
         int remainingDelay = m_commandDelayMs - m_lastCommandTime.elapsed();
         qCDebug(log_core_serial) << "Delaying command by" << remainingDelay << "ms";
-        
+
         QEventLoop loop;
         QTimer::singleShot(remainingDelay, &loop, &QEventLoop::quit);
         loop.exec();
     }
 
+    qCInfo(log_core_serial) << "▶️ Executing command on serial port...";
     bool result = executeCommand(serialPort, command);
     m_lastCommandTime.start();
-    
+
+    qCInfo(log_core_serial) << "✅ Command execution result:" << (result ? "SUCCESS" : "FAILED");
     emit commandExecuted(data, result);
     return result;
 }
@@ -339,36 +366,81 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
         return false;
     }
 
+    // DEBUG: Log command execution attempt
+    {
+        QFile debugLog("/tmp/serial-command-debug.log");
+        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+            QTextStream out(&debugLog);
+            out << "=== executeCommand called ===\n";
+            out << "command size: " << command.size() << "\n";
+            out << "command: " << QString::fromLatin1(command.toHex(' ')) << "\n";
+            out << "port: " << serialPort->portName() << "\n";
+            out << "baudrate: " << serialPort->baudRate() << "\n";
+            debugLog.close();
+        }
+    }
+
     try {
         qint64 bytesWritten = serialPort->write(command);
         if (bytesWritten == -1) {
             qCWarning(log_core_serial) << "Failed to write command to serial port:" << serialPort->errorString();
+            // Log error
+            QFile debugLog("/tmp/serial-command-debug.log");
+            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+                QTextStream out(&debugLog);
+                out << "⚠️ WRITE FAILED: " << serialPort->errorString() << "\n";
+                debugLog.close();
+            }
             return false;
         }
-        
+
         if (bytesWritten != command.size()) {
-            qCWarning(log_core_serial) << "Incomplete write: expected" << command.size() 
+            qCWarning(log_core_serial) << "Incomplete write: expected" << command.size()
                                          << "bytes, wrote" << bytesWritten;
+            // Log partial write
+            QFile debugLog("/tmp/serial-command-debug.log");
+            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+                QTextStream out(&debugLog);
+                out << "⚠️ PARTIAL WRITE: expected " << command.size() << ", wrote " << bytesWritten << "\n";
+                debugLog.close();
+            }
             return false;
         }
-        
+
         if (!serialPort->waitForBytesWritten(1000)) {
             qCWarning(log_core_serial) << "Timeout waiting for bytes to be written:" << serialPort->errorString();
+            // Log timeout
+            QFile debugLog("/tmp/serial-command-debug.log");
+            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+                QTextStream out(&debugLog);
+                out << "⚠️ WRITE TIMEOUT: " << serialPort->errorString() << "\n";
+                debugLog.close();
+            }
             return false;
         }
-        
+
+        // Log success
+        {
+            QFile debugLog("/tmp/serial-command-debug.log");
+            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
+                QTextStream out(&debugLog);
+                out << "✅ WRITE SUCCESS: " << bytesWritten << " bytes\n";
+                debugLog.close();
+            }
+        }
+
         // Record command sent in statistics
         if (m_statistics) {
             m_statistics->recordCommandSent();
         }
-        
+
         // Legacy statistics tracking
         if (m_isStatsEnabled) {
             m_statsSent++;
         }
-        
+
         return true;
-        
+
     } catch (...) {
         qCCritical(log_core_serial) << "Exception while writing to serial port";
         return false;

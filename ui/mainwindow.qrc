@@ -7,6 +7,8 @@
         <file>../images/icon_64.ico</file>
         <file>../images/icon_128.png</file>
         <file>../images/icon_128.ico</file>
+        <file>../images/icon_256.png</file>
+        <file>../images/icon_256.svg</file>
         <file>../images/content_dark_eng.png</file>
         <file>../images/paste.svg</file>
         <file>../images/screensaver.svg</file>
@@ -19,6 +21,7 @@
         <file>../images/keyboard-down.svg</file>
         <file>../images/keyboard-up.svg</file>
         <file>../images/monitor.svg</file>
+        <file>../images/cpu.svg</file>
         <file>../images/usbplug.svg</file>
         <file>../images/laptop.svg</file>
         <file>../images/zoom_in.svg</file>

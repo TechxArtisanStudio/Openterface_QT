@@ -30,7 +30,9 @@
 #include <QObject>
 #include <QLoggingCategory>
 
-Q_DECLARE_LOGGING_CATEGORY(log_core_mouse)
+Q_DECLARE_LOGGING_CATEGORY(log_mouse_abs)
+Q_DECLARE_LOGGING_CATEGORY(log_mouse_rel)
+Q_DECLARE_LOGGING_CATEGORY(log_mouse_scroll)
 
 #include <QThread>
 #include <QCursor>
@@ -128,22 +130,35 @@ public:
 
     void handleAbsoluteMouseAction(int x, int y, int mouse_event, int wheelMovement);
     void handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement);
+    void scrollWheel(int direction, int lines = 1);
     void setEventCallback(StatusEventCallback* callback);
     void startAutoMoveMouse();
     void stopAutoMoveMouse();
 
+    // Release all held mouse buttons — sends a zero-button report.
+    // Called on device disconnect to prevent stuck buttons on the target.
+    void releaseAllButtons();
+
     void reset() {
         // Reset any internal state
         // For example, clear any stored coordinates or button states
-        qDebug() << "Mouse manager reset";
+        currentMouseButton = 0;
+        qCDebug(log_mouse_abs) << "Mouse manager reset";
     }
 
 private:
-    bool isDragging = false; 
+    bool isDragging = false;
     StatusEventCallback* statusEventCallback = nullptr;
+    int currentMouseButton = 0;  // Track current mouse button state
+    int lastX = 0;              // Last known absolute X coordinate
+    int lastY = 0;              // Last known absolute Y coordinate
 
     uint8_t mapScrollWheel(int delta);
     MouseMoverThread* mouseMoverThread = nullptr;
+
+public:
+    // Get current mouse button state
+    int getCurrentMouseButton() const { return currentMouseButton; }
 };
 
 #endif // MOUSEMANAGER_H

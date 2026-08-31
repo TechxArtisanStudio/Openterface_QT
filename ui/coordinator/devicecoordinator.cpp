@@ -31,8 +31,9 @@
 #include <QMetaObject>
 #include <QPointer>
 #include <QThread>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_devicecoordinator, "opf.ui.devicecoordinator")
+OPF_LOGGING_CATEGORY(log_ui_devicecoordinator, "opf.ui.devicecoordinator")
 
 DeviceCoordinator::DeviceCoordinator(QMenu *deviceMenu, CameraManager *cameraManager, QObject *parent)
     : QObject(parent)
@@ -345,12 +346,17 @@ void DeviceCoordinator::scheduleAutoSelectFirstDevice(const QString &portChain)
 
     // Use QPointer to safely reference this object from background threads
     QPointer<DeviceCoordinator> safeThis(this);
-    CameraManager *cameraManager = m_cameraManager;
+    QPointer<CameraManager> safeCameraManager(m_cameraManager);  // QPointer for safe cross-thread access
 
     // Run device switching scheduled on DeviceManager thread; do not block UI
-    (void)QtConcurrent::run([portChain, cameraManager, safeThis]() {
+    (void)QtConcurrent::run([portChain, safeCameraManager, safeThis]() {
         if (!safeThis) {
             qCWarning(log_ui_devicecoordinator) << "DeviceCoordinator destroyed before scheduling auto-select";
+            return;
+        }
+
+        if (!safeCameraManager) {
+            qCWarning(log_ui_devicecoordinator) << "CameraManager destroyed before scheduling auto-select";
             return;
         }
 
@@ -358,15 +364,43 @@ void DeviceCoordinator::scheduleAutoSelectFirstDevice(const QString &portChain)
         QThread::msleep(10);
 
         DeviceManager &deviceManager = DeviceManager::getInstance();
-        // Schedule the actual switching to run in the DeviceManager's QObject thread via queued invocation
-        QMetaObject::invokeMethod(&deviceManager, [portChain, cameraManager]() {
-            qCDebug(log_ui_devicecoordinator) << "Queued auto-select switch to port chain:" << portChain;
-            // Resolve deviceManager inside the queued functor to ensure correct context
-            DeviceManager &dm = DeviceManager::getInstance();
-            auto result = dm.switchToDeviceByPortChainWithCamera(portChain, cameraManager);
-            Q_UNUSED(result);
-        }, Qt::QueuedConnection);
 
-        // We're intentionally not waiting for switch completion — UI should already be updated
+        // Exponential backoff retry: 10ms, 500ms, 1000ms, 2000ms, 3000ms
+        const int retryDelays[] = {10, 500, 1000, 2000, 3000};
+        const int maxRetries = 5;
+
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            if (attempt > 0) {
+                qCDebug(log_ui_devicecoordinator) << "Auto-select retry attempt" << (attempt + 1)
+                                                   << "/" << maxRetries << "after" << retryDelays[attempt] << "ms";
+                QThread::msleep(retryDelays[attempt]);
+            }
+
+            // Check QPointer validity before each attempt
+            if (!safeCameraManager) {
+                qCWarning(log_ui_devicecoordinator) << "CameraManager destroyed during auto-select retry";
+                return;
+            }
+
+            // Schedule the actual switching to run in the DeviceManager's QObject thread via queued invocation
+            bool success = false;
+            QMetaObject::invokeMethod(&deviceManager, [portChain, safeCameraManager, &success]() {
+                if (!safeCameraManager) {
+                    qCWarning(log_ui_devicecoordinator) << "CameraManager destroyed before switch execution";
+                    return;
+                }
+                qCDebug(log_ui_devicecoordinator) << "Queued auto-select switch to port chain:" << portChain;
+                DeviceManager &dm = DeviceManager::getInstance();
+                auto result = dm.switchToDeviceByPortChainWithCamera(portChain, safeCameraManager.data());
+                success = result.success || result.hidSuccess;
+            }, Qt::BlockingQueuedConnection);
+
+            if (success) {
+                qCInfo(log_ui_devicecoordinator) << "✓ Auto-select succeeded on attempt" << (attempt + 1);
+                return;
+            }
+        }
+
+        qCWarning(log_ui_devicecoordinator) << "Auto-select failed after" << maxRetries << "attempts for port chain:" << portChain;
     });
 }

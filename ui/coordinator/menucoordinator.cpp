@@ -26,8 +26,9 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QDebug>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_menucoordinator, "opf.ui.menucoordinator")
+OPF_LOGGING_CATEGORY(log_ui_menucoordinator, "opf.ui.menucoordinator")
 
 MenuCoordinator::MenuCoordinator(QMenu *languageMenu,
                                  QMenu *baudrateMenu,
@@ -75,7 +76,7 @@ void MenuCoordinator::setupLanguageMenu()
     
     // Fallback list if no languages are found
     if (languages.isEmpty()) {
-        languages << "en" << "fr" << "de" << "da" << "ja" << "se";
+        languages << "en" << "fr" << "de" << "da" << "ja" << "se" << "zh" << "es" << "it" << "ko" << "pt" << "ro" << "ru";
         qCDebug(log_ui_menucoordinator) << "Using fallback language list";
     }
     
@@ -90,11 +91,17 @@ void MenuCoordinator::setupLanguageMenu()
     QMap<QString, QString> languageNames = {
         {"en", "English"},
         {"fr", "Français"},
-        {"de", "German"},
-        {"da", "Danish"},
-        {"ja", "Japanese"},
-        {"se", "Swedish"},
-        {"zh", "中文"}
+        {"de", "Deutsch"},
+        {"da", "Dansk"},
+        {"ja", "日本語"},
+        {"se", "Svenska"},
+        {"zh", "中文"},
+        {"es", "Español"},
+        {"it", "Italiano"},
+        {"ko", "한국어"},
+        {"pt", "Português"},
+        {"ro", "Română"},
+        {"ru", "Русский"}
     };
     
     // Create menu actions for each language
@@ -149,7 +156,7 @@ void MenuCoordinator::updateBaudrateMenu(int baudrate)
     }
 }
 
-void MenuCoordinator::showArmBaudratePerformanceRecommendation(int currentBaudrate)
+void MenuCoordinator::showArmBaudratePerformanceRecommendation(int /*currentBaudrate*/)
 {
     if (!m_parentWidget) {
         qCWarning(log_ui_menucoordinator) << "No parent widget for dialog";

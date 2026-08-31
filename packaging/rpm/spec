@@ -22,8 +22,14 @@ Requires:       mesa-libGL
 # Audio support
 Requires:       pulseaudio-libs
 
-# Video capture support  
+# Video capture support
 Requires:       libv4l
+
+# Hardware acceleration (VA-API) - CRITICAL for video decoding
+# libva must be system library to avoid symbol conflicts with system libavutil
+Requires:       libva
+Requires:       libva-drm
+Requires:       libva-x11
 
 # Keyboard input (works for both Wayland and X11)
 # libxkbcommon is available on all Fedora versions
@@ -146,11 +152,10 @@ cp %{_sourcedir}/libusb*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || 
 cp %{_sourcedir}/libbz2*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 cp %{_sourcedir}/libz*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 
-# Hardware acceleration libraries
-cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libva.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libva-drm.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
-cp %{_sourcedir}/libva-x11.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
+# Hardware acceleration libraries - use system libraries, do NOT bundle
+# libva is now a system dependency (see Requires: section above)
+# Bundling libva causes symbol incompatibilities with system libavutil (vaMapBuffer2)
+# cp %{_sourcedir}/libva*.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 cp %{_sourcedir}/libvdpau.so* %{buildroot}/usr/lib/openterfaceqt/ 2>/dev/null || true
 
 # GStreamer and multimedia libraries (from gstreamer subdirectory)
@@ -482,7 +487,7 @@ find %{buildroot} -type f -o -type l | sed 's|%{buildroot}||' > %{_builddir}/../
 # 3. Graceful handling when AutoReqProv is disabled
 #
 # Required system dependencies (most are bundled, these are NOT):
-#   - Graphics: mesa-libEGL, mesa-libGLES
+#   - Graphics: mesa-libEGL, libglvnd-gles
 #   - Audio: pulseaudio-libs
 #   - Video: libv4l
 #   - X11/Display: libxkbcommon, wayland-client, libxcb, libX11
@@ -527,7 +532,7 @@ echo ""
 # Define RPM package names (different from DEB)
 GRAPHICS_DEPS=(
     "mesa-libEGL"
-    "mesa-libGLES"
+    "libglvnd-gles"
 )
 
 AUDIO_DEPS=(
@@ -547,7 +552,7 @@ DISPLAY_DEPS=(
 
 OPENGL_DEPS=(
     "mesa-libGL"
-    "mesa-libglapi"
+    "mesa-dri-drivers"
     "mesa-libGLU"
 )
 
@@ -555,13 +560,13 @@ OPENGL_DEPS=(
 # App will fallback to Wayland if X11 is not available, so these are optional
 # User can install them manually for X11 support if needed
 
+# libva is now a REQUIRED system dependency (not bundled to avoid symbol conflicts)
 HWACCEL_DEPS=(
-    "libva"
     "libvdpau"
 )
 
 COMPRESSION_DEPS=(
-    "zlib"
+    "zlib-ng-compat"
     "bzip2-libs"
 )
 
@@ -585,16 +590,61 @@ print_category() {
     echo "  📦 $category:"
 }
 
-# Helper function to check if RPM package is installed
-is_rpm_installed() {
+# Helper function to check if RPM package is installed OR if the required library soname exists
+# This handles Fedora package name variations (e.g., libglvnd-gles vs mesa-libGLES, zlib-ng-compat vs zlib)
+is_installed_or_lib() {
     local pkg=$1
-    rpm -q "$pkg" >/dev/null 2>&1
+
+    # Quick RPM check first
+    if rpm -q "$pkg" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    # Map package names to their library sonames for Fedora compatibility
+    case "$pkg" in
+        mesa-libGLES|libglvnd-gles)
+            # Check for OpenGL ES support (Fedora uses libglvnd-gles)
+            if ldconfig -p 2>/dev/null | grep -q "libGLESv2.so"; then return 0; fi
+            if ldconfig -p 2>/dev/null | grep -q "libEGL.so"; then return 0; fi
+            if ls /usr/lib*/libGLESv2.so* >/dev/null 2>&1; then return 0; fi
+            if ls /usr/lib*/libEGL.so* >/dev/null 2>&1; then return 0; fi
+            ;;
+        mesa-libglapi|mesa-dri-drivers)
+            # Check for OpenGL API (Fedora uses mesa-dri-drivers)
+            if ldconfig -p 2>/dev/null | grep -q "libglapi.so"; then return 0; fi
+            if ldconfig -p 2>/dev/null | grep -q "libGL.so"; then return 0; fi
+            if ls /usr/lib*/libglapi.so* >/dev/null 2>&1; then return 0; fi
+            if ls /usr/lib*/libGL.so* >/dev/null 2>&1; then return 0; fi
+            ;;
+        zlib|zlib-ng-compat)
+            # Check for zlib compression (Fedora uses zlib-ng-compat)
+            if ldconfig -p 2>/dev/null | grep -q "libz.so.1"; then return 0; fi
+            if ls /usr/lib*/libz.so.1* >/dev/null 2>&1; then return 0; fi
+            if ls /usr/lib*/libz.so* >/dev/null 2>&1; then return 0; fi
+            ;;
+        libvdpau)
+            # Check for VDPAU hardware acceleration
+            if ldconfig -p 2>/dev/null | grep -q "libvdpau.so.1"; then return 0; fi
+            if ls /usr/lib*/libvdpau.so.1* >/dev/null 2>&1; then return 0; fi
+            ;;
+        libva)
+            # Check for VA-API hardware acceleration
+            if ldconfig -p 2>/dev/null | grep -q "libva.so.2\|libva.so"; then return 0; fi
+            if ls /usr/lib*/libva.so* >/dev/null 2>&1; then return 0; fi
+            ;;
+        *)
+            # Unknown package, just use RPM check result
+            return 1
+            ;;
+    esac
+
+    return 1
 }
 
 # Check Graphics dependencies
 print_category "Graphics Libraries"
 for pkg in "${GRAPHICS_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -607,7 +657,7 @@ echo ""
 # Check Audio dependencies
 print_category "Audio Libraries"
 for pkg in "${AUDIO_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -620,7 +670,7 @@ echo ""
 # Check Video dependencies
 print_category "Video Libraries"
 for pkg in "${VIDEO_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -633,7 +683,7 @@ echo ""
 # Check Display dependencies
 print_category "X11/Display Server Libraries"
 for pkg in "${DISPLAY_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -646,7 +696,7 @@ echo ""
 # Check OpenGL dependencies
 print_category "OpenGL Libraries"
 for pkg in "${OPENGL_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -659,7 +709,7 @@ echo ""
 # Check Hardware Acceleration dependencies (optional)
 print_category "Hardware Acceleration Libraries (VA-API, VDPAU)"
 for pkg in "${HWACCEL_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -671,7 +721,7 @@ echo ""
 # Check Compression dependencies
 print_category "Compression Libraries"
 for pkg in "${COMPRESSION_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -684,7 +734,7 @@ echo ""
 # Check Debug dependencies
 print_category "Debug Libraries"
 for pkg in "${DEBUG_DEPS[@]}"; do
-    if is_rpm_installed "$pkg"; then
+    if is_installed_or_lib "$pkg"; then
         echo "    ✅ $pkg"
         FOUND_DEPS=$((FOUND_DEPS + 1))
     else
@@ -744,23 +794,81 @@ else
 fi
 
 %post
-# Register bundled libraries with system linker during installation
-# Library symlinks are already properly set up by the build process
-mkdir -p /etc/ld.so.conf.d
+# =============================================================================
+# Post-Installation: Register bundled libraries and create symlinks
+# =============================================================================
+# Create symlinks for bundled libraries to handle soname variations and suppress ldconfig warnings
+# (No /etc/ld.so.conf.d registration is done; launcher manages bundled libs)
 
-cat > /etc/ld.so.conf.d/openterface-libs.conf <<'EOF'
-# OpenterfaceQT bundled libraries (isolated from system libraries)
-# This directory contains a complete set of FFmpeg, Qt6, and multimedia libraries
-/usr/lib/openterfaceqt
-EOF
+echo "Setting up OpenterfaceQT bundled libraries..."
 
-# Rebuild the dynamic linker cache to register bundled libraries
-# Filter out ldconfig warnings that are expected for bundled scenarios
-ldconfig 2>&1 | grep -v "is not a symbolic link" | grep -v "^$" || true
+# Create symlinks for bundled libraries to match expected sonames
+# This eliminates ldconfig warnings about libraries not being symlinks
+if [ -d /usr/lib/openterfaceqt ]; then
+    echo "Creating symlinks for bundled core libraries..."
+    
+    # Compression libraries (zlib variants)
+    if ls /usr/lib/openterfaceqt/libz.so.* >/dev/null 2>&1; then
+        base_z=$(ls -1 /usr/lib/openterfaceqt/libz.so.* 2>/dev/null | head -1)
+        if [ -n "$base_z" ] && [ ! -L /usr/lib/openterfaceqt/libz.so.1 ]; then
+            ln -sf "$(basename "$base_z")" /usr/lib/openterfaceqt/libz.so.1 2>/dev/null || true
+            echo "  ✅ Created symlink: libz.so.1 -> $(basename "$base_z")"
+        fi
+    fi
+    
+    # Hardware acceleration libraries (VDPAU only - libva is now system dependency)
+    if ls /usr/lib/openterfaceqt/libvdpau.so.* >/dev/null 2>&1; then
+        base_vdpau=$(ls -1 /usr/lib/openterfaceqt/libvdpau.so.* 2>/dev/null | head -1)
+        if [ -n "$base_vdpau" ] && [ ! -L /usr/lib/openterfaceqt/libvdpau.so.1 ]; then
+            ln -sf "$(basename "$base_vdpau")" /usr/lib/openterfaceqt/libvdpau.so.1 2>/dev/null || true
+            echo "  ✅ Created symlink: libvdpau.so.1 -> $(basename "$base_vdpau")"
+        fi
+    fi
 
-# Verify libraries are registered
-echo "OpenterfaceQT libraries registered. Checking library cache..."
-ldconfig -p 2>/dev/null | grep openterfaceqt | head -3 || echo "Note: Library check may not be available in all environments"
+    # NOTE: libva is now a system dependency, not bundled
+    # This prevents symbol conflicts with system libavutil (vaMapBuffer2)
+    
+    # USB device access
+    if ls /usr/lib/openterfaceqt/libusb-1.0.so.* >/dev/null 2>&1; then
+        base_usb=$(ls -1 /usr/lib/openterfaceqt/libusb-1.0.so.* 2>/dev/null | head -1)
+        if [ -n "$base_usb" ] && [ ! -L /usr/lib/openterfaceqt/libusb-1.0.so.0 ]; then
+            ln -sf "$(basename "$base_usb")" /usr/lib/openterfaceqt/libusb-1.0.so.0 2>/dev/null || true
+            echo "  ✅ Created symlink: libusb-1.0.so.0 -> $(basename "$base_usb")"
+        fi
+    fi
+    
+    # JPEG libraries
+    if ls /usr/lib/openterfaceqt/libturbojpeg.so.* >/dev/null 2>&1; then
+        base_tjpeg=$(ls -1 /usr/lib/openterfaceqt/libturbojpeg.so.* 2>/dev/null | head -1)
+        if [ -n "$base_tjpeg" ] && [ ! -L /usr/lib/openterfaceqt/libturbojpeg.so.0 ]; then
+            ln -sf "$(basename "$base_tjpeg")" /usr/lib/openterfaceqt/libturbojpeg.so.0 2>/dev/null || true
+            echo "  ✅ Created symlink: libturbojpeg.so.0 -> $(basename "$base_tjpeg")"
+        fi
+    fi
+    
+    if ls /usr/lib/openterfaceqt/libjpeg.so.* >/dev/null 2>&1; then
+        base_jpeg=$(ls -1 /usr/lib/openterfaceqt/libjpeg.so.* 2>/dev/null | head -1)
+        if [ -n "$base_jpeg" ] && [ ! -L /usr/lib/openterfaceqt/libjpeg.so.8 ]; then
+            ln -sf "$(basename "$base_jpeg")" /usr/lib/openterfaceqt/libjpeg.so.8 2>/dev/null || true
+            echo "  ✅ Created symlink: libjpeg.so.8 -> $(basename "$base_jpeg")"
+        fi
+    fi
+    
+    # Compression libraries (bzip2)
+    if ls /usr/lib/openterfaceqt/libbz2.so.* >/dev/null 2>&1; then
+        base_bz=$(ls -1 /usr/lib/openterfaceqt/libbz2.so.* 2>/dev/null | head -1)
+        if [ -n "$base_bz" ] && [ ! -L /usr/lib/openterfaceqt/libbz2.so.1.0 ]; then
+            ln -sf "$(basename "$base_bz")" /usr/lib/openterfaceqt/libbz2.so.1.0 2>/dev/null || true
+            echo "  ✅ Created symlink: libbz2.so.1.0 -> $(basename "$base_bz")"
+        fi
+    fi
+    
+    echo "✅ Bundled library symlinks created"
+fi
+
+# NOTE: bundled libraries are loaded by launcher via LD_LIBRARY_PATH/LD_PRELOAD,
+# so we avoid creating /etc/ld.so.conf.d/openterface-libs.conf to prevent global linker config pollution.
+# Symlinks were already created above where necessary.
 
 # Create symlink for binary in /usr/local/bin for consistency with DEB/AppImage installations
 # This allows the standard entrypoint script to find the binary without modification
@@ -769,12 +877,13 @@ if [ ! -L /usr/local/bin/openterfaceQT ]; then
     ln -sf /usr/bin/openterfaceQT /usr/local/bin/openterfaceQT 2>/dev/null || true
 fi
 
+echo "✅ OpenterfaceQT post-installation setup complete"
+
 %postun
-# Remove ldconfig configuration on uninstall to clean up bundled library paths
+# Remove any legacy ldconfig configuration file from older versions
 if [ $1 -eq 0 ]; then
     rm -f /etc/ld.so.conf.d/openterface-libs.conf
-    ldconfig
-    echo "OpenterfaceQT library configuration removed"
+    echo "OpenterfaceQT legacy library configuration removed"
 fi
 
 %changelog

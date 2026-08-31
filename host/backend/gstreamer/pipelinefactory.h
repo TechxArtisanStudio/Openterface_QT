@@ -23,7 +23,8 @@ public:
                                       const QSize &resolution,
                                       int framerate,
                                       const QString &videoSink,
-                                      QString &outErrorMsg);
+                                      QString &outErrorMsg,
+                                      const QSize& widgetSize = QSize());
 #else
     // When GStreamer isn't available, return the primary pipeline string
     // so callers can run it with gst-launch or similar.

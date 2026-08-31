@@ -2,8 +2,9 @@
 #include "../global.h"
 #include <QDebug>
 #include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_core_audio, "opf.core.audio");
+OPF_LOGGING_CATEGORY(log_core_audio, "opf.core.audio")
 
 AudioThread::AudioThread(const QAudioDevice& inputDevice, 
                        const QAudioDevice& outputDevice,
@@ -59,7 +60,7 @@ AudioThread::~AudioThread()
         // Don't call reset() or delete - Qt Multimedia objects may have internal timers
         // that would cause "cannot be stopped from another thread" warnings
         // Just leak these objects during shutdown - the OS will clean up
-        (void)m_audioSink.take(); // Take ownership without calling destructor, then leak it
+        (void)m_audioSink.release(); // Take ownership without calling destructor, then leak it
         m_audioSource = nullptr; // Just nullify, don't delete
         
         qCDebug(log_core_audio) << "AudioThread destructor: Thread forcefully stopped during shutdown";
@@ -241,7 +242,7 @@ void AudioThread::run()
         m_audioSink.reset(new QAudioSink(m_outputDevice, m_format));
         
         // Connect to state changed signal to monitor sink health
-        connect(m_audioSink.data(), &QAudioSink::stateChanged, this, [this](QAudio::State state) {
+        connect(m_audioSink.get(), &QAudioSink::stateChanged, this, [this](QAudio::State state) {
             if (state == QAudio::StoppedState && m_audioSink && m_audioSink->error() != QAudio::NoError) {
                 QString errorMsg = QString("Audio sink error: %1").arg(m_audioSink->error());
                 qCWarning(log_core_audio) << errorMsg;

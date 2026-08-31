@@ -1,8 +1,9 @@
 #include "externalgstrunner.h"
 #include <QDebug>
 #include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_gst_runner_external, "opf.backend.gstreamer.runner.external")
+OPF_LOGGING_CATEGORY(log_gst_runner_external, "opf.backend.gstreamer.runner.external")
 
 ExternalGstRunner::ExternalGstRunner(QObject* parent)
     : QObject(parent), m_process(nullptr)
@@ -40,12 +41,7 @@ bool ExternalGstRunner::start(const QString& pipelineString, const QString& prog
     // Connect signals for async notifications
     connect(m_process, &QProcess::started, this, &ExternalGstRunner::started, Qt::UniqueConnection);
     connect(m_process, QOverload<QProcess::ProcessError>::of(&QProcess::errorOccurred),
-            this, [this](QProcess::ProcessError e){
-                Q_UNUSED(e)
-                QString err = m_process ? m_process->errorString() : QStringLiteral("Unknown process error");
-                qCWarning(log_gst_runner_external) << "External process error:" << err;
-                emit failed(err);
-            }, Qt::UniqueConnection);
+            this, &ExternalGstRunner::onProcessError, Qt::UniqueConnection);
     connect(m_process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &ExternalGstRunner::finished, Qt::UniqueConnection);
 
@@ -68,11 +64,7 @@ bool ExternalGstRunner::start(QProcess* processOverride, const QString& pipeline
         // Connect to provided process signals
         connect(processOverride, &QProcess::started, this, &ExternalGstRunner::started, Qt::UniqueConnection);
         connect(processOverride, QOverload<QProcess::ProcessError>::of(&QProcess::errorOccurred),
-            this, [this, processOverride](QProcess::ProcessError){
-                QString err = processOverride ? processOverride->errorString() : QStringLiteral("Unknown process error");
-                qCWarning(log_gst_runner_external) << "External process (provided) error:" << err;
-                emit failed(err);
-            }, Qt::UniqueConnection);
+            this, &ExternalGstRunner::onProcessError, Qt::UniqueConnection);
         connect(processOverride, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, &ExternalGstRunner::finished, Qt::UniqueConnection);
 
@@ -100,4 +92,12 @@ void ExternalGstRunner::stop()
 bool ExternalGstRunner::isRunning() const
 {
     return (m_process && m_process->state() == QProcess::Running);
+}
+
+void ExternalGstRunner::onProcessError(QProcess::ProcessError e)
+{
+    Q_UNUSED(e)
+    QString err = m_process ? m_process->errorString() : QStringLiteral("Unknown process error");
+    qCWarning(log_gst_runner_external) << "External process error:" << err;
+    emit failed(err);
 }

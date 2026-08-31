@@ -2,9 +2,11 @@
 #include "videopane.h"
 #include "host/HostManager.h"
 #include "../global.h"
+#include "../SysKeyBlocker/SystemKeyBlocker.h"
 #include <QGuiApplication>
 #include <QScreen>
 #include <QDateTime>
+#include "log/opflogging.h"
 
 /*
  * CRITICAL FIX for maximize screen crash:
@@ -26,7 +28,7 @@
  * - Method call on inconsistent object -> SEGFAULT
  */
 
-Q_LOGGING_CATEGORY(log_ui_input, "opf.ui.input")
+OPF_LOGGING_CATEGORY(log_ui_input, "opf.ui.input")
 
 InputHandler::InputHandler(VideoPane *videoPane, QObject *parent)
     : QObject(parent), m_videoPane(videoPane), m_currentEventTarget(nullptr),
@@ -89,6 +91,17 @@ MouseEventDTO* InputHandler::calculateRelativePosition(QMouseEvent *event) {
 }
 
 MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
+    // Convert overlay widget coordinates to VideoPane viewport coordinates in GStreamer mode
+    QPoint rawPos = event->pos();
+    if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
+        QWidget* overlayWidget = m_videoPane->getOverlayWidget();
+        if (overlayWidget && m_videoPane->viewport()) {
+            rawPos = overlayWidget->mapTo(m_videoPane->viewport(), rawPos);
+        } else if (m_videoPane->viewport()) {
+            rawPos = m_videoPane->viewport()->mapFromGlobal(event->globalPosition().toPoint());
+        }
+    }
+
     // Get the effective video widget (overlay or main VideoPane)
     QWidget* effectiveWidget = getEffectiveVideoWidget();
     
@@ -101,7 +114,6 @@ MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
     }
     
     // CRITICAL DEBUG: Log the transformation steps
-    QPoint rawPos = event->pos();
     // qCDebug(log_ui_input) << "    [calcAbsolute] Raw event->pos():" << rawPos;
     
     // CRITICAL FIX: ALWAYS use getTransformedMousePosition to handle:
@@ -117,6 +129,21 @@ MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
     
     int targetWidth = effectiveWidget->width();
     int targetHeight = effectiveWidget->height();
+    if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
+        QSize contentSize = m_videoPane->getGStreamerVideoContentRect().size().toSize();
+        if (contentSize.width() > 0 && contentSize.height() > 0) {
+            targetWidth = contentSize.width();
+            targetHeight = contentSize.height();
+        }
+    } else if (m_videoPane) {
+        // For FFmpeg/Qt video rendering modes, getTransformedMousePosition() returns
+        // coordinates in the original video space. Normalize against that same space.
+        QSize videoSize = m_videoPane->getOriginalVideoSize();
+        if (videoSize.width() > 0 && videoSize.height() > 0) {
+            targetWidth = videoSize.width();
+            targetHeight = videoSize.height();
+        }
+    }
     
     // qCDebug(log_ui_input) << "    [calcAbsolute] Target size:" << QSize(targetWidth, targetHeight);
     
@@ -323,20 +350,6 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
             qCDebug(log_ui_input) << "Mouse left VideoPane - showing cursor";
         }
     }
-    if ((watched == m_videoPane || watched == m_currentEventTarget) && event->type() == QEvent::KeyPress) {
-        QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
-        if (!keyEvent->isAutoRepeat()){
-            handleKeyPressEvent(keyEvent);
-            return true;
-        }
-    }
-    if ((watched == m_videoPane || watched == m_currentEventTarget) && event->type() == QEvent::KeyRelease) {
-        QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
-        if (!keyEvent->isAutoRepeat()){
-            handleKeyReleaseEvent(keyEvent);
-            return true;
-        }
-    }
     if ((watched == m_videoPane || watched == m_currentEventTarget) && event->type() == QEvent::Leave) {
         if (!GlobalVar::instance().isAbsoluteMouseMode() && m_videoPane && m_videoPane->isRelativeModeEnabled()) {
             m_videoPane->moveMouseToCenter();
@@ -369,7 +382,7 @@ void InputHandler::handleMouseMoveEvent(QMouseEvent *event)
     m_pendingMouseMoveEvent = new QMouseEvent(
         event->type(),
         event->pos(),
-        event->globalPos(),
+        event->globalPosition().toPoint(),
         event->button(),
         event->buttons(),
         event->modifiers()
@@ -460,23 +473,12 @@ void InputHandler::handleMousePressEvent(QMouseEvent* event)
     }
     
     // CRITICAL: Check if mouse has moved to a different position BEFORE updating m_lastMousePressPos
-    bool mousePositionChanged = (currentPos != m_lastMousePressPos);
-    
     // Update duplicate detection state
     m_lastMousePressTime = currentTime;
     m_lastMousePressPos = currentPos;
     m_lastPressButton = currentButton;
-    
-    // CRITICAL DEBUG: Log exact coordinates at press
-    // qCWarning(log_ui_input) << "=== MOUSE PRESS ===";
-    // qCWarning(log_ui_input) << "  Raw event->pos():" << event->pos();
-    // qCWarning(log_ui_input) << "  Before calc - lastX/lastY:" << QPoint(lastX, lastY);
-    // qCWarning(log_ui_input) << "  Mouse position changed:" << mousePositionChanged;
-    
+
     QScopedPointer<MouseEventDTO> eventDto;
-    
-    // Check if this might be a double-click scenario (fast second press within 500ms)
-    bool isPotentialDoubleClick = (timeSinceLastPress > 5 && timeSinceLastPress < 500);
     
     // CRITICAL FIX for double-click coordinate stability:
     // Strategy: ALWAYS save coordinates on EVERY press for potential future double-click
@@ -589,6 +591,19 @@ void InputHandler::handleWheelEvent(QWheelEvent *event)
         
         int targetWidth = effectiveWidget->width();
         int targetHeight = effectiveWidget->height();
+        if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
+            QSize contentSize = m_videoPane->getGStreamerVideoContentRect().size().toSize();
+            if (contentSize.width() > 0 && contentSize.height() > 0) {
+                targetWidth = contentSize.width();
+                targetHeight = contentSize.height();
+            }
+        } else if (m_videoPane) {
+            QSize videoSize = m_videoPane->getOriginalVideoSize();
+            if (videoSize.width() > 0 && videoSize.height() > 0) {
+                targetWidth = videoSize.width();
+                targetHeight = videoSize.height();
+            }
+        }
         
         // Calculate absolute coordinates (0-4096 range)
         qreal absoluteX = (static_cast<qreal>(videoPos.x()) * 4096.0) / targetWidth;

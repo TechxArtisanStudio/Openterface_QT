@@ -6,7 +6,8 @@
 #include <gst/app/gstappsink.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_gst_recording, "opf.backend.gstreamer.recording")
+#include "log/opflogging.h"
+OPF_LOGGING_CATEGORY(log_gst_recording, "opf.backend.gstreamer.recording")
 
 RecordingManager::RecordingManager(QObject* parent)
     : QObject(parent), m_mainPipeline(nullptr),
@@ -652,7 +653,7 @@ void RecordingManager::setRecordingConfig(const QString& codec, const QString& f
     m_recordingVideoBitrate = bitrate;
 }
 
-bool RecordingManager::createRecordingBranch(const QString& outputPath, const QString& format, int videoBitrate)
+bool RecordingManager::createRecordingBranch(const QString& outputPath, const QString& /*format*/, int /*videoBitrate*/)
 {
 #ifdef HAVE_GSTREAMER
     if (!m_mainPipeline) {
@@ -755,8 +756,6 @@ bool RecordingManager::createRecordingBranch(const QString& outputPath, const QS
     return true;
 #else
     Q_UNUSED(outputPath)
-    Q_UNUSED(format)
-    Q_UNUSED(videoBitrate)
     return false;
 #endif
 }

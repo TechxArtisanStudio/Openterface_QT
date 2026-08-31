@@ -2,7 +2,7 @@ name: Build / Openterface Windows Portable (Static)
 
 on:
   push:
-    branches: [ main, "dev_1223_portable_build" ]
+    branches: [ main, "dev_260624_MCPserver" ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -52,6 +52,7 @@ jobs:
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             diffutils
             make
             libtool
@@ -63,7 +64,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.QT_PREFIX }}
-          key: qt-6.6.3-msys2-mingw64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+          key: qt-6.6.3-msys2-mingw64-windows-static-v3-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
       - name: Cache FFmpeg static build
         id: cache-ffmpeg
@@ -107,6 +108,7 @@ jobs:
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-lld
             diffutils
             make
@@ -147,7 +149,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.QT_PREFIX }}
-          key: qt-6.6.3-msys2-mingw64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+          key: qt-6.6.3-msys2-mingw64-windows-static-v3-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
   build-ffmpeg:
     name: Build FFmpeg (Static)
@@ -181,6 +183,7 @@ jobs:
             mingw-w64-x86_64-libmfx
             mingw-w64-x86_64-libiconv
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             diffutils
             make
             libtool
@@ -248,6 +251,7 @@ jobs:
             mingw-w64-x86_64-libmfx
             mingw-w64-x86_64-libiconv
             mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-brotli
             diffutils
             make
@@ -367,6 +371,7 @@ jobs:
           }
 
       - name: Download Qt artifact
+        if: needs.setup-env.outputs.qt-cache-hit != 'true'
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
@@ -379,7 +384,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.QT_PREFIX }}
-          key: qt-6.6.3-msys2-mingw64-windows-static-v2-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
+          key: qt-6.6.3-msys2-mingw64-windows-static-v3-${{ hashFiles('build-script/build-static-qt-from-source.sh') }}
 
       - name: Show Qt cache restore result
         run: |
@@ -391,6 +396,7 @@ jobs:
           if (Test-Path "${{ env.QT_PREFIX }}") { dir "${{ env.QT_PREFIX }}" } else { echo "${{ env.QT_PREFIX }} not found" }
 
       - name: Download FFmpeg artifact
+        if: needs.setup-env.outputs.ffmpeg-cache-hit != 'true'
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
@@ -458,6 +464,7 @@ jobs:
             mingw-w64-x86_64-brotli \
             mingw-w64-x86_64-libjpeg-turbo \
             mingw-w64-x86_64-libusb \
+            mingw-w64-x86_64-pcre2 \
             mingw-w64-x86_64-zstd
           
           # Ensure C:\msys64 symlink exists for Qt CMake files that expect it
@@ -703,3 +710,4 @@ jobs:
         with:
           name: openterfaceQT-portable.exe
           path: build/openterfaceQT-portable.exe
+          retention-days: 30

@@ -24,15 +24,21 @@
 #include "global.h"
 #include "ui_mainwindow.h"
 #include "globalsetting.h"
+#include <QHostAddress>
+#include "floatingwindow/floatingwindow.h"
 #include <QTimer>
 #include "ui/statusbar/statusbarmanager.h"
 #include "host/HostManager.h"
 #include "host/cameramanager.h"
+#include "chat/ChatWindow.h"
+#include "ai/ChatManager.h"
+#include "ai/ChatScreenCapture.h"
 #include "serial/SerialPortManager.h"
 #include <QStandardPaths>
 #include "device/DeviceManager.h"
 #include "device/HotplugMonitor.h"
 #include "ui/preferences/settingdialog.h"
+#include "ui/preferences/mcppage.h"
 #include "ui/help/helppane.h"
 #include "ui/videopane.h"
 #include "video/videohid.h"
@@ -40,10 +46,11 @@
 #include "ui/TaskManager.h"
 #include "regex/RegularExpression.h"
 #include "ui/advance/serialportdebugdialog.h"
-#include "ui/advance/firmwareupdatedialog.h"
+#include "ui/preferences/firmwarepage.h"
 #include "ui/advance/envdialog.h"
-#include "ui/advance/updatedisplaysettingsdialog.h"
 #include "ui/advance/devicediagnosticsdialog.h"
+#include "ui/hotplug/HotplugTestDialog.h"
+#include "ui/customkey/customkeydialog.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -81,8 +88,10 @@
 #ifdef Q_OS_WIN
 #include "host/backend/qtbackendhandler.h"
 #endif
+#include "SysKeyBlocker/SystemKeyBlocker.h"
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
+OPF_LOGGING_CATEGORY(log_ui_mainwindow, "opf.ui.mainwindow")
 
 /*
   * QT Permissions API is not compatible with Qt < 6.5 and will cause compilation failure on
@@ -125,20 +134,20 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     , ui(new Ui::MainWindow)
     , m_audioManager(&AudioManager::getInstance())
     , videoPane(new VideoPane(this))
-    , stackedLayout(new QStackedLayout(this))
+    , stackedLayout(new QStackedLayout)
     , toolbarManager(new ToolbarManager(this))
+    , m_deviceAutoSelected(false)
     , toggleSwitch(new ToggleSwitch(this))
     , m_cameraManager(new CameraManager(this))
+    , m_deviceCoordinator(nullptr)
+    , m_menuCoordinator(nullptr)
+    , mouseEdgeTimer(nullptr)
     , m_versionInfoManager(new VersionInfoManager(this))
     , m_languageManager(languageManager)
+    , taskmanager(TaskManager::instance())
     , m_screenSaverManager(new ScreenSaverManager(this))
     , m_cornerWidgetManager(new CornerWidgetManager(this))
     , m_windowControlManager(nullptr)
-    , m_deviceCoordinator(nullptr)
-    , m_menuCoordinator(nullptr)
-    , m_deviceAutoSelected(false)
-    , mouseEdgeTimer(nullptr)
-    , taskmanager(TaskManager::instance())
 {
     qCDebug(log_ui_mainwindow) << "Initializing MainWindow...";
     
@@ -147,38 +156,213 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     // Initialize WindowLayoutCoordinator early - needed before checkInitSize()
     m_windowLayoutCoordinator = new WindowLayoutCoordinator(this, videoPane, menuBar(), statusBar(), this);
     
+    // Initialize SystemKeyBlocker focus target — only swallow keys when VideoPane has focus
+    SystemKeyBlocker::instance().setFocusTarget(videoPane);
+    
     // Delegate all initialization to initializer
     m_initializer = new MainWindowInitializer(this);
     m_initializer->initialize();
     
-    // Start VideoHid
-    VideoHid::getInstance().start();
+    // Defer VideoHid start to avoid 500ms blocking sleep during startup
+    // This will be started after the window is shown
+    qCDebug(log_ui_mainwindow) << "VideoHid will be started after window is shown";
     
     qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
 }
 
+void MainWindow::deferredSetupCoordinators()
+{
+    if (m_initializer) {
+        m_initializer->deferredSetupCoordinators();
+    }
+}
+
+void MainWindow::deferredInitializeCamera()
+{
+    if (m_initializer) {
+        m_initializer->deferredInitializeCamera();
+    }
+}
+
 void MainWindow::startServer(){
+    // Check if server is already running
+    if (m_tcpServerRunning && tcpServer) {
+        // Server is running, stop it instead
+        stopServer();
+        return;
+    }
+
     // 1. create and start TCP server
     tcpServer = new TcpServer(this);
     tcpServer->startServer(SERVER_PORT);
-    
-    // 2. create and initialize ImageCapturer
-    m_imageCapturer = new ImageCapturer(this);
-    
-    // 3. set default save path
-    QString savePath = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/openterface";
-    
-    // 4. start periodic auto capture (once per second)
-    m_imageCapturer->startCapturingAuto(m_cameraManager, tcpServer, savePath, 1);
-    
-    // 5. establish signal-slot connections
+    tcpServer->setCameraManager(m_cameraManager);
+
     connect(m_cameraManager, &CameraManager::lastImagePath, tcpServer, &TcpServer::handleImgPath);
     connect(tcpServer, &TcpServer::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
     connect(this, &MainWindow::emitTCPCommandStatus, tcpServer, &TcpServer::recvTCPCommandStatus);
-    
-    qCDebug(log_ui_mainwindow) << "TCP Server start at port 12345 with auto image capture";
+
+    // 6. Mark server as running and update status indicator
+    m_tcpServerRunning = true;
+    if (m_statusBarManager) {
+        m_statusBarManager->setTcpServerVisible(true);
+        m_statusBarManager->setStatusUpdate(QString("TCP Server running on port %1").arg(SERVER_PORT));
+    }
+
+    // 7. Update menu action to show server is running
+    if (ui->actionTCPServer) {
+        ui->actionTCPServer->setChecked(true);
+    }
+
+    qCDebug(log_ui_mainwindow) << "TCP Server started at port 12345 with auto image capture";
 }
 
+void MainWindow::initMcpServer()
+{
+    if (m_mcpServer) return;
+
+    m_mcpServer = new McpServer(this);
+    m_mcpServer->setCameraManager(m_cameraManager);
+    m_mcpServer->setScriptRunner(scriptRunner.get());
+    m_mcpServer->setScriptExecutor(scriptExecutor.get());
+
+    connect(m_mcpServer, &McpServer::logMessage, this, [this](const QString& msg) {
+        qCInfo(log_ui_mainwindow) << "[MCP]" << msg;
+    });
+
+    qCDebug(log_ui_mainwindow) << "MCP Server initialized";
+}
+
+void MainWindow::toggleMcpServer(bool enabled)
+{
+    if (!m_mcpServer) {
+        initMcpServer();
+    }
+
+    if (!m_mcpServer) return;
+
+    if (enabled) {
+        if (!m_mcpServer->isRunning()) {
+            m_mcpServer->startStdio();
+        }
+    } else {
+        if (m_mcpServer->isRunning()) {
+            m_mcpServer->stop();
+        }
+    }
+
+    if (m_statusBarManager) {
+        m_statusBarManager->setStatusUpdate(
+            QString("MCP Server %1").arg(m_mcpServer->isRunning() ? "running" : "stopped"));
+    }
+}
+
+void MainWindow::onMcpSettingsApplied()
+{
+    GlobalSetting &s = GlobalSetting::instance();
+
+    // Ensure the MCP server instance exists
+    if (!m_mcpServer) {
+        initMcpServer();
+    }
+    if (!m_mcpServer) return;
+
+    // Stop all running transports
+    if (m_mcpServer->isRunning()) {
+        m_mcpServer->stop();
+    }
+    if (m_mcpServer->isSseRunning()) {
+        m_mcpServer->stopSse();
+    }
+
+    // Restart if enabled
+    if (s.getMcpEnabled()) {
+        QString transport = s.getMcpTransport();
+        bool ok = false;
+
+        if (transport == QLatin1String("stdio")) {
+            ok = m_mcpServer->startStdio();
+        } else if (transport == QLatin1String("sse")) {
+            QHostAddress addr(s.getMcpSseBindAddress());
+            ok = m_mcpServer->startSse(static_cast<quint16>(s.getMcpSsePort()), addr);
+        }
+
+        if (m_statusBarManager) {
+            if (ok) {
+                m_statusBarManager->setStatusUpdate(
+                    QString("MCP %1 started").arg(transport.toUpper()));
+            } else {
+                m_statusBarManager->setStatusUpdate(
+                    QString("MCP %1 failed to start").arg(transport.toUpper()));
+            }
+        }
+    } else {
+        if (m_statusBarManager) {
+            m_statusBarManager->setStatusUpdate("MCP Server disabled");
+        }
+    }
+}
+
+void MainWindow::toggleChatWindow(bool visible)
+{
+    bool firstOpen = !m_chatWindow;
+    if (!m_chatWindow) {
+        m_chatWindow = new ChatWindow(this);
+        m_chatWindow->setWindowTitle("AI Chat");
+
+        // Position chat window to the right of main window
+        QRect mainGeo = geometry();
+        m_chatWindow->resize(400, mainGeo.height());
+        m_chatWindow->move(mainGeo.right() + 4, mainGeo.top());
+
+        // Set up CameraManager for AI screenshots
+        ChatScreenCapture::instance().setCameraManager(m_cameraManager);
+    }
+
+    if (visible) {
+        if (firstOpen) {
+            // Start a new session on first open. Without this, the ChatManager
+            // singleton loads previously persisted history, so the first
+            // sendMessage() would display all old messages alongside the new one.
+            ChatManager::instance().clearHistory();
+        }
+
+        m_chatWindow->show();
+        m_chatWindow->raise();
+        m_chatWindow->activateWindow();
+    } else {
+        m_chatWindow->hide();
+    }
+
+    GlobalSetting::instance().setChatWindowVisible(visible);
+}
+
+void MainWindow::stopServer(){
+    if (!m_tcpServerRunning || !tcpServer) {
+        qCDebug(log_ui_mainwindow) << "TCP Server is not running";
+        return;
+    }
+    
+    // Stop the TCP server
+    if (tcpServer) {
+        tcpServer->close();
+        tcpServer->deleteLater();
+        tcpServer = nullptr;
+    }
+
+    // Mark server as stopped and update status indicator
+    m_tcpServerRunning = false;
+    if (m_statusBarManager) {
+        m_statusBarManager->setTcpServerVisible(false);
+        m_statusBarManager->setStatusUpdate(QString());
+    }
+    
+    // Update menu action to show server is stopped
+    if (ui->actionTCPServer) {
+        ui->actionTCPServer->setChecked(false);
+    }
+    
+    qCDebug(log_ui_mainwindow) << "TCP Server stopped";
+}
 
 void MainWindow::updateUI() {
     ui->retranslateUi(this); // Update the UI elements
@@ -188,6 +372,9 @@ void MainWindow::updateUI() {
     }
     if (m_deviceCoordinator) {
         m_deviceCoordinator->updateDeviceMenu(); // Update device menu when UI language changes
+    }
+    if (m_cornerWidgetManager) {
+        m_cornerWidgetManager->retranslateUi(); // Update corner widget tooltips
     }
 }
 
@@ -299,29 +486,21 @@ void MainWindow::updateScrollbars() {
     // Check if the mouse is near the edges of the screen
     const int edgeThreshold = 300; // Adjust this value as needed
 
-    int deltaX = 0;
-    int deltaY = 0;
-
     if (lastMousePos.x() < edgeThreshold) {
         // Move scrollbar to the left
-        deltaX = -10; // Adjust step size as needed
     } else if (lastMousePos.x() > 4096*factorScale - edgeThreshold) {
         // Move scrollbar to the right
-        deltaX = 10; // Adjust step size as needed
     }
 
     if (lastMousePos.y() < edgeThreshold) {
         // Move scrollbar up
-        deltaY = -10; // Adjust step size as needed
     } else if (lastMousePos.y() > 4096*factorScale - edgeThreshold) {
         // Move scrollbar down
-        deltaY = 10; // Adjust step size as needed
     }
 
     // Note: scrollbars removed - VideoPane handles zooming internally via QGraphicsView
     // No need to update scrollbars since VideoPane manages its own scroll behavior
 }
-
 
 void MainWindow::onActionRelativeTriggered()
 {
@@ -337,30 +516,46 @@ void MainWindow::onActionRelativeTriggered()
     videoPane->hideHostMouse();
 
     this->popupMessage("Long press ESC to exit.");
+
+    // Update menu item state to reflect the change
+    ui->actionRelative->setChecked(true);
+    ui->actionAbsolute->setChecked(false);
 }
 
 void MainWindow::onActionAbsoluteTriggered()
 {
     GlobalVar::instance().setAbsoluteMouseMode(true);
+
+    // Update menu item state to reflect the change
+    ui->actionAbsolute->setChecked(true);
+    ui->actionRelative->setChecked(false);
 }
 
 void MainWindow::onActionMouseAutoHideTriggered()
 {
     GlobalVar::instance().setMouseAutoHide(true);
     GlobalSetting::instance().setMouseAutoHideEnable(true);
+    
+    // Update menu item state to reflect the change
+    ui->actionMouseAutoHide->setChecked(true);
+    ui->actionMouseAlwaysShow->setChecked(false);
 }
 
 void MainWindow::onActionMouseAlwaysShowTriggered()
 {
     GlobalVar::instance().setMouseAutoHide(false);
     GlobalSetting::instance().setMouseAutoHideEnable(false);
+    
+    // Update menu item state to reflect the change
+    ui->actionMouseAlwaysShow->setChecked(true);
+    ui->actionMouseAutoHide->setChecked(false);
 }
 
 void MainWindow::onActionFactoryResetHIDTriggered()
 {
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::warning(this, "Confirm Factory Reset HID Chip?",
-                                        "Factory reset the HID chip. Proceed?",
+    reply = QMessageBox::warning(this, tr("Confirm Factory Reset HID Chip?"),
+                                        tr("Factory reset the HID chip. Proceed?"),
                                   QMessageBox::Yes | QMessageBox::No);
 
     if (reply == QMessageBox::Yes) {
@@ -374,8 +569,8 @@ void MainWindow::onActionFactoryResetHIDTriggered()
 void MainWindow::onActionResetSerialPortTriggered()
 {
     QMessageBox::StandardButton reply;
-    reply = QMessageBox::question(this, "Confirm Reset Serial Port?",
-                                        "Resetting the serial port will close and re-open it without changing settings. Proceed?",
+    reply = QMessageBox::question(this, tr("Confirm Reset Serial Port?"),
+                                        tr("Resetting the serial port will close and re-open it without changing settings. Proceed?"),
                                   QMessageBox::Yes | QMessageBox::No);
 
     if (reply == QMessageBox::Yes) {
@@ -393,7 +588,10 @@ void MainWindow::onActionSwitchToHostTriggered()
         SerialPortManager::getInstance().switchUsbToHostViaSerial();
     }else{
         qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
-        VideoHid::getInstance().switchToHost();
+        // Post to VideoHid's dedicated thread so the HID I/O doesn't stall the UI.
+        QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
+            VideoHid::getInstance().switchToHost();
+        }, Qt::QueuedConnection);
         ui->actionTo_Host->setChecked(true);
         ui->actionTo_Target->setChecked(false);
     }
@@ -407,14 +605,17 @@ void MainWindow::onActionSwitchToTargetTriggered()
         SerialPortManager::getInstance().switchUsbToTargetViaSerial();
     }else{
         qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
-        VideoHid::getInstance().switchToTarget();
+        // Post to VideoHid's dedicated thread so the HID I/O doesn't stall the UI.
+        QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
+            VideoHid::getInstance().switchToTarget();
+        }, Qt::QueuedConnection);
         ui->actionTo_Host->setChecked(false);
         ui->actionTo_Target->setChecked(true);
     }
 
 }
 
-void MainWindow::onToggleSwitchStateChanged(int state)
+void MainWindow::onToggleSwitchStateChanged(Qt::CheckState state)
 {
     // Ignore if this change is from a programmatic status update
     if (m_cornerWidgetManager && m_cornerWidgetManager->isUpdatingFromStatus()) {
@@ -472,6 +673,10 @@ void MainWindow::onActionScreensaver()
     static bool isScreensaverActive = false;
     isScreensaverActive = !isScreensaverActive;
 
+    qCDebug(log_ui_mainwindow) << "[Screensaver] triggered, active:" << isScreensaverActive;
+
+    // Block signals to prevent screensaverButton::toggled from re-invoking this slot
+    m_cornerWidgetManager->screensaverButton->blockSignals(true);
     if (isScreensaverActive) {
         HostManager::getInstance().startAutoMoveMouse();
         m_cornerWidgetManager->screensaverButton->setChecked(true);
@@ -481,11 +686,21 @@ void MainWindow::onActionScreensaver()
         m_cornerWidgetManager->screensaverButton->setChecked(false);
         this->popupMessage("Screensaver deactivated");
     }
+    m_cornerWidgetManager->screensaverButton->blockSignals(false);
+
+    qCDebug(log_ui_mainwindow) << "[Screensaver] done, isActiveWindow:" << this->isActiveWindow()
+                               << "videoPane hasFocus:" << videoPane->hasFocus();
 }
 
 void MainWindow::onToggleVirtualKeyboard()
 {
-    toolbarManager->toggleToolbar();    
+    toolbarManager->toggleToolbar();
+}
+
+void MainWindow::openCustomKeyDialog()
+{
+    CustomKeyDialog dialog(this);
+    dialog.exec();
 }
 
 void MainWindow::popupMessage(QString message)
@@ -522,7 +737,18 @@ void MainWindow::popupMessage(QString message)
 
     // Auto hide in 3 seconds
     QTimer::singleShot(3000, &dialog, &QDialog::accept);
+    qCDebug(log_ui_mainwindow) << "[popupMessage] before exec, MainWindow isActiveWindow:" << this->isActiveWindow()
+                               << "hasFocus:" << this->hasFocus();
     dialog.exec();
+    qCDebug(log_ui_mainwindow) << "[popupMessage] after exec, MainWindow isActiveWindow:" << this->isActiveWindow()
+                               << "hasFocus:" << this->hasFocus();
+
+    // Restore focus to videoPane (mouse capture widget) so target mouse control is not lost
+    this->activateWindow();
+    this->raise();
+    videoPane->setFocus();
+    qCDebug(log_ui_mainwindow) << "[popupMessage] after focus restore, isActiveWindow:" << this->isActiveWindow()
+                               << "videoPane hasFocus:" << videoPane->hasFocus();
 }
 
 void MainWindow::updateCameraActive(bool active) {
@@ -541,7 +767,7 @@ void MainWindow::onDeviceSwitchCompleted() {
     updateCameraActive(m_cameraManager->hasActiveCameraDevice());
 }
 
-void MainWindow::onDeviceSelected(const QString &portChain, bool success, const QString &message) {
+void MainWindow::onDeviceSelected(const QString &portChain, bool /*success*/, const QString &/*message*/) {
     if (!m_cameraManager->hasActiveCameraDevice()) {
         // Try to auto-select the "Openterface" camera if available
         const QList<QCameraDevice> availableCameras = QMediaDevices::videoInputs();
@@ -567,7 +793,6 @@ void MainWindow::processCapturedImage(int requestId, const QImage &img)
     QImage scaledImage =
             img.scaled(ui->centralwidget->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
-
     // Display captured image for 4 seconds.
     displayCapturedImage();
     QTimer::singleShot(4000, this, &MainWindow::displayViewfinder);
@@ -575,7 +800,6 @@ void MainWindow::processCapturedImage(int requestId, const QImage &img)
 
 void MainWindow::configScreenScale(){
     if (!m_screenScaleDialog){
-        qDebug() << "Creating screen scale dialog";
         m_screenScaleDialog = new ScreenScale(this);
         connect(m_screenScaleDialog, &QDialog::finished, this, [this](){
             m_screenScaleDialog->deleteLater();
@@ -600,8 +824,6 @@ void MainWindow::onScreenRatioChanged(double ratio) {
     }
 }
 
-
-
 void MainWindow::configureSettings() {
     qCDebug(log_ui_mainwindow) << "configureSettings";
     if (!settingDialog){
@@ -611,7 +833,44 @@ void MainWindow::configureSettings() {
         VideoPage* videoPage = settingDialog->getVideoPage();
         LogPage* logPage = settingDialog->getLogPage();
         connect(logPage, &LogPage::ScreenSaverInhibitedChanged, m_screenSaverManager, &ScreenSaverManager::setScreenSaverInhibited);
+        connect(logPage, &LogPage::hideKeyboardInputChanged, m_statusBarManager, &StatusBarManager::setHideKeyboardInput);
+        connect(logPage, &LogPage::floatingWindowEnabledChanged, this, [this](bool enabled) {
+            if (enabled) showFloatingWindow();
+            else hideFloatingWindow();
+        });
+        connect(logPage, &LogPage::floatingWindowOpacityChanged, this, [this](double opacity) {
+            if (m_floatingWindow) m_floatingWindow->setWindowOpacityValue(opacity);
+        });
+        connect(logPage, &LogPage::systemKeyBlockerToggled, this, [this](bool enabled) {
+            GlobalSetting::instance().setSystemKeyBlockerEnabled(enabled);
+            if (enabled) {
+                // Start SystemKeyBlocker: intercept all keyboard events at OS level
+                quintptr hwnd = 0; // Use default top-level window
+                if (SystemKeyBlocker::instance().start(hwnd)) {
+                    SystemKeyBlocker::instance().setSwallowEnabled(true);
+                    qCInfo(log_ui_mainwindow) << "SystemKeyBlocker enabled — keyboard events captured at OS level";
+                } else {
+                    qCWarning(log_ui_mainwindow) << "SystemKeyBlocker failed to start";
+                }
+            } else {
+                // Stop SystemKeyBlocker: keyboard events flow through VideoPane::keyPressEvent
+                SystemKeyBlocker::instance().stop();
+                qCInfo(log_ui_mainwindow) << "SystemKeyBlocker disabled — keyboard events flow through VideoPane";
+            }
+            // Re-sync shortcuts
+            syncShortcutsState();
+        });
+        m_statusBarManager->setHideKeyboardInput(GlobalSetting::instance().getHideKeyboardInput());
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
+
+        // Migrated from AdvancedSettingsDialog
+        McpPage* mcpPage = settingDialog->getMcpPage();
+        connect(mcpPage, &McpPage::mcpSettingsChanged, this, &MainWindow::onMcpSettingsApplied);
+
+        FirmwarePage* firmwarePage = settingDialog->getFirmwarePage();
+        connect(firmwarePage, &FirmwarePage::firmwareUpdateCompleted,
+                this, []() { QApplication::quit(); });
+
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(settingDialog, &QDialog::finished, this, [this](){
             settingDialog->deleteLater();
@@ -625,7 +884,6 @@ void MainWindow::configureSettings() {
 }
 
 void MainWindow::toggleRecording() {
-    qDebug() << "toggleRecording called";
     
     // Make sure the camera system is ready and recording controller is initialized
     if (!m_recordingController) {
@@ -674,30 +932,29 @@ void MainWindow::toggleRecording() {
 }
 
 void MainWindow::toggleMute() {
-    qDebug() << "toggleMute called";
     
     // Get the AudioManager singleton
     AudioManager& audioManager = AudioManager::getInstance();
     
-    // Get current volume
-    qreal currentVolume = audioManager.getVolume();
+    // Use the persisted mute state rather than getVolume() == 0.0,
+    // because getVolume() returns 0.0 when no audio thread exists,
+    // which would cause the icon to never switch to the muted state.
+    bool currentlyMuted = GlobalSetting::instance().getAudioMuted();
     
-    // Check if currently muted (volume is 0)
-    if (currentVolume == 0.0) {
+    if (currentlyMuted) {
         // Unmute - restore to default volume (1.0)
         audioManager.setVolume(1.0);
         GlobalSetting::instance().setAudioMuted(false);
-        qDebug() << "Audio unmuted - volume set to 1.0";
+        if (m_cornerWidgetManager) m_cornerWidgetManager->updateMuteState(false);
     } else {
         // Mute - set volume to 0
         audioManager.setVolume(0.0);
         GlobalSetting::instance().setAudioMuted(true);
-        qDebug() << "Audio muted - volume set to 0.0";
+        if (m_cornerWidgetManager) m_cornerWidgetManager->updateMuteState(true);
     }
 }
 
 void MainWindow::showRecordingSettings() {
-    qDebug() << "showRecordingSettings called";
     
     // Stop any active recording before showing settings
     if (m_recordingController && m_recordingController->isRecording()) {
@@ -715,7 +972,6 @@ void MainWindow::showRecordingSettings() {
     }
     
     if (!recordingSettingsDialog) {
-        qDebug() << "Creating recording settings dialog";
         recordingSettingsDialog = new RecordingSettingsDialog(this);
         
         // Get the current backend from camera manager and set it
@@ -741,12 +997,8 @@ void MainWindow::showRecordingSettings() {
     }
 }
 
-
 void MainWindow::debugSerialPort() {
-    qDebug() << "debug dialog" ;
-    qDebug() << "serialPortDebugDialog: " << serialPortDebugDialog;
     if (!serialPortDebugDialog){
-        qDebug() << "Creating serial port debug dialog";
         serialPortDebugDialog = new SerialPortDebugDialog();
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(serialPortDebugDialog, &QDialog::finished, this, [this]() {
@@ -758,6 +1010,21 @@ void MainWindow::debugSerialPort() {
         serialPortDebugDialog->raise();
         serialPortDebugDialog->activateWindow();
     }
+}
+
+void MainWindow::openKeyboardMapEditor() {
+    
+    KeyboardMapEditor* editor = new KeyboardMapEditor(this);
+    
+    connect(editor, &QDialog::finished, this, [this, editor](int result) {
+        if (result == QDialog::Accepted) {
+            // Refresh keyboard layouts in main window
+            initializeKeyboardLayouts();
+        }
+        editor->deleteLater();
+    });
+    
+    editor->show();
 }
 
 void MainWindow::purchaseLink(){
@@ -791,6 +1058,44 @@ void MainWindow::onCtrlAltDelPressed()
 {
     HostManager::getInstance().sendCtrlAltDel();
 }
+
+// void MainWindow::onCtrlVPressed()
+// {
+//     HostManager::getInstance().sendCtrlV();
+// }
+
+// void MainWindow::onCtrlQPressed()
+// {
+//     HostManager::getInstance().sendCtrlQ();
+// }
+
+// void MainWindow::onCtrlAltAPressed()
+// {
+//     // Switch to absolute mouse mode
+//     GlobalVar::instance().setAbsoluteMouseMode(true);
+//     videoPane->hideHostMouse();
+//     this->popupMessage("Switched to Absolute Mouse Mode");
+//     HostManager::getInstance().sendCtrlAltA();
+// }
+
+// void MainWindow::onCtrlAltRPressed()
+// {
+//     // Switch to relative mouse mode
+//     GlobalVar::instance().setAbsoluteMouseMode(false);
+//     videoPane->hideHostMouse();
+//     this->popupMessage("Switched to Relative Mouse Mode");
+//     QPoint globalPosition = videoPane->mapToGlobal(QPoint(0, 0));
+//     QRect globalGeometry = QRect(globalPosition, videoPane->geometry().size());
+//     // move the mouse to window center
+//     QPoint center = globalGeometry.center();
+//     QCursor::setPos(center);
+//     HostManager::getInstance().sendCtrlAltR();
+// }
+
+// void MainWindow::onCtrlShiftSPressed()
+// {
+//     HostManager::getInstance().sendCtrlShiftS();
+// }
 
 void MainWindow::onRepeatingKeystrokeChanged(int interval)
 {
@@ -867,7 +1172,6 @@ void MainWindow::setExposureCompensation(int index)
     m_camera->setExposureCompensation(index * 0.5);
 }
 
-
 void MainWindow::displayCameraError()
 {
     if (!m_camera) {
@@ -878,7 +1182,7 @@ void MainWindow::displayCameraError()
     qCWarning(log_ui_mainwindow) << "Camera error: " << m_camera->errorString();
     if (m_camera->error() != QCamera::NoError) {
         qCDebug(log_ui_mainwindow) << "Camera error detected, switching to help pane";
-        
+
         // Safely switch to help pane
         QMetaObject::invokeMethod(this, [this]() {
             stackedLayout->setCurrentIndex(0);
@@ -888,13 +1192,60 @@ void MainWindow::displayCameraError()
     }
 }
 
+void MainWindow::onFrameTimeout()
+{
+    qCWarning(log_ui_mainwindow) << "Frame timeout detected - no video frames received";
+
+#ifdef Q_OS_WIN
+    // Windows-specific: Check if camera devices are visible - if not, it's likely a permission issue
+    int cameraCount = m_cameraManager->getAvailableCameraDevices().size();
+    bool permissionIssue = (cameraCount == 0);
+
+    QMessageBox::StandardButton reply;
+    QString message;
+
+    if (permissionIssue) {
+        message = tr("No camera devices detected.\n\n"
+                     "This is usually caused by Windows camera privacy settings blocking the app.\n\n"
+                     "To fix: Go to Windows Settings → Privacy → Camera → "
+                     "enable 'Allow desktop apps to access your camera'.\n\n"
+                     "Would you like to open Camera privacy settings now?");
+        reply = QMessageBox::question(this, tr("Camera Permission Required"), message,
+                                      QMessageBox::Yes | QMessageBox::No);
+
+        if (reply == QMessageBox::Yes) {
+            // Open Windows camera privacy settings
+            QDesktopServices::openUrl(QUrl("ms-settings:privacy-webcam"));
+            qCInfo(log_ui_mainwindow) << "Opened Windows camera privacy settings";
+        }
+    } else {
+        message = tr("No video frames have been received from the camera.\n\n"
+                     "This may indicate the video backend cannot decode the signal.\n"
+                     "Would you like to switch to FFmpeg backend (recommended for Windows)?");
+        reply = QMessageBox::question(this, tr("No Video Signal"), message,
+                                      QMessageBox::Yes | QMessageBox::No);
+
+        if (reply == QMessageBox::Yes) {
+            GlobalSetting::instance().setMediaBackend("ffmpeg");
+            qCInfo(log_ui_mainwindow) << "User chose to switch to FFmpeg backend";
+
+            QMessageBox::information(this, tr("Backend Changed"),
+                tr("Video backend changed to FFmpeg.\nPlease restart the application for changes to take effect."));
+        }
+    }
+#else
+    // Linux/other: Simple frame timeout message
+    QMessageBox::warning(this, tr("No Video Signal"),
+        tr("No video frames have been received from the camera.\n\n"
+           "Please check your camera connection and permissions."));
+#endif
+}
+
 void MainWindow::stop(){
-    qDebug() << "Stop camera data...";
     // Note: Do NOT use wildcard disconnect() calls as they cause crashes during shutdown
     // when trying to disconnect from destroyed signals on partially-destroyed objects.
     // Qt will handle signal disconnections automatically when objects are destroyed.
     
-    qDebug() << "Stopping camera manager...";
     m_cameraManager->stopCamera();
 
     // Don't call closePort() here because SerialPortManager::stop() will handle it
@@ -902,7 +1253,6 @@ void MainWindow::stop(){
     // qDebug() << "Closing serial port...";
     // SerialPortManager::getInstance().closePort();
 
-    qDebug() << "Camera stopped.";
 }
 
 void MainWindow::displayViewfinder()
@@ -915,13 +1265,31 @@ void MainWindow::displayCapturedImage()
     //ui->stackedWidget->setCurrentIndex(1);
 }
 
-
-
 void MainWindow::onArmBaudratePerformanceRecommendation(int currentBaudrate)
 {
     // Delegate to MenuCoordinator
     if (m_menuCoordinator) {
         m_menuCoordinator->showArmBaudratePerformanceRecommendation(currentBaudrate);
+    }
+}
+
+void MainWindow::onDriverInstallationRequired()
+{
+    QMessageBox msgBox(this);
+    msgBox.setWindowTitle(tr("Install Driver"));
+    msgBox.setText(tr("The CH9329 chip requires the CH340 driver, but it is not installed.\n\n"
+        "Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html \n\n"
+        "After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.\n\n"
+        "Please restart your computer after the driver installation."));
+    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+
+    QPushButton *copyButton = msgBox.addButton(tr("Copy Link"), QMessageBox::ActionRole);
+
+    msgBox.exec();
+
+    if (msgBox.clickedButton() == copyButton) {
+        QClipboard *clipboard = QApplication::clipboard();
+        clipboard->setText("https://www.wch.cn/downloads/CH341SER.EXE.html");
     }
 }
 
@@ -932,7 +1300,6 @@ void MainWindow::imageSaved(int id, const QString &fileName)
 
     m_isCapturingImage = false;
     if (m_applicationExiting) {
-        qDebug() << "Image saved during shutdown, quitting application...";
         QApplication::quit();
     }
 }
@@ -961,6 +1328,10 @@ void MainWindow::closeEvent(QCloseEvent *event)
         // Call stop() to properly clean up camera, audio, and serial port
         qCDebug(log_ui_mainwindow) << "Calling stop() to clean up resources";
         stop();
+        
+        // Stop TCP Server if running
+        qCDebug(log_ui_mainwindow) << "Stopping TCP Server";
+        stopServer();
         
         // Stop threads in safe order
         qCDebug(log_ui_mainwindow) << "Stopping background threads";
@@ -1185,12 +1556,10 @@ void MainWindow::onLastMouseLocation(const QPoint& location, const QString& mous
 
 void MainWindow::onSwitchableUsbToggle(const bool isToTarget) {
     if (isToTarget) {
-        qDebug() << "UI Switchable USB to target...";
         ui->actionTo_Host->setChecked(false);
         ui->actionTo_Target->setChecked(true);
         toggleSwitch->setChecked(true);
     } else {
-        qDebug() << "UI Switchable USB to host...";
         ui->actionTo_Host->setChecked(true);
         ui->actionTo_Target->setChecked(false);
         toggleSwitch->setChecked(false);
@@ -1261,7 +1630,6 @@ void MainWindow::onVideoSettingsChanged() {
         newWidth = static_cast<int>(newWidth / 1.2);
         newHeight = static_cast<int>(newHeight / 1.2);
     }
-    qDebug() << "Resize to onVideoSettingsChanged " << captureWidth << newHeight;
     resize(newWidth, newHeight);
 
     // Optionally, you might want to center the window on the screen
@@ -1291,18 +1659,135 @@ void MainWindow::onInputResolutionChanged()
     // Calculate the maximum available content height with safety checks
     int contentHeight = this->height() - ui->statusbar->height() - ui->menubar->height();
 
-    qDebug() << "contentHeight: " << contentHeight;
-    
     // Set the videoPane to use the full available width and height
     // videoPane->setMinimumSize(videoPane->width(), contentHeight);
     videoPane->resize(videoPane->width(), contentHeight);
     
 }
 
+void MainWindow::zoomIn()
+{
+    if (videoPane) {
+        videoPane->zoomIn();
+    }
+}
+
+void MainWindow::zoomOut()
+{
+    if (videoPane) {
+        videoPane->zoomOut();
+    }
+}
+
+void MainWindow::resetZoom()
+{
+    if (videoPane) {
+        videoPane->resetZoom();
+    }
+}
+
+void MainWindow::fitToWindow()
+{
+    if (videoPane) {
+        videoPane->fitToWindow();
+    }
+}
+
+void MainWindow::actualSize()
+{
+    if (videoPane) {
+        videoPane->actualSize();
+    }
+}
+
+void MainWindow::ensureFloatingWindowCreated()
+{
+    if (m_floatingWindow) return;
+
+    m_floatingWindow = new FloatingWindow(this);
+
+    connect(m_floatingWindow, &FloatingWindow::zoomInRequested, this, [this]() {
+        if (m_windowLayoutCoordinator) m_windowLayoutCoordinator->zoomIn();
+    });
+    connect(m_floatingWindow, &FloatingWindow::zoomOutRequested, this, [this]() {
+        if (m_windowLayoutCoordinator) m_windowLayoutCoordinator->zoomOut();
+    });
+    connect(m_floatingWindow, &FloatingWindow::fullscreenRequested, this, [this]() {
+        if (m_windowLayoutCoordinator) m_windowLayoutCoordinator->fullScreen();
+    });
+    connect(m_floatingWindow, &FloatingWindow::fitToWindowRequested, this, [this]() {
+        if (videoPane) videoPane->fitToWindow();
+    });
+
+    const int moveStep = 10;
+    connect(m_floatingWindow, &FloatingWindow::moveUpRequested, this, [this, moveStep]() {
+        if (videoPane && videoPane->verticalScrollBar())
+            videoPane->verticalScrollBar()->setValue(videoPane->verticalScrollBar()->value() - moveStep);
+    });
+    connect(m_floatingWindow, &FloatingWindow::moveDownRequested, this, [this, moveStep]() {
+        if (videoPane && videoPane->verticalScrollBar())
+            videoPane->verticalScrollBar()->setValue(videoPane->verticalScrollBar()->value() + moveStep);
+    });
+    connect(m_floatingWindow, &FloatingWindow::moveLeftRequested, this, [this, moveStep]() {
+        if (videoPane && videoPane->horizontalScrollBar())
+            videoPane->horizontalScrollBar()->setValue(videoPane->horizontalScrollBar()->value() - moveStep);
+    });
+    connect(m_floatingWindow, &FloatingWindow::moveRightRequested, this, [this, moveStep]() {
+        if (videoPane && videoPane->horizontalScrollBar())
+            videoPane->horizontalScrollBar()->setValue(videoPane->horizontalScrollBar()->value() + moveStep);
+    });
+
+    // Apply opacity setting
+    double opacity = GlobalSetting::instance().getFloatingWindowOpacity();
+    m_floatingWindow->setWindowOpacityValue(opacity);
+
+    // Position at top-right of screen
+    connect(m_floatingWindow, &FloatingWindow::dragEnded,
+            this, [this]() { if (m_floatingWindow) m_floatingWindow->clampToScreen(); });
+
+    // Reposition floating window when exiting fullscreen
+    connect(m_windowLayoutCoordinator, &WindowLayoutCoordinator::fullscreenChanged,
+            this, [this](bool entered) {
+        if (!entered && m_floatingWindow && m_floatingWindow->isVisible() && videoPane) {
+            m_floatingWindow->positionAtVideoPaneTopRight(videoPane);
+            m_floatingWindow->clampToScreen();
+        }
+    });
+
+    // Clamp to screen on move
+    connect(m_floatingWindow, &FloatingWindow::moveUpRequested, this, [this]() {
+        if (m_floatingWindow) m_floatingWindow->clampToScreen();
+    });
+    connect(m_floatingWindow, &FloatingWindow::moveDownRequested, this, [this]() {
+        if (m_floatingWindow) m_floatingWindow->clampToScreen();
+    });
+    connect(m_floatingWindow, &FloatingWindow::moveLeftRequested, this, [this]() {
+        if (m_floatingWindow) m_floatingWindow->clampToScreen();
+    });
+    connect(m_floatingWindow, &FloatingWindow::moveRightRequested, this, [this]() {
+        if (m_floatingWindow) m_floatingWindow->clampToScreen();
+    });
+}
+
+void MainWindow::showFloatingWindow()
+{
+    ensureFloatingWindowCreated();
+    if (videoPane) {
+        m_floatingWindow->positionAtVideoPaneTopRight(videoPane);
+        m_floatingWindow->clampToScreen();
+    } else {
+        m_floatingWindow->moveToTopRight();
+    }
+    m_floatingWindow->show();
+}
+
+void MainWindow::hideFloatingWindow()
+{
+    if (m_floatingWindow) m_floatingWindow->hide();
+}
+
 void MainWindow::showScriptTool()
 {
-    qDebug() << "showScriptTool called";  // Add debug output
-    scriptTool->setAttribute(Qt::WA_DeleteOnClose);
     
     // Connect the syntaxTreeReady signal to the handleSyntaxTree slot
     connect(scriptTool, &ScriptTool::syntaxTreeReady, this, &MainWindow::handleSyntaxTree);
@@ -1328,12 +1813,8 @@ void MainWindow::handleSyntaxTree(std::shared_ptr<ASTNode> syntaxTree) {
     scriptRunner->runTree(std::move(syntaxTree), origin);
 }
 
-
-
-
 MainWindow::~MainWindow()
 {
-    qDebug() << "MainWindow destructor called";
     
     // Set global shutdown flag to prevent Qt Multimedia operations
     g_applicationShuttingDown.storeRelease(1);
@@ -1414,12 +1895,6 @@ MainWindow::~MainWindow()
         qCDebug(log_ui_mainwindow) << "m_screenScaleDialog destroyed successfully";
     }
 
-    if (firmwareManagerDialog) {
-        delete firmwareManagerDialog;
-        firmwareManagerDialog = nullptr;
-        qCDebug(log_ui_mainwindow) << "firmwareManagerDialog destroyed successfully";
-    }
-    
     // 4. Clean up video pane and related objects - Use direct delete to ensure immediate cleanup
     if (videoPane) {
         // Remove videoPane from any layouts first
@@ -1455,16 +1930,14 @@ MainWindow::~MainWindow()
         toggleSwitch = nullptr;
         qCDebug(log_ui_mainwindow) << "toggleSwitch destroyed successfully";
     }
-    
-    // Clean up image capturer
-    // if (m_imageCapturer) {
-    //     m_imageCapturer->stopCapturing();
-    //     delete m_imageCapturer;
-    //     m_imageCapturer = nullptr;
-    //     qCDebug(log_ui_mainwindow) << "m_imageCapturer destroyed successfully";
-    // }else{
-    //     qCDebug(log_ui_mainwindow) << "m_imageCapturer was already null in destructor";
-    // }
+
+    // Clean up TCP Server and Image Capturer
+    if (tcpServer) {
+        tcpServer->close();
+        tcpServer->deleteLater();
+        tcpServer = nullptr;
+        qCDebug(log_ui_mainwindow) << "tcpServer destroyed successfully";
+    }
     
     if (m_audioManager) {
         // AudioManager is now a singleton, and we already disconnected it above
@@ -1510,7 +1983,19 @@ void MainWindow::onToolbarVisibilityChanged(bool visible) {
     QString iconPath = isVisible ? ":/images/keyboard-down.svg" : ":/images/keyboard-up.svg";
     // ui->virtualKeyboardButton->setIcon(QIcon(iconPath));  // Create QIcon from the path
 
-    
+    // Safety mechanism: Ensure updates are re-enabled after a timeout to prevent permanent blocking
+    QTimer::singleShot(500, this, [this]() {
+        if (!this->updatesEnabled()) {
+            qCWarning(log_ui_mainwindow) << "Force re-enabling updates after timeout - animation may have failed";
+            this->setUpdatesEnabled(true);
+            this->blockSignals(false);
+            this->update();
+            if (videoPane) {
+                videoPane->update();
+                videoPane->updateGeometry();
+            }
+        }
+    });
 
     // Use QTimer to delay the video pane repositioning
     // Safety check: Don't schedule animation if window is being destroyed
@@ -1520,6 +2005,10 @@ void MainWindow::onToolbarVisibilityChanged(bool visible) {
                 m_windowLayoutCoordinator->animateVideoPane();
             }
         });
+    } else {
+        // If coordinators not ready, immediately re-enable updates
+        setUpdatesEnabled(true);
+        blockSignals(false);
     }
     
 }
@@ -1560,7 +2049,6 @@ void MainWindow::showEnvironmentSetupDialog() {
 
 void MainWindow::showFirmwareManagerDialog() {
     if (!firmwareManagerDialog){
-        qDebug() << "Creating serial port debug dialog";
         firmwareManagerDialog = new FirmwareManagerDialog(this);
         // connect the finished signal to the set the dialog pointer to nullptr
         connect(firmwareManagerDialog, &QDialog::finished, this, [this](){
@@ -1575,83 +2063,78 @@ void MainWindow::showFirmwareManagerDialog() {
 
 }
 
+void MainWindow::showWCHFlashDialog() {
+    if (!wchFlashDialog) {
+        wchFlashDialog = new WCHFlashDialog(this);
+        connect(wchFlashDialog, &QDialog::finished, this, [this]() {
+            wchFlashDialog->deleteLater();
+            wchFlashDialog = nullptr;
+        });
+        wchFlashDialog->show();
+    } else {
+        wchFlashDialog->raise();
+        wchFlashDialog->activateWindow();
+    }
+}
+
 void MainWindow::updateFirmware() {
     // Check if it's latest firmware
-    qDebug() << "Checking for latest firmware version...";
     FirmwareResult firmwareStatus = VideoHid::getInstance().isLatestFirmware();
     std::string currentFirmwareVersion = VideoHid::getInstance().getCurrentFirmwareVersion();
     std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
-    qDebug() << "latestFirmwareVersion" << latestFirmwareVersion.c_str();
     FirmwareUpdateConfirmDialog confirmDialog(this);
-    bool proceed = false;
     switch (firmwareStatus){
         case FirmwareResult::Latest:
-            qDebug() << "Firmware is up to date.";
-            QMessageBox::information(this, tr("Firmware Update"), 
-            tr("The firmware is up to date.\nCurrent version: ") + 
+            QMessageBox::information(this, tr("Firmware Update"),
+            tr("The firmware is up to date.\nCurrent version: ") +
             QString::fromStdString(currentFirmwareVersion));
             break;
-        case FirmwareResult::Upgradable:
-            qDebug() << "Firmware is upgradable.";
-            proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
+        case FirmwareResult::Upgradable:            qDebug() << "Firmware is upgradable.";
+            {
+            bool proceed = confirmDialog.showConfirmDialog(currentFirmwareVersion, latestFirmwareVersion);
             if (proceed) {
-                qDebug() << "User accepted firmware update, proceeding...";
-                
+
                 // Declare success variable before try-catch block
                 bool success = false;
-                
+
                 try {
                     // Stop services in proper order with robust error handling
-                    qDebug() << "Stopping main window operations first...";
                     try {
                         stop();
-                        qDebug() << "Main window operations stopped successfully";
                     } catch (...) {
                         qWarning() << "Exception while stopping main window operations - continuing anyway";
                     }
-                    
-                    qDebug() << "Stopping video HID polling only...";
+
                     try {
                         VideoHid::getInstance().stopPollingOnly();
-                        qDebug() << "Video HID polling stopped successfully";
                     } catch (...) {
                         qWarning() << "Exception while stopping video HID polling - continuing anyway";
                     }
-                    
+
                     // Wait a bit for video HID to fully stop
-                    qDebug() << "Waiting for video HID to stop completely...";
                     QThread::msleep(300);
                     QCoreApplication::processEvents();
-                    
-                    qDebug() << "Stopping serial port manager...";
+
                     try {
                         // Close the serial port directly rather than using full stop() to avoid timer issues
                         SerialPortManager::getInstance().closePort();
-                        qDebug() << "Serial port closed successfully";
                         QThread::msleep(200); // Small delay for port closure
                         QCoreApplication::processEvents();
-                        
-                        qDebug() << "Serial port manager stopped successfully";
+
                     } catch (...) {
                         qWarning() << "Exception while stopping SerialPortManager - continuing anyway";
                     }
-                    
+
                     // Final cleanup - process any remaining events
-                    qDebug() << "Processing remaining events...";
                     QCoreApplication::processEvents();
                     QThread::msleep(200);
-                    
-                    qDebug() << "Services stopped successfully, proceeding with firmware update...";
 
                     // Hide main window while update dialog runs to keep app alive and allow dialog to control shutdown
                     this->hide();
-                    qDebug() << "Creating FirmwareUpdateDialog...";
-                    
+
                     // Create and show firmware update dialog (capture result to restore main window on failure)
                     FirmwareUpdateDialog *updateDialog = new FirmwareUpdateDialog(this);
-                    qDebug() << "Calling updateDialog->startUpdate()...";
                     success = updateDialog->startUpdate();
-                    qDebug() << "FirmwareUpdate completed with result:" << success;
                     updateDialog->deleteLater();
                 } catch (const std::exception& e) {
                     qCritical() << "Exception during firmware update process:" << e.what();
@@ -1667,24 +2150,26 @@ void MainWindow::updateFirmware() {
                 if (!success) {
                     this->show();
                 }else{
-                    qDebug() << "Firmware updated successfully, closing main window.";
                     this->close(); // Close main window on successful update
                 }
             }
+            } // end proceed scope
             break;
         case FirmwareResult::Timeout:
-            qDebug() << "Firmware fetch timeout.";
-            QMessageBox::information(this, tr("Firmware fetch timeout"), 
-            tr("Firmware retrieval timed out. Please check your network connection and try again.\nCurrent version: ") + 
+            QMessageBox::information(this, tr("Firmware fetch timeout"),
+            tr("Firmware retrieval timed out. Please check your network connection and try again.\nCurrent version: ") +
             QString::fromStdString(currentFirmwareVersion));
+            break;
+        case FirmwareResult::CheckSuccess:
+        case FirmwareResult::CheckFailed:
+        case FirmwareResult::Checking:
+            // These states are handled by the caller before reaching this switch
             break;
     }
 }
 
 void MainWindow::openDeviceSelector() {
-    qDebug() << "Opening device selector dialog";
     if (!deviceSelectorDialog) {
-        qDebug() << "Creating device selector dialog";
         deviceSelectorDialog = new DeviceSelectorDialog(m_cameraManager, &VideoHid::getInstance(), this);
         
         // Connect the finished signal to clean up
@@ -1697,25 +2182,6 @@ void MainWindow::openDeviceSelector() {
     } else {
         deviceSelectorDialog->raise();
         deviceSelectorDialog->activateWindow();
-    }
-}
-
-void MainWindow::showUpdateDisplaySettingsDialog() {
-    qCDebug(log_ui_mainwindow) << "Opening update display settings dialog";
-    if (!updateDisplaySettingsDialog) {
-        qCDebug(log_ui_mainwindow) << "Creating update display settings dialog";
-        updateDisplaySettingsDialog = new UpdateDisplaySettingsDialog(this);
-        
-        // Connect the finished signal to clean up
-        connect(updateDisplaySettingsDialog, &QDialog::finished, this, [this]() {
-            updateDisplaySettingsDialog->deleteLater();
-            updateDisplaySettingsDialog = nullptr;
-        });
-        
-        updateDisplaySettingsDialog->show();
-    } else {
-        updateDisplaySettingsDialog->raise();
-        updateDisplaySettingsDialog->activateWindow();
     }
 }
 
@@ -1774,3 +2240,38 @@ void MainWindow::showHardwareDiagnostics() {
     
     diagnosticsDialog->show();
 }
+
+void MainWindow::showHotplugTest() {
+    qCDebug(log_ui_mainwindow) << "Opening hotplug test wizard dialog";
+    auto* dialog = new HotplugTestDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->show();
+}
+
+// void MainWindow::activateFileMenu()
+// {
+//     if (ui->menuFile) {
+//         QList<QAction*> actions = ui->menubar->actions();
+//         for (QAction* action : actions) {
+//             if (action->menu() == ui->menuFile) {
+//                 QRect actionRect = ui->menubar->actionGeometry(action);
+//                 QPoint globalPos = ui->menubar->mapToGlobal(actionRect.bottomLeft());
+//                 ui->menuFile->popup(globalPos);
+//                 break;
+//             }
+//         }
+//     }
+// }
+
+void MainWindow::syncShortcutsState()
+{
+    // User preference: allow app shortcuts (Ctrl+P for Preferences, etc.) to work
+    // even when VideoPane has focus. The user controls key forwarding via SystemBlocker:
+    // - SystemBlocker ON (swallow): all keys go to target, app shortcuts don't fire
+    // - SystemBlocker OFF (pass-through): app shortcuts work normally
+    //
+    // This function is now a no-op — shortcuts are never disabled based on focus.
+    // Kept for API compatibility and potential future use.
+    qCDebug(log_ui_mainwindow) << "syncShortcutsState called (no-op: shortcuts always enabled)";
+}
+

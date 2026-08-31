@@ -411,7 +411,11 @@ cp "${BUILD}/openterfaceQT" "${APPDIR}/usr/bin/openterfaceQT.bin"
 chmod +x "${APPDIR}/usr/bin/openterfaceQT.bin"
 
 # Create desktop file for comprehensive AppImage
-cp "${SRC}/packaging/com.openterface.openterfaceQT.desktop" "${APPDIR}/usr/share/applications/openterfaceqt.desktop"
+# Keep Exec=openterfaceQT (NOT openterfaceQT.bin) so that linuxdeploy creates
+# the desktop-integration symlink as usr/bin/openterfaceQT -> ../../AppRun, leaving
+# the real ELF binary openterfaceQT.bin untouched.  AppRun always calls .bin directly.
+sed -e 's|^Exec=.*$|Exec=openterfaceQT|g' \
+	"${SRC}/packaging/com.openterface.openterfaceQT.desktop" > "${APPDIR}/usr/share/applications/openterfaceqt.desktop"
 
 # For AppImage, keep the proper FreeDesktop icon name (com.openterface.openterfaceQT)
 # This ensures the icon is found by standard icon theme lookups on all platforms
@@ -890,6 +894,21 @@ echo "  🗑️  Removed libstdbuf.so variants"
 rm -rf "${APPDIR}/usr/libexec/coreutils/" 2>/dev/null || true
 rm -rf "${APPDIR}/libexec/coreutils/" 2>/dev/null || true
 echo "  ✓ GLIBC and coreutils libraries removed - will use host system versions"
+
+# Safeguard: linuxdeploy (or its Qt plugin) can replace openterfaceQT.bin with a symlink
+# pointing back to AppRun for desktop integration. That would cause AppRun to exec itself
+# in a loop. Restore the real ELF if that happened.
+# We check for BOTH a symlink AND a non-ELF file (linuxdeploy may copy the shell script
+# wrapper rather than create a symlink, depending on its version).
+_bin="${APPDIR}/usr/bin/openterfaceQT.bin"
+if [ -L "$_bin" ] || ! file "$_bin" 2>/dev/null | grep -q 'ELF'; then
+	echo "⚠️  openterfaceQT.bin was replaced by linuxdeploy (symlink or non-ELF); restoring real binary"
+	rm -f "$_bin"
+	cp "${BUILD}/openterfaceQT" "$_bin"
+	chmod +x "$_bin"
+	echo "✓ Restored openterfaceQT.bin as real ELF binary"
+fi
+unset _bin
 
 # Copy AppRun script from packaging directory with proper environment setup
 cp "${SRC}/packaging/appimage/AppRun" "${APPDIR}/AppRun"

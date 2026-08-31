@@ -38,15 +38,19 @@
 #include <QButtonGroup>
 #include "host/cameramanager.h"
 #include "fontstyle.h"
+#include "preferencepagebase.h"
 
-class TargetControlPage : public QWidget
+class TargetControlPage : public PreferencePageBase
 {
     Q_OBJECT
 public:
     explicit TargetControlPage(QWidget *parent = nullptr);
     void setupUI();
-    void applyHardwareSetting();
+    void applySettings() override;
     void initHardwareSetting();
+    void captureSnapshot() override;
+    bool valuesMatchSnapshot() const override;
+    void revertToSnapshot() override;
 
 private:
     QLabel *hardwareLabel;
@@ -64,8 +68,8 @@ private:
     QLineEdit *serialNumberLineEdit;
 
     void addCheckBoxLineEditPair(QCheckBox *checkBox, QLineEdit *lineEdit);
-    void onCheckBoxStateChanged(int state);
-    
+    void onCheckBoxStateChanged(Qt::CheckState state);
+
     std::array<bool, 4> extractBits(QString hexString);
     QByteArray convertCheckBoxValueToBytes();
     QMap<QCheckBox *, QLineEdit *> USBCheckBoxEditMap; // map of checkboxes to line edit about VID PID etc.
@@ -80,7 +84,18 @@ private:
     const QString bigLabelFontSize = "font-size: 16px;";
 
     int originalOperatingMode;
+
+    // Snapshot members
+    bool m_snap_vidChecked;
+    bool m_snap_pidChecked;
+    QString m_snap_vidText;
+    QString m_snap_pidText;
+    QString m_snap_vidDescriptor;
+    QString m_snap_pidDescriptor;
+    bool m_snap_usbSerialNumberChecked;
+    QString m_snap_serialNumberText;
+    bool m_snap_usbCustomStringChecked;
+    int m_snap_operatingMode;
 };
 
 #endif // TARGETCONTROL_H
-

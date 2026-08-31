@@ -11,11 +11,12 @@
 #include <gst/gst.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_gst_sink_selector, "opf.backend.gstreamer.sinkselector")
+#include "log/opflogging.h"
+OPF_LOGGING_CATEGORY(log_gst_sink_selector, "opf.backend.gstreamer.sinkselector")
 
 using namespace Openterface::GStreamer;
 
-QString SinkSelector::selectSink(const QString &platform)
+QString SinkSelector::selectSink(const QString &/*platform*/)
 {
     // Read environment override first
     const QByteArray envOverride = qgetenv("OPENTERFACE_GST_SINK");
@@ -58,7 +59,7 @@ QString SinkSelector::selectSink(const QString &platform)
     return QStringLiteral("autovideosink");
 }
 
-QStringList SinkSelector::candidateSinks(const QString &platform)
+QStringList SinkSelector::candidateSinks(const QString &/*platform*/)
 {
     QStringList candidates;
 

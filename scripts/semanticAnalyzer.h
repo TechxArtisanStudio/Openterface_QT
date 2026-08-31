@@ -54,7 +54,6 @@ signals:
     void captureImg(const QString& path = "");
     void captureAreaImg(const QString& path = "", const QRect& captureArea = QRect());
     void commandIncrease();
-    void commandData(const ASTNode* node);
     void analysisFinished(bool success);
 
 private:
@@ -62,7 +61,7 @@ private:
     KeyboardMouse* keyboardMouse;
     std::shared_ptr<ASTNode> currentTree;
 
-    void analyzeCommandStetement(const CommandStatementNode* node);
+    void analyzeCommandStatement(const CommandStatementNode* node);
     void analyzeClickStatement(const CommandStatementNode* node);
     void analyzeSendStatement(const CommandStatementNode* node);
     QPoint parseCoordinates(const std::vector<std::string>& options);
@@ -71,6 +70,7 @@ private:
     
     void analyzeSleepStatement(const CommandStatementNode* node);
     void analyzeMouseMove(const CommandStatementNode* node);
+    void analyzeScrollStatement(const CommandStatementNode* node);
     void analyzeLockState(const CommandStatementNode* node, const QString& keyName, bool (KeyboardMouse::*getStateFunc)());
     void analyzeFullScreenCapture(const CommandStatementNode* node);
     void analyzeAreaScreenCapture(const CommandStatementNode* node);

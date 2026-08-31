@@ -29,16 +29,22 @@
 #include "../../device/DeviceInfo.h"
 #include <QThread>
 #include <QApplication>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QWindow>
 #include <QDebug>
 #include <QWidget>
 #include <QEvent>
 #include <QResizeEvent>
 #include <QGraphicsView>
 #include <QFile>
+#include <QScopeGuard>
 #include <QDir>
 #include <QFileInfo>
 #include <QLoggingCategory>
 #include <QGraphicsVideoItem>
+#include <QPainter>
+#include <QGraphicsScene>
 #ifdef Q_OS_LINUX
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -56,8 +62,10 @@
 #include "gstreamer/externalgstrunner.h"
 #include "gstreamer/recordingmanager.h"
 
+#include "log/opflogging.h"
+
 // logging category for this translation unit
-Q_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
+OPF_LOGGING_CATEGORY(log_gstreamer_backend, "opf.backend.gstreamer")
 
 // Small helper that maps common QEvent types to readable names used in debug logging
 static const char* qEventTypeName(QEvent::Type t)
@@ -92,6 +100,8 @@ QList<int> GStreamerBackendHandler::getSupportedFrameRates(const QCameraFormat& 
 #ifdef HAVE_GSTREAMER
 #include <gst/video/videooverlay.h>
 #include <gst/gstpad.h>
+#include <gst/video/video.h>
+#include <gst/app/gstappsink.h>
 #endif
 
 #ifdef HAVE_GSTREAMER
@@ -117,8 +127,8 @@ GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
       m_recordingPipeline(nullptr), m_recordingTee(nullptr), m_recordingValve(nullptr),
       m_recordingSink(nullptr), m_recordingQueue(nullptr), m_recordingEncoder(nullptr),
       m_recordingVideoConvert(nullptr), m_recordingMuxer(nullptr), m_recordingFileSink(nullptr),
-      m_recordingAppSink(nullptr), m_recordingTeeSrcPad(nullptr),
-      m_recordingManager(nullptr),
+      m_recordingAppSink(nullptr), m_recordingTeeSrcPad(nullptr), m_captureAppSink(nullptr), m_captureQueue(nullptr),
+      m_captureVideoConvert(nullptr), m_captureCapsFilter(nullptr), m_recordingManager(nullptr),
       m_videoWidget(nullptr), m_graphicsVideoItem(nullptr), m_videoPane(nullptr),
     m_healthCheckTimer(nullptr), m_gstProcess(nullptr), m_pipelineRunning(false), m_selectedSink(),
       m_overlaySetupPending(false), m_recordingActive(false), m_recordingPaused(false),
@@ -134,6 +144,11 @@ GStreamerBackendHandler::GStreamerBackendHandler(QObject *parent)
     m_healthCheckTimer = new QTimer(this);
     m_healthCheckTimer->setInterval(1000);
     connect(m_healthCheckTimer, &QTimer::timeout, this, &GStreamerBackendHandler::checkPipelineHealth);
+
+    // create overlay rebuild timer used to coalesce rapid resize events
+    m_overlayRebuildTimer = new QTimer(this);
+    m_overlayRebuildTimer->setSingleShot(true);
+    connect(m_overlayRebuildTimer, &QTimer::timeout, this, &GStreamerBackendHandler::handleOverlayResizeRebuildTimeout);
 
     // runners
     m_inProcessRunner = new InProcessGstRunner(this);
@@ -181,6 +196,12 @@ GStreamerBackendHandler::~GStreamerBackendHandler()
         m_healthCheckTimer->stop();
         delete m_healthCheckTimer;
         m_healthCheckTimer = nullptr;
+    }
+
+    if (m_overlayRebuildTimer) {
+        m_overlayRebuildTimer->stop();
+        delete m_overlayRebuildTimer;
+        m_overlayRebuildTimer = nullptr;
     }
 
     if (m_externalRunner) {
@@ -340,11 +361,13 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     m_currentDevicePath = device;
     m_currentResolution = resolution;
     m_currentFramerate = framerate;
+
+    if (m_videoPane) {
+        m_videoPane->setOriginalVideoSize(m_currentResolution);
+    }
     
     // Determine the appropriate video sink for current environment
     const QString platform = QGuiApplication::platformName();
-    const bool isXcb = platform.contains("xcb", Qt::CaseInsensitive);
-    const bool isWayland = platform.contains("wayland", Qt::CaseInsensitive);
     const bool hasXDisplay = !qgetenv("DISPLAY").isEmpty();
     const bool hasWaylandDisplay = !qgetenv("WAYLAND_DISPLAY").isEmpty();
     
@@ -353,12 +376,19 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     qCDebug(log_gstreamer_backend) << "Candidate sinks to try:" << candidateSinks << "(platform:" << platform
                                    << ", X DISPLAY:" << hasXDisplay << ", WAYLAND_DISPLAY:" << hasWaylandDisplay << ")";
 
+    QSize displaySize = getDisplaySizeForPipeline();
+    m_pipelineDisplaySize = displaySize;
+
+    qCDebug(log_gstreamer_backend) << "Pipeline display size determined:" << displaySize
+                                   << "overlay widget available:" << (m_videoPane && m_videoPane->getOverlayWidget() ? true : false)
+                                   << "overlay widget size:" << (m_videoPane && m_videoPane->getOverlayWidget() ? m_videoPane->getOverlayWidget()->size() : QSize());
+
     // Centralize pipeline creation and fallbacks in PipelineFactory (HAVE_GSTREAMER)
 #ifdef HAVE_GSTREAMER
     QString err;
     for (const QString &trySink : candidateSinks) {
         qCDebug(log_gstreamer_backend) << "Trying to create pipeline with sink:" << trySink;
-        GstElement* pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(device, resolution, framerate, trySink, err);
+        GstElement* pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(device, resolution, framerate, trySink, err, displaySize);
         if (!pipeline) {
             qCWarning(log_gstreamer_backend) << "Pipeline creation failed for sink" << trySink << ":" << err;
             continue; // try the next sink
@@ -490,6 +520,31 @@ bool GStreamerBackendHandler::startDirectPipeline()
         return false;
     }
 
+    // On the very first pipeline creation, defer until after the layout has settled.
+    // This is critical on small screens where the overlay widget may be created at a
+    // larger initial size and then shrunk by the layout manager. X11 sinks (xvimagesink)
+    // render video at the pipeline's output resolution — if the pipeline output is larger
+    // than the widget, the video will be clipped.
+    if (!m_initialPipelineCreated) {
+        qCDebug(log_gstreamer_backend) << "Deferring initial pipeline creation until layout settles";
+        QTimer::singleShot(1000, this, [this]() {
+            if (!m_isDestructing && !m_currentDevicePath.isEmpty() && !m_initialPipelineCreated) {
+                QSize overlaySize;
+                if (m_videoPane && m_videoPane->getOverlayWidget()) {
+                    overlaySize = m_videoPane->getOverlayWidget()->size();
+                }
+                qCDebug(log_gstreamer_backend) << "Creating deferred initial pipeline, overlay size:" << overlaySize;
+                if (createGStreamerPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate)) {
+                    m_initialPipelineCreated = true;
+                    startGStreamerPipeline();
+                } else {
+                    qCWarning(log_gstreamer_backend) << "Deferred pipeline creation failed";
+                }
+            }
+        });
+        return true; // Indicate "pending" so caller doesn't try fallback
+    }
+
     if (!createGStreamerPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate)) {
         qCWarning(log_gstreamer_backend) << "createGStreamerPipeline failed";
         return false;
@@ -527,7 +582,7 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
             cleanupGStreamer();
 
             QString createErr;
-            m_pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate, trySink, createErr);
+            m_pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate, trySink, createErr, getDisplaySizeForPipeline());
             if (!m_pipeline) {
                 qCWarning(log_gstreamer_backend) << "Failed to create pipeline with sink" << trySink << ":" << createErr;
                 lastErr = createErr;
@@ -553,6 +608,9 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
                 m_frameCount.store(0, std::memory_order_relaxed);
                 attachFrameProbe();
                 if (m_healthCheckTimer && !m_healthCheckTimer->isActive()) m_healthCheckTimer->start(1000);
+                // Pre-initialize capture appsink for AI screen capture
+                // This avoids lazy initialization latency during first capture request
+                createCaptureAppSink();
                 return true;
             }
 
@@ -584,6 +642,8 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
     m_frameCount.store(0, std::memory_order_relaxed);
     attachFrameProbe();
     if (m_healthCheckTimer && !m_healthCheckTimer->isActive()) m_healthCheckTimer->start(1000);
+    // Pre-initialize capture appsink for AI screen capture
+    createCaptureAppSink();
     return true;
     }
 
@@ -875,7 +935,7 @@ void GStreamerBackendHandler::completePendingOverlaySetup()
 
 bool GStreamerBackendHandler::setupVideoOverlay(GstElement* videoSink, WId windowId)
 {
-    return Openterface::GStreamer::VideoOverlayManager::setupVideoOverlay(static_cast<void*>(videoSink), windowId);
+    return Openterface::GStreamer::VideoOverlayManager::setupVideoOverlay(static_cast<void*>(videoSink), windowId, m_currentResolution);
     return false;
 }
 
@@ -900,7 +960,7 @@ void GStreamerBackendHandler::setupVideoOverlayForCurrentPipeline()
         }
 
         qCDebug(log_gstreamer_backend) << "Attempting overlay setup for pipeline with windowId:" << windowId << "targetWidget:" << targetWidget << "graphicsItem:" << m_graphicsVideoItem;
-        bool ok = Openterface::GStreamer::VideoOverlayManager::setupVideoOverlayForPipeline(m_pipeline, windowId, targetWidget, m_graphicsVideoItem);
+        bool ok = Openterface::GStreamer::VideoOverlayManager::setupVideoOverlayForPipeline(m_pipeline, windowId, m_currentResolution, targetWidget, m_graphicsVideoItem);
         if (ok) {
             m_overlaySetupPending = false;
             qCDebug(log_gstreamer_backend) << "Overlay setup completed for current pipeline";
@@ -1086,8 +1146,30 @@ bool GStreamerBackendHandler::eventFilter(QObject *watched, QEvent *event)
             {
                 QResizeEvent* re = static_cast<QResizeEvent*>(event);
                 if (re) {
-                    qCDebug(log_gstreamer_backend) << "Video widget resize event: new size=" << re->size();
-                    updateVideoRenderRectangle(re->size());
+                    QSize newSize = re->size();
+                    qCDebug(log_gstreamer_backend) << "Video widget resize event: new size=" << newSize;
+
+                    // Rebuild pipeline if the widget grew or shrank significantly compared
+                    // to the size used at pipeline creation. Coalesce rapid resize events
+                    // using a single timer so the pipeline is rebuilt only once after resize
+                    // activity settles.
+                    if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled() && m_pipelineRunning && !m_pipelineDisplaySize.isEmpty() &&
+                        overlayPipelineSizeChangeRequiresRebuild(newSize)) {
+                        qCDebug(log_gstreamer_backend) << "Video widget resize changed from" << m_pipelineDisplaySize << "to" << newSize << "- scheduling pipeline rebuild";
+                        scheduleOverlayPipelineRebuild(500);
+                        return true;
+                    }
+
+                    // One-shot rebuild after initial layout settles: if the pipeline was created
+                    // with a size that doesn't match the actual widget now, rebuild once with the
+                    // final size.
+                    if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled() && m_pipelineRunning && !m_pipelineDisplaySize.isEmpty() &&
+                        !m_postLayoutRebuildScheduled) {
+                        m_postLayoutRebuildScheduled = true;
+                        scheduleOverlayPipelineRebuild(1500);
+                    }
+
+                    updateVideoRenderRectangle(newSize);
                 }
                 break;
             }
@@ -1158,7 +1240,35 @@ bool GStreamerBackendHandler::eventFilter(QObject *watched, QEvent *event)
                 QResizeEvent* re = static_cast<QResizeEvent*>(event);
                 if (re && ovWidget) {
                     qCDebug(log_gstreamer_backend) << "VideoPane overlay resize event: new size=" << re->size();
+
+                    // If the pipeline was created before the window finished layout,
+                    // the display size used for pipeline creation may be smaller than
+                    // the actual widget now. Rebuild when the overlay grows or shrinks
+                    // significantly, but coalesce rapid changes into a single rebuild.
+                    if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled() && m_pipelineRunning && !m_pipelineDisplaySize.isEmpty()) {
+                        QSize newSize = re->size();
+                        if (overlayPipelineSizeChangeRequiresRebuild(newSize)) {
+                            qCDebug(log_gstreamer_backend) << "Overlay resize changed from pipeline display size" << m_pipelineDisplaySize << "to" << newSize << "- scheduling pipeline rebuild";
+                            scheduleOverlayPipelineRebuild(500);
+                            return true;
+                        }
+
+                        if (!m_postLayoutRebuildScheduled) {
+                            m_postLayoutRebuildScheduled = true;
+                            scheduleOverlayPipelineRebuild(1500);
+                        }
+                    }
+
                     updateVideoRenderRectangle(re->size());
+                }
+                break;
+            }
+            case QEvent::Move:
+            {
+                QMoveEvent* me = static_cast<QMoveEvent*>(event);
+                if (me && ovWidget) {
+                    qCDebug(log_gstreamer_backend) << "VideoPane overlay move event: new pos=" << me->pos();
+                    updateVideoRenderRectangle(ovWidget->size());
                 }
                 break;
             }
@@ -1315,6 +1425,191 @@ bool GStreamerBackendHandler::checkCameraAvailable(const QString& device)
     return true;
 }
 
+QSize GStreamerBackendHandler::getDisplaySizeForPipeline() const
+{
+    // Strategy: determine the preferred target size from the overlay widget,
+    // then clamp it to the physical screen size for the screen that contains
+    // that widget. This avoids creating a pipeline output larger than the
+    // actual display and prevents X11 sinks from clipping or misrendering.
+
+    QSize maxSize;
+    QSize targetSize;
+    QWidget* overlayWidget = nullptr;
+
+    if (m_videoPane) {
+        overlayWidget = m_videoPane->getOverlayWidget();
+        if (overlayWidget && overlayWidget->width() > 0 && overlayWidget->height() > 0) {
+            targetSize = overlayWidget->size();
+            qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] overlay widget:" << targetSize;
+        } else if (m_videoPane->width() > 0 && m_videoPane->height() > 0) {
+            targetSize = m_videoPane->size();
+            qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] VideoPane:" << targetSize;
+        }
+    }
+
+    if (targetSize.isEmpty() && m_videoWidget && m_videoWidget->width() > 0 && m_videoWidget->height() > 0) {
+        targetSize = m_videoWidget->size();
+        qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] video widget:" << targetSize;
+    }
+
+    // Determine the physical screen bounds for the overlay widget, if available.
+    qreal screenDpr = 1.0;
+    QScreen* screen = nullptr;
+    if (overlayWidget) {
+        if (QWindow* windowHandle = overlayWidget->window() ? overlayWidget->window()->windowHandle() : nullptr) {
+            screen = windowHandle->screen();
+            if (screen) {
+                QSize screenSize = screen->availableGeometry().size();
+                screenDpr = screen->devicePixelRatio();
+                maxSize = screenSize;
+                qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] screen available geometry:" << screenSize
+                                              << "devicePixelRatio:" << screenDpr;
+                if (screenDpr > 1.0) {
+                    QSize screenPhysical(qRound(screenSize.width() * screenDpr), qRound(screenSize.height() * screenDpr));
+                    qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] screen physical geometry:" << screenPhysical;
+                    if (!screenPhysical.isEmpty() && targetSize.width() > screenSize.width()) {
+                        maxSize = screenPhysical;
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback to primary screen if the overlay widget does not have a screen yet.
+    if (maxSize.isEmpty()) {
+        if (QScreen* primary = QGuiApplication::primaryScreen()) {
+            screen = primary;
+            QSize screenSize = primary->availableGeometry().size();
+            screenDpr = primary->devicePixelRatio();
+            maxSize = screenSize;
+            qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] primary screen available geometry:" << screenSize
+                                          << "devicePixelRatio:" << screenDpr;
+            if (screenDpr > 1.0) {
+                QSize screenPhysical(qRound(screenSize.width() * screenDpr), qRound(screenSize.height() * screenDpr));
+                qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] primary screen physical geometry:" << screenPhysical;
+                if (!screenPhysical.isEmpty() && targetSize.width() > screenSize.width()) {
+                    maxSize = screenPhysical;
+                }
+            }
+        }
+    }
+
+    // If the overlay widget is partially off-screen, keep the full widget size for
+    // pipeline output and rely on the render rectangle / X11 clipping to display the
+    // visible portion. This avoids repeated pipeline rebuilds when the widget is
+    // moved in and out of the visible screen region.
+    if (overlayWidget && screen && !targetSize.isEmpty()) {
+        QRect overlayGlobalRect(overlayWidget->mapToGlobal(QPoint(0, 0)), targetSize);
+        QRect visibleRect = overlayGlobalRect.intersected(screen->availableGeometry());
+        if (visibleRect.isValid() && visibleRect.size() != targetSize) {
+            qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] overlay partially off-screen:" << overlayGlobalRect
+                                           << "visible region:" << visibleRect
+                                           << "keeping full widget size for pipeline output:" << targetSize;
+        }
+    }
+
+#ifdef Q_OS_LINUX
+    // Legacy fallback for environments where Qt screen geometry is unreliable.
+    if (maxSize.isEmpty()) {
+        Display* dpy = XOpenDisplay(nullptr);
+        if (dpy) {
+            int screen = DefaultScreen(dpy);
+            int w = DisplayWidth(dpy, screen);
+            int h = DisplayHeight(dpy, screen);
+            XCloseDisplay(dpy);
+            if (w > 0 && h > 0) {
+                maxSize = QSize(w, h);
+                qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] X screen max:" << maxSize;
+            }
+        }
+    }
+#endif
+
+    // Clamp the target size to the available screen area to avoid pipeline output
+    // larger than the display.
+    if (!targetSize.isEmpty()) {
+        if (!maxSize.isEmpty()) {
+            QSize bounded = targetSize.boundedTo(maxSize);
+            if (bounded != targetSize) {
+                qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] overlay size" << targetSize
+                                               << "exceeds screen size" << maxSize
+                                               << "-> clamped to" << bounded;
+            }
+            targetSize = bounded;
+        }
+        return targetSize;
+    }
+
+    if (!maxSize.isEmpty()) {
+        qCWarning(log_gstreamer_backend) << "[DISPLAYSIZE] No valid overlay/widget size available; falling back to screen size:" << maxSize;
+    } else {
+        qCWarning(log_gstreamer_backend) << "[DISPLAYSIZE] No valid overlay/widget size and no screen size available";
+    }
+    qCDebug(log_gstreamer_backend) << "[DISPLAYSIZE] No valid display size found, returning:" << maxSize;
+    return maxSize;
+}
+
+void GStreamerBackendHandler::scheduleOverlayPipelineRebuild(int delayMs)
+{
+    if (!m_videoPane || !m_videoPane->isDirectGStreamerModeEnabled() || !m_pipelineRunning || m_pipelineDisplaySize.isEmpty() || !m_overlayRebuildTimer) {
+        return;
+    }
+
+    if (m_overlayRebuildTimer->isActive()) {
+        qCDebug(log_gstreamer_backend) << "Rescheduling overlay pipeline rebuild in" << delayMs << "ms";
+    } else {
+        qCDebug(log_gstreamer_backend) << "Scheduling overlay pipeline rebuild in" << delayMs << "ms";
+    }
+    m_overlayRebuildTimer->start(delayMs);
+}
+
+bool GStreamerBackendHandler::overlayPipelineSizeChangeRequiresRebuild(const QSize& newSize) const
+{
+    if (m_pipelineDisplaySize.isEmpty()) {
+        return false;
+    }
+    return (newSize.width() > m_pipelineDisplaySize.width() + 20 ||
+            newSize.height() > m_pipelineDisplaySize.height() + 20 ||
+            newSize.width() + 20 < m_pipelineDisplaySize.width() ||
+            newSize.height() + 20 < m_pipelineDisplaySize.height());
+}
+
+void GStreamerBackendHandler::handleOverlayResizeRebuildTimeout()
+{
+    if (m_isDestructing || m_currentDevicePath.isEmpty() || !m_pipelineRunning) {
+        return;
+    }
+
+    // Skip rebuild if screenshot capture is in progress
+    if (m_captureInProgress.load()) {
+        qCDebug(log_gstreamer_backend) << "Overlay resize rebuild skipped: capture in progress";
+        return;
+    }
+
+    if (!m_videoPane || !m_videoPane->getOverlayWidget()) {
+        qCDebug(log_gstreamer_backend) << "Overlay resize rebuild skipped: no overlay widget available";
+        return;
+    }
+
+    QSize currentOverlaySize = m_videoPane->getOverlayWidget()->size();
+    if (currentOverlaySize.isEmpty()) {
+        qCDebug(log_gstreamer_backend) << "Overlay resize rebuild skipped: current overlay size is empty";
+        return;
+    }
+
+    if (!overlayPipelineSizeChangeRequiresRebuild(currentOverlaySize)) {
+        qCDebug(log_gstreamer_backend) << "Overlay resize rebuild skipped: current overlay size" << currentOverlaySize << "matches pipeline display size" << m_pipelineDisplaySize;
+        return;
+    }
+
+    qCDebug(log_gstreamer_backend) << "Overlay resize rebuild timer fired; rebuilding pipeline from" << m_pipelineDisplaySize << "to" << currentOverlaySize;
+    stopGStreamerPipeline();
+    cleanupGStreamer();
+    if (createGStreamerPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate)) {
+        startGStreamerPipeline();
+    }
+}
+
 WId GStreamerBackendHandler::getVideoWidgetWindowId() const
 {
     // Prefer VideoPane overlay widget if available
@@ -1459,6 +1754,9 @@ void GStreamerBackendHandler::cleanupGStreamer()
 {
     qCDebug(log_gstreamer_backend) << "cleanupGStreamer invoked";
 #ifdef HAVE_GSTREAMER
+    // Clean up capture appsink first
+    destroyCaptureAppSink();
+    
     if (m_pipeline) {
         // Detach any frame probe attached to this pipeline
         detachFrameProbe();
@@ -1518,33 +1816,45 @@ void GStreamerBackendHandler::updateVideoRenderRectangle(const QSize& widgetSize
         return;
     }
 
-    // Scale video to fill the viewport - calculate dimensions to maintain aspect ratio
-    double videoAspect = (double)m_currentResolution.width() / m_currentResolution.height();
-    double viewportAspect = (double)widgetSize.width() / widgetSize.height();
-    
-    int scaledWidth = widgetSize.width();
-    int scaledHeight = widgetSize.height();
-    
-    // If video is wider than viewport, scale down height; otherwise scale down width
-    if (videoAspect > viewportAspect) {
-        // Video is wider - scale to fit width, center vertically
-        scaledHeight = (int)(widgetSize.width() / videoAspect);
-    } else {
-        // Video is taller - scale to fit height, center horizontally
-        scaledWidth = (int)(widgetSize.height() * videoAspect);
+    QWidget* overlayWidget = nullptr;
+    if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
+        overlayWidget = m_videoPane->getOverlayWidget();
     }
-    
-    // Center the scaled video in the viewport
-    int offsetX = (widgetSize.width() - scaledWidth) / 2;
-    int offsetY = (widgetSize.height() - scaledHeight) / 2;
-    
-    qCDebug(log_gstreamer_backend) << "Calculated viewport-based scaling:"
-                                   << "viewport:" << widgetSize
-                                   << "videoRes:" << m_currentResolution
-                                   << "scaledSize:" << QSize(scaledWidth, scaledHeight)
-                                   << "offset:" << offsetX << offsetY;
-    
-    updateVideoRenderRectangle(offsetX, offsetY, scaledWidth, scaledHeight);
+
+    if (overlayWidget) {
+        QRect overlayGlobalRect(overlayWidget->mapToGlobal(QPoint(0, 0)), overlayWidget->size());
+        QScreen* screen = nullptr;
+        if (QWindow* windowHandle = overlayWidget->window() ? overlayWidget->window()->windowHandle() : nullptr) {
+            screen = windowHandle->screen();
+        }
+        if (!screen) {
+            screen = QGuiApplication::primaryScreen();
+        }
+
+        QRect visibleGlobal;
+        if (screen) {
+            visibleGlobal = overlayGlobalRect.intersected(screen->availableGeometry());
+        }
+
+        if (visibleGlobal.isValid() && visibleGlobal.size() != overlayWidget->size()) {
+            QPoint renderOffset = visibleGlobal.topLeft() - overlayGlobalRect.topLeft();
+            QSize renderSize = visibleGlobal.size();
+            qCDebug(log_gstreamer_backend) << "Using localized visible region render rectangle:" << QRect(renderOffset, renderSize)
+                                           << "for overlay widget size:" << overlayWidget->size();
+            updateVideoRenderRectangle(renderOffset.x(), renderOffset.y(), renderSize.width(), renderSize.height());
+            return;
+        }
+    }
+
+    // The pipeline output (videoscale add-borders=true) is already scaled and centered
+    // to match the widget size passed at pipeline creation time. The render rectangle
+    // should simply fill the entire widget — GstVideoOverlay will map the pipeline's
+    // output to the widget's X window correctly.
+    //
+    // On X11 sinks (xvimagesink/ximagesink), gst_video_overlay_set_render_rectangle
+    // CLIPS rather than scales, so we must NOT set a smaller rectangle than the widget.
+    qCDebug(log_gstreamer_backend) << "Using full-widget render rectangle (pipeline handles centering):" << widgetSize;
+    updateVideoRenderRectangle(0, 0, widgetSize.width(), widgetSize.height());
 }
 
 void GStreamerBackendHandler::updateVideoRenderRectangle(int x, int y, int width, int height)
@@ -1613,12 +1923,25 @@ void GStreamerBackendHandler::updateVideoRenderRectangle(int x, int y, int width
     }
 
     if (overlaySink && GST_IS_VIDEO_OVERLAY(overlaySink)) {
-        // Get the device pixel ratio (DPI scaling) from the screen
-        // This handles OS-level display scaling (e.g., 150% scaling on Linux)
+        // Bound the render rectangle to the visible screen size if possible.
+        // Get the device pixel ratio (DPI scaling) from the overlay widget screen if available.
+        // This handles OS-level display scaling (e.g., 150% scaling on Linux).
         qreal dpiScale = 1.0;
-        if (QScreen* screen = QGuiApplication::primaryScreen()) {
-            dpiScale = screen->devicePixelRatio();
-            qCDebug(log_gstreamer_backend) << "DPI scale factor:" << dpiScale;
+        if (m_videoPane && m_videoPane->isDirectGStreamerModeEnabled()) {
+            if (QWidget* overlayWidget = m_videoPane->getOverlayWidget()) {
+                if (QWindow* windowHandle = overlayWidget->window() ? overlayWidget->window()->windowHandle() : nullptr) {
+                    if (QScreen* screen = windowHandle->screen()) {
+                        dpiScale = screen->devicePixelRatio();
+                        qCDebug(log_gstreamer_backend) << "DPI scale factor (overlay screen):" << dpiScale;
+                    }
+                }
+            }
+        }
+        if (dpiScale == 1.0) {
+            if (QScreen* screen = QGuiApplication::primaryScreen()) {
+                dpiScale = screen->devicePixelRatio();
+                qCDebug(log_gstreamer_backend) << "DPI scale factor (primary screen):" << dpiScale;
+            }
         }
         
         // Scale render rectangle to account for OS display scaling
@@ -1808,7 +2131,7 @@ void GStreamerBackendHandler::removeRecordingBranch()
     m_recordingManager->stopRecording();
 }
 
-QString GStreamerBackendHandler::generateRecordingElements(const QString& outputPath, const QString& format, int videoBitrate) const
+QString GStreamerBackendHandler::generateRecordingElements(const QString& outputPath, const QString& format, int /*videoBitrate*/) const
 {
     // This method is kept for reference but not used in the new tee-based approach
     QString encoder, muxer;
@@ -1929,5 +2252,459 @@ qint64 GStreamerBackendHandler::getRecordingFileSize() const
     return 0;
 #endif
 }
+
+void GStreamerBackendHandler::takeImage(const QString& filePath)
+{
+#ifdef HAVE_GSTREAMER
+    if (!m_pipeline || !m_pipelineRunning) {
+        qCWarning(log_gstreamer_backend) << "Pipeline is not running";
+        return;
+    }
+
+    // Set capture protection flag to prevent pipeline rebuilds during capture
+    m_captureInProgress.store(true);
+    auto captureGuard = qScopeGuard([this]() { m_captureInProgress.store(false); });
+
+    // Create capture appsink if it doesn't exist
+    if (!m_captureAppSink) {
+        if (!createCaptureAppSink()) {
+            qCWarning(log_gstreamer_backend) << "Failed to create capture appsink";
+            return;
+        }
+    }
+
+    // Get the latest sample from the pipeline
+    GstSample* sample = getLatestSampleFromPipeline();
+    if (!sample) {
+        qCWarning(log_gstreamer_backend) << "Failed to get sample from pipeline";
+        return;
+    }
+
+    // Convert GStreamer sample to QImage
+    QImage image = gstSampleToQImage(sample);
+    gst_sample_unref(sample);
+
+    if (image.isNull()) {
+        qCWarning(log_gstreamer_backend) << "Failed to convert GStreamer sample to QImage";
+        return;
+    }
+
+    // Save the image to file as JPEG
+    if (!image.save(filePath, "JPG", 85)) {
+        qCWarning(log_gstreamer_backend) << "Failed to save image to" << filePath;
+        return;
+    }
+
+    qCDebug(log_gstreamer_backend) << "Image captured and saved to" << filePath;
+#else
+    qCWarning(log_gstreamer_backend) << "GStreamer not compiled in";
+#endif
+}
+
+void GStreamerBackendHandler::takeAreaImage(const QString& filePath, const QRect& captureArea)
+{
+#ifdef HAVE_GSTREAMER
+    if (!m_pipeline || !m_pipelineRunning) {
+        qCWarning(log_gstreamer_backend) << "Pipeline is not running";
+        return;
+    }
+
+    // Set capture protection flag to prevent pipeline rebuilds during capture
+    m_captureInProgress.store(true);
+    auto captureGuard = qScopeGuard([this]() { m_captureInProgress.store(false); });
+
+    // Create capture appsink if it doesn't exist
+    if (!m_captureAppSink) {
+        if (!createCaptureAppSink()) {
+            qCWarning(log_gstreamer_backend) << "Failed to create capture appsink";
+            return;
+        }
+    }
+
+    // Get the latest sample from the pipeline
+    GstSample* sample = getLatestSampleFromPipeline();
+    if (!sample) {
+        qCWarning(log_gstreamer_backend) << "Failed to get sample from pipeline";
+        return;
+    }
+
+    // Convert GStreamer sample to QImage
+    QImage fullImage = gstSampleToQImage(sample);
+    gst_sample_unref(sample);
+
+    if (fullImage.isNull()) {
+        qCWarning(log_gstreamer_backend) << "Failed to convert GStreamer sample to QImage";
+        return;
+    }
+
+    // Extract the specified area from the image
+    QImage areaImage = fullImage.copy(captureArea);
+    if (areaImage.isNull()) {
+        qCWarning(log_gstreamer_backend) << "Failed to extract area from image";
+        return;
+    }
+
+    // Save the area image to file as JPEG
+    if (!areaImage.save(filePath, "JPG", 85)) {
+        qCWarning(log_gstreamer_backend) << "Failed to save area image to" << filePath;
+        return;
+    }
+
+    qCDebug(log_gstreamer_backend) << "Area image captured and saved to" << filePath;
+#else
+    qCWarning(log_gstreamer_backend) << "GStreamer not compiled in";
+#endif
+}
+
+QImage GStreamerBackendHandler::getLatestOriginalFrame()
+{
+#ifdef HAVE_GSTREAMER
+    if (!m_pipeline || !m_pipelineRunning) {
+        qCDebug(log_gstreamer_backend) << "GStreamer getLatestOriginalFrame: pipeline not running";
+        return QImage();
+    }
+
+    // Set capture protection flag to prevent pipeline rebuilds during capture
+    m_captureInProgress.store(true);
+    auto captureGuard = qScopeGuard([this]() { m_captureInProgress.store(false); });
+
+    // Ensure capture appsink exists (lazy init, same as takeImage)
+    if (!m_captureAppSink) {
+        qCDebug(log_gstreamer_backend) << "GStreamer getLatestOriginalFrame: creating capture appsink (lazy init)";
+        if (!createCaptureAppSink()) {
+            qCWarning(log_gstreamer_backend) << "GStreamer getLatestOriginalFrame: failed to create capture appsink";
+            return QImage();
+        }
+    }
+
+    qint64 startTime = QDateTime::currentMSecsSinceEpoch();
+    GstSample* sample = getLatestSampleFromPipeline();
+    if (!sample) {
+        qCDebug(log_gstreamer_backend) << "GStreamer getLatestOriginalFrame: no sample from pipeline after"
+                                       << (QDateTime::currentMSecsSinceEpoch() - startTime) << "ms";
+        return QImage();
+    }
+
+    QImage image = gstSampleToQImage(sample);
+    gst_sample_unref(sample);
+    if (image.isNull()) {
+        qCWarning(log_gstreamer_backend) << "GStreamer getLatestOriginalFrame: failed to convert sample";
+        return QImage();
+    }
+
+    qint64 totalTime = QDateTime::currentMSecsSinceEpoch() - startTime;
+    qCDebug(log_gstreamer_backend) << "GStreamer getLatestOriginalFrame: captured"
+                                   << image.width() << "x" << image.height()
+                                   << "in" << totalTime << "ms";
+    return image;
+#else
+    return QImage();
+#endif
+}
+
+#ifdef HAVE_GSTREAMER
+GstSample* GStreamerBackendHandler::getLatestSampleFromPipeline()
+{
+    if (!m_captureAppSink) {
+        qCDebug(log_gstreamer_backend) << "getLatestSampleFromPipeline: captureAppSink is null";
+        return nullptr;
+    }
+
+    // Use a timeout that balances responsiveness with reliability.
+    // The capture runs on the main thread (via BlockingQueuedConnection from
+    // worker threads), so blocking too long stalls the GUI and video display.
+    // However, 50ms can be too short when the pipeline is under load or when
+    // the first sample needs to propagate through the capture branch.
+    // 150ms gives enough time for the pipeline to produce a frame at 30fps
+    // (33ms per frame) plus some headroom for initial buffer propagation,
+    // while still being short enough to keep the GUI responsive.
+    GstSample* sample = gst_app_sink_try_pull_sample(GST_APP_SINK(m_captureAppSink), 150 * GST_MSECOND);
+    if (!sample) {
+        qCWarning(log_gstreamer_backend) << "getLatestSampleFromPipeline: no sample after 150ms timeout";
+    }
+    return sample; // Returns nullptr if no sample available or on error
+}
+
+QImage GStreamerBackendHandler::gstSampleToQImage(GstSample* sample)
+{
+    if (!sample) {
+        return QImage();
+    }
+    
+    GstBuffer* buffer = gst_sample_get_buffer(sample);
+    GstCaps* caps = gst_sample_get_caps(sample);
+    
+    if (!buffer || !caps) {
+        return QImage();
+    }
+    
+    // Get the video info from the buffer
+    GstVideoInfo videoInfo;
+    if (!gst_video_info_from_caps(&videoInfo, caps)) {
+        return QImage();
+    }
+    
+    // Map the buffer to get access to its data
+    GstMapInfo mapInfo;
+    if (!gst_buffer_map(buffer, &mapInfo, GST_MAP_READ)) {
+        return QImage();
+    }
+    
+    // Convert the GStreamer buffer to QImage based on the format
+    QImage image;
+    int width = videoInfo.width;
+    int height = videoInfo.height;
+
+    qCDebug(log_gstreamer_backend) << "gstSampleToQImage: format=" << GST_VIDEO_INFO_FORMAT(&videoInfo)
+                                    << "size=" << width << "x" << height;
+
+    // Handle common video formats
+    if (GST_VIDEO_INFO_FORMAT(&videoInfo) == GST_VIDEO_FORMAT_RGB) {
+        image = QImage(mapInfo.data, width, height, QImage::Format_RGB888).copy();
+    } else if (GST_VIDEO_INFO_FORMAT(&videoInfo) == GST_VIDEO_FORMAT_BGR) {
+        image = QImage(mapInfo.data, width, height, QImage::Format_RGB888).copy();
+        image = image.rgbSwapped(); // Convert BGR to RGB
+    } else if (GST_VIDEO_INFO_FORMAT(&videoInfo) == GST_VIDEO_FORMAT_RGBA) {
+        image = QImage(mapInfo.data, width, height, QImage::Format_RGBA8888).copy();
+    } else if (GST_VIDEO_INFO_FORMAT(&videoInfo) == GST_VIDEO_FORMAT_BGRA) {
+        image = QImage(mapInfo.data, width, height, QImage::Format_RGBA8888).copy();
+        image = image.rgbSwapped(); // Convert BGRA to RGBA
+    } else if (GST_VIDEO_INFO_FORMAT(&videoInfo) == GST_VIDEO_FORMAT_I420) {
+        // For I420/YUV420, convert to RGB
+        image = QImage(width, height, QImage::Format_RGB32);
+        
+        uint8_t* data = mapInfo.data;
+        int ySize = width * height;
+        int uvSize = (width / 2) * (height / 2);
+        
+        uint8_t* yPlane = data;
+        uint8_t* uPlane = data + ySize;
+        uint8_t* vPlane = uPlane + uvSize;
+        
+        uint32_t* rgb = reinterpret_cast<uint32_t*>(image.bits());
+        
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                int yIndex = y * width + x;
+                int uvIndex = (y / 2) * (width / 2) + (x / 2);
+                
+                uint8_t yVal = yPlane[yIndex];
+                uint8_t uVal = uPlane[uvIndex];
+                uint8_t vVal = vPlane[uvIndex];
+                
+                // YUV to RGB conversion using standard formula
+                int r = yVal + (1404 * (vVal - 128)) / 1000;
+                int g = yVal - (344 * (uVal - 128) + 714 * (vVal - 128)) / 1000;
+                int b = yVal + (1772 * (uVal - 128)) / 1000;
+                
+                // Clamp values to [0, 255]
+                r = qBound(0, r, 255);
+                g = qBound(0, g, 255);
+                b = qBound(0, b, 255);
+                
+                rgb[yIndex] = qRgb(r, g, b);
+            }
+        }
+    } else {
+        qCWarning(log_gstreamer_backend) << "Unsupported video format for image capture";
+    }
+    
+    gst_buffer_unmap(buffer, &mapInfo);
+    
+    return image;
+}
+
+bool GStreamerBackendHandler::createCaptureAppSink()
+{
+    if (!m_pipeline) {
+        qCWarning(log_gstreamer_backend) << "Pipeline not initialized";
+        return false;
+    }
+
+    if (m_captureAppSink) {
+        return true; // Already created
+    }
+
+    // Create the appsink element
+    m_captureAppSink = gst_element_factory_make("appsink", "capture_appsink");
+    if (!m_captureAppSink) {
+        qCWarning(log_gstreamer_backend) << "Failed to create appsink element";
+        return false;
+    }
+
+    // Configure the appsink
+    g_object_set(m_captureAppSink,
+                 "emit-signals", FALSE,
+                 "max-buffers", 1,
+                 "drop", TRUE,
+                 "sync", FALSE,
+                 NULL);
+
+    // Get the tee element
+    GstElement* tee = gst_bin_get_by_name(GST_BIN(m_pipeline), "t");
+    if (!tee) {
+        qCWarning(log_gstreamer_backend) << "Could not find tee element in pipeline";
+        gst_object_unref(m_captureAppSink);
+        m_captureAppSink = nullptr;
+        return false;
+    }
+
+    // Create all elements before adding to pipeline
+    m_captureVideoConvert = gst_element_factory_make("videoconvert", "capture_videoconvert");
+    if (!m_captureVideoConvert) {
+        qCWarning(log_gstreamer_backend) << "Failed to create capture videoconvert";
+        gst_object_unref(m_captureAppSink);
+        gst_object_unref(tee);
+        m_captureAppSink = nullptr;
+        return false;
+    }
+
+    m_captureCapsFilter = gst_element_factory_make("capsfilter", "capture_capsfilter");
+    if (!m_captureCapsFilter) {
+        qCWarning(log_gstreamer_backend) << "Failed to create capture capsfilter";
+        gst_object_unref(m_captureVideoConvert);
+        gst_object_unref(m_captureAppSink);
+        gst_object_unref(tee);
+        m_captureVideoConvert = nullptr;
+        m_captureAppSink = nullptr;
+        return false;
+    }
+
+    // Set caps to force RGB format
+    GstCaps* caps = gst_caps_from_string("video/x-raw,format=RGB");
+    g_object_set(m_captureCapsFilter, "caps", caps, NULL);
+    gst_caps_unref(caps);
+
+    m_captureQueue = gst_element_factory_make("queue", "capture-queue");
+    if (!m_captureQueue) {
+        qCWarning(log_gstreamer_backend) << "Failed to create capture queue";
+        gst_object_unref(m_captureCapsFilter);
+        gst_object_unref(m_captureVideoConvert);
+        gst_object_unref(m_captureAppSink);
+        gst_object_unref(tee);
+        m_captureCapsFilter = nullptr;
+        m_captureVideoConvert = nullptr;
+        m_captureAppSink = nullptr;
+        return false;
+    }
+
+    // Configure the queue
+    g_object_set(m_captureQueue,
+                 "max-size-buffers", 2,
+                 "leaky", 2, // GST_QUEUE_LEAK_DOWNSTREAM
+                 NULL);
+
+    // Add all elements to pipeline
+    gst_bin_add(GST_BIN(m_pipeline), m_captureAppSink);
+    gst_bin_add(GST_BIN(m_pipeline), m_captureVideoConvert);
+    gst_bin_add(GST_BIN(m_pipeline), m_captureCapsFilter);
+    gst_bin_add(GST_BIN(m_pipeline), m_captureQueue);
+
+    // Link tee -> videoconvert -> capsfilter -> queue -> appsink
+    bool linkOk = true;
+    if (!gst_element_link(tee, m_captureVideoConvert)) {
+        qCWarning(log_gstreamer_backend) << "Failed to link tee to capture videoconvert";
+        linkOk = false;
+    } else if (!gst_element_link(m_captureVideoConvert, m_captureCapsFilter)) {
+        qCWarning(log_gstreamer_backend) << "Failed to link capture videoconvert to capsfilter";
+        linkOk = false;
+    } else if (!gst_element_link(m_captureCapsFilter, m_captureQueue)) {
+        qCWarning(log_gstreamer_backend) << "Failed to link capture capsfilter to queue";
+        linkOk = false;
+    } else if (!gst_element_link(m_captureQueue, m_captureAppSink)) {
+        qCWarning(log_gstreamer_backend) << "Failed to link capture queue to appsink";
+        linkOk = false;
+    }
+
+    if (!linkOk) {
+        gst_object_unref(tee);
+        destroyCaptureAppSink();
+        return false;
+    }
+
+    // Sync state with parent
+    gst_element_sync_state_with_parent(m_captureVideoConvert);
+    gst_element_sync_state_with_parent(m_captureCapsFilter);
+    gst_element_sync_state_with_parent(m_captureQueue);
+    gst_element_sync_state_with_parent(m_captureAppSink);
+
+    gst_object_unref(tee);
+    qCDebug(log_gstreamer_backend) << "Capture appsink linked: tee -> videoconvert -> capsfilter -> queue -> appsink";
+    return true;
+}
+
+void GStreamerBackendHandler::destroyCaptureAppSink()
+{
+    // IMPORTANT: Pipeline must be stopped before removing capture elements.
+    // Removing elements from a PLAYING pipeline can cause refcounting issues
+    // and crashes. If the pipeline is still running, just clear our pointers
+    // and let the pipeline cleanup handle the elements.
+    if (m_pipeline && GST_IS_BIN(m_pipeline)) {
+        // Check if pipeline is still running — if so, skip element removal
+        // to avoid race conditions with the streaming thread.
+        GstState state, pending;
+        GstStateChangeReturn ret = gst_element_get_state(m_pipeline, &state, &pending, 0);
+        bool pipelineRunning = (ret != GST_STATE_CHANGE_FAILURE)
+                            && (state == GST_STATE_PLAYING || state == GST_STATE_PAUSED);
+
+        if (pipelineRunning) {
+            qCDebug(log_gstreamer_backend) << "destroyCaptureAppSink: pipeline still running,"
+                                            << "deferring element cleanup to pipeline stop";
+            // Just clear pointers — elements will be destroyed with the pipeline
+            m_captureCapsFilter = nullptr;
+            m_captureVideoConvert = nullptr;
+            m_captureQueue = nullptr;
+            m_captureAppSink = nullptr;
+            return;
+        }
+
+        if (m_captureCapsFilter) {
+            gst_bin_remove(GST_BIN(m_pipeline), m_captureCapsFilter);
+            gst_object_unref(m_captureCapsFilter);
+            m_captureCapsFilter = nullptr;
+        }
+
+        if (m_captureVideoConvert) {
+            gst_bin_remove(GST_BIN(m_pipeline), m_captureVideoConvert);
+            gst_object_unref(m_captureVideoConvert);
+            m_captureVideoConvert = nullptr;
+        }
+
+        if (m_captureQueue) {
+            gst_bin_remove(GST_BIN(m_pipeline), m_captureQueue);
+            gst_object_unref(m_captureQueue);
+            m_captureQueue = nullptr;
+        }
+
+        if (m_captureAppSink) {
+            gst_bin_remove(GST_BIN(m_pipeline), m_captureAppSink);
+            gst_object_unref(m_captureAppSink);
+            m_captureAppSink = nullptr;
+        }
+    } else {
+        // Fallback cleanup if pipeline is gone — only unref if we own the reference.
+        // Elements owned by a (now-destroyed) pipeline don't need explicit unref.
+        if (m_captureCapsFilter) {
+            gst_object_unref(m_captureCapsFilter);
+            m_captureCapsFilter = nullptr;
+        }
+
+        if (m_captureVideoConvert) {
+            gst_object_unref(m_captureVideoConvert);
+            m_captureVideoConvert = nullptr;
+        }
+
+        if (m_captureQueue) {
+            gst_object_unref(m_captureQueue);
+            m_captureQueue = nullptr;
+        }
+
+        if (m_captureAppSink) {
+            gst_object_unref(m_captureAppSink);
+            m_captureAppSink = nullptr;
+        }
+    }
+}
+#endif
 
 // end of file

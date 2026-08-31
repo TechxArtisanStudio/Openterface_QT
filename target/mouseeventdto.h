@@ -26,8 +26,10 @@
 class MouseEventDTO {
 public:
     MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton, int wheelDelta);
-    MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton);
-    MouseEventDTO(int x, int y, bool isAbsoluteMode);
+    MouseEventDTO(int x, int y, bool isAbsoluteMode, int mouseButton)
+        : MouseEventDTO(x, y, isAbsoluteMode, mouseButton, 0) {}
+    MouseEventDTO(int x, int y, bool isAbsoluteMode)
+        : MouseEventDTO(x, y, isAbsoluteMode, 0, 0) {}
 
     int getX() const;
     int getY() const;

@@ -28,6 +28,9 @@
 #include "global.h"
 #include "target/KeyboardLayouts.h"
 #include "ui/languagemanager.h"
+#include "ui/customkey/customkeymanager.h"
+#include "log/opflogging.h"
+#include <QMetaType>
 #include <QCoreApplication>
 #include <QtPlugin>
 #include <QPixmap>
@@ -35,7 +38,32 @@
 #include <QEventLoop>
 #include <QThread>
 #include <QObject>
+#include <QFile>
+#include <QFileInfo>
+#include <QTimer>
+#include <QMessageBox>
+#include <QClipboard>
+#include <QPushButton>
+#include <cstdio>
+#include <cstdlib>
 
+// For stdout redirection in stdio mode
+#ifdef Q_OS_WIN
+#include <io.h>
+#define dup _dup
+#define dup2 _dup2
+#define STDOUT_FILENO _fileno(stdout)
+#define STDERR_FILENO _fileno(stderr)
+#else
+#include <unistd.h>
+#endif
+
+// Stdio MCP transport support (headless mode for Claude Code)
+#include "server/mcp/mcpServer.h"
+#include "device/DeviceManager.h"
+#include "serial/SerialPortManager.h"
+#include "host/cameramanager.h"
+#include "video/videohid.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -62,13 +90,15 @@ Q_IMPORT_PLUGIN(QXcbIntegrationPlugin)
 // Define global shutdown flag
 QAtomicInteger<int> g_applicationShuttingDown(0);
 
+// Logging category for main application startup
+OPF_LOGGING_CATEGORY(log_app_main, "opf.app.main")
+
 // GStreamer includes
 #ifdef HAVE_GSTREAMER
 #include <gst/gst.h>
 #include <glib.h>  // For GLib log handling
 #endif
 
-#include <unistd.h>
 #include <unistd.h>
 
 void writeLog(const QString &message){
@@ -79,7 +109,6 @@ void writeLog(const QString &message){
         out << "[" << timestamp << "] " << message << "\n";
         logFile.close();
     } else {
-        qDebug() << "Failed to open log file:" << logFile.errorString();
     }
 }
 
@@ -121,38 +150,35 @@ void setupEnv(){
         
         // For static builds, be more conservative about platform selection
         #if defined(QT_STATIC) || defined(QT_STATICPLUGIN)
-        qDebug() << "Static build detected - using conservative platform selection";
         if (!x11Display.isEmpty()) {
             qputenv("QT_QPA_PLATFORM", "xcb");
-            qDebug() << "Static build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
         } else {
             // Try to set DISPLAY and use XCB for static builds
             qputenv("DISPLAY", ":0");
             qputenv("QT_QPA_PLATFORM", "xcb");
-            qDebug() << "Static build: No display detected, trying DISPLAY=:0 with xcb platform";
         }
         #else
-        // For dynamic builds, prefer XCB for better compatibility
-        // Only use Wayland if explicitly set by launcher script
+        // For dynamic builds, let Qt auto-detect the best platform (Qt 6.5+).
+        // Manual overrides interfere with Qt's native Wayland/XCB detection and
+        // cause "No shell integration named" errors on pure Wayland sessions
+        // (Sway, Hyprland, etc.). See: https://forum.openterface.com/t/arch-linux-wayland-software-does-not-work/120
+        //
+        // We only intervene when NO display is available at all — set DISPLAY=:0
+        // and use XCB as a last-resort fallback (headless / SSH-without-X cases).
         if (!launcherDetected.isEmpty()) {
-            qDebug() << "Dynamic build: Using launcher script's platform detection:" << launcherDetected;
         } else if (!x11Display.isEmpty()) {
             // DISPLAY is set - use XCB
             qputenv("QT_QPA_PLATFORM", "xcb");
-            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to xcb (DISPLAY available)";
         } else if (!waylandDisplay.isEmpty()) {
             // Fallback to Wayland only if X11 is not available
             qputenv("QT_QPA_PLATFORM", "wayland");
-            qDebug() << "Dynamic build: Set QT_QPA_PLATFORM to wayland (WAYLAND_DISPLAY available, X11 not found)";
         } else {
-            // No display found, try default settings
+            // No display found at all — last-resort fallback for headless/edge cases.
             qputenv("DISPLAY", ":0");
             qputenv("QT_QPA_PLATFORM", "xcb");
-            qDebug() << "Dynamic build: No display detected, trying DISPLAY=:0 with xcb platform";
         }
         #endif
     } else {
-        qDebug() << "QT_QPA_PLATFORM already set by launcher or user:" << currentPlatform;
     }
 #endif
 }
@@ -160,7 +186,6 @@ void setupEnv(){
 void applyMediaBackendSetting(){
 #ifdef Q_OS_LINUX
     QString originalMediaBackend = qgetenv("QT_MEDIA_BACKEND");
-    qDebug() << "Original QT Media Backend:" << originalMediaBackend;
     
     // Get the media backend setting from GlobalSetting
     QString mediaBackend = GlobalSetting::instance().getMediaBackend();
@@ -213,39 +238,509 @@ void applyMediaBackendSetting(){
         // Overriding it here causes version conflicts on Fedora
         
         if (!qgetenv("GST_PLUGIN_PATH").isEmpty()) {
-            qDebug() << "✓ Using GStreamer plugins from launcher environment:";
-            qDebug() << "  GST_PLUGIN_PATH=" << qgetenv("GST_PLUGIN_PATH");
         } else {
-            qDebug() << "⚠ WARNING: GST_PLUGIN_PATH not set, GStreamer may use incorrect system plugins";
         }
         
         // Ensure video output works correctly
         qputenv("GST_VIDEO_OVERLAY", "1");
         
-        qDebug() << "Applied enhanced GStreamer-specific environment settings for video compatibility";
         // gstreamer not compatible with QT_MEDIA_BACKEND, so we set it to empty
     } else{
         // For other media backends, we can set a default or leave it empty
         qputenv("QT_MEDIA_BACKEND", mediaBackend.toUtf8());
-        qDebug() << "Set QT_MEDIA_BACKEND to:" << mediaBackend;
     }
 #endif
 }
 
 int main(int argc, char *argv[])
 {
+    // TEMP: Early startup logging
+    QFile earlyLog("C:/openterface_startup.log");
+    (void)earlyLog.open(QIODevice::WriteOnly | QIODevice::Append);
+    if (earlyLog.isOpen()) {
+        QTextStream outs(&earlyLog);
+        outs << "[EARLY] main() entered\n";
+        outs.flush();
+    }
+
     #ifdef Q_OS_WIN
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF);
     #endif
     qInfo() << "Start openterface...";
-    
-    // Parse command-line arguments early to check for --skip-env-check
+
+    // Parse command-line arguments early
     bool skipEnvironmentCheck = false;
+    bool autoStartMcp = false;
+    bool mcpStdioMode = false;
+    int mcpSsePort = 0;  // 0 = disabled
+    QString overrideBackend;
+    bool listBackends = false;
+
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--skip-env-check") == 0) {
+        QString arg = QString::fromUtf8(argv[i]);
+        if (arg == "--skip-env-check") {
             skipEnvironmentCheck = true;
             qWarning() << "Skip environment check flag detected";
+        } else if (strcmp(argv[i], "--mcp-start") == 0) {
+            autoStartMcp = true;
+            qWarning() << "Auto-start MCP Server flag detected";
+        } else if (strcmp(argv[i], "--mcp-stdio") == 0) {
+            mcpStdioMode = true;
+            qWarning() << "MCP stdio transport mode detected";
+        } else if (strcmp(argv[i], "--mcp-sse-port") == 0) {
+            if (i + 1 >= argc) {
+                qCritical() << "--mcp-sse-port requires a port number argument";
+                return 1;
+            }
+            mcpSsePort = atoi(argv[++i]);
+            if (mcpSsePort <= 0 || mcpSsePort > 65535) {
+                qCritical() << "Invalid --mcp-sse-port value:" << argv[i];
+                return 1;
+            }
+            qWarning() << "MCP SSE transport on port" << mcpSsePort;
+        } else if (arg == "--backend" && i + 1 < argc) {
+            overrideBackend = QString::fromUtf8(argv[++i]);
+            qInfo() << "Override media backend from command line:" << overrideBackend;
+        } else if (arg == "--list-backends") {
+            listBackends = true;
         }
+    }
+
+    // MCP headless mode: if --mcp-stdio or --mcp-sse-port, run a minimal Qt event
+    // loop with the MCP server — no MainWindow, no GUI window.
+    // We use QApplication (not QCoreApplication) because KeyboardManager calls
+    // QInputMethod::locale() which requires GUI initialization.
+    // We use the offscreen platform so no real display is needed.
+    bool mcpHeadlessMode = !autoStartMcp && (mcpStdioMode || (mcpSsePort > 0));
+    if (mcpHeadlessMode) {
+        qCDebug(log_app_main) << "Entering mcpHeadlessMode block";
+        // In stdio mode, redirect stdout to stderr to prevent debug output from
+        // interfering with JSON-RPC protocol. We'll reopen stdout later for JSON-RPC only.
+        if (mcpStdioMode) {
+            // Save original stdout file descriptor
+            int savedStdout = dup(STDOUT_FILENO);
+            qCDebug(log_app_main) << "Saved stdout fd:" << savedStdout;
+            // Redirect stdout to stderr
+            dup2(STDERR_FILENO, STDOUT_FILENO);
+            // Store saved fd for later use by MCP server
+            QByteArray fdStr = QString::number(savedStdout).toUtf8();
+            qCDebug(log_app_main) << "Setting OPENTERFACE_SAVED_STDOUT=" << fdStr;
+            qputenv("OPENTERFACE_SAVED_STDOUT", fdStr);
+        }
+
+        // Use offscreen platform — provides QInputMethod without needing a real display
+        qputenv("QT_QPA_PLATFORM", "offscreen");
+
+        // Default to verbose logging in headless mode, but let the caller
+        // override it (e.g. QT_LOGGING_RULES='*.debug=false' to keep the
+        // per-frame decode-path debug output off the hot path).
+        if (!qEnvironmentVariableIsSet("QT_LOGGING_RULES")) {
+            qputenv("QT_LOGGING_RULES", "*.debug=true");
+        }
+
+        qCDebug(log_app_main) << "Creating QApplication...";
+        QApplication app(argc, argv);
+        qCDebug(log_app_main) << "QApplication created";
+        qInfo() << "Starting MCP server in stdio transport mode (offscreen)...";
+
+        // Load keyboard layouts — required by KeyboardManager (used by MCP tools)
+        qInfo() << "Loading keyboard layouts for stdio mode...";
+        KeyboardLayoutManager::getInstance().loadLayouts(":/config/keyboards");
+        qInfo() << "Keyboard layouts loaded";
+
+        qCDebug(log_app_main) << "Creating CameraManager...";
+        // Create CameraManager on the heap — must outlive McpServer so capture_screen works.
+        // Parented to &app for automatic cleanup on exit.
+        CameraManager* cameraManager = new CameraManager(&app);
+        qCDebug(log_app_main) << "CameraManager created";
+        qInfo() << "CameraManager created for stdio mode";
+
+        qCDebug(log_app_main) << "Starting camera initialization...";
+        // Start VideoHid — required to initialize the video chip (MS2109/MS2130S) HID
+        // interface so the HDMI input is routed to the USB capture device. Without this,
+        // the capture device produces valid but black frames. GUI mode does the same in
+        // MainWindowInitializer::deferredInitializeCamera().
+        qCDebug(log_app_main) << "Starting VideoHid...";
+        qCDebug(log_app_main) << "Current port chain:" << GlobalSetting::instance().getOpenterfacePortChain();
+        VideoHid::getInstance().start();
+        qCDebug(log_app_main) << "VideoHid started, HID device opened:" << (VideoHid::getInstance().isOpen() ? "yes" : "no");
+        qCDebug(log_app_main) << "VideoHid currentHIDDevicePath:" << VideoHid::getInstance().getCurrentHIDDevicePath();
+        // Check HDMI connection status
+        QThread::msleep(200);  // Brief delay for HID to stabilize
+        bool hdmiConnected = VideoHid::getInstance().isHdmiConnected();
+        qCDebug(log_app_main) << "HDMI connected:" << (hdmiConnected ? "yes" : "no");
+
+        // Read input resolution from MS2109
+        auto resolution = VideoHid::getInstance().getResolution();
+        qCDebug(log_app_main) << "MS2109 detected input resolution:" << resolution.first << "x" << resolution.second;
+
+        qCDebug(log_app_main) << "GPIO0 (hard switch):" << (VideoHid::getInstance().getGpio0() ? "target" : "host");
+        qCDebug(log_app_main) << "SPDIFOUT (soft switch):" << (VideoHid::getInstance().getSpdifout() ? "target" : "host");
+        QString fw = QString::fromStdString(VideoHid::getInstance().getFirmwareVersion());
+        qCDebug(log_app_main) << "Firmware version:" << fw;
+
+        // CRITICAL: Explicitly set the SPDIFOUT register in stdio mode.
+        // GUI mode does this via setupEventCallbacks() -> VideoHid::setEventCallback(m_mainWindow)
+        // which triggers setSpdifout() in the async firmware read block. Without this,
+        // the MS2109 chip may not output valid video.
+        qCDebug(log_app_main) << "Explicitly setting SPDIFOUT register...";
+        bool spdifout = VideoHid::getInstance().getSpdifout();
+        qCDebug(log_app_main) << "Current SPDIFOUT=" << spdifout;
+        VideoHid::getInstance().setSpdifout(spdifout);
+        qCDebug(log_app_main) << "SPDIFOUT register set";
+        QThread::msleep(100);
+
+        qInfo() << "VideoHid started";
+
+        // Discover and connect to device hardware
+        qInfo() << "Discovering Openterface devices...";
+        QList<DeviceInfo> devices = DeviceManager::getInstance().discoverDevices();
+        qCDebug(log_app_main) << "Discovered" << devices.size() << "devices";
+        if (!devices.isEmpty()) {
+            qInfo() << "Found" << devices.size() << "device(s)";
+            DeviceInfo device = devices.first();
+            qCDebug(log_app_main) << "First device: portChain=" << device.portChain
+                                  << "hidDevicePath=" << device.hidDevicePath
+                                  << "cameraDevicePath=" << device.cameraDevicePath;
+            qInfo() << "Switching to device:" << device.getInterfaceSummary();
+            auto result = DeviceManager::getInstance().switchToDeviceByPortChainWithCamera(
+                device.portChain, cameraManager);
+            qCDebug(log_app_main) << "switchToDeviceByPortChainWithCamera result: success=" << result.success
+                                  << "message=" << result.statusMessage;
+            qCDebug(log_app_main) << "Device connection completed";
+            if (result.success) {
+                qInfo() << "Device connected successfully:" << result.statusMessage;
+            } else {
+                qWarning() << "Device connection issue:" << result.statusMessage;
+            }
+
+            // Wait a bit for camera to initialize
+            QThread::msleep(1000);
+            qCDebug(log_app_main) << "Checking if camera has frames...";
+            QImage testFrame = cameraManager->getLatestOriginalFrame();
+            qCDebug(log_app_main) << "Test frame: isNull=" << testFrame.isNull()
+                                  << "size=" << testFrame.width() << "x" << testFrame.height();
+
+            // Wait for serial port to be ready (it's initialized asynchronously)
+            qInfo() << "Waiting for serial port to initialize...";
+            qCDebug(log_app_main) << "Starting serial port wait loop...";
+            QEventLoop waitLoop;
+            QTimer timeoutTimer;
+            timeoutTimer.setSingleShot(true);
+            bool serialReady = false;
+
+            QObject::connect(&SerialPortManager::getInstance(), &SerialPortManager::serialPortConnectionSuccess,
+                           &waitLoop, [&waitLoop, &serialReady]() {
+                               qInfo() << "Serial port is ready!";
+                               serialReady = true;
+                               waitLoop.quit();
+                           });
+
+            QObject::connect(&timeoutTimer, &QTimer::timeout, &waitLoop, [&waitLoop]() {
+                qWarning() << "Timeout waiting for serial port";
+                waitLoop.quit();
+            });
+
+            timeoutTimer.start(5000); // 5 second timeout
+            waitLoop.exec();
+            timeoutTimer.stop();
+            qCDebug(log_app_main) << "Serial port wait loop completed, serialReady=" << serialReady;
+
+            if (!serialReady) {
+                qWarning() << "Serial port did not become ready within timeout";
+            } else {
+                // Verify device is responsive by sending CMD_GET_INFO
+                qInfo() << "Verifying device responsiveness...";
+                QByteArray testCmd = QByteArray::fromHex("57 ab 00 01 00");
+                bool deviceReady = false;
+
+                for (int attempt = 0; attempt < 3; attempt++) {
+                    SerialPortManager::getInstance().sendCommandAsync(testCmd, false);
+                    QThread::msleep(200);  // Wait for response
+
+                    // Check if we got a response (device sets ready flag)
+                    if (SerialPortManager::getInstance().isPortReady()) {
+                        qInfo() << "Device is responsive (attempt" << (attempt + 1) << ")";
+                        deviceReady = true;
+                        break;
+                    }
+                    qWarning() << "Device not responsive, retrying... (attempt" << (attempt + 1) << ")";
+                }
+
+                if (!deviceReady) {
+                    qWarning() << "WARNING: Device did not respond to verification command";
+                    qWarning() << "Commands may not work. Check device connection and firmware.";
+                }
+            }
+        } else {
+            qWarning() << "No Openterface devices found - trying direct serial port access...";
+
+            // Fallback: try to open /dev/ttyACM0 directly for CH32V208 devices when
+            // the companion device (1A86:E329) is not recognized by the device discovery.
+            QString directPort = "/dev/ttyACM0";
+            if (QFile::exists(directPort)) {
+                qInfo() << "Found serial port at" << directPort << "- opening directly";
+                bool opened = SerialPortManager::getInstance().openPort(directPort, 115200);
+                if (opened) {
+                    qInfo() << "Serial port opened successfully";
+                    // Force ready state for serial port and command coordinator
+                    // since openPort alone doesn't emit serialPortConnectionSuccess
+                    Q_EMIT SerialPortManager::getInstance().serialPortConnectionSuccess(directPort);
+                    // Give it a moment to process
+                    QThread::msleep(500);
+                } else {
+                    qWarning() << "Failed to open serial port directly";
+                }
+            } else {
+                qWarning() << "No serial port found at /dev/ttyACM0";
+            }
+        }
+
+        qCDebug(log_app_main) << "About to start camera wait loop...";
+        // Wait for camera to produce its first frame (FFmpeg backend starts async)
+        qInfo() << "Waiting for camera to produce first frame...";
+        qCDebug(log_app_main) << "Starting camera wait loop...";
+        {
+            int maxWaitMs = 5000;
+            int waitedMs = 0;
+            while (waitedMs < maxWaitMs && cameraManager->getLatestOriginalFrame().isNull()) {
+                QThread::msleep(200);
+                waitedMs += 200;
+                QCoreApplication::processEvents();
+            }
+            qCDebug(log_app_main) << "Camera wait loop completed, waited" << waitedMs << "ms";
+            if (cameraManager->getLatestOriginalFrame().isNull()) {
+                qWarning() << "Camera did not produce a frame within" << maxWaitMs << "ms";
+                qWarning() << "capture_screen tool may return errors until a frame is available";
+            } else {
+                QImage frame = cameraManager->getLatestOriginalFrame();
+                qInfo() << "Camera ready! First frame:" << frame.width() << "x" << frame.height();
+            }
+        }
+
+        qCDebug(log_app_main) << "About to create MCP server...";
+        McpServer* mcpServer = new McpServer(&app);
+        qCDebug(log_app_main) << "MCP server created";
+        mcpServer->setCameraManager(cameraManager);
+
+        // Start stdio transport if requested
+        if (mcpStdioMode) {
+            qCDebug(log_app_main) << "Starting MCP stdio transport";
+            if (!mcpServer->startStdio()) {
+                qCritical() << "Failed to start MCP stdio transport";
+                return 1;
+            }
+            qCDebug(log_app_main) << "MCP stdio transport started successfully";
+        }
+
+        // Start SSE transport if requested
+        if (mcpSsePort > 0) {
+            if (!mcpServer->startSse(static_cast<quint16>(mcpSsePort))) {
+                qCritical() << "Failed to start MCP SSE transport on port" << mcpSsePort;
+                return 1;
+            }
+        }
+
+        // Run forever; the only exit path is stdin EOF (handled by stop()) or
+        // process termination.
+        int result = app.exec();
+
+        // Clean up the MCP server
+        delete mcpServer;
+        return result;
+    }
+
+    // List available backends and exit
+    if (listBackends) {
+        printf("Available media backends:\n");
+        printf("  ffmpeg          - FFmpeg backend (DirectShow on Windows, V4L2 on Linux)\n");
+#ifdef Q_OS_WIN
+        printf("  mediafoundation - Windows Media Foundation (native)\n");
+        printf("  qt              - Qt Multimedia backend (Windows only)\n");
+#else
+        printf("  gstreamer       - GStreamer backend\n");
+#endif
+        return 0;
+    }
+    setupEnv();
+    
+    qInfo() << "Creating QApplication...";
+    QApplication app(argc, argv);
+
+    // Register custom types for QVariant
+    qRegisterMetaType<QList<KeyStep>>("QList<KeyStep>");
+    qRegisterMetaType<QList<int>>("QList<int>");
+
+    // set style accroding to system palette
+    QPalette systemPalette = QApplication::palette();
+    app.setPalette(systemPalette);
+    app.setStyle(QStyleFactory::create("Fusion"));
+
+    // Global button style — flat, adapts to system palette.
+    // palette(buttonText) always contrasts with palette(button), so text is
+    // always readable. palette(dark) border gives a clear outline on any theme.
+    // Individual widgets can still override with their own setStyleSheet().
+    app.setStyleSheet(
+        "QPushButton {"
+        "  background-color: palette(button);"
+        "  border: 1px solid palette(dark);"
+        "  border-radius: 6px;"
+        "  padding: 4px 12px;"
+        "  color: palette(buttonText);"
+        "}"
+        "QPushButton:hover { background-color: palette(midlight); }"
+        "QPushButton:pressed { background-color: palette(mid); }"
+        "QPushButton:disabled {"
+        "  background-color: palette(button);"
+        "  color: palette(mid);"
+        "  border: 1px solid palette(dark);"
+        "}"
+    );
+    
+    QCoreApplication::setApplicationName("Openterface Mini-KVM");
+    QCoreApplication::setOrganizationName("TechxArtisan");
+    QCoreApplication::setApplicationVersion(APP_VERSION);
+    qInfo() << "Show window now";
+    app.setWindowIcon(QIcon("://images/icon_32.png"));
+
+    // Create splash screen after environment setup
+    // Create splash screen with SVG or fallback image
+    QPixmap pixmap(":/images/openterface-splash.svg");
+    if (pixmap.isNull()) {
+        // SVG failed to load, create a simple splash screen
+        qWarning() << "Failed to load splash screen image, using fallback";
+        pixmap = QPixmap(800, 600);
+        pixmap.fill(QColor(15, 9, 9)); // Dark background from Openterface branding
+    }
+    
+    // Create and show the splash screen as a pointer so it persists
+    SplashScreen* splash = new SplashScreen(pixmap);
+    splash->show();
+    splash->raise();
+    splash->activateWindow();
+    
+    qInfo() << "Splash screen shown, starting initialization";
+    
+    // Start the loading animation
+    splash->showLoadingMessage();
+    qInfo() << "Animation started";
+    
+    // Process events to show splash screen
+    app.processEvents();
+    
+    // Load settings immediately (fast operation)
+    qInfo() << "Loading settings...";
+    GlobalSetting::instance().loadLogSettings();
+    GlobalSetting::instance().loadVideoSettings();
+
+    // Override media backend from command line if specified
+    if (!overrideBackend.isEmpty()) {
+        GlobalSetting::instance().setMediaBackend(overrideBackend);
+        qInfo() << "Media backend overridden by command line:" << overrideBackend;
+    }
+
+    applyMediaBackendSetting();
+    LogHandler::instance().enableLogStore();
+    
+    // Load keyboard layouts immediately - required for keyboard functionality
+    qInfo() << "Loading keyboard layouts...";
+    QString keyboardConfigPath = ":/config/keyboards";
+    KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
+    
+    // Process events to keep UI responsive
+    app.processEvents();
+    
+    qInfo() << "Creating main window...";
+    
+    // Create main window and language manager
+    LanguageManager* languageManager = new LanguageManager(&app);
+    languageManager->initialize("en");
+    MainWindow* window = new MainWindow(languageManager);
+    
+    // Stop the splash animation and close it
+    splash->hideLoadingMessage();
+    
+    // Show the main window and bring it to top
+    window->show();
+    window->raise();
+    window->activateWindow();
+    splash->finish(window);
+    
+    // Clean up splash screen
+    splash->deleteLater();
+    
+    qInfo() << "Main window shown";
+    
+    // Defer device menu setup (device enumeration) - improves startup time
+    // Hotplug monitor is already connected, so new devices will be detected
+    QTimer::singleShot(5, window, [window]() {
+        qInfo() << "Setting up device menu...";
+        window->deferredSetupCoordinators();
+        qInfo() << "Device menu setup complete";
+    });
+    
+    // Defer camera, audio, and VideoHid initialization (improves startup time)
+    // This was blocking startup for ~500ms
+    QTimer::singleShot(150, window, [window]() {
+        qInfo() << "Initializing camera and audio...";
+        window->deferredInitializeCamera();
+        qInfo() << "Camera and audio initialization started";
+    });
+
+    // Auto-start MCP Server if --mcp-start flag is present
+    if (autoStartMcp) {
+        // Capture port for the lambda (use 0 to indicate SSE disabled)
+        int capturedSsePort = mcpSsePort;
+        // Wait longer for camera initialization to complete before starting MCP server
+        // Camera initialization happens in deferredInitializeCamera (150ms delay)
+        // and may take additional time for device auto-selection and capture start
+        QTimer::singleShot(1500, window, [window, capturedSsePort]() {
+            qInfo() << "Auto-starting MCP Server (--mcp-start)...";
+            
+            // Wait for camera frame to be available (similar to headless mode)
+            const int maxWaitMs = 5000;  // 5 seconds timeout
+            const int pollIntervalMs = 200;
+            int waitedMs = 0;
+            
+            qInfo() << "Waiting for camera frame to be available...";
+            
+            while (waitedMs < maxWaitMs) {
+                // Check if camera has frame
+                if (window->getCameraManager() && 
+                    !window->getCameraManager()->getLatestOriginalFrame().isNull()) {
+                    QImage frame = window->getCameraManager()->getLatestOriginalFrame();
+                    qInfo() << "Camera ready! First frame:" << frame.width() << "x" << frame.height();
+                    break;
+                }
+                
+                QThread::msleep(pollIntervalMs);
+                waitedMs += pollIntervalMs;
+                QCoreApplication::processEvents();
+            }
+            
+            if (waitedMs >= maxWaitMs) {
+                qWarning() << "Timeout waiting for camera frame (" << maxWaitMs << "ms)";
+                qWarning() << "MCP server will start, but capture_screen may return errors initially";
+            }
+            
+            // Now initialize MCP server
+            window->initMcpServer();
+
+            if (capturedSsePort > 0) {
+                // Start SSE transport on specified port
+                qInfo() << "Starting MCP SSE on port" << capturedSsePort;
+                bool ok = window->getMcpServer()->startSse(
+                    static_cast<quint16>(capturedSsePort), QHostAddress::Any);
+                if (ok) {
+                    qInfo() << "MCP SSE server started successfully";
+                } else {
+                    qWarning() << "Failed to start MCP SSE server";
+                }
+            } else {
+                // Default to stdio transport
+                window->toggleMcpServer(true);
+            }
+        });
     }
     
     // Initialize GStreamer before Qt application
@@ -265,94 +760,45 @@ int main(int argc, char *argv[])
     g_log_set_default_handler(suppressGLibMessages, nullptr);
     #endif
     
-    setupEnv();
-    qInfo() << "Creating QApplication...";
-    QApplication app(argc, argv);
-
-    // set style accroding to system palette
-    QPalette systemPalette = QApplication::palette();
-    app.setPalette(systemPalette);
-    app.setStyle(QStyleFactory::create("Fusion"));
-    
-    QCoreApplication::setApplicationName("Openterface Mini-KVM");
-    QCoreApplication::setOrganizationName("TechxArtisan");
-    QCoreApplication::setApplicationVersion(APP_VERSION);
-    qInfo() << "Show window now";
-    app.setWindowIcon(QIcon("://images/icon_32.png"));
-    
-    // Check if the environment is properly set up
-    // If --skip-env-check is passed, skip the check
-    bool shouldCheckEnvironment = !skipEnvironmentCheck && EnvironmentSetupDialog::autoEnvironmentCheck();
-    if (shouldCheckEnvironment && !EnvironmentSetupDialog::checkEnvironmentSetup()) {
-        EnvironmentSetupDialog envDialog;
-        qInfo() << "Environment setup dialog opened";
-        if (envDialog.exec() == QDialog::Rejected) {
-            qInfo() << "Driver dialog rejected - continuing anyway";
-            // Continue running the application even if dialog is rejected
-        }
-    } 
-
-    // Create splash screen after environment setup
-    // Create splash screen with SVG or fallback image
-    QPixmap pixmap(":/images/openterface-splash.svg");
-    if (pixmap.isNull()) {
-        // SVG failed to load, create a simple splash screen
-        qWarning() << "Failed to load splash screen image, using fallback";
-        pixmap = QPixmap(800, 600);
-        pixmap.fill(QColor(15, 9, 9)); // Dark background from Openterface branding
+    // Defer environment check to after window is shown (improves startup time)
+    // Run environment check in background after a short delay
+    if (!skipEnvironmentCheck && EnvironmentSetupDialog::autoEnvironmentCheck()) {
+        QTimer::singleShot(500, [&app]() {
+            qInfo() << "Running deferred environment check...";
+            if (!EnvironmentSetupDialog::checkEnvironmentSetup()) {
+                // Show environment dialog on main thread
+                QMetaObject::invokeMethod(&app, []() {
+                    EnvironmentSetupDialog envDialog;
+                    qInfo() << "Environment setup dialog opened";
+                    if (envDialog.exec() == QDialog::Rejected) {
+                        qInfo() << "Driver dialog rejected - continuing anyway";
+                    }
+                }, Qt::QueuedConnection);
+            }
+        });
     }
-    
-    // Create and show the splash screen as a pointer so it persists
-    SplashScreen* splash = new SplashScreen(pixmap);
-    splash->show();
-    splash->raise();
-    splash->activateWindow();
-    
-    qInfo() << "Splash screen shown, scheduling initialization";
-    
-    // Start the loading animation immediately after splash is shown
-    QTimer::singleShot(50, [splash]() {
-        splash->showLoadingMessage();
-        qInfo() << "Animation started";
-    });
-    
-    // Break up initialization into chunks to allow animation to run between them
-    QTimer::singleShot(200, [&app, splash]() {
-        qInfo() << "Loading settings...";
-        GlobalSetting::instance().loadLogSettings();
-        GlobalSetting::instance().loadVideoSettings();
-        applyMediaBackendSetting();
 
-        LogHandler::instance().enableLogStore();
-    });
-    
-    QTimer::singleShot(800, [&app, splash]() {
-        qInfo() << "Loading keyboard layouts...";
-        QString keyboardConfigPath = ":/config/keyboards";
-        KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
-    });
-    
-    QTimer::singleShot(1800, [&app, splash]() {
-        qInfo() << "Creating main window...";
-        
-        // Create main window and language manager
-        LanguageManager* languageManager = new LanguageManager(&app);
-        languageManager->initialize("en");
-        MainWindow* window = new MainWindow(languageManager);
-        
-        // Stop the splash animation and close it
-        splash->hideLoadingMessage();
-        
-        // Show the main window and bring it to top
-        window->show();
-        window->raise();
-        window->activateWindow();
-        splash->finish(window);
-        
-        // Clean up splash screen
-        splash->deleteLater();
-        
-        qInfo() << "Main window shown";
+    // Always check if CH9329 is present but CH340 driver is missing (independent of environment check)
+    // Silent if driver is installed; prompts user only when driver is missing
+    QTimer::singleShot(1000, [&app]() {
+        if (SerialPortManager::isCH9329PresentAndDriverMissing()) {
+            QMetaObject::invokeMethod(&app, []() {
+                qInfo() << "CH9329 detected but CH340 driver is missing - showing install prompt";
+                QMessageBox msgBox;
+                msgBox.setWindowTitle(QObject::tr("Install Driver"));
+                msgBox.setText(QObject::tr("The CH9329 chip requires the CH340 driver, but it is not installed.\n\n"
+                    "Please install the driver at: https://www.wch.cn/downloads/CH341SER.EXE.html \n\n"
+                    "After the driver is installed, a system restart and device re-plugging is required for the changes to take effect.\n\n"
+                    "Please restart your computer after the driver installation."));
+                msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+                QPushButton *copyButton = msgBox.addButton(QObject::tr("Copy Link"), QMessageBox::ActionRole);
+                msgBox.exec();
+                if (msgBox.clickedButton() == copyButton) {
+                    QClipboard *clipboard = QApplication::clipboard();
+                    clipboard->setText("https://www.wch.cn/downloads/CH341SER.EXE.html");
+                }
+            }, Qt::QueuedConnection);
+        }
     });
 
     qInfo() << "Entering application event loop (app.exec())";
@@ -364,7 +810,6 @@ int main(int argc, char *argv[])
     // Clean up GStreamer
     #ifdef HAVE_GSTREAMER
     gst_deinit();
-    qDebug() << "GStreamer deinitialized";
     #endif
     
     qInfo() << "Application cleanup complete, returning" << result;

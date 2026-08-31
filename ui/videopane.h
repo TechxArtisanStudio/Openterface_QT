@@ -84,6 +84,9 @@ public:
 
     // Mouse position transformation for InputHandler
     QPointF getTransformedMousePosition(const QPoint& viewportPos);
+    void setOriginalVideoSize(const QSize& size) { m_originalVideoSize = size; }
+    QSize getOriginalVideoSize() const { return m_originalVideoSize; }
+    QRectF getGStreamerVideoContentRect() const;
     
     // Debug helper to validate coordinate transformation consistency
     void validateMouseCoordinates(const QPoint& original, const QString& eventType);
@@ -94,23 +97,36 @@ public:
     // Set coordinate correction for zoom mode
     void setZoomOffsetCorrection(int x, int y) { m_zoomOffsetCorrectionX = x; m_zoomOffsetCorrectionY = y; }
 
+    // rendering quality control (toggle antialiasing hints)
+    void setRenderQuality(bool highQuality);
+    bool renderQualityHigh() const { return m_highQualityRendering; }
+
 signals:
     void mouseMoved(const QPoint& position, const QString& event);
     void videoPaneResized(const QSize& newSize);  // Signal for video pane resize events
     void viewportSizeChanged(const QSize& size);   // Signal for viewport size changes
+    void newVideoFrameReceived();                  // Emitted when a new video frame is displayed
 
 public slots:
     void onCameraDeviceSwitching(const QString& fromDevice, const QString& toDevice);
     void onCameraDeviceSwitchComplete(const QString& device);
     void onCameraActiveChanged(bool active);
 
+    /// Handle keyboard events captured by SystemKeyBlocker's native hook.
+    /// Constructs a QKeyEvent and routes it through the same InputHandler path
+    /// as normal keyPressEvent(), ensuring unified keyboard handling.
+    void handleCapturedKey(int qtKeyCode, int modifiers, bool isKeyDown, quint32 nativeVk);
+
 protected:
+    bool event(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
+    void keyReleaseEvent(QKeyEvent *event) override;
 
 private:
     int lastX=0;
@@ -150,6 +166,14 @@ private:
     bool m_directFFmpegMode;
     QSize m_lastViewportSize;
     bool m_frameIsViewportSized;
+
+    // rendering quality hint flag (true=antialiasing enabled)
+    bool m_highQualityRendering;
+    
+    // Zoom hint label and control
+    QLabel* m_zoomHintLabel;
+    bool m_zoomHintShown;
+    QTimer* m_zoomHintTimer;
     
     MouseEventDTO* calculateRelativePosition(QMouseEvent *event);
     MouseEventDTO* calculateAbsolutePosition(QMouseEvent *event);
@@ -161,6 +185,8 @@ private:
     void centerVideoItem();
     void setupScene();
     void updateScrollBarsAndSceneRect();
+    void showZoomHint();
+    void startZoomHintFadeOut();
 };
 
 #endif

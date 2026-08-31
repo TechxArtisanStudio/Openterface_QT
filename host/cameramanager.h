@@ -13,6 +13,7 @@
 #include "host/multimediabackend.h"
 #include "../device/DeviceInfo.h"
 #include <QLoggingCategory>
+#include <QDateTime>
 
 // Forward declarations
 class GStreamerBackendHandler;
@@ -70,6 +71,9 @@ public:
     FFmpegBackendHandler* getFFmpegBackend() const;
     GStreamerBackendHandler* getGStreamerBackend() const;
     MultimediaBackendHandler* getBackendHandler() const;
+
+    // Returns the latest camera frame at native (unscaled) resolution.
+    QImage getLatestOriginalFrame();
     
     // Video output management
     void setVideoOutput(QGraphicsVideoItem* videoOutput);
@@ -83,6 +87,12 @@ public:
     
     // Check if there's an active camera device
     bool hasActiveCameraDevice() const;
+
+    // Check if the camera is actively streaming (receiving frames within last 5 seconds)
+    bool isCameraStreaming() const;
+
+    // Called by VideoPane when a new frame is received (updates frame timestamp)
+    void onNewVideoFrameReceived();
     
     // Auto-switch to new device when hotplug event occurs (only if no active device)
     bool tryAutoSwitchToNewDevice(const QString& portChain);
@@ -96,7 +106,10 @@ public:
     // Helper methods to detect current multimedia backend
     bool isGStreamerBackend() const;
     bool isFFmpegBackend() const;
+#ifdef Q_OS_WIN
     bool isQtBackend() const;
+    bool isMediaFoundationBackend() const;
+#endif
     
     // Camera device management and switching
     QList<QCameraDevice> getAvailableCameraDevices() const;
@@ -119,6 +132,7 @@ signals:
     void recordingStopped();
     void recordingError(const QString &errorString);
     void cameraError(const QString &errorString);
+    void frameTimeout();  // Emitted when no frames received after camera activation
     void resolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps, float pixelClk);
     void imageCaptured(int id, const QImage& img);
     void lastImagePath(const QString& imagePath);
@@ -138,6 +152,8 @@ public slots:
     
 private slots:
     void onImageCaptured(int id, const QImage& img);
+    void onFFmpegCaptureError(const QString& error);
+    void onMediaFoundationError(const QString& error);
 
 private:
     // Backend handler management
@@ -169,6 +185,11 @@ private:
     void connectToHotplugMonitor();
     void disconnectFromHotplugMonitor();
     void setupWindowsHotplugMonitoring();
+
+    // Retry mechanism for auto-switch
+    void startAutoSwitchRetry(const QString& devicePath);
+    void cancelAutoSwitchRetry();
+    void executeAutoSwitchRetry();
     
     // Member variables - FFmpeg backend only
     std::unique_ptr<MultimediaBackendHandler> m_backendHandler;
@@ -183,11 +204,33 @@ private:
     QCameraDevice m_currentCameraDevice;
     QString m_currentCameraDeviceId;
     QString m_currentCameraPortChain;  // Track the port chain of current camera device
+    qint64 m_lastFrameTimestamp = 0;   // Timestamp (ms since epoch) of last received frame
     QList<QCameraDevice> m_availableCameraDevices;
-    
+    QTimer* m_frameTimeoutTimer = nullptr;  // Detects when no frames are received
+    bool m_frameTimeoutWarningShown = false;  // Only warn once per session
+
     // Recording management
     QString m_currentRecordingPath;  // Path to the current recording file
-    
+
+    // Auto-switch retry state
+    struct AutoSwitchRetryState {
+        int retryCount = 0;
+        int maxRetries = 5;
+        QString targetDevicePath;
+        QTimer* retryTimer = nullptr;
+        bool isActive = false;
+
+        int getNextInterval() const {
+            switch (retryCount) {
+                case 0: return 500;
+                case 1: return 1000;
+                case 2: return 2000;
+                case 3: return 3000;
+                default: return 5000;
+            }
+        }
+    } m_autoSwitchRetry;
+
 private slots:
     void onVideoInputsChanged();
 };

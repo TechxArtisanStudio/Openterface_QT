@@ -25,13 +25,19 @@
 #ifndef Q_OS_WIN
 #include "backend/gstreamerbackendhandler.h"
 #endif
+#ifdef Q_OS_WIN
 #include "backend/qtbackendhandler.h"
+#endif
 #include "backend/qtmultimediabackendhandler.h"
+#ifdef Q_OS_WIN
+#include "backend/mf/mfbackendhandler.h"
+#endif
 #include <QLoggingCategory>
 #include <QThread>
 #include "../ui/globalsetting.h"
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_multimedia_backend, "opf.multimedia.backend")
+OPF_LOGGING_CATEGORY(log_multimedia_backend, "opf.multimedia.backend")
 
 // ==========================================================================
 // MultimediaBackendHandler (Base Class)
@@ -55,13 +61,13 @@ void MultimediaBackendHandler::configureCameraDevice()
     logBackendMessage("Default: Configuring camera device.");
 }
 
-void MultimediaBackendHandler::setupCaptureSession(QMediaCaptureSession* session)
+void MultimediaBackendHandler::setupCaptureSession(QMediaCaptureSession* /*session*/)
 {
     // Default implementation: Standard setup
     logBackendMessage("Default: Setting up capture session.");
 }
 
-void MultimediaBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput)
+void MultimediaBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* /*session*/, QObject* /*videoOutput*/)
 {
     // Default implementation: No special preparation
     logBackendMessage("Default: Preparing video output connection.");
@@ -216,14 +222,19 @@ MultimediaBackendType MultimediaBackendFactory::parseBackendType(const QString& 
     if (backendName.compare("qtmultimedia", Qt::CaseInsensitive) == 0) {
         return MultimediaBackendType::QtMultimedia;
     }
+#ifdef Q_OS_WIN
     if (backendName.compare("qt", Qt::CaseInsensitive) == 0) {
         return MultimediaBackendType::Qt;
     }
+#endif
     if (backendName.compare("gstreamer", Qt::CaseInsensitive) == 0) {
         return MultimediaBackendType::GStreamer;
     }
     if (backendName.compare("ffmpeg", Qt::CaseInsensitive) == 0) {
         return MultimediaBackendType::FFmpeg;
+    }
+    if (backendName.compare("mediafoundation", Qt::CaseInsensitive) == 0) {
+        return MultimediaBackendType::MediaFoundation;
     }
     return MultimediaBackendType::Unknown;
 }
@@ -233,12 +244,16 @@ QString MultimediaBackendFactory::backendTypeToString(MultimediaBackendType type
     switch (type) {
         case MultimediaBackendType::QtMultimedia:
             return "Qt Multimedia (Legacy)";
+#ifdef Q_OS_WIN
         case MultimediaBackendType::Qt:
             return "Qt Multimedia (Windows)";
+#endif
         case MultimediaBackendType::FFmpeg:
             return "FFmpeg";
         case MultimediaBackendType::GStreamer:
             return "GStreamer";
+        case MultimediaBackendType::MediaFoundation:
+            return "Media Foundation";
         default:
             return "Unknown";
     }
@@ -253,10 +268,16 @@ std::unique_ptr<MultimediaBackendHandler> MultimediaBackendFactory::createHandle
 #endif
         case MultimediaBackendType::FFmpeg:
             return std::make_unique<FFmpegBackendHandler>(parent);
+#ifdef Q_OS_WIN
         case MultimediaBackendType::Qt:
             return std::make_unique<QtBackendHandler>(parent);
+#endif
         case MultimediaBackendType::QtMultimedia:
             return std::make_unique<QtMultimediaBackendHandler>(parent);
+#ifdef Q_OS_WIN
+        case MultimediaBackendType::MediaFoundation:
+            return std::make_unique<MfBackendHandler>(parent);
+#endif
         default:
             qCWarning(log_multimedia_backend) << "Unknown backend type requested, falling back to FFmpeg backend.";
             return std::make_unique<FFmpegBackendHandler>(parent);

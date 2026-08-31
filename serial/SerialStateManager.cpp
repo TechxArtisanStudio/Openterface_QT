@@ -22,11 +22,11 @@
 
 #include "SerialStateManager.h"
 #include "SerialPortManager.h" // For ChipType enum
-#include <QLoggingCategory>
+#include "log/opflogging.h"
 #include <QMutexLocker>
 #include <QDebug>
 
-Q_LOGGING_CATEGORY(log_serial_state, "opf.serial.state")
+OPF_LOGGING_CATEGORY(log_serial_state, "opf.serial.state")
 
 SerialStateManager::SerialStateManager(QObject *parent)
     : QObject(parent)
@@ -257,7 +257,6 @@ void SerialStateManager::setErrorTrackingInfo(const ErrorTrackingInfo& info)
 void SerialStateManager::incrementConsecutiveErrors()
 {
     QMutexLocker locker(&m_stateMutex);
-    int oldErrors = m_errorTrackingInfo.consecutiveErrors;
     m_errorTrackingInfo.consecutiveErrors++;
     int newErrors = m_errorTrackingInfo.consecutiveErrors;
     int retryCount = m_errorTrackingInfo.connectionRetryCount;
@@ -271,7 +270,6 @@ void SerialStateManager::incrementConnectionRetryCount()
 {
     QMutexLocker locker(&m_stateMutex);
     int errors = m_errorTrackingInfo.consecutiveErrors;
-    int oldRetryCount = m_errorTrackingInfo.connectionRetryCount;
     m_errorTrackingInfo.connectionRetryCount++;
     int newRetryCount = m_errorTrackingInfo.connectionRetryCount;
     locker.unlock();

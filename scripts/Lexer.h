@@ -43,6 +43,8 @@ private:
     Token identifier();
     Token number();
     Token symbol();
+    Token string_literal();
+    char nextChar();
 };
 
 #endif // LEXER_H

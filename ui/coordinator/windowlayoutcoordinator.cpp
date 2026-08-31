@@ -35,8 +35,9 @@
 #include <QDebug>
 #include <QPropertyAnimation>
 #include <QParallelAnimationGroup>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_ui_windowlayoutcoordinator, "opf.ui.windowlayoutcoordinator")
+OPF_LOGGING_CATEGORY(log_ui_windowlayoutcoordinator, "opf.ui.windowlayoutcoordinator")
 
 WindowLayoutCoordinator::WindowLayoutCoordinator(QMainWindow *mainWindow,
                                                  VideoPane *videoPane,
@@ -125,7 +126,7 @@ void WindowLayoutCoordinator::doResize()
     // Update global state
     GlobalVar::instance().setWinWidth(m_mainWindow->width());
     GlobalVar::instance().setWinHeight(m_mainWindow->height());
-    
+
     emit layoutChanged(QSize(m_mainWindow->width(), m_mainWindow->height()));
 }
 
@@ -153,7 +154,7 @@ void WindowLayoutCoordinator::handleScreenBoundsResize(int &currentWidth, int &c
 
     // Apply changes to video pane
     m_videoPane->resize(newVideoWidth, newVideoHeight);
-    
+
     // Resize main window if necessary
     if (currentWidth != availableWidth && currentHeight != availableHeight) {
         qCDebug(log_ui_windowlayoutcoordinator) << "Resize to Width:" << currentWidth 
@@ -186,7 +187,6 @@ void WindowLayoutCoordinator::handleAspectRatioResize(int currentWidth, int curr
         
         // Scale video pane to fit the available area
         double scaleX = static_cast<double>(availableWidth) / (captureAspectRatio * availableHeight);
-        double scaleY = 1.0;
         
         int videoWidth, videoHeight;
         if (scaleX <= 1.0) {
@@ -200,9 +200,9 @@ void WindowLayoutCoordinator::handleAspectRatioResize(int currentWidth, int curr
         }
         
         m_videoPane->resize(videoWidth, videoHeight);
-        qCDebug(log_ui_windowlayoutcoordinator) << "Maximized window - VideoPane resized to:" 
+        qCDebug(log_ui_windowlayoutcoordinator) << "Maximized window - VideoPane resized to:"
                                                 << videoWidth << "x" << videoHeight;
-        
+
     } else if (aspectRatio < 1.0) {
         // Portrait orientation
         int newWidth = static_cast<int>(currentHeight * aspectRatio);
@@ -239,7 +239,6 @@ void WindowLayoutCoordinator::checkInitSize()
     
     // Get screen geometry
     QRect screenGeometry = currentScreen->geometry();
-    int screenWidth = screenGeometry.width();
     int screenHeight = screenGeometry.height();
     int titleBarHeight = m_mainWindow->frameGeometry().height() - m_mainWindow->geometry().height();
     int menuBarHeight = m_menuBar->height();
@@ -321,7 +320,6 @@ void WindowLayoutCoordinator::fullScreen()
         qCWarning(log_ui_windowlayoutcoordinator) << "Setting window state to WindowNoState...";
         
         // Use a safer approach: check if the operation succeeds
-        Qt::WindowStates oldState = m_mainWindow->windowState();
         m_mainWindow->setWindowState(Qt::WindowNoState);
         QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 50);
         
@@ -585,8 +583,26 @@ void WindowLayoutCoordinator::animateVideoPane()
         }
     }
 
+    // CRITICAL FIX: Temporarily enable updates before resizing to ensure resize takes effect
+    // The main window has updates disabled from onToolbarVisibilityChanged()
+    // We need to enable it temporarily for the video pane resize to work correctly
+    bool updatesWereDisabled = !m_mainWindow->updatesEnabled();
+    if (updatesWereDisabled) {
+        m_mainWindow->setUpdatesEnabled(true);
+    }
+    
     // Resize the video pane
     m_videoPane->resize(contentWidth, contentHeight);
+    
+    // Force immediate update on video pane to ensure resize takes effect
+    m_videoPane->update();
+    m_videoPane->updateGeometry();
+    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    
+    // Re-disable updates if they were disabled before (animation will re-enable later)
+    if (updatesWereDisabled) {
+        m_mainWindow->setUpdatesEnabled(false);
+    }
 
     // Position the video pane (center horizontally if window is wider than video pane)
     if (m_mainWindow->width() > m_videoPane->width()) {
@@ -612,7 +628,16 @@ void WindowLayoutCoordinator::animateVideoPane()
                     !m_mainWindow->testAttribute(Qt::WA_DeleteOnClose)) {
                     m_mainWindow->setUpdatesEnabled(true);
                     m_mainWindow->blockSignals(false);
+                    
+                    // Force update on both main window and video pane
+                    if (m_videoPane) {
+                        m_videoPane->update();
+                        m_videoPane->updateGeometry();
+                    }
                     m_mainWindow->update();
+                    
+                    qCDebug(log_ui_windowlayoutcoordinator) << "Animation completed - updates re-enabled, videoPane size:" 
+                                                            << (m_videoPane ? m_videoPane->size() : QSize());
                 }
             });
             
@@ -623,20 +648,27 @@ void WindowLayoutCoordinator::animateVideoPane()
             // If animation can't be created safely, just move immediately
             if (m_videoPane) {
                 m_videoPane->move(horizontalOffset, m_videoPane->y());
+                m_videoPane->update();
+                m_videoPane->updateGeometry();
             }
             m_mainWindow->setUpdatesEnabled(true);
             m_mainWindow->blockSignals(false);
-            qCDebug(log_ui_windowlayoutcoordinator) << "Video pane moved immediately (no animation)";
+            m_mainWindow->update();
+            qCDebug(log_ui_windowlayoutcoordinator) << "Video pane moved immediately (no animation), size:" 
+                                                    << (m_videoPane ? m_videoPane->size() : QSize());
         }
     } else {
-        // VideoPane fills the window width, position at x=0
+        // Position at x=0 (fills width)
         if (m_videoPane) {
             m_videoPane->move(0, m_videoPane->y());
+            m_videoPane->update();
+            m_videoPane->updateGeometry();
         }
         m_mainWindow->setUpdatesEnabled(true);
         m_mainWindow->blockSignals(false);
         m_mainWindow->update();
-        qCDebug(log_ui_windowlayoutcoordinator) << "Video pane positioned at x=0 (fills width)";
+        qCDebug(log_ui_windowlayoutcoordinator) << "Video pane positioned at x=0 (fills width), size:" 
+                                                << (m_videoPane ? m_videoPane->size() : QSize());
     }
 }
 

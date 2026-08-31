@@ -4,10 +4,15 @@ Section: base
 Priority: optional
 Architecture: ${ARCH}
 Maintainer: TechxArtisan <info@techxartisan.com>
+Depends: libegl1, libgles2-mesa | libgles2, libpulse0,
+ libv4l-0, libxkbcommon0, libwayland-client0 | libwayland-client,
+ libxcb1, libx11-6,
+ libgl1-mesa-glx | libgl1, libglx0, libglvnd0, zlib1g
+Suggests: libva2, libva-drm2, libva-x11-2, libvdpau1
 Description: OpenterfaceQT KVM Linux Edition
- Includes bundled FFmpeg 6.1.1 libraries (libavformat, libavcodec,
- libswresample, libswscale, libavutil, libavfilter), libturbojpeg,
- VA-API libraries (libva, libva-drm, libva-x11), VDPAU library
- (libvdpau), GStreamer libraries including ORC for hardware acceleration,
- GStreamer plugins (v4l2, video conversion, audio processing), and Qt6
- libraries for GUI rendering with SVG icon support
+ A Qt6‑based KVM frontend for video capture and playback.
+ Qt6, FFmpeg, GStreamer, libpcre2-16, libturbojpeg and XCB utility
+ libraries are bundled under /usr/lib/openterfaceqt/ and loaded by the
+ launcher via LD_LIBRARY_PATH.
+ VA‑API/VDPAU driver packages from the distribution are still required
+ for hardware‑accelerated video decode.

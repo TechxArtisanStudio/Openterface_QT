@@ -185,7 +185,23 @@ private:
      * Window title, mouse timer, language connections
      */
     void finalize();
+    
+public:
+    /**
+     * @brief Deferred setup of coordinators (after window shown)
+     * 
+     * Performs device enumeration and menu setup - expensive operations
+     */
+    void deferredSetupCoordinators();
+    
+    /**
+     * @brief Deferred camera initialization (after window shown)
+     * 
+     * Initializes camera, video pipeline, and audio - blocking operations
+     */
+    void deferredInitializeCamera();
 
+private:
     // Member variables
     MainWindow *m_mainWindow;                ///< Reference to MainWindow (not owned)
     Ui::MainWindow *m_ui;                    ///< Reference to UI (not owned)

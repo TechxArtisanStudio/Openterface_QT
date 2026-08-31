@@ -4,263 +4,164 @@
 # =============================================================================
 #
 # This script runs BEFORE the DEB package is unpacked and installed.
-# It checks that all required runtime dependencies are already installed.
+# It checks that required SYSTEM dependencies are installed.
 #
-# IMPORTANT: Dependencies must be installed BEFORE running this script.
-# When using "dpkg -i", the dpkg lock prevents apt-get from running in preinst.
-# Dependencies must be pre-installed by the calling script/installer.
+# NOTE: Bundled libraries (Qt6, FFmpeg, GStreamer, libpcre2-16, XCB utility
+# libs, libbz2, libturbojpeg) are included in the deb and loaded via the
+# launcher's LD_LIBRARY_PATH. They are NOT checked here.
 #
-# Required dependencies:
-#   - Graphics: libegl1, libgles2
-#   - Audio: libpulse0
-#   - Video: libgstreamer1.0-0 (core only, base libs are bundled), libv4l-0
-#   - X11/Display: libxkbcommon0, libwayland-client0, libxcb1, libx11-6
-#   - FFmpeg: bundled in package
-#   - GStreamer Base: bundled in package (libgstbase, libgstraudio, libgstvideo, libgstapp, etc.)
-#   - Qt6 Libraries: bundled in package (Qt6 core, plugins, QPA)
-#   - Qt6 SVG Support: libqt6svg6 (CRITICAL for SVG icon rendering)
-#   - Hardware Acceleration: libva2, libva-drm2, libva-x11-2, libvdpau1, liborc-0.4-0 (bundled or system)
-#   - OpenGL: libgl1, libglx0, libglvnd0, libglu1-mesa
-#   - Compression: zlib1g, libbz2-1.0
-#   - Debug: libdw1
+# Only system-specific libs that CANNOT be bundled (GPU drivers, display
+# server, audio) are checked. These are also declared in Depends: so
+# `apt install ./openterfaceQT.deb` auto-resolves them.
 #
 # =============================================================================
+
+# Exit on non-install/upgrade
+if [ "$1" != "install" ] && [ "$1" != "upgrade" ]; then
+    exit 0
+fi
 
 echo "=========================================="
 echo "OpenterfaceQT Pre-Installation Check"
 echo "=========================================="
 echo ""
 
-# Function to print status messages
-print_status() {
-    echo "📦 $1"
+# -----------------------------------------------------------------------------
+# System dependency definitions (ONLY libs that are NOT bundled)
+# Format: "library_file|package_name|description|required"
+# -----------------------------------------------------------------------------
+DEPENDENCIES=(
+    # Graphics (GPU drivers - system-specific, cannot bundle)
+    "libEGL.so.1|libegl1|EGL graphics library for hardware acceleration|yes"
+    "libGLESv2.so.2|libgles2|OpenGL ES 2.0 for rendering|yes"
+
+    # Audio (system-specific)
+    "libpulse.so.0|libpulse0|PulseAudio for sound output|yes"
+
+    # Display server (system-specific)
+    "libxkbcommon.so.0|libxkbcommon0|Keyboard handling library|yes"
+    "libwayland-client.so.0|libwayland-client0|Wayland display server support|yes"
+    "libxcb.so.1|libxcb1|X11 C Binding (core)|yes"
+    "libX11.so.6|libx11-6|X11 core library|yes"
+
+    # OpenGL (GPU drivers - system-specific)
+    "libGL.so.1|libgl1|OpenGL rendering|yes"
+    "libGLX.so.0|libglx0|GLX extension for X11|yes"
+    "libGLdispatch.so.0|libglvnd0|OpenGL vendor-neutral dispatch|yes"
+
+    # Hardware acceleration (optional - system-specific GPU drivers)
+    "libva.so.2|libva2|VA-API for video decode acceleration|no"
+    "libva-drm.so.2|libva-drm2|VA-API DRM support|no"
+    "libva-x11.so.2|libva-x11-2|VA-API X11 support|no"
+    "libvdpau.so.1|libvdpau1|VDPAU for video decode acceleration|no"
+
+    # Compression (system core lib)
+    "libz.so.1|zlib1g|Compression library|yes"
+)
+
+# -----------------------------------------------------------------------------
+# Check functions
+# -----------------------------------------------------------------------------
+check_library() {
+    local lib="$1"
+    # Use full path — ldconfig is in /sbin which may not be in PATH
+    /sbin/ldconfig -p 2>/dev/null | grep -q "lib[^ ]*${lib}"
 }
 
-print_success() {
-    echo "✅ $1"
-}
+# -----------------------------------------------------------------------------
+# Main check logic
+# -----------------------------------------------------------------------------
+MISSING_REQUIRED=()
+MISSING_OPTIONAL=()
+FOUND_COUNT=0
+TOTAL_COUNT=${#DEPENDENCIES[@]}
 
-print_warning() {
-    echo "⚠️  $1"
-}
+echo "Checking system dependencies..."
+echo "(Bundled libs: Qt6, FFmpeg, GStreamer, libpcre2-16, XCB utils, libbz2 - OK)"
+echo ""
 
-print_error() {
-    echo "❌ $1"
-}
+for entry in "${DEPENDENCIES[@]}"; do
+    IFS='|' read -r lib pkg desc required <<< "$entry"
 
-# Check if running with install or upgrade
-if [ "$1" != "install" ] && [ "$1" != "upgrade" ]; then
+    if check_library "$lib"; then
+        FOUND_COUNT=$((FOUND_COUNT + 1))
+    else
+        if [ "$required" = "yes" ]; then
+            MISSING_REQUIRED+=("$pkg|$desc")
+        else
+            MISSING_OPTIONAL+=("$pkg|$desc")
+        fi
+    fi
+done
+
+# -----------------------------------------------------------------------------
+# Results
+# -----------------------------------------------------------------------------
+if [ ${#MISSING_REQUIRED[@]} -eq 0 ] && [ ${#MISSING_OPTIONAL[@]} -eq 0 ]; then
+    echo "✅ All system dependencies are installed."
+    echo ""
+    echo "Proceeding with OpenterfaceQT installation..."
+    echo ""
     exit 0
 fi
 
-print_status "Checking required dependencies..."
-echo ""
-
-# Define dependencies by category
-GRAPHICS_DEPS=(
-    "libegl1"
-    "libgles2"
-)
-
-AUDIO_DEPS=(
-    "libpulse0"
-)
-
-VIDEO_DEPS=(
-    "libv4l-0"
-)
-
-DISPLAY_DEPS=(
-    "libxkbcommon0"
-    "libwayland-client0"
-    "libxcb1"
-    "libxcb-shm0"
-    "libxcb-xfixes0"
-    "libx11-6"
-)
-
-OPENGL_DEPS=(
-    "libgl1"
-    "libglx0"
-    "libglvnd0"
-)
-
-QT6_PLATFORM_DEPS=(
-    "libxcb-icccm4"
-    "libxcb-image0"
-    "libxcb-keysyms1"
-    "libxcb-randr0"
-    "libxcb-render-util0"
-    "libxcb-xkb1"
-)
-
-HWACCEL_DEPS=(
-    "libva2"
-    "libva-drm2"
-    "libva-x11-2"
-    "libvdpau1"
-)
-
-COMPRESSION_DEPS=(
-    "zlib1g"
-    "libbz2-1.0"
-)
-
-DEBUG_DEPS=(
-    "libdw1"
-)
-
-MISSING_DEPS=()
-FOUND_DEPS=0
-TOTAL_DEPS=0
-
-# Calculate total dependencies to check
-TOTAL_DEPS=$((${#GRAPHICS_DEPS[@]} + ${#AUDIO_DEPS[@]} + ${#VIDEO_DEPS[@]} + ${#DISPLAY_DEPS[@]} + ${#OPENGL_DEPS[@]} + ${#QT6_PLATFORM_DEPS[@]} + ${#HWACCEL_DEPS[@]} + ${#COMPRESSION_DEPS[@]} + ${#DEBUG_DEPS[@]}))
-
-echo "System dependency verification:"
-echo ""
-# Helper function to print category header
-print_category() {
-    local category=$1
-    echo "  📦 $category:"
-}
-# Check Graphics dependencies
-print_category "Graphics Libraries"
-for pkg in "${GRAPHICS_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-echo ""
-
-# Check Audio dependencies
-print_category "Audio Libraries"
-for pkg in "${AUDIO_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-echo ""
-
-# Check Video dependencies
-print_category "Video/GStreamer Libraries"
-for pkg in "${VIDEO_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-echo ""
-
-# Check Display dependencies
-print_category "X11/Display Server Libraries"
-for pkg in "${DISPLAY_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-echo ""
-
-# Check OpenGL dependencies
-print_category "OpenGL Libraries"
-for pkg in "${OPENGL_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-
-# Check Qt6 XCB/Platform dependencies
-print_category "  Qt6 Platform Dependencies (XCB):"
-for pkg in "${QT6_PLATFORM_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-
-# Check Hardware Acceleration dependencies
-print_category "  Hardware Acceleration Libraries (VA-API, VDPAU):"
-for pkg in "${HWACCEL_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ⚠️  $pkg (OPTIONAL - hardware acceleration may be slower)"
-    fi
-done
-
-# Check Compression dependencies
-print_category "  Compression Libraries:"
-for pkg in "${COMPRESSION_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-
-# Check Debug dependencies
-print_category "  Debug Libraries:"
-for pkg in "${DEBUG_DEPS[@]}"; do
-    if dpkg -l | grep -q "^ii.*${pkg}"; then
-        echo "    ✅ $pkg"
-        FOUND_DEPS=$((FOUND_DEPS + 1))
-    else
-        echo "    ❌ $pkg (MISSING)"
-        MISSING_DEPS+=("$pkg")
-    fi
-done
-echo ""
-
-echo ""
-echo "Found: $FOUND_DEPS/$TOTAL_DEPS"
-echo "Missing: ${#MISSING_DEPS[@]}/$TOTAL_DEPS"
-echo ""
-
-if [ ${#MISSING_DEPS[@]} -eq 0 ]; then
-    print_success "All required dependencies are installed!"
-    echo ""
-    print_status "Proceeding with OpenterfaceQT package installation..."
-    echo ""
-    exit 0
+if [ ${#MISSING_REQUIRED[@]} -eq 0 ]; then
+    echo "✅ All required system dependencies are installed."
 else
-    print_error "Missing ${#MISSING_DEPS[@]} required dependencies!"
+    echo "❌ Some required system dependencies are missing."
     echo ""
-    echo "Missing packages: ${MISSING_DEPS[*]}"
+    echo "Missing required:"
+    for entry in "${MISSING_REQUIRED[@]}"; do
+        IFS='|' read -r pkg desc <<< "$entry"
+        echo "  ❌ $pkg — $desc"
+    done
+fi
+
+if [ ${#MISSING_OPTIONAL[@]} -gt 0 ]; then
     echo ""
-    echo "=========================================="
-    echo "How to Install Missing Dependencies"
-    echo "=========================================="
+    echo "Optional (hardware acceleration):"
+    for entry in "${MISSING_OPTIONAL[@]}"; do
+        IFS='|' read -r pkg desc <<< "$entry"
+        echo "  ⚠️  $pkg — $desc"
+    done
+fi
+
+echo ""
+echo "Found: $FOUND_COUNT/$TOTAL_COUNT"
+echo ""
+
+# -----------------------------------------------------------------------------
+# Fix instructions
+# -----------------------------------------------------------------------------
+if [ ${#MISSING_REQUIRED[@]} -gt 0 ]; then
+    REQUIRED_PKGS=()
+    for entry in "${MISSING_REQUIRED[@]}"; do
+        IFS='|' read -r pkg desc <<< "$entry"
+        REQUIRED_PKGS+=("$pkg")
+    done
+
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "How to fix"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
-    echo "Run the following command BEFORE installing OpenterfaceQT:"
+    echo "Install required dependencies:"
     echo ""
-    echo "  sudo apt-get update && sudo apt-get install -y ${MISSING_DEPS[*]}"
+    echo "   sudo apt-get update"
+    echo "   sudo apt-get install -y ${REQUIRED_PKGS[*]}"
     echo ""
-    echo "=========================================="
+    echo "Then retry installing OpenterfaceQT:"
+    echo ""
+    echo "   sudo apt install ./openterfaceQT_*.deb"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "Installation blocked: required dependencies are missing."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
     exit 1
 fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Proceeding with installation (optional dependencies missing)."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+exit 0

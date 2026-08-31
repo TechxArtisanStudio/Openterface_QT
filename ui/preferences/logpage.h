@@ -31,9 +31,16 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QSettings>
+#include <QSlider>
+#include <QTreeView>
+#include <QStandardItemModel>
+#include <QComboBox>
+#include <QMap>
+#include <QPair>
 #include "fontstyle.h"
+#include "preferencepagebase.h"
 
-class LogPage : public QWidget
+class LogPage : public PreferencePageBase
 {
     Q_OBJECT
 
@@ -42,30 +49,56 @@ public:
     void setupUI();
     void browseLogPath();
     void initLogSettings();
-    void applyLogsettings();
+    void applySettings() override;
+    void captureSnapshot() override;
+    bool valuesMatchSnapshot() const override;
+    void revertToSnapshot() override;
 
 signals:
     void ScreenSaverInhibitedChanged(bool inhibited);
+    void hideKeyboardInputChanged(bool hide);
+    void floatingWindowEnabledChanged(bool enabled);
+    void floatingWindowOpacityChanged(double opacity);
+    void systemKeyBlockerToggled(bool enabled);
 
 private:
+    void populateCategoryTree();
+    QString generateFilterRules() const;
+    void saveCategorySettings() const;
+    void restoreCategorySettings();
 
-    QCheckBox *coreCheckBox;
-    QCheckBox *serialCheckBox;
-    QCheckBox *uiCheckBox;
-    QCheckBox *hostCheckBox;
-    QCheckBox *deviceCheckBox;
-    QCheckBox *backendCheckBox;
-    QCheckBox *scriptCheckBox;
+    // Log file controls
     QCheckBox *storeLogCheckBox;
     QLineEdit *logFilePathLineEdit;
     QPushButton *browseButton;
-    QCheckBox *screenSaverCheckBox;
 
-    QHBoxLayout *logCheckboxLayout;
-    QHBoxLayout *logFilePathLayout;
-    QLabel *logLabel;
-    QLabel *logDescription;
-    QVBoxLayout *logLayout;
+    // Category tree view
+    QTreeView *categoryTreeView;
+    QStandardItemModel *categoryModel;
+    QCheckBox *selectAllCheckBox;
+
+    // Other settings (unchanged from original)
+    QCheckBox *screenSaverCheckBox;
+    QCheckBox *hideKeyboardInputCheckBox;
+    QCheckBox *floatingWindowCheckBox;
+    QSlider *floatingWindowOpacitySlider;
+    QLabel *floatingWindowOpacityLabel;
+    QCheckBox *systemKeyBlockerCheckBox;
+
+    // Snapshot for revert
+    bool m_snap_storeLog;
+    QString m_snap_logFilePath;
+    bool m_snap_screenSaver;
+    bool m_snap_hideKeyboardInput;
+    bool m_snap_floatingWindow;
+    int m_snap_floatingWindowOpacity;
+    bool m_snap_systemKeyBlocker;
+    // Tree state snapshot: map of category -> {enabled, level}
+    QMap<QString, QPair<bool, QString>> m_snap_categoryStates;
+
+    // Guard flag: true while programmatically restoring tree state
+    // (suppresses group-propagation in itemChanged handler)
+    bool m_restoring = false;
 };
 
 #endif // LOGPAGE_H

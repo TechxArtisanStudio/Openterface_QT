@@ -8,7 +8,9 @@
 #include <QSet>
 #include <QLoggingCategory>
 #include "DeviceInfo.h"
+#include "IDeviceDiscovery.h"
 #include "HotplugMonitor.h"
+#include "HotplugDebounceManager.h"
 #include "../video/videohid.h"
 
 class AbstractPlatformDeviceManager;
@@ -18,7 +20,7 @@ class AudioManager;
 
 Q_DECLARE_LOGGING_CATEGORY(log_device_manager)
 
-class DeviceManager : public QObject
+class DeviceManager : public QObject, public IDeviceDiscovery
 {
     Q_OBJECT
     
@@ -130,6 +132,12 @@ public:
     void startHotplugMonitoring(int intervalMs = 3000);
     void stopHotplugMonitoring();
     bool isMonitoring() const { return m_monitoring; }
+
+    // Debounce manager access
+    device::HotplugDebounceManager* getDebounceManager() const { return m_debounceManager; }
+
+    // Rapid reconnect handling
+    bool isFastScanning() const;
     
     // Current state
     QList<DeviceInfo> getCurrentDevices() const;
@@ -154,20 +162,28 @@ signals:
     
 private slots:
     void onHotplugTimerTimeout();
+#ifdef Q_OS_LINUX
+    void onLinuxDevicesDiscovered(const QList<DeviceInfo>& devices);
+    void onLinuxDiscoveryError(const QString& error);
+#endif
     
 private:
     // Private constructor for singleton
     explicit DeviceManager();
-    
+
     void initializePlatformManager();
-    void compareDeviceSnapshots(const QList<DeviceInfo>& current, 
+    void compareDeviceSnapshots(const QList<DeviceInfo>& current,
                                const QList<DeviceInfo>& previous);
     DeviceInfo findDeviceByKey(const QList<DeviceInfo>& devices, const QString& key);
     void updateMonitoringInterval(int deviceCount);
-    
+    void setupDebounceManagerConnections();
+    void handleDebouncedDeviceRemoved(const DeviceInfo& device);
+    void handleDebouncedDeviceAdded(const DeviceInfo& device);
+
     AbstractPlatformDeviceManager* m_platformManager;
     QTimer* m_hotplugTimer;
     HotplugMonitor* m_hotplugMonitor;
+    device::HotplugDebounceManager* m_debounceManager;
     QList<DeviceInfo> m_lastSnapshot;
     QList<DeviceInfo> m_currentDevices;
     DeviceInfo m_selectedDevice;

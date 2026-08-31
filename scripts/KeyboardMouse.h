@@ -39,6 +39,8 @@
 #include <QString>
 #include <QDebug>
 #include <QObject>
+#include <QMutex>
+#include <QMutexLocker>
 #include "serial/SerialPortManager.h"
 #include "AST.h"
 
@@ -135,10 +137,14 @@ public:
     bool getScrollLockState_();
     void setMouseSpeed(int speed);
     int getMouseSpeed();
+    
+    // Testing/debugging helpers
+    int getKeyDataSize() const { QMutexLocker locker(&queueMutex); return keyData.size(); }
 
 
 private:
     std::queue<keyPacket> keyData;
+    mutable QMutex queueMutex;  // Protects keyData queue from concurrent access
     int mouseSpeed;
     int clickInterval = 50;
     int keyInterval = 40;
@@ -235,8 +241,28 @@ const QMap<QString, uint8_t> keydata = {
     {"Apostrophe", 0x34}, // '
     {"QuoteLeft", 0x35}, // `
     {"Comma", 0x36}, // ,
+    {",", 0x36}, // comma character
     {"Period", 0x37}, // .
+    {".", 0x37}, // period character
     {"Slash", 0x38}, // /
+    {"/", 0x38}, // slash character
+    {";", 0x33}, // semicolon character
+    {":", 0x33}, // colon character (Shift+;)
+    {"'", 0x34}, // apostrophe character
+    {"\"", 0x34}, // double quote character (Shift+')
+    {"`", 0x35}, // backtick character
+    {"-", 0x2D}, // minus/dash character
+    {"=", 0x2E}, // equals character
+    {"[", 0x2F}, // left bracket character
+    {"]", 0x30}, // right bracket character
+    {"\\", 0x31}, // backslash character
+    {"@", 0x1F},  // @ = Shift+2
+    {"$", 0x21},  // $ = Shift+4
+    {"%", 0x22},  // % = Shift+5
+    {"&", 0x24},  // & = Shift+7
+    {"*", 0x25},  // * = Shift+8
+    {"(", 0x26},  // ( = Shift+9
+    {")", 0x27},  // ) = Shift+0
     {"CapsLock", 0x39}, // caps lock
     {"F1", 0x3A}, // f1
     {"F2", 0x3B}, // f2
@@ -290,15 +316,20 @@ const QMap<QString, uint8_t> keydata = {
     {"BraceRight", 0x30}, // key ]
     {"Colon", 0x33}, // key ;
     {"QuoteDbl", 0x34}, // key '
-    {"Bar", 0x31}, // Backslash
+    {"Bar", 0x31}, // | = Shift+Backslash
+    {"|", 0x31}, // | character (Shift+Backslash)
     {"Less", 0x36}, // key ,
     {"Greater", 0x37}, // key .
     {"Question", 0x38}, // key /
-    {"Win", 0xE3}, // win
-    {"^", 0xE0}, // Ctrl
-    {"+", 0xE5}, // Shift
-    {"!", 0xE2}, // Alt
-    {"#", 0xE3}  // Win
+    {"Win", 0xE3} // win
+    // REMOVED: Conflicting definitions that would never be used correctly
+    // {"^", 0xE0}, // This was WRONG: 0xE0 is Left Ctrl key, not ^ character
+    // {"+", 0xE5}, // This was WRONG: 0xE5 is Right Shift key, not + character
+    // {"!", 0xE2}, // This was WRONG: 0xE2 is Left Alt key, not ! character
+    // {"#", 0xE3}  // This was WRONG: Same as Win key above
+    // These symbols should ONLY be used as modifier prefixes in controldata,
+    // or as backtick escapes via backtickEscapeMap. To send literal symbols,
+    // use backtick escape: Send "`^" for ^, Send "`!" for !, etc.
 };
 
 

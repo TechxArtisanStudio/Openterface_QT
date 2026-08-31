@@ -1,0 +1,820 @@
+# Building Openterface QT from Source
+
+This guide provides detailed instructions for building Openterface QT from source code on Windows and Linux.
+
+> **💡 Quick Start (Linux):** For most users, we recommend the **one-liner release installer** (installs pre-built binary in seconds). Only build from source if you need to customize the build or contribute to development.
+
+## Table of Contents
+- [Windows](#windows)
+  - [Using QT Creator](#using-qt-creator)
+  - [Using MSYS2 (Windows ARM64)](#using-msys2-windows-arm64)
+- [Linux](#linux)
+  - [Option 1: One-Liner Release Installer (Fastest)](#option-1-one-liner-release-installer-fastest)
+  - [Option 2: Automated Build Script](#option-2-automated-build-script)
+  - [Option 3: Manual Build Process](#option-3-manual-build-process)
+- [CMake Configuration Options](#cmake-configuration-options)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## Windows
+
+### Using QT Creator
+
+1. **Install Qt for opensource**
+   - Download from: https://www.qt.io/download-qt-installer-oss
+   - Recommended version: 6.4.3
+
+2. **Add Required Components**
+   - Use Qt Maintenance Tool to add:
+     - [QtMultiMedia](https://doc.qt.io/qt-6/qtmultimedia-index.html)
+     - [QtSerialPort](https://doc.qt.io/qt-6/qtserialport-index.html)
+
+3. **Get the Source Code**
+   - Clone or download the repository from GitHub
+
+4. **Build and Run**
+   - Open the project in Qt Creator
+   - Build and run the project
+
+### Using MSYS2 (Windows ARM64)
+
+> **Most users on Windows 11 ARM do not need to build from source.** Pre-built ARM64 binaries (installer + portable `.exe`) are produced by the [Windows ARM64 Build](https://github.com/TechxArtisanStudio/Openterface_QT/actions/workflows/windows-arm64-build.yaml) workflow on every successful run — open a recent run on the Actions tab and download the `openterfaceQT_windows_arm64_portable` or `openterfaceQT_windows_arm64_installer` artifact from the summary.
+
+The sections below are for developers who want to modify the code or build locally. The project includes CI workflows that build a fully static ARM64 executable using MSYS2's **CLANGARM64** environment.
+
+**Prerequisites:**
+
+Set up MSYS2 with the required packages:
+
+```bash
+# Install CLANGARM64 toolchain and static libraries
+pacman -S --needed \
+    mingw-w64-clang-aarch64-clang \
+    mingw-w64-clang-aarch64-compiler-rt \
+    mingw-w64-clang-aarch64-cmake \
+    mingw-w64-clang-aarch64-make \
+    mingw-w64-clang-aarch64-pkgconf \
+    mingw-w64-clang-aarch64-zlib \
+    mingw-w64-clang-aarch64-bzip2 \
+    mingw-w64-clang-aarch64-xz \
+    mingw-w64-clang-aarch64-openssl \
+    mingw-w64-clang-aarch64-libiconv \
+    mingw-w64-clang-aarch64-libb2 \
+    mingw-w64-clang-aarch64-brotli \
+    mingw-w64-clang-aarch64-libjpeg-turbo \
+    mingw-w64-clang-aarch64-libusb \
+    mingw-w64-clang-aarch64-pcre2 \
+    mingw-w64-clang-aarch64-zstd \
+    mingw-w64-clang-aarch64-lz4 \
+    mingw-w64-clang-aarch64-libpng \
+    mingw-w64-clang-aarch64-freetype \
+    mingw-w64-clang-aarch64-fontconfig \
+    mingw-w64-clang-aarch64-harfbuzz \
+    mingw-w64-clang-aarch64-pixman \
+    mingw-w64-clang-aarch64-libxml2 \
+    mingw-w64-clang-aarch64-glib2 \
+    mingw-w64-clang-aarch64-gettext-runtime \
+    mingw-w64-clang-aarch64-expat \
+    mingw-w64-clang-aarch64-libffi \
+    mingw-w64-clang-aarch64-libwinpthread
+```
+
+> `mingw-w64-clang-aarch64-libwinpthread` is **required** — transitive dependencies (glib2, harfbuzz) pull in `libwinpthread-1.dll` at runtime. It must be statically linked; see the `-Wl,-Bstatic,-lwinpthread,-Bdynamic` flag in the CI workflow.
+
+**Build:**
+
+Follow the CMake build steps in the [Linux Manual Build](#option-3-manual-build-process) section with these substitutions:
+- Use `CLANGARM64` MSYS2 shell instead of native Linux
+- Set `-DCMAKE_C_COMPILER=/clangarm64/bin/clang -DCMAKE_CXX_COMPILER=/clangarm64/bin/clang++`
+- Set `-DCMAKE_PREFIX_PATH=C:/Qt6-arm64;C:/ffmpeg-static-arm64`
+- Add `-DOPENTERFACE_ARCH=arm64 -DOPENTERFACE_BUILD_STATIC=ON -DSTATIC_LINKAGE=ON`
+- Add `-DCMAKE_EXE_LINKER_FLAGS="-static-libgcc -static-libstdc++ -Wl,-Bstatic,-lzstd,-lwinpthread,-Bdynamic"`
+
+For the full static build including Qt and FFmpeg from source, see the [ARM64 CI workflow](../.github/workflows/windows-arm64-build.yaml).
+
+---
+
+## Linux
+
+> **⚠️ Minimum OS requirement: Ubuntu 22.04+, Debian 12+, Fedora 36+, or equivalent (glibc ≥ 2.32 + Qt6).**
+> Both pre-built binaries and building from source require Qt6, which is only available as a distro package on these or newer releases. **Ubuntu 20.04, Debian 11, and older are not supported** — upgrade your OS or run in a container/VM.
+
+### Option 1: One-Liner Release Installer (Fastest) ⚡
+
+**Install the latest release in seconds** (no compilation required):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh | bash
+```
+
+**Install a specific version:**
+```bash
+VERSION="v0.5.17" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh)
+```
+
+**What it does:**
+- ✅ Downloads pre-built binary for your architecture (x86_64 or ARM64)
+- ✅ Installs runtime dependencies (Qt6, FFmpeg, USB libraries)
+- ✅ Configures device permissions (udev rules, user groups)
+- ✅ Creates desktop menu integration
+- ✅ Sets up Qt environment wrapper
+
+**Supported Distributions:**
+- Ubuntu/Debian (apt)
+- Fedora/RHEL (dnf)
+- openSUSE (zypper)
+- Arch Linux (pacman)
+
+**Installation Time:** ~30 seconds (vs 5-30 minutes for building from source)
+
+> **💡 Recommendation:** Use this for production deployments and regular usage. Only build from source if you need custom modifications or are contributing to development.
+
+---
+
+### Option 2: Automated Build Script
+
+Use our automated build script that compiles from source. Takes 5 - 30 minutes depending on hardware (Raspberry Pi takes longer).
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh | bash
+```
+
+> **Note**: By default, the script builds the **latest stable version** (currently v0.5.17) automatically detected from the source code. To build an older version or the latest development version instead, use: `BUILD_VERSION="v0.3.19"` or `BUILD_VERSION="main"` before the command.
+
+This script automatically handles:
+- Dependency installation
+- Environment setup
+- Building and compilation
+- System integration (desktop entry, permissions, etc.)
+
+**To build a specific version:**
+```bash
+# Build latest development version
+BUILD_VERSION="main" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh)
+
+# Build a specific tag/version
+BUILD_VERSION="v1.0.0" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-linux.sh)
+```
+
+---
+
+### Option 3: Manual Build Process
+
+If you prefer to build manually or need to customize the build process, follow these steps:
+
+#### Prerequisites
+
+> **💡 Tips Before Building:**
+> 
+> **1. Find your lrelease path**
+> The lrelease tool path varies by distribution. Find yours:
+> ```bash
+> which lrelease
+> ```
+> Common paths:
+> - Ubuntu/Debian: `/usr/lib/qt6/bin/lrelease`
+> - Fedora/RHEL: `/usr/lib64/qt6/bin/lrelease`
+> - openSUSE: `/usr/lib64/qt6/bin/lrelease`
+> 
+> **2. Check for existing installations**
+> If you have a previous installation, remove it to avoid conflicts:
+> ```bash
+> sudo rm -f /usr/local/bin/openterfaceQT
+> sudo rm -f /usr/share/applications/openterfaceQT.desktop
+> ```
+> 
+> **3. Know your library paths**
+> - Ubuntu/Debian: `/usr/lib/x86_64-linux-gnu`
+> - Fedora/RHEL: `/usr/lib64`
+> - openSUSE: `/usr/lib64`
+
+#### Step 1: Install Dependencies
+
+> **⚠️ Qt6 is required and only available on recent distros.** The `qt6-*-dev` packages exist only in **Ubuntu 22.04+**, **Debian 12+**, **Fedora 36+** repos. On Ubuntu 20.04 or Debian 11, these packages **do not exist** and the build will fail. There is no shortcut — you must either upgrade your OS, use a container, or compile Qt6 from source (30+ min).
+
+Select the commands for your distribution:
+
+<details>
+<summary><strong>🐧 Ubuntu/Debian (click to expand)</strong></summary>
+
+```bash
+# Update package lists
+sudo apt-get update -y
+
+# Install build dependencies
+sudo apt-get install -y \
+    build-essential \
+    cmake \
+    qt6-base-dev \
+    qt6-multimedia-dev \
+    qt6-serialport-dev \
+    qt6-svg-dev \
+    qt6-tools-dev \
+    libusb-1.0-0-dev \
+    libudev-dev \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    pkg-config \
+    libx11-dev \
+    libxrandr-dev \
+    libxrender-dev \
+    libexpat1-dev \
+    libfreetype6-dev \
+    libfontconfig1-dev \
+    libbz2-dev \
+    libturbojpeg0-dev \
+    libva-dev \
+    libavformat-dev \
+    libavcodec-dev \
+    libavdevice-dev \
+    libavutil-dev \
+    libswresample-dev \
+    libswscale-dev \
+    ffmpeg \
+    libssl-dev
+```
+
+> **Note for Ubuntu 24.04+ users:** the package `libturbojpeg0-dev` was renamed to
+> `libturbojpeg-dev`. Replace it in the command above if you're on 24.04 or later.
+
+</details>
+
+<details>
+<summary><strong>🔴 Fedora/RHEL (click to expand)</strong></summary>
+
+```bash
+# Install build dependencies
+sudo dnf install -y \
+    gcc \
+    gcc-c++ \
+    cmake \
+    qt6-qtbase-devel \
+    qt6-qtmultimedia-devel \
+    qt6-qtserialport-devel \
+    qt6-qtsvg-devel \
+    qt6-qttools-devel \
+    libusb1-devel \
+    libudev-devel \
+    gstreamer1-devel \
+    gstreamer1-plugins-base-devel \
+    pkg-config \
+    libX11-devel \
+    libXrandr-devel \
+    libXrender-devel \
+    libexpat-devel \
+    freetype-devel \
+    fontconfig-devel \
+    bzip2-devel \
+    turbojpeg-devel \
+    libva-devel \
+    ffmpeg-devel \
+    openssl-devel
+```
+
+> **Note:** Fedora uses `/usr/lib64` for libraries instead of `/usr/lib` on Ubuntu/Debian.
+
+</details>
+
+<details>
+<summary><strong>🦎 openSUSE (click to expand)</strong></summary>
+
+```bash
+# Install build dependencies
+sudo zypper install -y \
+    cmake \
+    gcc-c++ \
+    libQt6Base-devel \
+    libQt6Multimedia-devel \
+    libQt6SerialPort-devel \
+    libQt6Svg-devel \
+    libQt6Tools-devel \
+    libusb-1_0-devel \
+    libudev-devel \
+    gstreamer-devel \
+    gstreamer-plugins-base-devel \
+    pkg-config \
+    libX11-devel \
+    libXrandr-devel \
+    libXrender-devel \
+    libexpat-devel \
+    freetype2-devel \
+    fontconfig-devel \
+    libbz2-devel \
+    libjpeg8-devel \
+    libva-devel \
+    ffmpeg-devel \
+    libopenssl-devel
+```
+
+</details>
+
+<details>
+<summary><strong>🏗️ Arch Linux (click to expand)</strong></summary>
+
+**Option A: Install the pre-built package (recommended)**
+
+```bash
+# Download from GitHub Releases, then:
+sudo pacman -U openterfaceqt-*.pkg.tar.zst
+```
+
+This installs the binary, udev rules, icons, desktop entry, and all runtime dependencies automatically.
+
+**Option B: Build from source**
+
+```bash
+# Install build dependencies
+sudo pacman -Syu \
+    base-devel \
+    cmake \
+    git \
+    qt6-base \
+    qt6-declarative \
+    qt6-multimedia \
+    qt6-svg \
+    qt6-serialport \
+    qt6-wayland \
+    qt6-tools \
+    extra-cmake-modules \
+    ffmpeg \
+    gstreamer \
+    gst-plugins-base \
+    gst-plugins-good \
+    libpulse \
+    libxkbcommon \
+    libusb \
+    v4l-utils \
+    libjpeg-turbo \
+    zlib \
+    libglvnd \
+    wayland \
+    libxcb \
+    libx11
+```
+
+> **Tip:** You can also use the PKGBUILD from `packaging/archlinux/` to build a proper Arch package:
+> ```bash
+> cd packaging/archlinux
+> makepkg -si
+> ```
+
+</details>
+
+#### Step 2: Configure User Permissions
+
+```bash
+# Add user to dialout and video groups for serial port and camera access
+sudo usermod -a -G dialout,video $USER
+
+# On some distros (e.g., Arch Linux), you might also need:
+sudo usermod -a -G uucp $USER
+
+# Configure device permissions (udev rules)
+echo 'SUBSYSTEM=="usb", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="534d", ATTRS{idProduct}=="2109", TAG+="uaccess"
+SUBSYSTEM=="ttyUSB", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="fe0c", TAG+="uaccess"
+' | sudo tee /etc/udev/rules.d/51-openterface.rules
+
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+
+#### Step 3: Get the Source Code
+
+```bash
+git clone https://github.com/TechxArtisanStudio/Openterface_QT.git
+cd Openterface_QT
+```
+
+#### Step 4: Generate Language Files
+
+```bash
+# Find correct lrelease path for your system
+LRELEASE_PATH=$(which lrelease)
+if [ -z "$LRELEASE_PATH" ]; then
+    echo "lrelease not found in PATH, trying common locations..."
+    if [ -x "/usr/lib/qt6/bin/lrelease" ]; then
+        LRELEASE_PATH="/usr/lib/qt6/bin/lrelease"
+    elif [ -x "/usr/lib64/qt6/bin/lrelease" ]; then
+        LRELEASE_PATH="/usr/lib64/qt6/bin/lrelease"
+    else
+        echo "Warning: lrelease not found. You may need to install qt6-tools-dev"
+    fi
+fi
+
+# Generate translation files
+if [ -n "$LRELEASE_PATH" ]; then
+    $LRELEASE_PATH openterfaceQT.pro
+fi
+```
+
+#### Step 5: Build with CMake
+
+```bash
+# Create build directory
+mkdir build
+cd build
+```
+
+**For Ubuntu/Debian (x86_64):**
+```bash
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6
+```
+
+**For Fedora/RHEL (x86_64):**
+```bash
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH=/usr/lib64/cmake/Qt6 \
+    -DOPENTERFACE_BUILD_STATIC=OFF \
+    -DUSE_SHARED_FFMPEG=ON \
+    -DFFMPEG_PREFIX=/usr
+```
+
+> **Note:** On Fedora, FFmpeg headers are at `/usr/include/ffmpeg/` and libraries at `/usr/lib64/`. Use `-DFFMPEG_PREFIX=/usr` (not `/usr/lib64`) to correctly locate both.
+
+**For Arch Linux (x86_64/ARM64):**
+```bash
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_PREFIX_PATH=/usr \
+    -DOPENTERFACE_BUILD_STATIC=OFF \
+    -DBUILD_SHARED_LIBS=ON \
+    -DUSE_SHARED_FFMPEG=ON \
+    -DGSTREAMER_PREFIX=/usr \
+    -DENABLE_QT_DEPLOY=OFF
+```
+
+> **Note:** Arch Linux uses system libraries (not bundled). The key flags:
+> - `-DCMAKE_PREFIX_PATH=/usr` — find Qt6 in system paths
+> - `-DUSE_SHARED_FFMPEG=ON` — use system FFmpeg instead of bundled
+> - `-DENABLE_QT_DEPLOY=OFF` — prevent bundling Qt6 libraries (keeps package small)
+> - `-DGSTREAMER_PREFIX=/usr` — use system GStreamer
+
+**For ARM64 (Raspberry Pi, etc.):**
+```bash
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH=/usr/lib/aarch64-linux-gnu/cmake/Qt6
+```
+
+> **⚠️ FFmpeg Configuration Note:**
+> - If you get errors about missing FFmpeg libraries, try adding: `-DUSE_SHARED_FFMPEG=ON -DFFMPEG_PREFIX=/usr/lib64` (Fedora) or `-DFFMPEG_PREFIX=/usr/lib/x86_64-linux-gnu` (Ubuntu/Debian)
+> - See [CMake Configuration Options](#cmake-configuration-options) below for more details
+
+```bash
+# Compile
+make -j$(nproc)
+```
+
+#### Step 6: Install System-Wide
+
+```bash
+# Install the application, desktop entry, and icon
+sudo make install
+```
+
+> **✅ What gets installed:**
+> - Binary: `/usr/local/bin/openterfaceQT`
+> - Desktop entry: `/usr/share/applications/com.openterface.openterfaceQT.desktop` (appears in application menu)
+> - Icon: `/usr/share/icons/hicolor/256x256/apps/com.openterface.openterfaceQT.png`
+>
+> **⚠️ Required:** Update desktop database for menu appearance (may need logout/login otherwise):
+> ```bash
+> sudo update-desktop-database /usr/local/share/applications/ 2>/dev/null || true
+> sudo update-desktop-database /usr/share/applications/ 2>/dev/null || true
+> sudo gtk-update-icon-cache -f /usr/local/share/icons/hicolor 2>/dev/null || true
+> ```
+>
+> **💡 Fedora GNOME Tip:** GNOME uses search-based app launcher. Press **Super** (Windows key) and type "OpenterfaceQT" or "KVM" to find it quickly.
+
+#### Step 7: Create Qt Environment Wrapper (If Needed)
+
+This prevents "Qt platform plugin" errors:
+
+```bash
+# Find Qt plugin path
+QT_PLUGIN_PATH=""
+if [ -d "/usr/lib/x86_64-linux-gnu/qt6/plugins" ]; then
+    QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins"
+elif [ -d "/usr/lib/aarch64-linux-gnu/qt6/plugins" ]; then
+    QT_PLUGIN_PATH="/usr/lib/aarch64-linux-gnu/qt6/plugins"
+elif [ -d "/usr/lib/qt6/plugins" ]; then
+    QT_PLUGIN_PATH="/usr/lib/qt6/plugins"
+fi
+
+if [ -n "$QT_PLUGIN_PATH" ]; then
+    # Move the actual binary
+    sudo mv /usr/local/bin/openterfaceQT /usr/local/bin/openterfaceQT-bin
+    
+    # Create wrapper script
+    sudo tee /usr/local/bin/openterfaceQT > /dev/null << EOF
+#!/bin/bash
+export QT_PLUGIN_PATH="$QT_PLUGIN_PATH"
+export QT_QPA_PLATFORM_PLUGIN_PATH="$QT_PLUGIN_PATH/platforms"
+export QT_QPA_PLATFORM="xcb"
+export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/lib/aarch64-linux-gnu:/usr/lib:\$LD_LIBRARY_PATH"
+exec /usr/local/bin/openterfaceQT-bin "\$@"
+EOF
+    sudo chmod +x /usr/local/bin/openterfaceQT
+    echo "✅ Qt environment wrapper created"
+fi
+```
+
+#### Step 8: Create Desktop Integration (Optional)
+
+> **Note:** Desktop integration is now handled automatically by `sudo make install` (Step 6). Only follow this step if you need custom desktop entry configuration or if the automatic installation failed.
+
+```bash
+# Copy application icon
+ICON_FILE="/usr/share/pixmaps/openterfaceQT.png"
+if [ -f "images/icon_256.png" ]; then
+    sudo cp images/icon_256.png "$ICON_FILE"
+elif [ -f "images/icon_128.png" ]; then
+    sudo cp images/icon_128.png "$ICON_FILE"
+fi
+
+# Create desktop entry
+sudo tee /usr/share/applications/com.openterface.openterfaceQT.desktop > /dev/null << EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=OpenterfaceQT
+Comment=KVM over USB for seamless computer control
+Exec=/usr/local/bin/openterfaceQT
+Icon=$ICON_FILE
+Terminal=false
+Categories=Utility;Accessory;
+Keywords=KVM;USB;remote;control;openterface;server;management;hardware;accessory;
+StartupNotify=true
+StartupWMClass=openterfaceQT
+EOF
+
+sudo chmod 644 /usr/share/applications/openterfaceQT.desktop
+
+# Update desktop database
+if command -v update-desktop-database &> /dev/null; then
+    sudo update-desktop-database /usr/share/applications/
+fi
+echo "✅ Desktop integration completed"
+```
+
+#### Step 9: Run the Application
+
+```bash
+# After system installation:
+openterfaceQT
+
+# Or from build directory (without installation):
+cd build
+./openterfaceQT
+```
+
+---
+
+## CMake Configuration Options
+
+The build system supports several CMake options to customize the build:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `OPENTERFACE_BUILD_STATIC` | `ON` | Link libraries statically where possible. Set to `OFF` for dynamic linking. |
+| `USE_SHARED_FFMPEG` | `OFF` | Use shared FFmpeg libraries (`.so`/`.dll`) instead of static (`.a`). Required on systems with only shared FFmpeg libs (e.g., Fedora). |
+| `FFMPEG_PREFIX` | `/opt/ffmpeg` | Path to FFmpeg installation. Adjust for your system (see examples below). |
+| `CMAKE_PREFIX_PATH` | (auto) | Path to Qt6 CMake configuration. Usually auto-detected, but may need manual setting. |
+
+### Distribution-Specific CMake Examples
+
+**Ubuntu/Debian (static FFmpeg):**
+```bash
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6
+```
+
+**Ubuntu/Debian (shared FFmpeg):**
+```bash
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6 \
+    -DOPENTERFACE_BUILD_STATIC=OFF \
+    -DUSE_SHARED_FFMPEG=ON \
+    -DFFMPEG_PREFIX=/usr/lib/x86_64-linux-gnu
+```
+
+**Fedora/RHEL (shared FFmpeg - required):**
+```bash
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH=/usr/lib64/cmake/Qt6 \
+    -DOPENTERFACE_BUILD_STATIC=OFF \
+    -DUSE_SHARED_FFMPEG=ON \
+    -DFFMPEG_PREFIX=/usr
+```
+
+> **Note:** Fedora uses `/usr/include/ffmpeg/` for headers and `/usr/lib64/` for libraries. Use `-DFFMPEG_PREFIX=/usr` to correctly locate both.
+
+**openSUSE (shared FFmpeg):**
+```bash
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH=/usr/lib64/cmake/Qt6 \
+    -DOPENTERFACE_BUILD_STATIC=OFF \
+    -DUSE_SHARED_FFMPEG=ON \
+    -DFFMPEG_PREFIX=/usr/lib64
+```
+
+**ARM64 (Raspberry Pi, etc.):**
+```bash
+cmake .. \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_PREFIX_PATH=/usr/lib/aarch64-linux-gnu/cmake/Qt6 \
+    -DOPENTERFACE_BUILD_STATIC=OFF \
+    -DUSE_SHARED_FFMPEG=ON \
+    -DFFMPEG_PREFIX=/usr/lib/aarch64-linux-gnu
+```
+
+---
+
+## Troubleshooting
+
+### Mouse/Keyboard Not Responding
+
+#### Common Issue: brltty Service Conflict (Runtime)
+
+The `brltty` service can claim the serial port, preventing Openterface from accessing it. This is a **runtime issue** (not a build issue) - only remove if you experience problems:
+
+```bash
+# Remove brltty if experiencing serial port conflicts
+sudo apt remove brltty
+
+# Unplug and replug the Openterface device
+# Verify the serial port is now recognized:
+ls /dev/ttyUSB* /dev/ttyACM*
+```
+
+#### Permission Issues
+
+If you still have issues:
+
+```bash
+# Try running with sudo to test
+sudo openterfaceQT
+
+# For permanent fix, ensure user has correct group permissions:
+sudo usermod -a -G dialout,video $USER
+
+# Log out and log back in (or reboot) for group changes to take effect
+```
+
+### FFmpeg Libraries Not Found
+
+**Error:**
+```
+✗ Missing: /opt/ffmpeg/lib/libavdevice.a
+CMake Error at cmake/FFmpeg.cmake:322
+```
+
+**Cause:** The build system defaults to looking for FFmpeg in `/opt/ffmpeg`, but most distributions install FFmpeg in system directories.
+
+**Solution:** Use shared FFmpeg libraries and specify the correct path:
+
+**For Fedora/RHEL:**
+```bash
+cmake .. \
+    -DCMAKE_PREFIX_PATH=/usr/lib64/cmake/Qt6 \
+    -DOPENTERFACE_BUILD_STATIC=OFF \
+    -DUSE_SHARED_FFMPEG=ON \
+    -DFFMPEG_PREFIX=/usr/lib64
+```
+
+**For Ubuntu/Debian:**
+```bash
+cmake .. \
+    -DCMAKE_PREFIX_PATH=/usr/lib/x86_64-linux-gnu/cmake/Qt6 \
+    -DOPENTERFACE_BUILD_STATIC=OFF \
+    -DUSE_SHARED_FFMPEG=ON \
+    -DFFMPEG_PREFIX=/usr/lib/x86_64-linux-gnu
+```
+
+> **Note:** Fedora and most modern distributions only provide shared FFmpeg libraries (`.so`), not static libraries (`.a`). You must use `-DUSE_SHARED_FFMPEG=ON` on these systems.
+
+### Qt Platform Plugin Errors
+
+If you get errors about Qt platform plugins:
+
+```bash
+# Set environment variables manually
+export QT_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/qt6/plugins
+export QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/qt6/plugins/platforms
+export QT_QPA_PLATFORM=xcb
+
+# Or use the wrapper script created in Step 7
+openterfaceQT
+```
+
+**For Fedora:**
+```bash
+export QT_PLUGIN_PATH=/usr/lib64/qt6/plugins
+export QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib64/qt6/plugins/platforms
+export QT_QPA_PLATFORM=xcb
+```
+
+### Architecture Mismatch
+
+If you get architecture errors (like "x86_64-binfmt-P" or "cannot execute binary file"):
+
+1. Make sure you're building on the same architecture you plan to run on
+2. Clean the build directory: `rm -rf build && mkdir build`
+3. Re-run the build process
+
+### GLIBC Version Mismatch (pre-built binaries)
+
+If you installed a pre-built `.deb`, `.rpm`, or AppImage and see errors like:
+
+```
+/lib/aarch64-linux-gnu/libc.so.6: version `GLIBC_2.34' not found
+/lib/aarch64-linux-gnu/libm.so.6: version `GLIBC_2.35' not found
+```
+
+This means your system's glibc is older than 2.32 (the minimum required by pre-built binaries). Check with:
+
+```bash
+ldd --version | head -1
+```
+
+**Solutions:**
+
+1. **Upgrade your OS** to Ubuntu 22.04+, Debian 12+, Fedora 36+, or equivalent (recommended).
+2. **Use a container or VM** running a newer distro.
+3. **Build Qt6 from source first**, then build OpenterfaceQT — Qt6 is not available as a package on older distros (e.g. Ubuntu 20.04 only has Qt5). This is time-consuming (30+ minutes for Qt6 alone).
+
+> **Important:** Building OpenterfaceQT from source also requires Qt6. If your distro doesn't have Qt6 in its repos (anything older than Ubuntu 22.04 / Debian 12 / Fedora 36), building from source **will not** bypass the glibc requirement — you still need a newer OS or to compile Qt6 yourself.
+
+> **Do not** attempt to upgrade glibc in place — it is a core system library and replacing it can break your OS.
+
+See [Runtime Dependencies](dependencies.md#system-requirements-glibc) for the full glibc compatibility table.
+
+---
+
+### CMake Errors Building v0.5.17+ on Fedora
+
+**Error 1: FFmpeg libraries not found**
+```
+✗ Missing: /opt/ffmpeg/lib/libavdevice.a
+CMake Error at cmake/FFmpeg.cmake:322
+```
+
+**Solution:** Fedora uses `/usr/lib64` (not `/usr/lib`) and `/usr/include/ffmpeg/` (not `/usr/include/libavformat/`).
+
+**Required fixes in `cmake/FFmpeg.cmake`:**
+```cmake
+# Add lib64 to search paths
+set(LIB_PATHS "${SEARCH_PATH}/lib/x86_64-linux-gnu" "${SEARCH_PATH}/lib/aarch64-linux-gnu" "${SEARCH_PATH}/lib64" "${SEARCH_PATH}/lib")
+
+# Add Fedora-style header detection
+set(_ffmpeg_header_standard "${SEARCH_PATH}/include/libavformat/avformat.h")
+set(_ffmpeg_header_fedora "${SEARCH_PATH}/include/ffmpeg/libavformat/avformat.h")
+```
+
+**Error 2: qt_generate_deploy_app_script not found**
+```
+CMake Error at cmake/Resources.cmake:XX
+Unknown CMake command "qt_generate_deploy_app_script"
+```
+
+**Solution:** This is macOS-only. Wrap in conditional in `cmake/Resources.cmake`:
+```cmake
+if(APPLE AND COMMAND qt_generate_deploy_app_script)
+    # Only run on macOS
+endif()
+```
+
+**Error 3: QElapsedTimer not declared**
+```
+error: 'QElapsedTimer' was not declared in this scope
+```
+
+**Solution:** Add include in `host/backend/ffmpeg/ffmpeg_capture_manager.cpp`:
+```cpp
+#include <QElapsedTimer>
+```
+
+> **Note:** These fixes are already applied in the latest source. If building v0.5.17 or later, they should be present.
+
+---
+
+## Additional Resources
+
+- [Installation Guide (Raspberry Pi)](rpi_installation.md)
+- [Features Documentation](feature.md)
+- [Release Installer Script](../build-script/install-release.sh) - One-liner install from pre-built releases
+- [Automated Build Script](../build-script/install-linux.sh) - Build from source

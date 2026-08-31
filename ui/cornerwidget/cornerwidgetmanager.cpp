@@ -5,9 +5,13 @@
 #include <QSvgRenderer>
 #include <QPainter>
 #include <QFile>
+#include <QPalette>
 
 CornerWidgetManager::CornerWidgetManager(QWidget *parent)
     : QObject(parent),
+      screensaverButton(nullptr),
+      recordingButton(nullptr),
+      muteButton(nullptr),
       cornerWidget(new QWidget(parent)),
       keyboardLayoutComboBox(nullptr),
       screenScaleButton(nullptr),
@@ -18,16 +22,13 @@ CornerWidgetManager::CornerWidgetManager(QWidget *parent)
       captureButton(nullptr),
       fullScreenButton(nullptr),
       pasteButton(nullptr),
-      screensaverButton(nullptr),
-      recordingButton(nullptr),
-      muteButton(nullptr),
       toggleSwitch(new ToggleSwitch(cornerWidget)),
       horizontalLayout(new QHBoxLayout()),
-      menuBar(nullptr),
-      layoutThreshold(800),
       isRecording(false),
       isMuted(false),
-      m_updatingFromStatus(false)  // Initialize flag
+      menuBar(nullptr),
+      layoutThreshold(800),
+      m_updatingFromStatus(false)
 {
     createWidgets();
     setupConnections();
@@ -59,10 +60,6 @@ void CornerWidgetManager::setMenuBar(QMenuBar *menuBar)
         
         menuBar->setCornerWidget(cornerWidget, Qt::TopRightCorner);
         
-        qDebug() << "[CornerWidgetManager] Set corner widget on menu bar";
-        qDebug() << "[CornerWidgetManager] Corner widget size:" << cornerWidget->size();
-        qDebug() << "[CornerWidgetManager] Corner widget sizeHint:" << cornerWidget->sizeHint();
-        qDebug() << "[CornerWidgetManager] Menu bar width:" << menuBar->width();
     }
 }
 
@@ -78,26 +75,27 @@ void CornerWidgetManager::createWidgets()
         QPushButton** button;
         const char* objectName;
         const char* iconPath;
-        const char* tooltip;
+        const char* tooltipText;
+        const char* shortcut;
     } buttons[] = {
-        {&screenScaleButton, "ScreenScaleButton", ":/images/screen_scale.svg", "Screen scale"},
-        {&zoomInButton, "ZoomInButton", ":/images/zoom_in.svg", "Zoom in"},
-        {&zoomOutButton, "ZoomOutButton", ":/images/zoom_out.svg", "Zoom out"},
-        {&zoomReductionButton, "ZoomReductionButton", ":/images/zoom_fit.svg", "Restore original size"},
-        {&virtualKeyboardButton, "virtualKeyboardButton", ":/images/keyboard.svg", "Function key and composite key"},
-        {&captureButton, "captureButton", ":/images/capture.svg", "Full screen capture"},
-        {&fullScreenButton, "fullScreenButton", ":/images/full_screen.svg", "Full screen mode"},
-        {&pasteButton, "pasteButton", ":/images/paste.svg", "Paste text to target"},
-        {&screensaverButton, "screensaverButton", ":/images/screensaver.svg", "Mouse dance"},
-        {&recordingButton, "recordingButton", ":/images/startRecord.svg", "Start/Stop Recording"},
-        {&muteButton, "muteButton", ":/images/audio.svg", "Mute/Unmute Audio"}
+        {&screenScaleButton, "ScreenScaleButton", ":/images/screen_scale.svg", "Screen scale", "Ctrl+Shift+A"},
+        {&zoomInButton, "ZoomInButton", ":/images/zoom_in.svg", "Zoom in", "Ctrl++"},
+        {&zoomOutButton, "ZoomOutButton", ":/images/zoom_out.svg", "Zoom out", "Ctrl+-"},
+        {&zoomReductionButton, "ZoomReductionButton", ":/images/zoom_fit.svg", "Restore original size", "Ctrl+0"},
+        {&virtualKeyboardButton, "virtualKeyboardButton", ":/images/keyboard.svg", "Function key and composite key", "Ctrl+Shift+K"},
+        {&captureButton, "captureButton", ":/images/capture.svg", "Full screen capture", "Ctrl+Shift+S"},
+        {&fullScreenButton, "fullScreenButton", ":/images/full_screen.svg", "Full screen mode", "Alt+F11"},
+        {&pasteButton, "pasteButton", ":/images/paste.svg", "Paste text to target", "Ctrl+Shift+V"},
+        {&screensaverButton, "screensaverButton", ":/images/screensaver.svg", "Mouse dance", "Ctrl+Shift+F10"},
+        {&recordingButton, "recordingButton", ":/images/startRecord.svg", "Start/Stop Recording", "Ctrl+Shift+F11"},
+        {&muteButton, "muteButton", ":/images/audio.svg", "Mute/Unmute Audio", "Ctrl+Shift+F9"}
     };
 
     for (const auto& btn : buttons) {
         *btn.button = new QPushButton(cornerWidget);
         (*btn.button)->setObjectName(btn.objectName);
         setButtonIcon(*btn.button, btn.iconPath);
-        (*btn.button)->setToolTip(tr(btn.tooltip));
+        (*btn.button)->setToolTip(tr(btn.tooltipText) + " (" + btn.shortcut + ")");
     }
     
     screensaverButton->setCheckable(true);
@@ -121,37 +119,67 @@ void CornerWidgetManager::createWidgets()
 
 void CornerWidgetManager::setButtonIcon(QPushButton *button, const QString &iconPath)
 {
-    // Use QSvgRenderer to load and render SVG files directly
-    // This ensures SVGs work correctly on Linux even if the SVG image plugin is not available
-    
     // Load the SVG from Qt resources
     QFile svgFile(iconPath);
     if (!svgFile.open(QIODevice::ReadOnly)) {
         qWarning() << "Failed to open SVG resource:" << iconPath;
         return;
     }
-    
+
     QByteArray svgData = svgFile.readAll();
     svgFile.close();
-    
+
     QSvgRenderer svgRenderer(svgData);
     if (!svgRenderer.isValid()) {
         qWarning() << "Failed to parse SVG:" << iconPath;
         return;
     }
-    
+
     QSize iconSize(16, 16);
     QPixmap pixmap(iconSize);
     pixmap.fill(Qt::transparent);
-    
+
     QPainter painter(&pixmap);
     svgRenderer.render(&painter);
+
+    // Apply theme-aware color overlay using CompositionMode_SourceIn.
+    // This replaces all opaque pixels with the icon color while preserving transparency.
+    QColor iconColor = getIconColor();
+    QPixmap colorOverlay(iconSize);
+    colorOverlay.fill(iconColor);
+    painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    painter.drawPixmap(0, 0, colorOverlay);
+
     painter.end();
-    
+
     QIcon icon(pixmap);
     button->setIcon(icon);
     button->setIconSize(iconSize);
     button->setFixedSize(30, 30);
+}
+
+QColor CornerWidgetManager::getIconColor() const
+{
+    // Use the WindowText color which automatically contrasts with the Window background.
+    // In light theme: dark text on light background → dark icons.
+    // In dark theme: light text on dark background → light icons.
+    return QApplication::palette().color(QPalette::WindowText);
+}
+
+void CornerWidgetManager::updateAllIcons()
+{
+    // Re-apply all icons with the current theme colors
+    setButtonIcon(screenScaleButton, ":/images/screen_scale.svg");
+    setButtonIcon(zoomInButton, ":/images/zoom_in.svg");
+    setButtonIcon(zoomOutButton, ":/images/zoom_out.svg");
+    setButtonIcon(zoomReductionButton, ":/images/zoom_fit.svg");
+    setButtonIcon(virtualKeyboardButton, ":/images/keyboard.svg");
+    setButtonIcon(captureButton, ":/images/capture.svg");
+    setButtonIcon(fullScreenButton, ":/images/full_screen.svg");
+    setButtonIcon(pasteButton, ":/images/paste.svg");
+    setButtonIcon(screensaverButton, ":/images/screensaver.svg");
+    setButtonIcon(recordingButton, isRecording ? ":/images/stopRecord.svg" : ":/images/startRecord.svg");
+    setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
 }
 
 void CornerWidgetManager::setupConnections()
@@ -165,24 +193,37 @@ void CornerWidgetManager::setupConnections()
     connect(fullScreenButton, &QPushButton::clicked, this, &CornerWidgetManager::fullScreenClicked);
     connect(pasteButton, &QPushButton::clicked, this, &CornerWidgetManager::pasteClicked);
     connect(screensaverButton, &QPushButton::toggled, this, &CornerWidgetManager::screensaverClicked);
-    connect(toggleSwitch, &ToggleSwitch::stateChanged, this, &CornerWidgetManager::toggleSwitchChanged);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+    connect(toggleSwitch, &QCheckBox::checkStateChanged, this, &CornerWidgetManager::toggleSwitchChanged);
+#else
+    connect(toggleSwitch, &QCheckBox::stateChanged, this, [this](int state) {
+        toggleSwitchChanged(static_cast<Qt::CheckState>(state));
+    });
+#endif
     connect(keyboardLayoutComboBox, &QComboBox::currentTextChanged, this, &CornerWidgetManager::keyboardLayoutChanged);
     
     // Connect recording button click to toggle recording state and emit signal
     connect(recordingButton, &QPushButton::clicked, this, [this]() {
-        isRecording = !isRecording;
-        setButtonIcon(recordingButton, isRecording ? ":/images/stopRecord.svg" : ":/images/startRecord.svg");
-        recordingButton->setToolTip(isRecording ? tr("Stop Recording") : tr("Start Recording"));
         emit recordingToggled();
     });
     
     // Connect mute button click to toggle mute state and emit signal
     connect(muteButton, &QPushButton::clicked, this, [this]() {
-        isMuted = !isMuted;
-        setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
-        muteButton->setToolTip(isMuted ? tr("Unmute Audio") : tr("Mute Audio"));
         emit muteToggled();
     });
+
+    // Re-color SVG icons when system theme/palette changes
+    qApp->installEventFilter(this);
+}
+
+bool CornerWidgetManager::eventFilter(QObject *obj, QEvent *event)
+{
+    if (obj == qApp && event->type() == QEvent::ApplicationPaletteChange) {
+        updateAllIcons();
+        // Return false so the event continues to propagate to other listeners
+        return false;
+    }
+    return QObject::eventFilter(obj, event);
 }
 
 void CornerWidgetManager::initializeKeyboardLayouts(const QStringList &layouts, const QString &defaultLayout)
@@ -201,7 +242,7 @@ void CornerWidgetManager::restoreMuteState(bool muted)
     isMuted = muted;
     if (muteButton) {
         setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
-        muteButton->setToolTip(isMuted ? tr("Unmute Audio") : tr("Mute Audio"));
+        muteButton->setToolTip(isMuted ? tr("Unmute Audio") + " (Ctrl+Shift+F9)" : tr("Mute Audio") + " (Ctrl+Shift+F9)");
     }
 }
 
@@ -231,17 +272,11 @@ void CornerWidgetManager::updatePosition(int windowWidth, int menuBarHeight, boo
         cornerWidget->setGeometry(x, y, size.width(), size.height());
         cornerWidget->raise();
         cornerWidget->show();
-        qDebug() << "Floating position: (" << x << "," << y << "), size:" << size
-                 << ", geometry:" << cornerWidget->geometry()
-                 << ", layout sizeHint:" << horizontalLayout->sizeHint();
     } else {
         if (menuBar) {
             menuBar->setCornerWidget(cornerWidget, Qt::TopRightCorner);
             cornerWidget->show();
         }
-        qDebug() << "Menu bar corner widget, size:" << cornerWidget->size()
-                 << ", geometry:" << cornerWidget->geometry()
-                 << ", layout sizeHint:" << horizontalLayout->sizeHint();
     }
 }
 
@@ -251,5 +286,58 @@ void CornerWidgetManager::updateUSBStatus(bool isToTarget)
         m_updatingFromStatus = true;  // Set flag before update
         toggleSwitch->setChecked(isToTarget);
         m_updatingFromStatus = false;  // Clear flag after update
+    }
+}
+
+void CornerWidgetManager::updateRecordingState(bool recording)
+{
+    isRecording = recording;
+    if (recordingButton) {
+        setButtonIcon(recordingButton, isRecording ? ":/images/stopRecord.svg" : ":/images/startRecord.svg");
+        recordingButton->setToolTip(isRecording ? tr("Stop Recording") + " (Ctrl+Shift+F11)" : tr("Start Recording") + " (Ctrl+Shift+F11)");
+    }
+}
+
+void CornerWidgetManager::updateMuteState(bool muted)
+{
+    isMuted = muted;
+    if (muteButton) {
+        setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
+        muteButton->setToolTip(isMuted ? tr("Unmute Audio") + " (Ctrl+Shift+F9)" : tr("Mute Audio") + " (Ctrl+Shift+F9)");
+    }
+}
+
+void CornerWidgetManager::retranslateUi()
+{
+    keyboardLayoutComboBox->setToolTip(tr("Select Keyboard Layout"));
+
+    const struct {
+        QPushButton** button;
+        const char* tooltipText;
+        const char* shortcut;
+    } buttons[] = {
+        {&screenScaleButton,     "Screen scale",                   "Ctrl+Shift+A"},
+        {&zoomInButton,          "Zoom in",                        "Ctrl++"},
+        {&zoomOutButton,         "Zoom out",                       "Ctrl+-"},
+        {&zoomReductionButton,   "Restore original size",          "Ctrl+0"},
+        {&virtualKeyboardButton, "Function key and composite key", "Ctrl+Shift+K"},
+        {&captureButton,         "Full screen capture",            "Ctrl+Shift+S"},
+        {&fullScreenButton,      "Full screen mode",               "Alt+F11"},
+        {&pasteButton,           "Paste text to target",           "Ctrl+Shift+V"},
+        {&screensaverButton,     "Mouse dance",                    "Ctrl+Shift+F10"},
+    };
+    for (const auto& btn : buttons) {
+        (*btn.button)->setToolTip(tr(btn.tooltipText) + " (" + btn.shortcut + ")");
+    }
+
+    if (recordingButton) {
+        recordingButton->setToolTip(isRecording
+            ? tr("Stop Recording")  + " (Ctrl+Shift+F11)"
+            : tr("Start Recording") + " (Ctrl+Shift+F11)");
+    }
+    if (muteButton) {
+        muteButton->setToolTip(isMuted
+            ? tr("Unmute Audio") + " (Ctrl+Shift+F9)"
+            : tr("Mute Audio")   + " (Ctrl+Shift+F9)");
     }
 }

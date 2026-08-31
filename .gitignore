@@ -1,5 +1,6 @@
 *.pro.user.*
 build/*
+build-tests/*
 release/*
 aqtinstall.log
 debug/*
@@ -18,3 +19,60 @@ CmakeLists.txt.user
 .cache/*
 debug.log
 build-script/libusb-build-temp/*
+.claude/*
+obj/*
+moc/*
+rcc/*
+ui_*
+
+
+# Docker image exports (very large)
+shared-qt-complete-arm-opt.tar*
+email_service/*
+.codegraph/*
+
+# Qt MOC generated files
+moc/
+obj/
+
+# Qt generated UI and resource files
+ui_*.h
+qrc_*.*
+
+# Soak test artifacts (logs, screenshots, reports)
+tests/soak_test_*s
+
+# Test build artifacts: ignore compiled binaries and CMake generated files,
+# but keep source code (.cpp, .h, .sh, CMakeLists.txt)
+tests/build/*
+!tests/build/*.cpp
+!tests/build/*.h
+!tests/build/*.sh
+!tests/build/CMakeLists.txt
+
+# Keyboard test build artifacts
+tests/keyboard/build/*
+tests/cmake_build/*
+tests/keyboard_build/*
+
+# Test binary files
+tests/keyboard/test_keyboard_routing
+tests/keyboard/test_keyboard_logic
+tests/keyboard/test_keyboard_send_flow
+tests/keyboard/test_keyboard_blocker
+tests/keyboard/*_autogen*
+tests/keyboard/CMakeFiles/*
+tests/keyboard/CMakeCache.txt
+tests/keyboard/Makefile
+tests/keyboard/cmake_install.cmake
+tests/keyboard/*.o
+tests/keyboard/*.moc
+
+# Build artifacts (qmake generated)
+openterfaceQT
+.qmake.stash
+Makefile
+
+# Build output directories (cmake / qmake)
+build-cmake/
+build-qmake/

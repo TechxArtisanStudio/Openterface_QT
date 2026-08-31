@@ -22,11 +22,15 @@
 
 #include "MouseManager.h"
 #include "serial/SerialPortManager.h"
+#include "log/opflogging.h"
+#include <QThread>
 
-Q_LOGGING_CATEGORY(log_core_mouse, "opf.host.mouse")
+OPF_LOGGING_CATEGORY(log_mouse_abs, "opf.host.mouse.absolute")
+OPF_LOGGING_CATEGORY(log_mouse_rel, "opf.host.mouse.relative")
+OPF_LOGGING_CATEGORY(log_mouse_scroll, "opf.host.mouse.scroll")
 
 MouseManager::MouseManager(QObject *parent) : QObject(parent), mouseMoverThread(nullptr) {
-    qCDebug(log_core_mouse) << "MouseManager created";
+    qCDebug(log_mouse_abs) << "MouseManager created";
 }
 
 MouseManager::~MouseManager() {
@@ -41,9 +45,21 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
     // stop auto move if it is running
     stopAutoMoveMouse();
 
+    // Remember last known coordinates for scroll-wheel reuse
+    lastX = x;
+    lastY = y;
+
+    // Update current mouse button state
+    // If wheelMovement is provided and mouse_event is 0, preserve current button state
+    if (wheelMovement != 0 && mouse_event == 0) {
+        mouse_event = currentMouseButton;
+    } else {
+        currentMouseButton = mouse_event;
+    }
+
     QByteArray data;
     uint8_t mappedWheelMovement = mapScrollWheel(wheelMovement);
-    if(mappedWheelMovement>0){    qCDebug(log_core_mouse) << "mappedWheelMovement:" << mappedWheelMovement; }
+    if(mappedWheelMovement>0){    qCDebug(log_mouse_abs) << "mappedWheelMovement:" << mappedWheelMovement; }
     data.append(MOUSE_ABS_ACTION_PREFIX);
     data.append(static_cast<char>(mouse_event));
     data.append(static_cast<char>(x & 0xFF));
@@ -70,10 +86,19 @@ void MouseManager::handleAbsoluteMouseAction(int x, int y, int mouse_event, int 
 }
 
 void MouseManager::handleRelativeMouseAction(int dx, int dy, int mouse_event, int wheelMovement) {
-    qCDebug(log_core_mouse) << "handleRelativeMouseAction";
+    qCDebug(log_mouse_rel) << "handleRelativeMouseAction";
+    
+    // Update current mouse button state
+    // If wheelMovement is provided and mouse_event is 0, preserve current button state
+    if (wheelMovement != 0 && mouse_event == 0) {
+        mouse_event = currentMouseButton;
+    } else {
+        currentMouseButton = mouse_event;
+    }
+    
     QByteArray data;
     uint8_t mappedWheelMovement = mapScrollWheel(wheelMovement);
-    if(mappedWheelMovement>0){    qCDebug(log_core_mouse) << "mappedWheelMovement:" << mappedWheelMovement; }
+    if(mappedWheelMovement>0){    qCDebug(log_mouse_rel) << "mappedWheelMovement:" << mappedWheelMovement; }
     data.append(MOUSE_REL_ACTION_PREFIX);
     data.append(static_cast<char>(mouse_event));
     data.append(static_cast<char>(dx & 0xFF));
@@ -101,9 +126,29 @@ uint8_t MouseManager::mapScrollWheel(int delta){
     if(delta == 0){
         return 0;
     }else if(delta > 0){
-        return uint8_t(delta / 100);
+        return uint8_t(delta / 50);
     }else{
-        return 0xFF - uint8_t(-1*delta / 100)+1;
+        return 0xFF - uint8_t(-1*delta / 50)+1;
+    }
+}
+
+void MouseManager::scrollWheel(int direction, int lines) {
+    // direction: positive = scroll up, negative = scroll down
+    // lines: number of scroll lines (default 1)
+    if (lines < 1) lines = 1;
+    qCDebug(log_mouse_scroll) << "Scroll wheel - direction:" << direction << "lines:" << lines;
+
+    // Reuse last known coordinates; fall back to (0, 0) if never moved
+    int x = lastX;
+    int y = lastY;
+
+    // Send one scroll packet per line with a small delay between them
+    for (int i = 0; i < lines; i++) {
+        int delta = direction * 100;
+        handleAbsoluteMouseAction(x, y, 0, delta);
+        if (i < lines - 1) {
+            QThread::msleep(20);
+        }
     }
 }
 
@@ -120,4 +165,28 @@ void MouseManager::stopAutoMoveMouse() {
         mouseMoverThread->stop();
         mouseMoverThread = nullptr;
     }
+}
+
+void MouseManager::releaseAllButtons() {
+    if (currentMouseButton == 0 && !isDragging) {
+        return;  // Nothing held — skip
+    }
+
+    qCDebug(log_mouse_abs) << "releaseAllButtons: clearing button state 0x"
+                           << QString::number(currentMouseButton, 16)
+                           << "dragging:" << isDragging;
+
+    // Send a mouse report with no buttons pressed at the last known position
+    QByteArray data;
+    data.append(MOUSE_ABS_ACTION_PREFIX);
+    data.append(static_cast<char>(0));  // no buttons
+    data.append(static_cast<char>(lastX & 0xFF));
+    data.append(static_cast<char>((lastX >> 8) & 0xFF));
+    data.append(static_cast<char>(lastY & 0xFF));
+    data.append(static_cast<char>((lastY >> 8) & 0xFF));
+    data.append(static_cast<char>(0));  // no wheel
+    SerialPortManager::getInstance().sendCommandAsync(data, false);
+
+    currentMouseButton = 0;
+    isDragging = false;
 }

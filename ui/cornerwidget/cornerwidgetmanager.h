@@ -8,6 +8,8 @@
 #include <QMenuBar>
 #include <QSvgRenderer>
 #include <QPainter>
+#include <QApplication>
+#include <QEvent>
 #include "ui/toolbar/toggleswitch.h"
 
 class CornerWidgetManager : public QObject {
@@ -23,7 +25,10 @@ public:
     void initializeKeyboardLayouts(const QStringList &layouts, const QString &defaultLayout);
     void restoreMuteState(bool muted);
     void updateUSBStatus(bool isToTarget);
+    void updateRecordingState(bool recording);
+    void updateMuteState(bool muted);
     bool isUpdatingFromStatus() const { return m_updatingFromStatus; }  // New getter
+    void retranslateUi();
     QPushButton *screensaverButton;
     QPushButton *recordingButton;
     QPushButton *muteButton;
@@ -38,7 +43,7 @@ signals:
     void fullScreenClicked();
     void pasteClicked();
     void screensaverClicked(bool checked);
-    void toggleSwitchChanged(int state);
+    void toggleSwitchChanged(Qt::CheckState state);
     void keyboardLayoutChanged(const QString &layout);
     void recordingToggled();
     void muteToggled();
@@ -47,6 +52,11 @@ private:
     void createWidgets();
     void setupConnections();
     void setButtonIcon(QPushButton *button, const QString &iconPath);
+    void updateAllIcons();
+    QColor getIconColor() const;
+
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
     QWidget *cornerWidget;
     QComboBox *keyboardLayoutComboBox;

@@ -194,6 +194,7 @@ const AVInputFormat* FFmpegDeviceValidator::GetInputFormat()
 {
 #ifdef Q_OS_WIN
     // On Windows, use DirectShow input format
+    avdevice_register_all();
     const AVInputFormat* inputFormat = av_find_input_format("dshow");
     if (!inputFormat) {
         qCDebug(log_ffmpeg_backend) << "DirectShow input format not available";

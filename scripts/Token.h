@@ -72,7 +72,7 @@ const std::vector<std::string> operators = {
 const std::set<std::string> mouse_keyboard = {
 	"BlockInput", "Click", "ControlClick", "ControlSend", "CoordMode","GetKeyName", "GetKeySC", "GetKeyState",
 	"GetKeyVK", "List of Keys", "KeyHistory", "KeyWait", "Input", "InputHook", "MouseClick", "MouseClickDrag",
-	"MouseGetPos", "MouseMove", "Send", "SendLevel", "SendMode", "SetCapsLockState", "SetDefaultMouseSpeed",
+	"MouseGetPos", "MouseMove", "Scroll", "Send", "SendLevel", "SendMode", "SetCapsLockState", "SetDefaultMouseSpeed",
 	"SetKeyDelay", "SetNumLockState", "SetScrollLockState", "SetStoreCapsLockMode", "Sleep", "FullScreenCapture","AreaScreenCapture"
 };
 

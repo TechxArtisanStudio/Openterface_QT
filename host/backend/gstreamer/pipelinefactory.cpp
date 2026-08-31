@@ -4,8 +4,9 @@
 
 #include <QDebug>
 #include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_pipeline_factory, "opf.backend.gstreamer.pipelinefactory")
+OPF_LOGGING_CATEGORY(log_pipeline_factory, "opf.backend.gstreamer.pipelinefactory")
 
 using namespace Openterface::GStreamer;
 
@@ -14,10 +15,11 @@ GstElement* PipelineFactory::createPipeline(const QString &device,
                                             const QSize &resolution,
                                             int framerate,
                                             const QString &videoSink,
-                                            QString &outErrorMsg)
+                                            QString &outErrorMsg,
+                                            const QSize& widgetSize)
 {
     // Primary
-    QString primary = PipelineBuilder::buildFlexiblePipeline(device, resolution, framerate, videoSink);
+    QString primary = PipelineBuilder::buildFlexiblePipeline(device, resolution, framerate, videoSink, widgetSize);
     qCDebug(log_pipeline_factory) << "PipelineFactory: trying primary pipeline" << primary;
 
     GError* error = nullptr;

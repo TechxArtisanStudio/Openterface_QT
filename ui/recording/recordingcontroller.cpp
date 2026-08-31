@@ -40,7 +40,8 @@
 #include "../../host/backend/ffmpegbackendhandler.h"
 #endif
 
-Q_LOGGING_CATEGORY(log_ui_recordingcontroller, "opf.ui.recordingcontroller")
+#include "log/opflogging.h"
+OPF_LOGGING_CATEGORY(log_ui_recordingcontroller, "opf.ui.recordingcontroller")
 
 RecordingController::RecordingController(CameraManager *cameraManager, StatusBarManager *statusBarManager, QObject *parent)
     : QObject(parent)
@@ -305,7 +306,8 @@ void RecordingController::connectSignals()
 
 void RecordingController::updateUIStates()
 {
-    // UI state management removed - recording state shown in status bar only
+    // Notify listeners of recording state change so they can update their UI
+    emit recordingStateChanged(m_isRecording);
 }
 
 QString RecordingController::formatDuration(qint64 milliseconds) const

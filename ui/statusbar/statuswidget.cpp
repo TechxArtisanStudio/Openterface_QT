@@ -31,6 +31,10 @@
 #include <QHBoxLayout>
 #include <QProcess>
 #include <QEvent>
+#include <QMessageBox>
+#include <QApplication>
+#include <QRegularExpression>
+#include "serial/SerialPortManager.h"
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -41,16 +45,74 @@
 #include <sys/times.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_ui_statuswidget, "opf.ui.statuswidget")
+#include "log/opflogging.h"
+OPF_LOGGING_CATEGORY(log_ui_statuswidget, "opf.ui.statuswidget")
 
 StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0), m_captureHeight(0), m_captureFramerate(0.0) {
     keyboardIndicatorsLabel = new QLabel("", this);
-    keyStatesLabel = new QLabel("", this);
     statusLabel = new QLabel("", this);
+    
+    // Create Lock state buttons instead of label
+    numLockBtn = new QPushButton("NUM", this);
+    capsLockBtn = new QPushButton("CAPS", this);
+    scrollLockBtn = new QPushButton("SCROLL", this);
+    
+    // Flat palette-aware style so lock indicators are clearly visible on any
+    // system theme. palette(buttonText) always contrasts with palette(button).
+    QString buttonStyleSheet = R"(
+        QPushButton {
+            background-color: palette(button);
+            border: 1px solid palette(dark);
+            border-radius: 3px;
+            padding: 2px 4px;
+            color: palette(buttonText);
+            font-weight: bold;
+            font-size: 10px;
+        }
+        QPushButton:hover {
+            background-color: palette(midlight);
+        }
+        QPushButton:pressed {
+            background-color: palette(mid);
+        }
+        QPushButton:checked {
+            background-color: #4CAF50;
+            color: white;
+            border: 1px solid #45a049;
+        }
+        QPushButton:checked:hover {
+            background-color: #45a049;
+        }
+    )";
+    
+    for (auto btn : {numLockBtn, capsLockBtn, scrollLockBtn}) {
+        btn->setCheckable(true);
+        btn->setChecked(false);
+        btn->setMaximumWidth(65);
+        btn->setMaximumHeight(24);
+        btn->setFocusPolicy(Qt::NoFocus);
+        btn->setFlat(false);
+        btn->setStyleSheet(buttonStyleSheet);
+    }
+    
+    // Create container and layout for Lock buttons
+    keyStatesContainer = new QWidget(this);
+    QHBoxLayout *keyStatesLayout = new QHBoxLayout(keyStatesContainer);
+    keyStatesLayout->setContentsMargins(0, 0, 0, 0);
+    keyStatesLayout->setSpacing(2);
+    keyStatesLayout->addWidget(numLockBtn);
+    keyStatesLayout->addWidget(capsLockBtn);
+    keyStatesLayout->addWidget(scrollLockBtn);
+    keyStatesContainer->setLayout(keyStatesLayout);
+    
+    // Connect button click signals
+    connect(numLockBtn, &QPushButton::clicked, this, &StatusWidget::onNumLockClicked);
+    connect(capsLockBtn, &QPushButton::clicked, this, &StatusWidget::onCapsLockClicked);
+    connect(scrollLockBtn, &QPushButton::clicked, this, &StatusWidget::onScrollLockClicked);
     
     // Create labels with SVG icons
     cpuUsageLabel = new QLabel(this);
-    cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "0%"));
+    cpuUsageLabel->setPixmap(createIconTextLabel(":/images/cpu.svg", "0%"));
     
     fpsLabel = new QLabel(this);
     fpsLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "0fps"));
@@ -99,7 +161,6 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
 
     qCDebug(log_ui_statuswidget) << "Detected CPU core count:" << m_cpuCoreCount;
 
-
     // Setup CPU monitoring timer
     cpuTimer = new QTimer(this);
     connect(cpuTimer, &QTimer::timeout, this, &StatusWidget::updateCpuUsage);
@@ -117,7 +178,7 @@ StatusWidget::StatusWidget(QWidget *parent) : QWidget(parent), m_captureWidth(0)
     layout->addWidget(new QLabel("| ", this));
     layout->addWidget(keyboardIndicatorsLabel);
     layout->addWidget(new QLabel("|", this));
-    layout->addWidget(keyStatesLabel);
+    layout->addWidget(keyStatesContainer);
     layout->addWidget(new QLabel("|", this));
     layout->addWidget(connectedPortLabel);
     layout->addWidget(new QLabel("|", this));
@@ -196,7 +257,6 @@ void StatusWidget::setCaptureResolution(const int &width, const int &height, con
     m_captureHeight = height;
     m_captureFramerate = fps;
 
-    
     // Update the input resolution tooltip to include capture information
     QString currentTooltip = inputResolutionLabel->toolTip();
     
@@ -219,11 +279,36 @@ void StatusWidget::setCaptureResolution(const int &width, const int &height, con
 }
 
 void StatusWidget::setConnectedPort(const QString &port, const int &baudrate) {
-    if(baudrate > 0){
-        connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", QString("%1@%2").arg(port).arg(baudrate)));
-    }else{
-        connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", "N/A"));
+    // Check if the new state is the same as the current state to avoid unnecessary updates
+    if (m_lastPort == port && m_lastBaudrate == baudrate) {
+        // States are the same, skip the update
+        return;
     }
+
+    // Update the stored state
+    m_lastPort = port;
+    m_lastBaudrate = baudrate;
+    
+    QString displayText;
+    
+    // Debug logging to understand port and baudrate values
+    
+    // Handle different cases for port and baudrate
+    if (port == "NA" || port.isEmpty()) {
+        // No valid port or specifically marked as "NA" - show Not Connected
+        displayText = "Not Connected";
+    } else if (baudrate > 0) {
+        // Valid baudrate - show port and baudrate
+        displayText = QString("%1@%2").arg(port).arg(baudrate);
+    } else if (baudrate == 0 && !port.isEmpty()) {
+        // Baudrate is 0 but port is valid - show just the port name
+        displayText = port;
+    } else {
+        // Other cases - show the port name
+        displayText = port;
+    }
+    
+    connectedPortLabel->setPixmap(createIconTextLabel(":/images/usbplug.svg", displayText));
     update(); 
 }
 
@@ -275,38 +360,15 @@ void StatusWidget::setBaudrate(int baudrate)
 
 void StatusWidget::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
 {
-    if (!keyStatesLabel) {
-        qCCritical(log_ui_statuswidget) << "CRITICAL: StatusWidget::setKeyStates - keyStatesLabel is null!";
+    if (!numLockBtn || !capsLockBtn || !scrollLockBtn) {
+        qCCritical(log_ui_statuswidget) << "CRITICAL: StatusWidget::setKeyStates - Lock buttons are null!";
         return;
     }
     
-    QString keyStatesText;
-    QStringList activeKeys;
-    
-    if (numLock) {
-        activeKeys << "NUM";
-    }
-    if (capsLock) {
-        activeKeys << "CAPS";
-    }
-    if (scrollLock) {
-        activeKeys << "SCROLL";
-    }
-    
-    if (activeKeys.isEmpty()) {
-        keyStatesText = "---";
-    } else {
-        keyStatesText = activeKeys.join("|");
-    }
-    
-    QPixmap pixmap = createIconTextLabel(":/images/keyboard.svg", keyStatesText);
-    
-    if (pixmap.isNull()) {
-        qCCritical(log_ui_statuswidget) << "CRITICAL: StatusWidget::setKeyStates - createIconTextLabel returned null pixmap!";
-        return;
-    }
-    
-    keyStatesLabel->setPixmap(pixmap);
+    // Update button states
+    numLockBtn->setChecked(numLock);
+    capsLockBtn->setChecked(capsLock);
+    scrollLockBtn->setChecked(scrollLock);
     
     // Set tooltip with detailed information
     QString tooltip = QString("Keyboard Lock States:\nNum Lock: %1\nCaps Lock: %2\nScroll Lock: %3")
@@ -314,7 +376,11 @@ void StatusWidget::setKeyStates(bool numLock, bool capsLock, bool scrollLock)
                      .arg(capsLock ? "ON" : "OFF")
                      .arg(scrollLock ? "ON" : "OFF");
     
-    keyStatesLabel->setToolTip(tooltip);
+    keyStatesContainer->setToolTip(tooltip);
+    numLockBtn->setToolTip(QString("NumLock: %1").arg(numLock ? "ON" : "OFF"));
+    capsLockBtn->setToolTip(QString("CapsLock: %1").arg(capsLock ? "ON" : "OFF"));
+    scrollLockBtn->setToolTip(QString("ScrollLock: %1").arg(scrollLock ? "ON" : "OFF"));
+    
     update();
 }
 
@@ -364,10 +430,10 @@ void StatusWidget::updateCpuUsage()
             color = QColor("green");
         }
         
-        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", text, color));
+        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/cpu.svg", text, color));
         cpuUsageLabel->setToolTip(QString("App CPU Usage: %1%").arg(QString::number(cpuUsage, 'f', 1)));
     } else {
-        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/monitor.svg", "N/A"));
+        cpuUsageLabel->setPixmap(createIconTextLabel(":/images/cpu.svg", "N/A"));
         cpuUsageLabel->setToolTip("App CPU usage unavailable");
     }
     update();
@@ -572,4 +638,116 @@ double StatusWidget::getCpuUsage()
     qCWarning(log_ui_statuswidget) << "CPU usage monitoring not supported on this platform";
     return -1;
 #endif
+}
+
+/**
+ * @brief Slot called when NumLock button is clicked
+ * Sends NumLock toggle command to device
+ */
+void StatusWidget::onNumLockClicked()
+{
+    bool isChecked = numLockBtn->isChecked();
+    
+    // Send toggle command to device via SerialPortManager
+    bool success = SerialPortManager::getInstance().toggleNumLock();
+    
+    if (success) {
+        qCDebug(log_ui_statuswidget) 
+            << "✓ NumLock button toggled. Expected state:" 
+            << (isChecked ? "ON" : "OFF");
+        numLockBtn->setToolTip(QString("NumLock: %1\n(Click to toggle)")
+                                .arg(isChecked ? "ON" : "OFF"));
+    } else {
+        qCWarning(log_ui_statuswidget) << "✗ Failed to send NumLock command";
+        // Revert button state if command failed
+        numLockBtn->setChecked(!isChecked);
+    }
+}
+
+/**
+ * @brief Slot called when CapsLock button is clicked
+ * Sends CapsLock toggle command to device
+ */
+void StatusWidget::onCapsLockClicked()
+{
+    bool isChecked = capsLockBtn->isChecked();
+    
+    // Send toggle command to device via SerialPortManager
+    bool success = SerialPortManager::getInstance().toggleCapsLock();
+    
+    if (success) {
+        qCDebug(log_ui_statuswidget) 
+            << "✓ CapsLock button toggled. Expected state:" 
+            << (isChecked ? "ON" : "OFF");
+        capsLockBtn->setToolTip(QString("CapsLock: %1\n(Click to toggle)")
+                                 .arg(isChecked ? "ON" : "OFF"));
+    } else {
+        qCWarning(log_ui_statuswidget) << "✗ Failed to send CapsLock command";
+        // Revert button state if command failed
+        capsLockBtn->setChecked(!isChecked);
+    }
+}
+
+/**
+ * @brief Slot called when ScrollLock button is clicked
+ * Sends ScrollLock toggle command to device
+ */
+void StatusWidget::onScrollLockClicked()
+{
+    bool isChecked = scrollLockBtn->isChecked();
+    
+    // Send toggle command to device via SerialPortManager
+    bool success = SerialPortManager::getInstance().toggleScrollLock();
+    
+    if (success) {
+        qCDebug(log_ui_statuswidget) 
+            << "✓ ScrollLock button toggled. Expected state:" 
+            << (isChecked ? "ON" : "OFF");
+        scrollLockBtn->setToolTip(QString("ScrollLock: %1\n(Click to toggle)")
+                                   .arg(isChecked ? "ON" : "OFF"));
+    } else {
+        qCWarning(log_ui_statuswidget) << "✗ Failed to send ScrollLock command";
+        // Revert button state if command failed
+        scrollLockBtn->setChecked(!isChecked);
+    }
+}
+
+void StatusWidget::checkAndWarnResolutionMismatch(const int &preferredWidth, const int &preferredHeight, const float &preferredFps)
+{
+    // Get the currently displayed input resolution information
+    QString inputResText = inputResolutionLabel->text();
+    if (inputResText == "INPUT(NA)" || inputResText.isEmpty()) {
+        // If there's no input resolution information, return directly
+        return;
+    }
+
+    // Parse the input resolution information
+    // Format: INPUT(1920X1080@60.0)
+    QRegularExpression rx("INPUT\\((\\d+)X(\\d+)@(\\d+\\.?\\d*)\\)");
+    QRegularExpressionMatch match = rx.match(inputResText);
+    if (match.hasMatch()) {
+        int inputWidth = match.captured(1).toInt();
+        int inputHeight = match.captured(2).toInt();
+        float inputFps = match.captured(3).toFloat();
+
+        // Compare if resolution and frame rate match
+        bool resolutionMatch = (inputWidth == preferredWidth && inputHeight == preferredHeight);
+        bool fpsMatch = (qAbs(inputFps - preferredFps) < 0.5f); // Allow 0.5 margin of error
+
+        if (!resolutionMatch || !fpsMatch) {
+            QString warningMessage = QString(tr("Resolution/FPS mismatch detected!\n\n")) +
+                                    QString(tr("Preferred setting: %1x%2@%3fps\n")).arg(preferredWidth).arg(preferredHeight).arg(preferredFps) +
+                                    QString(tr("Actual input: %1x%2@%3fps\n\n")).arg(inputWidth).arg(inputHeight).arg(inputFps) +
+                                    tr("Where to adjust:\n") +
+                                    tr("1. Go to Preferences -> Video Settings to change capture resolution/framerate\n") +
+                                    tr("2. Adjust your source device's output resolution/framerate\n\n") +
+                                    tr("Potential consequences of mismatch:\n") +
+                                    tr("- Reduced performance and frame drops\n") +
+                                    tr("- Display scaling artifacts\n") +
+                                    tr("- Possible audio/video sync issues\n") +
+                                    tr("- Suboptimal user experience");
+
+            QMessageBox::warning(this, tr("Resolution/FPS Mismatch Warning"), warningMessage);
+        }
+    }
 }

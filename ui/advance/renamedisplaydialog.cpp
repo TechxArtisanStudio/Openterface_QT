@@ -165,7 +165,6 @@ QString RenameDisplayDialog::getCurrentDisplayName()
 
 bool RenameDisplayDialog::updateDisplayName(const QString &newName)
 {
-    qDebug() << "Starting display name update to:" << newName;
     
     // Step 1: Stop all devices and hide main window
     stopAllDevices();
@@ -318,7 +317,6 @@ bool RenameDisplayDialog::updateDisplayName(const QString &newName)
 
 void RenameDisplayDialog::stopAllDevices()
 {
-    qDebug() << "Stopping all devices...";
     
     // Stop VideoHid
     VideoHid::getInstance().stop();
@@ -333,25 +331,20 @@ void RenameDisplayDialog::stopAllDevices()
         if (mainWindow) {
             // Access camera manager and audio manager from main window
             // We need to use the public interface to stop devices
-            qDebug() << "Stopping camera and audio through main window...";
             
             // This calls the main window's stop method which handles camera and audio
             QMetaObject::invokeMethod(mainWindow, "stop", Qt::DirectConnection);
         } else {
-            qDebug() << "Could not cast parent to MainWindow - devices may not be fully stopped";
         }
     } else {
-        qDebug() << "No parent window found - some devices may not be stopped";
     }
     
-    qDebug() << "All accessible devices stopped.";
 }
 
 void RenameDisplayDialog::hideMainWindow()
 {
     QWidget *mainWindow = this->parentWidget();
     if (mainWindow) {
-        qDebug() << "Hiding main window...";
         mainWindow->hide();
     }
 }
@@ -363,12 +356,10 @@ int RenameDisplayDialog::findEDIDBlock0(const QByteArray &firmwareData)
     
     for (int i = 0; i <= firmwareData.size() - edidHeader.size(); ++i) {
         if (firmwareData.mid(i, edidHeader.size()) == edidHeader) {
-            qDebug() << "Found EDID Block 0 at offset:" << QString("0x%1").arg(i, 0, 16);
             return i;
         }
     }
     
-    qDebug() << "EDID Block 0 not found in firmware";
     return -1;
 }
 
@@ -387,7 +378,6 @@ void RenameDisplayDialog::updateEDIDDisplayName(QByteArray &edidBlock, const QSt
             edidBlock[descriptorOffset + 2] == 0x00 && 
             static_cast<quint8>(edidBlock[descriptorOffset + 3]) == 0xFC) {
             targetDescriptorOffset = descriptorOffset;
-            qDebug() << "Found existing display name descriptor at offset:" << descriptorOffset;
             break;
         }
     }
@@ -395,7 +385,6 @@ void RenameDisplayDialog::updateEDIDDisplayName(QByteArray &edidBlock, const QSt
     // If no display name descriptor found, use the last descriptor (offset 108)
     if (targetDescriptorOffset == -1) {
         targetDescriptorOffset = 108;
-        qDebug() << "No existing display name descriptor found, using offset:" << targetDescriptorOffset;
     }
     
     if (targetDescriptorOffset + 18 > edidBlock.size()) {
@@ -416,16 +405,12 @@ void RenameDisplayDialog::updateEDIDDisplayName(QByteArray &edidBlock, const QSt
     }
     // nameBytes[nameBytes.size() - 1] = 0x0A; // Line feed terminator
     
-    qDebug() << "Updating display name descriptor at offset:" << targetDescriptorOffset;
-    
     // Show descriptor BEFORE update
-    qDebug() << "=== DESCRIPTOR BEFORE UPDATE (offset" << targetDescriptorOffset << ") ===";
     QByteArray beforeDescriptor = edidBlock.mid(targetDescriptorOffset, 18);
     QString beforeHex;
     for (int i = 0; i < beforeDescriptor.size(); ++i) {
         beforeHex += QString("%1 ").arg(static_cast<quint8>(beforeDescriptor[i]), 2, 16, QChar('0')).toUpper();
     }
-    qDebug() << "Before:" << beforeHex;
     
     // Set descriptor header for display name
     edidBlock[targetDescriptorOffset] = 0x00;
@@ -440,15 +425,12 @@ void RenameDisplayDialog::updateEDIDDisplayName(QByteArray &edidBlock, const QSt
     }
     
     // Show descriptor AFTER update
-    qDebug() << "=== DESCRIPTOR AFTER UPDATE (offset" << targetDescriptorOffset << ") ===";
     QByteArray afterDescriptor = edidBlock.mid(targetDescriptorOffset, 18);
     QString afterHex;
     for (int i = 0; i < afterDescriptor.size(); ++i) {
         afterHex += QString("%1 ").arg(static_cast<quint8>(afterDescriptor[i]), 2, 16, QChar('0')).toUpper();
     }
-    qDebug() << "After:" << afterHex;
     
-    qDebug() << "Display name updated to:" << newName;
 }
 
 quint8 RenameDisplayDialog::calculateEDIDChecksum(const QByteArray &edidBlock)
@@ -464,11 +446,9 @@ quint8 RenameDisplayDialog::calculateEDIDChecksum(const QByteArray &edidBlock)
     }
     
     quint8 checksum = (256 - (sum & 0xFF)) & 0xFF;
-    qDebug() << "Calculated EDID checksum:" << QString("0x%1").arg(checksum, 2, 16, QChar('0'));
     
     return checksum;
 }
-
 
 quint16 RenameDisplayDialog::calculateFirmwareChecksumWithDiff(const QByteArray &originalFirmware, const QByteArray &originalEDID, const QByteArray &modifiedEDID)
 {
@@ -482,9 +462,6 @@ quint16 RenameDisplayDialog::calculateFirmwareChecksumWithDiff(const QByteArray 
         return 0;
     }
     
-    qDebug() << "Calculating firmware checksum using EDID difference method:";
-    qDebug() << "  Total firmware size:" << originalFirmware.size() << "bytes";
-    
     // Get the original firmware checksum from the last 2 bytes
     quint8 originalLowByte = static_cast<quint8>(originalFirmware[originalFirmware.size() - 2]);
     quint8 originalHighByte = static_cast<quint8>(originalFirmware[originalFirmware.size() - 1]);
@@ -494,46 +471,28 @@ quint16 RenameDisplayDialog::calculateFirmwareChecksumWithDiff(const QByteArray 
     quint16 originalChecksumLE = originalLowByte | (originalHighByte << 8);  // Little-endian
     quint16 originalChecksumBE = (originalLowByte << 8) | originalHighByte;  // Big-endian
     
-    qDebug() << "  Original last 2 bytes: 0x" << QString::number(originalLowByte, 16).toUpper().rightJustified(2, '0') << 
-                " 0x" << QString::number(originalHighByte, 16).toUpper().rightJustified(2, '0');
-    qDebug() << "  Original checksum (little-endian): 0x" << QString::number(originalChecksumLE, 16).toUpper().rightJustified(4, '0');
-    qDebug() << "  Original checksum (big-endian): 0x" << QString::number(originalChecksumBE, 16).toUpper().rightJustified(4, '0');
-    
     // Calculate the sum difference between original and modified EDID blocks
     qint32 edidDifference = 0;
     for (int i = 0; i < 128; ++i) {
         edidDifference += static_cast<quint8>(modifiedEDID[i]) - static_cast<quint8>(originalEDID[i]);
     }
     
-    qDebug() << "  EDID byte sum difference:" << edidDifference;
-    
     // Calculate new checksum by adding the difference to the original checksum
     // We'll use big-endian format as it's more common for firmware checksums
     qint32 newChecksumInt = static_cast<qint32>(originalChecksumBE) + edidDifference;
     quint16 newChecksum = static_cast<quint16>(newChecksumInt & 0xFFFF);
     
-    qDebug() << "  Original checksum (using big-endian): 0x" << QString::number(originalChecksumBE, 16).toUpper().rightJustified(4, '0');
-    qDebug() << "  New checksum calculation: 0x" << QString::number(originalChecksumBE, 16).toUpper() << 
-                " + " << edidDifference << " = 0x" << QString::number(newChecksumInt, 16).toUpper();
-    qDebug() << "  Final checksum (16-bit): 0x" << QString::number(newChecksum, 16).toUpper().rightJustified(4, '0');
-    
     // Verify by showing byte breakdown
-    qDebug() << "  New checksum breakdown:";
-    qDebug() << "    High byte: 0x" << QString::number((newChecksum >> 8) & 0xFF, 16).toUpper().rightJustified(2, '0');
-    qDebug() << "    Low byte: 0x" << QString::number(newChecksum & 0xFF, 16).toUpper().rightJustified(2, '0');
     
     return newChecksum;
 }
 
 QByteArray RenameDisplayDialog::processEDIDDisplayName(const QByteArray &firmwareData, const QString &newName)
 {
-    qDebug() << "Processing EDID display name update...";
     
     QByteArray modifiedFirmware = firmwareData; // Make a copy
     
     // Show complete firmware BEFORE update (first 256 bytes for debugging)
-    qDebug() << "=== COMPLETE FIRMWARE BEFORE UPDATE ===";
-    qDebug() << "Firmware size:" << firmwareData.size() << "bytes";
     showFirmwareHexDump(firmwareData, 0, qMin(256, firmwareData.size()));
     
     // Find EDID Block 0
@@ -555,14 +514,12 @@ QByteArray RenameDisplayDialog::processEDIDDisplayName(const QByteArray &firmwar
     QByteArray originalEDIDBlock = edidBlock; // Make a copy before modification
     
     // Show EDID descriptors BEFORE update
-    qDebug() << "=== EDID DESCRIPTORS BEFORE UPDATE ===";
     showEDIDDescriptors(edidBlock);
     
     // Update display name in EDID block
     updateEDIDDisplayName(edidBlock, newName);
     
     // Show EDID descriptors AFTER update
-    qDebug() << "=== EDID DESCRIPTORS AFTER UPDATE ===";
     showEDIDDescriptors(edidBlock);
     
     // Calculate and update EDID checksum
@@ -582,38 +539,24 @@ QByteArray RenameDisplayDialog::processEDIDDisplayName(const QByteArray &firmwar
         modifiedFirmware[modifiedFirmware.size() - 2] = static_cast<char>((firmwareChecksum >> 8) & 0xFF); // High byte first
         modifiedFirmware[modifiedFirmware.size() - 1] = static_cast<char>(firmwareChecksum & 0xFF);        // Low byte second
         
-        qDebug() << "Written firmware checksum to last 2 bytes (big-endian, differential method):";
-        qDebug() << "  Checksum value: 0x" << QString::number(firmwareChecksum, 16).toUpper().rightJustified(4, '0');
-        qDebug() << "  High byte (pos-2): 0x" << QString::number((firmwareChecksum >> 8) & 0xFF, 16).toUpper().rightJustified(2, '0');
-        qDebug() << "  Low byte (pos-1): 0x" << QString::number(firmwareChecksum & 0xFF, 16).toUpper().rightJustified(2, '0');
-        
         // Show actual bytes written
-        qDebug() << "  Actual last 2 bytes: 0x" << 
-            QString::number(static_cast<quint8>(modifiedFirmware[modifiedFirmware.size() - 2]), 16).toUpper().rightJustified(2, '0') << 
-            " 0x" << 
-            QString::number(static_cast<quint8>(modifiedFirmware[modifiedFirmware.size() - 1]), 16).toUpper().rightJustified(2, '0');
     } else {
         qWarning() << "Firmware too small to write checksum";
     }
     
     // Show complete firmware AFTER update (first 256 bytes for debugging)
-    qDebug() << "=== COMPLETE FIRMWARE AFTER UPDATE ===";
-    qDebug() << "Modified firmware size:" << modifiedFirmware.size() << "bytes";
     showFirmwareHexDump(modifiedFirmware, 0, qMin(256, modifiedFirmware.size()));
     
     // Also show the end of firmware (last 32 bytes) to verify checksum
     if (modifiedFirmware.size() > 32) {
-        qDebug() << "=== FIRMWARE END (last 32 bytes) ===";
         showFirmwareHexDump(modifiedFirmware, modifiedFirmware.size() - 32, 32);
     }
     
-    qDebug() << "EDID display name processing completed successfully";
     return modifiedFirmware;
 }
 
 void RenameDisplayDialog::showEDIDDescriptors(const QByteArray &edidBlock)
 {
-    qDebug() << "EDID Block size:" << edidBlock.size();
     
     // Display descriptors starting at offset 54 (4 descriptors, each 18 bytes)
     for (int descriptorOffset = 54; descriptorOffset <= 54 + 3 * 18; descriptorOffset += 18) {
@@ -625,24 +568,17 @@ void RenameDisplayDialog::showEDIDDescriptors(const QByteArray &edidBlock)
             hexString += QString("%1 ").arg(static_cast<quint8>(descriptor[i]), 2, 16, QChar('0')).toUpper();
         }
         
-        qDebug() << QString("Descriptor at offset %1:").arg(descriptorOffset);
-        qDebug() << "  Hex:" << hexString;
-        
         // Check descriptor type
         quint8 descriptorType = static_cast<quint8>(descriptor[3]);
         if (descriptor[0] == 0x00 && descriptor[1] == 0x00 && descriptor[2] == 0x00) {
             switch (descriptorType) {
                 case 0xFF:
-                    qDebug() << "  Type: Display Serial Number";
                     break;
                 case 0xFE:
-                    qDebug() << "  Type: Unspecified Text";
                     break;
                 case 0xFD:
-                    qDebug() << "  Type: Display Range Limits";
                     break;
                 case 0xFC:
-                    qDebug() << "  Type: Display Product Name";
                     // Extract display name (13 bytes starting at offset 5)
                     if (descriptor.size() >= 18) {
                         QByteArray nameBytes = descriptor.mid(5, 13);
@@ -654,25 +590,19 @@ void RenameDisplayDialog::showEDIDDescriptors(const QByteArray &edidBlock)
                                 displayName += c;
                             }
                         }
-                        qDebug() << "  Display Name:" << displayName.trimmed();
                     }
                     break;
                 case 0xFB:
-                    qDebug() << "  Type: Color Point Data";
                     break;
                 case 0xFA:
-                    qDebug() << "  Type: Standard Timing Identifications";
                     break;
                 default:
                     if (descriptorType == 0x00) {
-                        qDebug() << "  Type: Empty/Unused Descriptor";
                     } else {
-                        qDebug() << "  Type: Unknown (" << QString("0x%1").arg(descriptorType, 2, 16, QChar('0')).toUpper() << ")";
                     }
                     break;
             }
         } else {
-            qDebug() << "  Type: Detailed Timing Descriptor";
         }
     }
 }
@@ -690,8 +620,6 @@ void RenameDisplayDialog::showFirmwareHexDump(const QByteArray &firmwareData, in
     } else {
         actualLength = qMin(actualLength, firmwareData.size() - startOffset);
     }
-    
-    qDebug() << QString("Firmware hex dump from offset 0x%1 (%2 bytes):").arg(startOffset, 4, 16, QChar('0')).arg(actualLength);
     
     // Show hex dump in 16-byte rows
     for (int i = 0; i < actualLength; i += 16) {
@@ -727,6 +655,5 @@ void RenameDisplayDialog::showFirmwareHexDump(const QByteArray &firmwareData, in
         // Add ASCII representation
         line += QString(" |%1|").arg(asciiLine);
         
-        qDebug() << line;
     }
 }

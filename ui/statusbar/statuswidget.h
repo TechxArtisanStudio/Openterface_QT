@@ -26,9 +26,11 @@
 #include <QWidget>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QTimer>
 #include <QPixmap>
 #include <QPalette>
+#include <QPushButton>
 
 class StatusWidget : public QWidget {
     Q_OBJECT
@@ -49,6 +51,7 @@ public:
     void showRecordingTime(bool show);
     int getCaptureWidth() const;
     int getCaptureHeight() const;
+    void checkAndWarnResolutionMismatch(const int &preferredWidth, const int &preferredHeight, const float &preferredFps);
 
 protected:
     void changeEvent(QEvent *event) override;
@@ -56,6 +59,9 @@ protected:
 private slots:
     void updateCpuUsage();
     void refreshAllIcons();
+    void onNumLockClicked();
+    void onCapsLockClicked();
+    void onScrollLockClicked();
 
 public slots:
     void setBaudrate(int baudrate);
@@ -65,7 +71,10 @@ private:
     QLabel *cpuUsageLabel;
     QLabel *fpsLabel;
     QLabel *keyboardIndicatorsLabel;
-    QLabel *keyStatesLabel;
+    QPushButton *numLockBtn;
+    QPushButton *capsLockBtn;
+    QPushButton *scrollLockBtn;
+    QWidget *keyStatesContainer;
     QLabel *resolutionLabel;
     QLabel *inputResolutionLabel;
     QLabel *connectedPortLabel;
@@ -81,6 +90,10 @@ private:
     QPixmap plugIcon;
     
     int m_cpuCoreCount = 1;
+
+    // Variables to track the last port and baudrate to avoid duplicate updates
+    QString m_lastPort;
+    int m_lastBaudrate = -1;
 
     double getCpuUsage();
     QPixmap createIconTextLabel(const QString &svgPath, const QString &text, const QColor &textColor = QColor(), const QColor &iconColor = QColor());

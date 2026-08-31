@@ -57,7 +57,9 @@ extern "C" {
 #include <turbojpeg.h>
 #endif
 
-Q_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
+#include "log/opflogging.h"
+
+OPF_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
 
 // Capture thread extracted to host/backend/ffmpeg/capturethread.h/.cpp
 #include "ffmpeg/capturethread.h"
@@ -70,8 +72,9 @@ Q_LOGGING_CATEGORY(log_ffmpeg_backend, "opf.backend.ffmpeg")
 #include "ffmpeg/ffmpeg_capture_manager.h"
 
 FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
-    : MultimediaBackendHandler(parent), 
-    m_packet(nullptr),
+    : MultimediaBackendHandler(parent),
+    m_interruptRequested(false),
+    m_operationStartTime(0),
     m_deviceManager(std::make_unique<FFmpegDeviceManager>()),
     m_hardwareAccelerator(std::make_unique<FFmpegHardwareAccelerator>()),
     m_frameProcessor(std::make_unique<FFmpegFrameProcessor>()),
@@ -79,17 +82,29 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
     m_deviceValidator(std::make_unique<FFmpegDeviceValidator>()),
     m_hotplugHandler(nullptr),  // Created after validator
     m_captureManager(nullptr),  // Created after dependencies
+    m_packet(nullptr),
     m_captureRunning(false),
     m_videoStreamIndex(-1),
-    m_frameCount(0),
-    m_lastFrameTime(0),
-    m_interruptRequested(false),
-    m_operationStartTime(0),
+    m_recordingActive(false),
     m_suppressErrors(false),
     m_graphicsVideoItem(nullptr),
     m_videoPane(nullptr),
-    m_recordingActive(false)
+    m_frameCount(0),
+    m_lastFrameTime(0),
+    m_targetFrameIntervalMs(0),
+    m_lastFrameDisplayTime(0),
+    m_firstFrameSystemTime(0),
+    m_firstFramePts(0),
+    m_lastPacketPts(AV_NOPTS_VALUE),
+    m_streamTimeBase(0),
+    m_timeSyncInitialized(false),
+    m_detectedFrameIntervalMs(0),
+    m_ptsFrameCount(0),
+    m_lastForceDisplayTime(0)
 {
+    // Initialize backpressure counter (shared with lambda captures in QueuedConnection slots)
+    m_pendingFrameCount = std::make_shared<std::atomic<int>>(0);
+    // m_videoOutputConnection is default-constructed (invalid/disconnected)
     m_config = getDefaultConfig();
     m_preferredHwAccel = GlobalSetting::instance().getHardwareAcceleration();
     
@@ -164,10 +179,33 @@ FFmpegBackendHandler::FFmpegBackendHandler(QObject *parent)
     m_performanceTimer->setInterval(5000); // Report every 5 seconds
     connect(m_performanceTimer, &QTimer::timeout, this, [this]() {
         if (m_frameCount > 0) {
-            double fps = m_frameCount / 5.0;
-            qCDebug(log_ffmpeg_backend) << QString("FFmpeg capture performance: %1 FPS").arg(fps, 0, 'f', 1);
-            emit fpsChanged(fps);
+            double actualFps = m_frameCount / 5.0;
+            
+            // Get target framerate for comparison
+            int targetFps = m_currentFramerate > 0 ? m_currentFramerate : 0;
+            
+            if (targetFps > 0) {
+                double fpsDeviation = ((actualFps - targetFps) / targetFps) * 100.0;
+                qCDebug(log_ffmpeg_backend) << QString("FFmpeg capture - Target: %1 FPS, Actual: %2 FPS, Deviation: %3%")
+                    .arg(targetFps)
+                    .arg(actualFps, 0, 'f', 2)
+                    .arg(fpsDeviation, 0, 'f', 1);
+                
+                // Emit the target FPS as set by user preferences instead of actual FPS
+                // This ensures the status bar shows what the user selected in preferences
+                emit fpsChanged(static_cast<double>(targetFps));
+            } else {
+                qCDebug(log_ffmpeg_backend) << QString("FFmpeg capture performance: %1 FPS").arg(actualFps, 0, 'f', 2);
+                emit fpsChanged(actualFps);
+            }
+            
             m_frameCount = 0;
+        } else {
+            // Even if no frames were captured, emit the target framerate if available
+            int targetFps = m_currentFramerate > 0 ? m_currentFramerate : 0;
+            if (targetFps > 0) {
+                emit fpsChanged(static_cast<double>(targetFps));
+            }
         }
     });
 }
@@ -248,16 +286,16 @@ void FFmpegBackendHandler::configureCameraDevice()
     return;
 }
 
-void FFmpegBackendHandler::setupCaptureSession(QMediaCaptureSession* session)
+void FFmpegBackendHandler::setupCaptureSession(QMediaCaptureSession* /*session*/)
 {
     // For FFmpeg backend, skip Qt capture session setup to avoid device conflicts
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Skipping Qt capture session setup - using direct capture";
-    
+
     // Do not call session->setCamera(camera) for FFmpeg backend
     // The direct capture will handle video rendering without Qt camera
 }
 
-void FFmpegBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput)
+void FFmpegBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* /*session*/, QObject* videoOutput)
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Preparing video output connection";
     
@@ -278,7 +316,7 @@ void FFmpegBackendHandler::prepareVideoOutputConnection(QMediaCaptureSession* se
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Video output type not supported for direct rendering";
 }
 
-void FFmpegBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession* session, QObject* videoOutput)
+void FFmpegBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession* /*session*/, QObject* /*videoOutput*/)
 {
     // For FFmpeg backend, skip Qt video output setup
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Skipping Qt video output setup - using direct rendering";
@@ -290,10 +328,30 @@ void FFmpegBackendHandler::finalizeVideoOutputConnection(QMediaCaptureSession* s
 void FFmpegBackendHandler::startCamera()
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Starting camera with direct capture";
-    
+    fprintf(stderr, "[DEBUG-FFMPEG] startCamera() called\n");
+
+    // Refresh framerate from GlobalVar so that changes made in Preferences take effect.
+    // m_currentFramerate is only set during initial setup (selectOptimalFormat / restartCaptureWithDevice),
+    // so without this refresh the old framerate (e.g. 30) is used even after the user picks 60 in settings.
+    int globalFps = GlobalVar::instance().getCaptureFps();
+    if (globalFps > 0) {
+        m_currentFramerate = globalFps;
+    }
+
+    // Same issue applies to resolution - refresh from GlobalVar.
+    int globalWidth  = GlobalVar::instance().getCaptureWidth();
+    int globalHeight = GlobalVar::instance().getCaptureHeight();
+    if (globalWidth > 0 && globalHeight > 0) {
+        m_currentResolution = QSize(globalWidth, globalHeight);
+    }
+
     qCDebug(log_ffmpeg_backend) << "Current device:" << m_currentDevice;
     qCDebug(log_ffmpeg_backend) << "Current resolution:" << m_currentResolution;
     qCDebug(log_ffmpeg_backend) << "Current framerate:" << m_currentFramerate;
+    fprintf(stderr, "[DEBUG-FFMPEG] Device='%s', Resolution=%dx%d, Framerate=%d\n",
+            m_currentDevice.toUtf8().constData(),
+            m_currentResolution.width(), m_currentResolution.height(),
+            m_currentFramerate);
     
     // Skip availability check - just try to open the device directly
     // The checkCameraAvailable() opens the device which can interfere with immediate reopening
@@ -326,7 +384,7 @@ void FFmpegBackendHandler::stopCamera()
 QCameraFormat FFmpegBackendHandler::selectOptimalFormat(const QList<QCameraFormat>& formats,
                                                        const QSize& resolution,
                                                        int desiredFrameRate,
-                                                       QVideoFrameFormat::PixelFormat pixelFormat) const
+                                                       QVideoFrameFormat::PixelFormat /*pixelFormat*/) const
 {
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Selecting optimal format with flexible frame rate matching";
     
@@ -437,6 +495,26 @@ bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const Q
     // Set current device
     m_currentDevice = devicePath;
     
+    // Calculate target frame interval based on desired framerate
+    if (framerate > 0) {
+        m_targetFrameIntervalMs = 1000.0 / framerate;
+        qCDebug(log_ffmpeg_backend) << "Target frame interval:" << m_targetFrameIntervalMs << "ms for" << framerate << "fps";
+    } else {
+        m_targetFrameIntervalMs = 0; // No rate limiting if framerate not specified
+    }
+    
+    // Reset frame timing state
+    m_lastFrameDisplayTime = 0;
+    m_firstFrameSystemTime = 0;
+    m_firstFramePts = 0;
+    m_lastPacketPts = AV_NOPTS_VALUE;
+    m_streamTimeBase = 0;
+    m_timeSyncInitialized = false;
+    m_detectedFrameIntervalMs = 0;
+    m_ptsFrameCount = 0;
+    m_lastForceDisplayTime = 0;
+    m_frameCount = 0;
+    
     // Apply scaling quality setting to frame processor
     if (m_frameProcessor) {
         QString scalingQuality = GlobalSetting::instance().getScalingQuality();
@@ -471,37 +549,71 @@ void FFmpegBackendHandler::stopDirectCapture()
 {
     {
         QMutexLocker locker(&m_mutex);
-        
+
         if (!m_captureRunning) {
             return;
         }
-        
+
         qCDebug(log_ffmpeg_backend) << "Stopping direct FFmpeg capture";
-        
+
         m_captureRunning = false;
-        
+
         // Signal frame processor to stop processing
         if (m_frameProcessor) {
             m_frameProcessor->StopCaptureGracefully();
         }
-        
+
         // Notify hotplug handler that capture is stopping
         if (m_hotplugHandler) {
             m_hotplugHandler->SetCaptureRunning(false);
         }
-        
+
         // Delegate to capture manager
         if (m_captureManager) {
             m_captureManager->StopCapture();
         }
     } // Release mutex
-    
+
     // Stop performance monitoring
     if (m_performanceTimer) {
         m_performanceTimer->stop();
     }
-    
-    qCDebug(log_ffmpeg_backend) << "Direct FFmpeg capture stopped";
+
+    // Sync wait: poll until capture thread fully stops (max 2s, 50ms intervals)
+    if (!waitForCaptureStop(2000)) {
+        qCWarning(log_ffmpeg_backend) << "Capture thread did not stop within timeout - may cause device conflict";
+    }
+
+    // Platform-specific settling delay before opening new device
+#ifdef Q_OS_LINUX
+    QThread::msleep(100);  // Linux needs extra time for /dev/video* release
+#elif defined(Q_OS_WIN)
+    QThread::msleep(200);  // Windows needs time for DirectShow filter graph cleanup
+#endif
+
+    qCDebug(log_ffmpeg_backend) << "Direct FFmpeg capture stopped (sync wait complete)";
+}
+
+bool FFmpegBackendHandler::waitForCaptureStop(int timeoutMs)
+{
+    const int checkInterval = 50;
+    int waited = 0;
+
+    while (waited < timeoutMs) {
+        // Check if capture manager and frame processor are fully stopped
+        bool managerStopped = (!m_captureManager) || !m_captureManager->IsRunning();
+        bool processorStopped = true; // FrameProcessor doesn't expose running state
+
+        if (managerStopped && processorStopped) {
+            qCDebug(log_ffmpeg_backend) << "Capture confirmed stopped after" << waited << "ms";
+            return true;
+        }
+        QThread::msleep(checkInterval);
+        waited += checkInterval;
+    }
+
+    qCWarning(log_ffmpeg_backend) << "Capture stop wait timeout after" << timeoutMs << "ms";
+    return false;
 }
 
 // Static interrupt callback for FFmpeg operations to prevent blocking
@@ -616,6 +728,23 @@ void FFmpegBackendHandler::processFrame()
         return;
     }
     
+    // For real-time KVM capture every arriving packet represents the latest frame the
+    // camera has produced.  av_read_frame in the capture thread naturally throttles at
+    // the camera fps (it blocks until the camera delivers a new frame).  All PTS-based
+    // "display rate" synchronisation is therefore counter-productive:
+    //
+    //   • It was designed for VOD playback where the demuxer *pre-buffers* frames.
+    //   • For live capture it misidentifies freshly-decoded frames as "too early" and
+    //     skips them, making the display appear to time-step and building up lag.
+    //   • The force-display timer (kMaxFrameSkipTimeMs=100 ms) then fires every 100 ms
+    //     and shows a stale frame, giving a ~10 fps stuttering appearance during
+    //     catch-up while the ring buffer is being consumed.
+    //
+    // The ShouldDropFrame() gate inside ProcessPacketToImage() already provides correct
+    // rate-limiting (drops a frame if < 8.33 ms since the last one was shown, ≈120 fps
+    // cap).  That is all the rate control we need for a real-time KVM stream.
+    qint64 currentSystemTime = QDateTime::currentMSecsSinceEpoch();
+
     // Check if recording is active
     bool isRecording = m_recorder && m_recorder->IsRecording() && !m_recorder->IsPaused();
     
@@ -623,33 +752,88 @@ void FFmpegBackendHandler::processFrame()
     QSize viewportSize;
     if (m_videoPane) {
         viewportSize = m_videoPane->viewport()->size();
-        // Limit viewport size to prevent performance issues with large displays
-        const QSize maxViewportSize(1920, 1080);
-        if (viewportSize.width() > maxViewportSize.width() || viewportSize.height() > maxViewportSize.height()) {
-            viewportSize = maxViewportSize;
+    }
+
+    const QSize maxViewportSize(1920, 1080);
+    if (viewportSize.width() > maxViewportSize.width() || viewportSize.height() > maxViewportSize.height()) {
+        viewportSize = maxViewportSize;
+    }
+
+    QSize targetSize = viewportSize;
+    if (viewportSize.isValid()) {
+        double zoomFactor = 1.0;
+        if (m_videoPane) {
+            zoomFactor = qMax(1.0, m_videoPane->getZoomFactor());
+        }
+
+        if (zoomFactor > 1.0) {
+            targetSize = QSize(qRound(viewportSize.width() * zoomFactor),
+                               qRound(viewportSize.height() * zoomFactor));
+
+            // Use hardware capture resolution first — GetLatestOriginalFrame().size() can
+            // return a TurboJPEG DCT-downscaled size (e.g. 1/2 native) which would
+            // incorrectly cap the zoom decode target and cause blurry upscaling.
+            QSize sourceSize;
+            if (m_captureManager) {
+                sourceSize = m_captureManager->GetCurrentResolution();
+            }
+            if (!sourceSize.isValid() && m_frameProcessor) {
+                // Native JPEG size from header (unaffected by DCT scaling)
+                sourceSize = m_frameProcessor->GetNativeJpegSize();
+            }
+            if (sourceSize.isValid()) {
+                targetSize.setWidth(qMin(targetSize.width(), sourceSize.width()));
+                targetSize.setHeight(qMin(targetSize.height(), sourceSize.height()));
+            }
+
+            // Cap the requested decode size to a reasonable upper bound for performance.
+            targetSize.setWidth(qMin(targetSize.width(), maxViewportSize.width()));
+            targetSize.setHeight(qMin(targetSize.height(), maxViewportSize.height()));
+
+            if (!targetSize.isValid()) {
+                targetSize = viewportSize;
+            }
+
+            qCDebug(log_ffmpeg_backend) << "FFmpeg direct decode target with zoom:" << zoomFactor
+                                        << "viewport:" << viewportSize
+                                        << "target:" << targetSize
+                                        << "source:" << (m_frameProcessor ? m_frameProcessor->GetLatestOriginalFrame().size() : QSize());
         }
     }
-    
+
     // QImage is thread-safe and can be passed across thread boundaries efficiently
-    QImage image = m_frameProcessor->ProcessPacketToImage(packet, codecContext, isRecording, viewportSize);
+    QImage image = m_frameProcessor->ProcessPacketToImage(packet, codecContext, isRecording, targetSize);
     
     // Clean up packet
     av_packet_unref(packet);
     
     if (!image.isNull()) {
         m_frameCount++;
+        m_lastFrameDisplayTime = currentSystemTime;
+        m_lastForceDisplayTime = currentSystemTime;  // Update force display timer
         
         // Log first few frames for debugging
         if (m_frameCount <= 5 || m_frameCount % 1000 == 1) {
             qCDebug(log_ffmpeg_backend) << "Processed frame" << m_frameCount << "size:" << image.size();
         }
         
-        // Emit QImage to UI (QueuedConnection ensures thread safety)
+        // Emit QImage to UI (QueuedConnection ensures thread safety).
+        // BACKPRESSURE: Only queue a new frame when fewer than 2 frames are already
+        // waiting in the GUI event loop.  Without this limit each unconsumed frame
+        // holds its own ~8 MB buffer in the queue, rapidly exhausting RAM and
+        // triggering "QImage: out of memory" warnings at high frame rates.
         if (m_captureRunning) {
             if (m_frameCount <= 5) {
                 qCDebug(log_ffmpeg_backend) << "Emitting frameReadyImage signal for frame" << m_frameCount;
             }
-            emit frameReadyImage(image);
+            // Atomically increment; if the previous value was < 2 we may emit,
+            // otherwise the GUI is still catching up - drop this frame.
+            if (m_pendingFrameCount->fetch_add(1, std::memory_order_acq_rel) < 2) {
+                emit frameReadyImage(image);
+            } else {
+                // GUI thread is backlogged – undo the increment and drop the frame
+                m_pendingFrameCount->fetch_sub(1, std::memory_order_release);
+            }
         }
         
         // Write frame to recording file if recording is active
@@ -692,9 +876,15 @@ void FFmpegBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
 {
     QMutexLocker locker(&m_mutex);
     
-    // Disconnect previous connections
-    disconnect(this, &FFmpegBackendHandler::frameReady, this, nullptr);
-    disconnect(this, &FFmpegBackendHandler::frameReadyImage, this, nullptr);
+    // Disconnect only the previously-stored video-output connection so that
+    // other observers of frameReadyImage (e.g. CameraManager bridge) are
+    // left intact.
+    disconnect(m_videoOutputConnection);
+    m_videoOutputConnection = QMetaObject::Connection{};
+    
+    // Reset backpressure counter: any in-flight queued events from the old
+    // connection will never decrement now, so start fresh.
+    m_pendingFrameCount->store(0, std::memory_order_release);
     
     m_graphicsVideoItem = videoItem;
     m_videoPane = nullptr;
@@ -715,18 +905,14 @@ void FFmpegBackendHandler::setVideoOutput(QGraphicsVideoItem* videoItem)
         
         if (parentVideoPane) {
             qCDebug(log_ffmpeg_backend) << "Found parent VideoPane, connecting frameReadyImage";
-            // Connect frameReadyImage to VideoPane's method that handles QGraphicsVideoItem
-            connect(this, &FFmpegBackendHandler::frameReadyImage,
-                    parentVideoPane, [parentVideoPane, videoItem](const QImage& image) {
-                        if (parentVideoPane && videoItem) {
-                            parentVideoPane->updateGraphicsVideoItemFromImage(videoItem, image);
-                        }
-                    }, Qt::QueuedConnection);
+            // QPointer guards ensure the lambda is safe if either object is destroyed
+            // while a frame is still queued in the event loop.
             QPointer<VideoPane> parentPtr(parentVideoPane);
             QPointer<QGraphicsVideoItem> itemPtr(videoItem);
-            connect(this, &FFmpegBackendHandler::frameReadyImage,
-                    parentVideoPane, [parentPtr, itemPtr](const QImage& image) {
-                        // Guard: skip if either object was destroyed while the frame was queued
+            auto pendingCount = m_pendingFrameCount;
+            m_videoOutputConnection = connect(this, &FFmpegBackendHandler::frameReadyImage,
+                    parentVideoPane, [pendingCount, parentPtr, itemPtr](const QImage& image) {
+                        pendingCount->fetch_sub(1, std::memory_order_release);
                         if (!parentPtr) return;
                         QGraphicsVideoItem* item = itemPtr.data();
                         if (!item) return;
@@ -743,9 +929,15 @@ void FFmpegBackendHandler::setVideoOutput(VideoPane* videoPane)
 {
     QMutexLocker locker(&m_mutex);
     
-    // Disconnect previous connections
-    disconnect(this, &FFmpegBackendHandler::frameReady, this, nullptr);
-    disconnect(this, &FFmpegBackendHandler::frameReadyImage, this, nullptr);
+    // Disconnect only the previously-stored video-output connection so that
+    // other observers of frameReadyImage (e.g. CameraManager bridge) are
+    // left intact.
+    disconnect(m_videoOutputConnection);
+    m_videoOutputConnection = QMetaObject::Connection{};
+    
+    // Reset backpressure counter: any in-flight queued events from the old
+    // connection will never decrement now, so start fresh.
+    m_pendingFrameCount->store(0, std::memory_order_release);
     
     m_videoPane = videoPane;
     m_graphicsVideoItem = nullptr;
@@ -753,11 +945,17 @@ void FFmpegBackendHandler::setVideoOutput(VideoPane* videoPane)
     if (videoPane) {
         qCDebug(log_ffmpeg_backend) << "VideoPane set for FFmpeg direct rendering";
         
-        // OPTIMIZATION: Connect frameReadyImage signal to receive QImage
-        // Use QueuedConnection to ensure thread safety and prevent blocking capture thread
-        connect(this, &FFmpegBackendHandler::frameReadyImage,
-                videoPane, &VideoPane::updateVideoFrameFromImage,
-                Qt::QueuedConnection);
+        // Connect with a QPointer-guarded lambda so the slot is safe if VideoPane
+        // is destroyed while a frame is still queued.  The lambda also releases
+        // one backpressure slot so the capture thread can emit the next frame.
+        QPointer<VideoPane> panePtr(videoPane);
+        auto pendingCount = m_pendingFrameCount;
+        m_videoOutputConnection = connect(this, &FFmpegBackendHandler::frameReadyImage,
+                videoPane, [pendingCount, panePtr](const QImage& image) {
+                    pendingCount->fetch_sub(1, std::memory_order_release);
+                    if (!panePtr) return;
+                    panePtr->updateVideoFrameFromImage(image);
+                }, Qt::QueuedConnection);
         
         // Connect viewport size changes to update frame scaling
         connect(videoPane, &VideoPane::viewportSizeChanged,
@@ -1099,6 +1297,14 @@ bool FFmpegBackendHandler::supportsRecordingStats() const
 qint64 FFmpegBackendHandler::getRecordingFileSize() const
 {
     return m_recorder ? m_recorder->GetRecordingFileSize() : 0;
+}
+
+QImage FFmpegBackendHandler::getLatestOriginalFrame() const
+{
+    if (!m_frameProcessor) {
+        return QImage();
+    }
+    return m_frameProcessor->GetLatestOriginalFrame();
 }
 
 void FFmpegBackendHandler::takeImage(const QString& filePath)

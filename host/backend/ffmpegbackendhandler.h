@@ -32,6 +32,7 @@ Q_DECLARE_LOGGING_CATEGORY(log_ffmpeg_backend)
 #include <QMutex>
 #include <QWaitCondition>
 #include <memory>
+#include <atomic>
 
 // Forward declarations for Qt types
 class QGraphicsVideoItem;
@@ -125,6 +126,7 @@ public:
     // Direct FFmpeg capture methods
     bool startDirectCapture(const QString& devicePath, const QSize& resolution, int framerate);
     void stopDirectCapture();
+    bool waitForCaptureStop(int timeoutMs = 2000);
 public slots:
     void processFrame();
     bool isDirectCaptureRunning() const;
@@ -132,14 +134,14 @@ public slots:
 public:
 
     // Video recording methods
-    bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000);
-    bool stopRecording();
-    void pauseRecording();
-    void resumeRecording();
-    bool isRecording() const;
+    bool startRecording(const QString& outputPath, const QString& format = "mp4", int videoBitrate = 2000000) override;
+    bool stopRecording() override;
+    void pauseRecording() override;
+    void resumeRecording() override;
+    bool isRecording() const override;
     bool isPaused() const;
-    QString getCurrentRecordingPath() const;
-    qint64 getRecordingDuration() const; // in milliseconds
+    QString getCurrentRecordingPath() const override;
+    qint64 getRecordingDuration() const override; // in milliseconds
     
     // Advanced recording methods
     bool isCameraReady() const;
@@ -158,6 +160,9 @@ public:
     // Image capture methods
     void takeImage(const QString& filePath);
     void takeAreaImage(const QString& filePath, const QRect& captureArea);
+
+    // Returns the latest frame at the camera's native resolution (before any display scaling).
+    QImage getLatestOriginalFrame() const;
 
     // Update preferred hardware acceleration from settings
     void updatePreferredHardwareAcceleration();
@@ -180,7 +185,7 @@ public:
     // Stub for MOC compatibility (might be leftover from autocomplete)
     void checkDeviceReconnection() { /* stub */ }
 
-    bool readFrame();
+    bool readFrame() override;
 
     void setVideoOutput(QGraphicsVideoItem* videoItem);
     void setVideoOutput(VideoPane* videoPane);
@@ -285,10 +290,19 @@ private:
     // Output management
     QGraphicsVideoItem* m_graphicsVideoItem;
     VideoPane* m_videoPane;
+    // Stored connection handle for the active video-output frameReadyImage slot.
+    // Disconnecting via handle targets only this specific lambda, leaving other
+    // observers (e.g. CameraManager bridge) untouched.
+    QMetaObject::Connection m_videoOutputConnection;
     
     // Error tracking
     QString m_lastError;
     
+
+    // Frame backpressure: limits the number of QImage copies queued in the GUI event
+    // loop via QueuedConnection, preventing unbounded memory growth and OOM conditions
+    // when the capture thread produces frames faster than the GUI thread consumes them.
+    std::shared_ptr<std::atomic<int>> m_pendingFrameCount;
 
     // Thread safety
     mutable QMutex m_mutex;
@@ -298,6 +312,18 @@ private:
     QTimer* m_performanceTimer;
     int m_frameCount;
     qint64 m_lastFrameTime;
+    
+    // Frame rate control and timestamp synchronization
+    double m_targetFrameIntervalMs;     // Target interval between frames in milliseconds
+    qint64 m_lastFrameDisplayTime;      // Timestamp of last displayed frame (system time)
+    qint64 m_firstFrameSystemTime;      // System time when first frame was captured
+    qint64 m_firstFramePts;             // PTS value of first frame
+    qint64 m_lastPacketPts;             // PTS of last packet for actual FPS detection
+    double m_streamTimeBase;            // Stream time base for PTS conversion (seconds)
+    bool m_timeSyncInitialized;         // Whether time sync has been initialized
+    double m_detectedFrameIntervalMs;   // Detected actual frame interval from stream PTS
+    int m_ptsFrameCount;                // Count frames for FPS detection
+    qint64 m_lastForceDisplayTime;      // Last time a frame was force-displayed (safety fallback)
 };
 
 #endif // FFMPEGBACKENDHANDLER_H

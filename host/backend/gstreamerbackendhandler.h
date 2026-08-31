@@ -126,6 +126,11 @@ public:
     QString getCurrentRecordingPath() const override;
     qint64 getRecordingDuration() const override;
     
+    // Image capture methods
+    void takeImage(const QString& filePath);
+    void takeAreaImage(const QString& filePath, const QRect& captureArea);
+    QImage getLatestOriginalFrame();
+    
     // Advanced recording methods
     bool isPipelineReady() const;
     bool supportsAdvancedRecording() const;
@@ -188,6 +193,11 @@ private:
     GstElement* m_recordingFileSink;
     GstElement* m_recordingAppSink;  // For frame capture
     GstPad* m_recordingTeeSrcPad;
+    // Image capture pipeline elements
+    GstElement* m_captureAppSink;    // For image capture from main pipeline
+    GstElement* m_captureQueue;      // Queue for capture branch
+    GstElement* m_captureVideoConvert; // Videoconvert for capture branch (ensures RGB format)
+    GstElement* m_captureCapsFilter; // Capsfilter to force RGB format
     // Recording manager (encapsulates recording branch logic)
     class RecordingManager* m_recordingManager;
     
@@ -196,14 +206,18 @@ private:
     QGraphicsVideoItem* m_graphicsVideoItem;  // Support for QGraphicsVideoItem
     VideoPane* m_videoPane;  // Support for VideoPane overlay
     QTimer* m_healthCheckTimer;
+    QTimer* m_overlayRebuildTimer;
     QProcess* m_gstProcess;  // Fallback for process-based approach
-    
+
     // Track all objects with installed event filters for cleanup during destruction
     QSet<QObject*> m_watchedObjects;
-    
+
     // Destruction state - signals to event filter to exit early
     std::atomic<bool> m_isDestructing{false};
-    
+
+    // Capture protection - prevents pipeline rebuilds during screenshot capture
+    std::atomic<bool> m_captureInProgress{false};
+
     // Pipeline state
     bool m_pipelineRunning;
     QString m_selectedSink; // textual name of the selected video sink element
@@ -212,6 +226,12 @@ private:
     
     // Overlay setup state
     bool m_overlaySetupPending;
+    // Cached display size used when creating the current pipeline (for resize-triggered rebuilds)
+    QSize m_pipelineDisplaySize;
+    // Flag to prevent multiple post-layout rebuilds
+    bool m_postLayoutRebuildScheduled{false};
+    // Track whether initial pipeline has been created (for deferred startup)
+    bool m_initialPipelineCreated{false};
     // Cached overlay sink pointer (refcount held while pipeline running)
 #ifdef HAVE_GSTREAMER
     GstElement* m_currentOverlaySink{nullptr};
@@ -245,10 +265,19 @@ private:
     bool embedVideoInVideoPane(VideoPane* videoPane);
     void handleGStreamerMessage(GstMessage* message);
     void completePendingOverlaySetup();
+    
+    // Helper methods for image capture
+    GstSample* getLatestSampleFromPipeline();
+    QImage gstSampleToQImage(GstSample* sample);
+    bool createCaptureAppSink();
+    void destroyCaptureAppSink();
 
 protected:
     // Override to track video widget/view lifecycle events and respond to winId/show/resize
     bool eventFilter(QObject *watched, QEvent *event) override;
+
+private slots:
+    void handleOverlayResizeRebuildTimeout();
 
 private:
     // helper to install/uninstall event filter on widgets
@@ -256,7 +285,18 @@ private:
     void uninstallVideoWidgetEventFilter();
     void installGraphicsViewEventFilter(QGraphicsView* view);
     void uninstallGraphicsViewEventFilter(QGraphicsView* view);
-    
+
+    // Get the current display size for pipeline videoscale constraining.
+    // Queries the X screen dimensions first (for X11/XWayland), then falls back
+    // to the widget size. This ensures video fits the actual screen on small
+    // displays like 640x480 Pi touchscreens.
+    QSize getDisplaySizeForPipeline() const;
+
+    // Schedule a deferred rebuild of the running pipeline when the overlay size
+    // changes significantly during resize or layout transitions.
+    void scheduleOverlayPipelineRebuild(int delayMs);
+    bool overlayPipelineSizeChangeRequiresRebuild(const QSize& newSize) const;
+
     // Ensure a QWidget has a native window (winId()) by creating the window and waiting up to timeoutMs.
     // Returns true if a native window is available.
     bool ensureNativeWindowForWidget(QWidget* widget, int timeoutMs = 200) const;

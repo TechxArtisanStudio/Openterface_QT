@@ -42,10 +42,22 @@
 #include "targetcontrolpage.h"
 #include "videopage.h"
 #include "audiopage.h"
+#include "firmwarepage.h"
+#include "controlchipfirmwarepage.h"
+#include "mcppage.h"
+#include "edidconfigpage.h"
+#include "preferencepagebase.h"
+#include <QMessageBox>
+#include <QCloseEvent>
+#include <QList>
+#include <QStringList>
+#include "../customkey/virtualkeyboardpage.h"
+#include "../chat/ChatSettingsPage.h"
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
 class QComboBox;
 class QCamera;
+class QSplitter;
 namespace Ui {
 class SettingDialog;
 }
@@ -63,6 +75,11 @@ public:
     VideoPage* getVideoPage();
 
     LogPage* getLogPage();
+    McpPage* getMcpPage();
+    FirmwarePage* getFirmwarePage();
+    VirtualKeyboardPage* getVirtualKeyboardPage();
+
+    void selectPage(const QString& pageName);
 
 // signals:
 //     // void serialSettingsApplied();
@@ -76,21 +93,34 @@ private:
     LogPage *logPage;
     QWidget *audioPage;
     VideoPage *videoPage;
+    McpPage *mcpPage;
     TargetControlPage *targetControlPage;
+    FirmwarePage *firmwarePage;
+    ControlChipFirmwarePage *controlChipFirmwarePage;
+    EdidConfigPage *edidConfigPage;
+    VirtualKeyboardPage *virtualKeyboardPage;
+    ChatSettingsPage *chatSettingsPage;
 
-    QWidget *buttonWidget;
+    QSplitter *splitter;
     int m_currentPageIndex;
-    bool m_changingPage;
-    QTimer *m_pageChangeTimer;
+
+    // All settings pages that use PreferencePageBase (for dirty checking)
+    QList<PreferencePageBase*> m_pages;
 
     void createSettingTree();
     void createLayout();
     void createPages();
     
     void changePage(QTreeWidgetItem *current, QTreeWidgetItem *previous);
-    void createButtons();
-    void applyAccrodingPage();
-    void handleOkButton();
+
+    // Unsaved changes protection
+    bool hasUnsavedChanges() const;
+    QStringList dirtyPageNames() const;
+    void applyAllDirtyPages();
+    QMessageBox::StandardButton promptSaveDiscardCancel();
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
 };
 
 #endif // SETTINGDIALOG_H

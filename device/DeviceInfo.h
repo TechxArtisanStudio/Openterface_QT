@@ -4,6 +4,7 @@
 #include <QString>
 #include <QVariantMap>
 #include <QDateTime>
+#include <QMetaType>
 
 class DeviceInfo
 {
@@ -124,5 +125,7 @@ public:
         return portChain;
     }
 };
+
+Q_DECLARE_METATYPE(DeviceInfo)
 
 #endif // DEVICEINFO_H

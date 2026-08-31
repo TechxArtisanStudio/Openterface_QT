@@ -14,28 +14,33 @@
 #include <QtConcurrent>
 #include <QtSerialPort/QSerialPortInfo>
 #include <algorithm>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_device_manager, "opf.device.manager")
+OPF_LOGGING_CATEGORY(log_device_manager, "opf.device.manager")
 
 DeviceManager::DeviceManager()
     : QObject(nullptr)
     , m_platformManager(nullptr)
     , m_hotplugTimer(new QTimer(this))
     , m_hotplugMonitor(nullptr)
+    , m_debounceManager(nullptr)
     , m_monitoring(false)
     , m_normalInterval(3000)  // 3 seconds when devices are present
     , m_noDeviceInterval(2000)  // 2 seconds when no devices are present
     , m_currentInterval(3000)
 {
     initializePlatformManager();
-    
+
     // Create HotplugMonitor instance
     m_hotplugMonitor = new HotplugMonitor(this, this);
-    
-    
+
+    // Create HotplugDebounceManager instance
+    m_debounceManager = new device::HotplugDebounceManager(this);
+    setupDebounceManagerConnections();
+
     // Auto-start hotplug monitoring
     startHotplugMonitoring();
-    
+
     qCDebug(log_device_manager) << "Device Manager singleton initialized for platform:" << m_platformName;
 }
 
@@ -45,6 +50,9 @@ DeviceManager::~DeviceManager()
     if (m_hotplugMonitor) {
         m_hotplugMonitor->stop();
         delete m_hotplugMonitor;
+    }
+    if (m_debounceManager) {
+        delete m_debounceManager;
     }
     if (m_platformManager) {
         delete m_platformManager;
@@ -96,18 +104,10 @@ void DeviceManager::discoverDevicesAsync()
     if (auto* linuxManager = qobject_cast<LinuxDeviceManager*>(m_platformManager)) {
         // Connect to Linux-specific async discovery signals
         connect(linuxManager, &LinuxDeviceManager::devicesDiscovered,
-                this, [this](const QList<DeviceInfo>& devices) {
-                    QMutexLocker locker(&m_mutex);
-                    m_currentDevices = devices;
-                    qCDebug(log_device_manager) << "Async discovery completed with" << devices.size() << "devices";
-                    emit devicesChanged(devices);
-                }, Qt::UniqueConnection);
-        
+                this, &DeviceManager::onLinuxDevicesDiscovered, Qt::UniqueConnection);
+
         connect(linuxManager, &LinuxDeviceManager::discoveryError,
-                this, [this](const QString& error) {
-                    qCWarning(log_device_manager) << "Async discovery error:" << error;
-                    emit errorOccurred(error);
-                }, Qt::UniqueConnection);
+                this, &DeviceManager::onLinuxDiscoveryError, Qt::UniqueConnection);
         
         linuxManager->discoverDevicesAsync();
     } else
@@ -448,32 +448,64 @@ void DeviceManager::onHotplugTimerTimeout()
     emit devicesChanged(currentDevices);
 }
 
-void DeviceManager::compareDeviceSnapshots(const QList<DeviceInfo>& current, 
+#ifdef Q_OS_LINUX
+void DeviceManager::onLinuxDevicesDiscovered(const QList<DeviceInfo>& devices)
+{
+    QMutexLocker locker(&m_mutex);
+    m_currentDevices = devices;
+    qCDebug(log_device_manager) << "Async discovery completed with" << devices.size() << "devices";
+    emit devicesChanged(devices);
+}
+
+void DeviceManager::onLinuxDiscoveryError(const QString& error)
+{
+    qCWarning(log_device_manager) << "Async discovery error:" << error;
+    emit errorOccurred(error);
+}
+#endif
+
+void DeviceManager::compareDeviceSnapshots(const QList<DeviceInfo>& current,
                                           const QList<DeviceInfo>& previous)
 {
     // Find added devices
     for (const DeviceInfo& currentDevice : current) {
         QString key = currentDevice.getUniqueKey();
         DeviceInfo previousDevice = findDeviceByKey(previous, key);
-        
+
         if (!previousDevice.isValid()) {
-            // Device was added
-            qCDebug(log_device_manager) << "Device added:" << currentDevice.portChain;
-            emit deviceAdded(currentDevice);
+            // Device was added - check debounce manager for rapid reconnect
+            bool isRapidReconnect = false;
+            if (m_debounceManager) {
+                isRapidReconnect = m_debounceManager->handleDeviceAdded(key, currentDevice.cameraDevicePath);
+            }
+
+            if (isRapidReconnect) {
+                qCDebug(log_device_manager) << "Rapid reconnect detected for:" << currentDevice.portChain;
+                // Rapid reconnect - emit both removed and added for proper handling
+                emit deviceRemoved(currentDevice);
+                emit deviceAdded(currentDevice);
+            } else {
+                qCDebug(log_device_manager) << "Device added:" << currentDevice.portChain;
+                emit deviceAdded(currentDevice);
+            }
+
         } else if (!(currentDevice == previousDevice)) {
             // Device was modified
             qCDebug(log_device_manager) << "Device modified:" << currentDevice.portChain;
             emit deviceModified(previousDevice, currentDevice);
         }
     }
-    
+
     // Find removed devices
     for (const DeviceInfo& previousDevice : previous) {
         QString key = previousDevice.getUniqueKey();
         DeviceInfo currentDevice = findDeviceByKey(current, key);
-        
+
         if (!currentDevice.isValid()) {
-            // Device was removed
+            // Device was removed - notify debounce manager
+            if (m_debounceManager) {
+                m_debounceManager->handleDeviceRemoved(key, previousDevice.cameraDevicePath);
+            }
             qCDebug(log_device_manager) << "Device removed:" << previousDevice.portChain;
             emit deviceRemoved(previousDevice);
         }
@@ -643,7 +675,54 @@ void DeviceManager::updateMonitoringInterval(int deviceCount)
     
     if (newInterval != m_currentInterval) {
         m_currentInterval = newInterval;
-        qCDebug(log_device_manager) << "Updated monitoring interval to" << m_currentInterval 
+        qCDebug(log_device_manager) << "Updated monitoring interval to" << m_currentInterval
                                    << "ms (device count:" << deviceCount << ")";
     }
+}
+
+void DeviceManager::setupDebounceManagerConnections()
+{
+    if (!m_debounceManager) return;
+
+    connect(m_debounceManager, &device::HotplugDebounceManager::deviceRapidlyReconnected,
+            this, [this](const QString& deviceId, const QString& devicePath) {
+                qCInfo(log_device_manager) << "Rapid reconnect detected - device:" << deviceId
+                                          << "path:" << devicePath;
+                emit deviceAdded(DeviceInfo());
+            });
+
+    connect(m_debounceManager, &device::HotplugDebounceManager::fastScanStarted,
+            this, [this]() {
+                qCInfo(log_device_manager) << "Fast scan started - adjusting monitoring interval";
+                if (m_hotplugTimer) {
+                    m_hotplugTimer->setInterval(device::HotplugDebounceManager::FAST_SCAN_INTERVAL_MS);
+                }
+            });
+
+    connect(m_debounceManager, &device::HotplugDebounceManager::fastScanEnded,
+            this, [this]() {
+                qCInfo(log_device_manager) << "Fast scan ended - restoring normal monitoring interval";
+                if (m_hotplugTimer) {
+                    m_hotplugTimer->setInterval(m_currentInterval);
+                }
+            });
+}
+
+void DeviceManager::handleDebouncedDeviceRemoved(const DeviceInfo& device)
+{
+    if (m_debounceManager) {
+        m_debounceManager->handleDeviceRemoved(device.getUniqueKey(), device.cameraDevicePath);
+    }
+}
+
+void DeviceManager::handleDebouncedDeviceAdded(const DeviceInfo& device)
+{
+    if (m_debounceManager) {
+        m_debounceManager->handleDeviceAdded(device.getUniqueKey(), device.cameraDevicePath);
+    }
+}
+
+bool DeviceManager::isFastScanning() const
+{
+    return m_debounceManager ? m_debounceManager->isFastScanning() : false;
 }

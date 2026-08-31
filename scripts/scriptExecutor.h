@@ -2,13 +2,14 @@
 #define SCRIPTEXECUTOR_H
 
 #include <QObject>
-#include <QPoint>
-#include <QRegularExpression>
-#include "AST.h"
-#include "KeyboardMouse.h"
+#include <QRect>
 #include "target/MouseManager.h"
-#include "regex/RegularExpression.h"
+#include "KeyboardMouse.h"
 
+/**
+ * ScriptExecutor acts as a signal router between SemanticAnalyzer and the UI.
+ * It forwards capture signals from the worker thread to the main thread.
+ */
 class ScriptExecutor : public QObject {
     Q_OBJECT
 public:
@@ -16,18 +17,16 @@ public:
 
     void setMouseManager(MouseManager* mm) { mouseManager = mm; }
     void setKeyboardMouse(KeyboardMouse* km) { keyboardMouse = km; }
+    MouseManager* getMouseManager() const { return mouseManager; }
+    KeyboardMouse* getKeyboardMouse() const { return keyboardMouse; }
 
 signals:
     void captureImg(const QString& path = "");
     void captureAreaImg(const QString& path = "", const QRect& captureArea = QRect());
 
-public slots:
-    bool executeCommand(const ASTNode* node);
-
 private:
     MouseManager* mouseManager = nullptr;
     KeyboardMouse* keyboardMouse = nullptr;
-    RegularExpression& regex = RegularExpression::instance();
 };
 
 #endif // SCRIPTEXECUTOR_H

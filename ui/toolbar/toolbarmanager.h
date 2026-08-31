@@ -9,7 +9,6 @@
 #include <QAction>
 #include <QStringList>
 
-
 class ToolbarManager : public QObject
 {
     Q_OBJECT
@@ -17,13 +16,13 @@ class ToolbarManager : public QObject
 public:
     explicit ToolbarManager(QWidget *parent = nullptr);
     QToolBar* getToolbar() { return toolbar; }
-
-    // Add this line to declare the toggleToolbar function
     void toggleToolbar();
     void updateStyles();
+    void rebuildToolbar();
 
 signals:
     void toolbarVisibilityChanged(bool visible);
+    void openCustomKeyConfig();
 
 private:
     struct KeyInfo {
@@ -32,19 +31,22 @@ private:
         int keyCode;
     };
 
+    struct ModifierInfo {
+        QString text;
+        QString toolTip;
+        int modifierFlag;
+    };
+
     static const QString commonButtonStyle;
-
-    // Define constants for all special keys
-    static const QList<KeyInfo> modifierKeys;
+    static const QList<ModifierInfo> modifierButtons;
     static const QList<KeyInfo> specialKeys;
-
-    // Dynamic Qt property name for key codes
     static const char *KEYCODE_PROPERTY;
     static const char *MODIFIER_PROPERTY;
 
     QToolBar *toolbar;
     void setupToolbar();
     QPushButton *addKeyButton(const QString& text, const QString& toolTip);
+    void onCustomKeyButtonClicked();
 
 private slots:
     void onKeyButtonClicked();

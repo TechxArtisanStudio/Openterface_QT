@@ -39,10 +39,12 @@
 #include "ui/advance/serialportdebugdialog.h"
 #include "ui/recording/recordingcontroller.h"
 #include "ui/advance/DeviceSelectorDialog.h"
-#include "ui/advance/scripttool.h"
 #include "ui/advance/firmwaremanagerdialog.h"
-#include "ui/advance/updatedisplaysettingsdialog.h"
+#include "ui/advance/firmwareupdatedialog.h"
+#include "ui/advance/wchflash/WCHFlashDialog.h"
+#include "ui/advance/scripttool.h"
 #include "ui/advance/devicediagnosticsdialog.h"
+#include "ui/advance/keyboardmapeditor.h"
 #include "ui/help/versioninfomanager.h"
 #include "ui/toolbar/toolbarmanager.h"
 #include "ui/TaskManager.h"
@@ -64,7 +66,7 @@
 
 #define SERVER_PORT 12345
 #include "server/tcpServer.h"
-#include "host/imagecapturer.h"
+#include "server/mcp/mcpServer.h"
 
 #include <QAudioInput>
 #include <QAudioOutput>
@@ -106,6 +108,7 @@ class QActionGroup;
 QT_END_NAMESPACE
 
 class MetaDataDialog;
+class FloatingWindow;
 
 #ifdef Q_OS_WIN
 class QtBackendHandler;
@@ -130,6 +133,17 @@ public:
     void stop();
     // Add this line to declare the destructor
     ~MainWindow() override;
+    
+    // Deferred initialization methods (called after window is shown)
+    void deferredSetupCoordinators();
+    void deferredInitializeCamera();
+    
+    // Zoom functionality
+    void zoomIn();
+    void zoomOut();
+    void resetZoom();
+    void fitToWindow();
+    void actualSize();
 
 signals:
     void emitTCPCommandStatus(bool status);
@@ -156,19 +170,24 @@ private slots:
     void takeImageDefault();
     void displayCaptureError(int, QImageCapture::Error, const QString &errorString);
 
+    void showScriptTool();
     void versionInfo();
 
+    void startServer();
     void purchaseLink();
     void feedbackLink();
     void officialLink();
     void aboutLink();
     void updateLink();
 
+    void configScreenScale();
     void configureSettings();
     void debugSerialPort();
     void openDeviceSelector();
+    void openKeyboardMapEditor();
 
     void displayCameraError();
+    void onFrameTimeout();  // Warn user when no video frames are received
 
     void updateCameraActive(bool active);
     void onDeviceSwitchCompleted();
@@ -207,14 +226,12 @@ private slots:
     void onSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate) override;
 
     void showEnvironmentSetupDialog();
-
     void showFirmwareManagerDialog();
-
-    void showUpdateDisplaySettingsDialog();
+    void showWCHFlashDialog();
+    void updateFirmware();
 
     void showHardwareDiagnostics();
-
-    void updateFirmware(); 
+    void showHotplugTest();
 
     void onRepeatingKeystrokeChanged(int index);
 
@@ -222,7 +239,9 @@ private slots:
     
     void onArmBaudratePerformanceRecommendation(int currentBaudrate);
 
-    void onToggleSwitchStateChanged(int state);
+    void onDriverInstallationRequired();
+
+    void onToggleSwitchStateChanged(Qt::CheckState state);
 
 
     void onKeyboardLayoutCombobox_Changed(const QString &layout);
@@ -232,6 +251,11 @@ private slots:
     void onVideoSettingsChanged();
     void onResolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps, float pixelClk);
     void onInputResolutionChanged();
+
+    // Focus-based shortcut disabling: when VideoPane has focus and SystemBlocker
+    // swallow is OFF, disable all Qt shortcuts/actions so keys reach VideoPane
+    // and get forwarded to the target instead of being intercepted by the app.
+    void syncShortcutsState();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -253,6 +277,7 @@ protected:
     void onActionPasteToTarget();
     void onActionScreensaver();
     void onToggleVirtualKeyboard();
+    void openCustomKeyDialog();
 
     void onResolutionChange(const int& width, const int& height, const float& fps, const float& pixelClk);
     void onGpio0StatusChanged(bool isToTarget);
@@ -301,7 +326,7 @@ private:
     SerialPortDebugDialog *serialPortDebugDialog = nullptr;
     DeviceSelectorDialog *deviceSelectorDialog = nullptr;
     FirmwareManagerDialog *firmwareManagerDialog = nullptr;
-    UpdateDisplaySettingsDialog *updateDisplaySettingsDialog = nullptr;
+    WCHFlashDialog *wchFlashDialog = nullptr;
 
     QWidget *keyboardPanel = nullptr;
 
@@ -334,7 +359,6 @@ private:
     std::unique_ptr<ScriptExecutor> scriptExecutor;
     std::unique_ptr<ScriptRunner> scriptRunner;
     TaskManager* taskmanager;
-    void showScriptTool();
 
     void onToolbarVisibilityChanged(bool visible);
 
@@ -343,12 +367,36 @@ private:
     ScreenScale *m_screenScaleDialog = nullptr;
     CornerWidgetManager *m_cornerWidgetManager = nullptr;
     WindowControlManager *m_windowControlManager = nullptr;
-    void configScreenScale();
+    FloatingWindow *m_floatingWindow = nullptr;
+
+    void showFloatingWindow();
+    void hideFloatingWindow();
+    void ensureFloatingWindowCreated();
     
     ratioType currentRatioType = ratioType::EQUAL;
-    void startServer();
+    void stopServer();
     TcpServer *tcpServer;
-    ImageCapturer *m_imageCapturer;
+    bool m_tcpServerRunning = false;
+    bool m_shortcutsDisabled = false;
+
+    // --- MCP Server ---
+    McpServer *m_mcpServer = nullptr;
+
+    // --- AI Chat Window ---
+    class ChatWindow *m_chatWindow = nullptr;
+
+public:
+    CameraManager* getCameraManager() const { return m_cameraManager; }
+
+public:
+    McpServer* getMcpServer() { return m_mcpServer; }
+
+    void initMcpServer();
+
+public slots:
+    void toggleMcpServer(bool enabled);
+    void onMcpSettingsApplied();
+    void toggleChatWindow(bool visible);
 
 };
 #endif // MAINWINDOW_H

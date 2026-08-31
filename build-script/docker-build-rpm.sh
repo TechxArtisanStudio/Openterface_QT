@@ -7,14 +7,26 @@ set -e
 # =========================
 echo "Preparing RPM package..."
 
-apt install -y rpm
+# Install rpm only if not already present (e.g., pre-installed in arm64-rpm image)
+if ! command -v rpmbuild >/dev/null 2>&1; then
+	echo "Installing rpm package..."
+	apt install -y rpm
+fi
 if ! command -v rpmbuild >/dev/null 2>&1; then
 	echo "Error: rpmbuild not found in the container. Please ensure 'rpm' is installed in the image." >&2
 	exit 1
 fi
 
 SRC=/workspace/src
-BUILD=/workspace/build
+# Try multiple possible build output locations (host vs container mounts)
+if [ -f "/workspace/build/openterfaceQT" ]; then
+	BUILD=/workspace/build
+elif [ -f "${SRC}/build/openterfaceQT" ]; then
+	BUILD=${SRC}/build
+else
+	echo "Error: openterfaceQT binary not found in any expected location" >&2
+	exit 1
+fi
 RPMTOP=/workspace/rpmbuild-shared
 
 mkdir -p "${RPMTOP}/SPECS" "${RPMTOP}/SOURCES" "${RPMTOP}/BUILD" "${RPMTOP}/RPMS" "${RPMTOP}/SRPMS"
@@ -304,9 +316,12 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "GUDEV|GUdev device|libgudev-1.0.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     "JPEG|libjpeg|libjpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
     "TURBOJPEG|libturbojpeg|libturbojpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "VA|VA-API|libva.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "VADRM|VA-API DRM|libva-drm.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "VAX11|VA-API X11|libva-x11.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    # Hardware acceleration libraries are NOT bundled - use system libraries instead
+    # Bundling libva causes symbol incompatibilities with system libavutil (e.g., vaMapBuffer2)
+    # Users must install system libva packages: libva, libva-drm, libva-x11
+    # "VA|VA-API|libva.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    # "VADRM|VA-API DRM|libva-drm.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    # "VAX11|VA-API X11|libva-x11.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
     "VDPAU|VDPAU|libvdpau.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
 
     # Compression libraries (FFmpeg dependencies)
@@ -433,6 +448,38 @@ else
 	exit 1
 fi
 
+# ============================================================
+# CRITICAL: Copy Qt6 Multimedia Plugins (REQUIRED FIX)
+# ============================================================
+# The multimedia plugins must be copied from /opt/Qt6/plugins/multimedia
+# This ensures Qt6 Multimedia backend engines (FFmpeg, GStreamer) are available
+echo "📋 RPM: Copying Qt6 Multimedia plugins..."
+
+# Create multimedia plugin directory in SOURCES
+mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/multimedia"
+
+# Copy multimedia plugins from Qt6 build directory
+if [ -d "/opt/Qt6/plugins/multimedia" ]; then
+    MEDIA_PLUGIN_COUNT=$(find /opt/Qt6/plugins/multimedia -maxdepth 1 -name "*.so" -type f 2>/dev/null | wc -l)
+    
+    if [ "$MEDIA_PLUGIN_COUNT" -gt 0 ]; then
+        echo "   Found $MEDIA_PLUGIN_COUNT multimedia plugins in /opt/Qt6/plugins/multimedia"
+        find /opt/Qt6/plugins/multimedia -maxdepth 1 -name "*.so" -type f -exec cp {} "${RPMTOP}/SOURCES/qt6/plugins/multimedia/" \;
+        
+        # List copied plugins for verification
+        echo "   ✅ Multimedia plugins copied:"
+        ls -1 "${RPMTOP}/SOURCES/qt6/plugins/multimedia/" | sed 's/^/      /'
+    else
+        echo "   ⚠️  Warning: No multimedia plugins found in /opt/Qt6/plugins/multimedia"
+        echo "      Available plugin directories in /opt/Qt6/plugins/:"
+        ls -1 /opt/Qt6/plugins/ | sed 's/^/        /'
+    fi
+else
+    echo "   ⚠️  Qt6 plugins multimedia directory not found at /opt/Qt6/plugins/multimedia"
+    echo "      This will cause multimedia features to fail at runtime!"
+    echo "      Checked: /opt/Qt6/plugins/multimedia"
+fi
+
 # Copy icon files (both PNG and SVG) if available
 # These will be installed to /usr/share/icons/hicolor/ in the spec file
 echo "📋 RPM: Copying icon files..."
@@ -505,8 +552,18 @@ rpmbuild --define "_topdir ${RPMTOP}" -bb "${SPEC_OUT}"
 RPM_OUT_NAME="openterfaceQT_${VERSION}_${ARCH}.rpm"
 FOUND_RPM=$(find "${RPMTOP}/RPMS" -name "*.rpm" -type f | head -n1 || true)
 if [ -n "${FOUND_RPM}" ]; then
-	mv "${FOUND_RPM}" "${BUILD}/${RPM_OUT_NAME}"
-	echo "RPM package created at ${BUILD}/${RPM_OUT_NAME}"
+	# ponytail: use cp+sync+rm instead of mv — mv across Docker bind-mount
+	# boundaries (container overlay -> host bind mount) can silently produce
+	# a 0-byte file because data isn't fsync'd before the container exits.
+	cp "${FOUND_RPM}" "${BUILD}/${RPM_OUT_NAME}"
+	sync
+	rm -f "${FOUND_RPM}"
+	SIZE=$(stat -c%s "${BUILD}/${RPM_OUT_NAME}" 2>/dev/null || stat -f%z "${BUILD}/${RPM_OUT_NAME}" 2>/dev/null || echo 0)
+	if [ "${SIZE}" -eq 0 ]; then
+		echo "Error: RPM file is 0 bytes after copy — bind-mount sync failed." >&2
+		exit 1
+	fi
+	echo "RPM package created at ${BUILD}/${RPM_OUT_NAME} (${SIZE} bytes)"
 else
 	echo "Error: RPM build did not produce an output." >&2
 	exit 1

@@ -36,14 +36,17 @@
 #include <QInputMethod>
 #include <QKeyEvent>
 
-Q_DECLARE_LOGGING_CATEGORY(log_host_keyboard)
-
 class KeyboardManager: public QObject
 {
     Q_OBJECT
 
 public:
     explicit KeyboardManager(QObject *parent = nullptr);
+
+    static KeyboardManager& getInstance() {
+        static KeyboardManager instance;
+        return instance;
+    }
 
     void handleKeyboardAction(int keyCode, int modifiers, bool isKeyDown, unsigned int nativeVirtualKey = 0);
     void handlePasteChar(int key, int modifiers);
@@ -76,6 +79,10 @@ public:
     void sendCtrlAltDel();
 
     void sendKey(int keyCode, int modifiers, bool isKeyDown);
+
+    // Release all currently held keys and modifiers — sends a zero-byte HID report.
+    // Called on device disconnect to prevent stuck keys on the target.
+    void releaseAllKeys();
 
     void setKeyboardLayout(const QString& layoutName);
 

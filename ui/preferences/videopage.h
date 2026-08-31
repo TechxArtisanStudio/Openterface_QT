@@ -35,6 +35,7 @@
 #include <QSettings>
 #include "ui/globalsetting.h"
 #include "global.h"
+#include "preferencepagebase.h"
 
 QT_BEGIN_NAMESPACE
 class QCameraFormat;
@@ -50,15 +51,18 @@ struct QSizeComparator {
     }
 };
 
-class VideoPage : public QWidget
+class VideoPage : public PreferencePageBase
 {
     Q_OBJECT
 public:
     explicit VideoPage(CameraManager *cameraManager, QWidget *parent = nullptr);
     void setupUI();
     void initVideoSettings();
-    void applyVideoSettings();
-    
+    void applySettings() override;
+    void captureSnapshot() override;
+    bool valuesMatchSnapshot() const override;
+    void revertToSnapshot() override;
+
 signals:
     void videoSettingsChanged();
     void inputResolutionChanged(const QSize &resolution);
@@ -83,13 +87,27 @@ private:
     QComboBox *fpsComboBox;
     QLabel *formatLabel;
     QComboBox *pixelFormatBox;
+    // Snapshot members
+    int m_snap_videoFormatIndex;
+    int m_snap_pixelFormatIndex;
+    int m_snap_fpsIndex;
+    QSize m_snap_resolution;
+    int m_snap_hwAccelIndex;
+    int m_snap_scalingQualityIndex;
+    bool m_snap_antialiasing;
+    bool m_snap_textAntialiasing;
+    bool m_snap_smoothTransform;
+    int m_snap_mediaBackendIndex;
+    bool m_snap_overrideSettings;
+    int m_snap_customWidth;
+    int m_snap_customHeight;
+    QString m_snap_gstSinkPriority;
     void populateResolutionBox(const QList<QCameraFormat> &videoFormats);
     void setFpsRange(const std::set<int> &fpsValues);
     void handleResolutionSettings();
     QVariant boxValue(const QComboBox *) const;
     void updatePixelFormats();
-    
+
 };
 
 #endif // VIDEOPAGE_H
-

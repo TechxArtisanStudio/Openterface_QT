@@ -37,6 +37,9 @@ public:
     void showSerialAutoRestart(int attemptNumber, int maxAttempts, double lossRate);
     void setRecordingTime(const QString& time);
     void showRecordingIndicator(bool show);
+    void onTcpServerKeyHandled(const QString& key);
+    void setTcpServerVisible(bool visible);
+    void setHideKeyboardInput(bool hide);
 
 
 private:
@@ -46,6 +49,7 @@ private:
     QLabel *mouseLocationLabel;
     QLabel *keyPressedLabel;
     QLabel *keyLabel;
+    QLabel *tcpKeyLabel;
     QColor iconColor;
     QLabel *statusMessageLabel;
     
@@ -58,6 +62,7 @@ private:
     QPixmap recolorSvg(const QString &svgPath, const QColor &color, const QSize &size);
     QColor getContrastingColor(const QColor &color);
     QString m_currentPort;
+    bool m_hideKeyboardInput = false;
     void updateKeyboardIcon(const QString& key);
     void showThrottledMessage(const QString& message, const QString& style, int duration = 3000);
 };
