@@ -391,8 +391,29 @@ void DeviceLifecycleManager::onDeviceDetected(const DeviceInfo& device)
     } else {
         // Existing session — device reappeared (fast reconnect window)
         auto& session = m_sessions[key];
+
+        // HOTPLUG FIX: Track which interfaces were Absent before the update, so we can
+        // detect newly-available interfaces after the update. This handles the common case
+        // where the composite device re-enumerates before the serial adapter — the first
+        // detection has HID+Camera but no serial, then a later detection adds serial.
+        bool wasSerialAbsent = (session.serial.state == InterfaceState::Absent);
+        bool wasHidAbsent = (session.hid.state == InterfaceState::Absent);
+        bool wasCameraAbsent = (session.camera.state == InterfaceState::Absent);
+        bool wasAudioAbsent = (session.audio.state == InterfaceState::Absent);
+
         updateSessionFromDeviceInfo(session, device);
         session.lastActivity = QDateTime::currentDateTime();
+
+        // Check if any previously-Absent interface now has a path (became Disconnected)
+        bool newInterfaceAvailable = false;
+        if (wasSerialAbsent && session.serial.state != InterfaceState::Absent
+            && !session.serial.path.isEmpty()) newInterfaceAvailable = true;
+        if (wasHidAbsent && session.hid.state != InterfaceState::Absent
+            && !session.hid.path.isEmpty()) newInterfaceAvailable = true;
+        if (wasCameraAbsent && session.camera.state != InterfaceState::Absent
+            && !session.camera.path.isEmpty()) newInterfaceAvailable = true;
+        if (wasAudioAbsent && session.audio.state != InterfaceState::Absent
+            && !session.audio.path.isEmpty()) newInterfaceAvailable = true;
 
         if (session.state == DeviceSessionState::Recovering
             || session.state == DeviceSessionState::Disconnected) {
@@ -415,6 +436,13 @@ void DeviceLifecycleManager::onDeviceDetected(const DeviceInfo& device)
             emit sessionStateChanged(key, DeviceSessionState::Connecting);
 
             stopFastReconnectWindow();
+            startConnectingInterfaces(key);
+        } else if (session.state == DeviceSessionState::Connecting && newInterfaceAvailable) {
+            // HOTPLUG FIX: Session is already Connecting but a new interface just appeared
+            // (e.g., serial adapter re-enumerated after the composite device). Restart the
+            // connection sequence so the new interface gets connected.
+            qCInfo(log_lifecycle) << "New interface became available while session" << key
+                                  << "is already Connecting — restarting connection sequence";
             startConnectingInterfaces(key);
         } else {
             qCInfo(log_lifecycle) << "Device" << key << "updated while in state"
@@ -449,10 +477,14 @@ void DeviceLifecycleManager::onDeviceRemoved(const DeviceInfo& device)
         || session.hid.state == InterfaceState::Connecting) {
         emit shouldDisconnectHid(key);
     }
-    if (session.camera.state == InterfaceState::Connected
-        || session.camera.state == InterfaceState::Connecting) {
-        emit shouldDisconnectCamera(key);
-    }
+    // HOTPLUG FIX: Always emit shouldDisconnectCamera to ensure FFmpeg capture is stopped.
+    // Previously this only fired when camera.state was Connected/Connecting, but the camera
+    // may have been started outside the lifecycle (via switchToDeviceByPortChainWithCamera
+    // during startup). If camera.state was Absent in the session, the FFmpeg capture was
+    // never stopped during hotplug → stale device handle → no frames after reconnect.
+    // The handler's deactivateCameraByPortChain() checks port chain match and is safe to
+    // call even when camera wasn't tracked by the lifecycle.
+    emit shouldDisconnectCamera(key);
     if (session.audio.state == InterfaceState::Connected
         || session.audio.state == InterfaceState::Connecting) {
         emit shouldDisconnectAudio(key);
@@ -886,7 +918,7 @@ DeviceSession& DeviceLifecycleManager::createSession(const DeviceInfo& device)
     session.sessionKey = key;
     session.firstSeen = QDateTime::currentDateTime();
     session.lastActivity = session.firstSeen;
-    updateSessionFromDeviceInfo(session, device);
+    updateSessionFromDeviceInfo(session, device, true /* isInitialDiscovery */);
     m_sessions[key] = session;
     return m_sessions[key];
 }
@@ -899,7 +931,7 @@ void DeviceLifecycleManager::removeSession(const QString& sessionKey)
 }
 
 void DeviceLifecycleManager::updateSessionFromDeviceInfo(
-    DeviceSession& session, const DeviceInfo& device)
+    DeviceSession& session, const DeviceInfo& device, bool isInitialDiscovery)
 {
     session.portChain = device.portChain;
     session.companionPortChain = device.companionPortChain;
@@ -918,7 +950,24 @@ void DeviceLifecycleManager::updateSessionFromDeviceInfo(
         } else {
             // Interface not present on this device
             if (iface.state == InterfaceState::Absent) return;  // Already absent
-            // If it was present before but path is now gone, mark absent
+
+            // HOTPLUG FIX: Only mark as Absent during initial discovery.
+            // During device reappearance (hotplug), a missing interface path likely means
+            // the USB component hasn't re-enumerated yet (common with composite devices
+            // where the serial adapter takes longer than the HID/camera part). Marking it
+            // Absent here would prevent connectNextInterface from ever trying to reconnect it.
+            // Instead, we keep it in its current state (Disconnected/Connecting/Error) so
+            // that a later hotplug event (device modification or separate addition) can
+            // still reconnect it.
+            if (!isInitialDiscovery) {
+                qCDebug(log_lifecycle) << "Interface" << interfaceTypeToString(type)
+                                       << "path missing during reconnect — keeping state as"
+                                       << interfaceStateToString(iface.state)
+                                       << "(not marking Absent)";
+                return;
+            }
+
+            // Initial discovery: mark absent
             iface.state = InterfaceState::Absent;
             iface.path.clear();
             iface.lastStateChange = QDateTime::currentDateTime();
@@ -929,6 +978,22 @@ void DeviceLifecycleManager::updateSessionFromDeviceInfo(
     updateIface(InterfaceType::Hid,     device.hidDevicePath);
     updateIface(InterfaceType::Camera,  device.cameraDevicePath);
     updateIface(InterfaceType::Audio,   device.audioDevicePath);
+
+    // HOTPLUG FIX: If camera has no device path on this device, mark it Absent.
+    // This prevents the reconnect sequence from wasting ~26s trying to connect
+    // a camera that doesn't exist on this device. Without this, the unconditional
+    // shouldDisconnectCamera in onDeviceRemoved sets camera to Disconnected (via
+    // notifyInterfaceDisconnected), and the reconnect sequence would try to connect
+    // it even though there's no camera device at this port chain.
+    // If the camera was started outside the lifecycle (via switchToDeviceByPortChainWithCamera),
+    // the frame timeout retry in CameraManager handles restarting it after hotplug.
+    auto& camIface = getInterfaceInfo(session, InterfaceType::Camera);
+    if (camIface.state != InterfaceState::Absent
+        && device.cameraDevicePath.isEmpty()) {
+        camIface.state = InterfaceState::Absent;
+        camIface.path.clear();
+        camIface.lastStateChange = QDateTime::currentDateTime();
+    }
 }
 
 void DeviceLifecycleManager::cleanupStaleSessions()

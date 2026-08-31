@@ -208,6 +208,9 @@ private:
     QList<QCameraDevice> m_availableCameraDevices;
     QTimer* m_frameTimeoutTimer = nullptr;  // Detects when no frames are received
     bool m_frameTimeoutWarningShown = false;  // Only warn once per session
+    int m_hotplugCameraRestartRetries = 0;    // Retry counter for camera restart after hotplug
+    static constexpr int MAX_HOTPLUG_CAMERA_RESTART_RETRIES = 3;
+    QTimer* m_hotplugDebounceTimer = nullptr;  // Coalesces rapid hotplug events
 
     // Recording management
     QString m_currentRecordingPath;  // Path to the current recording file

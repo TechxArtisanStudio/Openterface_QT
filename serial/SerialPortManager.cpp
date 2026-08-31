@@ -152,6 +152,25 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
         QString portName = serialPort ? serialPort->portName() : QString();
         int baud = serialPort ? serialPort->baudRate() : 0;
         qCDebug(log_core_serial_tx).nospace().noquote() << "TX (" << portName << "@" << baud << "bps): " << cmd.toHex(' ') << " Success:" << (success ? "true" : "false");
+
+        // ZOMBIE STATE FIX: Track consecutive TX failures and trigger fast recovery.
+        // The zombie state is when serialPort->write() returns -1 repeatedly but no
+        // errorOccurred signal fires. Without this counter, the only detection is
+        // ConnectionWatchdog's 30s communication timeout — too slow for practical use.
+        if (success) {
+            m_consecutiveTxFailures.store(0);
+        } else {
+            int failures = m_consecutiveTxFailures.fetch_add(1) + 1;
+            qCWarning(log_core_serial_tx) << "Consecutive TX failures:" << failures
+                                           << "/" << TX_FAILURE_RECOVERY_THRESHOLD;
+            if (failures >= TX_FAILURE_RECOVERY_THRESHOLD) {
+                qCWarning(log_core_serial_watchdog) << "Zombie state detected:" << failures
+                    << "consecutive TX failures — triggering fast RTS recovery";
+                m_consecutiveTxFailures.store(0);  // Reset to prevent repeated triggers
+                // triggerRtsRecoveryForUnresponsiveDevice() handles thread routing internally
+                triggerRtsRecoveryForUnresponsiveDevice();
+            }
+        }
     });
     
     // Connect state manager signals to SerialPortManager signals
@@ -427,12 +446,14 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
                 QTimer* connectTimer = connectTimerPtr.data();
                 connectTimer->setSingleShot(true);
                 QMetaObject::Connection successConn;
+                QMetaObject::Connection alreadyConn;
                 auto handled = std::make_shared<bool>(false);
                 successConn = connect(this, &SerialPortManager::serialPortConnectionSuccess, this,
-                    [this, sessionKey, connectTimerPtr, successConn, handled](const QString&) mutable {
+                    [this, sessionKey, connectTimerPtr, successConn, alreadyConn, handled](const QString&) mutable {
                         if (*handled) return;  // Already processed - ignore duplicate emissions
                         *handled = true;
                         QObject::disconnect(successConn);
+                        QObject::disconnect(alreadyConn);
                         if (connectTimerPtr) {
                             connectTimerPtr->stop();
                             connectTimerPtr->deleteLater();
@@ -441,11 +462,32 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
                         DeviceLifecycleManager::getInstance().notifyInterfaceConnected(
                             sessionKey, InterfaceType::Serial);
                     });
+                // HOTPLUG FIX: Connect to the lightweight serialAlreadyConnected signal.
+                // This is emitted by switchSerialPortByPortChain when the port is already open
+                // and ready (early return path). It does NOT trigger onSerialPortConnectionSuccess
+                // (which runs heavy initialization: reconnectTimerSignals, resetErrorCounters,
+                // sendAsyncCommand CMD_GET_INFO) — those operations destabilize an already-running
+                // CH32V208 and cause Error 8 "device does not exist" after ~4 seconds.
+                alreadyConn = connect(this, &SerialPortManager::serialAlreadyConnected, this,
+                    [this, sessionKey, connectTimerPtr, successConn, alreadyConn, handled](const QString&) mutable {
+                        if (*handled) return;
+                        *handled = true;
+                        QObject::disconnect(successConn);
+                        QObject::disconnect(alreadyConn);
+                        if (connectTimerPtr) {
+                            connectTimerPtr->stop();
+                            connectTimerPtr->deleteLater();
+                        }
+                        qCInfo(log_core_serial_hotplug) << "[Lifecycle] Serial already connected (lightweight path) for session" << sessionKey;
+                        DeviceLifecycleManager::getInstance().notifyInterfaceConnected(
+                            sessionKey, InterfaceType::Serial);
+                    });
                 connect(connectTimer, &QTimer::timeout, this,
-                    [this, sessionKey, successConn, connectTimerPtr, handled]() mutable {
+                    [this, sessionKey, successConn, alreadyConn, connectTimerPtr, handled]() mutable {
                         if (*handled) return;  // Already processed by success lambda
                         *handled = true;
                         QObject::disconnect(successConn);
+                        QObject::disconnect(alreadyConn);
                         if (connectTimerPtr) {
                             connectTimerPtr->deleteLater();
                         }
@@ -460,6 +502,13 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
         connect(&lifecycle, &DeviceLifecycleManager::shouldDisconnectSerial,
             this, [this](const QString& sessionKey) {
                 qCInfo(log_core_serial_hotplug) << "[Lifecycle] shouldDisconnectSerial for session" << sessionKey;
+                // HOTPLUG FIX: Reset m_openInProgress before closePort.
+                // closePort() is async (QueuedConnection to worker thread). Without resetting
+                // m_openInProgress here, a subsequent hotplug reconnect can be rejected with
+                // "Open already in progress" if the flag was left true by an operation that
+                // started before the device was removed.
+                m_openInProgress.store(false);
+                m_deviceUnpluggedDetected.store(false);
                 closePort();
                 m_currentSerialPortPath.clear();
                 m_currentSerialPortChain.clear();
@@ -659,6 +708,16 @@ bool SerialPortManager::isPortOpen() const
     return serialPort && serialPort->isOpen();
 }
 
+void SerialPortManager::forceResetSerialOpen()
+{
+    bool wasInProgress = m_openInProgress.load();
+    m_openInProgress.store(false);
+    m_lastOpenAttemptTime.store(0);
+    if (wasInProgress) {
+        qCInfo(log_core_serial_conn) << "forceResetSerialOpen: cleared stale m_openInProgress lock";
+    }
+}
+
 int SerialPortManager::getCurrentBaudrate() const
 {
     if (m_stateManager) {
@@ -687,9 +746,23 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
     // Prevent concurrent open attempts - serialize switching
     bool expected = false;
     if (!m_openInProgress.compare_exchange_strong(expected, true)) {
-        qCInfo(log_core_serial_conn) << "Open already in progress, ignoring request for portChain:" << portChain;
-        return false;
+        // HOTPLUG FIX: Detect stale/stuck m_openInProgress flag.
+        // This can happen when the worker thread dies mid-operation, or an unhandled
+        // exception prevents the RAII OpenGuard from clearing the flag. Without this
+        // guard, all subsequent open attempts are permanently blocked after a single
+        // stuck operation (causes device menu switching failure after hotplug).
+        qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - m_lastOpenAttemptTime.load();
+        if (elapsed > 5000) {
+            qCWarning(log_core_serial_conn) << "Stale m_openInProgress detected ("
+                                            << elapsed << "ms old) — force resetting";
+            m_openInProgress.store(true);  // We're taking over
+        } else {
+            qCInfo(log_core_serial_conn) << "Open already in progress ("
+                                         << elapsed << "ms), ignoring request for portChain:" << portChain;
+            return false;
+        }
     }
+    m_lastOpenAttemptTime.store(QDateTime::currentMSecsSinceEpoch());
 
     // RAII guard to clear the in-progress flag on any exit path
     struct OpenGuard { std::atomic<bool>& flag; OpenGuard(std::atomic<bool>& f): flag(f) {} ~OpenGuard(){ flag.store(false); } };
@@ -722,23 +795,51 @@ bool SerialPortManager::switchSerialPortByPortChain(const QString& portChain)
             return false;
         }
 
-        // TARGET RESTART FIX: Even if the port path matches and appears open, force a
-        // close-and-reopen cycle. When the target computer restarts, the CH32V208 chip
-        // stays powered by the host USB but its internal state (especially the target-side
-        // USB interface) becomes stale. Simply returning true here leaves the port in a
-        // broken state where commands are sent but never forwarded to the target.
-        // The close-and-reopen flushes stale buffers and triggers full HID re-initialization.
+        // HOTPLUG FIX: If the port is already open and matches the target, skip the
+        // close/reopen cycle. The old "TARGET RESTART FIX" forced close/reopen every time,
+        // which caused multiple problems:
+        //   1. During hotplug, DeviceLifecycleManager calls shouldConnectSerial which calls
+        //      switchSerialPortByPortChain. The forced close/reopen puts CH32V208 into a bad
+        //      state (CMD_RESET gets no response, error 6 "device does not recognize command").
+        //   2. User device selection from menu also triggers close/reopen on the already-open
+        //      port, breaking the connection.
+        //   3. Multiple close/reopen cycles cascade as each lifecycle interface (Serial→HID→
+        //      Camera) triggers another shouldConnectSerial.
+        //
+        // Target restart detection is handled by the ConnectionWatchdog, which detects
+        // communication timeouts and triggers RTS reset recovery. We don't need to force
+        // close/reopen here for that case.
         if (!m_currentSerialPortPath.isEmpty()
             && m_currentSerialPortPath == selectedDevice.serialPortPath
-            && isPortOpen()) {
-            qCInfo(log_core_serial_conn) << "Port path matches and port is open — forcing close/reopen"
-                                         << "for fresh initialization:" << selectedDevice.serialPortPath;
+            && isPortOpen() && ready.load()
+            && m_portState.load() == SerialPortState::OPEN) {
+            qCInfo(log_core_serial_conn) << "Port path matches, port is open, ready, and state is OPEN —"
+                                         << "skipping close/reopen:" << selectedDevice.serialPortPath
+                                         << "(portState=" << static_cast<int>(m_portState.load()) << ")";
+            // HOTPLUG FIX: Clear the m_openInProgress lock since no actual open is happening.
+            // Without this, the lock stays true until the 5-second stale guard kicks in,
+            // blocking legitimate switch attempts from other paths (menu selection, retry).
+            m_openInProgress.store(false);
+            // Schedule deferred serialAlreadyConnected emission so the lifecycle handler
+            // (which connects AFTER this function returns) can receive it and advance to the
+            // next interface (HID, Camera). Uses QTimer::singleShot(0) to ensure the event
+            // loop processes the handler's connect() before the signal fires.
+            // HOTPLUG FIX: Use serialAlreadyConnected (NOT serialPortConnectionSuccess) to avoid
+            // triggering onSerialPortConnectionSuccess — that handler runs heavy initialization
+            // (reconnectTimerSignals, resetErrorCounters, sendAsyncCommand CMD_GET_INFO) designed
+            // for a FRESH port open. Running it on an already-open port destabilizes the CH32V208
+            // and causes Error 8 "device does not exist" after ~4 seconds.
+            QString portName = selectedDevice.serialPortPath;
+            QTimer::singleShot(0, this, [this, portName]() {
+                emit serialAlreadyConnected(portName);
+            });
+            return true;
         }
 
         QString previousPortPath = m_currentSerialPortPath;
         QString previousPortChain = m_currentSerialPortChain;
-        
-        qCDebug(log_core_serial_conn) << "Switching serial port from" << previousPortPath 
+
+        qCDebug(log_core_serial_conn) << "Switching serial port from" << previousPortPath
                                 << "to" << selectedDevice.serialPortPath;
 
         // Close current serial port if open
@@ -1185,12 +1286,16 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
 
     // Async handle the keyboard and mouse events
     qCDebug(log_core_serial_conn) << "Observe" << portName << "data ready and bytes written.";
+    // HOTPLUG FIX: Use Qt::UniqueConnection to prevent duplicate signal connections
+    // when serialPortConnectionSuccess fires for an already-open port (e.g., during
+    // lifecycle discovery when the legacy path already opened the port). Without
+    // UniqueConnection, each emission adds another connection → readData/handleSerialError
+    // called N times per signal → protocol desynchronization and cascading errors.
     if (serialPort) {
-        connect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData);
-        connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten);
-        // Connect error signal for enhanced error handling
+        connect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData, Qt::UniqueConnection);
+        connect(serialPort, &QSerialPort::bytesWritten, this, &SerialPortManager::bytesWritten, Qt::UniqueConnection);
         connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
-                this, &SerialPortManager::handleSerialError);
+                this, &SerialPortManager::handleSerialError, Qt::UniqueConnection);
     } else {
         qCWarning(log_core_serial_conn) << "SerialPortManager: serialPort is null - skipping readyRead/bytesWritten/error connects";
     }
@@ -1222,6 +1327,8 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     }
     resetErrorCounters();
     m_lastSuccessfulCommand.restart();
+    // ZOMBIE STATE FIX: Reset TX failure counter on successful connection
+    m_consecutiveTxFailures.store(0);
 
     // Clear unplugged detection flags now that device is successfully connected
     // This allows new open attempts if the device is replugged
@@ -1254,16 +1361,25 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     // serialPort->setDataTerminalReady(false);
 
     // Start connection watchdog (Phase 3 refactoring)
+    // HOTPLUG FIX: Only start if not already running — restarting an active watchdog
+    // resets its timeout, which can mask real connection issues during rapid lifecycle discovery.
     if (m_watchdog) {
-        m_watchdog->start();
-        qCDebug(log_core_serial_watchdog) << "Started ConnectionWatchdog";
+        if (!m_watchdog->isRunning()) {
+            m_watchdog->start();
+            qCDebug(log_core_serial_watchdog) << "Started ConnectionWatchdog";
+        } else {
+            qCDebug(log_core_serial_watchdog) << "ConnectionWatchdog already running — skipping restart";
+        }
     }
     // NOTE: Legacy setupConnectionWatchdog() removed - ConnectionWatchdog handles monitoring
 
     // Start USB status check timer for CH32V208 (thread-safe)
+    // HOTPLUG FIX: Only start if not already running
     if (isChipTypeCH32V208() && m_usbStatusCheckTimer) {
         if (QThread::currentThread() == m_usbStatusCheckTimer->thread()) {
-            m_usbStatusCheckTimer->start();
+            if (!m_usbStatusCheckTimer->isActive()) {
+                m_usbStatusCheckTimer->start();
+            }
         } else {
             QMetaObject::invokeMethod(m_usbStatusCheckTimer, "start", Qt::QueuedConnection);
         }
@@ -1273,11 +1389,14 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
     }
 
     // Start GET_INFO timer for periodic status updates for CH9329 and CH32V208 (unless diagnostics dialog is active)
+    // HOTPLUG FIX: Only start if not already running
     if (m_getInfoTimer) {
         QMutexLocker locker(&m_diagMutex);
         if (!m_suppressGetInfo) {
             if (QThread::currentThread() == m_getInfoTimer->thread()) {
-                m_getInfoTimer->start();
+                if (!m_getInfoTimer->isActive()) {
+                    m_getInfoTimer->start();
+                }
             } else {
                 QMetaObject::invokeMethod(m_getInfoTimer, "start", Qt::QueuedConnection);
             }
@@ -1865,12 +1984,18 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
 
     QMutexLocker locker(&m_serialPortMutex);
 
-    // If there is an existing QSerialPort instance that is not open, delete it to avoid stale internal state (e.g., stale file descriptor / notifiers)
-    // FIX: Use deleteLater instead of direct delete to match closePortInternal's deletion strategy
+    // If there is an existing QSerialPort instance that is not open, reuse it.
+    // HOTPLUG FIX: Previously we called deleteLater() + created a new QSerialPort.
+    // This caused "Access is denied" errors because deleteLater() doesn't run until
+    // the event loop returns, but openPort runs synchronously — so the old QSerialPort
+    // still held the Windows kernel handle, blocking the new one.
+    // Now we reuse the same closed QSerialPort object: close() already released the
+    // handle, and open() re-acquires it on the same object with no conflict.
     if (serialPort != nullptr && !serialPort->isOpen()) {
-        qCDebug(log_core_serial_conn) << "Existing closed QSerialPort instance found - marking for deletion to ensure fresh instance before open.";
-        serialPort->deleteLater();
-        serialPort = nullptr;  // Clear pointer temporarily
+        qCDebug(log_core_serial_conn) << "Reusing existing closed QSerialPort instance:"
+                                      << static_cast<void*>(serialPort);
+        // Clear any Qt-level error state from previous failure (e.g., "Access is denied")
+        serialPort->clearError();
     }
 
     if (serialPort != nullptr && serialPort->isOpen()) {
@@ -1884,14 +2009,19 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
     if(serialPort == nullptr){
         qCDebug(log_core_serial_conn) << "Creating new QSerialPort in worker thread";
         serialPort = new QSerialPort();
-        
-        // Connect error signal using queued connection for thread safety
-        connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
-                this, &SerialPortManager::handleSerialError, Qt::QueuedConnection);
-        
-        // Connect readyRead signal using queued connection for thread safety
-        connect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData, Qt::QueuedConnection);
     }
+
+    // HOTPLUG FIX: Always reconnect signals — not just on first creation.
+    // closePortInternal() calls disconnect(serialPort, nullptr, this, nullptr) which
+    // removes ALL signal connections. When we reuse the same QSerialPort object
+    // (serialPort != nullptr), the signals would remain disconnected, causing:
+    //   - handleSerialError never fires → errors go unnoticed
+    //   - readData never fires → no data received → app appears frozen
+    // Qt is safe with duplicate connects during the object's lifetime because
+    // closePortInternal disconnects everything before we get here.
+    connect(serialPort, QOverload<QSerialPort::SerialPortError>::of(&QSerialPort::errorOccurred),
+            this, &SerialPortManager::handleSerialError, Qt::QueuedConnection);
+    connect(serialPort, &QSerialPort::readyRead, this, &SerialPortManager::readData, Qt::QueuedConnection);
     
     serialPort->setPortName(portName);
     serialPort->setBaudRate(baudRate);
@@ -1991,6 +2121,10 @@ void SerialPortManager::closePort() {
 void SerialPortManager::closePortInternal() {
     qCDebug(log_core_serial_conn) << "Close serial port";
 
+    // ZOMBIE STATE FIX: Reset TX failure counter when port is closed.
+    // This ensures fresh start after recovery or hotplug reconnect.
+    m_consecutiveTxFailures.store(0);
+
     // CRITICAL: Transition to CLOSING state immediately to block new open attempts
     SerialPortState previousState = m_portState.exchange(SerialPortState::CLOSING);
     qCDebug(log_core_serial_conn) << "Port state transition:" << static_cast<int>(previousState) << "-> CLOSING";
@@ -2027,48 +2161,25 @@ void SerialPortManager::closePortInternal() {
                 qCWarning(log_core_serial_conn) << "Exception during serial port close";
             }
         }
-        // CH9329 uses the OLD deferred deletion path (QTimer::singleShot(0)):
-        //   Factory-reset on CH9329 does RTS toggle → close → wait ~2s → reopen.
-        //   The singleShot(0) deferred deletion keeps the serialPort pointer alive
-        //   until the event loop returns, which gives the kernel more time to fully
-        //   release the USB-serial device before we reopen it. Immediate deletion
-        //   caused reopen races on CH9329 units.
+        // HOTPLUG FIX: Keep the QSerialPort object alive but closed.
+        // The old approach (deleteLater + recreate on open) caused "Access is denied"
+        // errors during hotplug because deleteLater() doesn't run until the worker thread
+        // returns to its event loop, but openPort() runs synchronously in the same event
+        // processing cycle. The old QSerialPort still held the Windows kernel handle,
+        // blocking the new QSerialPort from opening the same COM port.
         //
-        // Non-CH9329 (CH32V208 etc.) uses the NEW immediate deletion path:
-        //   Device-switching (closePort + onSerialPortConnected queued back-to-back)
-        //   previously crashed: the singleShot landed AFTER onSerialPortConnected,
-        //   so openPort() ran while serialPort still pointed to the old (about-to-be
-        //   deleted) object. openPort() did `delete serialPort` on it, then the
-        //   singleShot called deleteLater() on freed memory → SIGSEGV.
-        //   Immediate deleteLater() + clearing the pointer under the mutex avoids
-        //   this use-after-free for non-CH9329 chips.
-        QObject* portPtr = serialPort;
+        // By reusing the same QSerialPort object:
+        //   - close() releases the Windows kernel handle immediately
+        //   - open() re-acquires the handle on the same object — no conflict
+        //   - No deleteLater/create race conditions during rapid hotplug
+        //
+        // The QSerialPort object is cleaned up in the SerialPortManager destructor.
+        qCDebug(log_core_serial_conn) << "Serial port object kept alive (closed state):"
+                                      << static_cast<void*>(serialPort)
+                                      << (isChipTypeCH9329() ? "(CH9329)" : "(non-CH9329)");
 
-        if (isChipTypeCH9329()) {
-            // CH9329: OLD deferred deletion path
-            qCDebug(log_core_serial_conn) << "CH9329: using deferred deletion path (QTimer::singleShot)";
-            QTimer::singleShot(0, this, [this, portPtr]() {
-                if (portPtr) {
-                    qCDebug(log_core_serial_conn) << "Deleting serial port instance (deferred):" << static_cast<void*>(portPtr);
-                    portPtr->deleteLater();
-                    QMutexLocker deleteLocker(&m_serialPortMutex);
-                    if (serialPort == portPtr) {
-                        serialPort = nullptr;
-                        qCDebug(log_core_serial_conn) << "SerialPort instance pointer cleared (deferred)";
-                    }
-                    m_portState.store(SerialPortState::CLOSED);
-                    qCDebug(log_core_serial_conn) << "Port state transition: CLOSING -> CLOSED (deferred)";
-                }
-            });
-        } else {
-            // Non-CH9329: NEW immediate deletion path
-            serialPort = nullptr;
-            qCDebug(log_core_serial_conn) << "Non-CH9329: using immediate deletion path, deleting instance:" << static_cast<void*>(portPtr);
-            portPtr->deleteLater();
-
-            m_portState.store(SerialPortState::CLOSED);
-            qCDebug(log_core_serial_conn) << "Port state transition: CLOSING -> CLOSED (immediate)";
-        }
+        m_portState.store(SerialPortState::CLOSED);
+        qCDebug(log_core_serial_conn) << "Port state transition: CLOSING -> CLOSED (immediate)";
     } else {
         qCDebug(log_core_serial_conn) << "Serial port is not opened (serialPort is nullptr).";
         // Transition to CLOSED state even if no port instance
@@ -2702,6 +2813,10 @@ bool SerialPortManager::writeDataInThread(const QByteArray &data) {
         qint64 bytesWritten = serialPort->write(data);
         if (bytesWritten == -1) {
             qCWarning(log_core_serial_tx) << "Failed to write data to serial port:" << serialPort->errorString();
+            // ZOMBIE STATE FIX: Clear the error state immediately after write failure.
+            // Without clearError(), QSerialPort retains the error internally and may refuse
+            // subsequent write() calls even after the underlying USB issue is resolved.
+            serialPort->clearError();
             // Log failure
             QFile debugLog("/tmp/write-data-debug.log");
             if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
@@ -2712,6 +2827,8 @@ bool SerialPortManager::writeDataInThread(const QByteArray &data) {
             return false;
         } else if (bytesWritten != data.size()) {
             qCWarning(log_core_serial_tx) << "Partial write: expected" << data.size() << "bytes, wrote" << bytesWritten;
+            // ZOMBIE STATE FIX: Clear error state for partial writes too
+            serialPort->clearError();
             // Log failure
             QFile debugLog("/tmp/write-data-debug.log");
             if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
@@ -3741,8 +3858,9 @@ void SerialPortManager::triggerRtsRecoveryForUnresponsiveDevice()
     bool resetResult = factoryResetHipChip();
 
     if (!resetResult) {
-        qCWarning(log_core_serial_conn) << "RTS reset initiation failed — clearing recovery flag";
+        qCWarning(log_core_serial_conn) << "RTS reset initiation failed — clearing recovery flag and ready state";
         m_rtsRecoveryInProgress.store(false);
+        ready.store(false);
         // Restart watchdog so it can attempt recovery through its own mechanism
         if (m_watchdog && !m_watchdog->isRunning()) {
             m_watchdog->start();

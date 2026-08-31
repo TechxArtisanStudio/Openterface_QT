@@ -298,56 +298,45 @@ void MainWindowInitializer::connectDeviceManagerSignals()
         CameraManager* cameraManager = m_cameraManager;
         QStackedLayout* stackedLayout = m_stackedLayout;
         VideoPane* videoPane = m_videoPane;
-        
-        connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn, 
+
+        connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
                 m_statusBarManager, [statusBarManager](const DeviceInfo& device) {
                     if (statusBarManager) {
                         qCDebug(log_ui_mainwindowinitializer) << "Received newDevicePluggedIn for port:" << device.portChain;
                         statusBarManager->showNewDevicePluggedIn(device.portChain);
                     }
                 });
-        connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged, 
+        connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
                 m_statusBarManager, [statusBarManager](const DeviceInfo& device) {
                     if (statusBarManager) {
                         qCDebug(log_ui_mainwindowinitializer) << "Received deviceUnplugged for port:" << device.portChain;
                         statusBarManager->showDeviceUnplugged(device.portChain);
                     }
                 });
-                
-        connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
-                m_mainWindow, [cameraManager, stackedLayout](const DeviceInfo& device) {
-                    if (!device.hasCameraDevice()) return;
-                    if (!cameraManager || !stackedLayout) return;
-                    bool deactivated = cameraManager->deactivateCameraByPortChain(device.portChain);
-                    if (deactivated) {
-                        qCInfo(log_ui_mainwindowinitializer) << "✓ Camera deactivated for port:" << device.portChain;
-                        stackedLayout->setCurrentIndex(0);
-                    }
-                });
-                
-        connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
-                m_mainWindow, [cameraManager, stackedLayout, videoPane](const DeviceInfo& device) {
-                    if (!device.hasCameraDevice()) return;
-                    if (!cameraManager || !stackedLayout || !videoPane) return;
-                    bool switchSuccess = cameraManager->tryAutoSwitchToNewDevice(device.portChain);
-                    if (switchSuccess) {
-                        qCInfo(log_ui_mainwindowinitializer) << "✓ Camera auto-switched to port:" << device.portChain;
-                        stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
-                    } else {
-                        // Fallback retry: CameraManager's built-in retry may be in progress,
-                        // but as a safety net, schedule one more retry attempt in 1000ms
-                        QTimer::singleShot(1000, [cameraManager, stackedLayout, videoPane, device]() {
-                            if (cameraManager && !cameraManager->hasActiveCameraDevice()) {
-                                qCDebug(log_ui_mainwindowinitializer) << "Fallback retry: attempting auto-switch again for port:" << device.portChain;
-                                bool retrySuccess = cameraManager->tryAutoSwitchToNewDevice(device.portChain);
-                                if (retrySuccess && stackedLayout && videoPane) {
-                                    qCInfo(log_ui_mainwindowinitializer) << "✓ Camera auto-switched on fallback retry for port:" << device.portChain;
-                                    stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
-                                }
-                            }
-                        });
-                    }
-                });
+
+        // FIX: Use cameraActiveChanged signal for display switching instead of
+        // duplicating CameraManager's auto-switch logic. Previously, both
+        // CameraManager and MainWindowInitializer called tryAutoSwitchToNewDevice()
+        // on newDevicePluggedIn, causing conflicts during rapid hotplug (e.g.,
+        // first deferred handler activates camera, second handler sees it's active
+        // and skips, but stackedLayout never updates → video stream hidden).
+        //
+        // Now CameraManager is the single owner of camera auto-switch (with
+        // debouncing). MainWindowInitializer only reacts to camera state changes
+        // to update the stackedLayout — a clean separation of concerns.
+        if (cameraManager && stackedLayout && videoPane) {
+            connect(cameraManager, &CameraManager::cameraActiveChanged,
+                    m_mainWindow, [stackedLayout, videoPane](bool active) {
+                        if (active) {
+                            qCDebug(log_ui_mainwindowinitializer) << "Camera active → showing video pane";
+                            stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
+                        } else {
+                            qCDebug(log_ui_mainwindowinitializer) << "Camera inactive → showing placeholder";
+                            stackedLayout->setCurrentIndex(0);
+                        }
+                    });
+        }
+
         qCDebug(log_ui_mainwindowinitializer) << "Connected hotplug monitor signals";
     } else {
         qCWarning(log_ui_mainwindowinitializer) << "Failed to get hotplug monitor";

@@ -62,7 +62,51 @@ CameraManager::CameraManager(QObject *parent)
         // Also trigger if camera was attempted but never started streaming
         bool shouldWarn = !isCameraStreaming() && !m_frameTimeoutWarningShown;
         if (shouldWarn) {
-            qCWarning(log_ui_camera) << "Frame timeout: no video frames received in last 5 seconds";
+            // HOTPLUG FIX: Instead of just warning, try to restart the camera.
+            // After hotplug, the camera may be in a stale state (FFmpeg holding a dead
+            // device handle) or the device may not have been ready when the lifecycle
+            // tried to restart it. This retry mechanism attempts to recover by:
+            // 1. Stopping the stale capture
+            // 2. Waiting for the device to be fully released
+            // 3. Re-switching to the camera device
+            // 4. Restarting capture
+            if (!m_currentCameraPortChain.isEmpty()
+                && m_hotplugCameraRestartRetries < MAX_HOTPLUG_CAMERA_RESTART_RETRIES) {
+                m_hotplugCameraRestartRetries++;
+                qCWarning(log_ui_camera) << "Frame timeout: no frames received, attempting camera restart"
+                                         << m_hotplugCameraRestartRetries << "/" << MAX_HOTPLUG_CAMERA_RESTART_RETRIES
+                                         << "for port chain:" << m_currentCameraPortChain;
+
+                // Stop the stale capture
+                stopCamera();
+
+                // Retry with increasing delay (2s, 4s, 6s) to give the USB device time
+                int retryDelay = m_hotplugCameraRestartRetries * 2000;
+                QString portChain = m_currentCameraPortChain;
+                QTimer::singleShot(retryDelay, this, [this, portChain]() {
+                    // Clear stale state
+                    m_currentCameraDevice = QCameraDevice();
+                    m_currentCameraDeviceId.clear();
+
+                    // Refresh device list and try to re-switch
+                    refreshAvailableCameraDevices();
+                    bool success = switchToCameraDeviceByPortChain(portChain);
+                    if (success) {
+                        startCamera();
+                        qCInfo(log_ui_camera) << "Camera restart succeeded on retry"
+                                              << m_hotplugCameraRestartRetries;
+                        m_frameTimeoutWarningShown = false;  // Reset so we can detect future failures
+                    } else {
+                        qCWarning(log_ui_camera) << "Camera restart failed on retry"
+                                                  << m_hotplugCameraRestartRetries;
+                    }
+                });
+                return;  // Don't show warning yet, give the retry a chance
+            }
+
+            qCWarning(log_ui_camera) << "Frame timeout: no video frames received in last 5 seconds"
+                                     << "(retries exhausted:" << m_hotplugCameraRestartRetries << "/"
+                                     << MAX_HOTPLUG_CAMERA_RESTART_RETRIES << ")";
             m_frameTimeoutWarningShown = true;
             emit frameTimeout();
         }
@@ -94,29 +138,59 @@ CameraManager::CameraManager(QObject *parent)
                     return;
                 }
 
-                // On Windows, refresh Qt camera device list first
-                if (isWindowsPlatform()) {
-                    onVideoInputsChanged();
-                }
-
-                bool success = switchToCameraDeviceByPortChain(portChain);
-                if (success) {
-                    startCamera();
-                    qCInfo(log_ui_camera) << "[Lifecycle] Camera connected for session" << sessionKey;
+                // HOTPLUG FIX: If camera was already connected to the same port chain (even
+                // if not currently streaming — e.g., frames not yet arriving), skip re-init.
+                // Without this check, the initial discovery cascade (performInitialDiscovery)
+                // triggers shouldConnectCamera even though the camera was already started by
+                // the startup auto-select path. switchToCameraDeviceByPortChain returns early
+                // for the same device, but startCamera() restarts FFmpeg capture → video glitch.
+                // During a REAL hotplug, deactivateCameraByPortChain() clears m_currentCameraPortChain,
+                // so this check won't prevent proper reconnection.
+                if (!portChain.isEmpty() && !m_currentCameraPortChain.isEmpty()
+                    && m_currentCameraPortChain == portChain
+                    && hasActiveCameraDevice()) {
+                    qCInfo(log_ui_camera) << "[Lifecycle] Camera already on same port chain"
+                                          << portChain << "— skipping restart";
                     DeviceLifecycleManager::getInstance().notifyInterfaceConnected(
                         sessionKey, InterfaceType::Camera);
-                } else {
-                    qCWarning(log_ui_camera) << "[Lifecycle] Camera connect failed for session" << sessionKey;
-                    // Start frame timeout monitoring even on failure - user needs to know
-                    // Only start if not already running to avoid resetting on retries
-                    if (m_frameTimeoutTimer && !m_frameTimeoutTimer->isActive()) {
-                        m_frameTimeoutWarningShown = false;
-                        m_frameTimeoutTimer->start(10000);
-                        qCDebug(log_ui_camera) << "Frame timeout monitoring started after connection failure (10s)";
-                    }
-                    DeviceLifecycleManager::getInstance().notifyInterfaceFailed(
-                        sessionKey, InterfaceType::Camera, "switchToCameraDeviceByPortChain failed");
+                    return;
                 }
+
+                // HOTPLUG FIX: Only refresh the device list, do NOT call onVideoInputsChanged().
+                // onVideoInputsChanged() has auto-switch logic that would start the camera with
+                // an empty port chain before the lifecycle-managed switch runs. This double-start
+                // causes FFmpeg to stop/restart capture in quick succession, producing visual
+                // glitches or a black screen after hotplug.
+                refreshAvailableCameraDevices();
+
+                // HOTPLUG FIX: Defer the camera switch to let the OS fully release the device
+                // after the previous disconnect. On Windows, DirectShow devices can take
+                // a moment to release after stopCamera/deactivateCameraByPortChain.
+                // Increased delay from 300ms to 2000ms — Windows USB video devices typically
+                // need 1-3 seconds to become ready after re-enumeration. With 300ms, FFmpeg
+                // could open the device but the capture thread would read from a not-yet-ready
+                // stream → active=true but no frames.
+                QTimer::singleShot(2000, this, [this, sessionKey, portChain]() {
+                    bool success = switchToCameraDeviceByPortChain(portChain);
+                    if (success) {
+                        startCamera();
+                        m_hotplugCameraRestartRetries = 0;  // HOTPLUG FIX: Reset retry counter on success
+                        qCInfo(log_ui_camera) << "[Lifecycle] Camera connected for session" << sessionKey;
+                        DeviceLifecycleManager::getInstance().notifyInterfaceConnected(
+                            sessionKey, InterfaceType::Camera);
+                    } else {
+                        qCWarning(log_ui_camera) << "[Lifecycle] Camera connect failed for session" << sessionKey;
+                        // Start frame timeout monitoring even on failure - user needs to know
+                        // Only start if not already running to avoid resetting on retries
+                        if (m_frameTimeoutTimer && !m_frameTimeoutTimer->isActive()) {
+                            m_frameTimeoutWarningShown = false;
+                            m_frameTimeoutTimer->start(10000);
+                            qCDebug(log_ui_camera) << "Frame timeout monitoring started after connection failure (10s)";
+                        }
+                        DeviceLifecycleManager::getInstance().notifyInterfaceFailed(
+                            sessionKey, InterfaceType::Camera, "switchToCameraDeviceByPortChain failed");
+                    }
+                });
             });
 
         connect(&lifecycle, &DeviceLifecycleManager::shouldDisconnectCamera,
@@ -1813,11 +1887,13 @@ bool CameraManager::deactivateCameraByPortChain(const QString& portChain)
         // Stop the camera via FFmpeg backend
         qCDebug(log_ui_camera) << "Stopping active camera due to device unplugging";
         stopCamera();
-        
+
         // Clear current device tracking
         m_currentCameraDevice = QCameraDevice();
         m_currentCameraDeviceId.clear();
         m_currentCameraPortChain.clear();
+        m_hotplugCameraRestartRetries = 0;  // HOTPLUG FIX: Reset retry counter for next reconnect
+        m_frameTimeoutWarningShown = false;  // Reset timeout warning for new session
         
         // Clear the video output to show blank instead of frozen frame
         if (m_graphicsVideoOutput && m_backendHandler) {
@@ -2194,89 +2270,141 @@ void CameraManager::connectToHotplugMonitor()
                 qCDebug(log_ui_camera) << "CameraManager: NEW DEVICE PLUGGED IN EVENT";
                 qCDebug(log_ui_camera) << "  Device port chain:" << device.portChain;
                 qCDebug(log_ui_camera) << "========================================";
-                
-                // For Windows: Refresh Qt camera device list FIRST to ensure we have the latest devices
-                if (isWindowsPlatform()) {
-                    qCDebug(log_ui_camera) << "Windows: Refreshing video inputs before checking for camera device";
-                    onVideoInputsChanged();
-                }
-                
-                // Check if device has camera information from DeviceManager
+
+                // Quick check: if device has no camera component and camera is
+                // already active, bail out immediately (no expensive enumeration).
                 bool hasCameraInfoFromDeviceManager = device.hasCameraDevice();
-                qCDebug(log_ui_camera) << "Device camera info check:";
-                qCDebug(log_ui_camera) << "  Has camera from DeviceManager:" << hasCameraInfoFromDeviceManager;
-                qCDebug(log_ui_camera) << "  Camera device ID:" << device.cameraDeviceId;
-                qCDebug(log_ui_camera) << "  Camera device path:" << device.cameraDevicePath;
-                
-                // WORKAROUND: Even if DeviceManager didn't populate camera info,
-                // check if QMediaDevices has an Openterface camera available
-                bool hasOpenterfaceCameraInQt = false;
-                if (!hasCameraInfoFromDeviceManager) {
-                    qCDebug(log_ui_camera) << "DeviceManager has no camera info - checking QMediaDevices for Openterface camera";
-                    QCameraDevice found = findQtOpenterfaceDevice(m_availableCameraDevices);
-                    if (!found.isNull()) {
-                        hasOpenterfaceCameraInQt = true;
-                        qCDebug(log_ui_camera) << "  ✓ Found Openterface camera in Qt:" << found.description();
-                    }
-                }
-                
-                // Only attempt auto-switch if the device has a camera component OR we found Openterface in Qt
-                if (!hasCameraInfoFromDeviceManager && !hasOpenterfaceCameraInQt) {
-                    qCDebug(log_ui_camera) << "Device at port" << device.portChain << "has no camera component, skipping camera auto-switch";
+                if (!hasCameraInfoFromDeviceManager && hasActiveCameraDevice()) {
+                    qCDebug(log_ui_camera) << "No camera component and camera already active, skipping";
                     return;
                 }
-                
-                if (hasOpenterfaceCameraInQt) {
-                    qCDebug(log_ui_camera) << "Using Qt-detected Openterface camera (DeviceManager camera info not available)";
+
+                // FIX: Debounce rapid hotplug events. When a device is quickly
+                // unplugged and re-plugged, multiple newDevicePluggedIn signals
+                // can fire in succession. Without debouncing, each event queues a
+                // separate deferred handler that can interfere with the previous
+                // one, leaving the video stream in a broken state.
+                //
+                // Instead of QTimer::singleShot(0) which fires immediately, we
+                // use a 300ms debounce timer. Each new plug event resets the
+                // timer, so only the LAST event in a rapid burst actually triggers
+                // the expensive camera enumeration + auto-switch.
+                if (m_hotplugDebounceTimer) {
+                    m_hotplugDebounceTimer->stop();
+                    qCDebug(log_ui_camera) << "Cancelling previous pending hotplug debounce timer";
                 } else {
-                    qCDebug(log_ui_camera) << "Device has camera component:";
-                    qCDebug(log_ui_camera) << "  Camera device ID:" << device.cameraDeviceId;
-                    qCDebug(log_ui_camera) << "  Camera device path:" << device.cameraDevicePath;
+                    m_hotplugDebounceTimer = new QTimer(this);
+                    m_hotplugDebounceTimer->setSingleShot(true);
                 }
-                
-                // Check current camera state before attempting auto-switch
-                qCDebug(log_ui_camera) << "Current camera state check:";
-                qCDebug(log_ui_camera) << "  m_currentCameraDevice.isNull():" << m_currentCameraDevice.isNull();
-                qCDebug(log_ui_camera) << "  m_currentCameraPortChain:" << m_currentCameraPortChain;
-                qCDebug(log_ui_camera) << "  hasActiveCameraDevice():" << hasActiveCameraDevice();
-                
-                // Check if there's currently an active camera device
-                if (hasActiveCameraDevice()) {
-                    qCWarning(log_ui_camera) << "!!! Camera device already active, skipping auto-switch to port:" << device.portChain;
-                    qCWarning(log_ui_camera) << "!!! This might be a BUG - camera should have been deactivated on unplug";
-                    return;
-                }
-                
-                qCDebug(log_ui_camera) << "No active camera device found, attempting to switch to new device";
-                
-                // If we're using the Qt-detected camera workaround, try to auto-switch to it directly
-                if (hasOpenterfaceCameraInQt && !hasCameraInfoFromDeviceManager) {
-                    qCDebug(log_ui_camera) << "Using fallback: switching to Qt-detected Openterface camera";
-                    
-                    // Find the Openterface camera in Qt devices
-                    QCameraDevice found = findQtOpenterfaceDevice(m_availableCameraDevices);
-                    if (!found.isNull()) {
-                        qCDebug(log_ui_camera) << "Switching to Openterface camera:" << found.description();
-                        bool switchSuccess = switchToCameraDevice(found, device.portChain);
-                        if (switchSuccess && m_graphicsVideoOutput) {
-                            startCamera();
-                            qCInfo(log_ui_camera) << "✓ Camera auto-switched to Openterface device (fallback method)";
-                        } else {
-                            qCWarning(log_ui_camera) << "✗ Camera auto-switch FAILED (fallback method)";
+
+                // Capture device info for the debounced handler
+                QTimer* timer = m_hotplugDebounceTimer;
+                timer->start(300);
+
+                // Disconnect any previous connection, then connect once
+                disconnect(timer, &QTimer::timeout, nullptr, nullptr);
+                connect(timer, &QTimer::timeout, this, [this, device, hasCameraInfoFromDeviceManager]() {
+                    qCDebug(log_ui_camera) << "Hotplug debounce timer fired for port:" << device.portChain;
+
+                    // FIX: Verify the device is still present before doing expensive
+                    // camera operations. During rapid hotplug, a deferred handler from
+                    // a previous plug event can still be queued when the device is
+                    // already unplugged. By checking the current device snapshot, we
+                    // avoid trying to switch to a device that's no longer connected.
+                    DeviceManager& deviceManager = DeviceManager::getInstance();
+                    HotplugMonitor* monitor = deviceManager.getHotplugMonitor();
+                    if (monitor) {
+                        QList<DeviceInfo> currentDevices = monitor->getLastSnapshot();
+                        bool stillPresent = false;
+                        for (const auto& d : currentDevices) {
+                            if (d.portChain == device.portChain) {
+                                stillPresent = true;
+                                break;
+                            }
                         }
-                        qCDebug(log_ui_camera) << "========================================";
+                        if (!stillPresent) {
+                            qCWarning(log_ui_camera) << "Device at port" << device.portChain
+                                                     << "no longer present, skipping camera auto-switch";
+                            return;
+                        }
+                    }
+
+                    // If there's already an active camera, skip
+                    if (hasActiveCameraDevice()) {
+                        qCDebug(log_ui_camera) << "Camera already active, skipping auto-switch";
                         return;
                     }
-                }
-                
-                // Try to auto-switch to the new camera device using normal method
-                bool switchSuccess = tryAutoSwitchToNewDevice(device.portChain);
-                if (switchSuccess) {
-                    qCInfo(log_ui_camera) << "✓ Camera auto-switched to new device at port:" << device.portChain;
-                } else {
-                    qCWarning(log_ui_camera) << "✗ Camera auto-switch FAILED for port:" << device.portChain;
-                }
-                qCDebug(log_ui_camera) << "========================================";
+
+                    // For Windows: Refresh Qt camera device list
+                    if (isWindowsPlatform()) {
+                        qCDebug(log_ui_camera) << "Windows: Refreshing video inputs before checking for camera device";
+                        onVideoInputsChanged();
+                    }
+
+                    qCDebug(log_ui_camera) << "Device camera info check:";
+                    qCDebug(log_ui_camera) << "  Has camera from DeviceManager:" << hasCameraInfoFromDeviceManager;
+                    qCDebug(log_ui_camera) << "  Camera device ID:" << device.cameraDeviceId;
+                    qCDebug(log_ui_camera) << "  Camera device path:" << device.cameraDevicePath;
+
+                    // WORKAROUND: Even if DeviceManager didn't populate camera info,
+                    // check if QMediaDevices has an Openterface camera available
+                    bool hasOpenterfaceCameraInQt = false;
+                    if (!hasCameraInfoFromDeviceManager) {
+                        qCDebug(log_ui_camera) << "DeviceManager has no camera info - checking QMediaDevices for Openterface camera";
+                        QCameraDevice found = findQtOpenterfaceDevice(m_availableCameraDevices);
+                        if (!found.isNull()) {
+                            hasOpenterfaceCameraInQt = true;
+                            qCDebug(log_ui_camera) << "  ✓ Found Openterface camera in Qt:" << found.description();
+                        }
+                    }
+
+                    if (!hasCameraInfoFromDeviceManager && !hasOpenterfaceCameraInQt) {
+                        qCDebug(log_ui_camera) << "Device at port" << device.portChain << "has no camera component, skipping camera auto-switch";
+                        return;
+                    }
+
+                    if (hasOpenterfaceCameraInQt) {
+                        qCDebug(log_ui_camera) << "Using Qt-detected Openterface camera (DeviceManager camera info not available)";
+                    } else {
+                        qCDebug(log_ui_camera) << "Device has camera component:";
+                        qCDebug(log_ui_camera) << "  Camera device ID:" << device.cameraDeviceId;
+                        qCDebug(log_ui_camera) << "  Camera device path:" << device.cameraDevicePath;
+                    }
+
+                    qCDebug(log_ui_camera) << "Current camera state check:";
+                    qCDebug(log_ui_camera) << "  m_currentCameraDevice.isNull():" << m_currentCameraDevice.isNull();
+                    qCDebug(log_ui_camera) << "  m_currentCameraPortChain:" << m_currentCameraPortChain;
+                    qCDebug(log_ui_camera) << "  hasActiveCameraDevice():" << hasActiveCameraDevice();
+
+                    qCDebug(log_ui_camera) << "No active camera device found, attempting to switch to new device";
+
+                    // If using the Qt-detected camera workaround, auto-switch directly
+                    if (hasOpenterfaceCameraInQt && !hasCameraInfoFromDeviceManager) {
+                        qCDebug(log_ui_camera) << "Using fallback: switching to Qt-detected Openterface camera";
+                        QCameraDevice found = findQtOpenterfaceDevice(m_availableCameraDevices);
+                        if (!found.isNull()) {
+                            qCDebug(log_ui_camera) << "Switching to Openterface camera:" << found.description();
+                            bool switchSuccess = switchToCameraDevice(found, device.portChain);
+                            if (switchSuccess && m_graphicsVideoOutput) {
+                                startCamera();
+                                qCInfo(log_ui_camera) << "✓ Camera auto-switched to Openterface device (fallback method)";
+                            } else {
+                                qCWarning(log_ui_camera) << "✗ Camera auto-switch FAILED (fallback method)";
+                            }
+                            qCDebug(log_ui_camera) << "========================================";
+                            return;
+                        }
+                    }
+
+                    // Try to auto-switch to the new camera device
+                    bool switchSuccess = tryAutoSwitchToNewDevice(device.portChain);
+                    if (switchSuccess) {
+                        qCInfo(log_ui_camera) << "✓ Camera auto-switched to new device at port:" << device.portChain;
+                    } else {
+                        qCWarning(log_ui_camera) << "✗ Camera auto-switch FAILED for port:" << device.portChain;
+                    }
+                    qCDebug(log_ui_camera) << "========================================";
+                });
             });
             
     qCDebug(log_ui_camera) << "CameraManager successfully connected to hotplug monitor";
@@ -2285,7 +2413,14 @@ void CameraManager::connectToHotplugMonitor()
 void CameraManager::disconnectFromHotplugMonitor()
 {
     qCDebug(log_ui_camera) << "Disconnecting CameraManager from hotplug monitor";
-    
+
+    // Stop and clean up the hotplug debounce timer
+    if (m_hotplugDebounceTimer) {
+        m_hotplugDebounceTimer->stop();
+        delete m_hotplugDebounceTimer;
+        m_hotplugDebounceTimer = nullptr;
+    }
+
     // Get the hotplug monitor from DeviceManager
     DeviceManager& deviceManager = DeviceManager::getInstance();
     HotplugMonitor* hotplugMonitor = deviceManager.getHotplugMonitor();

@@ -384,6 +384,11 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
         qint64 bytesWritten = serialPort->write(command);
         if (bytesWritten == -1) {
             qCWarning(log_core_serial) << "Failed to write command to serial port:" << serialPort->errorString();
+            // ZOMBIE STATE FIX: Clear the error state immediately after write failure.
+            // Without clearError(), QSerialPort retains the error internally and may refuse
+            // subsequent write() calls even after the underlying USB issue is resolved.
+            // This turns a transient USB glitch into a permanent zombie state.
+            serialPort->clearError();
             // Log error
             QFile debugLog("/tmp/serial-command-debug.log");
             if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
@@ -397,6 +402,8 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
         if (bytesWritten != command.size()) {
             qCWarning(log_core_serial) << "Incomplete write: expected" << command.size()
                                          << "bytes, wrote" << bytesWritten;
+            // ZOMBIE STATE FIX: Clear error state for partial writes too
+            serialPort->clearError();
             // Log partial write
             QFile debugLog("/tmp/serial-command-debug.log");
             if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
@@ -409,6 +416,8 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
 
         if (!serialPort->waitForBytesWritten(1000)) {
             qCWarning(log_core_serial) << "Timeout waiting for bytes to be written:" << serialPort->errorString();
+            // ZOMBIE STATE FIX: Clear error state for write timeout too
+            serialPort->clearError();
             // Log timeout
             QFile debugLog("/tmp/serial-command-debug.log");
             if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
