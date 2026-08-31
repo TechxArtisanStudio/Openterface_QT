@@ -1196,7 +1196,8 @@ void MainWindow::onFrameTimeout()
 {
     qCWarning(log_ui_mainwindow) << "Frame timeout detected - no video frames received";
 
-    // Check if camera devices are visible - if not, it's likely a permission issue
+#ifdef Q_OS_WIN
+    // Windows-specific: Check if camera devices are visible - if not, it's likely a permission issue
     int cameraCount = m_cameraManager->getAvailableCameraDevices().size();
     bool permissionIssue = (cameraCount == 0);
 
@@ -1232,6 +1233,12 @@ void MainWindow::onFrameTimeout()
                 tr("Video backend changed to FFmpeg.\nPlease restart the application for changes to take effect."));
         }
     }
+#else
+    // Linux/other: Simple frame timeout message
+    QMessageBox::warning(this, tr("No Video Signal"),
+        tr("No video frames have been received from the camera.\n\n"
+           "Please check your camera connection and permissions."));
+#endif
 }
 
 void MainWindow::stop(){
