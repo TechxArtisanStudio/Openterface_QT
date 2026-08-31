@@ -438,6 +438,7 @@ void MainWindowInitializer::connectCameraSignals()
     qCDebug(log_ui_mainwindowinitializer) << "Connecting camera signals...";
     connect(m_cameraManager, &CameraManager::cameraActiveChanged, m_mainWindow, &MainWindow::updateCameraActive);
     connect(m_cameraManager, &CameraManager::cameraError, m_mainWindow, &MainWindow::displayCameraError);
+    connect(m_cameraManager, &CameraManager::frameTimeout, m_mainWindow, &MainWindow::onFrameTimeout);
     connect(m_cameraManager, &CameraManager::imageCaptured, m_mainWindow, &MainWindow::processCapturedImage);
     connect(m_deviceCoordinator, &DeviceCoordinator::deviceSwitchCompleted, m_mainWindow, &MainWindow::onDeviceSwitchCompleted);
     connect(m_deviceCoordinator, &DeviceCoordinator::deviceSelected, m_mainWindow, &MainWindow::onDeviceSelected);

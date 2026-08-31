@@ -1182,7 +1182,7 @@ void MainWindow::displayCameraError()
     qCWarning(log_ui_mainwindow) << "Camera error: " << m_camera->errorString();
     if (m_camera->error() != QCamera::NoError) {
         qCDebug(log_ui_mainwindow) << "Camera error detected, switching to help pane";
-        
+
         // Safely switch to help pane
         QMetaObject::invokeMethod(this, [this]() {
             stackedLayout->setCurrentIndex(0);
@@ -1190,6 +1190,55 @@ void MainWindow::displayCameraError()
 
         stop();
     }
+}
+
+void MainWindow::onFrameTimeout()
+{
+    qCWarning(log_ui_mainwindow) << "Frame timeout detected - no video frames received";
+
+#ifdef Q_OS_WIN
+    // Windows-specific: Check if camera devices are visible - if not, it's likely a permission issue
+    int cameraCount = m_cameraManager->getAvailableCameraDevices().size();
+    bool permissionIssue = (cameraCount == 0);
+
+    QMessageBox::StandardButton reply;
+    QString message;
+
+    if (permissionIssue) {
+        message = tr("No camera devices detected.\n\n"
+                     "This is usually caused by Windows camera privacy settings blocking the app.\n\n"
+                     "To fix: Go to Windows Settings → Privacy → Camera → "
+                     "enable 'Allow desktop apps to access your camera'.\n\n"
+                     "Would you like to open Camera privacy settings now?");
+        reply = QMessageBox::question(this, tr("Camera Permission Required"), message,
+                                      QMessageBox::Yes | QMessageBox::No);
+
+        if (reply == QMessageBox::Yes) {
+            // Open Windows camera privacy settings
+            QDesktopServices::openUrl(QUrl("ms-settings:privacy-webcam"));
+            qCInfo(log_ui_mainwindow) << "Opened Windows camera privacy settings";
+        }
+    } else {
+        message = tr("No video frames have been received from the camera.\n\n"
+                     "This may indicate the video backend cannot decode the signal.\n"
+                     "Would you like to switch to FFmpeg backend (recommended for Windows)?");
+        reply = QMessageBox::question(this, tr("No Video Signal"), message,
+                                      QMessageBox::Yes | QMessageBox::No);
+
+        if (reply == QMessageBox::Yes) {
+            GlobalSetting::instance().setMediaBackend("ffmpeg");
+            qCInfo(log_ui_mainwindow) << "User chose to switch to FFmpeg backend";
+
+            QMessageBox::information(this, tr("Backend Changed"),
+                tr("Video backend changed to FFmpeg.\nPlease restart the application for changes to take effect."));
+        }
+    }
+#else
+    // Linux/other: Simple frame timeout message
+    QMessageBox::warning(this, tr("No Video Signal"),
+        tr("No video frames have been received from the camera.\n\n"
+           "Please check your camera connection and permissions."));
+#endif
 }
 
 void MainWindow::stop(){
