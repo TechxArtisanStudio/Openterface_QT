@@ -6,11 +6,6 @@ on:
     paths:
       - 'docker/install-openterface.ps1'
       - '.github/workflows/docker-test-windows.yaml'
-  pull_request:
-    branches: ["main", "dev"]
-    paths:
-      - 'docker/install-openterface.ps1'
-      - '.github/workflows/docker-test-windows.yaml'
   workflow_dispatch:
     inputs:
       skip_test:
