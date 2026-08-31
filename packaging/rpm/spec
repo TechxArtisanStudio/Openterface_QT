@@ -28,8 +28,11 @@ Requires:       libv4l
 # Hardware acceleration (VA-API) - CRITICAL for video decoding
 # libva must be system library to avoid symbol conflicts with system libavutil
 Requires:       libva
-Requires:       libva-drm
-Requires:       libva-x11
+# libva-drm and libva-x11 are backend-specific; not all distros ship them as
+# separate packages (e.g. Fedora 43 folds them into the base libva package).
+# Use weak deps so the core package still installs when backends are absent.
+Recommends:     libva-drm
+Recommends:     libva-x11
 
 # Keyboard input (works for both Wayland and X11)
 # libxkbcommon is available on all Fedora versions
@@ -808,59 +811,50 @@ if [ -d /usr/lib/openterfaceqt ]; then
     echo "Creating symlinks for bundled core libraries..."
     
     # Compression libraries (zlib variants)
-    if ls /usr/lib/openterfaceqt/libz.so.* >/dev/null 2>&1; then
-        base_z=$(ls -1 /usr/lib/openterfaceqt/libz.so.* 2>/dev/null | head -1)
-        if [ -n "$base_z" ] && [ ! -L /usr/lib/openterfaceqt/libz.so.1 ]; then
-            ln -sf "$(basename "$base_z")" /usr/lib/openterfaceqt/libz.so.1 2>/dev/null || true
-            echo "  ✅ Created symlink: libz.so.1 -> $(basename "$base_z")"
-        fi
+    # Use find with two-dot pattern to match fully-versioned real files only
+    # (e.g. libz.so.1.2.11), excluding sonames like libz.so.1 which would
+    # produce self-referential symlinks.
+    base_z=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libz.so.*.*" -type f 2>/dev/null | head -1)
+    if [ -n "$base_z" ] && [ ! -L /usr/lib/openterfaceqt/libz.so.1 ]; then
+        ln -sf "$(basename "$base_z")" /usr/lib/openterfaceqt/libz.so.1 2>/dev/null || true
+        echo "  ✅ Created symlink: libz.so.1 -> $(basename "$base_z")"
     fi
-    
+
     # Hardware acceleration libraries (VDPAU only - libva is now system dependency)
-    if ls /usr/lib/openterfaceqt/libvdpau.so.* >/dev/null 2>&1; then
-        base_vdpau=$(ls -1 /usr/lib/openterfaceqt/libvdpau.so.* 2>/dev/null | head -1)
-        if [ -n "$base_vdpau" ] && [ ! -L /usr/lib/openterfaceqt/libvdpau.so.1 ]; then
-            ln -sf "$(basename "$base_vdpau")" /usr/lib/openterfaceqt/libvdpau.so.1 2>/dev/null || true
-            echo "  ✅ Created symlink: libvdpau.so.1 -> $(basename "$base_vdpau")"
-        fi
+    base_vdpau=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libvdpau.so.*.*" -type f 2>/dev/null | head -1)
+    if [ -n "$base_vdpau" ] && [ ! -L /usr/lib/openterfaceqt/libvdpau.so.1 ]; then
+        ln -sf "$(basename "$base_vdpau")" /usr/lib/openterfaceqt/libvdpau.so.1 2>/dev/null || true
+        echo "  ✅ Created symlink: libvdpau.so.1 -> $(basename "$base_vdpau")"
     fi
 
     # NOTE: libva is now a system dependency, not bundled
     # This prevents symbol conflicts with system libavutil (vaMapBuffer2)
     
     # USB device access
-    if ls /usr/lib/openterfaceqt/libusb-1.0.so.* >/dev/null 2>&1; then
-        base_usb=$(ls -1 /usr/lib/openterfaceqt/libusb-1.0.so.* 2>/dev/null | head -1)
-        if [ -n "$base_usb" ] && [ ! -L /usr/lib/openterfaceqt/libusb-1.0.so.0 ]; then
-            ln -sf "$(basename "$base_usb")" /usr/lib/openterfaceqt/libusb-1.0.so.0 2>/dev/null || true
-            echo "  ✅ Created symlink: libusb-1.0.so.0 -> $(basename "$base_usb")"
-        fi
+    base_usb=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libusb-1.0.so.*.*" -type f 2>/dev/null | head -1)
+    if [ -n "$base_usb" ] && [ ! -L /usr/lib/openterfaceqt/libusb-1.0.so.0 ]; then
+        ln -sf "$(basename "$base_usb")" /usr/lib/openterfaceqt/libusb-1.0.so.0 2>/dev/null || true
+        echo "  ✅ Created symlink: libusb-1.0.so.0 -> $(basename "$base_usb")"
     fi
-    
+
     # JPEG libraries
-    if ls /usr/lib/openterfaceqt/libturbojpeg.so.* >/dev/null 2>&1; then
-        base_tjpeg=$(ls -1 /usr/lib/openterfaceqt/libturbojpeg.so.* 2>/dev/null | head -1)
-        if [ -n "$base_tjpeg" ] && [ ! -L /usr/lib/openterfaceqt/libturbojpeg.so.0 ]; then
-            ln -sf "$(basename "$base_tjpeg")" /usr/lib/openterfaceqt/libturbojpeg.so.0 2>/dev/null || true
-            echo "  ✅ Created symlink: libturbojpeg.so.0 -> $(basename "$base_tjpeg")"
-        fi
+    base_tjpeg=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libturbojpeg.so.*.*" -type f 2>/dev/null | head -1)
+    if [ -n "$base_tjpeg" ] && [ ! -L /usr/lib/openterfaceqt/libturbojpeg.so.0 ]; then
+        ln -sf "$(basename "$base_tjpeg")" /usr/lib/openterfaceqt/libturbojpeg.so.0 2>/dev/null || true
+        echo "  ✅ Created symlink: libturbojpeg.so.0 -> $(basename "$base_tjpeg")"
     fi
-    
-    if ls /usr/lib/openterfaceqt/libjpeg.so.* >/dev/null 2>&1; then
-        base_jpeg=$(ls -1 /usr/lib/openterfaceqt/libjpeg.so.* 2>/dev/null | head -1)
-        if [ -n "$base_jpeg" ] && [ ! -L /usr/lib/openterfaceqt/libjpeg.so.8 ]; then
-            ln -sf "$(basename "$base_jpeg")" /usr/lib/openterfaceqt/libjpeg.so.8 2>/dev/null || true
-            echo "  ✅ Created symlink: libjpeg.so.8 -> $(basename "$base_jpeg")"
-        fi
+
+    base_jpeg=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libjpeg.so.*.*" -type f 2>/dev/null | head -1)
+    if [ -n "$base_jpeg" ] && [ ! -L /usr/lib/openterfaceqt/libjpeg.so.8 ]; then
+        ln -sf "$(basename "$base_jpeg")" /usr/lib/openterfaceqt/libjpeg.so.8 2>/dev/null || true
+        echo "  ✅ Created symlink: libjpeg.so.8 -> $(basename "$base_jpeg")"
     fi
-    
+
     # Compression libraries (bzip2)
-    if ls /usr/lib/openterfaceqt/libbz2.so.* >/dev/null 2>&1; then
-        base_bz=$(ls -1 /usr/lib/openterfaceqt/libbz2.so.* 2>/dev/null | head -1)
-        if [ -n "$base_bz" ] && [ ! -L /usr/lib/openterfaceqt/libbz2.so.1.0 ]; then
-            ln -sf "$(basename "$base_bz")" /usr/lib/openterfaceqt/libbz2.so.1.0 2>/dev/null || true
-            echo "  ✅ Created symlink: libbz2.so.1.0 -> $(basename "$base_bz")"
-        fi
+    base_bz=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libbz2.so.*.*" -type f 2>/dev/null | head -1)
+    if [ -n "$base_bz" ] && [ ! -L /usr/lib/openterfaceqt/libbz2.so.1.0 ]; then
+        ln -sf "$(basename "$base_bz")" /usr/lib/openterfaceqt/libbz2.so.1.0 2>/dev/null || true
+        echo "  ✅ Created symlink: libbz2.so.1.0 -> $(basename "$base_bz")"
     fi
     
     echo "✅ Bundled library symlinks created"
@@ -871,10 +865,14 @@ fi
 # Symlinks were already created above where necessary.
 
 # Create symlink for binary in /usr/local/bin for consistency with DEB/AppImage installations
-# This allows the standard entrypoint script to find the binary without modification
+# This allows the standard entrypoint script to find the binary without modification.
+# The symlink points to the smart launcher (which handles bundled lib LD_PRELOAD),
+# not directly to the binary. Target must match the %install section.
 mkdir -p /usr/local/bin
 if [ ! -L /usr/local/bin/openterfaceQT ]; then
-    ln -sf /usr/bin/openterfaceQT /usr/local/bin/openterfaceQT 2>/dev/null || true
+    # Remove stale regular files (e.g. left by older install-release.sh runs)
+    rm -f /usr/local/bin/openterfaceQT 2>/dev/null || true
+    ln -sf /usr/lib/openterfaceqt/launcher.sh /usr/local/bin/openterfaceQT 2>/dev/null || true
 fi
 
 echo "✅ OpenterfaceQT post-installation setup complete"

@@ -11,7 +11,7 @@
 #   curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh | bash
 #
 #   # Install specific version
-#   VERSION="v0.5.17" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh)
+#   RELEASE_VERSION="0.5.17" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh)
 #
 # REQUIREMENTS:
 # - Linux (x86_64 or ARM64)
@@ -331,8 +331,8 @@ download_release() {
             sudo mkdir -p "${ICON_DIR}"
             
             # Install AppImage
-            sudo cp "${temp_dir}/${package_name}" "${BIN_DIR}/openterfaceQT"
-            sudo chmod +x "${BIN_DIR}/openterfaceQT"
+            sudo cp "${temp_dir}/${package_name}" "${BIN_DIR}/openterfaceQT-bin"
+            sudo chmod +x "${BIN_DIR}/openterfaceQT-bin"
             
             # Extract icon from AppImage if possible
             if command -v appimagetool &> /dev/null; then
@@ -354,8 +354,18 @@ download_release() {
 
 # Create wrapper script
 create_wrapper() {
+    # Protect existing launchers from package installs.
+    # The .rpm installs /usr/local/bin/openterfaceQT as a symlink to
+    # /usr/lib/openterfaceqt/launcher.sh (the smart launcher). Using `tee`
+    # on a symlink follows it and silently overwrites the symlink target,
+    # corrupting the RPM's launcher. If a symlink already exists, leave it.
+    if [ -L "${BIN_DIR}/openterfaceQT" ]; then
+        log_info "Preserving existing launcher (symlink): ${BIN_DIR}/openterfaceQT"
+        return 0
+    fi
+
     log_info "Creating launcher wrapper..."
-    
+
     # Find Qt plugin path
     local qt_plugin_path=""
     if [ -d "/usr/lib/x86_64-linux-gnu/qt6/plugins" ]; then
@@ -367,8 +377,13 @@ create_wrapper() {
     elif [ -d "/usr/lib/qt6/plugins" ]; then
         qt_plugin_path="/usr/lib/qt6/plugins"
     fi
-    
-    # Create wrapper script
+
+    # Create wrapper script. The binary name and location vary by install
+    # source, so the wrapper searches all known locations:
+    #   - ${BIN_DIR}/openterfaceQT-bin  (AppImage path, also RPM after manual copy)
+    #   - ${BIN_DIR}/openterfaceQT.bin  (.deb package)
+    #   - /usr/bin/openterfaceQT-bin    (.rpm package)
+    #   - /usr/bin/openterfaceQT.bin    (alt .rpm layout)
     sudo tee "${BIN_DIR}/openterfaceQT" > /dev/null << EOF
 #!/bin/bash
 # Openterface QT Launcher
@@ -379,9 +394,20 @@ export QT_QPA_PLATFORM_PLUGIN_PATH="${qt_plugin_path}/platforms"
 export QT_QPA_PLATFORM="xcb"
 export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu:/usr/lib/aarch64-linux-gnu:/usr/lib64:/usr/lib:\$LD_LIBRARY_PATH"
 
-exec ${BIN_DIR}/openterfaceQT-bin "\$@"
+for _otf_bin in \\
+    "${BIN_DIR}/openterfaceQT-bin" \\
+    "${BIN_DIR}/openterfaceQT.bin" \\
+    "/usr/bin/openterfaceQT-bin" \\
+    "/usr/bin/openterfaceQT.bin"; do
+    if [ -x "\$_otf_bin" ]; then
+        exec "\$_otf_bin" "\$@"
+    fi
+done
+
+echo "openterfaceQT: binary not found in standard locations" >&2
+exit 1
 EOF
-    
+
     sudo chmod +x "${BIN_DIR}/openterfaceQT"
     log_success "Wrapper created: ${BIN_DIR}/openterfaceQT"
 }
@@ -428,18 +454,26 @@ EOF
 # Remove old installation
 cleanup_old() {
     log_info "Checking for existing installations..."
-    
-    if [ -f "${BIN_DIR}/openterfaceQT" ]; then
-        log_info "Removing old installation..."
+
+    # If ${BIN_DIR}/openterfaceQT is a symlink, it belongs to a package
+    # install (e.g. the .rpm symlinks it to /usr/lib/openterfaceqt/launcher.sh).
+    # Don't remove it — the package owns that path, and removing the symlink
+    # would also break create_wrapper's symlink-preservation check.
+    if [ -L "${BIN_DIR}/openterfaceQT" ]; then
+        log_info "Preserving package-owned launcher (symlink): ${BIN_DIR}/openterfaceQT"
+    elif [ -f "${BIN_DIR}/openterfaceQT" ]; then
+        log_info "Removing old wrapper: ${BIN_DIR}/openterfaceQT"
         sudo rm -f "${BIN_DIR}/openterfaceQT"
-        sudo rm -f "${BIN_DIR}/openterfaceQT-bin"
-        sudo rm -f "${BIN_DIR}/openterfaceQT-desktop"
     fi
-    
+
+    # Remove stale helper binaries from previous install-release.sh runs.
+    sudo rm -f "${BIN_DIR}/openterfaceQT-bin"
+    sudo rm -f "${BIN_DIR}/openterfaceQT-desktop"
+
     if [ -f "${DESKTOP_DIR}/openterfaceQT.desktop" ]; then
         sudo rm -f "${DESKTOP_DIR}/openterfaceQT.desktop"
     fi
-    
+
     if [ -f "${DESKTOP_DIR}/com.openterface.openterfaceQT.desktop" ]; then
         sudo rm -f "${DESKTOP_DIR}/com.openterface.openterfaceQT.desktop"
     fi
