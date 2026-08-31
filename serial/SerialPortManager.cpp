@@ -41,6 +41,7 @@ static constexpr uint8_t SCANCODE_SCROLLLOCK = 0x47;
 
 #include <QSerialPortInfo>
 #include <QTimer>
+#include <QPointer>
 #include <QThread>
 #include <QtConcurrent>
 #include <QFuture>
@@ -50,6 +51,7 @@ static constexpr uint8_t SCANCODE_SCROLLLOCK = 0x47;
 #include <QStandardPaths>
 #include <QDir>
 #include <QFileInfo>
+#include <memory>
 #include <unistd.h>
 #include <errno.h>
 
@@ -415,22 +417,38 @@ SerialPortManager::SerialPortManager(QObject *parent) : QObject(parent), serialP
                     return;
                 }
                 // switchSerialPortByPortChain is async — wait for serialPortConnectionSuccess or timeout
-                QTimer* connectTimer = new QTimer(this);
+                // FIX: Use QPointer for connectTimer captures — the timer can be deleted by the
+                // parent (SerialPortManager) during close/reopen cycles (e.g. factory reset).
+                // Without QPointer, the lambda captures a raw pointer that becomes dangling
+                // after deleteLater() processes, causing SIGSEGV on subsequent signal emissions.
+                // Also guard against double-invocation: serialPortConnectionSuccess can fire
+                // multiple times during close/reopen cycles, so the lambda must be idempotent.
+                QPointer<QTimer> connectTimerPtr = new QTimer(this);
+                QTimer* connectTimer = connectTimerPtr.data();
                 connectTimer->setSingleShot(true);
                 QMetaObject::Connection successConn;
+                auto handled = std::make_shared<bool>(false);
                 successConn = connect(this, &SerialPortManager::serialPortConnectionSuccess, this,
-                    [this, sessionKey, connectTimer, successConn](const QString&) mutable {
+                    [this, sessionKey, connectTimerPtr, successConn, handled](const QString&) mutable {
+                        if (*handled) return;  // Already processed - ignore duplicate emissions
+                        *handled = true;
                         QObject::disconnect(successConn);
-                        connectTimer->stop();
-                        connectTimer->deleteLater();
+                        if (connectTimerPtr) {
+                            connectTimerPtr->stop();
+                            connectTimerPtr->deleteLater();
+                        }
                         qCInfo(log_core_serial_hotplug) << "[Lifecycle] Serial connected for session" << sessionKey;
                         DeviceLifecycleManager::getInstance().notifyInterfaceConnected(
                             sessionKey, InterfaceType::Serial);
                     });
                 connect(connectTimer, &QTimer::timeout, this,
-                    [this, sessionKey, successConn, connectTimer]() mutable {
+                    [this, sessionKey, successConn, connectTimerPtr, handled]() mutable {
+                        if (*handled) return;  // Already processed by success lambda
+                        *handled = true;
                         QObject::disconnect(successConn);
-                        connectTimer->deleteLater();
+                        if (connectTimerPtr) {
+                            connectTimerPtr->deleteLater();
+                        }
                         qCWarning(log_core_serial_hotplug) << "[Lifecycle] Serial connect timed out for session" << sessionKey;
                         DeviceLifecycleManager::getInstance().notifyInterfaceFailed(
                             sessionKey, InterfaceType::Serial, "serialPortConnectionSuccess timeout");
@@ -1566,9 +1584,45 @@ void SerialPortManager::handleFactoryResetV191() {
  */
 bool SerialPortManager::factoryResetHipChipSync(int timeoutMs) {
     qCDebug(log_core_serial_config) << "Synchronous factory reset HID chip requested, timeout:" << timeoutMs << "ms";
-    
-    // Always execute directly in the calling thread for diagnostics
-    return handleFactoryResetSyncInternal(timeoutMs);
+
+    // CRITICAL FIX: handleFactoryResetSyncInternal accesses serialPort and calls
+    // onSerialPortConnected() which creates QSerialPort. These MUST run in the
+    // worker thread (where SerialPortManager lives) to ensure correct thread
+    // affinity for QSerialPort. Previously this ran directly in the calling
+    // (main) thread, causing cross-thread SIGSEGV.
+    //
+    // Use QueuedConnection + QEventLoop (NOT BlockingQueuedConnection) so the
+    // main thread keeps processing events while waiting — BlockingQueuedConnection
+    // freezes the main thread's event loop, which breaks signal delivery and
+    // leaves the serial port unusable after reset.
+    if (QThread::currentThread() == m_serialWorkerThread) {
+        return handleFactoryResetSyncInternal(timeoutMs);
+    }
+
+    std::atomic<bool> done{false};
+    std::atomic<bool> result{false};
+
+    QMetaObject::invokeMethod(this, [this, timeoutMs, &done, &result]() {
+        result.store(handleFactoryResetSyncInternal(timeoutMs));
+        done.store(true);
+    }, Qt::QueuedConnection);
+
+    // Wait for completion, processing events to avoid deadlock
+    QEventLoop loop;
+    QTimer checkTimer;
+    QObject::connect(&checkTimer, &QTimer::timeout, [&]() {
+        if (done.load()) loop.quit();
+    });
+    checkTimer.start(50);
+
+    // Overall timeout = requested timeout + buffer for the internal retries
+    QTimer overallTimeout;
+    overallTimeout.setSingleShot(true);
+    QObject::connect(&overallTimeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    overallTimeout.start(timeoutMs + 15000);
+
+    loop.exec();
+    return result.load();
 }
 
 /*
@@ -1577,9 +1631,35 @@ bool SerialPortManager::factoryResetHipChipSync(int timeoutMs) {
  */
 bool SerialPortManager::factoryResetHipChipV191Sync(int timeoutMs) {
     qCDebug(log_core_serial_config) << "Synchronous factory reset V191 HID chip requested, timeout:" << timeoutMs << "ms";
-    
-    // Always execute directly in the calling thread for diagnostics
-    return handleFactoryResetV191SyncInternal(timeoutMs);
+
+    // Same fix as factoryResetHipChipSync: route to worker thread, use
+    // QueuedConnection + QEventLoop instead of BlockingQueuedConnection.
+    if (QThread::currentThread() == m_serialWorkerThread) {
+        return handleFactoryResetV191SyncInternal(timeoutMs);
+    }
+
+    std::atomic<bool> done{false};
+    std::atomic<bool> result{false};
+
+    QMetaObject::invokeMethod(this, [this, timeoutMs, &done, &result]() {
+        result.store(handleFactoryResetV191SyncInternal(timeoutMs));
+        done.store(true);
+    }, Qt::QueuedConnection);
+
+    QEventLoop loop;
+    QTimer checkTimer;
+    QObject::connect(&checkTimer, &QTimer::timeout, [&]() {
+        if (done.load()) loop.quit();
+    });
+    checkTimer.start(50);
+
+    QTimer overallTimeout;
+    overallTimeout.setSingleShot(true);
+    QObject::connect(&overallTimeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    overallTimeout.start(timeoutMs + 5000);
+
+    loop.exec();
+    return result.load();
 }
 
 /*
@@ -1947,23 +2027,48 @@ void SerialPortManager::closePortInternal() {
                 qCWarning(log_core_serial_conn) << "Exception during serial port close";
             }
         }
-        // Hand the object to deleteLater() and drop our pointer NOW, under the
-        // mutex we already hold. deleteLater() is itself deferred to the next
-        // event-loop iteration of this (the object's own) thread, which is all
-        // the "socket notifier" safety the old QTimer::singleShot(0) detour
-        // bought -- and that detour was a use-after-free: a port switch queues
-        // closePort() and then onSerialPortConnected(); openPort() ran before
-        // the single-shot and did `delete serialPort` on this very object, after
-        // which the single-shot called deleteLater() on freed memory. The heap
-        // corruption surfaced one switch later as a crash in QSerialPort::close().
+        // CH9329 uses the OLD deferred deletion path (QTimer::singleShot(0)):
+        //   Factory-reset on CH9329 does RTS toggle → close → wait ~2s → reopen.
+        //   The singleShot(0) deferred deletion keeps the serialPort pointer alive
+        //   until the event loop returns, which gives the kernel more time to fully
+        //   release the USB-serial device before we reopen it. Immediate deletion
+        //   caused reopen races on CH9329 units.
+        //
+        // Non-CH9329 (CH32V208 etc.) uses the NEW immediate deletion path:
+        //   Device-switching (closePort + onSerialPortConnected queued back-to-back)
+        //   previously crashed: the singleShot landed AFTER onSerialPortConnected,
+        //   so openPort() ran while serialPort still pointed to the old (about-to-be
+        //   deleted) object. openPort() did `delete serialPort` on it, then the
+        //   singleShot called deleteLater() on freed memory → SIGSEGV.
+        //   Immediate deleteLater() + clearing the pointer under the mutex avoids
+        //   this use-after-free for non-CH9329 chips.
         QObject* portPtr = serialPort;
-        serialPort = nullptr;
-        qCDebug(log_core_serial_conn) << "Deleting serial port instance:" << static_cast<void*>(portPtr);
-        portPtr->deleteLater();
 
-        // Transition to CLOSED now that the instance is released.
-        m_portState.store(SerialPortState::CLOSED);
-        qCDebug(log_core_serial_conn) << "Port state transition: CLOSING -> CLOSED";
+        if (isChipTypeCH9329()) {
+            // CH9329: OLD deferred deletion path
+            qCDebug(log_core_serial_conn) << "CH9329: using deferred deletion path (QTimer::singleShot)";
+            QTimer::singleShot(0, this, [this, portPtr]() {
+                if (portPtr) {
+                    qCDebug(log_core_serial_conn) << "Deleting serial port instance (deferred):" << static_cast<void*>(portPtr);
+                    portPtr->deleteLater();
+                    QMutexLocker deleteLocker(&m_serialPortMutex);
+                    if (serialPort == portPtr) {
+                        serialPort = nullptr;
+                        qCDebug(log_core_serial_conn) << "SerialPort instance pointer cleared (deferred)";
+                    }
+                    m_portState.store(SerialPortState::CLOSED);
+                    qCDebug(log_core_serial_conn) << "Port state transition: CLOSING -> CLOSED (deferred)";
+                }
+            });
+        } else {
+            // Non-CH9329: NEW immediate deletion path
+            serialPort = nullptr;
+            qCDebug(log_core_serial_conn) << "Non-CH9329: using immediate deletion path, deleting instance:" << static_cast<void*>(portPtr);
+            portPtr->deleteLater();
+
+            m_portState.store(SerialPortState::CLOSED);
+            qCDebug(log_core_serial_conn) << "Port state transition: CLOSING -> CLOSED (immediate)";
+        }
     } else {
         qCDebug(log_core_serial_conn) << "Serial port is not opened (serialPort is nullptr).";
         // Transition to CLOSED state even if no port instance
@@ -2160,40 +2265,44 @@ void SerialPortManager::restartPortInternalAsync(const QString &portName, qint32
 
 // Helper method to stop all timers safely (must be called from worker thread)
 void SerialPortManager::stopAllTimers(bool disconnectSignals) {
-    // Use BlockingQueuedConnection so the caller only returns after timers are
-    // truly stopped.  The previous QueuedConnection was async, meaning a caller
-    // on the MainThread could proceed while timers were still firing on the
-    // WorkerThread, leading to use-after-free / double-close scenarios.
+    // Use QueuedConnection when called from a different thread to avoid
+    // BlockingQueuedConnection deadlocks (especially during factory reset
+    // where the main thread holds a QEventLoop and the worker thread is
+    // running the reset sequence).
     if (QThread::currentThread() != this->thread()) {
         QMetaObject::invokeMethod(this, [this, disconnectSignals]() {
             stopAllTimers(disconnectSignals);
-        }, Qt::BlockingQueuedConnection);
+        }, Qt::QueuedConnection);
         return;
     }
-    
-    // Add shutdown flag check to prevent operations during shutdown
+
     if (m_isShuttingDown) {
         qCDebug(log_core_serial_conn) << "stopAllTimers: Already shutting down, ensuring all timers stopped";
     }
-    
-    // Stop timers with additional safety checks
-    if (m_getInfoTimer) {
-        if (m_getInfoTimer->isActive()) {
-            m_getInfoTimer->stop();
+
+    // Use QPointer locals so that if a timer was deleted unexpectedly
+    // (e.g., by parent destruction or a racing cleanup), the pointer
+    // auto-nulls and we skip the stop() call instead of crashing.
+    QPointer<QTimer> getInfoTimer = m_getInfoTimer;
+    QPointer<QTimer> usbStatusCheckTimer = m_usbStatusCheckTimer;
+    QPointer<QTimer> connectionWatchdog = m_connectionWatchdog;
+    QPointer<QTimer> errorRecoveryTimer = m_errorRecoveryTimer;
+
+    if (getInfoTimer) {
+        if (getInfoTimer->isActive()) {
+            getInfoTimer->stop();
         }
-        // Only disconnect signals during permanent shutdown
         if (disconnectSignals) {
-            disconnect(m_getInfoTimer, nullptr, this, nullptr);
+            disconnect(getInfoTimer.data(), nullptr, this, nullptr);
         }
     }
 
-    if (m_usbStatusCheckTimer) {
-        if (m_usbStatusCheckTimer->isActive()) {
-            m_usbStatusCheckTimer->stop();
+    if (usbStatusCheckTimer) {
+        if (usbStatusCheckTimer->isActive()) {
+            usbStatusCheckTimer->stop();
         }
-        // Only disconnect signals during permanent shutdown  
         if (disconnectSignals) {
-            disconnect(m_usbStatusCheckTimer, nullptr, this, nullptr);
+            disconnect(usbStatusCheckTimer.data(), nullptr, this, nullptr);
         }
     }
 
@@ -2201,26 +2310,25 @@ void SerialPortManager::stopAllTimers(bool disconnectSignals) {
         m_watchdog->stop();
     }
 
-    if (m_connectionWatchdog) {
-        if (m_connectionWatchdog->isActive()) {
-            m_connectionWatchdog->stop();
+    if (connectionWatchdog) {
+        if (connectionWatchdog->isActive()) {
+            connectionWatchdog->stop();
         }
-        // Only disconnect signals during permanent shutdown
         if (disconnectSignals) {
-            disconnect(m_connectionWatchdog, nullptr, this, nullptr);
+            disconnect(connectionWatchdog.data(), nullptr, this, nullptr);
         }
     }
-    
-    if (m_errorRecoveryTimer) {
-        if (m_errorRecoveryTimer->isActive()) {
-            m_errorRecoveryTimer->stop();
+
+    if (errorRecoveryTimer) {
+        if (errorRecoveryTimer->isActive()) {
+            errorRecoveryTimer->stop();
         }
-        disconnect(m_errorRecoveryTimer, nullptr, this, nullptr);
+        disconnect(errorRecoveryTimer.data(), nullptr, this, nullptr);
     }
-    
+
     // Also call stopConnectionWatchdog for additional cleanup
     stopConnectionWatchdog();
-    
+
     qCDebug(log_core_serial_conn) << "All timers stopped and disconnected";
 }
 
