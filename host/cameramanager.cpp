@@ -54,6 +54,20 @@ CameraManager::CameraManager(QObject *parent)
     // Setup Windows-specific hotplug monitoring
     setupWindowsHotplugMonitoring();
 
+    // Initialize frame timeout timer - repeats every 10s to check if frames are still arriving
+    m_frameTimeoutTimer = new QTimer(this);
+    m_frameTimeoutTimer->setSingleShot(false);  // Repeating timer
+    connect(m_frameTimeoutTimer, &QTimer::timeout, this, [this]() {
+        // Check if we've received frames recently and haven't already warned
+        // Also trigger if camera was attempted but never started streaming
+        bool shouldWarn = !isCameraStreaming() && !m_frameTimeoutWarningShown;
+        if (shouldWarn) {
+            qCWarning(log_ui_camera) << "Frame timeout: no video frames received in last 5 seconds";
+            m_frameTimeoutWarningShown = true;
+            emit frameTimeout();
+        }
+    });
+
     // NOTE: Old hotplug monitor connection disabled — DeviceLifecycleManager handles this now.
     // connectToHotplugMonitor();  // Disabled to avoid clash with MainWindow camera initialization
 
@@ -93,6 +107,13 @@ CameraManager::CameraManager(QObject *parent)
                         sessionKey, InterfaceType::Camera);
                 } else {
                     qCWarning(log_ui_camera) << "[Lifecycle] Camera connect failed for session" << sessionKey;
+                    // Start frame timeout monitoring even on failure - user needs to know
+                    // Only start if not already running to avoid resetting on retries
+                    if (m_frameTimeoutTimer && !m_frameTimeoutTimer->isActive()) {
+                        m_frameTimeoutWarningShown = false;
+                        m_frameTimeoutTimer->start(10000);
+                        qCDebug(log_ui_camera) << "Frame timeout monitoring started after connection failure (10s)";
+                    }
                     DeviceLifecycleManager::getInstance().notifyInterfaceFailed(
                         sessionKey, InterfaceType::Camera, "switchToCameraDeviceByPortChain failed");
                 }
@@ -255,12 +276,23 @@ void CameraManager::initializeBackendHandler()
                         this, [this](const QString& devicePath) {
                             qCInfo(log_ui_camera) << "FFmpeg device activated:" << devicePath;
                             emit cameraActiveChanged(true);
+                            // Reset timeout warning flag and start monitoring
+                            // Only start if not already running to avoid resetting on retries
+                            if (m_frameTimeoutTimer && !m_frameTimeoutTimer->isActive()) {
+                                m_frameTimeoutWarningShown = false;
+                                m_frameTimeoutTimer->start(10000);  // Check every 10 seconds
+                                qCDebug(log_ui_camera) << "Frame timeout monitoring started (10s interval)";
+                            }
                         });
                         
                 connect(ffmpegHandler, &FFmpegBackendHandler::deviceDeactivated,
                         this, [this](const QString& devicePath) {
                             qCInfo(log_ui_camera) << "FFmpeg device deactivated:" << devicePath;
                             emit cameraActiveChanged(false);
+                            // Stop frame timeout monitoring
+                            if (m_frameTimeoutTimer) {
+                                m_frameTimeoutTimer->stop();
+                            }
                         });
                         
                 connect(ffmpegHandler, &FFmpegBackendHandler::waitingForDevice,
@@ -379,6 +411,14 @@ void CameraManager::startCamera()
         // Start backend camera
         m_backendHandler->startCamera();
 
+        // Start frame timeout monitoring - will warn if no frames arrive
+        // Only start if not already running to avoid resetting on retries
+        if (m_frameTimeoutTimer && !m_frameTimeoutTimer->isActive()) {
+            m_frameTimeoutWarningShown = false;
+            m_frameTimeoutTimer->start(10000);  // Check every 10 seconds
+            qCDebug(log_ui_camera) << "Frame timeout monitoring started (10s interval)";
+        }
+
         // FFmpeg reports real readiness asynchronously via deviceActivated.
         // Avoid optimistic success state that can produce a black screen with "active=true".
         if (!isFFmpegBackend()) {
@@ -398,7 +438,12 @@ void CameraManager::startCamera()
 void CameraManager::stopCamera()
 {
     qCDebug(log_ui_camera) << "Stopping camera with FFmpeg backend";
-    
+
+    // Stop frame timeout monitoring
+    if (m_frameTimeoutTimer) {
+        m_frameTimeoutTimer->stop();
+    }
+
     try {
         if (m_backendHandler) {
             qCDebug(log_ui_camera) << "Stopping FFmpeg backend camera";
@@ -408,7 +453,7 @@ void CameraManager::stopCamera()
         } else {
             qCWarning(log_ui_camera) << "No backend handler available";
         }
-        
+
     } catch (const std::exception& e) {
         qCritical() << "Exception stopping camera:" << e.what();
     } catch (...) {
