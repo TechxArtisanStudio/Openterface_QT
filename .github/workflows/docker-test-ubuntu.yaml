@@ -10,14 +10,6 @@ on:
       - '.github/workflows/docker-test-ubuntu.yaml'
       - 'openterfaceQT.pro'
       - 'doc/build_from_source_summary.md'
-  pull_request:
-    branches: ["main", "dev"]
-    paths:
-      - 'docker/testos/Dockerfile.ubuntu-test-shared'
-      - 'docker/install-openterface.sh'
-      - '.github/workflows/docker-test-ubuntu.yaml'
-      - 'openterfaceQT.pro'
-      - 'doc/build_from_source_summary.md'
   workflow_run:
     workflows: ["Linux Build"]
     types:

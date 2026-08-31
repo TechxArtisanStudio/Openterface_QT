@@ -8,13 +8,6 @@ on:
       - '.github/workflows/windows-arm64-build.yaml'
       - 'CMakeLists.txt'
       - '**/*.cmake'
-  pull_request:
-    branches: ["main"]
-    paths:
-      - '.github/workflows/docker-test-windows-arm64.yaml'
-      - '.github/workflows/windows-arm64-build.yaml'
-      - 'CMakeLists.txt'
-      - '**/*.cmake'
   workflow_run:
     workflows: ["Build / Openterface Windows ARM64 (Static)"]
     types:
