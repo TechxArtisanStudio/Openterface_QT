@@ -129,12 +129,29 @@ void MfBackendHandler::startCamera()
         return;
     }
 
+    // Start FPS timer — fires every 1s, emits fpsChanged with the frame count
+    // from the previous interval. The capture thread increments frameCounter_
+    // in onFrameReady; this timer (main thread) reads and resets it.
+    if (!fpsTimer_) {
+        fpsTimer_ = new QTimer(this);
+        fpsTimer_->setInterval(1000);
+        connect(fpsTimer_, &QTimer::timeout, this, &MfBackendHandler::onFpsTimerTick);
+    }
+    frameCounter_.store(0, std::memory_order_relaxed);
+    fpsTimer_->start();
+
     qCInfo(log_multimedia_backend) << "Media Foundation camera started successfully";
 }
 
 void MfBackendHandler::stopCamera()
 {
     qCInfo(log_multimedia_backend) << "Media Foundation backend: stopping camera";
+
+    if (fpsTimer_) {
+        fpsTimer_->stop();
+    }
+    frameCounter_.store(0, std::memory_order_relaxed);
+    emit fpsChanged(0.0);
 
     if (captureManager_) {
         captureManager_->stopCapture();
@@ -144,6 +161,11 @@ void MfBackendHandler::stopCamera()
 void MfBackendHandler::cleanupCamera()
 {
     qCInfo(log_multimedia_backend) << "Media Foundation backend: cleaning up camera";
+
+    if (fpsTimer_) {
+        fpsTimer_->stop();
+    }
+    frameCounter_.store(0, std::memory_order_relaxed);
 
     if (captureManager_) {
         captureManager_->stopCapture();
@@ -210,7 +232,17 @@ QStringList MfBackendHandler::getAvailableHardwareAccelerations() const
 
 void MfBackendHandler::onFrameReady(const QImage& frame)
 {
+    frameCounter_.fetch_add(1, std::memory_order_relaxed);
     emit frameReadyImage(frame);
+}
+
+void MfBackendHandler::onFpsTimerTick()
+{
+    // exchange() atomically reads and resets the counter in one operation,
+    // so frames that arrive between the read and the next tick aren't lost.
+    const qint64 frames = frameCounter_.exchange(0, std::memory_order_relaxed);
+    // Timer interval is 1000 ms, so frames == fps directly.
+    emit fpsChanged(static_cast<double>(frames));
 }
 
 void MfBackendHandler::onCaptureError(const QString& error)

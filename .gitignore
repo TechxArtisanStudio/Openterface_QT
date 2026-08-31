@@ -72,3 +72,7 @@ tests/keyboard/*.moc
 openterfaceQT
 .qmake.stash
 Makefile
+
+# Build output directories (cmake / qmake)
+build-cmake/
+build-qmake/

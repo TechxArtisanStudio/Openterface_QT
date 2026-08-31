@@ -155,7 +155,7 @@ QJsonArray McpToolHandler::listTools() const
         schema["type"] = "object";
         QJsonObject props;
         props["key"] = QJsonObject{{"type", "string"}, {"description", "Qt key code (integer) or key name (string, e.g. 'A', 'Enter', 'Escape', 'Tab', 'F1', 'Control', 'Shift', 'Alt')"}};
-        props["modifiers"] = QJsonObject{{"type", "integer"}, {"description", "Modifier bitmask: 1=Shift, 2=Ctrl, 4=Alt, 8=Meta/Win"}, {"default", 0}};
+        props["modifiers"] = QJsonObject{{"type", "integer"}, {"description", "Qt::KeyboardModifiers bitfield, as KeyboardManager expects: Shift=33554432 (0x02000000), Ctrl=67108864 (0x04000000), Alt=134217728 (0x08000000), Meta/Win=268435456 (0x10000000); OR them together. (Not 1/2/4/8.)"}, {"default", 0}};
         props["isKeyDown"] = QJsonObject{{"type", "boolean"}, {"description", "true = press, false = release"}, {"default", true}};
         props["side"] = QJsonObject{{"type", "string"}, {"description", "Which side of the keyboard for modifier keys: 'left' or 'right'. Only applies to Shift, Ctrl, Alt keys."}, {"enum", QJsonArray{"left", "right"}}};
         props["autoRelease"] = QJsonObject{{"type", "boolean"}, {"description", "If true (default), auto-release the key after press. Set false to hold the key (useful for modifier combos)."}, {"default", true}};
@@ -287,12 +287,13 @@ QJsonArray McpToolHandler::listTools() const
     {
         QJsonObject tool;
         tool["name"] = MCP_TOOL_SCREEN_TO_MARKDOWN;
-        tool["description"] = "Capture the target screen and convert it to a structured Markdown representation with OCR-detected text and UI element locations. Returns coordinates (0-4096 range) for all detected elements, making it easy for AI to find buttons, menus, and interactive elements without needing vision. Requires Tesseract OCR to be installed and the feature to be enabled in Preferences -> MCP Server.";
+        tool["description"] = "Capture the target screen and convert it to a structured Markdown representation with OCR-detected text and UI element locations. Returns coordinates (0-4096 range) for all detected elements, making it easy for AI to find buttons, menus, and interactive elements without needing vision. For a text console (shell, boot log, BIOS text screen) pass mode='terminal', which reads the screen as lines of text and OCRs only the region that changed since the previous call. Requires Tesseract OCR to be installed and the feature to be enabled in Preferences -> MCP Server.";
 
         QJsonObject schema;
         schema["type"] = "object";
         QJsonObject props;
         props["detail_level"] = QJsonObject{{"type", "string"}, {"description", "Level of detail in output: 'basic' (only interactive elements) or 'detailed' (full breakdown with all text)"}, {"enum", QJsonArray{"basic", "detailed"}}, {"default", "detailed"}};
+        props["mode"] = QJsonObject{{"type", "string"}, {"description", "Analysis mode: 'general' for a graphical UI (text and UI elements with coordinates), or 'terminal' for a text console (line-oriented text, differential OCR of the changed region only). Ignored by detail_level."}, {"enum", QJsonArray{"general", "terminal"}}, {"default", "general"}};
         schema["properties"] = props;
         schema["required"] = QJsonArray();
         tool["inputSchema"] = schema;
@@ -1061,16 +1062,24 @@ QJsonObject McpToolHandler::toolScreenToMarkdown(const QJsonObject& args)
         detailLevel = "detailed";
     }
 
+    // Get analysis mode. Terminal mode reads the screen as lines of text and
+    // OCRs only the region that changed since the previous call, which suits
+    // a scrolling console far better than the general UI-element pass.
+    const QString modeStr = args.value("mode").toString("general").toLower();
+    const AnalysisMode mode = (modeStr == "terminal") ? AnalysisMode::Terminal
+                                                      : AnalysisMode::General;
+
     // Get the current frame
     QImage frame = m_cameraManager->getLatestOriginalFrame();
     if (frame.isNull()) {
         return errorResult("No frame available from camera");
     }
 
-    qCInfo(log_server_mcp_tool) << "Analyzing screen with detail level:" << detailLevel;
+    qCInfo(log_server_mcp_tool) << "Analyzing screen with detail level:" << detailLevel
+                                << "mode:" << modeStr;
 
     // Analyze the screen
-    ScreenAnalysis analysis = m_screenAnalyzer->analyzeScreen(frame, detailLevel);
+    ScreenAnalysis analysis = m_screenAnalyzer->analyzeScreen(frame, detailLevel, mode);
 
     // Return the Markdown output
     return textResult(analysis.markdownOutput);

@@ -1947,28 +1947,23 @@ void SerialPortManager::closePortInternal() {
                 qCWarning(log_core_serial_conn) << "Exception during serial port close";
             }
         }
-
-        // Enhanced deletion with additional safety measures
-        // Store pointer but DO NOT clear serialPort immediately to avoid race conditions
+        // Hand the object to deleteLater() and drop our pointer NOW, under the
+        // mutex we already hold. deleteLater() is itself deferred to the next
+        // event-loop iteration of this (the object's own) thread, which is all
+        // the "socket notifier" safety the old QTimer::singleShot(0) detour
+        // bought -- and that detour was a use-after-free: a port switch queues
+        // closePort() and then onSerialPortConnected(); openPort() ran before
+        // the single-shot and did `delete serialPort` on this very object, after
+        // which the single-shot called deleteLater() on freed memory. The heap
+        // corruption surfaced one switch later as a crash in QSerialPort::close().
         QObject* portPtr = serialPort;
+        serialPort = nullptr;
+        qCDebug(log_core_serial_conn) << "Deleting serial port instance:" << static_cast<void*>(portPtr);
+        portPtr->deleteLater();
 
-        // Schedule deletion for next event loop to avoid immediate socket notifier issues
-        // Use QTimer::singleShot for more reliable deferred deletion
-        QTimer::singleShot(0, this, [this, portPtr]() {
-            if (portPtr) {
-                qCDebug(log_core_serial_conn) << "Deleting serial port instance:" << static_cast<void*>(portPtr);
-                portPtr->deleteLater();
-                // Clear pointer only after scheduling deletion
-                QMutexLocker deleteLocker(&m_serialPortMutex);
-                if (serialPort == portPtr) {
-                    serialPort = nullptr;
-                    qCDebug(log_core_serial_conn) << "SerialPort instance pointer cleared";
-                }
-                // CRITICAL: Transition to CLOSED state after deletion is scheduled
-                m_portState.store(SerialPortState::CLOSED);
-                qCDebug(log_core_serial_conn) << "Port state transition: CLOSING -> CLOSED";
-            }
-        });
+        // Transition to CLOSED now that the instance is released.
+        m_portState.store(SerialPortState::CLOSED);
+        qCDebug(log_core_serial_conn) << "Port state transition: CLOSING -> CLOSED";
     } else {
         qCDebug(log_core_serial_conn) << "Serial port is not opened (serialPort is nullptr).";
         // Transition to CLOSED state even if no port instance
@@ -2055,8 +2050,12 @@ void SerialPortManager::completePortCloseCleanup() {
     stopConnectionWatchdog();
     
     // Use the existing signal for port state changes
+    // ponytail: capture state at emit time, not at queue time — prevents stale
+    // "Port disconnected" from overwriting "Port connected" during close/reopen cycles
     QMetaObject::invokeMethod(this, [this]() {
-        emit statusUpdate("Port disconnected");
+        if (!serialPort || !serialPort->isOpen()) {
+            emit statusUpdate("Port disconnected");
+        }
     }, Qt::QueuedConnection);
 }
 

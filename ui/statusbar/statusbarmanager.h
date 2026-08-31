@@ -38,6 +38,7 @@ public:
     void setRecordingTime(const QString& time);
     void showRecordingIndicator(bool show);
     void onTcpServerKeyHandled(const QString& key);
+    void setTcpServerVisible(bool visible);
     void setHideKeyboardInput(bool hide);
 
 

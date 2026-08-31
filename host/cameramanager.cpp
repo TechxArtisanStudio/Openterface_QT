@@ -54,6 +54,20 @@ CameraManager::CameraManager(QObject *parent)
     // Setup Windows-specific hotplug monitoring
     setupWindowsHotplugMonitoring();
 
+    // Initialize frame timeout timer - repeats every 10s to check if frames are still arriving
+    m_frameTimeoutTimer = new QTimer(this);
+    m_frameTimeoutTimer->setSingleShot(false);  // Repeating timer
+    connect(m_frameTimeoutTimer, &QTimer::timeout, this, [this]() {
+        // Check if we've received frames recently and haven't already warned
+        // Also trigger if camera was attempted but never started streaming
+        bool shouldWarn = !isCameraStreaming() && !m_frameTimeoutWarningShown;
+        if (shouldWarn) {
+            qCWarning(log_ui_camera) << "Frame timeout: no video frames received in last 5 seconds";
+            m_frameTimeoutWarningShown = true;
+            emit frameTimeout();
+        }
+    });
+
     // NOTE: Old hotplug monitor connection disabled — DeviceLifecycleManager handles this now.
     // connectToHotplugMonitor();  // Disabled to avoid clash with MainWindow camera initialization
 
@@ -93,6 +107,13 @@ CameraManager::CameraManager(QObject *parent)
                         sessionKey, InterfaceType::Camera);
                 } else {
                     qCWarning(log_ui_camera) << "[Lifecycle] Camera connect failed for session" << sessionKey;
+                    // Start frame timeout monitoring even on failure - user needs to know
+                    // Only start if not already running to avoid resetting on retries
+                    if (m_frameTimeoutTimer && !m_frameTimeoutTimer->isActive()) {
+                        m_frameTimeoutWarningShown = false;
+                        m_frameTimeoutTimer->start(10000);
+                        qCDebug(log_ui_camera) << "Frame timeout monitoring started after connection failure (10s)";
+                    }
                     DeviceLifecycleManager::getInstance().notifyInterfaceFailed(
                         sessionKey, InterfaceType::Camera, "switchToCameraDeviceByPortChain failed");
                 }
@@ -255,12 +276,23 @@ void CameraManager::initializeBackendHandler()
                         this, [this](const QString& devicePath) {
                             qCInfo(log_ui_camera) << "FFmpeg device activated:" << devicePath;
                             emit cameraActiveChanged(true);
+                            // Reset timeout warning flag and start monitoring
+                            // Only start if not already running to avoid resetting on retries
+                            if (m_frameTimeoutTimer && !m_frameTimeoutTimer->isActive()) {
+                                m_frameTimeoutWarningShown = false;
+                                m_frameTimeoutTimer->start(10000);  // Check every 10 seconds
+                                qCDebug(log_ui_camera) << "Frame timeout monitoring started (10s interval)";
+                            }
                         });
                         
                 connect(ffmpegHandler, &FFmpegBackendHandler::deviceDeactivated,
                         this, [this](const QString& devicePath) {
                             qCInfo(log_ui_camera) << "FFmpeg device deactivated:" << devicePath;
                             emit cameraActiveChanged(false);
+                            // Stop frame timeout monitoring
+                            if (m_frameTimeoutTimer) {
+                                m_frameTimeoutTimer->stop();
+                            }
                         });
                         
                 connect(ffmpegHandler, &FFmpegBackendHandler::waitingForDevice,
@@ -368,16 +400,24 @@ void CameraManager::startCamera()
         }
         
 #ifdef Q_OS_WIN
-        // On Windows builds, only the FFmpeg backend is supported.
-        // For Linux build, both FFmepg and GStreamer backends are supported.
-        if (!isFFmpegBackend()) {
-            qCWarning(log_backend) << "Only FFmpeg backend is supported on Windows";
+        // On Windows builds, FFmpeg and Media Foundation backends are supported.
+        // For Linux build, both FFmpeg and GStreamer backends are supported.
+        if (!isFFmpegBackend() && !isMediaFoundationBackend()) {
+            qCWarning(log_backend) << "Only FFmpeg and Media Foundation backends are supported on Windows";
             return;
         }
 #endif
         
         // Start backend camera
         m_backendHandler->startCamera();
+
+        // Start frame timeout monitoring - will warn if no frames arrive
+        // Only start if not already running to avoid resetting on retries
+        if (m_frameTimeoutTimer && !m_frameTimeoutTimer->isActive()) {
+            m_frameTimeoutWarningShown = false;
+            m_frameTimeoutTimer->start(10000);  // Check every 10 seconds
+            qCDebug(log_ui_camera) << "Frame timeout monitoring started (10s interval)";
+        }
 
         // FFmpeg reports real readiness asynchronously via deviceActivated.
         // Avoid optimistic success state that can produce a black screen with "active=true".
@@ -398,7 +438,12 @@ void CameraManager::startCamera()
 void CameraManager::stopCamera()
 {
     qCDebug(log_ui_camera) << "Stopping camera with FFmpeg backend";
-    
+
+    // Stop frame timeout monitoring
+    if (m_frameTimeoutTimer) {
+        m_frameTimeoutTimer->stop();
+    }
+
     try {
         if (m_backendHandler) {
             qCDebug(log_ui_camera) << "Stopping FFmpeg backend camera";
@@ -408,7 +453,7 @@ void CameraManager::stopCamera()
         } else {
             qCWarning(log_ui_camera) << "No backend handler available";
         }
-        
+
     } catch (const std::exception& e) {
         qCritical() << "Exception stopping camera:" << e.what();
     } catch (...) {
@@ -986,6 +1031,20 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice, cons
             qCDebug(log_ui_camera) << "Set device path in GStreamer backend:" << devicePath;
         }
         #endif
+
+#ifdef Q_OS_WIN
+        if (MfBackendHandler* mfHandler = qobject_cast<MfBackendHandler*>(m_backendHandler.get())) {
+            // For MF, use the cameraDevicePath from DeviceInfo (symbolic link)
+            // rather than the Qt QCamera-based convertCameraDeviceToPath.
+            DeviceInfo mfDevInfo = DeviceManager::getInstance().getCurrentSelectedDevice();
+            if (!mfDevInfo.cameraDevicePath.isEmpty()) {
+                mfHandler->setDevicePath(mfDevInfo.cameraDevicePath);
+                qCDebug(log_ui_camera) << "Set camera symbolic link in MF backend:" << mfDevInfo.cameraDevicePath;
+            } else {
+                qCWarning(log_ui_camera) << "No camera symbolic link available for MF backend";
+            }
+        }
+#endif
 
         // Start camera with new device
         startCamera();
@@ -1670,6 +1729,21 @@ bool CameraManager::initializeCameraWithVideoOutput(VideoPane* videoPane, bool s
 
             mfHandler->setResolution(resolution);
             mfHandler->setFramerate(framerate);
+
+            // Pass the camera device symbolic link to the MF handler.
+            // The Windows device enumerator resolves this to the \\?\usb#... form
+            // that MF's MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK expects.
+            // Without this, devicePath_ stays empty and startCamera() blindly
+            // auto-selects the first device from MFEnumDeviceSources (often wrong).
+            DeviceInfo mfSelectedDevice = DeviceManager::getInstance().getCurrentSelectedDevice();
+            if (!mfSelectedDevice.cameraDevicePath.isEmpty()) {
+                mfHandler->setDevicePath(mfSelectedDevice.cameraDevicePath);
+                qCDebug(log_ui_camera) << "MF: using camera symbolic link:"
+                                       << mfSelectedDevice.cameraDevicePath;
+            } else {
+                qCWarning(log_ui_camera) << "MF: no camera device path in selected device,"
+                                            " falling back to auto-select first MF device";
+            }
 
             if (startCapture) {
                 mfHandler->startCamera();

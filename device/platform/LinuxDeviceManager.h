@@ -50,6 +50,20 @@ private:
         QString parentSyspath;
         QVariantMap properties;
     };
+
+    // Serial <-> companion association for all companions at once. Runs the
+    // topology-based findSerialPortByCompanionDeviceLinux() per companion, then
+    // repairs contested results (two companions on one serial, or companions
+    // left without one while serials are unclaimed) by USB enumeration order:
+    // a unit's companion and serial enumerate back-to-back at power-up, so on a
+    // flat bus (VM pass-through, no internal hub visible) BUSNUM/DEVNUM pairs
+    // them where port arithmetic cannot. Returns one serial syspath per
+    // companion (empty if none).
+    QStringList associateSerialDevicesLinux(const QList<UdevDeviceData>& companions,
+                                            const QList<UdevDeviceData>& serials,
+                                            const char* generation);
+    static qint64 usbEnumerationKey(const QString& usbDeviceSyspath);   // busnum*1000+devnum, -1 if unknown
+    static QList<UdevDeviceData> usbDeviceNodesOnly(const QList<UdevDeviceData>& entries);
     
     // Blocking device discovery (for use in background thread)
     QList<DeviceInfo> discoverDevicesBlocking();

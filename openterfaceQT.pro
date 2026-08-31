@@ -44,11 +44,12 @@ SOURCES += main.cpp \
     host/backend/ffmpeg/ffmpeg_hardware_accelerator.cpp \
     host/backend/ffmpeg/ffmpeg_device_manager.cpp \
     host/backend/ffmpeg/ffmpeg_frame_processor.cpp \
-    host/backend/ffmpeg/ffmpeg_amd_detector.cpp \
     host/backend/ffmpeg/ffmpeg_recorder.cpp \
     host/backend/ffmpeg/ffmpeg_device_validator.cpp \
     host/backend/ffmpeg/ffmpeg_hotplug_handler.cpp \
     host/backend/ffmpeg/ffmpeg_capture_manager.cpp \
+    host/backend/ffmpeg/ffmpeg_amd_detector.cpp \
+    host/backend/ffmpeg_compat_shim.c \
     regex/RegularExpression.cpp \
     scripts/KeyboardMouse.cpp \
     scripts/Lexer.cpp \
@@ -234,6 +235,7 @@ HEADERS  += \
     host/backend/ffmpeg/ffmpeg_device_validator.h \
     host/backend/ffmpeg/ffmpeg_hotplug_handler.h \
     host/backend/ffmpeg/ffmpeg_capture_manager.h \
+    host/backend/ffmpeg/ffmpeg_amd_detector.h \
     host/backend/ffmpeg/icapture_frame_reader.h \
     host/backend/ffmpeg/ffmpegutils.h \
     regex/RegularExpression.h \
@@ -400,53 +402,132 @@ win32 {
         device/platform/windows/discoverers/Generation3Discoverer.cpp \
         device/platform/windows/discoverers/DeviceDiscoveryManager.cpp \
         video/transport/WindowsHIDTransport.cpp \
-        SysKeyBlocker/SystemKeyBlocker_win.cpp
+        SysKeyBlocker/SystemKeyBlocker_win.cpp \
+        host/backend/mf/mfbackendhandler.cpp \
+        host/backend/mf/mf_capture_manager.cpp \
+        host/backend/mf/mf_device_enumerator.cpp \
+        host/backend/mf/mf_frame_processor.cpp
     HEADERS += device/platform/WindowsDeviceManager.h \
         video/transport/WindowsHIDTransport.h \
         device/platform/windows/discoverers/IDeviceDiscoverer.h \
         device/platform/windows/discoverers/BaseDeviceDiscoverer.h \
         device/platform/windows/discoverers/BotherDeviceDiscoverer.h \
         device/platform/windows/discoverers/Generation3Discoverer.h \
-        device/platform/windows/discoverers/DeviceDiscoveryManager.h
+        device/platform/windows/discoverers/DeviceDiscoveryManager.h \
+        host/backend/mf/mfbackendhandler.h \
+        host/backend/mf/mf_capture_manager.h \
+        host/backend/mf/mf_device_enumerator.h \
+        host/backend/mf/mf_frame_processor.h
     
     INCLUDEPATH += $$PWD/lib
-    INCLUDEPATH += C:\ffmpeg-static\include
+    # FFmpeg prefix. Resolution order:
+    #   1. qmake arg:       qmake "FFMPEG_PREFIX=D:/ffmpeg"
+    #   2. env var:         set FFMPEG_PREFIX=D:\ffmpeg
+    #   3. default:         C:/ffmpeg-static (or C:/ffmpeg-shared with CONFIG+=shared_ffmpeg)
+    # Usage:  qmake "CONFIG+=shared_ffmpeg" "FFMPEG_PREFIX=C:/ffmpeg-shared"
+    # Mirrors cmake -DUSE_SHARED_FFMPEG=ON -DFFMPEG_PREFIX=...
+    contains(CONFIG, shared_ffmpeg): FF_MODE = shared
+    else: FF_MODE = static
+    isEmpty(FFMPEG_PREFIX) {
+        FFMPEG_PREFIX = $$(FFMPEG_PREFIX)
+    }
+    isEmpty(FFMPEG_PREFIX) {
+        equals(FF_MODE, shared): FFMPEG_PREFIX = C:/ffmpeg-shared
+        else: FFMPEG_PREFIX = C:/ffmpeg-static
+    }
+    message("Using FFmpeg prefix: $$FFMPEG_PREFIX (mode: $$FF_MODE)")
+    INCLUDEPATH += $$FFMPEG_PREFIX/include
+
     LIBS += -L$$PWD/lib -llibusb-1.0 -loleaut32 -lwinpthread
-    # Prefer ffmpeg libs from C:/ffmpeg-static, also search msys2 mingw64; only add -lmfx if libmfx exists
-    FF_LIB_DIR = C:/ffmpeg-static/lib
-    MSYS_LIB_DIR = C:/msys64/mingw64/lib
-    MFX_FF = $$FF_LIB_DIR/libmfx.a
+
+    # MSYS2/MinGW sysroot for FFmpeg transitive deps (zlib, bz2, lzma, mfx, winpthread, iconv).
+    # Resolution order: 1) qmake arg MSYS_PREFIX  2) env MSYS_PREFIX  3) C:/msys64
+    isEmpty(MSYS_PREFIX) {
+        MSYS_PREFIX = $$(MSYS_PREFIX)
+    }
+    isEmpty(MSYS_PREFIX) {
+        MSYS_PREFIX = C:/msys64
+    }
+    MSYS_LIB_DIR = $$MSYS_PREFIX/mingw64/lib
     MFX_MSYS = $$MSYS_LIB_DIR/libmfx.a
-    # Ensure the ffmpeg lib dir is searched first so -lav* resolves
-    LIBS += -L$$FF_LIB_DIR -L$$MSYS_LIB_DIR
-    exists($$MFX_FF) {
-        message("Using libmfx from $$MFX_FF")
-        LIBS += -Wl,--start-group -lavcodec -lavformat -lavutil -lavdevice -lswscale -lswresample -lmfx -lz -Wl,--end-group
-    } else {
-        exists($$MFX_MSYS) {
+    message("Using MSYS2 lib dir: $$MSYS_LIB_DIR")
+    LIBS += -L$$MSYS_LIB_DIR
+
+    equals(FF_MODE, shared) {
+        # ---- Shared FFmpeg (import libs from $$FFMPEG_PREFIX/lib) ----
+        # Mirrors cmake/FFmpeg.cmake: link .dll.a import libs + Windows system deps.
+        SHARED_FF_LIB_DIR = $$FFMPEG_PREFIX/lib
+        LIBS += -L$$SHARED_FF_LIB_DIR
+        LIBS += -lavdevice -lavfilter -lavformat -lavcodec -lswresample -lswscale -lavutil
+
+        # Windows system libs required by shared FFmpeg (same set as CMake HWACCEL_LIBRARIES)
+        LIBS += -lws2_32 -lsecur32 -lbcrypt -lole32 -lstrmiids
+        LIBS += -lvfw32 -lgdi32 -lshlwapi -lwinmm -luuid -loleaut32
+
+        # Intel QSV (libmfx) - prefer ffmpeg-static copy, fallback to MSYS2
+        exists($$FFMPEG_PREFIX/lib/libmfx.a) {
+            message("Using libmfx from $$FFMPEG_PREFIX/lib/libmfx.a")
+            LIBS += $$FFMPEG_PREFIX/lib/libmfx.a
+        } else:exists($$MFX_MSYS) {
             message("Using libmfx from $$MFX_MSYS")
-            LIBS += -Wl,--start-group -lavcodec -lavformat -lavutil -lavdevice -lswscale -lswresample -lmfx -lz -Wl,--end-group
+            LIBS += $$MFX_MSYS
         } else {
-            message("libmfx not found; building without -lmfx. Install Intel oneVPL or place libmfx in C:/ffmpeg-static/lib or C:/msys64/mingw64/lib to enable.")
-            LIBS += -Wl,--start-group -lavcodec -lavformat -lavutil -lavdevice -lswscale -lswresample -lz -Wl,--end-group
+            message("libmfx not found - QSV support disabled")
         }
+
+        # Shared FFmpeg transitive deps (zlib, bz2, lzma, winpthread)
+        LIBS += -lz -lbz2 -llzma -lwinpthread
+        DEFINES += HAVE_FFMPEG
+
+        # libjpeg-turbo (optional, matches CMake HAVE_LIBJPEG_TURBO detection)
+        exists($$FFMPEG_PREFIX/lib/libturbojpeg.a) {
+            LIBS += $$FFMPEG_PREFIX/lib/libturbojpeg.a
+            DEFINES += HAVE_LIBJPEG_TURBO
+            message("Using libturbojpeg from $$FFMPEG_PREFIX/lib/libturbojpeg.a")
+        } else {
+            exists($$MSYS_LIB_DIR/libturbojpeg.a) {
+                LIBS += $$MSYS_LIB_DIR/libturbojpeg.a
+                DEFINES += HAVE_LIBJPEG_TURBO
+            }
+        }
+    } else {
+        # ---- Static FFmpeg (whole-archive from $$FFMPEG_PREFIX/lib) ----
+        # Mirrors cmake link_ffmpeg_libraries() static branch.
+        # IMPORTANT: do NOT use --start-group/--end-group — the linker loop
+        # pulls objects repeatedly and corrupts init tables (0xC0000409).
+        # IMPORTANT: FFmpeg .a files MUST come BEFORE the system libs that
+        # satisfy their undefined refs (left-to-right resolution).
+        FF_LIB_DIR = $$FFMPEG_PREFIX/lib
+        LIBS += -L$$FF_LIB_DIR
+        LIBS += -Wl,--whole-archive $$FF_LIB_DIR/libavdevice.a -Wl,--no-whole-archive
+        LIBS += $$FF_LIB_DIR/libavfilter.a \
+                $$FF_LIB_DIR/libavformat.a \
+                $$FF_LIB_DIR/libavcodec.a \
+                $$FF_LIB_DIR/libswresample.a \
+                $$FF_LIB_DIR/libswscale.a \
+                $$FF_LIB_DIR/libavutil.a
+        exists($$FF_LIB_DIR/libjpeg.a):        LIBS += $$FF_LIB_DIR/libjpeg.a
+        exists($$FF_LIB_DIR/libturbojpeg.a):   LIBS += $$FF_LIB_DIR/libturbojpeg.a
+        exists($$FF_LIB_DIR/libpostproc.a):    LIBS += $$FF_LIB_DIR/libpostproc.a
+        # Third-party / MSYS2 deps
+        exists($$MSYS_LIB_DIR/libz.a):          LIBS += $$MSYS_LIB_DIR/libz.a
+        exists($$MSYS_LIB_DIR/libbz2.a):        LIBS += $$MSYS_LIB_DIR/libbz2.a
+        exists($$MSYS_LIB_DIR/liblzma.a):       LIBS += $$MSYS_LIB_DIR/liblzma.a
+        exists($$MSYS_LIB_DIR/libwinpthread.a): LIBS += $$MSYS_LIB_DIR/libwinpthread.a
+        exists($$MSYS_LIB_DIR/libmfx.a):        LIBS += $$MSYS_LIB_DIR/libmfx.a
+        exists($$MSYS_LIB_DIR/libiconv.a):      LIBS += $$MSYS_LIB_DIR/libiconv.a
+        # System libs (resolve refs from FFmpeg archives above)
+        LIBS += -lgdi32 -lvfw32 -lshlwapi \
+                -lws2_32 -lbcrypt -lsecur32 -lwinmm -luuid \
+                -lole32 -loleaut32 -lstrmiids \
+                -lmfuuid -lmfplat -lmf -lmfreadwrite -lwmcodecdspuuid \
+                -lwinpthread
+
+        DEFINES += HAVE_FFMPEG
     }
 
-    # Add additional system libraries FFmpeg objects may depend on (Windows)
-    LIBS += -lws2_32 -lwsock32 -lbcrypt -lbz2 -llzma -lsecur32 -lshlwapi -lwinmm
-    
-    # Or if you installed oneVPL elsewhere, point to that lib dir:
-    # LIBS += -L"C:/Program Files (x86)/Intel/oneVPL/lib" -lmfx
-    # Add FFmpeg support for Windows
-    DEFINES += HAVE_FFMPEG
-
-    # Add libjpeg-turbo for Windows (commented out - not available)
-    # LIBS += -ljpeg
-    # DEFINES += HAVE_LIBJPEG_TURBO
-
-    # Add libjpeg-turbo for Windows (commented out - not available)
-    # LIBS += -ljpeg
-    # DEFINES += HAVE_LIBJPEG_TURBO
+    # Media Foundation backend is always built on Windows (independent of FFmpeg mode).
+    LIBS += -lmf -lmfplat -lmfreadwrite -lmfuuid -lshlwapi -lole32 -loleaut32
 
     RESOURCES += driver/windows/drivers.qrc
 }

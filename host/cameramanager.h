@@ -132,6 +132,7 @@ signals:
     void recordingStopped();
     void recordingError(const QString &errorString);
     void cameraError(const QString &errorString);
+    void frameTimeout();  // Emitted when no frames received after camera activation
     void resolutionsUpdated(int input_width, int input_height, float input_fps, int capture_width, int capture_height, int capture_fps, float pixelClk);
     void imageCaptured(int id, const QImage& img);
     void lastImagePath(const QString& imagePath);
@@ -205,7 +206,9 @@ private:
     QString m_currentCameraPortChain;  // Track the port chain of current camera device
     qint64 m_lastFrameTimestamp = 0;   // Timestamp (ms since epoch) of last received frame
     QList<QCameraDevice> m_availableCameraDevices;
-    
+    QTimer* m_frameTimeoutTimer = nullptr;  // Detects when no frames are received
+    bool m_frameTimeoutWarningShown = false;  // Only warn once per session
+
     // Recording management
     QString m_currentRecordingPath;  // Path to the current recording file
 

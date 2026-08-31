@@ -187,6 +187,7 @@ private slots:
     void openKeyboardMapEditor();
 
     void displayCameraError();
+    void onFrameTimeout();  // Warn user when no video frames are received
 
     void updateCameraActive(bool active);
     void onDeviceSwitchCompleted();

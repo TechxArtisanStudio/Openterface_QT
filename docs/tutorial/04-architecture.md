@@ -28,7 +28,7 @@ The codebase follows a modular directory layout where each directory owns a dist
 | Directory | Purpose | Key Classes |
 |-----------|---------|-------------|
 | [`ui/`](ui/) | GUI widgets, dialogs, preferences, toolbars, coordinators | `MainWindow`, `VideoPane`, `DeviceCoordinator`, `MenuCoordinator`, `WindowLayoutCoordinator`, `GlobalSetting` |
-| [`host/`](host/) | Video/audio capture backends, camera management, USB control | `CameraManager`, `MultimediaBackendHandler`, `FFmpegBackendHandler`, `GStreamerBackendHandler`, `QtBackendHandler`, `QtMultimediaBackendHandler`, `AudioManager` |
+| [`host/`](host/) | Video/audio capture backends, camera management, USB control | `CameraManager`, `MultimediaBackendHandler`, `FFmpegBackendHandler`, `GStreamerBackendHandler`, `MfBackendHandler`, `AudioManager` |
 | [`serial/`](serial/) | Serial port communication, protocol parsing, chip strategies | `SerialPortManager`, `SerialProtocol`, `IChipStrategy`, `CH9329Strategy`, `CH32V208Strategy`, `ChipStrategyFactory`, `ConnectionWatchdog`, `SerialCommandCoordinator` |
 | [`video/`](video/) | HID transport for video capture chips, firmware operations | `VideoHid`, `IHIDTransport`, `LinuxHIDTransport`, `WindowsHIDTransport`, `VideoChip`, `Ms2109Chip`, `Ms2109sChip`, `Ms2130sChip`, `FirmwareOperationManager` |
 | [`device/`](device/) | Platform-agnostic device enumeration, hotplug monitoring | `DeviceManager`, `DeviceInfo`, `HotplugMonitor`, `AbstractPlatformDeviceManager` |
@@ -177,9 +177,8 @@ The video capture system uses a **pluggable backend** pattern with a factory sel
 CameraManager
   └── MultimediaBackendHandler (abstract base)
         ├── FFmpegBackendHandler     (default, most feature-complete)
-        ├── GStreamerBackendHandler  (Linux only)
-        ├── QtBackendHandler         (Windows-specific)
-        └── QtMultimediaBackendHandler (minimal fallback)
+        ├── MfBackendHandler         (Windows Media Foundation)
+        └── GStreamerBackendHandler  (Linux only)
 ```
 
 ### Base Class: `MultimediaBackendHandler`
@@ -225,12 +224,21 @@ Supports direct V4L2 capture, hardware-accelerated decoding (VAAPI, V4L2-M2M), T
 
 Linux-only backend. Runs GStreamer pipelines either in-process (`InProcessGstRunner`) or externally via `gst-launch-1.0` subprocess (`ExternalGstRunner`). Supports multiple recording strategies (valve-based tee, frame-based appsink, direct filesink).
 
-### QtBackendHandler / QtMultimediaBackendHandler
+### MfBackendHandler (Media Foundation)
 
-**Files:** [`host/backend/qtbackendhandler.h`](host/backend/qtbackendhandler.h), [`host/backend/qtmultimediabackendhandler.h`](host/backend/qtmultimediabackendhandler.h)
+**Files:** [`host/backend/mf/mfbackendhandler.h`](host/backend/mf/mfbackendhandler.h), [`host/backend/mf/mf_capture_manager.h`](host/backend/mf/mf_capture_manager.h)
 
-- `QtBackendHandler`: Windows-specific, wraps `QMediaRecorder` and `QMediaCaptureSession`.
-- `QtMultimediaBackendHandler`: Minimal fallback for platforms where FFmpeg/GStreamer are unavailable. No recording support.
+Windows-only backend built on the native Media Foundation API (`IMFSourceReader`). Preferred when DirectShow has trouble claiming the device, or when a lower-CPU path is desired — MF can delegate format conversion to the driver.
+
+| Component | File | Responsibility |
+|-----------|------|---------------|
+| `MfBackendHandler` | [`host/backend/mf/mfbackendhandler.h`](host/backend/mf/mfbackendhandler.h) | Backend lifecycle, FPS timer, frame delivery to `VideoPane` |
+| `MfCaptureManager` | [`host/backend/mf/mf_capture_manager.h`](host/backend/mf/mf_capture_manager.h) | Activates the device from the symbolic link, owns the source reader and capture thread |
+| `MfCaptureThread` | same | QThread that calls `IMFSourceReader::ReadSample` in a loop |
+| `MfFrameProcessor` | [`host/backend/mf/mf_frame_processor.h`](host/backend/mf/mf_frame_processor.h) | Converts the device's native pixel format (NV12/YUY2/RGB24) to `QImage::Format_BGR888` using FFmpeg's `sws_scale` |
+| `MfDeviceEnumerator` | [`host/backend/mf/mf_device_enumerator.h`](host/backend/mf/mf_device_enumerator.h) | Enumerates video capture devices via `MFEnumDeviceSources` (used only for auto-select fallback) |
+
+**Pixel format note:** MF's `MFVideoFormat_RGB24` uses the Windows bitmap byte order (B, G, R), which matches `QImage::Format_BGR888` directly. The frame processor therefore has a fast path that skips `sws_scale` entirely for RGB24 input, and uses `AV_PIX_FMT_BGR24` as the sws_scale destination for NV12/YUY2 inputs to keep the output layout consistent.
 
 ### Hardware Acceleration
 

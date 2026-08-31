@@ -33,10 +33,10 @@ The settings dialog (`SettingDialog`) uses a `QTreeWidget` on the left and `QSta
 Controls video capture behavior:
 - **Resolution** — Preferred capture resolution
 - **Frame rate** — Target FPS
-- **Media backend** — Choose between FFmpeg, GStreamer, or Qt Multimedia
+- **Media backend** — Choose between FFmpeg, GStreamer, or Media Foundation
   - **FFmpeg** — Direct FFmpeg-based capture (recommended for most users)
   - **GStreamer** — GStreamer pipeline-based (available on Linux)
-  - **Qt Multimedia** — Qt's native multimedia (Windows fallback)
+  - **Media Foundation** — Native Windows API (Windows only, lower CPU usage)
 - **Hardware acceleration** — VAAPI (Linux Intel), V4L2 (Linux) options when using FFmpeg
 - **Custom input resolution** — Override the auto-detected target resolution
 

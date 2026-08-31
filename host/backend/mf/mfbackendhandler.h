@@ -7,6 +7,8 @@
 #include <QCameraFormat>
 #include <QSize>
 #include <QMetaObject>
+#include <QTimer>
+#include <atomic>
 #include <memory>
 
 // Forward declarations
@@ -49,6 +51,7 @@ private slots:
     void onFrameReady(const QImage& frame);
     void onCaptureError(const QString& error);
     void onDeviceDisconnected();
+    void onFpsTimerTick();
 
 private:
     bool setupCaptureSession();
@@ -64,6 +67,11 @@ private:
     QSize resolution_;
     int framerate_;
     bool isRecording_;
+
+    // FPS tracking. onFrameReady runs on the capture thread, so the counter
+    // must be atomic. The timer fires on the main thread to read and reset it.
+    QTimer* fpsTimer_ = nullptr;
+    std::atomic<qint64> frameCounter_{0};
 };
 
 #endif // MFBACKENDHANDLER_H
