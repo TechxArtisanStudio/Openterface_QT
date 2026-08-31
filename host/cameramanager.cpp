@@ -255,6 +255,13 @@ void CameraManager::initializeBackendHandler()
             // Connect fpsChanged signal from backend to CameraManager
             connect(m_backendHandler.get(), &MultimediaBackendHandler::fpsChanged,
                     this, &CameraManager::fpsChanged);
+
+            // Connect frameReceived signal so backends that render outside
+            // the Qt graphics path (e.g. GStreamer via X11 video overlay)
+            // can keep the frame-alive timestamp fresh. Without this, the
+            // frame-timeout watchdog falsely reports "no video signal".
+            connect(m_backendHandler.get(), &MultimediaBackendHandler::frameReceived,
+                    this, &CameraManager::onNewVideoFrameReceived, Qt::UniqueConnection);
             
             // Connect FFmpeg-specific signals if this is an FFmpeg backend
             if (auto ffmpegHandler = qobject_cast<FFmpegBackendHandler*>(m_backendHandler.get())) {

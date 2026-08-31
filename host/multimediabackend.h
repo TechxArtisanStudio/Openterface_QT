@@ -128,6 +128,12 @@ signals:
     void backendWarning(const QString& warning);
     void backendError(const QString& error);
     void fpsChanged(double fps);
+
+    // Emitted by backends that deliver frames outside the Qt graphics path
+    // (e.g. GStreamer rendering via X11 video overlay). CameraManager uses
+    // this to keep the frame-alive timestamp fresh so the frame-timeout
+    // watchdog doesn't falsely report "no video signal".
+    void frameReceived();
     
     // Recording signals
     void recordingStarted(const QString& outputPath);
