@@ -811,17 +811,18 @@ if [ -d /usr/lib/openterfaceqt ]; then
     echo "Creating symlinks for bundled core libraries..."
     
     # Compression libraries (zlib variants)
-    # Use find with two-dot pattern to match fully-versioned real files only
-    # (e.g. libz.so.1.2.11), excluding sonames like libz.so.1 which would
-    # produce self-referential symlinks.
-    base_z=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libz.so.*.*" -type f 2>/dev/null | head -1)
+    # Use find with three-dot pattern (*.so.*.*.*) to match fully-versioned real
+    # files only (e.g. libz.so.1.2.11 = 3 segments after .so), excluding sonames
+    # (libz.so.1 = 1 segment, libbz2.so.1.0 = 2 segments) which would produce
+    # self-referential symlinks.
+    base_z=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libz.so.*.*.*" -type f 2>/dev/null | head -1)
     if [ -n "$base_z" ] && [ ! -L /usr/lib/openterfaceqt/libz.so.1 ]; then
         ln -sf "$(basename "$base_z")" /usr/lib/openterfaceqt/libz.so.1 2>/dev/null || true
         echo "  ✅ Created symlink: libz.so.1 -> $(basename "$base_z")"
     fi
 
     # Hardware acceleration libraries (VDPAU only - libva is now system dependency)
-    base_vdpau=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libvdpau.so.*.*" -type f 2>/dev/null | head -1)
+    base_vdpau=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libvdpau.so.*.*.*" -type f 2>/dev/null | head -1)
     if [ -n "$base_vdpau" ] && [ ! -L /usr/lib/openterfaceqt/libvdpau.so.1 ]; then
         ln -sf "$(basename "$base_vdpau")" /usr/lib/openterfaceqt/libvdpau.so.1 2>/dev/null || true
         echo "  ✅ Created symlink: libvdpau.so.1 -> $(basename "$base_vdpau")"
@@ -829,29 +830,32 @@ if [ -d /usr/lib/openterfaceqt ]; then
 
     # NOTE: libva is now a system dependency, not bundled
     # This prevents symbol conflicts with system libavutil (vaMapBuffer2)
-    
+
     # USB device access
-    base_usb=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libusb-1.0.so.*.*" -type f 2>/dev/null | head -1)
+    base_usb=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libusb-1.0.so.*.*.*" -type f 2>/dev/null | head -1)
     if [ -n "$base_usb" ] && [ ! -L /usr/lib/openterfaceqt/libusb-1.0.so.0 ]; then
         ln -sf "$(basename "$base_usb")" /usr/lib/openterfaceqt/libusb-1.0.so.0 2>/dev/null || true
         echo "  ✅ Created symlink: libusb-1.0.so.0 -> $(basename "$base_usb")"
     fi
 
     # JPEG libraries
-    base_tjpeg=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libturbojpeg.so.*.*" -type f 2>/dev/null | head -1)
+    base_tjpeg=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libturbojpeg.so.*.*.*" -type f 2>/dev/null | head -1)
     if [ -n "$base_tjpeg" ] && [ ! -L /usr/lib/openterfaceqt/libturbojpeg.so.0 ]; then
         ln -sf "$(basename "$base_tjpeg")" /usr/lib/openterfaceqt/libturbojpeg.so.0 2>/dev/null || true
         echo "  ✅ Created symlink: libturbojpeg.so.0 -> $(basename "$base_tjpeg")"
     fi
 
-    base_jpeg=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libjpeg.so.*.*" -type f 2>/dev/null | head -1)
+    base_jpeg=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libjpeg.so.*.*.*" -type f 2>/dev/null | head -1)
     if [ -n "$base_jpeg" ] && [ ! -L /usr/lib/openterfaceqt/libjpeg.so.8 ]; then
         ln -sf "$(basename "$base_jpeg")" /usr/lib/openterfaceqt/libjpeg.so.8 2>/dev/null || true
         echo "  ✅ Created symlink: libjpeg.so.8 -> $(basename "$base_jpeg")"
     fi
 
     # Compression libraries (bzip2)
-    base_bz=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libbz2.so.*.*" -type f 2>/dev/null | head -1)
+    # Critical: libbz2's soname (libbz2.so.1.0) has two dot-segments, so a
+    # two-dot find pattern would match the soname itself and produce a
+    # self-referential symlink. Three-dot pattern (*.so.*.*.*) excludes it.
+    base_bz=$(find /usr/lib/openterfaceqt -maxdepth 1 -name "libbz2.so.*.*.*" -type f 2>/dev/null | head -1)
     if [ -n "$base_bz" ] && [ ! -L /usr/lib/openterfaceqt/libbz2.so.1.0 ]; then
         ln -sf "$(basename "$base_bz")" /usr/lib/openterfaceqt/libbz2.so.1.0 2>/dev/null || true
         echo "  ✅ Created symlink: libbz2.so.1.0 -> $(basename "$base_bz")"
