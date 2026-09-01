@@ -13,6 +13,7 @@
 #include <QClipboard>
 #include <QPainter>
 #include <QStyleOption>
+#include <QTimer>
 
 ChatWindow::ChatWindow(QWidget *parent)
     : QWidget(parent)
@@ -37,9 +38,11 @@ ChatWindow::ChatWindow(QWidget *parent)
         if (index >= 0 && index < m_bubbleWidgets.size()) {
             m_bubbleWidgets[index]->setMessage(msg, index);
         }
+        scrollToBottom();
     });
     connect(&mgr, &ChatManager::messagesChanged, this, [this]() {
         refreshBubbles();
+        scrollToBottom();
     });
     connect(&mgr, &ChatManager::lastErrorChanged, this, [this](const QString &error) {
         m_errorRow->setVisible(!error.isEmpty());
@@ -47,6 +50,7 @@ ChatWindow::ChatWindow(QWidget *parent)
     });
     connect(&mgr, &ChatManager::planChanged, this, [this]() {
         updatePlanCard();
+        scrollToBottom();
     });
     connect(&mgr, &ChatManager::agentRequestStatusChanged, this,
             [this](const QUuid & /*messageID*/, const GuideAutoNextStatus &status) {
@@ -60,6 +64,7 @@ ChatWindow::ChatWindow(QWidget *parent)
             m_statusLabel->setVisible(!status.text.isEmpty()
                                       && status.phase != GuideAutoNextStatus::Completed);
         }
+        scrollToBottom();
     });
     connect(&mgr, &ChatManager::sendingStateChanged, this, [this](bool sending) {
         m_inputWidget->setSending(sending);
@@ -72,8 +77,19 @@ ChatWindow::ChatWindow(QWidget *parent)
     connect(&ChatSkillManager::instance(), &ChatSkillManager::skillsChanged,
             this, &ChatWindow::updateEmptyState);
 
+    // Initialize mode combo box from saved settings
+    GlobalSetting &gs = GlobalSetting::instance();
+    if (gs.getChatGuideModeEnabled()) {
+        m_modeCombo->setCurrentIndex(2);  // Guide mode
+    } else if (gs.getChatPlannerModeEnabled()) {
+        m_modeCombo->setCurrentIndex(1);  // Planner mode
+    } else {
+        m_modeCombo->setCurrentIndex(0);  // Agent mode (default)
+    }
+
     updateEmptyState();
     updatePlanCard();
+    updateModeUI();
 }
 
 ChatWindow::~ChatWindow() = default;
@@ -230,8 +246,21 @@ void ChatWindow::clearAll()
 
 void ChatWindow::scrollToBottom()
 {
-    QScrollBar *sb = m_scrollArea->verticalScrollBar();
-    if (sb) sb->setValue(sb->maximum());
+    // Defer the scroll to allow the layout to fully update.
+    // We use a small delay (50ms) instead of 0ms to ensure all widgets have
+    // finished their layout calculations, especially the QTextBrowser in chat
+    // bubbles which needs time to measure text height after content changes.
+    QTimer::singleShot(50, this, [this]() {
+        // Force layout update before calculating scroll position
+        m_scrollArea->widget()->updateGeometry();
+        m_scrollArea->widget()->layout()->activate();
+
+        QScrollBar *sb = m_scrollArea->verticalScrollBar();
+        if (sb) {
+            // Scroll to the absolute maximum to ensure we reach the bottom
+            sb->setValue(sb->maximum());
+        }
+    });
 }
 
 void ChatWindow::onSendClicked()

@@ -187,5 +187,14 @@ QList<ChatSkill> ChatSkillManager::builtInSkills() const
         makeSkill("check-network", "Network Ports",
             "Check listening network ports and connections on the target machine. "
             "Open a terminal if needed, run 'ss -tuln', and report all listening ports and their associated services."),
+
+        makeSkill("disable-screen-lock", "Disable Screen Lock",
+            "Disable screen lock and screen blanking on the target machine to keep it always on. "
+            "Open a terminal if needed and run the following commands:\n"
+            "1. Disable screen blanking: 'xset s off' and 'xset -dpms'\n"
+            "2. Disable screen lock (GNOME): 'gsettings set org.gnome.desktop.session idle-delay 0'\n"
+            "3. Disable auto-suspend: 'gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing''\n"
+            "For other desktop environments, use 'xset s off -dpms' and configure the DE's power settings accordingly. "
+            "Report the commands executed and their results."),
     };
 }

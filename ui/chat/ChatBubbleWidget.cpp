@@ -134,9 +134,10 @@ void ChatBubbleWidget::updateContent()
         m_contentBrowser->setPlainText(m_message.content);
         // Pin height to actual document content — QTextBrowser's default
         // sizeHint is much taller than a single line of text.
+        // Add small padding to ensure no text clipping.
         m_contentBrowser->document()->adjustSize();
         m_contentBrowser->setFixedHeight(
-            static_cast<int>(m_contentBrowser->document()->size().height()) + 2);
+            static_cast<int>(m_contentBrowser->document()->size().height()) + 4);
         return;
     }
 
@@ -174,12 +175,12 @@ void ChatBubbleWidget::updateContent()
     m_contentBrowser->setStyleSheet(
         "QTextBrowser { padding: 8px; border-radius: 8px; " + bgStyle + " }");
 
-    // Content — render markdown for user and assistant messages; system
+    // Content — render markdown for user, assistant, and tool messages; system
     // messages stay as plain text (they're short status strings).
     // Tool-call JSON and TOOL_RESULT blocks are preprocessed into readable
     // markdown before rendering.
     QString displayContent = formatContentForDisplay(m_message.content);
-    if (m_message.role == ChatRole::User || m_message.role == ChatRole::Assistant) {
+    if (m_message.role == ChatRole::User || m_message.role == ChatRole::Assistant || m_message.role == ChatRole::Tool) {
         m_contentBrowser->setMarkdown(displayContent);
     } else {
         m_contentBrowser->setPlainText(displayContent);
@@ -187,9 +188,16 @@ void ChatBubbleWidget::updateContent()
     // QTextBrowser needs an explicit height when its internal scrollbar is off
     // (so the outer chat scroll area handles scrolling). Compute from the
     // document's laid-out size and pin the widget to that height.
+    // Set the text width first to ensure proper line wrapping calculation.
+    m_contentBrowser->document()->setTextWidth(m_contentBrowser->viewport()->width());
     m_contentBrowser->document()->adjustSize();
-    m_contentBrowser->setFixedHeight(
-        static_cast<int>(m_contentBrowser->document()->size().height()) + 4);
+
+    // Calculate height with very generous padding to prevent any text clipping.
+    // Markdown rendering adds significant extra spacing for paragraphs, headings,
+    // code blocks, and lists. Assistant messages especially need more room.
+    // We add 60px: 16px CSS padding + 44px safety margin for markdown spacing.
+    int docHeight = static_cast<int>(m_contentBrowser->document()->size().height());
+    m_contentBrowser->setFixedHeight(docHeight + 60);
 
     // Attachment
     if (!m_message.attachmentFilePath.isEmpty()) {

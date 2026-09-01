@@ -646,11 +646,19 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
                 continue;
             }
             // Case 2: Model said it would continue in prose but didn't emit tool calls
-            bool wantsToContinue = textLower.contains("let me ")
-                                || textLower.contains("i'll ")
-                                || textLower.contains("i will ")
-                                || textLower.contains("now i ")
-                                || textLower.contains("next, ")
+            // Only detect clear future-intent phrases, not completion statements.
+            // "I've opened" or "Now you can see" are completions, not continuations.
+            bool wantsToContinue = textLower.contains("let me try")
+                                || textLower.contains("let me check")
+                                || textLower.contains("let me verify")
+                                || textLower.contains("i'll now")
+                                || textLower.contains("i will now")
+                                || textLower.contains("next, i'll")
+                                || textLower.contains("next, i will")
+                                || textLower.contains("now i'll")
+                                || textLower.contains("now i will")
+                                || textLower.contains("let me open")
+                                || textLower.contains("i'll open")
                                 || textLower.contains("try again");
 
             if (wantsToContinue && iteration < maxIterations) {
