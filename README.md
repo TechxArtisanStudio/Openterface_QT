@@ -246,6 +246,29 @@ This automatically installs all runtime dependencies (Qt6, FFmpeg, GStreamer, et
 
 For detailed instructions, see [Arch Linux Installation](docs/archlinux_installation.md).
 
+#### Option 5: Fedora/RHEL (RPM Package)
+
+For Fedora 42+ and RHEL-based distributions, an RPM package is available from [GitHub Releases](https://github.com/TechxArtisanStudio/Openterface_QT/releases):
+
+```bash
+# Download the RPM package
+curl -L -o openterfaceqt.rpm "https://github.com/TechxArtisanStudio/Openterface_QT/releases/latest/download/openterfaceqt-*.x86_64.rpm"
+
+# Install with dnf
+sudo dnf install ./openterfaceqt.rpm
+
+# Add your user to required groups
+sudo usermod -a -G dialout,video $USER
+```
+
+The RPM package includes:
+- Pre-built binary optimized for Fedora
+- Bundled Qt 6.6.3 libraries (or uses system Qt 6.9+ if available)
+- Automatic udev rule configuration
+- Desktop integration
+
+For detailed instructions and troubleshooting, see [Fedora Installation Guide](docs/fedora_installation.md).
+
 > 💡 **Permission issues?** See the [Linux Permission Access Guide](https://github.com/TechxArtisanStudio/Openterface_QT/wiki/Linux-permission-access) on our Wiki for detailed troubleshooting of device permissions.
 
 ---
