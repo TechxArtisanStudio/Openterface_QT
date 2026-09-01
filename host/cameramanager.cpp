@@ -60,7 +60,17 @@ CameraManager::CameraManager(QObject *parent)
     connect(m_frameTimeoutTimer, &QTimer::timeout, this, [this]() {
         // Check if we've received frames recently and haven't already warned
         // Also trigger if camera was attempted but never started streaming
-        bool shouldWarn = !isCameraStreaming() && !m_frameTimeoutWarningShown;
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        qint64 age = (m_lastFrameTimestamp > 0) ? (now - m_lastFrameTimestamp) : -1;
+        bool hasActive = hasActiveCameraDevice();
+        bool streaming = isCameraStreaming();
+        qCWarning(log_ui_camera) << "Frame timeout check:"
+                                 << "hasActive=" << hasActive
+                                 << "m_lastFrameTimestamp=" << m_lastFrameTimestamp
+                                 << "age=" << age << "ms"
+                                 << "streaming=" << streaming
+                                 << "warned=" << m_frameTimeoutWarningShown;
+        bool shouldWarn = !streaming && !m_frameTimeoutWarningShown;
         if (shouldWarn) {
             qCWarning(log_ui_camera) << "Frame timeout: no video frames received in last 5 seconds";
             m_frameTimeoutWarningShown = true;
@@ -1788,6 +1798,7 @@ bool CameraManager::isCameraStreaming() const
 void CameraManager::onNewVideoFrameReceived()
 {
     m_lastFrameTimestamp = QDateTime::currentMSecsSinceEpoch();
+    qCDebug(log_ui_camera) << "onNewVideoFrameReceived: m_lastFrameTimestamp updated to" << m_lastFrameTimestamp;
 }
 
 QString CameraManager::getCurrentCameraPortChain() const

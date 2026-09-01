@@ -1398,6 +1398,7 @@ void GStreamerBackendHandler::checkPipelineHealth()
                 // VideoPane::updateVideoFrame(), so without this signal
                 // the frame-timeout watchdog would falsely report
                 // "no video signal".
+                qCDebug(log_gstreamer_backend) << "Emitting frameReceived signal (framesSinceLast=" << framesSinceLast << ")";
                 emit frameReceived();
             }
         }
