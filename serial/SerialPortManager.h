@@ -146,6 +146,10 @@ public:
     
     // Serial port switching by port chain (similar to CameraManager and VideoHid)
     bool switchSerialPortByPortChain(const QString& portChain);
+    // HOTPLUG FIX: Force-clear the m_openInProgress lock. Used by DeviceCoordinator before
+    // menu-triggered device switches to prevent deadlock when a stale lock persists from
+    // a prior lifecycle-managed operation that was interrupted by device removal.
+    void forceResetSerialOpen();
     QString getCurrentSerialPortPath() const;
     QString getCurrentSerialPortChain() const;
     bool isPortReady() const { return ready.load(); }
@@ -218,6 +222,12 @@ signals:
     void serialPortConnected(const QString &portName);
     void serialPortDisconnected(const QString &portName);
     void serialPortConnectionSuccess(const QString &portName);
+    // HOTPLUG FIX: Lightweight signal emitted when switchSerialPortByPortChain detects the port
+    // is already open and ready (early return path). Unlike serialPortConnectionSuccess, this signal
+    // does NOT trigger onSerialPortConnectionSuccess (heavy initialization: reconnectTimerSignals,
+    // resetErrorCounters, sendAsyncCommand CMD_GET_INFO). It only notifies the lifecycle handler
+    // to advance the session state machine. Prevents destabilizing an already-running serial connection.
+    void serialAlreadyConnected(const QString &portName);
     void sendCommandAsync(const QByteArray &command, bool waitForAck);
     void connectedPortChanged(const QString &portName, const int &baudrate);
     void serialPortSwitched(const QString& fromPortChain, const QString& toPortChain);
@@ -315,7 +325,7 @@ private:
     bool setBaudRateInternal(int baudRate);
     
     // Thread-safe port closing (ensures QSocketNotifier operations happen in worker thread)
-    void closePortInternal();
+    void closePortInternal(bool deleteAfterClose = false);
     void closePortInternalMainThread();
     void completePortCloseCleanup();
     void openSerialPortInThread(bool& openResult, QSerialPort::SerialPortError& lastError);
@@ -375,6 +385,9 @@ private:
 
     // Indicates an open operation is currently in progress to prevent concurrent opens
     std::atomic<bool> m_openInProgress{false};
+    // Timestamp (ms since epoch) of the last time m_openInProgress was set to true.
+    // Used to detect stuck/stale locks caused by worker-thread death or unhandled exceptions.
+    std::atomic<qint64> m_lastOpenAttemptTime{0};
 
     // Indicates a baud-rate change is in progress; used to suppress transient errors
     std::atomic<bool> m_baudChangeInProgress{false};
@@ -395,6 +408,13 @@ private:
     // Host-side RTS recovery state: set true when CH32V208 becomes unresponsive on host USB
     // (error code 6 after error code 8). Triggers RTS hardware reset to recover the chip.
     std::atomic<bool> m_rtsRecoveryInProgress{false};
+
+    // ZOMBIE STATE FIX: Consecutive TX failure counter.
+    // When serialPort->write() fails repeatedly without firing errorOccurred (zombie state),
+    // this counter detects the condition and triggers fast recovery (RTS reset).
+    // Without this, the only detection is ConnectionWatchdog's 30s communication timeout.
+    std::atomic<int> m_consecutiveTxFailures{0};
+    static constexpr int TX_FAILURE_RECOVERY_THRESHOLD = 3;  // Trigger recovery after 3 consecutive failures
 
     // Fatal error handling guard: set true when error code 6 (ResourceError) is handled.
     // Prevents duplicate handling and ensures the serial port is closed immediately to

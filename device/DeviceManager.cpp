@@ -531,18 +531,28 @@ void DeviceManager::checkForChanges()
 void DeviceManager::forceRefresh()
 {
     qCDebug(log_device_manager) << "Force refreshing device list";
-    
+
     // Clear platform manager cache if available
     if (m_platformManager) {
         m_platformManager->clearCache();
     }
-    
+
     // Trigger device discovery and notify of changes
     QList<DeviceInfo> currentDevices = discoverDevices();
     compareDeviceSnapshots(currentDevices, m_lastSnapshot);
     m_lastSnapshot = currentDevices;
-    
+
     emit devicesChanged(currentDevices);
+}
+
+void DeviceManager::invalidateDeviceCache()
+{
+    // Clear platform manager cache WITHOUT triggering discovery or emitting signals.
+    // This is safe to call during hotplug recovery — no re-entrancy risk.
+    if (m_platformManager) {
+        m_platformManager->clearCache();
+        qCDebug(log_device_manager) << "Device cache invalidated (no signal emitted)";
+    }
 }
 
 bool DeviceManager::switchHIDDeviceByPortChain(const QString& portChain)

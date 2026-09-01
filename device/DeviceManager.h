@@ -40,6 +40,11 @@ public:
     // Force device checking (replaces SerialPortManager functionality)
     void checkForChanges();
     void forceRefresh();
+
+    // HOTPLUG FIX: Clear the platform device cache without emitting signals.
+    // Use this during hotplug recovery to get fresh device paths (e.g. /dev/videoN
+    // after replug on Linux) without triggering devicesChanged re-entrancy.
+    void invalidateDeviceCache();
     
     // Device discovery
     QList<DeviceInfo> discoverDevices();
