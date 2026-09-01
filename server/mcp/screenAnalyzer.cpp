@@ -695,7 +695,17 @@ QImage ScreenAnalyzer::preprocessForTerminal(const QImage& frame)
         scaled = gray;
     }
 
-    // Step 3: Optional slight sharpening to enhance text edges
+    // Step 3: Auto-invert if the image is predominantly dark (typical for terminals
+    // with dark themes). Tesseract works best with dark text on light backgrounds.
+    // Calculate mean brightness — if below threshold, invert the image.
+    cv::Scalar meanBrightness = cv::mean(scaled);
+    if (meanBrightness[0] < 128) {
+        cv::bitwise_not(scaled, scaled);
+        qCDebug(log_screen_analyzer) << "Inverted dark terminal image (mean brightness:"
+                                      << meanBrightness[0] << ")";
+    }
+
+    // Step 4: Optional slight sharpening to enhance text edges
     // Use an unsharp mask: sharpened = original + amount * (original - blurred)
     cv::Mat blurred, sharpened;
     cv::GaussianBlur(scaled, blurred, cv::Size(0, 0), 1.0);
@@ -743,12 +753,15 @@ QString ScreenAnalyzer::extractTerminalText(const QImage& frame)
     QImage converted = processedFrame.convertToFormat(QImage::Format_RGB32);
 
     // Configure Tesseract for terminal output
-    // PSM_SPARSE_TEXT finds text anywhere in the image without assuming a layout.
-    // This works better than PSM_SINGLE_BLOCK for terminal screenshots that don't
-    // fill the entire screen (e.g. a terminal window on a desktop with wallpaper).
-    // SINGLE_BLOCK assumes the whole image is one text block, which causes Tesseract
-    // to hallucinate text from wallpaper patterns when the terminal is small.
-    m_tesseract->SetPageSegMode(tesseract::PSM_SPARSE_TEXT);
+    // PSM_SINGLE_BLOCK assumes the image is one uniform block of text and
+    // reads it in normal reading order (top-to-bottom, left-to-right). This
+    // preserves column alignment for output like `df -h` or `ls -l`.
+    //
+    // PSM_SPARSE_TEXT (previously used here) finds text anywhere in the image
+    // without assuming a layout — that's useful for scattered labels on a
+    // photo, but for terminal output it outputs columns out of order
+    // (e.g. "Filesystem" appears last instead of first).
+    m_tesseract->SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
 
     // Set variables optimized for terminal/command output
     m_tesseract->SetVariable("preserve_interword_spaces", "1");

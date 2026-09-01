@@ -261,6 +261,12 @@ public:
     void setChatInitialTypingDelayMs(int ms);
     int getChatInitialTypingDelayMs() const;
 
+signals:
+    /// Emitted when the target OS for the AI agent changes (e.g. via the chat
+    /// header button or the set_target_system tool). Listeners can refresh any
+    /// UI that displays the current target OS.
+    void chatTargetSystemChanged(const QString &system);
+
 private:
     QSettings m_settings;
 };

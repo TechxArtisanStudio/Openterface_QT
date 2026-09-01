@@ -347,7 +347,9 @@ enum class ChatTargetSystem {
     Linux,
     IPhone,
     IPad,
-    Android
+    Android,
+    BIOS,       // BIOS/UEFI setup screens (text-based menu with color highlighting)
+    TextUI      // DOS-like text-based interfaces (e.g., old DOS apps, text menus)
 };
 
 inline QString chatTargetSystemToString(ChatTargetSystem s) {
@@ -358,6 +360,8 @@ inline QString chatTargetSystemToString(ChatTargetSystem s) {
         case ChatTargetSystem::IPhone:  return "iPhone";
         case ChatTargetSystem::IPad:    return "iPad";
         case ChatTargetSystem::Android: return "android";
+        case ChatTargetSystem::BIOS:    return "bios";
+        case ChatTargetSystem::TextUI:  return "textui";
     }
     return "linux";
 }
@@ -370,6 +374,8 @@ inline ChatTargetSystem chatTargetSystemFromString(const QString &str) {
     if (lower == "iphone")                     return ChatTargetSystem::IPhone;
     if (lower == "ipad")                       return ChatTargetSystem::IPad;
     if (lower == "android")                    return ChatTargetSystem::Android;
+    if (lower == "bios" || lower == "uefi")    return ChatTargetSystem::BIOS;
+    if (lower == "textui" || lower == "dos")   return ChatTargetSystem::TextUI;
     return ChatTargetSystem::Linux;
 }
 
@@ -381,6 +387,8 @@ inline QString chatTargetSystemDisplayName(ChatTargetSystem s) {
         case ChatTargetSystem::IPhone:  return "iPhone";
         case ChatTargetSystem::IPad:    return "iPad";
         case ChatTargetSystem::Android: return "Android";
+        case ChatTargetSystem::BIOS:    return "BIOS/UEFI";
+        case ChatTargetSystem::TextUI:  return "Text-based UI";
     }
     return "Linux";
 }

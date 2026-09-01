@@ -399,7 +399,18 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
     // visual layout. This persists across iterations so a capture_screen call in
     // iteration N+1 is auto-converted even though the keyboard action happened
     // in iteration N.
+    //
+    // HOWEVER: For BIOS/TextUI modes, we should NOT auto-convert because OCR
+    // cannot detect which menu item is selected (selection is shown by color).
+    // These modes must use AI vision (capture_screen) exclusively.
     bool anyKeyboardActionInLoop = false;
+
+    // Get target system to determine if we should auto-convert to OCR
+    ChatTargetSystem targetSystem = chatTargetSystemFromString(
+        GlobalSetting::instance().getChatTargetSystem());
+    bool isTextBasedUI = (targetSystem == ChatTargetSystem::BIOS || targetSystem == ChatTargetSystem::TextUI);
+    qCDebug(log_ai_chat) << "Agent loop started: targetSystem=" << chatTargetSystemToString(targetSystem)
+                         << "isTextBasedUI=" << isTextBasedUI;
 
     // Track how many times we've nudged the model about broken XML tool calls.
     // Cap at 2 nudges total — if the model can't produce valid JSON after two
@@ -435,7 +446,10 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
             // not vision. If we send the image, the model will analyze it visually
             // even though we also provide OCR text. By not sending the image, we
             // force the model to rely on OCR or call screen_to_markdown explicitly.
-            if (anyKeyboardActionInLoop) {
+            //
+            // EXCEPTION: For BIOS/TextUI modes, ALWAYS send the image because these
+            // modes must use AI vision (OCR cannot detect selection state).
+            if (anyKeyboardActionInLoop && !isTextBasedUI) {
                 qCDebug(log_ai_chat) << "Iteration" << iteration << ": keyboard action occurred, NOT sending image to API (forcing OCR)";
                 imageDataURL.clear();
             } else {
@@ -648,6 +662,7 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
             // Case 2: Model said it would continue in prose but didn't emit tool calls
             // Only detect clear future-intent phrases, not completion statements.
             // "I've opened" or "Now you can see" are completions, not continuations.
+            // Also catch "Let me..." patterns that indicate the model intends to take action.
             bool wantsToContinue = textLower.contains("let me try")
                                 || textLower.contains("let me check")
                                 || textLower.contains("let me verify")
@@ -659,7 +674,28 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
                                 || textLower.contains("now i will")
                                 || textLower.contains("let me open")
                                 || textLower.contains("i'll open")
-                                || textLower.contains("try again");
+                                || textLower.contains("try again")
+                                // Add more patterns for "Let me [action]"
+                                || textLower.contains("let me go")
+                                || textLower.contains("let me look")
+                                || textLower.contains("let me find")
+                                || textLower.contains("let me navigate")
+                                || textLower.contains("let me press")
+                                || textLower.contains("let me click")
+                                || textLower.contains("let me type")
+                                || textLower.contains("let me scroll")
+                                || textLower.contains("let me select")
+                                || textLower.contains("let me choose")
+                                || textLower.contains("let me enter")
+                                || textLower.contains("let me move")
+                                || textLower.contains("i'll go")
+                                || textLower.contains("i will go")
+                                || textLower.contains("i'll look")
+                                || textLower.contains("i will look")
+                                || textLower.contains("i'll find")
+                                || textLower.contains("i will find")
+                                || textLower.contains("i'll navigate")
+                                || textLower.contains("i will navigate");
 
             if (wantsToContinue && iteration < maxIterations) {
                 appendAssistantMessage(result.content);
@@ -698,8 +734,12 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
         // calls to screen_to_markdown. Terminal output should be read via OCR,
         // not vision. This complements the within-batch conversion in
         // ChatToolExecution::executeToolCalls which only sees the current batch.
-        qCDebug(log_ai_chat) << "Auto-conversion check: anyKeyboardActionInLoop=" << anyKeyboardActionInLoop;
-        if (anyKeyboardActionInLoop) {
+        //
+        // DISABLED for BIOS/TextUI modes: OCR cannot detect selection state
+        // (indicated by color/highlighting), so these modes must use AI vision.
+        qCDebug(log_ai_chat) << "Auto-conversion check: anyKeyboardActionInLoop=" << anyKeyboardActionInLoop
+                             << "isTextBasedUI=" << isTextBasedUI;
+        if (anyKeyboardActionInLoop && !isTextBasedUI) {
             qCDebug(log_ai_chat) << "Auto-conversion enabled: checking for capture_screen calls to convert";
             for (auto &tc : toolCalls) {
                 QString tool = tc.tool.toLower();
@@ -714,6 +754,8 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
             for (const auto &tc : toolCalls) {
                 qCDebug(log_ai_chat) << "  tool:" << tc.tool;
             }
+        } else if (anyKeyboardActionInLoop && isTextBasedUI) {
+            qCDebug(log_ai_chat) << "Auto-conversion DISABLED for text-based UI (BIOS/TextUI mode)";
         }
 
         // Execute tool calls

@@ -747,7 +747,11 @@ QString GlobalSetting::getChatModel() const {
 }
 
 void GlobalSetting::setChatTargetSystem(const QString &system) {
-    m_settings.setValue("chat/targetSystem", system);
+    const QString current = m_settings.value("chat/targetSystem", "linux").toString();
+    if (current != system) {
+        m_settings.setValue("chat/targetSystem", system);
+        emit chatTargetSystemChanged(system);
+    }
 }
 
 QString GlobalSetting::getChatTargetSystem() const {

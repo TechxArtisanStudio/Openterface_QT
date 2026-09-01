@@ -1,7 +1,9 @@
 #include "ChatToolExecution.h"
 #include "ChatInputRouter.h"
 #include "ChatScreenCapture.h"
+#include "ChatTypes.h"
 #include "ui/globalsetting.h"
+#include "ui/recording/recordingcontroller.h"
 #include "server/mcp/screenAnalyzer.h"
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -220,6 +222,13 @@ AgentToolExecutionResult ChatToolExecution::executeToolCalls(const QList<AgentTo
     // Track if previous action was keyboard (for auto-OCR after commands)
     bool prevWasKeyboardAction = false;
 
+    // Get target system to determine if we should auto-convert to OCR
+    // BIOS/TextUI modes should NOT auto-convert because OCR cannot detect selection state
+    ChatTargetSystem targetSystem = chatTargetSystemFromString(settings.getChatTargetSystem());
+    bool isTextBasedUI = (targetSystem == ChatTargetSystem::BIOS || targetSystem == ChatTargetSystem::TextUI);
+    qCDebug(log_ai_chat) << "Tool execution: targetSystem=" << chatTargetSystemToString(targetSystem)
+                         << "isTextBasedUI=" << isTextBasedUI;
+
     for (const auto &call : calls) {
         QString toolName = call.tool.toLower();
 
@@ -235,8 +244,9 @@ AgentToolExecutionResult ChatToolExecution::executeToolCalls(const QList<AgentTo
 
         // Auto-convert capture_screen to screen_to_markdown after keyboard actions
         // This ensures terminal output is read using OCR instead of vision
+        // BUT: Disable this for BIOS/TextUI modes because OCR cannot detect selection state
         if ((toolName == "capture_screen" || toolName == "take_screenshot" || toolName == "screenshot")
-            && prevWasKeyboardAction) {
+            && prevWasKeyboardAction && !isTextBasedUI) {
             qCDebug(log_ai_chat) << "Auto-converting capture_screen to screen_to_markdown (after keyboard action)";
             toolName = "screen_to_markdown";
         }
@@ -428,19 +438,51 @@ AgentToolExecutionResult ChatToolExecution::executeToolCalls(const QList<AgentTo
                 qCWarning(log_ai_chat) << "AI Tool failed: type_text empty";
             } else {
                 keyboardTokens.append(text);
-                // Check if it looks like a key sequence (contains < and >)
-                bool looksLikeKeySequence = text.contains('<') && text.contains('>');
+                // Check if it looks like a key sequence (contains < and >, or is a short
+                // modifier combination without spaces). Only redirect if the ENTIRE text
+                // is a key sequence, not if it's mixed with regular text like "sudo reboot<enter>".
+                //
+                // Key sequences typically:
+                // - Don't contain spaces (they use + to join keys)
+                // - Are relatively short (< 30 chars)
+                // - May be wrapped in angle brackets like "<enter>" or "<ctrl+l>"
+                // - Or are plain modifier combos like "ctrl+l", "alt+f4"
+                //
+                // If the text has spaces, it's almost certainly regular text that should
+                // be typed as-is, not interpreted as a key sequence.
+                bool hasSpaces = text.contains(' ');
+                bool hasAngleBrackets = text.contains('<') && text.contains('>');
+                bool isShort = text.length() < 30;
+
+                // Only redirect if it's clearly a key sequence:
+                // - Either wrapped in angle brackets with no spaces: "<ctrl+l>"
+                // - Or a short modifier combo with no spaces: "ctrl+l", "alt+f4"
+                bool looksLikeKeySequence = false;
+                if (hasAngleBrackets && !hasSpaces) {
+                    // Text like "<enter>" or "<ctrl+l>" - definitely a key sequence
+                    looksLikeKeySequence = true;
+                } else if (isShort && !hasSpaces && text.contains('+')) {
+                    // Text like "ctrl+l" or "alt+shift+t" - likely a key sequence
+                    looksLikeKeySequence = true;
+                }
+
                 if (looksLikeKeySequence) {
+                    // Strip angle brackets if present before sending to sendShortcut
+                    QString keySeq = text;
+                    if (hasAngleBrackets) {
+                        keySeq.remove('<');
+                        keySeq.remove('>');
+                    }
                     // Redirect to press_key
-                    router.sendShortcut(text);
-                    summaries.append(QString("type_text(redirected to press_key): success (keys=\"%1\")").arg(text));
-                    qCDebug(log_ai_chat) << "AI Tool type_text redirected to press_key: keys=" << text;
+                    router.sendShortcut(keySeq);
+                    summaries.append(QString("type_text(redirected to press_key): success (keys=\"%1\")").arg(keySeq));
+                    qCDebug(log_ai_chat) << "AI Tool type_text redirected to press_key: keys=" << keySeq;
                     // sendShortcut schedules key press/release via QTimer on the main
                     // thread. Wait for the full key sequence to finish before the
                     // background thread proceeds to the next tool, otherwise a
                     // follow-up press_key (e.g. "enter") could fire before this one
                     // completes.
-                    int steps = qMax(1, text.split('+').size());
+                    int steps = qMax(1, keySeq.split('+').size());
                     QThread::msleep(steps * 80 + 50);
                 } else {
                     router.sendText(text);
@@ -500,6 +542,106 @@ AgentToolExecutionResult ChatToolExecution::executeToolCalls(const QList<AgentTo
                 QString result = runBashCommand(command);
                 summaries.append(QString("run_bash: %1").arg(result));
                 qCDebug(log_ai_chat) << "AI Tool executed: run_bash command=" << command;
+            }
+
+        } else if (toolName == "set_target_system") {
+            // Let the AI correct the target OS when it detects a mismatch
+            // (e.g. UI shows macOS but the target is actually running Windows).
+            hasNonKeyboardTool = true;
+            const QString requested = call.args.value("system").toString().trimmed().toLower();
+            if (requested.isEmpty()) {
+                summaries.append("set_target_system: missing 'system' argument");
+                qCWarning(log_ai_chat) << "AI Tool failed: set_target_system missing system arg";
+            } else {
+                const ChatTargetSystem ts = chatTargetSystemFromString(requested);
+                const QString canonical = chatTargetSystemToString(ts);
+                settings.setChatTargetSystem(canonical);
+                const QString display = chatTargetSystemDisplayName(ts);
+                summaries.append(QString("set_target_system: target OS set to %1")
+                                     .arg(display));
+                qCDebug(log_ai_chat) << "AI Tool executed: set_target_system ->" << display;
+            }
+
+        } else if (toolName == "start_recording" || toolName == "record_screen" ||
+                   toolName == "start_video_recording") {
+            // Start recording the target screen
+            hasNonKeyboardTool = true;
+            RecordingController &recorder = RecordingController::instance();
+            if (recorder.isRecording()) {
+                summaries.append("start_recording: already recording");
+                qCDebug(log_ai_chat) << "AI Tool: start_recording - already recording";
+            } else {
+                recorder.startRecording();
+                summaries.append("start_recording: success");
+                qCDebug(log_ai_chat) << "AI Tool executed: start_recording";
+            }
+
+        } else if (toolName == "stop_recording" || toolName == "stop_video_recording") {
+            // Stop recording the target screen
+            hasNonKeyboardTool = true;
+            RecordingController &recorder = RecordingController::instance();
+            if (!recorder.isRecording()) {
+                summaries.append("stop_recording: not currently recording");
+                qCDebug(log_ai_chat) << "AI Tool: stop_recording - not recording";
+            } else {
+                recorder.stopRecording();
+                summaries.append("stop_recording: success");
+                qCDebug(log_ai_chat) << "AI Tool executed: stop_recording";
+            }
+
+        } else if (toolName == "repeat_key" || toolName == "repeat_keys" ||
+                   toolName == "press_key_repeatedly" || toolName == "spam_key") {
+            // Press a key repeatedly at specified intervals (e.g. for entering BIOS)
+            hasNonKeyboardTool = true;
+            QString keys = call.args.value("keys").toString();
+            if (keys.isEmpty()) keys = call.args.value("key").toString();
+            keys = keys.trimmed();
+
+            // Get interval in milliseconds (default: 1000ms = 1 second)
+            bool intervalOk;
+            int intervalMs = intArg(call.args.value("interval_ms"), &intervalOk);
+            if (!intervalOk || intervalMs <= 0) {
+                intervalMs = 1000; // Default 1 second
+            }
+
+            // Get count (number of times to press)
+            bool countOk;
+            int count = intArg(call.args.value("count"), &countOk);
+            if (!countOk || count <= 0) {
+                summaries.append("repeat_key: missing or invalid 'count' argument");
+                qCWarning(log_ai_chat) << "AI Tool failed: repeat_key missing count";
+            } else if (keys.isEmpty()) {
+                summaries.append("repeat_key: missing 'keys' argument");
+                qCWarning(log_ai_chat) << "AI Tool failed: repeat_key missing keys";
+            } else {
+                // Validate count to prevent excessive key presses
+                if (count > 100) {
+                    summaries.append(QString("repeat_key: count %1 exceeds maximum (100), limiting to 100").arg(count));
+                    qCWarning(log_ai_chat) << "AI Tool: repeat_key count" << count << "exceeds max, limiting to 100";
+                    count = 100;
+                }
+
+                int successCount = 0;
+                for (int i = 0; i < count; ++i) {
+                    keyboardTokens.append(keys);
+                    router.sendShortcut(keys);
+                    successCount++;
+
+                    // Wait for the key sequence to complete
+                    int steps = qMax(1, keys.split('+').size());
+                    QThread::msleep(steps * 80 + 50);
+
+                    // Wait for the interval before the next press (except after the last one)
+                    if (i < count - 1) {
+                        QThread::msleep(intervalMs);
+                    }
+                }
+
+                summaries.append(QString("repeat_key: success (key=\"%1\", count=%2, interval=%3ms)")
+                    .arg(keys).arg(successCount).arg(intervalMs));
+                qCDebug(log_ai_chat) << "AI Tool executed: repeat_key keys=" << keys
+                                     << "count=" << successCount
+                                     << "intervalMs=" << intervalMs;
             }
 
         } else {

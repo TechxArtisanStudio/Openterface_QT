@@ -14,6 +14,8 @@
 #include <QPainter>
 #include <QStyleOption>
 #include <QTimer>
+#include <QMenu>
+#include <QActionGroup>
 
 ChatWindow::ChatWindow(QWidget *parent)
     : QWidget(parent)
@@ -79,6 +81,10 @@ ChatWindow::ChatWindow(QWidget *parent)
 
     // Initialize mode combo box from saved settings
     GlobalSetting &gs = GlobalSetting::instance();
+    // Keep the header target-OS button in sync when the setting is changed from
+    // elsewhere (e.g. the AI calling set_target_system).
+    connect(&gs, &GlobalSetting::chatTargetSystemChanged,
+            this, &ChatWindow::updateTargetOsButton);
     if (gs.getChatGuideModeEnabled()) {
         m_modeCombo->setCurrentIndex(2);  // Guide mode
     } else if (gs.getChatPlannerModeEnabled()) {
@@ -131,9 +137,61 @@ void ChatWindow::setupUI()
     m_traceBtn->setFlat(true);
     m_traceBtn->setFixedSize(28, 28);
 
+    // Target OS button (next to the + button): shows current target OS and lets
+    // the user change it. The selection is stored in GlobalSetting and consumed
+    // by ChatManager when assembling the agent prompt.
+    m_targetOsBtn = new QPushButton();
+    m_targetOsBtn->setCursor(Qt::PointingHandCursor);
+    m_targetOsBtn->setToolTip("Target OS (click to change)");
+    m_targetOsBtn->setMinimumHeight(28);
+    // Draw a small monitor icon to the left of the OS name text.
+    {
+        QPixmap pix(20, 20);
+        pix.fill(Qt::transparent);
+        QPainter p(&pix);
+        p.setRenderHint(QPainter::Antialiasing);
+        QPen pen(palette().color(QPalette::WindowText), 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
+        // Monitor body
+        p.drawRoundedRect(QRectF(2, 3, 16, 10), 1.5, 1.5);
+        // Stand
+        p.drawLine(QPointF(10, 13), QPointF(10, 16));
+        p.drawLine(QPointF(6, 16), QPointF(14, 16));
+        m_targetOsBtn->setIcon(QIcon(pix));
+    }
+    m_targetOsBtn->setIconSize(QSize(20, 20));
+    {
+        auto *menu = new QMenu(m_targetOsBtn);
+        auto *group = new QActionGroup(menu);
+        group->setExclusive(true);
+        const QList<ChatTargetSystem> systems = {
+            ChatTargetSystem::Linux,
+            ChatTargetSystem::MacOS,
+            ChatTargetSystem::Windows,
+            ChatTargetSystem::IPhone,
+            ChatTargetSystem::IPad,
+            ChatTargetSystem::Android,
+        };
+        for (ChatTargetSystem sys : systems) {
+            auto *act = new QAction(chatTargetSystemDisplayName(sys), menu);
+            act->setCheckable(true);
+            act->setData(QVariant::fromValue(static_cast<int>(sys)));
+            group->addAction(act);
+            menu->addAction(act);
+            connect(act, &QAction::triggered, this, [this, sys]() {
+                GlobalSetting::instance().setChatTargetSystem(chatTargetSystemToString(sys));
+                updateTargetOsButton();
+            });
+        }
+        m_targetOsBtn->setMenu(menu);
+    }
+    updateTargetOsButton();
+
     m_topBar->addWidget(m_modeCombo);
     m_topBar->addStretch();
     m_topBar->addWidget(m_newSessionBtn);
+    m_topBar->addWidget(m_targetOsBtn);
     m_topBar->addWidget(m_traceBtn);
     m_mainLayout->addLayout(m_topBar);
 
@@ -426,4 +484,27 @@ void ChatWindow::updatePlanCard()
 void ChatWindow::updateEmptyState()
 {
     m_emptyState->setSkills(ChatSkillManager::instance().skills());
+}
+
+void ChatWindow::updateTargetOsButton()
+{
+    if (!m_targetOsBtn) return;
+    const QString sys = GlobalSetting::instance().getChatTargetSystem();
+    const ChatTargetSystem ts = chatTargetSystemFromString(sys);
+    const QString display = chatTargetSystemDisplayName(ts);
+    m_targetOsBtn->setText(display);
+    // Highlight the matching menu action
+    if (auto *menu = m_targetOsBtn->menu()) {
+        for (QAction *act : menu->actions()) {
+            const ChatTargetSystem actSys =
+                static_cast<ChatTargetSystem>(act->data().toInt());
+            act->setChecked(actSys == ts);
+        }
+    }
+}
+
+void ChatWindow::onTargetOsSelected(const QString &system)
+{
+    GlobalSetting::instance().setChatTargetSystem(system);
+    updateTargetOsButton();
 }

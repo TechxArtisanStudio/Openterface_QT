@@ -52,12 +52,18 @@ public:
      * @param parent Parent QObject
      */
     explicit RecordingController(CameraManager *cameraManager, StatusBarManager *statusBarManager, QObject *parent = nullptr);
-    
+
     /**
      * @brief Destructor
      */
     ~RecordingController();
-    
+
+    /**
+     * @brief Get the singleton instance of RecordingController
+     * @return RecordingController& Reference to the singleton instance
+     */
+    static RecordingController& instance();
+
     /**
      * @brief Get the current recording status
      * @return bool True if recording is active
