@@ -31,6 +31,8 @@
 #include <QDebug>
 #include <QThread>
 #include <QElapsedTimer>
+#include <QFile>
+#include <QFileInfo>
 #include <thread>
 
 extern "C" {
@@ -308,29 +310,111 @@ bool FFmpegDeviceManager::InitializeInputStream(const QString& device_path, cons
     
 #else
     // LINUX/MACOS: Use V4L2 for video capture
-    // RESPONSIVENESS OPTIMIZATION: Configure device for minimal latency
     fprintf(stderr, "[DEBUG-FFMPEG] Opening video device: %s (%dx%d @ %d fps)\n",
             device_path.toUtf8().constData(), resolution.width(), resolution.height(), framerate);
+
+    // HOTPLUG FIX (Linux): Wait for the device node to become ready after hotplug.
+    // After USB re-enumeration, the kernel creates /dev/videoN but the V4L2 subsystem
+    // may not be fully initialized yet. Poll until the device file exists and is readable,
+    // or timeout after 3 seconds.
+#ifdef Q_OS_LINUX
+    {
+        QFileInfo devInfo(device_path);
+        if (!devInfo.exists()) {
+            qCInfo(log_ffmpeg_backend) << "Device" << device_path << "not yet present, waiting...";
+            QElapsedTimer waitTimer;
+            waitTimer.start();
+            while (waitTimer.elapsed() < 3000) {
+                QThread::msleep(200);
+                devInfo.refresh();
+                if (devInfo.exists()) {
+                    // Brief extra delay for permissions and udev rules to settle
+                    QThread::msleep(200);
+                    break;
+                }
+                if (waitTimer.elapsed() % 1000 < 200) {
+                    qCInfo(log_ffmpeg_backend) << "  Still waiting for" << device_path
+                                               << "(" << waitTimer.elapsed() << "ms)...";
+                }
+            }
+            if (!devInfo.exists()) {
+                qCCritical(log_ffmpeg_backend) << "Device" << device_path
+                                               << "did not appear after 3s — aborting";
+                return false;
+            }
+            qCInfo(log_ffmpeg_backend) << "Device" << device_path << "appeared after"
+                                       << waitTimer.elapsed() << "ms";
+        }
+    }
+#endif
+
     qCDebug(log_ffmpeg_backend) << "Pre-configuring device for low-latency MJPEG capture...";
-    
+
+    // HOTPLUG FIX (Linux): Retry v4l2-ctl commands after hotplug.
+    // The device node may exist but the driver might not be fully initialized.
+    // Retry up to 5 times with 300ms intervals (total max ~1.5s wait).
+#ifdef Q_OS_LINUX
+    constexpr int kV4l2MaxRetries = 5;
+    constexpr int kV4l2RetryDelayMs = 300;
+    int configResult = -1;
+    int framerateResult = -1;
+    int bufferResult = -1;
+
+    for (int attempt = 1; attempt <= kV4l2MaxRetries; attempt++) {
+        QString configCommand = QString("v4l2-ctl --device=%1 --set-fmt-video=width=%2,height=%3,pixelformat=MJPG")
+                               .arg(device_path).arg(resolution.width()).arg(resolution.height());
+        configResult = system(configCommand.toUtf8().constData());
+
+        QString framerateCommand = QString("v4l2-ctl --device=%1 --set-parm=%2")
+                                  .arg(device_path).arg(framerate);
+        framerateResult = system(framerateCommand.toUtf8().constData());
+
+        if (configResult == 0 && framerateResult == 0) {
+            break;  // Success — no more retries needed
+        }
+
+        if (attempt < kV4l2MaxRetries) {
+            qCInfo(log_ffmpeg_backend) << "v4l2-ctl attempt" << attempt << "/" << kV4l2MaxRetries
+                                       << "failed (config=" << configResult
+                                       << "fps=" << framerateResult << "), retrying in"
+                                       << kV4l2RetryDelayMs << "ms...";
+            QThread::msleep(kV4l2RetryDelayMs);
+        }
+    }
+
+    // Optional: try to configure minimal buffering for lower latency (don't retry — best effort)
+    QString bufferCommand = QString("v4l2-ctl --device=%1").arg(device_path);
+    bufferResult = system(bufferCommand.toUtf8().constData());
+
+    if (configResult == 0 && framerateResult == 0) {
+        qCDebug(log_ffmpeg_backend) << "Device pre-configured successfully for low-latency MJPEG"
+                                    << resolution << "at" << framerate << "fps";
+    } else {
+        qCWarning(log_ffmpeg_backend) << "Device pre-configuration failed after" << kV4l2MaxRetries
+                                      << "attempts (config=" << configResult
+                                      << "fps=" << framerateResult
+                                      << "), continuing with FFmpeg initialization";
+    }
+#else
+    // macOS / non-Linux: simple v4l2-ctl call (no retry needed)
     QString configCommand = QString("v4l2-ctl --device=%1 --set-fmt-video=width=%2,height=%3,pixelformat=MJPG")
                            .arg(device_path).arg(resolution.width()).arg(resolution.height());
     int configResult = system(configCommand.toUtf8().constData());
-    
+
     QString framerateCommand = QString("v4l2-ctl --device=%1 --set-parm=%2")
                               .arg(device_path).arg(framerate);
     int framerateResult = system(framerateCommand.toUtf8().constData());
-    
-    // RESPONSIVENESS: Try to configure minimal buffering for lower latency
-    QString bufferCommand = QString("v4l2-ctl --device=%1")
-                           .arg(device_path);
-    [[maybe_unused]] auto bufferResult = system(bufferCommand.toUtf8().constData()); // Don't check result - optional optimization
-    
+
+    QString bufferCommand = QString("v4l2-ctl --device=%1").arg(device_path);
+    [[maybe_unused]] auto bufferResult = system(bufferCommand.toUtf8().constData());
+
     if (configResult == 0 && framerateResult == 0) {
-        qCDebug(log_ffmpeg_backend) << "Device pre-configured successfully for low-latency MJPEG" << resolution << "at" << framerate << "fps";
+        qCDebug(log_ffmpeg_backend) << "Device pre-configured successfully for low-latency MJPEG"
+                                    << resolution << "at" << framerate << "fps";
     } else {
         qCWarning(log_ffmpeg_backend) << "Device pre-configuration failed, continuing with FFmpeg initialization";
     }
+#endif
     
     // Allocate format context
     format_context_ = avformat_alloc_context();

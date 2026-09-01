@@ -490,8 +490,16 @@ void FFmpegCaptureManager::StopCaptureThread()
         capture_thread_->requestInterruption();
         deferred_thread_cleanup_ = false;
 
-        // Brief wait — thread exits quickly when device is still connected
-        if (capture_thread_->wait(100)) {
+        // Brief wait — thread exits quickly when device is still connected.
+        // Linux V4L2: use 500ms — v4l2 read() may take slightly longer to unblock
+        //   after device removal compared to DirectShow error propagation.
+        // Windows DirectShow: 100ms is usually enough when device is still connected.
+#ifdef Q_OS_LINUX
+        constexpr int kQuickPathWaitMs = 500;
+#else
+        constexpr int kQuickPathWaitMs = 100;
+#endif
+        if (capture_thread_->wait(kQuickPathWaitMs)) {
             qCDebug(log_ffmpeg_backend) << "Capture thread exited gracefully (quick path)";
             capture_thread_.reset();
             // Thread has exited — safe to close device now

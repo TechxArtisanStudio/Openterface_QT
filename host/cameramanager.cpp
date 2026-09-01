@@ -90,6 +90,8 @@ CameraManager::CameraManager(QObject *parent)
                     m_currentCameraDevice = QCameraDevice();
                     m_currentCameraDeviceId.clear();
 
+                    // HOTPLUG FIX (Linux): Force refresh DeviceManager cache before retrying.
+                    DeviceManager::getInstance().invalidateDeviceCache();
                     // Refresh device list and try to re-switch
                     refreshAvailableCameraDevices();
                     bool success = switchToCameraDeviceByPortChain(portChain);
@@ -189,6 +191,14 @@ CameraManager::CameraManager(QObject *parent)
                                << "/" << MAX_CAMERA_CONNECT_RETRIES
                                << "for portChain=" << portChain;
 
+                    // HOTPLUG FIX (Linux): Invalidate the DeviceManager's device cache.
+                    // After hotplug, the /dev/videoN device node number may change (e.g. video0 → video2).
+                    // The LinuxDeviceManager uses a 500ms cache which can return stale device paths.
+                    // findMatchingCameraDevice() matches by device ID — stale IDs won't match the
+                    // new Qt camera devices, causing all 3 matching strategies to fail.
+                    // invalidateDeviceCache() clears the platform cache without emitting signals
+                    // (safe during hotplug recovery — no re-entrancy risk).
+                    DeviceManager::getInstance().invalidateDeviceCache();
                     refreshAvailableCameraDevices();
                     qWarning() << "[HOTPLUG-CAM] Available camera devices:"
                                << m_availableCameraDevices.size();
@@ -234,8 +244,18 @@ CameraManager::CameraManager(QObject *parent)
                     }
                 };
 
-                // Optimized: Initial attempt after 300ms (was 2000ms) for faster hotplug recovery
-                QTimer::singleShot(300, this, [tryConnectCamera]() {
+                // HOTPLUG FIX: Platform-specific initial delay for camera reconnect.
+                // Windows DirectShow: 300ms is sufficient (friendly name is stable).
+                // Linux V4L2: 1500ms needed — after USB re-enumeration the kernel must
+                //   create the /dev/videoN node, udev must apply permissions, and the
+                //   V4L2 driver must finish initialization. With 300ms the device is
+                //   often not yet ready, causing v4l2-ctl and avformat_open_input to fail.
+#ifdef Q_OS_LINUX
+                constexpr int kInitialConnectDelayMs = 1500;
+#else
+                constexpr int kInitialConnectDelayMs = 300;
+#endif
+                QTimer::singleShot(kInitialConnectDelayMs, this, [tryConnectCamera]() {
                     tryConnectCamera(0);
                 });
             });
@@ -318,6 +338,8 @@ CameraManager::CameraManager(QObject *parent)
                     return;
                 }
 
+                // HOTPLUG FIX (Linux): Force refresh DeviceManager cache — see tryConnectCamera above.
+                DeviceManager::getInstance().invalidateDeviceCache();
                 refreshAvailableCameraDevices();
                 bool switchSuccess = switchToCameraDeviceByPortChain(portChain);
                 if (switchSuccess) {
@@ -340,8 +362,14 @@ CameraManager::CameraManager(QObject *parent)
                 }
             };
 
-            // Optimized: Initial attempt after 300ms (was 3000ms) for faster recovery
-            QTimer::singleShot(300, this, [tryRestartCamera]() {
+            // HOTPLUG FIX: Platform-specific initial delay for serial recovery camera restart.
+            // Linux needs more time because V4L2 device initialization takes longer after hotplug.
+#ifdef Q_OS_LINUX
+            constexpr int kSerialRecoveryDelayMs = 1500;
+#else
+            constexpr int kSerialRecoveryDelayMs = 300;
+#endif
+            QTimer::singleShot(kSerialRecoveryDelayMs, this, [tryRestartCamera]() {
                 tryRestartCamera(0);
             });
         });
