@@ -84,9 +84,9 @@ bool EnvironmentSetupDialog::isDevicePlugged = false;
 
 // Define the help URL
 #ifdef _WIN32
-const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisanStudio/Openterface_QT/wiki/OpenterfaceQT-Windows-Environment-Setup";
+const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisanStudio/Openterface_QT/wiki/OpenterfaceQTWindowsEnvironmentSetup";
 #elif defined(__linux__)
-const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisanStudio/Openterface_QT/wiki/OpenterfaceQT-Linux-Environment-Setup";
+const QString EnvironmentSetupDialog::helpUrl = "https://github.com/TechxArtisanStudio/Openterface_QT/wiki/OpenterfaceQTLinuxEnvironmentSetup";
 #endif
 
 EnvironmentSetupDialog::EnvironmentSetupDialog(QWidget *parent) :
