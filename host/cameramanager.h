@@ -204,6 +204,7 @@ private:
     QCameraDevice m_currentCameraDevice;
     QString m_currentCameraDeviceId;
     QString m_currentCameraPortChain;  // Track the port chain of current camera device
+    QString m_lastActiveCameraPortChain;  // HOTPLUG FIX (修复十一): Saved port chain before deactivation
     qint64 m_lastFrameTimestamp = 0;   // Timestamp (ms since epoch) of last received frame
     QList<QCameraDevice> m_availableCameraDevices;
     QTimer* m_frameTimeoutTimer = nullptr;  // Detects when no frames are received

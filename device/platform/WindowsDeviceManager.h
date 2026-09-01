@@ -48,7 +48,7 @@ private:
     // Member variables for caching
     QVector<DeviceInfo> m_cachedDevices;
     QDateTime m_lastCacheUpdate;
-    static const int CACHE_TIMEOUT_MS = 5000; // 5 seconds cache
+    static const int CACHE_TIMEOUT_MS = 500; // Optimized: 500ms for faster hotplug detection (was 2000ms)
 };
 
 #endif // WINDOWSDEVICEMANAGER_H

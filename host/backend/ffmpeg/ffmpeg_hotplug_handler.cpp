@@ -135,8 +135,8 @@ void FFmpegHotplugHandler::HandleDeviceActivation(const QString& devicePath, con
         qCDebug(log_ffmpeg_backend) << "Stored current device port chain:" << current_device_port_chain_;
     }
     
-    // Request parent handler to start capture with a delay to allow device stabilization
-    QTimer::singleShot(300, this, [this]() {
+    // Request parent handler to start capture with a minimal delay to allow device stabilization
+    QTimer::singleShot(100, this, [this]() {
         qCInfo(log_ffmpeg_backend) << "Requesting capture start on activated device";
         emit DeviceActivated(current_device_);
         // Parent handler should call startDirectCapture() in response
@@ -253,34 +253,40 @@ void FFmpegHotplugHandler::ProcessDevicePluggedIn(const QString& devicePath, con
         return;
     }
     
-    // If capture is not running and we have a camera device, try to start capture
-    // This handles the case where camera was unplugged and plugged back in
+    // If capture is not running and we have a camera device, check if we should auto-start
+    // NOTE: We NO LONGER auto-start here when current_device_ is empty after deactivation.
+    // The lifecycle manager (DeviceLifecycleManager) handles camera restart via shouldConnectCamera
+    // signal. Auto-starting here with the raw USB device path from DeviceInfo fails because
+    // DirectShow needs "video=<friendly_name>" format, not the USB device path.
+    //
+    // We only auto-start if:
+    // 1. The device path matches the previously used device (device was temporarily disconnected)
+    // 2. We have a valid DirectShow-friendly name (e.g., "video=Openterface")
     if (!capture_running_ && !devicePath.isEmpty()) {
-        // Check if this might be the device we were using before
+        // Check if this is the same device we were using before (temporary disconnection)
         bool shouldAutoStart = false;
-        
-        // If we have a stored current device path that matches
+
         if (!current_device_.isEmpty() && devicePath == current_device_) {
+            // Same device reconnected — safe to auto-start
             shouldAutoStart = true;
             qCInfo(log_ffmpeg_backend) << "  → Detected previously used camera device, will auto-restart capture";
         }
-        // Or if we don't have any device set yet and this is the first camera
-        else if (current_device_.isEmpty()) {
-            shouldAutoStart = true;
-            qCInfo(log_ffmpeg_backend) << "  → Detected new camera device and no capture running, will auto-start capture";
-        }
-        
+        // REMOVED: else if (current_device_.isEmpty()) { shouldAutoStart = true; }
+        // This caused the FFmpegHotplugHandler to auto-start with wrong device path after full hotplug,
+        // racing with the lifecycle-managed restart and causing double-start + UI freeze.
+        // Now the lifecycle manager (via shouldConnectCamera signal) handles this case.
+
         if (shouldAutoStart) {
-            // Use a short delay to ensure device is fully initialized
+            // Use a minimal delay to ensure device is fully initialized
             // This also prevents blocking the hotplug event handler
-            QTimer::singleShot(300, this, [this, devicePath, portChain]() {
+            QTimer::singleShot(100, this, [this, devicePath, portChain]() {
                 if (!capture_running_) {
                     qCInfo(log_ffmpeg_backend) << "Auto-starting capture for plugged-in device:" << devicePath;
                     HandleDeviceActivation(devicePath, portChain);
                 }
             });
         } else {
-            qCDebug(log_ffmpeg_backend) << "  → New camera device detected but not auto-starting (different from previous device)";
+            qCDebug(log_ffmpeg_backend) << "  → New camera device detected — deferring to lifecycle manager for restart";
         }
     } else {
         qCDebug(log_ffmpeg_backend) << "  → Capture already running or no valid device path, ignoring plug-in event";
@@ -289,8 +295,8 @@ void FFmpegHotplugHandler::ProcessDevicePluggedIn(const QString& devicePath, con
 
 void FFmpegHotplugHandler::RetryDeviceActivationAfterDelay(const QString& portChain)
 {
-    // Wait 300ms for camera enumeration to complete, then retry
-    QTimer::singleShot(300, this, [this, portChain]() {
+    // Wait 100ms for camera enumeration to complete, then retry (optimized from 300ms)
+    QTimer::singleShot(100, this, [this, portChain]() {
         qCDebug(log_ffmpeg_backend) << "Retrying device activation for port chain:" << portChain;
         
         // Try to find camera device by port chain using Qt's device enumeration
@@ -319,13 +325,13 @@ void FFmpegHotplugHandler::RetryDeviceActivationAfterDelay(const QString& portCh
             // Found a camera device, proceed with activation
             if (waiting_for_device_) {
                 qCInfo(log_ffmpeg_backend) << "  → Found device after retry, attempting activation:" << foundDeviceName;
-                // Add small delay to allow device to fully initialize after reconnection
-                QTimer::singleShot(300, this, [this, foundDeviceName, portChain]() {
+                // Add minimal delay to allow device to fully initialize after reconnection
+                QTimer::singleShot(100, this, [this, foundDeviceName, portChain]() {
                     HandleDeviceActivation(foundDeviceName, portChain);
                 });
             } else if (!capture_running_) {
                 qCInfo(log_ffmpeg_backend) << "  → Found device after retry, auto-starting capture:" << foundDeviceName;
-                QTimer::singleShot(300, this, [this, foundDeviceName, portChain]() {
+                QTimer::singleShot(100, this, [this, foundDeviceName, portChain]() {
                     if (!capture_running_) {
                         HandleDeviceActivation(foundDeviceName, portChain);
                     }

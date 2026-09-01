@@ -2118,8 +2118,9 @@ void SerialPortManager::closePort() {
     closePortInternal();
 }
 
-void SerialPortManager::closePortInternal() {
-    qCDebug(log_core_serial_conn) << "Close serial port";
+void SerialPortManager::closePortInternal(bool deleteAfterClose) {
+    qCDebug(log_core_serial_conn) << "Close serial port"
+                                  << (deleteAfterClose ? "(will delete object)" : "(keep alive)");
 
     // ZOMBIE STATE FIX: Reset TX failure counter when port is closed.
     // This ensures fresh start after recovery or hotplug reconnect.
@@ -2161,22 +2162,37 @@ void SerialPortManager::closePortInternal() {
                 qCWarning(log_core_serial_conn) << "Exception during serial port close";
             }
         }
-        // HOTPLUG FIX: Keep the QSerialPort object alive but closed.
-        // The old approach (deleteLater + recreate on open) caused "Access is denied"
-        // errors during hotplug because deleteLater() doesn't run until the worker thread
-        // returns to its event loop, but openPort() runs synchronously in the same event
-        // processing cycle. The old QSerialPort still held the Windows kernel handle,
-        // blocking the new QSerialPort from opening the same COM port.
+        // HOTPLUG FIX (修复九): After a device removal error, DELETE the QSerialPort object
+        // instead of keeping it alive. The old object holds a stale Windows kernel handle
+        // from the disconnected USB device. Reusing it on reconnect causes "Access is denied"
+        // errors for ~10 seconds until Windows releases the stale handle.
         //
-        // By reusing the same QSerialPort object:
-        //   - close() releases the Windows kernel handle immediately
-        //   - open() re-acquires the handle on the same object — no conflict
-        //   - No deleteLater/create race conditions during rapid hotplug
-        //
-        // The QSerialPort object is cleaned up in the SerialPortManager destructor.
-        qCDebug(log_core_serial_conn) << "Serial port object kept alive (closed state):"
-                                      << static_cast<void*>(serialPort)
-                                      << (isChipTypeCH9329() ? "(CH9329)" : "(non-CH9329)");
+        // deleteAfterClose is true when called from the device disconnection error handler
+        // (handleSerialError → ERROR_STATE → closePortInternal(true)).
+        // For normal closes (user-initiated, shutdown), keep the object alive as before.
+        if (deleteAfterClose) {
+            qCDebug(log_core_serial_conn) << "Deleting QSerialPort after device removal error:"
+                                          << static_cast<void*>(serialPort);
+            delete serialPort;
+            serialPort = nullptr;
+        } else {
+            // Keep the QSerialPort object alive but closed.
+            // The old approach (deleteLater + recreate on open) caused "Access is denied"
+            // errors during hotplug because deleteLater() doesn't run until the worker thread
+            // returns to its event loop, but openPort() runs synchronously in the same event
+            // processing cycle. The old QSerialPort still held the Windows kernel handle,
+            // blocking the new QSerialPort from opening the same COM port.
+            //
+            // By reusing the same QSerialPort object:
+            //   - close() releases the Windows kernel handle immediately
+            //   - open() re-acquires the handle on the same object — no conflict
+            //   - No deleteLater/create race conditions during rapid hotplug
+            //
+            // The QSerialPort object is cleaned up in the SerialPortManager destructor.
+            qCDebug(log_core_serial_conn) << "Serial port object kept alive (closed state):"
+                                          << static_cast<void*>(serialPort)
+                                          << (isChipTypeCH9329() ? "(CH9329)" : "(non-CH9329)");
+        }
 
         m_portState.store(SerialPortState::CLOSED);
         qCDebug(log_core_serial_conn) << "Port state transition: CLOSING -> CLOSED (immediate)";
@@ -3798,8 +3814,12 @@ void SerialPortManager::handleSerialError(QSerialPort::SerialPortError error)
             // releases the OS handle, stopping the flood at its source.
             // This is essential for the serialRecoveryFailed() signal (queued to main thread)
             // to be processed in a timely manner.
+            // HOTPLUG FIX (修复九): Pass deleteAfterClose=true. The QSerialPort object holds
+            // a stale Windows kernel handle from the disconnected USB device. Keeping it
+            // alive causes "Access is denied" errors for ~10 seconds on reconnect, because
+            // Windows won't release the handle until the QSerialPort is destroyed.
             qCInfo(log_core_serial_conn) << "Closing broken serial port immediately to stop error flood";
-            closePortInternal();
+            closePortInternal(true);
         }
     } else if (isUnknownDeviceError) {
         // Error code 8: "A device attached to the system is not functioning"

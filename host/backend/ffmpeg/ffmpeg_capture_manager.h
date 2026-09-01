@@ -140,12 +140,27 @@ private:
     volatile bool interrupt_requested_;
     qint64 operation_start_time_;
     static constexpr qint64 kOperationTimeoutMs = 5000;
-    
+
+    // HOTPLUG FIX: Set true when the capture thread join was deferred to a background thread.
+    // When true, the detached thread is responsible for closing the device (via device_manager_)
+    // and joining the capture thread. StopCapture() will NOT call CloseInputDevice() in this case.
+    // The detached thread closes the device FIRST to unblock av_read_frame(), then waits for
+    // the capture thread to exit.
+    bool deferred_thread_cleanup_ = false;
+
     // Performance monitoring (not owned)
     QTimer* performance_timer_;
-    
+
     // Thread safety
     mutable QMutex mutex_;
+
+    // HOTPLUG FIX (修复十-B): Serializes device close (from detached thread) and device open
+    // (from main thread via OpenInputDevice). Without this, the detach thread's dm->CloseDevice()
+    // and the main thread's dm->OpenDevice() could run simultaneously on the same device_manager_,
+    // causing data races on format_context_ / codec_context_ → crash or deadlock.
+    // OpenInputDevice uses tryLock(5000) to avoid blocking the main thread forever if CloseDevice
+    // hangs (e.g., DirectShow graph teardown on a dead USB device).
+    QMutex device_op_mutex_;
 };
 
 #endif // FFMPEG_CAPTURE_MANAGER_H

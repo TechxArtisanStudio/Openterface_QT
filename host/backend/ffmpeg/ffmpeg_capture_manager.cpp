@@ -27,6 +27,7 @@
 #include "ffmpeg_device_validator.h"
 #include "global.h"
 #include "ui/globalsetting.h"
+#include <thread>
 
 #include <QThread>
 #include <QDateTime>
@@ -75,7 +76,7 @@ bool FFmpegCaptureManager::StartCapture(const QString& devicePath, const QSize& 
         qCDebug(log_ffmpeg_backend) << "Capture already running, stopping first";
         StopCapture();
     }
-    
+
     // Cleanup any residual resources
     CleanupResources();
     
@@ -174,39 +175,41 @@ void FFmpegCaptureManager::StopCapture()
 {
     {
         QMutexLocker locker(&mutex_);
-        
+
         if (!capture_running_) {
             return;
         }
-        
+
         qCDebug(log_ffmpeg_backend) << "Stopping FFmpeg capture";
-        
+
         capture_running_ = false;
-        
+
         // Set interrupt flag to break out of any blocking FFmpeg operations
         interrupt_requested_ = true;
-        
-        // DO NOT close input device here - thread is still using it!
-        // It will be closed after thread stops in StopCaptureThread()
     } // Release mutex before waiting for thread
-    
-    // Stop capture thread FIRST - this is critical!
-    // The thread must exit before we close FFmpeg resources
+
+    // HOTPLUG FIX: StopCaptureThread() is now non-blocking.
+    // It either returns quickly (thread exits within 100ms) or detaches a background
+    // thread to handle the blocking wait + force-terminate.
+    // CloseInputDevice() is handled in both paths:
+    //   - Quick path: thread exited within 100ms, device closed in StopCaptureThread()
+    //   - Slow path: deferred_thread_cleanup_ is true, device closed by detached thread
     StopCaptureThread();
-    
-    // Now safe to close input device after thread has stopped
-    {
+
+    // Only close device here if neither path above handled it.
+    // This shouldn't happen in practice, but provides a safety net.
+    if (!deferred_thread_cleanup_) {
         QMutexLocker locker(&mutex_);
         CloseInputDevice();
     }
-    
+
     // Stop performance monitoring
     if (performance_timer_) {
         performance_timer_->stop();
     }
-    
+
     emit CaptureStopped();
-    qCDebug(log_ffmpeg_backend) << "FFmpeg capture stopped";
+    qCDebug(log_ffmpeg_backend) << "FFmpeg capture stopped (async)";
 }
 
 bool FFmpegCaptureManager::ReadFrame()
@@ -368,31 +371,45 @@ bool FFmpegCaptureManager::OpenInputDevice(const QString& devicePath, const QSiz
         qCCritical(log_ffmpeg_backend) << "Device manager not initialized";
         return false;
     }
-    
+
     // Reset interrupt state for this new operation
     interrupt_requested_ = false;
     operation_start_time_ = QDateTime::currentMSecsSinceEpoch();
-    
-    // Open device via device manager
-    if (!device_manager_->OpenDevice(devicePath, resolution, framerate, hardware_accelerator_)) {
+
+    // HOTPLUG FIX (修复十-B): Serialize with the detach thread's CloseDevice().
+    // The detach thread holds device_op_mutex_ while calling dm->CloseDevice().
+    // We use tryLock(5000) to wait up to 5s for the detach thread to finish.
+    // If it times out (CloseDevice hangs on DirectShow graph teardown), we abort
+    // rather than racing on format_context_ — the frame timeout handler will retry.
+    if (!device_op_mutex_.tryLock(5000)) {
+        qCWarning(log_ffmpeg_backend) << "Device open timed out waiting for deferred device close — aborting";
+        return false;
+    }
+
+    // Open device via device manager (serialized with deferred CloseDevice)
+    bool opened = device_manager_->OpenDevice(devicePath, resolution, framerate, hardware_accelerator_);
+
+    device_op_mutex_.unlock();
+
+    if (!opened) {
         qCWarning(log_ffmpeg_backend) << "Failed to open device via device manager";
         return false;
     }
-    
+
     // Update local video stream index from device manager
     video_stream_index_ = device_manager_->GetVideoStreamIndex();
-    
+
     // Allocate packet
     packet_ = make_av_packet();
-    
+
     if (!packet_) {
         qCCritical(log_ffmpeg_backend) << "Failed to allocate packet";
         return false;
     }
-    
+
     // Reset operation timer - device opened successfully
     operation_start_time_ = 0;
-    
+
     return true;
 }
 
@@ -444,9 +461,9 @@ void FFmpegCaptureManager::StopCaptureThread()
     if (!capture_thread_) {
         return;
     }
-    
+
     capture_thread_->setRunning(false);
-    
+
     // Check if we're being called from the capture thread itself
     if (QThread::currentThread() == capture_thread_.get()) {
         qCDebug(log_ffmpeg_backend) << "stopCapture called from capture thread - will cleanup asynchronously";
@@ -460,43 +477,86 @@ void FFmpegCaptureManager::StopCaptureThread()
             }
         });
     } else {
-        // We're being called from a different thread, wait gracefully
-        qCDebug(log_ffmpeg_backend) << "Requesting capture thread to stop gracefully";
+        // HOTPLUG FIX: Make thread join non-blocking to prevent main thread freeze.
+        // When a USB device is unplugged, the capture thread can be stuck in av_read_frame()
+        // on a dead device handle. Waiting for it blocks the main thread for up to 8 seconds
+        // (5s wait + 2s retry + 1s terminate), freezing the entire UI.
+        //
+        // Strategy: signal the thread to stop, give it a brief chance to exit naturally,
+        // then defer the blocking wait + cleanup to a detached background thread.
+        // The 2000ms delay in CameraManager's reconnect handler provides additional
+        // settling time before a new capture starts.
+        qCDebug(log_ffmpeg_backend) << "Requesting capture thread to stop (non-blocking)";
         capture_thread_->requestInterruption();
-        
-        // Wait longer for thread to finish gracefully (increased from 3s to 5s)
-        // This is critical to prevent crashes when thread is processing frames
-        if (!capture_thread_->wait(5000)) {
-            qCWarning(log_ffmpeg_backend) << "Capture thread did not exit after 5 seconds";
-            
-            // Give it more time instead of terminating immediately
-            qCDebug(log_ffmpeg_backend) << "Waiting additional 2 seconds for thread cleanup...";
-            if (!capture_thread_->wait(2000)) {
-                qCCritical(log_ffmpeg_backend) << "Capture thread still not finished after 7 seconds total";
-                
-                // As last resort, terminate - but this should rarely happen
-                qCCritical(log_ffmpeg_backend) << "Force terminating thread (this may cause instability)";
-                capture_thread_->terminate();
-                
-                // Give terminated thread time to cleanup
-                if (!capture_thread_->wait(1000)) {
-                    qCCritical(log_ffmpeg_backend) << "Capture thread still running after terminate!";
-                }
-            }
-        } else {
-            qCDebug(log_ffmpeg_backend) << "Capture thread exited gracefully";
-        }
-        
-        // Only reset the thread after ensuring it's stopped
-        if (!capture_thread_->isRunning()) {
+        deferred_thread_cleanup_ = false;
+
+        // Brief wait — thread exits quickly when device is still connected
+        if (capture_thread_->wait(100)) {
+            qCDebug(log_ffmpeg_backend) << "Capture thread exited gracefully (quick path)";
             capture_thread_.reset();
-            qCDebug(log_ffmpeg_backend) << "Capture thread cleaned up successfully";
+            // Thread has exited — safe to close device now
+            QMutexLocker locker(&mutex_);
+            CloseInputDevice();
         } else {
-            qCCritical(log_ffmpeg_backend) << "WARNING: Capture thread still running, cannot safely destroy!";
-            // Don't reset to avoid the crash, but this is a serious error
+            // HOTPLUG FIX (修复十-B): Thread is stuck — likely blocked in av_read_frame() on a
+            // dead/unplugged USB device.
+            //
+            // CRITICAL: We CANNOT call CloseInputDevice() from the main thread here!
+            // avformat_close_input() tears down the DirectShow graph, which waits for the
+            // capture thread's GetNextSample() to return. But the capture thread is blocked
+            // waiting for data from the dead device → DEADLOCK. The main thread freezes.
+            //
+            // Instead, we delegate BOTH the device close AND the thread join to a detached
+            // background thread:
+            //   1. Detached thread closes the device FIRST (~10ms) → av_read_frame() fails
+            //      → capture thread exits quickly
+            //   2. Detached thread waits for capture thread to exit (max 5s)
+            //   3. Detached thread cleans up QThread memory
+            //
+            // This eliminates the race condition from 修复八 (where the detached thread closed
+            // the device AFTER waiting, potentially closing a NEW device):
+            //   修复八 timing (BUGGY):
+            //     T+0ms:    Unplug → slow path → detached thread WAITS (5s)
+            //     T+2000ms: Replug → StartCapture → opens NEW device
+            //     T+5000ms: Detached thread wakes → closes NEW device! (CRASH)
+            //
+            //   修复十-B timing (FIXED):
+            //     T+0ms:    Unplug → slow path → detached thread CLOSES device (10ms)
+            //     T+10ms:   av_read_frame() fails → capture thread exits
+            //     T+100ms:  Detached thread finishes cleanup
+            //     T+2000ms: Replug → StartCapture → opens device (SAFE — old device already closed)
+            qCWarning(log_ffmpeg_backend) << "Capture thread still running after 100ms — delegating device close + cleanup to detached thread";
+
+            deferred_thread_cleanup_ = true;
+
+            // Move ownership of the raw pointer to the detached thread.
+            QThread* rawThread = capture_thread_.release();
+            FFmpegDeviceManager* dm = device_manager_;
+
+            std::thread([rawThread, dm, this]() {
+                // STEP 1: Close the device FIRST to unblock av_read_frame().
+                // device_op_mutex_ serializes this with OpenInputDevice() in StartCapture(),
+                // preventing a data race on format_context_ / codec_context_.
+                if (dm) {
+                    QMutexLocker locker(&device_op_mutex_);
+                    qCDebug(log_ffmpeg_backend) << "[async] Closing device to unblock capture thread";
+                    dm->CloseDevice();
+                }
+
+                // STEP 2: Wait for the capture thread to exit (max 5s).
+                if (rawThread->wait(5000)) {
+                    qCDebug(log_ffmpeg_backend) << "[async] Capture thread exited after device close";
+                } else {
+                    qCWarning(log_ffmpeg_backend) << "[async] Capture thread did not exit after 5s, terminating";
+                    rawThread->terminate();
+                    if (!rawThread->wait(1000)) {
+                        qCCritical(log_ffmpeg_backend) << "[async] Capture thread still running after terminate!";
+                    }
+                }
+
+                // STEP 3: Clean up QThread memory.
+                delete rawThread;
+            }).detach();
         }
-        
-        // Don't call CleanupResources here - it will be called by StopCapture()
-        // after the thread has fully stopped to avoid use-after-free
     }
 }

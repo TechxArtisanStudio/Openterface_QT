@@ -12,7 +12,7 @@ HotplugMonitor::HotplugMonitor(IDeviceDiscovery* deviceDiscovery, QObject *paren
     , m_deviceDiscovery(deviceDiscovery)
     , m_timer(new QTimer(this))
     , m_running(false)
-    , m_pollInterval(2000)
+    , m_pollInterval(500)  // Optimized: 500ms for faster hotplug detection (was 2000ms)
     , m_changeEventCount(0)
     , m_checkWatcher(new QFutureWatcher<void>(this))
 {

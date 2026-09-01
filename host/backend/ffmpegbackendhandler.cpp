@@ -579,19 +579,13 @@ void FFmpegBackendHandler::stopDirectCapture()
         m_performanceTimer->stop();
     }
 
-    // Sync wait: poll until capture thread fully stops (max 2s, 50ms intervals)
-    if (!waitForCaptureStop(2000)) {
-        qCWarning(log_ffmpeg_backend) << "Capture thread did not stop within timeout - may cause device conflict";
-    }
+    // HOTPLUG FIX: Do NOT call waitForCaptureStop() here — it blocks the main thread
+    // for up to 2s while the capture thread (possibly stuck on a dead USB device) exits.
+    // StopCapture() already handles the thread join (now non-blocking via detached thread).
+    // The 2000ms delay in CameraManager's shouldConnectCamera handler provides sufficient
+    // settling time before a new capture starts.
 
-    // Platform-specific settling delay before opening new device
-#ifdef Q_OS_LINUX
-    QThread::msleep(100);  // Linux needs extra time for /dev/video* release
-#elif defined(Q_OS_WIN)
-    QThread::msleep(200);  // Windows needs time for DirectShow filter graph cleanup
-#endif
-
-    qCDebug(log_ffmpeg_backend) << "Direct FFmpeg capture stopped (sync wait complete)";
+    qCDebug(log_ffmpeg_backend) << "Direct FFmpeg capture stop requested (async cleanup in progress)";
 }
 
 bool FFmpegBackendHandler::waitForCaptureStop(int timeoutMs)

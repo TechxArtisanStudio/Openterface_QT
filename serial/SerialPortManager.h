@@ -325,7 +325,7 @@ private:
     bool setBaudRateInternal(int baudRate);
     
     // Thread-safe port closing (ensures QSocketNotifier operations happen in worker thread)
-    void closePortInternal();
+    void closePortInternal(bool deleteAfterClose = false);
     void closePortInternalMainThread();
     void completePortCloseCleanup();
     void openSerialPortInThread(bool& openResult, QSerialPort::SerialPortError& lastError);
