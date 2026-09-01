@@ -183,8 +183,9 @@ CameraManager::CameraManager(QObject *parent)
                 // 1. Windows DirectShow needs time to re-enumerate USB video devices
                 // 2. DeviceManager may not have cameraDeviceId/cameraDevicePath populated yet
                 // 3. FFmpeg may fail to open the device if it's still being initialized
-                // Optimized delays (2026-09): Initial 300ms (was 2000ms), retries 500/1000/1500ms (was 2s/4s/6s)
-                constexpr int MAX_CAMERA_CONNECT_RETRIES = 3;
+                // HOTFIX (2026-09): Increased delays for USB re-enumeration stability.
+                // Camera can disappear briefly during USB re-enumeration (~2s).
+                constexpr int MAX_CAMERA_CONNECT_RETRIES = 4;
                 std::function<void(int)> tryConnectCamera;
                 tryConnectCamera = [this, sessionKey, portChain, &tryConnectCamera](int attempt) {
                     qWarning() << "[HOTPLUG-CAM] Camera connect attempt" << attempt + 1
@@ -222,8 +223,9 @@ CameraManager::CameraManager(QObject *parent)
                         qWarning() << "[HOTPLUG-CAM] Camera connect failed on attempt"
                                    << attempt + 1 << "for portChain=" << portChain;
                         if (attempt + 1 < MAX_CAMERA_CONNECT_RETRIES) {
-                            // Optimized retry delays: 500ms, 1000ms (was 2000ms * attempt)
-                            int retryDelay = (attempt + 1) * 500;
+                            // HOTFIX (2026-09): Longer delays for USB stability
+                            // 1500ms, 2000ms, 2500ms (was 500ms, 1000ms)
+                            int retryDelay = 1500 + (attempt * 500);
                             qWarning() << "[HOTPLUG-CAM] Scheduling camera retry in"
                                        << retryDelay << "ms";
                             QTimer::singleShot(retryDelay, this, [tryConnectCamera, attempt]() {
@@ -317,7 +319,9 @@ CameraManager::CameraManager(QObject *parent)
 
             // Retry mechanism: try multiple times with increasing delay
             // (DirectShow needs time to re-enumerate after hotplug)
-            constexpr int MAX_SERIAL_RECOVERY_RETRIES = 3;
+            // HOTFIX (2026-09): Increased delays for USB re-enumeration stability.
+            // Openterface camera can disappear briefly during USB re-enumeration (~2s).
+            constexpr int MAX_SERIAL_RECOVERY_RETRIES = 4;
             std::function<void(int)> tryRestartCamera;
             tryRestartCamera = [this, portChain, &tryRestartCamera](int attempt) {
                 qWarning() << "[HOTPLUG-CAM][SerialRecovery] Camera restart attempt" << attempt + 1
@@ -351,7 +355,9 @@ CameraManager::CameraManager(QObject *parent)
                     qWarning() << "[HOTPLUG-CAM][SerialRecovery] Camera restart failed on attempt"
                                << attempt + 1;
                     if (attempt + 1 < MAX_SERIAL_RECOVERY_RETRIES) {
-                        int retryDelay = (attempt + 1) * 500;  // Optimized: 500ms, 1000ms (was 3s, 6s)
+                        // HOTFIX (2026-09): Longer delays for USB stability
+                        // 1500ms, 2000ms, 2500ms (was 500ms, 1000ms, 1500ms)
+                        int retryDelay = 1500 + (attempt * 500);
                         qWarning() << "[HOTPLUG-CAM][SerialRecovery] Retrying in" << retryDelay << "ms";
                         QTimer::singleShot(retryDelay, this, [tryRestartCamera, attempt]() {
                             tryRestartCamera(attempt + 1);
