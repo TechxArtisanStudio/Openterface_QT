@@ -37,6 +37,12 @@
 #include "serial/SerialPortManager.h"
 #include "video/videohid.h"
 #include "video/firmwareoperationmanager.h"
+#include "ui/advance/edid/edidsettingsmanager.h"
+#include "ui/advance/edid/edididentitycache.h"
+#include "ui/coordinator/devicecoordinator.h"
+#include "ui/globalsetting.h"
+#include "device/DeviceManager.h"
+#include "device/DeviceInfo.h"
 
 #include <QBuffer>
 #include <QJsonDocument>
@@ -69,6 +75,11 @@ void McpToolHandler::setScriptRunner(ScriptRunner* runner) {
 
 void McpToolHandler::setScriptExecutor(ScriptExecutor* executor) {
     m_scriptExecutor = executor;
+}
+
+void McpToolHandler::setDeviceCoordinator(DeviceCoordinator* coordinator)
+{
+    m_deviceCoordinator = coordinator;
 }
 
 // ---------------------------------------------------------------------------
@@ -361,6 +372,69 @@ QJsonArray McpToolHandler::listTools() const
         tools.append(tool);
     }
 
+    // ---- EDID identity tools ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_EDID_INFO;
+        tool["description"] = "Read the EDID identity stored in the video chip EEPROM: display name (0xFC descriptor), serial string (0xFF), PNP manufacturer id, product code and 32-bit serial. This is the identity a target computer sees as 'the monitor', and the only per-unit identifier readable from the host. HID polling pauses for a few seconds while the image is read.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        schema["properties"] = QJsonObject();
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_EDID_SET;
+        tool["description"] = "Write the EDID display name and/or serial string into the video chip EEPROM (same operation as Advanced -> Update Display Settings). Reads the image, saves a pre-write backup, applies the change, writes, then reads back and verifies. The device only presents the new EDID after a full power cycle (host USB power off/on); the app keeps running.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        QJsonObject nameProp;
+        nameProp["type"] = "string";
+        nameProp["description"] = "New display name, 1-13 printable ASCII characters. Omit to leave unchanged.";
+        props["display_name"] = nameProp;
+        QJsonObject serialProp;
+        serialProp["type"] = "string";
+        serialProp["description"] = "New serial string, 1-13 printable ASCII characters. Omit to leave unchanged.";
+        props["serial_number"] = serialProp;
+        schema["properties"] = props;
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
+    // ---- Device selection tools ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_DEVICE_LIST;
+        tool["description"] = "List the attached Openterface units (one entry per unit, the same list as Control -> Device): port_chain, label, edid_name (if learned), current, and which interfaces were found. All other tools act on the current unit; use device_select to change it.";
+        QJsonObject schema;
+        schema["type"] = "object";
+        schema["properties"] = QJsonObject();
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_DEVICE_SELECT;
+        tool["description"] = "Make another attached unit the current one (same operation as choosing it in Control -> Device): switches HID, serial, camera and audio. Pass exactly one of port_chain (from device_list) or name (an EDID display name already learned in this process). The unit's EDID name is re-read ~15 s after the switch.";
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["port_chain"] = QJsonObject{{"type", "string"}, {"description", "Port chain as listed by device_list, e.g. \"1-3\""}};
+        props["name"] = QJsonObject{{"type", "string"}, {"description", "EDID display name, e.g. \"BRAIN-G3-KVM\" (must already be known: see device_list)"}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
     return tools;
 }
 
@@ -388,6 +462,10 @@ QJsonObject McpToolHandler::callTool(const QString& name, const QJsonObject& arg
     if (name == MCP_TOOL_SCREEN_TO_MARKDOWN)         return toolScreenToMarkdown(arguments);
     if (name == MCP_TOOL_FIRMWARE_CHECK)             return toolFirmwareCheck(arguments);
     if (name == MCP_TOOL_FIRMWARE_UPDATE)            return toolFirmwareUpdate(arguments);
+    if (name == MCP_TOOL_EDID_INFO)                  return toolEdidInfo(arguments);
+    if (name == MCP_TOOL_EDID_SET)                   return toolEdidSet(arguments);
+    if (name == MCP_TOOL_DEVICE_LIST)                return toolDeviceList(arguments);
+    if (name == MCP_TOOL_DEVICE_SELECT)              return toolDeviceSelect(arguments);
 
     return errorResult("Unknown tool: " + name);
 }
@@ -970,6 +1048,10 @@ QJsonObject McpToolHandler::toolSystemStatus(const QJsonObject& args)
     serial["chip_type"] = chipName;
     status["serial"] = serial;
 
+    // --- Unit identity (cached EDID display name; no HID traffic here) ---
+    status["edid_name"] = edid::EdidIdentityCache::instance().currentDisplayName();
+    status["port_chain"] = GlobalSetting::instance().getOpenterfacePortChain();
+
     // --- Camera ---
     QJsonObject camera;
     if (m_cameraManager) {
@@ -1173,6 +1255,202 @@ QJsonObject McpToolHandler::toolFirmwareUpdate(const QJsonObject& args)
         "REQUIRED next steps: quit this app, power off BOTH ends of the KVM "
         "(host USB power and target power), then re-energize the KVM before booting the target.")
         .arg(cur, latest));
+}
+
+// ---------------------------------------------------------------------------
+// EDID identity tools -- thin wrappers around edid::EdidSettingsManager, the
+// same object Advanced -> Update Display Settings drives.
+// ---------------------------------------------------------------------------
+QJsonObject McpToolHandler::toolEdidInfo(const QJsonObject& args)
+{
+    Q_UNUSED(args);
+    edid::EdidSettingsManager mgr;
+
+    QEventLoop loop;
+    bool done = false, ok = false;
+    edid::EdidIdentity identity;
+    QString error;
+    connect(&mgr, &edid::EdidSettingsManager::identityRead, &loop,
+        [&](bool success, const edid::EdidIdentity& id, const QString& err) {
+            ok = success; identity = id; error = err; done = true; loop.quit();
+        });
+
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timeout.start(60000);
+
+    mgr.readIdentity();
+    if (!done)
+        loop.exec();
+
+    if (!done) {
+        mgr.cancel();
+        return errorResult("EDID read TIMED OUT after 60s.");
+    }
+    if (!ok) {
+        return errorResult(QString("EDID read failed: %1").arg(error));
+    }
+    return textResult(QString("EDID identity: %1").arg(identity.summary()));
+}
+
+QJsonObject McpToolHandler::toolEdidSet(const QJsonObject& args)
+{
+    const QString newName   = args.value("display_name").toString().trimmed();
+    const QString newSerial = args.value("serial_number").toString().trimmed();
+    if (newName.isEmpty() && newSerial.isEmpty()) {
+        return errorResult("Nothing to set: pass display_name and/or serial_number.");
+    }
+    QString err;
+    if (!newName.isEmpty() && !edid::EdidSettingsManager::validateField(newName, "display_name", err)) {
+        return errorResult(err);
+    }
+    if (!newSerial.isEmpty() && !edid::EdidSettingsManager::validateField(newSerial, "serial_number", err)) {
+        return errorResult(err);
+    }
+
+    qCInfo(log_server_mcp_tool) << "EDID set requested: display_name=" << newName << "serial_number=" << newSerial;
+
+    edid::EdidSettingsManager mgr;
+
+    QEventLoop loop;
+    bool done = false, ok = false, verified = false;
+    edid::EdidIdentity before, after;
+    QString error;
+    int lastPct = 0;
+    connect(&mgr, &edid::EdidSettingsManager::progress, &loop, [&lastPct](int pct) { lastPct = pct; });
+    connect(&mgr, &edid::EdidSettingsManager::settingsApplied, &loop,
+        [&](bool success, bool isVerified, const edid::EdidIdentity& b, const edid::EdidIdentity& a, const QString& e) {
+            ok = success; verified = isVerified; before = b; after = a; error = e; done = true; loop.quit();
+        });
+
+    QTimer timeout;
+    timeout.setSingleShot(true);
+    connect(&timeout, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timeout.start(120000);
+
+    mgr.applySettings(newName, newSerial);
+    if (!done)
+        loop.exec();
+
+    const QString backupNote = mgr.backupPath().isEmpty()
+        ? QString()
+        : QString(" Pre-write image saved at %1.").arg(mgr.backupPath());
+
+    if (!done) {
+        mgr.cancel();
+        return errorResult(QString("EDID write TIMED OUT after 120s at %1%. Device state unknown; "
+                                   "run edid_info before retrying.%2").arg(lastPct).arg(backupNote));
+    }
+    if (!ok) {
+        return errorResult(QString("EDID write FAILED: %1%2").arg(error, backupNote));
+    }
+    if (!verified) {
+        return errorResult(QString("EDID write completed but NOT VERIFIED: %1 Before: %2. Read-back: %3.%4")
+            .arg(error, before.summary(), after.summary(), backupNote));
+    }
+    // Let the menu / window title follow the rename without a restart.
+    edid::EdidIdentityCache::instance().refreshCurrent();
+
+    return textResult(QString("EDID updated and verified by read-back. Before: %1. After: %2.%3 "
+                              "REQUIRED next step: power-cycle the KVM (host USB power off, then on) -- "
+                              "the video chip only presents the new EDID after a restart.")
+        .arg(before.summary(), after.summary(), backupNote));
+}
+
+// ---------------------------------------------------------------------------
+// Device selection tools -- the same list and the same switch path as the
+// Control -> Device menu (DeviceCoordinator::selectDevice in GUI mode).
+// ---------------------------------------------------------------------------
+QJsonObject McpToolHandler::toolDeviceList(const QJsonObject& args)
+{
+    Q_UNUSED(args);
+    const QString current = GlobalSetting::instance().getOpenterfacePortChain();
+    const auto& cache = edid::EdidIdentityCache::instance();
+
+    QJsonArray list;
+    for (const DeviceInfo& d : DeviceManager::getInstance().listSelectableDevices(/*rediscover=*/false)) {
+        QString label = QString("Port %1").arg(DeviceInfo::displayPortChain(d.portChain));
+        if (!d.serialPortPath.isEmpty()) {
+            label += QString(" (%1)").arg(d.serialPortPath);
+        }
+        const QString name = cache.displayName(d.portChain);
+        QJsonObject o;
+        o["port_chain"]  = d.portChain;
+        o["label"]       = edid::decorateLabel(label, name);
+        o["edid_name"]   = name;
+        o["current"]     = (d.portChain == current);
+        o["serial_port"] = d.serialPortPath;
+        o["camera"]      = d.cameraDevicePath;
+        o["hid"]         = d.hasHidDevice();
+        o["audio"]       = !d.audioDevicePath.isEmpty();
+        list.append(o);
+    }
+    QJsonObject out;
+    out["devices"] = list;
+    out["current_port_chain"] = current;
+    return textResult(QJsonDocument(out).toJson(QJsonDocument::Compact));
+}
+
+QJsonObject McpToolHandler::toolDeviceSelect(const QJsonObject& args)
+{
+    QString portChain = args.value("port_chain").toString().trimmed();
+    const QString name = args.value("name").toString().trimmed();
+    if (portChain.isEmpty() == name.isEmpty()) {
+        return errorResult("Pass exactly one of port_chain or name.");
+    }
+
+    const QList<DeviceInfo> devices = DeviceManager::getInstance().listSelectableDevices(/*rediscover=*/false);
+    if (!name.isEmpty()) {
+        QStringList known;
+        for (const DeviceInfo& d : devices) {
+            const QString n = edid::EdidIdentityCache::instance().displayName(d.portChain);
+            if (!n.isEmpty()) known << QString("%1=%2").arg(n, d.portChain);
+            if (n.compare(name, Qt::CaseInsensitive) == 0) portChain = d.portChain;
+        }
+        if (portChain.isEmpty()) {
+            return errorResult(QString("No attached unit with EDID name \"%1\" is known in this process "
+                                       "(names are learned when a unit is selected). Known: %2. "
+                                       "Select by port_chain instead; see device_list.")
+                               .arg(name, known.isEmpty() ? "none" : known.join(", ")));
+        }
+    }
+    bool attached = false;
+    QStringList chains;
+    for (const DeviceInfo& d : devices) { chains << d.portChain; if (d.portChain == portChain) attached = true; }
+    if (!attached) {
+        return errorResult(QString("No attached unit at port chain \"%1\". Attached: %2")
+                           .arg(portChain, chains.isEmpty() ? "none" : chains.join(", ")));
+    }
+
+    qCInfo(log_server_mcp_tool) << "device_select:" << portChain;
+    DeviceManager::DeviceSwitchResult r{};
+    if (m_deviceCoordinator) {
+        // GUI mode: exactly what a click in Control -> Device does.
+        r = m_deviceCoordinator->selectDevice(portChain);
+    } else {
+        // Headless mode: the same two steps the coordinator performs.
+        r = DeviceManager::getInstance().switchToDeviceByPortChainWithCamera(portChain, m_cameraManager);
+        if (r.hidSuccess) {
+            edid::EdidIdentityCache::instance().refresh(portChain);
+        }
+    }
+
+    QJsonObject out;
+    out["port_chain"] = portChain;
+    out["success"]    = r.success;
+    out["camera"]     = r.cameraSuccess;
+    out["hid"]        = r.hidSuccess;
+    out["serial"]     = r.serialSuccess;
+    out["audio"]      = r.audioSuccess;
+    out["message"]    = r.statusMessage;
+    // Units without an audio interface always report a "partial" switch;
+    // for control purposes camera + HID + serial is what matters.
+    const bool usable = r.cameraSuccess && r.hidSuccess && r.serialSuccess;
+    out["usable"]     = usable;
+    out["note"]       = "The unit's EDID name (system_status.edid_name) is re-read about 15 s after a switch.";
+    const QString text = QJsonDocument(out).toJson(QJsonDocument::Compact);
+    return usable ? textResult(text) : errorResult(text);
 }
 
 // ==========================================================================

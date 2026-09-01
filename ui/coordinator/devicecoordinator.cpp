@@ -21,6 +21,7 @@
 */
 
 #include "devicecoordinator.h"
+#include "../advance/edid/edididentitycache.h"
 #include "host/cameramanager.h"
 #include "device/HotplugMonitor.h"
 #include "device/DeviceLifecycleManager.h"
@@ -45,6 +46,12 @@ DeviceCoordinator::DeviceCoordinator(QMenu *deviceMenu, CameraManager *cameraMan
     , m_deviceMenuGroup(nullptr)
     , m_deviceAutoSelected(false)
 {
+    // Re-label the menu when a unit's EDID name becomes known.
+    connect(&edid::EdidIdentityCache::instance(), &edid::EdidIdentityCache::identityChanged,
+            this, [this](const QString &, const edid::EdidIdentity &) { updateDeviceMenu(); });
+    connect(&edid::EdidIdentityCache::instance(), &edid::EdidIdentityCache::currentChanged,
+            this, [this](const QString &) { updateDeviceMenu(); });
+
     qCDebug(log_ui_devicecoordinator) << "DeviceCoordinator created";
 }
 
@@ -88,54 +95,27 @@ void DeviceCoordinator::updateDeviceMenu()
     m_deviceMenu->clear();
     qDeleteAll(m_deviceMenuGroup->actions());
     
-    // Get available devices from DeviceManager
+    // One entry per unit, shared with the selector dialog and MCP device_list
     DeviceManager& deviceManager = DeviceManager::getInstance();
-    QList<DeviceInfo> devices = deviceManager.discoverDevices(); // Force discovery for up-to-date list
-    
+    QList<DeviceInfo> selectable = deviceManager.listSelectableDevices();
+
     // Get currently selected device port chain
     QString currentPortChain = GlobalSetting::instance().getOpenterfacePortChain();
-    
-    qCDebug(log_ui_devicecoordinator) << "Updating device menu with" << devices.size() 
+    qCDebug(log_ui_devicecoordinator) << "Updating device menu with" << selectable.size()
                                       << "devices. Current port chain:" << currentPortChain;
-    
-    if (devices.isEmpty()) {
+
+    if (selectable.isEmpty()) {
         // Add "No devices available" placeholder
         QAction *noDevicesAction = new QAction(tr("No devices available"), this);
         noDevicesAction->setEnabled(false);
         m_deviceMenu->addAction(noDevicesAction);
         return;
     }
-    
-    // Deduplicate devices by port chain (similar to DeviceSelectorDialog)
-    // First, collect all companion port chains to skip companion devices
-    QSet<QString> companionPortChains;
-    for (const auto& device : devices) {
-        if (!device.companionPortChain.isEmpty()) {
-            companionPortChains.insert(device.companionPortChain);
-            qCDebug(log_ui_devicecoordinator) << "Companion port chain found:" << device.companionPortChain << "for device:" << device.portChain;
-        } else {
-            qCDebug(log_ui_devicecoordinator) << "No companion port chain for device:" << device.portChain;
-        }
-    }
-    
     QMap<QString, DeviceInfo> uniqueDevicesByPortChain;
-    for (const auto& device : devices) {
-        if (!device.portChain.isEmpty()) {
-            // Skip companion devices that are represented by their main device
-            if (companionPortChains.contains(device.portChain)) {
-                qCDebug(log_ui_devicecoordinator) << "Skipping companion device:" << device.portChain;
-                continue;
-            }
-            // Only keep first occurrence of each port chain
-            if (!uniqueDevicesByPortChain.contains(device.portChain)) {
-                uniqueDevicesByPortChain.insert(device.portChain, device);
-                qCDebug(log_ui_devicecoordinator) << "Added device:" << device.portChain;
-            } else {
-                qCDebug(log_ui_devicecoordinator) << "Skipping duplicate port chain:" << device.portChain;
-            }
-        }
+    for (const auto& device : selectable) {
+        uniqueDevicesByPortChain.insert(device.portChain, device);
     }
-    
+
     // Device-type merging removed: we only deduplicate by companion port chain
 
     // Auto-select first device if there's exactly one device and not already auto-selected
@@ -190,6 +170,10 @@ void DeviceCoordinator::updateDeviceMenu()
         if (!serialInfo.isEmpty()) {
             displayText += QString(" (%1)").arg(serialInfo);
         }
+        // Prefix the EDID display name when this unit has been identified
+        // (see EdidIdentityCache): "BRAIN-G4-KVM - Port 1-3 (/dev/ttyACM0)".
+        displayText = edid::decorateLabel(
+            displayText, edid::EdidIdentityCache::instance().displayName(device.portChain));
 
         QAction *deviceAction = new QAction(displayText, this);
         deviceAction->setCheckable(true);
@@ -232,13 +216,18 @@ void DeviceCoordinator::connectHotplugMonitor(HotplugMonitor *hotplugMonitor)
 
 void DeviceCoordinator::onDeviceSelected(QAction *action)
 {
-    QString portChain = action->data().toString();
-    qCDebug(log_ui_devicecoordinator) << "Device selected from menu:" << portChain;
+    selectDevice(action->data().toString());
+}
 
+DeviceManager::DeviceSwitchResult DeviceCoordinator::selectDevice(const QString &portChain)
+{
+    qCDebug(log_ui_devicecoordinator) << "Device selected:" << portChain;
+    DeviceManager::DeviceSwitchResult result{};
     if (portChain.isEmpty()) {
         qCWarning(log_ui_devicecoordinator) << "Empty port chain selected";
-        emit deviceSelected("", false, "Empty port chain");
-        return;
+        result.statusMessage = "Empty port chain";
+        emit deviceSelected("", false, result.statusMessage);
+        return result;
     }
 
     // HOTPLUG FIX: Clear any stale m_openInProgress lock before the legacy switch.
@@ -249,7 +238,7 @@ void DeviceCoordinator::onDeviceSelected(QAction *action)
 
     // Use the centralized device switching function
     DeviceManager& deviceManager = DeviceManager::getInstance();
-    auto result = deviceManager.switchToDeviceByPortChainWithCamera(portChain, m_cameraManager);
+    result = deviceManager.switchToDeviceByPortChainWithCamera(portChain, m_cameraManager);
 
     // Log the result
     if (result.success) {
@@ -259,9 +248,15 @@ void DeviceCoordinator::onDeviceSelected(QAction *action)
         qCWarning(log_ui_devicecoordinator) << "Device switch failed or partial:" << result.statusMessage;
         emit deviceSelected(portChain, false, result.statusMessage);
     }
-
-    // Update device menu to reflect current selection
-    updateDeviceMenu();
+    // The unit's identity follows the HID device, so refresh the cache
+    // whenever that part of the switch succeeded -- also on "partial" results
+    // (e.g. units without an audio interface). VideoHid does not always emit
+    // hidDeviceConnected on a switch (it returns early when it is already on
+    // the matching hidraw), hence the explicit refresh.
+    if (result.hidSuccess) {
+        edid::EdidIdentityCache::instance().refresh(portChain);
+    }
+    return result;
 }
 
 void DeviceCoordinator::onDevicePluggedIn(const DeviceInfo &device)
@@ -310,23 +305,7 @@ void DeviceCoordinator::onDeviceUnplugged(const DeviceInfo &device)
 
 QString DeviceCoordinator::formatPortChain(const QString &portChain)
 {
-    // Remove any '0' characters and then place '-' between remaining digits.
-    // For example: "010203" -> remove zeros -> "123" -> "1-2-3"
-    QString filtered;
-    for (QChar c : portChain) {
-        if (c.isDigit() && c != QChar('0')) {
-            filtered.append(c);
-        }
-    }
-    if (filtered.isEmpty()) {
-        // Fallback: if nothing remains after removing zeros, return the original
-        return portChain;
-    }
-    QStringList parts;
-    for (QChar c : filtered) {
-        parts.append(QString(c));
-    }
-    return parts.join('-');
+    return DeviceInfo::displayPortChain(portChain);
 }
 
 bool DeviceCoordinator::autoSelectFirstDevice()
@@ -374,6 +353,7 @@ bool DeviceCoordinator::autoSelectFirstDevice()
         qCInfo(log_ui_devicecoordinator) << "✓ Auto-selected device successfully:" << result.statusMessage;
         emit deviceSelected(firstPortChain, true, result.statusMessage);
         emit deviceSwitchCompleted();
+        edid::EdidIdentityCache::instance().refresh(firstPortChain);
         return true;
     } else {
         qCWarning(log_ui_devicecoordinator) << "Auto-selection failed, retrying in 2 seconds:" << result.statusMessage;
@@ -387,6 +367,7 @@ bool DeviceCoordinator::autoSelectFirstDevice()
                 qCInfo(log_ui_devicecoordinator) << "✓ Auto-selected device successfully on retry:" << retryResult.statusMessage;
                 emit deviceSelected(firstPortChain, true, retryResult.statusMessage);
                 emit deviceSwitchCompleted();
+                edid::EdidIdentityCache::instance().refresh(firstPortChain);
             } else {
                 qCWarning(log_ui_devicecoordinator) << "Auto-selection failed on retry:" << retryResult.statusMessage;
                 emit deviceSelected(firstPortChain, false, retryResult.statusMessage);
