@@ -308,11 +308,9 @@ void MainWindow::toggleChatWindow(bool visible)
     if (!m_chatWindow) {
         m_chatWindow = new ChatWindow(this);
         m_chatWindow->setWindowTitle("AI Chat");
-
-        // Position chat window to the right of main window
-        QRect mainGeo = geometry();
-        m_chatWindow->resize(400, mainGeo.height());
-        m_chatWindow->move(mainGeo.right() + 4, mainGeo.top());
+        // Intercept chat-window move events so we can detect user drags and
+        // apply the snap-to-dock logic.
+        m_chatWindow->installEventFilter(this);
 
         // Set up CameraManager for AI screenshots
         ChatScreenCapture::instance().setCameraManager(m_cameraManager);
@@ -326,6 +324,9 @@ void MainWindow::toggleChatWindow(bool visible)
             ChatManager::instance().clearHistory();
         }
 
+        // Position (or reposition) every time so the chat window sticks to the
+        // current right edge of the main window, even after moves/resizes.
+        updateChatWindowGeometry();
         m_chatWindow->show();
         m_chatWindow->raise();
         m_chatWindow->activateWindow();
@@ -334,6 +335,32 @@ void MainWindow::toggleChatWindow(bool visible)
     }
 
     GlobalSetting::instance().setChatWindowVisible(visible);
+}
+
+void MainWindow::updateChatWindowGeometry()
+{
+    if (!m_chatWindow) return;
+
+    // frameGeometry() includes WM decorations (title bar, borders) — gives us
+    // the true visual edges for positioning. Use geometry() for the height so
+    // the chat matches the main window's content area height (both windows
+    // share the same WM title bar, so the bottoms will align).
+    QRect mainFrame = frameGeometry();
+    QRect mainGeo = geometry();
+    const int gap = 2;
+    QPoint chatPos(mainFrame.right() + gap, mainFrame.top());
+    int chatHeight = mainGeo.height();
+
+    qCDebug(log_ui_mainwindow) << "updateChatWindowGeometry: mainFrame=" << mainFrame
+                               << "mainGeo=" << mainGeo
+                               << "chatPos=" << chatPos
+                               << "chatHeight=" << chatHeight;
+
+    m_programmaticChatMove = true;
+    m_chatWindow->resize(400, chatHeight);
+    m_chatWindow->move(chatPos);
+    m_programmaticChatMove = false;
+    m_chatWindowSnapped = true;
 }
 
 void MainWindow::stopServer(){
@@ -419,10 +446,36 @@ void MainWindow::initCamera()
 void MainWindow::resizeEvent(QResizeEvent *event) {
     qCDebug(log_ui_mainwindow) << "Resize event triggered. New size:" << event->size();
 
+    // Detect maximize/unmaximize transitions BEFORE throttle — we must always
+    // hide the chat window when the main window is maximized (it would be
+    // pushed offscreen) and restore it on un-maximize.
+    static Qt::WindowStates lastWindowStateForChat = this->windowState();
+    if (lastWindowStateForChat != this->windowState() && m_chatWindow) {
+        bool wasMaximized = (lastWindowStateForChat & Qt::WindowMaximized);
+        bool isMaximized  = (this->windowState() & Qt::WindowMaximized);
+        if (wasMaximized != isMaximized) {
+            if (isMaximized) {
+                // Entering maximized state: hide chat if visible, remember it.
+                m_chatWindowWasVisibleBeforeMaximize = m_chatWindow->isVisible();
+                if (m_chatWindowWasVisibleBeforeMaximize) {
+                    m_chatWindow->hide();
+                }
+            } else {
+                // Leaving maximized state: restore chat if it was hidden by us.
+                if (m_chatWindowWasVisibleBeforeMaximize) {
+                    updateChatWindowGeometry();
+                    m_chatWindow->show();
+                    m_chatWindow->raise();
+                }
+            }
+        }
+    }
+    lastWindowStateForChat = this->windowState();
+
     static qint64 lastResizeTime = 0;
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     const qint64 RESIZE_THROTTLE_MS = 50;
-    
+
     // Skip resize if in fullscreen mode or throttled
     bool inFullscreen = m_windowLayoutCoordinator ? m_windowLayoutCoordinator->isFullScreenMode() : false;
     if (inFullscreen || (currentTime - lastResizeTime) < RESIZE_THROTTLE_MS) {
@@ -430,51 +483,66 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     }
 
     qCDebug(log_ui_mainwindow) << "ResizeEvent - current window state:" << this->windowState();
-    
+
     // Check if window is maximized - if so, allow resize to proceed
     bool isMaximized = (this->windowState() & Qt::WindowMaximized);
     bool isMinimized = (this->windowState() & Qt::WindowMinimized);
     qCDebug(log_ui_mainwindow) << "ResizeEvent - isMaximized:" << isMaximized;
     qCDebug(log_ui_mainwindow) << "ResizeEvent - isMinimized:" << isMinimized;
-    qCDebug(log_ui_mainwindow) << "ResizeEvent - isFullScreenMode:" 
+    qCDebug(log_ui_mainwindow) << "ResizeEvent - isFullScreenMode:"
                             << (m_windowLayoutCoordinator ? m_windowLayoutCoordinator->isFullScreenMode() : false);
-    
+
     // Track window state changes for WindowControlManager
     static Qt::WindowStates lastWindowState = this->windowState();
     if (lastWindowState != this->windowState() && m_windowControlManager) {
         m_windowControlManager->onWindowStateChanged(lastWindowState, this->windowState());
         lastWindowState = this->windowState();
     }
-    
+
     if (!isMaximized) {
         // Check if new size exceeds screen bounds only for non-maximized windows
         QScreen *currentScreen = this->screen();
         QRect availableGeometry = currentScreen->availableGeometry();
         int availableWidth = availableGeometry.width();
         int availableHeight = availableGeometry.height();
-        
+
         if (event->size().width() >= availableWidth || event->size().height() >= availableHeight) {
             qCDebug(log_ui_mainwindow) << "Resize event ignored due to exceeding screen bounds.";
             return;
         }
     }
-    
+
     lastResizeTime = currentTime;
     QMainWindow::resizeEvent(event);
     if (m_windowLayoutCoordinator) {
         m_windowLayoutCoordinator->doResize();
     }
     qCDebug(log_ui_mainwindow) << "mainwindow size: " << this->size() << "VideoPane size:" << videoPane->size();
+
+    // Keep the chat window stuck to the right edge of the (now-resized) main
+    // window, matching its height — but only if it's currently snapped.
+    if (m_chatWindowSnapped && m_chatWindow && m_chatWindow->isVisible() && !isMaximized) {
+        updateChatWindowGeometry();
+    }
 }
 
 void MainWindow::moveEvent(QMoveEvent *event) {
     // Get the old and new positions
     QPoint oldPos = event->oldPos();
     QPoint newPos = event->pos();
-    
+
     QPoint delta = newPos - oldPos;
 
     qCDebug(log_ui_mainwindow) << "Window move delta: " << delta;
+
+    // Keep the chat window stuck to the right side of the main window — but
+    // only if it's currently snapped. Otherwise the user may have dragged it
+    // elsewhere and we should leave it alone.
+    if (m_chatWindowSnapped && m_chatWindow && m_chatWindow->isVisible()) {
+        m_programmaticChatMove = true;
+        m_chatWindow->move(m_chatWindow->pos() + delta);
+        m_programmaticChatMove = false;
+    }
 
     // Call the base class implementation
     QWidget::moveEvent(event);
@@ -1108,6 +1176,64 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
         toolbarManager->updateStyles();
         m_statusBarManager->updateIconColor();
     }
+
+    // --- AI Chat snap-to-dock ---
+    // Watch the chat window's move events. When the user drags it close to the
+    // main window's right edge, snap it into place. When the user drags it
+    // away, unsnap it so it becomes free-floating again.
+    if (watched == m_chatWindow
+        && event->type() == QEvent::Move
+        && !m_programmaticChatMove
+        && m_chatWindow->isVisible())
+    {
+        static const int SNAP_THRESHOLD   = 25;  // px from ideal position to engage snap
+        static const int UNSNAP_THRESHOLD = 30;  // px from snap position to release
+
+        // Use frameGeometry() for the visual edges (including WM decorations)
+        QRect mainFrame = frameGeometry();
+        const int gap = 2;
+        const QPoint idealPos(mainFrame.right() + gap, mainFrame.top());
+
+        QPoint chatPos = m_chatWindow->pos();
+        int dx = chatPos.x() - idealPos.x();
+        int dy = chatPos.y() - idealPos.y();
+
+        if (m_chatWindowSnapped) {
+            // Currently snapped: if the user dragged far enough away, release.
+            // Small movements are absorbed (we reposition back to the ideal
+            // snap point) so the window stays "magnetically" attached.
+            if (qAbs(dx) > UNSNAP_THRESHOLD || qAbs(dy) > UNSNAP_THRESHOLD) {
+                qCDebug(log_ui_mainwindow) << "Chat window UNSNAPPED from main window"
+                                           << "dx=" << dx << "dy=" << dy
+                                           << "chatPos=" << chatPos << "idealPos=" << idealPos;
+                m_chatWindowSnapped = false;
+            } else {
+                // Absorb the small drag — keep the chat pinned to the ideal
+                // position so it appears frozen to the main window's edge.
+                if (chatPos != idealPos) {
+                    m_programmaticChatMove = true;
+                    m_chatWindow->move(idealPos);
+                    m_programmaticChatMove = false;
+                }
+            }
+        } else {
+            // Not snapped: check if the chat was dragged close enough to dock.
+            bool verticalOverlap = chatPos.y() < mainFrame.bottom()
+                                   && (chatPos.y() + m_chatWindow->height()) > mainFrame.top();
+            if (qAbs(dx) < SNAP_THRESHOLD
+                && qAbs(dy) < SNAP_THRESHOLD
+                && verticalOverlap)
+            {
+                m_programmaticChatMove = true;
+                m_chatWindow->move(idealPos);
+                m_programmaticChatMove = false;
+                m_chatWindowSnapped = true;
+                qCDebug(log_ui_mainwindow) << "Chat window SNAPPED to main window"
+                                           << "chatPos=" << chatPos << "-> idealPos=" << idealPos;
+            }
+        }
+    }
+
     return QMainWindow::eventFilter(watched, event);
 }
 

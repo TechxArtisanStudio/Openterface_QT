@@ -384,6 +384,13 @@ private:
 
     // --- AI Chat Window ---
     class ChatWindow *m_chatWindow = nullptr;
+    bool m_chatWindowWasVisibleBeforeMaximize = false;
+    bool m_chatWindowSnapped = false;          // Chat is docked to main window's right edge
+    bool m_programmaticChatMove = false;       // Suppress event-filter during programmatic moves
+
+    /// Reposition the chat window so it stays docked to the right side of the
+    /// main window (matching main window height, with a small gap).
+    void updateChatWindowGeometry();
 
 public:
     CameraManager* getCameraManager() const { return m_cameraManager; }
