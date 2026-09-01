@@ -10,8 +10,10 @@
 #   # Install latest release
 #   curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh | bash
 #
-#   # Install specific version
+#   # Install specific version (either RELEASE_VERSION or VERSION works)
 #   RELEASE_VERSION="0.5.17" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh)
+#   # or
+#   VERSION="0.5.17" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh)
 #
 # REQUIREMENTS:
 # - Linux (x86_64 or ARM64)
@@ -38,7 +40,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-RELEASE_VERSION="${RELEASE_VERSION:-}"
+RELEASE_VERSION="${RELEASE_VERSION:-${VERSION:-}}"
 INSTALL_DIR="/usr/local"
 BIN_DIR="${INSTALL_DIR}/bin"
 APP_DIR="${INSTALL_DIR}/share/openterfaceQT"

@@ -32,7 +32,6 @@
 #ifdef HAVE_OPENCV
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/geometry/2d.hpp>
 #endif
 
 Q_LOGGING_CATEGORY(log_screen_analyzer, "opf.screen.analyzer")

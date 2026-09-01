@@ -1392,6 +1392,14 @@ void GStreamerBackendHandler::checkPipelineHealth()
             quint64 framesSinceLast = m_frameCount.exchange(0, std::memory_order_relaxed);
             qCDebug(log_gstreamer_backend) << "Realtime GStreamer FPS (last interval):" << framesSinceLast;
             emit fpsChanged(static_cast<double>(framesSinceLast));
+            if (framesSinceLast > 0) {
+                // Notify CameraManager that frames are flowing. GStreamer
+                // renders via the X11 video overlay and never calls
+                // VideoPane::updateVideoFrame(), so without this signal
+                // the frame-timeout watchdog would falsely report
+                // "no video signal".
+                emit frameReceived();
+            }
         }
     }
 #else
