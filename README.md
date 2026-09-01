@@ -147,7 +147,7 @@ curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/m
 
 **To install a specific version:**
 ```bash
-VERSION="v0.5.17" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh)
+RELEASE_VERSION="v0.5.17" bash <(curl -fsSL https://raw.githubusercontent.com/TechxArtisanStudio/Openterface_QT/main/build-script/install-release.sh)
 ```
 
 Then launch:
