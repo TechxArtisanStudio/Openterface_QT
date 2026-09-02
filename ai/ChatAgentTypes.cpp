@@ -1,13 +1,14 @@
 #include "ChatAgentTypes.h"
 #include "ChatInputRouter.h"
 #include "ui/globalsetting.h"
+#include "log/opflogging.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QLoggingCategory>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ai_chat)
-Q_LOGGING_CATEGORY(log_ai_chat, "openterface.ai.chat")
+OPF_LOGGING_CATEGORY(log_ai_chat, "openterface.ai.chat")
 
 // ============================================================================
 // Helper: Extract JSON object from text
