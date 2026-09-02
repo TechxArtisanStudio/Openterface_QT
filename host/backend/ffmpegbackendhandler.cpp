@@ -817,6 +817,16 @@ void FFmpegBackendHandler::processFrame()
         // holds its own ~8 MB buffer in the queue, rapidly exhausting RAM and
         // triggering "QImage: out of memory" warnings at high frame rates.
         if (m_captureRunning) {
+            // Report that a frame arrived, independently of whether it is forwarded
+            // for rendering. The backpressure check below deliberately drops frames
+            // when the GUI is behind, and in headless MCP mode there is no VideoPane
+            // consuming them at all -- so a frame-alive timestamp keyed off
+            // frameReadyImage (or off VideoPane::newVideoFrameReceived) is never
+            // updated on this backend. CameraManager::isCameraStreaming() then stays
+            // false while the device streams normally, and the frame-timeout watchdog
+            // tears down a healthy capture and fails to restart it. GStreamer already
+            // emits this signal for the same reason.
+            emit frameReceived();
             if (m_frameCount <= 5) {
                 qCDebug(log_ffmpeg_backend) << "Emitting frameReadyImage signal for frame" << m_frameCount;
             }
