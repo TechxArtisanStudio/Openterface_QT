@@ -31,6 +31,9 @@
 #include <QTextEdit>
 #include <QGroupBox>
 #include <QLabel>
+#include <QCheckBox>
+#include <QTreeView>
+#include <QStandardItemModel>
 
 /**
  * Preferences page for AI Chat settings.
@@ -41,6 +44,7 @@
  *   - Chat mode (Chat/Agent/Planner/Guide)
  *   - Agent max iterations
  *   - System prompt, Planner prompt, Guide prompt
+ *   - Tools configuration (in tree structure)
  *
  * Inherits PreferencePageBase so it gets an Apply/Revert/Cancel button bar
  * with dirty-state tracking.
@@ -54,6 +58,7 @@ public:
 
     void setupUI();
     void initChatSettings();
+    void populateToolsTree();
 
     // PreferencePageBase overrides
     void applySettings() override;
@@ -72,7 +77,7 @@ private:
     QComboBox   *m_targetSystemCombo;
     QSpinBox    *m_agentMaxIterationsSpin;
 
-    // Typing/Paste settings
+    // Typing/Paste Settings
     QSpinBox    *m_typingDelaySpin;
     QSpinBox    *m_batchSizeSpin;
     QSpinBox    *m_mouseToKeyboardDelaySpin;
@@ -84,6 +89,11 @@ private:
     QRadioButton *m_agenticModeRadio;
     QRadioButton *m_plannerModeRadio;
     QRadioButton *m_guideModeRadio;
+
+    // Tools tree view
+    QTreeView *m_toolsTreeView;
+    QStandardItemModel *m_toolsModel;
+    QCheckBox *m_selectAllToolsCheck;
 
     // Prompts
     QTextEdit   *m_systemPromptEdit;
@@ -110,6 +120,21 @@ private:
     QString m_snap_screenTaskPrompt;
     QString m_snap_typingTaskPrompt;
     QString m_snap_guidePrompt;
+    // Tool snapshots
+    bool m_snap_screenCapture;
+    bool m_snap_screenToMarkdown;
+    bool m_snap_moveMouse;
+    bool m_snap_leftClick;
+    bool m_snap_rightClick;
+    bool m_snap_doubleClick;
+    bool m_snap_leftDrag;
+    bool m_snap_typeText;
+    bool m_snap_pressKey;
+    bool m_snap_repeatKey;
+    bool m_snap_startRecording;
+    bool m_snap_stopRecording;
+    bool m_snap_setTargetSystem;
+    bool m_snap_runBash;
 };
 
 #endif // CHAT_SETTINGS_PAGE_H

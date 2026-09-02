@@ -232,6 +232,13 @@ AgentToolExecutionResult ChatToolExecution::executeToolCalls(const QList<AgentTo
     for (const auto &call : calls) {
         QString toolName = call.tool.toLower();
 
+        // Check if tool is enabled in settings
+        if (!settings.getChatToolEnabled(toolName)) {
+            summaries.append(QString("%1: disabled in settings").arg(call.tool));
+            qCWarning(log_ai_chat) << "AI Tool disabled in settings:" << call.tool;
+            continue;
+        }
+
         bool isMouseTool = (toolName == "move_mouse" || toolName == "left_click" ||
                             toolName == "right_click" || toolName == "double_click" ||
                             toolName == "left_drag" || toolName == "drag_mouse" ||

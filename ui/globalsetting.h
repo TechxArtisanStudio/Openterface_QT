@@ -261,6 +261,12 @@ public:
     void setChatInitialTypingDelayMs(int ms);
     int getChatInitialTypingDelayMs() const;
 
+    // AI Chat tool enable/disable settings
+    void setChatToolEnabled(const QString &tool, bool enabled);
+    bool getChatToolEnabled(const QString &tool) const;
+    QMap<QString, bool> getChatAllToolsEnabled() const;
+    void setChatAllToolsEnabled(const QMap<QString, bool> &tools);
+
 signals:
     /// Emitted when the target OS for the AI agent changes (e.g. via the chat
     /// header button or the set_target_system tool). Listeners can refresh any

@@ -1001,3 +1001,35 @@ void GlobalSetting::setChatInitialTypingDelayMs(int ms) {
 int GlobalSetting::getChatInitialTypingDelayMs() const {
     return qBound(0, m_settings.value("chat/initialTypingDelayMs", 500).toInt(), 5000);
 }
+
+// AI Chat tool enable/disable settings
+void GlobalSetting::setChatToolEnabled(const QString &tool, bool enabled) {
+    m_settings.setValue(QString("chat/tools/%1").arg(tool), enabled);
+}
+
+bool GlobalSetting::getChatToolEnabled(const QString &tool) const {
+    // Default to enabled for all tools
+    return m_settings.value(QString("chat/tools/%1").arg(tool), true).toBool();
+}
+
+QMap<QString, bool> GlobalSetting::getChatAllToolsEnabled() const {
+    QMap<QString, bool> tools;
+    // Get all known tools and their enabled state
+    QStringList toolNames = {
+        "capture_screen", "screen_to_markdown",
+        "move_mouse", "left_click", "right_click", "double_click", "left_drag",
+        "type_text", "press_key", "repeat_key",
+        "start_recording", "stop_recording",
+        "run_bash", "set_target_system"
+    };
+    for (const QString &tool : toolNames) {
+        tools[tool] = getChatToolEnabled(tool);
+    }
+    return tools;
+}
+
+void GlobalSetting::setChatAllToolsEnabled(const QMap<QString, bool> &tools) {
+    for (auto it = tools.begin(); it != tools.end(); ++it) {
+        setChatToolEnabled(it.key(), it.value());
+    }
+}

@@ -113,6 +113,10 @@ QString ChatConversationBuilder::agentToolInstruction() const
     ChatTargetSystem targetSystem = chatTargetSystemFromString(
         GlobalSetting::instance().getChatTargetSystem());
     const QString currentOs = chatTargetSystemDisplayName(targetSystem);
+    auto &settings = GlobalSetting::instance();
+
+    // Build the available tools list based on enabled settings
+    QString availableTools = buildAvailableToolsString();
 
     // Specialized prompt for BIOS/UEFI and Text-based UI environments
     if (targetSystem == ChatTargetSystem::BIOS || targetSystem == ChatTargetSystem::TextUI) {
@@ -174,21 +178,7 @@ QString ChatConversationBuilder::agentToolInstruction() const
             "- DO NOT use mouse tools (move_mouse, left_click) — they don't work in text menus\n"
             "- DO NOT try to type commands — this is a menu system, not a terminal\n\n"
             "Available tools:\n"
-            "- capture_screen: Take a screenshot of the TARGET screen (AI vision analysis). "
-            "USE THIS FOR EVERY SCREEN CHECK — this is your primary tool for understanding "
-            "the current state and which item is selected.\n"
-            "- press_key: Press key combo on the TARGET (USB HID). Use arrow keys to navigate, "
-            "enter to select, esc to go back. Args: keys (string like \"down\", \"enter\", \"esc\", \"F10\")\n"
-            "- repeat_key: Press a key repeatedly at specified intervals. Useful for rapid navigation. "
-            "Args: keys (string like \"down\", \"up\"), count (number of times to press, max 100), "
-            "interval_ms (interval between presses in milliseconds, default: 1000ms)\n"
-            "- type_text: Type text on the TARGET keyboard. ONLY use this for entering text values "
-            "(e.g., setting a password or changing a value that requires typing). Args: text (string)\n"
-            "- set_target_system: Change the target environment type. Use this if you detect the "
-            "environment has changed (e.g., exited BIOS into OS). "
-            "Args: system (string — one of: linux, macos, windows, iphone, ipad, android, bios, textui)\n"
-            "- start_recording: Start recording the TARGET screen as a video.\n"
-            "- stop_recording: Stop the current screen recording.\n\n"
+            "%2\n\n"
             "To use a tool, respond with JSON:\n"
             "{\"tool_calls\": [{\"tool\": \"tool_name\", \"arg1\": value1, ...}]}\n\n"
             "You can include multiple tool calls in one response.\n"
@@ -202,7 +192,7 @@ QString ChatConversationBuilder::agentToolInstruction() const
             "describe what you see — keep issuing tool calls until the entire task is "
             "complete. The user already told you what they want; your job is to do it, "
             "step by step, without pausing for confirmation."
-        ).arg(currentOs);
+        ).arg(currentOs, availableTools);
     }
 
     // Default prompt for modern OS environments (Linux, Windows, macOS, etc.)
@@ -270,35 +260,7 @@ QString ChatConversationBuilder::agentToolInstruction() const
         "5. press_key \"enter\" to execute.\n"
         "6. screen_to_markdown to read the terminal output using OCR (preferred for text results).\n\n"
         "Available tools:\n"
-        "- capture_screen: Take a screenshot of the TARGET screen (AI vision analysis). Use when you need visual understanding.\n"
-        "- screen_to_markdown: Extract text from the TARGET screen using OCR. PREFERRED for reading terminal output, "
-        "checking command results, or when you need text content without vision. "
-        "Args: detail_level (optional, default: detailed), mode (optional: 'terminal' for command output with preserved layout, "
-        "'general' for UI text with coordinates - default: general). "
-        "In terminal mode, the analyzer automatically detects which part of the screen changed since the last call "
-        "and only OCRs that region (differential OCR), making it fast and focused on new output.\n"
-        "- move_mouse: Move the mouse cursor on the TARGET. Args: x (0.0-1.0), y (0.0-1.0)\n"
-        "- left_click: Left-click on the TARGET. Args: x (0.0-1.0), y (0.0-1.0)\n"
-        "- right_click: Right-click on the TARGET. Args: x (0.0-1.0), y (0.0-1.0)\n"
-        "- double_click: Double-click on the TARGET. Args: x (0.0-1.0), y (0.0-1.0)\n"
-        "- left_drag: Drag on the TARGET. Args: x (0.0-1.0), y (0.0-1.0)\n"
-        "- type_text: Type text on the TARGET keyboard (USB HID). Args: text (string)\n"
-        "- press_key: Press key combo on the TARGET (USB HID). Args: keys (string like \"ctrl+l\")\n"
-        "- run_bash: Run a command on the HOST (local machine running Openterface). "
-        "ONLY use this when the task explicitly involves the host machine itself "
-        "(e.g. reading a local config file, checking the host's network). "
-        "Do NOT use this to run commands on the TARGET — use type_text + press_key instead. "
-        "Args: command (string)\n"
-        "- set_target_system: Change the target OS that the agent assumes for key "
-        "bindings and command conventions. Use this when you detect that the current "
-        "target OS setting is wrong (e.g. the app is set to Linux but you see the "
-        "Windows desktop, or set to macOS but you see a GNOME shell). "
-        "Args: system (string — one of: linux, macos, windows, iphone, ipad, android, bios, textui)\n"
-        "- start_recording: Start recording the TARGET screen as a video. Use when the user asks to record the screen or capture a video of what's happening on the target. The recording will continue until stop_recording is called.\n"
-        "- stop_recording: Stop the current screen recording. The video file will be saved automatically. Use this when the user asks to stop recording or when the recording task is complete.\n"
-        "- repeat_key: Press a key repeatedly at specified intervals. Use this for scenarios like entering BIOS (pressing DEL every second), accessing boot menus (F12, F2), or any situation requiring repeated key presses. "
-        "Args: keys (string like \"del\", \"F12\", \"ctrl+alt+t\"), count (number of times to press, max 100), interval_ms (interval between presses in milliseconds, default: 1000ms = 1 second). "
-        "Example: {\"tool\": \"repeat_key\", \"keys\": \"del\", \"count\": 10, \"interval_ms\": 1000} will press DEL key 10 times, once per second.\n\n"
+        "%2\n\n"
         "To use a tool, respond with JSON:\n"
         "{\"tool_calls\": [{\"tool\": \"tool_name\", \"arg1\": value1, ...}]}\n\n"
         "You can include multiple tool calls in one response.\n"
@@ -315,7 +277,7 @@ QString ChatConversationBuilder::agentToolInstruction() const
         "Example: if the user says \"check the disk size\" and you opened a terminal, "
         "the next step is to type \"df -h\" and press Enter — do NOT just say \"the "
         "terminal is open\" and stop."
-    ).arg(currentOs);
+    ).arg(currentOs, availableTools);
 }
 
 QString ChatConversationBuilder::stripToolCallJson(const QString &text) const
@@ -373,4 +335,83 @@ QString ChatConversationBuilder::stripToolCallJson(const QString &text) const
         result.replace("\n\n\n", "\n\n");
 
     return result.trimmed();
+}
+
+QString ChatConversationBuilder::buildAvailableToolsString() const
+{
+    auto &settings = GlobalSetting::instance();
+    QStringList tools;
+
+    // Screen tools
+    if (settings.getChatToolEnabled("capture_screen")) {
+        tools << "- capture_screen: Take a screenshot of the TARGET screen (AI vision analysis). Use when you need visual understanding.";
+    }
+    if (settings.getChatToolEnabled("screen_to_markdown")) {
+        tools << "- screen_to_markdown: Extract text from the TARGET screen using OCR. PREFERRED for reading terminal output, "
+                 "checking command results, or when you need text content without vision. "
+                 "Args: detail_level (optional, default: detailed), mode (optional: 'terminal' for command output with preserved layout, "
+                 "'general' for UI text with coordinates - default: general). "
+                 "In terminal mode, the analyzer automatically detects which part of the screen changed since the last call "
+                 "and only OCRs that region (differential OCR), making it fast and focused on new output.";
+    }
+
+    // Mouse tools
+    if (settings.getChatToolEnabled("move_mouse")) {
+        tools << "- move_mouse: Move the mouse cursor on the TARGET. Args: x (0.0-1.0), y (0.0-1.0)";
+    }
+    if (settings.getChatToolEnabled("left_click")) {
+        tools << "- left_click: Left-click on the TARGET. Args: x (0.0-1.0), y (0.0-1.0)";
+    }
+    if (settings.getChatToolEnabled("right_click")) {
+        tools << "- right_click: Right-click on the TARGET. Args: x (0.0-1.0), y (0.0-1.0)";
+    }
+    if (settings.getChatToolEnabled("double_click")) {
+        tools << "- double_click: Double-click on the TARGET. Args: x (0.0-1.0), y (0.0-1.0)";
+    }
+    if (settings.getChatToolEnabled("left_drag")) {
+        tools << "- left_drag: Drag on the TARGET. Args: x (0.0-1.0), y (0.0-1.0)";
+    }
+
+    // Keyboard tools
+    if (settings.getChatToolEnabled("type_text")) {
+        tools << "- type_text: Type text on the TARGET keyboard (USB HID). Args: text (string)";
+    }
+    if (settings.getChatToolEnabled("press_key")) {
+        tools << "- press_key: Press key combo on the TARGET (USB HID). Args: keys (string like \"ctrl+l\")";
+    }
+    if (settings.getChatToolEnabled("repeat_key")) {
+        tools << "- repeat_key: Press a key repeatedly at specified intervals. Use this for scenarios like entering BIOS (pressing DEL every second), accessing boot menus (F12, F2), or any situation requiring repeated key presses. "
+                 "Args: keys (string like \"del\", \"F12\", \"ctrl+alt+t\"), count (number of times to press, max 100), interval_ms (interval between presses in milliseconds, default: 1000ms = 1 second). "
+                 "Example: {\"tool\": \"repeat_key\", \"keys\": \"del\", \"count\": 10, \"interval_ms\": 1000} will press DEL key 10 times, once per second.";
+    }
+
+    // Recording tools
+    if (settings.getChatToolEnabled("start_recording")) {
+        tools << "- start_recording: Start recording the TARGET screen as a video. Use when the user asks to record the screen or capture a video of what's happening on the target. The recording will continue until stop_recording is called.";
+    }
+    if (settings.getChatToolEnabled("stop_recording")) {
+        tools << "- stop_recording: Stop the current screen recording. The video file will be saved automatically. Use this when the user asks to stop recording or when the recording task is complete.";
+    }
+
+    // System tools
+    if (settings.getChatToolEnabled("run_bash")) {
+        tools << "- run_bash: Run a command on the HOST (local machine running Openterface). "
+                 "ONLY use this when the task explicitly involves the host machine itself "
+                 "(e.g. reading a local config file, checking the host's network). "
+                 "Do NOT use this to run commands on the TARGET — use type_text + press_key instead. "
+                 "Args: command (string)";
+    }
+    if (settings.getChatToolEnabled("set_target_system")) {
+        tools << "- set_target_system: Change the target OS that the agent assumes for key "
+                 "bindings and command conventions. Use this when you detect that the current "
+                 "target OS setting is wrong (e.g. the app is set to Linux but you see the "
+                 "Windows desktop, or set to macOS but you see a GNOME shell). "
+                 "Args: system (string — one of: linux, macos, windows, iphone, ipad, android, bios, textui)";
+    }
+
+    if (tools.isEmpty()) {
+        return "(No tools enabled)";
+    }
+
+    return tools.join("\n");
 }
