@@ -523,8 +523,20 @@ void ChatSettingsPage::populateToolsTree()
     runBashDesc->setEditable(false);
     runBashDesc->setForeground(QColor(128, 128, 128));
 
+    QStandardItem *webSearch = new QStandardItem(tr("Web Search"));
+    webSearch->setCheckable(true);
+    webSearch->setCheckState(Qt::Checked);
+    webSearch->setEditable(false);
+    webSearch->setData("web_search", Qt::UserRole + 1);
+    webSearch->setToolTip(tr("Search the internet for information"));
+
+    QStandardItem *webSearchDesc = new QStandardItem("web_search");
+    webSearchDesc->setEditable(false);
+    webSearchDesc->setForeground(QColor(128, 128, 128));
+
     systemGroup->appendRow({setTargetSystem, setTargetSystemDesc});
     systemGroup->appendRow({runBash, runBashDesc});
+    systemGroup->appendRow({webSearch, webSearchDesc});
     m_toolsModel->appendRow(systemGroup);
 
     m_toolsTreeView->expandAll();
@@ -710,6 +722,7 @@ void ChatSettingsPage::captureSnapshot()
     m_snap_stopRecording = false;
     m_snap_setTargetSystem = false;
     m_snap_runBash = false;
+    m_snap_webSearch = false;
 
     for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
         QStandardItem *group = m_toolsModel->item(g);
@@ -732,6 +745,7 @@ void ChatSettingsPage::captureSnapshot()
             else if (toolId == "stop_recording") m_snap_stopRecording = checked;
             else if (toolId == "set_target_system") m_snap_setTargetSystem = checked;
             else if (toolId == "run_bash") m_snap_runBash = checked;
+            else if (toolId == "web_search") m_snap_webSearch = checked;
         }
     }
 }
@@ -795,6 +809,7 @@ void ChatSettingsPage::revertToSnapshot()
     setToolCheck("stop_recording", m_snap_stopRecording);
     setToolCheck("set_target_system", m_snap_setTargetSystem);
     setToolCheck("run_bash", m_snap_runBash);
+    setToolCheck("web_search", m_snap_webSearch);
 
     // Update group check states
     for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
@@ -884,6 +899,7 @@ bool ChatSettingsPage::valuesMatchSnapshot() const
     if (getToolCheck("stop_recording") != m_snap_stopRecording) return false;
     if (getToolCheck("set_target_system") != m_snap_setTargetSystem) return false;
     if (getToolCheck("run_bash") != m_snap_runBash) return false;
+    if (getToolCheck("web_search") != m_snap_webSearch) return false;
 
     return true;
 }

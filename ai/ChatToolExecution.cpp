@@ -14,6 +14,7 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QThread>
+#include <QUrl>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ai_chat)
 
@@ -569,6 +570,20 @@ AgentToolExecutionResult ChatToolExecution::executeToolCalls(const QList<AgentTo
                 qCDebug(log_ai_chat) << "AI Tool executed: set_target_system ->" << display;
             }
 
+        } else if (toolName == "web_search" || toolName == "search" ||
+                   toolName == "internet_search") {
+            // Search the web for information
+            hasNonKeyboardTool = true;
+            QString query = call.args.value("query").toString();
+            if (query.isEmpty()) {
+                summaries.append("web_search: missing query argument");
+                qCWarning(log_ai_chat) << "AI Tool failed: web_search missing query";
+            } else {
+                QString result = webSearch(query);
+                summaries.append(QString("web_search: %1").arg(result));
+                qCDebug(log_ai_chat) << "AI Tool executed: web_search query=" << query;
+            }
+
         } else if (toolName == "start_recording" || toolName == "record_screen" ||
                    toolName == "start_video_recording") {
             // Start recording the target screen
@@ -725,6 +740,99 @@ QString ChatToolExecution::runBashCommand(const QString &command) const
     if (combined.isEmpty()) combined = "(empty)";
 
     return QString("exit=%1 output=%2").arg(exitCode).arg(combined);
+}
+
+QString ChatToolExecution::webSearch(const QString &query) const
+{
+    if (query.isEmpty()) {
+        return "web_search: missing query argument";
+    }
+
+    // Use DuckDuckGo Instant Answer API (free, no API key required)
+    // This provides quick answers and relevant information
+    QProcess process;
+    process.setProcessChannelMode(QProcess::MergedChannels);
+
+    // URL encode the query
+    QString encodedQuery = QUrl::toPercentEncoding(query);
+    QString url = QString("https://api.duckduckgo.com/?q=%1&format=json&no_html=1&skip_disambig=1")
+                  .arg(encodedQuery);
+
+    // Use curl to fetch the search results (more portable than QNetworkAccessManager in this context)
+#ifdef Q_OS_WIN
+    process.start("cmd.exe", QStringList() << "/c" << "curl" << "-s" << url);
+#else
+    process.start("curl", QStringList() << "-s" << url);
+#endif
+
+    if (!process.waitForStarted(5000)) {
+        return QString("web_search: failed to start curl - %1").arg(process.errorString());
+    }
+
+    if (!process.waitForFinished(15000)) {
+        process.kill();
+        return "web_search: request timed out after 15s";
+    }
+
+    QByteArray output = process.readAll();
+    int exitCode = process.exitCode();
+
+    if (exitCode != 0) {
+        return QString("web_search: curl failed with exit code %1").arg(exitCode);
+    }
+
+    // Parse the JSON response
+    QJsonDocument doc = QJsonDocument::fromJson(output);
+    if (doc.isNull()) {
+        return "web_search: failed to parse response";
+    }
+
+    QJsonObject root = doc.object();
+    QStringList results;
+
+    // Extract abstract (main answer)
+    if (root.contains("Abstract")) {
+        QString abstract = root["Abstract"].toString();
+        if (!abstract.isEmpty()) {
+            results << QString("Answer: %1").arg(abstract);
+        }
+    }
+
+    // Extract abstract text if different
+    if (root.contains("AbstractText")) {
+        QString abstractText = root["AbstractText"].toString();
+        if (!abstractText.isEmpty() && abstractText != root["Abstract"].toString()) {
+            results << QString("Summary: %1").arg(abstractText);
+        }
+    }
+
+    // Extract related topics (up to 5)
+    if (root.contains("RelatedTopics")) {
+        QJsonArray topics = root["RelatedTopics"].toArray();
+        int count = 0;
+        for (const auto &topic : topics) {
+            if (count >= 5) break;
+            QJsonObject topicObj = topic.toObject();
+            if (topicObj.contains("Text")) {
+                QString text = topicObj["Text"].toString();
+                if (!text.isEmpty()) {
+                    results << QString("- %1").arg(text);
+                    count++;
+                }
+            }
+        }
+    }
+
+    if (results.isEmpty()) {
+        return "web_search: no results found";
+    }
+
+    QString result = results.join("\n");
+    if (result.length() > 4096) {
+        result = result.left(4096) + "\n[results truncated at 4096 chars]";
+    }
+
+    return result;
 }
 
 // ============================================================================

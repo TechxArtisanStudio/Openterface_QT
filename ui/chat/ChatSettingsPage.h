@@ -135,6 +135,7 @@ private:
     bool m_snap_stopRecording;
     bool m_snap_setTargetSystem;
     bool m_snap_runBash;
+    bool m_snap_webSearch;
 };
 
 #endif // CHAT_SETTINGS_PAGE_H

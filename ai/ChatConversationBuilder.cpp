@@ -408,6 +408,12 @@ QString ChatConversationBuilder::buildAvailableToolsString() const
                  "Windows desktop, or set to macOS but you see a GNOME shell). "
                  "Args: system (string — one of: linux, macos, windows, iphone, ipad, android, bios, textui)";
     }
+    if (settings.getChatToolEnabled("web_search")) {
+        tools << "- web_search: Search the internet for information. Use this when you need to find "
+                 "information that you don't have or when the user asks about something current or specific. "
+                 "Returns a summary of relevant information from the web. "
+                 "Args: query (string — the search query)";
+    }
 
     if (tools.isEmpty()) {
         return "(No tools enabled)";

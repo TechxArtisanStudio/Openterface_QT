@@ -117,7 +117,7 @@ The following commands are supported in the scripts:
   - **Mouse Tools**: Move mouse, left/right/double click, drag operations
   - **Keyboard Tools**: Type text, press keys, repeat keys
   - **Recording Tools**: Start/stop screen recording
-  - **System/Host Tools**: Set target system, run bash commands on host
+  - **System/Host Tools**: Set target system, run bash commands on host, web search
 - **Tools Configuration**:
   - Tools are organized in a hierarchical tree structure for easy management
   - Each tool category can be expanded/collapsed
