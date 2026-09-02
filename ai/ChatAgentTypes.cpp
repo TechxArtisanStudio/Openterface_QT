@@ -52,8 +52,11 @@ QList<ChatApiMessage> MainPlannerAgent::buildPlanningConversation(
     conversation.append(ChatApiMessage::textMessage(ChatRole::System,
         "Available task agent/tool pairs: screen/capture_screen (AI vision), "
         "screen/screen_to_markdown (OCR text extraction), typing/type_text, "
-        "macro/run_verified_macro, mouse/move_mouse, mouse/left_click, mouse/left_drag, "
-        "mouse/right_click, mouse/double_click."));
+        "typing/press_key, typing/repeat_key, macro/run_verified_macro, "
+        "mouse/move_mouse, mouse/left_click, mouse/left_drag, "
+        "mouse/right_click, mouse/double_click, system/run_bash, "
+        "system/set_target_system, system/web_search, "
+        "recording/start_recording, recording/stop_recording."));
 
     if (!plannerPrompt.trimmed().isEmpty()) {
         conversation.append(ChatApiMessage::textMessage(ChatRole::System, plannerPrompt));

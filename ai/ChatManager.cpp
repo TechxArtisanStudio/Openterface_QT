@@ -842,9 +842,13 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
 
 void ChatManager::performPlannerSend(const ChatAPIConfiguration &config)
 {
+    qCDebug(log_ai_chat) << "performPlannerSend: starting planner mode";
     GlobalSetting &gs = GlobalSetting::instance();
     QString systemPrompt = gs.getChatSystemPrompt().trimmed();
     QString plannerPrompt = gs.getChatPlannerPrompt().trimmed();
+
+    qCDebug(log_ai_chat) << "performPlannerSend: systemPrompt length:" << systemPrompt.length()
+                         << "plannerPrompt length:" << plannerPrompt.length();
 
     ChatScreenCapture &screenCapture = ChatScreenCapture::instance();
     ChatTracing &tracing = ChatTracing::instance();
@@ -859,44 +863,63 @@ void ChatManager::performPlannerSend(const ChatAPIConfiguration &config)
             userRequest = m_messages[i].content;
             if (!m_messages[i].attachmentFilePath.isEmpty()) {
                 imageDataURL = screenCapture.dataURLForImage(m_messages[i].attachmentFilePath);
+                qCDebug(log_ai_chat) << "performPlannerSend: using attachment:" << m_messages[i].attachmentFilePath;
             }
             break;
         }
     }
 
+    qCDebug(log_ai_chat) << "performPlannerSend: userRequest:" << userRequest.left(200);
+
     QList<ChatApiMessage> conversation = m_plannerAgent.buildPlanningConversation(
         systemPrompt, plannerPrompt, userRequest, imageDataURL);
 
+    qCDebug(log_ai_chat) << "performPlannerSend: built conversation with" << conversation.size() << "messages";
     tracing.appendAITrace("PLANNER REQUEST", tracing.readableTraceParts(conversation));
 
     ChatCompletionResult result;
     QString apiError;
+    qCDebug(log_ai_chat) << "performPlannerSend: sending completion request";
     result = sendCompletionSync(config.baseURL, config.model, config.apiKey, conversation, apiError);
 
     if (m_cancelRequested) {
+        qCDebug(log_ai_chat) << "performPlannerSend: cancelled";
+        m_isSending = false;
+        emit sendingStateChanged(false);
+        return;
+    }
+
+    if (!apiError.isEmpty()) {
+        qCWarning(log_ai_chat) << "performPlannerSend: API error:" << apiError;
+        presentAIError(QString("Planner API error: %1").arg(apiError));
         m_isSending = false;
         emit sendingStateChanged(false);
         return;
     }
 
     if (result.content.isEmpty()) {
+        qCWarning(log_ai_chat) << "performPlannerSend: empty response from planner";
         presentAIError("Empty response from planner");
         m_isSending = false;
         emit sendingStateChanged(false);
         return;
     }
 
+    qCDebug(log_ai_chat) << "performPlannerSend: received response, length:" << result.content.length();
     tracing.appendAITrace("PLANNER RESPONSE", result.content.left(500));
 
     ChatExecutionPlan plan;
     QString parseError;
     if (!m_plannerAgent.parsePlan(result.content, userRequest, plan, parseError)) {
+        qCWarning(log_ai_chat) << "performPlannerSend: failed to parse plan:" << parseError;
+        qCDebug(log_ai_chat) << "performPlannerSend: raw response:" << result.content.left(500);
         presentAIError(QString("Planner failed: %1").arg(parseError));
         m_isSending = false;
         emit sendingStateChanged(false);
         return;
     }
 
+    qCDebug(log_ai_chat) << "performPlannerSend: successfully parsed plan with" << plan.tasks.size() << "tasks";
     m_currentPlan = plan;
     m_hasPlan = true;
     persistHistory();
