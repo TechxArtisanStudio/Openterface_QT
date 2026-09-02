@@ -745,8 +745,11 @@ QString ChatToolExecution::runBashCommand(const QString &command) const
 QString ChatToolExecution::webSearch(const QString &query) const
 {
     if (query.isEmpty()) {
+        qCWarning(log_ai_chat) << "web_search: empty query";
         return "web_search: missing query argument";
     }
+
+    qCDebug(log_ai_chat) << "web_search: searching for" << query;
 
     // Use DuckDuckGo Instant Answer API (free, no API key required)
     // This provides quick answers and relevant information
@@ -758,6 +761,8 @@ QString ChatToolExecution::webSearch(const QString &query) const
     QString url = QString("https://api.duckduckgo.com/?q=%1&format=json&no_html=1&skip_disambig=1")
                   .arg(encodedQuery);
 
+    qCDebug(log_ai_chat) << "web_search: fetching URL" << url;
+
     // Use curl to fetch the search results (more portable than QNetworkAccessManager in this context)
 #ifdef Q_OS_WIN
     process.start("cmd.exe", QStringList() << "/c" << "curl" << "-s" << url);
@@ -766,24 +771,36 @@ QString ChatToolExecution::webSearch(const QString &query) const
 #endif
 
     if (!process.waitForStarted(5000)) {
+        qCWarning(log_ai_chat) << "web_search: failed to start curl:" << process.errorString();
         return QString("web_search: failed to start curl - %1").arg(process.errorString());
     }
 
     if (!process.waitForFinished(15000)) {
         process.kill();
+        qCWarning(log_ai_chat) << "web_search: request timed out";
         return "web_search: request timed out after 15s";
     }
 
     QByteArray output = process.readAll();
     int exitCode = process.exitCode();
 
+    qCDebug(log_ai_chat) << "web_search: curl exit code" << exitCode << "output length" << output.length();
+
     if (exitCode != 0) {
+        qCWarning(log_ai_chat) << "web_search: curl failed with exit code" << exitCode;
         return QString("web_search: curl failed with exit code %1").arg(exitCode);
+    }
+
+    if (output.isEmpty()) {
+        qCWarning(log_ai_chat) << "web_search: empty response from curl";
+        return "web_search: empty response from server";
     }
 
     // Parse the JSON response
     QJsonDocument doc = QJsonDocument::fromJson(output);
     if (doc.isNull()) {
+        qCWarning(log_ai_chat) << "web_search: failed to parse JSON response";
+        qCDebug(log_ai_chat) << "web_search: raw response:" << QString::fromUtf8(output).left(500);
         return "web_search: failed to parse response";
     }
 
@@ -809,6 +826,7 @@ QString ChatToolExecution::webSearch(const QString &query) const
     // Extract related topics (up to 5)
     if (root.contains("RelatedTopics")) {
         QJsonArray topics = root["RelatedTopics"].toArray();
+        qCDebug(log_ai_chat) << "web_search: found" << topics.count() << "related topics";
         int count = 0;
         for (const auto &topic : topics) {
             if (count >= 5) break;
@@ -824,10 +842,12 @@ QString ChatToolExecution::webSearch(const QString &query) const
     }
 
     if (results.isEmpty()) {
+        qCDebug(log_ai_chat) << "web_search: no results found for query:" << query;
         return "web_search: no results found";
     }
 
     QString result = results.join("\n");
+    qCDebug(log_ai_chat) << "web_search: returning" << result.length() << "characters of results";
     if (result.length() > 4096) {
         result = result.left(4096) + "\n[results truncated at 4096 chars]";
     }
