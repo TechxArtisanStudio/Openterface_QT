@@ -37,8 +37,10 @@
 #include "serial/SerialPortManager.h"
 #include "video/videohid.h"
 #include "video/firmwareoperationmanager.h"
+#include "ui/advance/wchflash/WCHFlashWorker.h"
 
 #include <QBuffer>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QLoggingCategory>
 #include <QImage>
@@ -361,6 +363,35 @@ QJsonArray McpToolHandler::listTools() const
         tools.append(tool);
     }
 
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_KEYMOD_SCAN;
+        tool["description"] = "Scan for WCH ISP bootloader devices, i.e. a KeyMod (CH32V208) control chip in ISP mode (USB ID 1a86:55e0 or 4348:55e0). The KeyMod only enters ISP mode physically: with the device fully unpowered, hold its BOOT button while reconnecting power. Returns the device list with the indices keymod_flash expects.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        schema["properties"] = QJsonObject();
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_KEYMOD_FLASH;
+        tool["description"] = "Flash a firmware file to the KeyMod (CH32V208) control chip over WCH ISP. Requires the device in ISP/bootloader mode (visible to keymod_scan). Erases, programs, verifies and resets the chip; blocks until done. After success the device must be power-cycled WITHOUT the BOOT button held to boot the new firmware.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["file"] = QJsonObject{{"type", "string"}, {"description", "Path to the firmware file (.hex Intel HEX or .bin raw binary) on the machine running this app"}};
+        props["device_index"] = QJsonObject{{"type", "integer"}, {"description", "Index into the keymod_scan device list (default 0)"}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray{"file"};
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
     return tools;
 }
 
@@ -388,6 +419,8 @@ QJsonObject McpToolHandler::callTool(const QString& name, const QJsonObject& arg
     if (name == MCP_TOOL_SCREEN_TO_MARKDOWN)         return toolScreenToMarkdown(arguments);
     if (name == MCP_TOOL_FIRMWARE_CHECK)             return toolFirmwareCheck(arguments);
     if (name == MCP_TOOL_FIRMWARE_UPDATE)            return toolFirmwareUpdate(arguments);
+    if (name == MCP_TOOL_KEYMOD_SCAN)                return toolKeymodScan(arguments);
+    if (name == MCP_TOOL_KEYMOD_FLASH)               return toolKeymodFlash(arguments);
 
     return errorResult("Unknown tool: " + name);
 }
@@ -1173,6 +1206,107 @@ QJsonObject McpToolHandler::toolFirmwareUpdate(const QJsonObject& args)
         "REQUIRED next steps: quit this app, power off BOTH ends of the KVM "
         "(host USB power and target power), then re-energize the KVM before booting the target.")
         .arg(cur, latest));
+}
+
+// ==========================================================================
+// KeyMod (CH32V208) Firmware Tool Implementations
+// ==========================================================================
+// Both tools wrap WCHFlashWorker, the same object the Control Chip Firmware
+// preference page drives. Its slots run synchronously and emit their signals
+// inline, so on this thread plain lambda connections capture the results
+// without an event loop.
+
+QJsonObject McpToolHandler::toolKeymodScan(const QJsonObject& args)
+{
+    Q_UNUSED(args);
+
+    WCHFlashWorker worker;
+    QStringList devices;
+    QStringList log;
+    connect(&worker, &WCHFlashWorker::devicesFound,
+            [&devices](const QStringList& d) { devices = d; });
+    connect(&worker, &WCHFlashWorker::logMessage,
+            [&log](const QString& m) { log << m; });
+
+    worker.scanDevices();
+
+    if (devices.isEmpty()) {
+        return textResult(
+            "No WCH ISP devices found. The KeyMod must be in ISP/bootloader mode: "
+            "with the device fully unpowered (host USB AND target side), hold the "
+            "BOOT button while reconnecting power, then release. In ISP mode it "
+            "enumerates as 1a86:55e0 or 4348:55e0.\n" + log.join("\n"));
+    }
+
+    QString out = QString("Found %1 WCH ISP device(s):\n").arg(devices.size());
+    for (int i = 0; i < devices.size(); ++i)
+        out += QString("  [%1] %2\n").arg(i).arg(devices.at(i));
+    return textResult(out);
+}
+
+QJsonObject McpToolHandler::toolKeymodFlash(const QJsonObject& args)
+{
+    const QString file = args.value("file").toString();
+    const int index = args.value("device_index").toInt(0);
+
+    if (file.isEmpty())
+        return errorResult("Missing required argument 'file' (path to a .hex or .bin firmware file).");
+    QFileInfo fi(file);
+    if (!fi.isFile())
+        return errorResult("Firmware file not found: " + file);
+    const QString suffix = fi.suffix().toLower();
+    if (suffix != "hex" && suffix != "bin")
+        return errorResult(QString("Unsupported firmware file type '.%1' (expected .hex or .bin).").arg(suffix));
+
+    WCHFlashWorker worker;
+    QStringList devices;
+    QStringList log;
+    QString chipInfo;
+    bool done = false;
+    bool ok = false;
+    QString resultMsg;
+
+    connect(&worker, &WCHFlashWorker::devicesFound,
+            [&devices](const QStringList& d) { devices = d; });
+    connect(&worker, &WCHFlashWorker::deviceConnected,
+            [&chipInfo](const QString& info) { chipInfo = info; });
+    connect(&worker, &WCHFlashWorker::logMessage,
+            [&log](const QString& m) { log << m; });
+    connect(&worker, &WCHFlashWorker::finished,
+            [&done, &ok, &resultMsg](bool success, const QString& msg) {
+                done = true; ok = success; resultMsg = msg;
+            });
+
+    worker.scanDevices();
+    if (devices.isEmpty()) {
+        return errorResult(
+            "No WCH ISP devices found; nothing flashed. Put the KeyMod in "
+            "ISP/bootloader mode (hold BOOT while powering on) and confirm with "
+            "keymod_scan first.\n" + log.join("\n"));
+    }
+    if (index < 0 || index >= devices.size()) {
+        return errorResult(QString("device_index %1 out of range: %2 device(s) found. "
+            "Run keymod_scan for the list.").arg(index).arg(devices.size()));
+    }
+
+    // connectDevice emits finished(false, ...) only on failure
+    worker.connectDevice(index);
+    if (done)
+        return errorResult(resultMsg + "\n" + log.join("\n"));
+
+    qCInfo(log_server_mcp_tool) << "KeyMod flash starting:" << file << "chip:" << chipInfo;
+    worker.flashFirmware(file);
+
+    if (!done)
+        return errorResult("Flash ended without a result (internal error).\n" + log.join("\n"));
+    if (!ok)
+        return errorResult(resultMsg + "\n" + log.join("\n"));
+
+    return textResult(QString(
+        "%1\nChip: %2\n"
+        "REQUIRED next step: power-cycle the device WITHOUT the BOOT button held; "
+        "it then boots the new firmware.\n\nLog:\n%3")
+        .arg(resultMsg, chipInfo, log.join("\n")));
 }
 
 // ==========================================================================
