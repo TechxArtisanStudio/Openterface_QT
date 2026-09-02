@@ -259,6 +259,11 @@ void HostManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDow
     }
 }
 
+void HostManager::releaseAllKeys()
+{
+    keyboardManager.releaseAllKeys();
+}
+
 void HostManager::setRepeatingKeystroke(int interval) {
     m_repeatingInterval = interval;
     if (interval > 0) {

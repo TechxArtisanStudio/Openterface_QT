@@ -721,6 +721,14 @@ void MainWindowInitializer::finalize()
         qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to VideoPane (unified path)";
     }
 
+    connect(qApp, &QApplication::applicationStateChanged, m_mainWindow,
+        [](Qt::ApplicationState state) {
+            if (state != Qt::ApplicationActive) {
+                qCDebug(log_ui_mainwindowinitializer) << "Application became inactive; releasing guest keys";
+                HostManager::getInstance().releaseAllKeys();
+            }
+        });
+
     // SystemKeyBlocker is NOT started automatically on launch.
     // By default, keyboard events flow through VideoPane::keyPressEvent → InputHandler → HostManager.
     // SystemKeyBlocker is an optional feature that the user can enable from Settings.
@@ -764,4 +772,3 @@ void MainWindowInitializer::finalize()
     
     qCDebug(log_ui_mainwindowinitializer) << "Finalization complete";
 }
-

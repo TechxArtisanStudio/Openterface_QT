@@ -1015,6 +1015,13 @@ void VideoPane::keyPressEvent(QKeyEvent *event)
         m_inputHandler->handleKeyPress(event);
     }
 
+    // Tab is a guest key, not a Qt focus-navigation key.  Do not pass it to
+    // QGraphicsView, otherwise Qt may move focus away before the key release.
+    if (event->key() == Qt::Key_Tab || event->key() == Qt::Key_Backtab) {
+        event->accept();
+        return;
+    }
+
     // Handle Shift + Arrow keys for panning in zoomed mode
     if (m_scaleFactor > 1.0 && event->modifiers() == Qt::ShiftModifier) {
         // Define scroll step size (in pixels)
@@ -1693,4 +1700,3 @@ void VideoPane::startZoomHintFadeOut()
     
     fadeAnimation->start(QAbstractAnimation::DeleteWhenStopped);
 }
-
