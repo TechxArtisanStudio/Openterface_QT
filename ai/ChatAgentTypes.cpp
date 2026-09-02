@@ -1,11 +1,13 @@
 #include "ChatAgentTypes.h"
 #include "ChatInputRouter.h"
+#include "ChatToolExecution.h"
 #include "ui/globalsetting.h"
 #include "log/opflogging.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QLoggingCategory>
+#include <QThread>
 
 Q_DECLARE_LOGGING_CATEGORY(log_ai_chat)
 OPF_LOGGING_CATEGORY(log_ai_chat, "openterface.ai.chat")
@@ -358,6 +360,271 @@ void MouseTaskAgent::applyResponse(const QString &response, ChatTask &task)
 }
 
 // ============================================================================
+// PressKeyTaskAgent
+// ============================================================================
+
+QString PressKeyTaskAgent::prompt() const
+{
+    return GlobalSetting::instance().getChatTypingTaskPrompt().trimmed();
+}
+
+QList<ChatApiMessage> PressKeyTaskAgent::buildTaskConversation(
+    const QString &systemPrompt,
+    const ChatExecutionPlan &plan,
+    const ChatTask &task,
+    const QString &imageDataURL) const
+{
+    QList<ChatApiMessage> conversation;
+    if (!systemPrompt.trimmed().isEmpty())
+        conversation.append(ChatApiMessage::textMessage(ChatRole::System, systemPrompt));
+
+    QString taskPrompt = prompt();
+    if (!taskPrompt.isEmpty())
+        conversation.append(ChatApiMessage::textMessage(ChatRole::System, taskPrompt));
+
+    QString instruction = QString(
+        "Plan summary: %1\n\nTask title: %2\nTask detail: %3\nTool: %4\n\n"
+        "Return shortcut containing the exact keyboard combination to press (e.g. Ctrl+Alt+T, Cmd+Space, Enter).")
+        .arg(plan.summary, task.title, task.detail, task.toolName);
+
+    if (!imageDataURL.isEmpty()) {
+        conversation.append(ChatApiMessage::multimodalMessage(ChatRole::User, instruction, imageDataURL));
+    } else {
+        conversation.append(ChatApiMessage::textMessage(ChatRole::User, instruction));
+    }
+
+    return conversation;
+}
+
+void PressKeyTaskAgent::applyResponse(const QString &response, ChatTask &task)
+{
+    QJsonObject obj;
+    if (!extractJsonObject(response, obj)) {
+        task.status = ChatTaskStatus::Failed;
+        task.resultSummary = "Press key task failed: response was not valid JSON.";
+        return;
+    }
+
+    QString status = obj["status"].toString().trimmed().toLower();
+    QString shortcut = obj["shortcut"].toString().trimmed();
+
+    if (status == "completed" && !shortcut.isEmpty()) {
+        ChatInputRouter &router = ChatInputRouter::instance();
+        router.sendShortcut(shortcut);
+
+        // Give the target time to process the key and execute any command
+        // Especially important for Enter key which triggers command execution
+        QThread::msleep(1500);
+
+        task.status = ChatTaskStatus::Completed;
+        QString summary = obj["result_summary"].toString().trimmed();
+        task.resultSummary = summary.isEmpty()
+            ? QString("Executed shortcut %1 on target.").arg(shortcut)
+            : summary;
+        return;
+    }
+
+    task.status = ChatTaskStatus::Failed;
+    QString summary = obj["result_summary"].toString().trimmed();
+    task.resultSummary = summary.isEmpty()
+        ? "Press key task failed: missing shortcut or status not completed."
+        : summary;
+}
+
+// ============================================================================
+// ScreenToMarkdownTaskAgent
+// ============================================================================
+
+QString ScreenToMarkdownTaskAgent::prompt() const
+{
+    return GlobalSetting::instance().getChatScreenTaskPrompt().trimmed();
+}
+
+QList<ChatApiMessage> ScreenToMarkdownTaskAgent::buildTaskConversation(
+    const QString &systemPrompt,
+    const ChatExecutionPlan &plan,
+    const ChatTask &task,
+    const QString &imageDataURL) const
+{
+    QList<ChatApiMessage> conversation;
+    if (!systemPrompt.trimmed().isEmpty())
+        conversation.append(ChatApiMessage::textMessage(ChatRole::System, systemPrompt));
+
+    QString taskPrompt = prompt();
+    if (!taskPrompt.isEmpty())
+        conversation.append(ChatApiMessage::textMessage(ChatRole::System, taskPrompt));
+
+    QString instruction = QString(
+        "Plan summary: %1\n\nTask title: %2\nTask detail: %3\nTool: %4\n\n"
+        "Use OCR to extract text from the screen image.")
+        .arg(plan.summary, task.title, task.detail, task.toolName);
+
+    if (!imageDataURL.isEmpty()) {
+        conversation.append(ChatApiMessage::multimodalMessage(ChatRole::User, instruction, imageDataURL));
+    } else {
+        conversation.append(ChatApiMessage::textMessage(ChatRole::User, instruction));
+    }
+
+    return conversation;
+}
+
+void ScreenToMarkdownTaskAgent::applyResponse(const QString &response, ChatTask &task)
+{
+    QJsonObject obj;
+    if (extractJsonObject(response, obj)) {
+        QString status = obj["status"].toString().trimmed().toLower();
+        task.status = (status == "completed") ? ChatTaskStatus::Completed : ChatTaskStatus::Failed;
+        task.resultSummary = obj["result_summary"].toString().trimmed();
+    } else {
+        task.status = ChatTaskStatus::Completed;
+        task.resultSummary = response.trimmed();
+    }
+}
+
+// ============================================================================
+// RunBashTaskAgent
+// ============================================================================
+
+QString RunBashTaskAgent::prompt() const
+{
+    return "You are the Openterface Bash Task Agent.\n\n"
+           "You are responsible for executing bash commands on the HOST computer.\n\n"
+           "Rules:\n"
+           "- Return ONLY JSON.\n"
+           "- Provide the exact command to execute.\n"
+           "- The command will run on the HOST (not the target machine).\n\n"
+           "Schema:\n"
+           "{\n"
+           "    \"status\": \"completed\" | \"failed\",\n"
+           "    \"command\": \"bash command to execute\",\n"
+           "    \"result_summary\": \"short summary for the user\"\n"
+           "}\n";
+}
+
+QList<ChatApiMessage> RunBashTaskAgent::buildTaskConversation(
+    const QString &systemPrompt,
+    const ChatExecutionPlan &plan,
+    const ChatTask &task,
+    const QString &imageDataURL) const
+{
+    QList<ChatApiMessage> conversation;
+    if (!systemPrompt.trimmed().isEmpty())
+        conversation.append(ChatApiMessage::textMessage(ChatRole::System, systemPrompt));
+
+    QString taskPrompt = prompt();
+    if (!taskPrompt.isEmpty())
+        conversation.append(ChatApiMessage::textMessage(ChatRole::System, taskPrompt));
+
+    QString instruction = QString(
+        "Plan summary: %1\n\nTask title: %2\nTask detail: %3\nTool: %4\n\n"
+        "Return the bash command to execute on the HOST computer.")
+        .arg(plan.summary, task.title, task.detail, task.toolName);
+
+    conversation.append(ChatApiMessage::textMessage(ChatRole::User, instruction));
+    return conversation;
+}
+
+void RunBashTaskAgent::applyResponse(const QString &response, ChatTask &task)
+{
+    QJsonObject obj;
+    if (!extractJsonObject(response, obj)) {
+        task.status = ChatTaskStatus::Failed;
+        task.resultSummary = "Bash task failed: response was not valid JSON.";
+        return;
+    }
+
+    QString status = obj["status"].toString().trimmed().toLower();
+    QString command = obj["command"].toString().trimmed();
+
+    if (status == "completed" && !command.isEmpty()) {
+        QString result = ChatToolExecution::instance().runBashCommand(command);
+        task.status = ChatTaskStatus::Completed;
+        QString summary = obj["result_summary"].toString().trimmed();
+        task.resultSummary = summary.isEmpty()
+            ? QString("Executed: %1\nResult: %2").arg(command, result)
+            : QString("%1\nResult: %2").arg(summary, result);
+        return;
+    }
+
+    task.status = ChatTaskStatus::Failed;
+    QString summary = obj["result_summary"].toString().trimmed();
+    task.resultSummary = summary.isEmpty()
+        ? "Bash task failed: missing command or status not completed."
+        : summary;
+}
+
+// ============================================================================
+// WebSearchTaskAgent
+// ============================================================================
+
+QString WebSearchTaskAgent::prompt() const
+{
+    return "You are the Openterface Web Search Agent.\n\n"
+           "You are responsible for searching the internet for information.\n\n"
+           "Rules:\n"
+           "- Return ONLY JSON.\n"
+           "- Provide a clear search query.\n\n"
+           "Schema:\n"
+           "{\n"
+           "    \"status\": \"completed\" | \"failed\",\n"
+           "    \"query\": \"search query\",\n"
+           "    \"result_summary\": \"short summary for the user\"\n"
+           "}\n";
+}
+
+QList<ChatApiMessage> WebSearchTaskAgent::buildTaskConversation(
+    const QString &systemPrompt,
+    const ChatExecutionPlan &plan,
+    const ChatTask &task,
+    const QString &imageDataURL) const
+{
+    QList<ChatApiMessage> conversation;
+    if (!systemPrompt.trimmed().isEmpty())
+        conversation.append(ChatApiMessage::textMessage(ChatRole::System, systemPrompt));
+
+    QString taskPrompt = prompt();
+    if (!taskPrompt.isEmpty())
+        conversation.append(ChatApiMessage::textMessage(ChatRole::System, taskPrompt));
+
+    QString instruction = QString(
+        "Plan summary: %1\n\nTask title: %2\nTask detail: %3\nTool: %4\n\n"
+        "Return the search query to find information on the internet.")
+        .arg(plan.summary, task.title, task.detail, task.toolName);
+
+    conversation.append(ChatApiMessage::textMessage(ChatRole::User, instruction));
+    return conversation;
+}
+
+void WebSearchTaskAgent::applyResponse(const QString &response, ChatTask &task)
+{
+    QJsonObject obj;
+    if (!extractJsonObject(response, obj)) {
+        task.status = ChatTaskStatus::Failed;
+        task.resultSummary = "Web search task failed: response was not valid JSON.";
+        return;
+    }
+
+    QString status = obj["status"].toString().trimmed().toLower();
+    QString query = obj["query"].toString().trimmed();
+
+    if (status == "completed" && !query.isEmpty()) {
+        QString result = ChatToolExecution::instance().webSearch(query);
+        task.status = ChatTaskStatus::Completed;
+        QString summary = obj["result_summary"].toString().trimmed();
+        task.resultSummary = summary.isEmpty()
+            ? QString("Searched for: %1\nResult: %2").arg(query, result)
+            : QString("%1\nResult: %2").arg(summary, result);
+        return;
+    }
+
+    task.status = ChatTaskStatus::Failed;
+    QString summary = obj["result_summary"].toString().trimmed();
+    task.resultSummary = summary.isEmpty()
+        ? "Web search task failed: missing query or status not completed."
+        : summary;
+}
+
+// ============================================================================
 // TaskAgentRegistry
 // ============================================================================
 
@@ -365,17 +632,23 @@ TaskAgentRegistry::TaskAgentRegistry()
 {
     // Create static agents (owned by the registry via parent-child, but we keep raw pointers)
     static ScreenTaskAgent screenAgent;
+    static ScreenToMarkdownTaskAgent screenToMarkdownAgent;
     static TypeTextTaskAgent typingAgent;
+    static PressKeyTaskAgent pressKeyAgent;
     static MouseTaskAgent moveAgent("move_mouse");
     static MouseTaskAgent leftClickAgent("left_click");
     static MouseTaskAgent rightClickAgent("right_click");
     static MouseTaskAgent doubleClickAgent("double_click");
     static MouseTaskAgent leftDragAgent("left_drag");
+    static RunBashTaskAgent runBashAgent;
+    static WebSearchTaskAgent webSearchAgent;
 
     QList<TaskAgentExecutor *> agents = {
-        &screenAgent, &typingAgent,
+        &screenAgent, &screenToMarkdownAgent,
+        &typingAgent, &pressKeyAgent,
         &moveAgent, &leftClickAgent, &rightClickAgent,
-        &doubleClickAgent, &leftDragAgent
+        &doubleClickAgent, &leftDragAgent,
+        &runBashAgent, &webSearchAgent
     };
 
     for (auto *agent : agents) {

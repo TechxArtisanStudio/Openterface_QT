@@ -16,6 +16,9 @@
 #include <QTimer>
 #include <QMenu>
 #include <QActionGroup>
+#include <QLoggingCategory>
+
+Q_DECLARE_LOGGING_CATEGORY(log_ai_chat)
 
 ChatWindow::ChatWindow(QWidget *parent)
     : QWidget(parent)
@@ -31,9 +34,11 @@ ChatWindow::ChatWindow(QWidget *parent)
 
     // Connect to ChatManager signals
     ChatManager &mgr = ChatManager::instance();
-    connect(&mgr, &ChatManager::messageAppended, this, [this](const ChatMessage &) {
+    connect(&mgr, &ChatManager::messageAppended, this, [this](const ChatMessage &msg) {
+        qCDebug(log_ai_chat) << "ChatWindow received messageAppended signal for message:" << msg.content.left(100);
         refreshBubbles();
         scrollToBottom();
+        qCDebug(log_ai_chat) << "refreshBubbles and scrollToBottom completed";
     });
     connect(&mgr, &ChatManager::messageUpdated, this, [this](int index, const ChatMessage &msg) {
         // Update just the specific bubble instead of rebuilding all
@@ -429,6 +434,7 @@ void ChatWindow::updateModeUI()
 void ChatWindow::refreshBubbles()
 {
     auto messages = ChatManager::instance().messages();
+    qCDebug(log_ai_chat) << "refreshBubbles called, messages count:" << messages.size();
 
     // Switch to messages page when there are messages
     if (!messages.isEmpty()) {
@@ -451,6 +457,7 @@ void ChatWindow::refreshBubbles()
         m_bubbleWidgets.append(bubble);
         // Insert before the stretch
         m_messageLayout->insertWidget(m_messageLayout->count() - 1, bubble);
+        qCDebug(log_ai_chat) << "Created bubble for message" << idx << ":" << messages[idx].content.left(50);
     }
 
     // Update all bubbles

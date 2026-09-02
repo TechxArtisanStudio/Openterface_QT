@@ -71,6 +71,7 @@ protected:
     QLabel *m_roleLabel;
     QPushButton *m_copyBtn;
     QTextBrowser *m_contentBrowser;
+    QLabel *m_metadataLabel;  // Processing time and token info
     QLabel *m_attachmentLabel;
     QHBoxLayout *m_actionLayout;
     QHBoxLayout *m_quickReplyLayout;

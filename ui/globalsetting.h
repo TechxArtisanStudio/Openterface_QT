@@ -275,6 +275,14 @@ signals:
 
 private:
     QSettings m_settings;
+
+    // Default prompts loaded from JSON file
+    mutable QMap<QString, QString> m_defaultPrompts;
+    mutable bool m_promptsLoaded = false;
+
+    // Load default prompts from JSON file
+    void loadDefaultPrompts() const;
+    QString getDefaultPrompt(const QString &key) const;
 };
 
 #endif // GLOBALSETTING_H

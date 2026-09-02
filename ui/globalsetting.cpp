@@ -27,6 +27,10 @@
 #include <QDateTime>
 #include <QSettings>
 #include <QSet>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QCoreApplication>
+#include <QDir>
 
 GlobalSetting::GlobalSetting(QObject *parent)
     : QObject(parent),
@@ -38,6 +42,52 @@ GlobalSetting& GlobalSetting::instance()
 {
     static GlobalSetting instance;
     return instance;
+}
+
+void GlobalSetting::loadDefaultPrompts() const
+{
+    if (m_promptsLoaded) return;
+    m_promptsLoaded = true;
+
+    // Try to load from ai/default_prompts.json relative to application directory
+    QString promptsPath = QCoreApplication::applicationDirPath() + "/../ai/default_prompts.json";
+
+    // If not found, try relative to source directory (for development)
+    if (!QFile::exists(promptsPath)) {
+        promptsPath = QDir::currentPath() + "/../ai/default_prompts.json";
+    }
+
+    // If still not found, try absolute path (for installed version)
+    if (!QFile::exists(promptsPath)) {
+        promptsPath = "/usr/share/openterface/ai/default_prompts.json";
+    }
+
+    QFile file(promptsPath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning() << "Failed to load default prompts from" << promptsPath;
+        return;
+    }
+
+    QByteArray jsonData = file.readAll();
+    file.close();
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(jsonData, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+        qWarning() << "Failed to parse default prompts JSON:" << parseError.errorString();
+        return;
+    }
+
+    QJsonObject root = doc.object();
+    for (auto it = root.begin(); it != root.end(); ++it) {
+        m_defaultPrompts[it.key()] = it.value().toString();
+    }
+}
+
+QString GlobalSetting::getDefaultPrompt(const QString &key) const
+{
+    loadDefaultPrompts();
+    return m_defaultPrompts.value(key, QString());
 }
 
 void GlobalSetting::setFilterSettings(bool Chipinfo, bool keyboardPress, bool mideaKeyboard, bool mouseMoveABS, bool mouseMoveREL, bool HID)
@@ -795,26 +845,7 @@ void GlobalSetting::setChatSystemPrompt(const QString &prompt) {
 }
 
 QString GlobalSetting::getChatSystemPrompt() const {
-    return m_settings.value("chat/systemPrompt",
-        "You are Openterface Assistant, an on-device KVM copilot.\n\n"
-        "Capabilities:\n"
-        "- You can analyze the latest shared screen image from the target computer.\n"
-        "- You can execute actions on the target through Openterface tools.\n\n"
-        "Operating style:\n"
-        "- Be concise, practical, and step-by-step.\n"
-        "- When you complete a task, provide a brief summary and STOP. Do not continue iterating.\n"
-        "- Only issue tool calls when you need to perform an action. If the task is done, just respond with text.\n"
-        "- If screen details are unclear, ask for a fresh screenshot or zoomed area.\n"
-        "- State assumptions explicitly when uncertain.\n\n"
-        "Control guidance:\n"
-        "- Provide exact key names and mouse actions (click, double-click, right-click, drag).\n"
-        "- For text entry, provide the exact text to type.\n"
-        "- For risky actions (delete, reset, install, security changes), ask for confirmation first.\n\n"
-        "Safety and scope:\n"
-        "- Do not invent screen content you cannot see.\n"
-        "- Prioritize non-destructive troubleshooting before invasive changes.\n"
-        "- Protect privacy: avoid requesting secrets unless absolutely required.\n"
-    ).toString();
+    return m_settings.value("chat/systemPrompt", getDefaultPrompt("systemPrompt")).toString();
 }
 
 void GlobalSetting::setChatPlannerPrompt(const QString &prompt) {
@@ -822,39 +853,7 @@ void GlobalSetting::setChatPlannerPrompt(const QString &prompt) {
 }
 
 QString GlobalSetting::getChatPlannerPrompt() const {
-    return m_settings.value("chat/plannerPrompt",
-        "You are the Openterface Main Agent.\n\n"
-        "Your job is to understand the user's intent, inspect the current target screen when available, "
-        "and produce a structured execution plan before any task runs.\n\n"
-        "Rules:\n"
-        "- Return ONLY JSON.\n"
-        "- Build a short, concrete plan that can be reviewed by the user.\n"
-        "- Keep tasks simple and independent.\n"
-        "- Available task agents/tools:\n"
-        "    - screen + capture_screen (AI vision analysis - sends image to AI model)\n"
-        "    - screen + screen_to_markdown (OCR - extracts text using Tesseract, no vision needed)\n"
-        "    - typing + type_text\n"
-        "    - mouse + move_mouse\n"
-        "    - mouse + left_click\n"
-        "    - mouse + right_click\n"
-        "    - mouse + double_click\n"
-        "- Use capture_screen when the AI model supports vision and you need visual understanding.\n"
-        "- Use screen_to_markdown when you need text extraction without vision, or when vision is unavailable.\n"
-        "- Use typing tasks when the user intent requires entering text or keystrokes on target.\n"
-        "- Use mouse tasks when the user intent requires cursor movement or clicks on target.\n"
-        "- Do not execute tasks yourself.\n"
-        "- Do not invent screen details that are not visible.\n\n"
-        "Schema:\n"
-        "{\n"
-        "    \"summary\": \"one short sentence about the plan\",\n"
-        "    \"tasks\": [\n"
-        "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"screen\", \"tool\": \"capture_screen\"},\n"
-        "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"screen\", \"tool\": \"screen_to_markdown\"},\n"
-        "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"typing\", \"tool\": \"type_text\"},\n"
-        "        {\"title\": \"...\", \"detail\": \"...\", \"agent\": \"mouse\", \"tool\": \"left_click\"}\n"
-        "    ]\n"
-        "}\n"
-    ).toString();
+    return m_settings.value("chat/plannerPrompt", getDefaultPrompt("plannerPrompt")).toString();
 }
 
 void GlobalSetting::setChatScreenTaskPrompt(const QString &prompt) {
@@ -862,21 +861,7 @@ void GlobalSetting::setChatScreenTaskPrompt(const QString &prompt) {
 }
 
 QString GlobalSetting::getChatScreenTaskPrompt() const {
-    return m_settings.value("chat/screenTaskPrompt",
-        "You are the Openterface Screen Task Agent.\n\n"
-        "You are responsible for exactly one task and may rely on the latest target screen image as your only tool context.\n\n"
-        "Rules:\n"
-        "- Return ONLY JSON.\n"
-        "- Focus only on the assigned task.\n"
-        "- Do not plan future tasks.\n"
-        "- Do not claim actions were executed.\n"
-        "- If the screen is unclear, report that directly.\n\n"
-        "Schema:\n"
-        "{\n"
-        "    \"status\": \"completed\" | \"failed\",\n"
-        "    \"result_summary\": \"short result for the user\"\n"
-        "}\n"
-    ).toString();
+    return m_settings.value("chat/screenTaskPrompt", getDefaultPrompt("screenTaskPrompt")).toString();
 }
 
 void GlobalSetting::setChatTypingTaskPrompt(const QString &prompt) {
@@ -884,23 +869,7 @@ void GlobalSetting::setChatTypingTaskPrompt(const QString &prompt) {
 }
 
 QString GlobalSetting::getChatTypingTaskPrompt() const {
-    return m_settings.value("chat/typingTaskPrompt",
-        "You are the Openterface Typing Task Agent.\n\n"
-        "You are responsible for one typing task and one tool only: type_text.\n\n"
-        "Rules:\n"
-        "- Return ONLY JSON.\n"
-        "- Focus only on the current task.\n"
-        "- For plain typing, provide text_to_type.\n"
-        "- For keyboard/function keys, use angle-bracket format (example: <ctrl>l, <cmd><space>, <enter>, <f1>).\n"
-        "- Provide either text_to_type or shortcut.\n\n"
-        "Schema:\n"
-        "{\n"
-        "    \"status\": \"completed\" | \"failed\",\n"
-        "    \"text_to_type\": \"exact text to type on target (optional)\",\n"
-        "    \"shortcut\": \"keyboard combo like Ctrl+L (optional)\",\n"
-        "    \"result_summary\": \"short summary for the user\"\n"
-        "}\n"
-    ).toString();
+    return m_settings.value("chat/typingTaskPrompt", getDefaultPrompt("typingTaskPrompt")).toString();
 }
 
 void GlobalSetting::setChatGuidePrompt(const QString &prompt) {
@@ -908,26 +877,7 @@ void GlobalSetting::setChatGuidePrompt(const QString &prompt) {
 }
 
 QString GlobalSetting::getChatGuidePrompt() const {
-    return m_settings.value("chat/guidePrompt",
-        "You are the Openterface Guide Mode Agent.\n\n"
-        "Provide turn-by-turn guidance for the user to accomplish their goal on the target screen.\n\n"
-        "Rules:\n"
-        "- Return ONLY JSON.\n"
-        "- Provide one clear step at a time.\n"
-        "- If a clickable target is identified, set target_box with normalized coordinates (0.0-1.0).\n"
-        "- If a keyboard shortcut is more appropriate, set tool and tool_input.\n"
-        "- Prefer keyboard shortcuts over mouse clicks when both are viable.\n"
-        "- If the target is unclear, set needs_clarification=true.\n\n"
-        "Schema:\n"
-        "{\n"
-        "    \"next_step\": \"clear instruction for the next step\",\n"
-        "    \"tool\": \"left_click|right_click|double_click|shortcut (optional)\",\n"
-        "    \"tool_input\": \"shortcut like Ctrl+S or key combo (optional)\",\n"
-        "    \"target_box\": {\"x\": 0.0-1.0, \"y\": 0.0-1.0, \"width\": 0.0-1.0, \"height\": 0.0-1.0},\n"
-        "    \"needs_clarification\": true|false,\n"
-        "    \"clarification\": \"what to clarify (if needed)\"\n"
-        "}\n"
-    ).toString();
+    return m_settings.value("chat/guidePrompt", getDefaultPrompt("guidePrompt")).toString();
 }
 
 void GlobalSetting::setChatWindowVisible(bool visible) {
@@ -1032,4 +982,45 @@ void GlobalSetting::setChatAllToolsEnabled(const QMap<QString, bool> &tools) {
     for (auto it = tools.begin(); it != tools.end(); ++it) {
         setChatToolEnabled(it.key(), it.value());
     }
+}
+
+// ============================================================================
+// AI Chat Web Search Provider Settings
+// ============================================================================
+
+void GlobalSetting::setChatWebSearchProviders(const QStringList &providerIds) {
+    m_settings.setValue("chat/webSearchProviders", providerIds);
+}
+
+QStringList GlobalSetting::getChatWebSearchProviders() const {
+    // Default order: Exa (best quality, free anonymous MCP), Parallel (free anonymous MCP),
+    // then DuckDuckGo and Wikipedia as fallbacks
+    QStringList defaults = {"exa", "parallel", "duckduckgo", "wikipedia"};
+    return m_settings.value("chat/webSearchProviders", defaults).toStringList();
+}
+
+void GlobalSetting::setChatExaApiKey(const QString &key) {
+    m_settings.setValue("chat/exaApiKey", key);
+}
+
+QString GlobalSetting::getChatExaApiKey() const {
+    // Also check environment variable as fallback
+    QString key = m_settings.value("chat/exaApiKey", "").toString();
+    if (key.isEmpty()) {
+        key = QString::fromUtf8(qgetenv("EXA_API_KEY"));
+    }
+    return key;
+}
+
+void GlobalSetting::setChatParallelApiKey(const QString &key) {
+    m_settings.setValue("chat/parallelApiKey", key);
+}
+
+QString GlobalSetting::getChatParallelApiKey() const {
+    // Also check environment variable as fallback
+    QString key = m_settings.value("chat/parallelApiKey", "").toString();
+    if (key.isEmpty()) {
+        key = QString::fromUtf8(qgetenv("PARALLEL_API_KEY"));
+    }
+    return key;
 }

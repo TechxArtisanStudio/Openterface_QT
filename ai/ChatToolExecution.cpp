@@ -574,10 +574,13 @@ AgentToolExecutionResult ChatToolExecution::executeToolCalls(const QList<AgentTo
                    toolName == "internet_search") {
             // Search the web for information
             hasNonKeyboardTool = true;
+            qCDebug(log_ai_chat) << "web_search: call.args keys:" << call.args.keys();
+            qCDebug(log_ai_chat) << "web_search: call.args:" << call.args;
             QString query = call.args.value("query").toString();
+            qCDebug(log_ai_chat) << "web_search: extracted query:" << query;
             if (query.isEmpty()) {
                 summaries.append("web_search: missing query argument");
-                qCWarning(log_ai_chat) << "AI Tool failed: web_search missing query";
+                qCWarning(log_ai_chat) << "AI Tool failed: web_search missing query, args were:" << call.args;
             } else {
                 QString result = webSearch(query);
                 summaries.append(QString("web_search: %1").arg(result));
@@ -751,6 +754,20 @@ QString ChatToolExecution::webSearch(const QString &query) const
 
     qCDebug(log_ai_chat) << "web_search: searching for" << query;
 
+    // First try DuckDuckGo Instant Answer API (free, no API key required)
+    // This provides quick answers for well-known topics
+    QString ddgResult = webSearchDuckDuckGo(query);
+    if (!ddgResult.startsWith("web_search: no results found")) {
+        return ddgResult;
+    }
+
+    // If DuckDuckGo returns no results, fall back to Wikipedia
+    qCDebug(log_ai_chat) << "web_search: DuckDuckGo returned no results, trying Wikipedia";
+    return webSearchWikipedia(query);
+}
+
+QString ChatToolExecution::webSearchDuckDuckGo(const QString &query) const
+{
     // Use DuckDuckGo Instant Answer API (free, no API key required)
     // This provides quick answers and relevant information
     QProcess process;
@@ -823,6 +840,22 @@ QString ChatToolExecution::webSearch(const QString &query) const
         }
     }
 
+    // Extract Definition if available
+    if (root.contains("Definition")) {
+        QString definition = root["Definition"].toString();
+        if (!definition.isEmpty()) {
+            results << QString("Definition: %1").arg(definition);
+        }
+    }
+
+    // Extract Answer if available
+    if (root.contains("Answer")) {
+        QString answer = root["Answer"].toString();
+        if (!answer.isEmpty()) {
+            results << QString("Direct Answer: %1").arg(answer);
+        }
+    }
+
     // Extract related topics (up to 5)
     if (root.contains("RelatedTopics")) {
         QJsonArray topics = root["RelatedTopics"].toArray();
@@ -848,6 +881,127 @@ QString ChatToolExecution::webSearch(const QString &query) const
 
     QString result = results.join("\n");
     qCDebug(log_ai_chat) << "web_search: returning" << result.length() << "characters of results";
+    if (result.length() > 4096) {
+        result = result.left(4096) + "\n[results truncated at 4096 chars]";
+    }
+
+    return result;
+}
+
+QString ChatToolExecution::webSearchWikipedia(const QString &query) const
+{
+    // Use Wikipedia API as fallback for when DuckDuckGo returns no results
+    // First, search for matching articles
+    QProcess process;
+    process.setProcessChannelMode(QProcess::MergedChannels);
+
+    QString encodedQuery = QUrl::toPercentEncoding(query);
+    QString searchUrl = QString("https://en.wikipedia.org/w/api.php?action=opensearch&search=%1&limit=3&format=json")
+                        .arg(encodedQuery);
+
+    qCDebug(log_ai_chat) << "web_search: searching Wikipedia with URL" << searchUrl;
+
+#ifdef Q_OS_WIN
+    process.start("cmd.exe", QStringList() << "/c" << "curl" << "-s" << searchUrl);
+#else
+    process.start("curl", QStringList() << "-s" << searchUrl);
+#endif
+
+    if (!process.waitForStarted(5000)) {
+        qCWarning(log_ai_chat) << "web_search: failed to start curl for Wikipedia:" << process.errorString();
+        return QString("web_search: failed to start curl - %1").arg(process.errorString());
+    }
+
+    if (!process.waitForFinished(15000)) {
+        process.kill();
+        qCWarning(log_ai_chat) << "web_search: Wikipedia request timed out";
+        return "web_search: request timed out after 15s";
+    }
+
+    QByteArray output = process.readAll();
+    int exitCode = process.exitCode();
+
+    if (exitCode != 0 || output.isEmpty()) {
+        qCWarning(log_ai_chat) << "web_search: Wikipedia search failed";
+        return "web_search: no results found";
+    }
+
+    // Parse the OpenSearch response: [query, [titles], [descriptions], [urls]]
+    QJsonDocument doc = QJsonDocument::fromJson(output);
+    if (doc.isNull() || !doc.isArray()) {
+        qCWarning(log_ai_chat) << "web_search: failed to parse Wikipedia search response";
+        return "web_search: no results found";
+    }
+
+    QJsonArray arr = doc.array();
+    if (arr.size() < 4) {
+        return "web_search: no results found";
+    }
+
+    QJsonArray titles = arr[1].toArray();
+    QJsonArray urls = arr[3].toArray();
+
+    if (titles.isEmpty()) {
+        qCDebug(log_ai_chat) << "web_search: no Wikipedia articles found for:" << query;
+        return "web_search: no results found";
+    }
+
+    // Get the summary for the first matching article
+    QString firstTitle = titles[0].toString();
+    QString encodedTitle = QUrl::toPercentEncoding(firstTitle);
+    QString summaryUrl = QString("https://en.wikipedia.org/api/rest_v1/page/summary/%1")
+                         .arg(encodedTitle);
+
+    qCDebug(log_ai_chat) << "web_search: fetching Wikipedia summary from" << summaryUrl;
+
+    QProcess summaryProcess;
+    summaryProcess.setProcessChannelMode(QProcess::MergedChannels);
+
+#ifdef Q_OS_WIN
+    summaryProcess.start("cmd.exe", QStringList() << "/c" << "curl" << "-s" << summaryUrl);
+#else
+    summaryProcess.start("curl", QStringList() << "-s" << summaryUrl);
+#endif
+
+    if (!summaryProcess.waitForStarted(5000)) {
+        return "web_search: no results found";
+    }
+
+    if (!summaryProcess.waitForFinished(15000)) {
+        summaryProcess.kill();
+        return "web_search: no results found";
+    }
+
+    QByteArray summaryOutput = summaryProcess.readAll();
+    QJsonDocument summaryDoc = QJsonDocument::fromJson(summaryOutput);
+
+    if (summaryDoc.isNull() || !summaryDoc.isObject()) {
+        return "web_search: no results found";
+    }
+
+    QJsonObject summaryObj = summaryDoc.object();
+    QString title = summaryObj["title"].toString();
+    QString extract = summaryObj["extract"].toString();
+
+    if (extract.isEmpty()) {
+        return "web_search: no results found";
+    }
+
+    // Build the result
+    QStringList results;
+    results << QString("From Wikipedia: %1").arg(title);
+    results << extract;
+
+    // Add URLs for additional articles if there are multiple matches
+    if (titles.size() > 1) {
+        results << "\nRelated articles:";
+        for (int i = 1; i < qMin(titles.size(), 4); ++i) {
+            results << QString("- %1: %2").arg(titles[i].toString(), urls[i].toString());
+        }
+    }
+
+    QString result = results.join("\n");
+    qCDebug(log_ai_chat) << "web_search: Wikipedia returning" << result.length() << "characters";
     if (result.length() > 4096) {
         result = result.left(4096) + "\n[results truncated at 4096 chars]";
     }

@@ -113,6 +113,11 @@ struct ChatMessage {
     // Tool call ID for tool role messages (required by OpenAI API format).
     // Links this tool result back to the assistant's tool call.
     QString toolCallId;
+    // Processing time in milliseconds (for AI-generated messages)
+    int processingTimeMs = 0;
+    // Token usage (for AI-generated messages)
+    int inputTokens = 0;
+    int outputTokens = 0;
 
     ChatMessage()
         : id(QUuid::createUuid()), role(ChatRole::User), createdAt(QDateTime::currentDateTime()) {}

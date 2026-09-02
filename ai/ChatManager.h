@@ -177,6 +177,8 @@ private:
     void loadHistory();
     void presentAIError(const QString &error);
     void appendAssistantMessage(const QString &content, const QString &attachment = QString());
+    void appendAssistantMessage(const QString &content, int processingTimeMs, int inputTokens, int outputTokens);
+    void appendAssistantMessage(const QString &content, const QString &attachment, int processingTimeMs, int inputTokens, int outputTokens);
     void startAgentRequestStatus(const QUuid &messageID);
     void completeAgentRequestStatus(const QUuid &messageID);
     void failAgentRequestStatus(const QUuid &messageID, const QString &error);

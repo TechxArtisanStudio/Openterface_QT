@@ -1013,6 +1013,14 @@ void ChatManager::executeApprovedPlan()
     ChatScreenCapture &screenCapture = ChatScreenCapture::instance();
     ChatTracing &tracing = ChatTracing::instance();
 
+    // Add a message showing the plan is starting
+    QString planStartMsg = QString("**Executing plan:** %1\n\n%2 tasks to complete.")
+        .arg(m_currentPlan.summary)
+        .arg(m_currentPlan.tasks.size());
+    QMetaObject::invokeMethod(this, [this, planStartMsg]() {
+        appendAssistantMessage(planStartMsg);
+    }, Qt::QueuedConnection);
+
     for (int i = 0; i < m_currentPlan.tasks.size(); ++i) {
         if (m_cancelRequested) break;
 
@@ -1021,6 +1029,14 @@ void ChatManager::executeApprovedPlan()
 
         task.status = ChatTaskStatus::Running;
         emit planTaskUpdated(i, task);
+
+        // Add step start message
+        QString stepStartMsg = QString("**Step %1/%2:** %3\n\n*Running...*")
+            .arg(i + 1).arg(m_currentPlan.tasks.size()).arg(task.title);
+        QMetaObject::invokeMethod(this, [this, stepStartMsg]() {
+            appendAssistantMessage(stepStartMsg);
+        }, Qt::QueuedConnection);
+
         persistHistory();
 
         // Resolve agent
@@ -1029,6 +1045,13 @@ void ChatManager::executeApprovedPlan()
             task.status = ChatTaskStatus::Failed;
             task.resultSummary = QString("No agent found for %1/%2").arg(task.agentName, task.toolName);
             emit planTaskUpdated(i, task);
+
+            // Add error message
+            QString errorMsg = QString("**Step %1/%2:** %3\n\n✗ **Failed:** %4")
+                .arg(i + 1).arg(m_currentPlan.tasks.size()).arg(task.title, task.resultSummary);
+            QMetaObject::invokeMethod(this, [this, errorMsg]() {
+                appendAssistantMessage(errorMsg);
+            }, Qt::QueuedConnection);
             continue;
         }
 
@@ -1047,12 +1070,25 @@ void ChatManager::executeApprovedPlan()
         tracing.appendTaskStepTrace(task.id, task.title,
             tracing.readableTraceParts(conversation), screenshotPath);
 
-        // Send API request
+        // Send API request and track timing
+        QElapsedTimer timer;
+        timer.start();
         ChatCompletionResult result;
         QString apiError;
         result = sendCompletionSync(config.baseURL, config.model, config.apiKey, conversation, apiError);
+        qint64 elapsedMs = timer.elapsed();
 
         if (m_cancelRequested) break;
+
+        // Show the AI's response (tool call details) similar to agent mode.
+        // The response contains JSON with tool arguments which gets formatted
+        // as a readable table by ChatBubbleWidget::formatContentForDisplay.
+        int inputTokens = result.inputTokenCount;
+        int outputTokens = result.outputTokenCount;
+        QString aiResponse = result.content;
+        QMetaObject::invokeMethod(this, [this, aiResponse, elapsedMs, inputTokens, outputTokens]() {
+            appendAssistantMessage(aiResponse, static_cast<int>(elapsedMs), inputTokens, outputTokens);
+        }, Qt::QueuedConnection);
 
         // Apply response
         agent->applyResponse(result.content, task);
@@ -1060,6 +1096,16 @@ void ChatManager::executeApprovedPlan()
         task.outputTokenCount = result.outputTokenCount;
 
         emit planTaskUpdated(i, task);
+
+        // Add step result message with timing and token info
+        QString statusIcon = (task.status == ChatTaskStatus::Completed) ? "✓" : "✗";
+        QString stepResultMsg = QString("**Step %1/%2:** %3\n\n%4 **Result:** %5")
+            .arg(i + 1).arg(m_currentPlan.tasks.size()).arg(task.title)
+            .arg(statusIcon, task.resultSummary);
+        QString attachmentPath = screenshotPath;  // Capture for lambda
+        QMetaObject::invokeMethod(this, [this, stepResultMsg, attachmentPath]() {
+            appendAssistantMessage(stepResultMsg, attachmentPath);
+        }, Qt::QueuedConnection);
 
         // Trace
         tracing.appendTaskStepTrace(task.id,
@@ -1084,10 +1130,81 @@ void ChatManager::executeApprovedPlan()
     }
 
     emit planChanged();
-    persistHistory();
 
-    m_isSending = false;
-    emit sendingStateChanged(false);
+    // Build a summary request to send to the AI
+    QString summaryPrompt = QString(
+        "You have just completed an execution plan. Please provide a brief summary of what was accomplished.\n\n"
+        "Plan goal: %1\n\n"
+        "Tasks executed:\n"
+    ).arg(m_currentPlan.summary);
+
+    for (const auto &task : m_currentPlan.tasks) {
+        QString statusIcon;
+        switch (task.status) {
+        case ChatTaskStatus::Completed: statusIcon = "✓"; break;
+        case ChatTaskStatus::Failed: statusIcon = "✗"; break;
+        case ChatTaskStatus::Skipped: statusIcon = "-"; break;
+        default: statusIcon = "?"; break;
+        }
+        summaryPrompt += QString("%1 %2: %3\n").arg(statusIcon, task.title, task.resultSummary);
+    }
+
+    if (m_cancelRequested) {
+        summaryPrompt += "\nNote: The plan was cancelled by the user before completion.";
+    }
+
+    summaryPrompt += "\n\nProvide a concise summary of the results and any next steps if applicable.";
+
+    // Build conversation for summary
+    QList<ChatApiMessage> summaryConversation;
+    QString systemPrompt = GlobalSetting::instance().getChatSystemPrompt().trimmed();
+    if (!systemPrompt.isEmpty()) {
+        summaryConversation.append(ChatApiMessage::textMessage(ChatRole::System, systemPrompt));
+    }
+    summaryConversation.append(ChatApiMessage::textMessage(ChatRole::User, summaryPrompt));
+
+    // Send API request for summary
+    ChatCompletionResult summaryResult;
+    QString summaryError;
+    summaryResult = sendCompletionSync(config.baseURL, config.model, config.apiKey, summaryConversation, summaryError);
+
+    QString finalSummary;
+    if (!summaryError.isEmpty()) {
+        // If API call fails, use fallback summary
+        if (m_cancelRequested) {
+            finalSummary = "**Plan cancelled by user.**";
+        } else if (anyFailed) {
+            int failedCount = 0;
+            for (const auto &task : m_currentPlan.tasks) {
+                if (task.status == ChatTaskStatus::Failed) failedCount++;
+            }
+            finalSummary = QString("**Plan completed with errors.**\n\n%1 of %2 tasks failed.")
+                .arg(failedCount).arg(m_currentPlan.tasks.size());
+        } else {
+            finalSummary = QString("**Plan completed successfully.**\n\nAll %1 tasks executed.")
+                .arg(m_currentPlan.tasks.size());
+        }
+    } else {
+        // Use AI-generated summary
+        finalSummary = summaryResult.content;
+    }
+
+    qCDebug(log_ai_chat) << "=== FINAL SUMMARY DEBUG ===";
+    qCDebug(log_ai_chat) << "Final summary text:" << finalSummary;
+
+    // Use QMetaObject::invokeMethod to ensure the message is added on the main thread
+    QMetaObject::invokeMethod(this, [this, finalSummary]() {
+        qCDebug(log_ai_chat) << "Invoking appendAssistantMessage on main thread";
+        appendAssistantMessage(finalSummary);
+        qCDebug(log_ai_chat) << "Calling persistHistory...";
+        persistHistory();
+
+        qCDebug(log_ai_chat) << "Setting m_isSending to false and emitting sendingStateChanged";
+        m_isSending = false;
+        emit sendingStateChanged(false);
+
+        qCDebug(log_ai_chat) << "=== END FINAL SUMMARY DEBUG ===";
+    }, Qt::QueuedConnection);
 }
 
 // ============================================================================
@@ -1120,9 +1237,41 @@ void ChatManager::presentAIError(const QString &error)
 
 void ChatManager::appendAssistantMessage(const QString &content, const QString &attachment)
 {
+    qCDebug(log_ai_chat) << "appendAssistantMessage called with content:" << content.left(100) << "...";
     ChatMessage msg(ChatRole::Assistant, content, attachment);
+    qCDebug(log_ai_chat) << "Created message with id:" << msg.id;
     m_messages.append(msg);
+    qCDebug(log_ai_chat) << "Message appended to m_messages, size:" << m_messages.size();
     emit messageAppended(msg);
+    qCDebug(log_ai_chat) << "messageAppended signal emitted";
+}
+
+void ChatManager::appendAssistantMessage(const QString &content, int processingTimeMs, int inputTokens, int outputTokens)
+{
+    qCDebug(log_ai_chat) << "appendAssistantMessage (with metadata) called with content:" << content.left(100) << "...";
+    ChatMessage msg(ChatRole::Assistant, content);
+    msg.processingTimeMs = processingTimeMs;
+    msg.inputTokens = inputTokens;
+    msg.outputTokens = outputTokens;
+    qCDebug(log_ai_chat) << "Created message with id:" << msg.id << "processingTimeMs:" << processingTimeMs << "tokens:" << inputTokens << "/" << outputTokens;
+    m_messages.append(msg);
+    qCDebug(log_ai_chat) << "Message appended to m_messages, size:" << m_messages.size();
+    emit messageAppended(msg);
+    qCDebug(log_ai_chat) << "messageAppended signal emitted";
+}
+
+void ChatManager::appendAssistantMessage(const QString &content, const QString &attachment, int processingTimeMs, int inputTokens, int outputTokens)
+{
+    qCDebug(log_ai_chat) << "appendAssistantMessage (with attachment and metadata) called with content:" << content.left(100) << "...";
+    ChatMessage msg(ChatRole::Assistant, content, attachment);
+    msg.processingTimeMs = processingTimeMs;
+    msg.inputTokens = inputTokens;
+    msg.outputTokens = outputTokens;
+    qCDebug(log_ai_chat) << "Created message with id:" << msg.id << "attachment:" << attachment << "processingTimeMs:" << processingTimeMs << "tokens:" << inputTokens << "/" << outputTokens;
+    m_messages.append(msg);
+    qCDebug(log_ai_chat) << "Message appended to m_messages, size:" << m_messages.size();
+    emit messageAppended(msg);
+    qCDebug(log_ai_chat) << "messageAppended signal emitted";
 }
 
 void ChatManager::startAgentRequestStatus(const QUuid &messageID)

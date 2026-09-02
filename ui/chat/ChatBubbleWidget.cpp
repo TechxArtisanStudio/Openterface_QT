@@ -84,6 +84,11 @@ void ChatBubbleWidget::setupUI()
         "QTextBrowser { padding: 8px; border-radius: 8px; background-color: transparent; }");
     m_layout->addWidget(m_contentBrowser);
 
+    m_metadataLabel = new QLabel();
+    m_metadataLabel->setVisible(false);
+    m_metadataLabel->setStyleSheet("font-size: 10px; color: #888; padding: 0px 8px;");
+    m_layout->addWidget(m_metadataLabel);
+
     m_attachmentLabel = new QLabel();
     m_attachmentLabel->setVisible(false);
     m_layout->addWidget(m_attachmentLabel);
@@ -198,6 +203,25 @@ void ChatBubbleWidget::updateContent()
     // We add 60px: 16px CSS padding + 44px safety margin for markdown spacing.
     int docHeight = static_cast<int>(m_contentBrowser->document()->size().height());
     m_contentBrowser->setFixedHeight(docHeight + 60);
+
+    // Metadata (processing time and token usage)
+    if (m_message.role == ChatRole::Assistant && (m_message.processingTimeMs > 0 || m_message.inputTokens > 0 || m_message.outputTokens > 0)) {
+        QStringList metadataParts;
+        if (m_message.processingTimeMs > 0) {
+            metadataParts.append(QString("⏱ %1s").arg(m_message.processingTimeMs / 1000.0, 0, 'f', 1));
+        }
+        if (m_message.inputTokens > 0 || m_message.outputTokens > 0) {
+            metadataParts.append(QString("🔤 %1↓ %2↑ tokens").arg(m_message.inputTokens).arg(m_message.outputTokens));
+        }
+        if (!metadataParts.isEmpty()) {
+            m_metadataLabel->setText(metadataParts.join(" • "));
+            m_metadataLabel->setVisible(true);
+        } else {
+            m_metadataLabel->setVisible(false);
+        }
+    } else {
+        m_metadataLabel->setVisible(false);
+    }
 
     // Attachment
     if (!m_message.attachmentFilePath.isEmpty()) {
