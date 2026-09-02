@@ -172,6 +172,8 @@ void ChatWindow::setupUI()
             ChatTargetSystem::IPhone,
             ChatTargetSystem::IPad,
             ChatTargetSystem::Android,
+            ChatTargetSystem::BIOS,
+            ChatTargetSystem::TextUI,
         };
         for (ChatTargetSystem sys : systems) {
             auto *act = new QAction(chatTargetSystemDisplayName(sys), menu);
