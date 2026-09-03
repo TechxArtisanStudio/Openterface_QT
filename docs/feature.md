@@ -118,6 +118,17 @@ The following commands are supported in the scripts:
   - **Keyboard Tools**: Type text, press keys, repeat keys
   - **Recording Tools**: Start/stop screen recording
   - **System/Host Tools**: Set target system, run bash commands on host, web search
+- **Web Search**:
+  - Multi-provider web search system with automatic fallback chain
+  - **Providers** (in order of priority):
+    1. **Exa AI** - AI-optimized semantic search via MCP (works anonymously)
+    2. **Parallel AI** - AI-optimized search via MCP (works anonymously)
+    3. **DuckDuckGo** - Instant Answer API (free, no API key)
+    4. **Wikipedia** - Encyclopedia search (free, no API key)
+  - All providers work without API keys (anonymous access)
+  - Automatic fallback: if one provider fails, tries the next
+  - Clear error messages for SSL/TLS configuration issues
+  - Configurable provider order in Preferences → AI Chat → Tools → Web Search
 - **Tools Configuration**:
   - Tools are organized in a hierarchical tree structure for easy management
   - Each tool category can be expanded/collapsed
