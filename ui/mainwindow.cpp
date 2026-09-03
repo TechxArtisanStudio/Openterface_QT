@@ -33,6 +33,7 @@
 #include "chat/ChatWindow.h"
 #include "ai/ChatManager.h"
 #include "ai/ChatScreenCapture.h"
+#include "ai/SharedToolExecutor.h"
 #include "serial/SerialPortManager.h"
 #include <QStandardPaths>
 #include "device/DeviceManager.h"
@@ -314,6 +315,7 @@ void MainWindow::toggleChatWindow(bool visible)
 
         // Set up CameraManager for AI screenshots
         ChatScreenCapture::instance().setCameraManager(m_cameraManager);
+        SharedToolExecutor::instance().setCameraManager(m_cameraManager);
     }
 
     if (visible) {

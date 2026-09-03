@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(openterface-hotplug-tests LANGUAGES CXX)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Test Concurrent SerialPort Widgets Gui)
+find_package(Qt6 REQUIRED COMPONENTS Core Test Concurrent SerialPort Widgets Gui Network)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -145,3 +145,21 @@ add_executable(test_keyboard_logic
 )
 target_link_libraries(test_keyboard_logic PRIVATE Qt6::Core Qt6::Test Qt6::Gui)
 add_test(NAME KeyboardLogic COMMAND test_keyboard_logic)
+
+# Test 10: Web Search Providers and Manager
+add_executable(test_web_search_providers
+    test_web_search_providers.cpp
+    ${PROJECT_ROOT}/ai/WebSearchManager.cpp
+    ${PROJECT_ROOT}/ai/WebSearchProviders.cpp
+    ${PROJECT_ROOT}/ai/WebSearchProvider.cpp
+    ${PROJECT_ROOT}/ui/globalsetting.cpp
+    ${PROJECT_ROOT}/log/logcategoryregistry.cpp
+)
+target_include_directories(test_web_search_providers PRIVATE
+    ${PROJECT_ROOT}
+    ${PROJECT_ROOT}/ai
+    ${PROJECT_ROOT}/ui
+    ${PROJECT_ROOT}/log
+)
+target_link_libraries(test_web_search_providers PRIVATE Qt6::Core Qt6::Test Qt6::Network)
+add_test(NAME WebSearchProviders COMMAND test_web_search_providers)

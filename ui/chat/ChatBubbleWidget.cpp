@@ -248,7 +248,10 @@ void ChatBubbleWidget::updateContent()
         m_quickReplyContainer->setVisible(true);
         for (const auto &qr : m_message.quickReplies) {
             auto *chip = new QuickReplyWidget(qr.label, this);
-            connect(chip, &QuickReplyWidget::clicked, this, [this, qr]() {
+            connect(chip, &QuickReplyWidget::clicked, this, [this, qr, chip]() {
+                // Hide all quick reply buttons after click
+                m_quickReplyContainer->setVisible(false);
+                // Show feedback with the clicked button's label
                 emit quickReplyClicked(qr.sendText);
             });
             m_quickReplyLayout->addWidget(chip);

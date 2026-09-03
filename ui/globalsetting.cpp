@@ -970,7 +970,8 @@ QMap<QString, bool> GlobalSetting::getChatAllToolsEnabled() const {
         "move_mouse", "left_click", "right_click", "double_click", "left_drag",
         "type_text", "press_key", "repeat_key",
         "start_recording", "stop_recording",
-        "run_bash", "set_target_system"
+        "run_bash", "set_target_system",
+        "detect_cursor", "web_search"
     };
     for (const QString &tool : toolNames) {
         tools[tool] = getChatToolEnabled(tool);

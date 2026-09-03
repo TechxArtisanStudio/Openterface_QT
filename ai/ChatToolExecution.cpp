@@ -1,10 +1,15 @@
 #include "ChatToolExecution.h"
 #include "ChatInputRouter.h"
 #include "ChatScreenCapture.h"
+#include "SharedToolExecutor.h"
 #include "ChatTypes.h"
+#include "WebSearchManager.h"
 #include "ui/globalsetting.h"
 #include "ui/recording/recordingcontroller.h"
 #include "server/mcp/screenAnalyzer.h"
+#include "host/cameramanager.h"
+#include "host/HostManager.h"
+#include <QElapsedTimer>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -288,50 +293,39 @@ AgentToolExecutionResult ChatToolExecution::executeToolCalls(const QList<AgentTo
         } else if (toolName == "screen_to_markdown") {
             // OCR-based screen analysis using Tesseract
             hasNonKeyboardTool = true;
-            QString filePath = screenCapture.captureScreen();
-            if (filePath.isEmpty()) {
-                summaries.append("screen_to_markdown: failed (no image captured)");
-                qCWarning(log_ai_chat) << "AI Tool failed: screen_to_markdown - no image captured";
+
+            QJsonObject argsObj = QJsonObject::fromVariantMap(call.args);
+            QJsonObject result = SharedToolExecutor::instance().screenToMarkdown(argsObj);
+
+            if (result.contains("error")) {
+                summaries.append(QString("screen_to_markdown: failed (%1)").arg(result["error"].toString()));
+                qCWarning(log_ai_chat) << "AI Tool failed: screen_to_markdown -" << result["error"].toString();
             } else {
-                QImage frame(filePath);
-                if (frame.isNull()) {
-                    summaries.append("screen_to_markdown: failed (could not load image)");
-                    qCWarning(log_ai_chat) << "AI Tool failed: screen_to_markdown - could not load image";
-                } else {
-                    // Get detail level from args (default: detailed)
-                    QString detailLevel = call.args.value("detail_level", "detailed").toString();
+                QString markdown = result["markdown"].toString();
+                QString modeStr = result["mode"].toString();
 
-                    // Get mode from args (default: general, can be "terminal" for command output)
-                    QString modeStr = call.args.value("mode", "general").toString().toLower();
-                    AnalysisMode mode = (modeStr == "terminal") ? AnalysisMode::Terminal : AnalysisMode::General;
-
-                    // Use ScreenAnalyzer to perform OCR
-                    ScreenAnalyzer analyzer;
-                    if (!analyzer.isAvailable()) {
-                        summaries.append("screen_to_markdown: failed (Tesseract OCR not available)");
-                        qCWarning(log_ai_chat) << "AI Tool failed: screen_to_markdown - Tesseract not initialized";
-                    } else {
-                        ScreenAnalysis analysis = analyzer.analyzeScreen(frame, detailLevel, mode);
-                        // Save the markdown output to a file for reference
-                        QString markdownPath = filePath;
-                        markdownPath.replace(".jpg", "_ocr.md");
-                        QFile mdFile(markdownPath);
-                        if (mdFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                            QTextStream out(&mdFile);
-                            out << analysis.markdownOutput;
-                            mdFile.close();
-                        }
-
-                        // Store the markdown text as the attachment content
-                        // This will be sent to the AI as text instead of an image
-                        ocrResultText = analysis.markdownOutput;
-                        summaries.append(QString("screen_to_markdown: success (%1 chars OCR text, mode=%2)")
-                            .arg(analysis.markdownOutput.length())
-                            .arg(modeStr));
-                        qCDebug(log_ai_chat) << "AI Tool executed: screen_to_markdown ->"
-                                             << analysis.markdownOutput.length() << "chars, mode:" << modeStr;
+                // Get screenshot file path for saving the markdown file
+                QString filePath = screenCapture.captureScreen();
+                if (!filePath.isEmpty()) {
+                    // Save the markdown output to a file for reference
+                    QString markdownPath = filePath;
+                    markdownPath.replace(".jpg", "_ocr.md");
+                    QFile mdFile(markdownPath);
+                    if (mdFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                        QTextStream out(&mdFile);
+                        out << markdown;
+                        mdFile.close();
                     }
                 }
+
+                // Store the markdown text as the attachment content
+                // This will be sent to the AI as text instead of an image
+                ocrResultText = markdown;
+                summaries.append(QString("screen_to_markdown: success (%1 chars OCR text, mode=%2)")
+                    .arg(markdown.length())
+                    .arg(modeStr));
+                qCDebug(log_ai_chat) << "AI Tool executed: screen_to_markdown ->"
+                                     << markdown.length() << "chars, mode:" << modeStr;
             }
 
         } else if (toolName == "move_mouse") {
@@ -572,17 +566,22 @@ AgentToolExecutionResult ChatToolExecution::executeToolCalls(const QList<AgentTo
 
         } else if (toolName == "web_search" || toolName == "search" ||
                    toolName == "internet_search") {
-            // Search the web for information
+            // Search the web for information using WebSearchManager
             hasNonKeyboardTool = true;
             qCDebug(log_ai_chat) << "web_search: call.args keys:" << call.args.keys();
             qCDebug(log_ai_chat) << "web_search: call.args:" << call.args;
+            // Try multiple possible argument names the AI might use
             QString query = call.args.value("query").toString();
+            if (query.isEmpty()) query = call.args.value("q").toString();
+            if (query.isEmpty()) query = call.args.value("text").toString();
+            if (query.isEmpty()) query = call.args.value("search").toString();
             qCDebug(log_ai_chat) << "web_search: extracted query:" << query;
             if (query.isEmpty()) {
                 summaries.append("web_search: missing query argument");
                 qCWarning(log_ai_chat) << "AI Tool failed: web_search missing query, args were:" << call.args;
             } else {
-                QString result = webSearch(query);
+                // Use WebSearchManager for configurable provider fallback chain
+                QString result = WebSearchManager::instance().search(query);
                 summaries.append(QString("web_search: %1").arg(result));
                 qCDebug(log_ai_chat) << "AI Tool executed: web_search query=" << query;
             }
@@ -669,6 +668,62 @@ AgentToolExecutionResult ChatToolExecution::executeToolCalls(const QList<AgentTo
                                      << "intervalMs=" << intervalMs;
             }
 
+        } else if (toolName == "detect_cursor" || toolName == "terminal_idle" ||
+                   toolName == "check_terminal" || toolName == "wait_for_prompt") {
+            // Detect whether the terminal is idle/waiting for input
+            hasNonKeyboardTool = true;
+
+            QJsonObject argsObj = QJsonObject::fromVariantMap(call.args);
+            QJsonObject result = SharedToolExecutor::instance().detectCursor(argsObj);
+            if (result.contains("error")) {
+                summaries.append(QString("detect_cursor: failed (%1)").arg(result["error"].toString()));
+                qCWarning(log_ai_chat) << "AI Tool failed: detect_cursor -" << result["error"].toString();
+            } else {
+                summaries.append(QString("detect_cursor: status=%1 confidence=%2 description=%3")
+                    .arg(result["status"].toString())
+                    .arg(result["confidence"].toDouble(), 0, 'f', 2)
+                    .arg(result["description"].toString()));
+                qCDebug(log_ai_chat) << "AI Tool executed: detect_cursor ->"
+                                     << result["status"].toString() << "conf:" << result["confidence"].toDouble();
+            }
+
+        } else if (toolName == "run_command_and_wait" || toolName == "exec_and_wait" ||
+                   toolName == "type_and_wait" || toolName == "command_and_wait") {
+            // Type a command and wait for terminal to become idle
+            hasNonKeyboardTool = true;
+
+            QString command = call.args.value("command").toString().trimmed();
+            if (command.isEmpty()) {
+                summaries.append("run_command_and_wait: failed (missing 'command' argument)");
+                qCWarning(log_ai_chat) << "AI Tool failed: run_command_and_wait - no command";
+            } else {
+                // Track typed command for AI context
+                QString typedCommand = command;
+                if (!typedCommand.endsWith('\n') && !typedCommand.endsWith('\r')) {
+                    typedCommand += '\n';
+                }
+                keyboardTokens.append(typedCommand);
+
+                QJsonObject argsObj = QJsonObject::fromVariantMap(call.args);
+                QJsonObject result = SharedToolExecutor::instance().runCommandAndWait(argsObj);
+                if (result.contains("error")) {
+                    summaries.append(QString("run_command_and_wait: failed (%1)").arg(result["error"].toString()));
+                    qCWarning(log_ai_chat) << "AI Tool failed: run_command_and_wait -" << result["error"].toString();
+                } else {
+                    bool success = result["success"].toBool();
+                    summaries.append(QString("run_command_and_wait: %1 status=%2 wait=%3ms polls=%4 sawOutput=%5 conf=%6")
+                        .arg(success ? "success" : "timeout")
+                        .arg(result["status"].toString())
+                        .arg(result["wait_time_ms"].toInt())
+                        .arg(result["poll_count"].toInt())
+                        .arg(result["saw_output"].toBool())
+                        .arg(result.value("last_confidence").toDouble(), 0, 'f', 2));
+                    qCDebug(log_ai_chat) << "AI Tool executed: run_command_and_wait ->"
+                                         << (success ? "success" : "timeout")
+                                         << "wait:" << result["wait_time_ms"].toInt() << "ms";
+                }
+            }
+
         } else {
             hasNonKeyboardTool = true;
             summaries.append(QString("%1: unsupported").arg(toolName));
@@ -745,269 +800,6 @@ QString ChatToolExecution::runBashCommand(const QString &command) const
     return QString("exit=%1 output=%2").arg(exitCode).arg(combined);
 }
 
-QString ChatToolExecution::webSearch(const QString &query) const
-{
-    if (query.isEmpty()) {
-        qCWarning(log_ai_chat) << "web_search: empty query";
-        return "web_search: missing query argument";
-    }
-
-    qCDebug(log_ai_chat) << "web_search: searching for" << query;
-
-    // First try DuckDuckGo Instant Answer API (free, no API key required)
-    // This provides quick answers for well-known topics
-    QString ddgResult = webSearchDuckDuckGo(query);
-    if (!ddgResult.startsWith("web_search: no results found")) {
-        return ddgResult;
-    }
-
-    // If DuckDuckGo returns no results, fall back to Wikipedia
-    qCDebug(log_ai_chat) << "web_search: DuckDuckGo returned no results, trying Wikipedia";
-    return webSearchWikipedia(query);
-}
-
-QString ChatToolExecution::webSearchDuckDuckGo(const QString &query) const
-{
-    // Use DuckDuckGo Instant Answer API (free, no API key required)
-    // This provides quick answers and relevant information
-    QProcess process;
-    process.setProcessChannelMode(QProcess::MergedChannels);
-
-    // URL encode the query
-    QString encodedQuery = QUrl::toPercentEncoding(query);
-    QString url = QString("https://api.duckduckgo.com/?q=%1&format=json&no_html=1&skip_disambig=1")
-                  .arg(encodedQuery);
-
-    qCDebug(log_ai_chat) << "web_search: fetching URL" << url;
-
-    // Use curl to fetch the search results (more portable than QNetworkAccessManager in this context)
-#ifdef Q_OS_WIN
-    process.start("cmd.exe", QStringList() << "/c" << "curl" << "-s" << url);
-#else
-    process.start("curl", QStringList() << "-s" << url);
-#endif
-
-    if (!process.waitForStarted(5000)) {
-        qCWarning(log_ai_chat) << "web_search: failed to start curl:" << process.errorString();
-        return QString("web_search: failed to start curl - %1").arg(process.errorString());
-    }
-
-    if (!process.waitForFinished(15000)) {
-        process.kill();
-        qCWarning(log_ai_chat) << "web_search: request timed out";
-        return "web_search: request timed out after 15s";
-    }
-
-    QByteArray output = process.readAll();
-    int exitCode = process.exitCode();
-
-    qCDebug(log_ai_chat) << "web_search: curl exit code" << exitCode << "output length" << output.length();
-
-    if (exitCode != 0) {
-        qCWarning(log_ai_chat) << "web_search: curl failed with exit code" << exitCode;
-        return QString("web_search: curl failed with exit code %1").arg(exitCode);
-    }
-
-    if (output.isEmpty()) {
-        qCWarning(log_ai_chat) << "web_search: empty response from curl";
-        return "web_search: empty response from server";
-    }
-
-    // Parse the JSON response
-    QJsonDocument doc = QJsonDocument::fromJson(output);
-    if (doc.isNull()) {
-        qCWarning(log_ai_chat) << "web_search: failed to parse JSON response";
-        qCDebug(log_ai_chat) << "web_search: raw response:" << QString::fromUtf8(output).left(500);
-        return "web_search: failed to parse response";
-    }
-
-    QJsonObject root = doc.object();
-    QStringList results;
-
-    // Extract abstract (main answer)
-    if (root.contains("Abstract")) {
-        QString abstract = root["Abstract"].toString();
-        if (!abstract.isEmpty()) {
-            results << QString("Answer: %1").arg(abstract);
-        }
-    }
-
-    // Extract abstract text if different
-    if (root.contains("AbstractText")) {
-        QString abstractText = root["AbstractText"].toString();
-        if (!abstractText.isEmpty() && abstractText != root["Abstract"].toString()) {
-            results << QString("Summary: %1").arg(abstractText);
-        }
-    }
-
-    // Extract Definition if available
-    if (root.contains("Definition")) {
-        QString definition = root["Definition"].toString();
-        if (!definition.isEmpty()) {
-            results << QString("Definition: %1").arg(definition);
-        }
-    }
-
-    // Extract Answer if available
-    if (root.contains("Answer")) {
-        QString answer = root["Answer"].toString();
-        if (!answer.isEmpty()) {
-            results << QString("Direct Answer: %1").arg(answer);
-        }
-    }
-
-    // Extract related topics (up to 5)
-    if (root.contains("RelatedTopics")) {
-        QJsonArray topics = root["RelatedTopics"].toArray();
-        qCDebug(log_ai_chat) << "web_search: found" << topics.count() << "related topics";
-        int count = 0;
-        for (const auto &topic : topics) {
-            if (count >= 5) break;
-            QJsonObject topicObj = topic.toObject();
-            if (topicObj.contains("Text")) {
-                QString text = topicObj["Text"].toString();
-                if (!text.isEmpty()) {
-                    results << QString("- %1").arg(text);
-                    count++;
-                }
-            }
-        }
-    }
-
-    if (results.isEmpty()) {
-        qCDebug(log_ai_chat) << "web_search: no results found for query:" << query;
-        return "web_search: no results found";
-    }
-
-    QString result = results.join("\n");
-    qCDebug(log_ai_chat) << "web_search: returning" << result.length() << "characters of results";
-    if (result.length() > 4096) {
-        result = result.left(4096) + "\n[results truncated at 4096 chars]";
-    }
-
-    return result;
-}
-
-QString ChatToolExecution::webSearchWikipedia(const QString &query) const
-{
-    // Use Wikipedia API as fallback for when DuckDuckGo returns no results
-    // First, search for matching articles
-    QProcess process;
-    process.setProcessChannelMode(QProcess::MergedChannels);
-
-    QString encodedQuery = QUrl::toPercentEncoding(query);
-    QString searchUrl = QString("https://en.wikipedia.org/w/api.php?action=opensearch&search=%1&limit=3&format=json")
-                        .arg(encodedQuery);
-
-    qCDebug(log_ai_chat) << "web_search: searching Wikipedia with URL" << searchUrl;
-
-#ifdef Q_OS_WIN
-    process.start("cmd.exe", QStringList() << "/c" << "curl" << "-s" << searchUrl);
-#else
-    process.start("curl", QStringList() << "-s" << searchUrl);
-#endif
-
-    if (!process.waitForStarted(5000)) {
-        qCWarning(log_ai_chat) << "web_search: failed to start curl for Wikipedia:" << process.errorString();
-        return QString("web_search: failed to start curl - %1").arg(process.errorString());
-    }
-
-    if (!process.waitForFinished(15000)) {
-        process.kill();
-        qCWarning(log_ai_chat) << "web_search: Wikipedia request timed out";
-        return "web_search: request timed out after 15s";
-    }
-
-    QByteArray output = process.readAll();
-    int exitCode = process.exitCode();
-
-    if (exitCode != 0 || output.isEmpty()) {
-        qCWarning(log_ai_chat) << "web_search: Wikipedia search failed";
-        return "web_search: no results found";
-    }
-
-    // Parse the OpenSearch response: [query, [titles], [descriptions], [urls]]
-    QJsonDocument doc = QJsonDocument::fromJson(output);
-    if (doc.isNull() || !doc.isArray()) {
-        qCWarning(log_ai_chat) << "web_search: failed to parse Wikipedia search response";
-        return "web_search: no results found";
-    }
-
-    QJsonArray arr = doc.array();
-    if (arr.size() < 4) {
-        return "web_search: no results found";
-    }
-
-    QJsonArray titles = arr[1].toArray();
-    QJsonArray urls = arr[3].toArray();
-
-    if (titles.isEmpty()) {
-        qCDebug(log_ai_chat) << "web_search: no Wikipedia articles found for:" << query;
-        return "web_search: no results found";
-    }
-
-    // Get the summary for the first matching article
-    QString firstTitle = titles[0].toString();
-    QString encodedTitle = QUrl::toPercentEncoding(firstTitle);
-    QString summaryUrl = QString("https://en.wikipedia.org/api/rest_v1/page/summary/%1")
-                         .arg(encodedTitle);
-
-    qCDebug(log_ai_chat) << "web_search: fetching Wikipedia summary from" << summaryUrl;
-
-    QProcess summaryProcess;
-    summaryProcess.setProcessChannelMode(QProcess::MergedChannels);
-
-#ifdef Q_OS_WIN
-    summaryProcess.start("cmd.exe", QStringList() << "/c" << "curl" << "-s" << summaryUrl);
-#else
-    summaryProcess.start("curl", QStringList() << "-s" << summaryUrl);
-#endif
-
-    if (!summaryProcess.waitForStarted(5000)) {
-        return "web_search: no results found";
-    }
-
-    if (!summaryProcess.waitForFinished(15000)) {
-        summaryProcess.kill();
-        return "web_search: no results found";
-    }
-
-    QByteArray summaryOutput = summaryProcess.readAll();
-    QJsonDocument summaryDoc = QJsonDocument::fromJson(summaryOutput);
-
-    if (summaryDoc.isNull() || !summaryDoc.isObject()) {
-        return "web_search: no results found";
-    }
-
-    QJsonObject summaryObj = summaryDoc.object();
-    QString title = summaryObj["title"].toString();
-    QString extract = summaryObj["extract"].toString();
-
-    if (extract.isEmpty()) {
-        return "web_search: no results found";
-    }
-
-    // Build the result
-    QStringList results;
-    results << QString("From Wikipedia: %1").arg(title);
-    results << extract;
-
-    // Add URLs for additional articles if there are multiple matches
-    if (titles.size() > 1) {
-        results << "\nRelated articles:";
-        for (int i = 1; i < qMin(titles.size(), 4); ++i) {
-            results << QString("- %1: %2").arg(titles[i].toString(), urls[i].toString());
-        }
-    }
-
-    QString result = results.join("\n");
-    qCDebug(log_ai_chat) << "web_search: Wikipedia returning" << result.length() << "characters";
-    if (result.length() > 4096) {
-        result = result.left(4096) + "\n[results truncated at 4096 chars]";
-    }
-
-    return result;
-}
 
 // ============================================================================
 // Typing-duration estimate

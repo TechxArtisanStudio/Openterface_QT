@@ -23,6 +23,7 @@
 #include "mcpToolHandler.h"
 #include "mcpProtocol.h"
 #include "screenAnalyzer.h"
+#include "ai/SharedToolExecutor.h"
 #include "host/HostManager.h"
 #include "ui/globalsetting.h"
 #include "host/cameramanager.h"
@@ -49,6 +50,7 @@
 #include <QStandardPaths>
 #include <QEventLoop>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QThread>
 #include <QCoreApplication>
 #include "log/opflogging.h"
@@ -302,6 +304,44 @@ QJsonArray McpToolHandler::listTools() const
         tools.append(tool);
     }
 
+    // ---- Cursor Detection ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_DETECT_CURSOR;
+        tool["description"] = "Detect whether the target terminal is waiting for user input by combining three independent signals: (1) cursor blink detection via temporal frame differencing — captures 5 frames at 350ms intervals and looks for a small region toggling on/off at a fixed position, (2) screen stability — measures total change ratio across frames to distinguish idle from active output, and (3) shell prompt detection via OCR on the bottom line. Returns cursor position (pixel and MCP coordinates), confidence, individual signal details, and a status: 'idle' (terminal waiting for input), 'likely_idle' (screen stable but cursor blink or prompt not confirmed), 'outputting' (content still flowing), or 'unknown'. Best used after running a command to check if it has finished and the shell is ready for the next input.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["samples"] = QJsonObject{{"type", "integer"}, {"description", "Number of frames to capture (minimum 3). 5 frames gives 4 diffs across 1.4s — enough to catch slow blink rates (up to ~2s period). More = higher confidence but slower."}, {"default", 5}, {"minimum", 3}, {"maximum", 8}};
+        props["interval_ms"] = QJsonObject{{"type", "integer"}, {"description", "Milliseconds between frame captures. 350ms avoids synchronizing with typical blink periods (500ms, 1000ms, 1200ms)."}, {"default", 350}, {"minimum", 200}, {"maximum", 1000}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
+    // ---- Run Command and Wait ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_RUN_COMMAND_AND_WAIT;
+        tool["description"] = "Type a command in the terminal and wait until the terminal is idle (ready for next input). Combines keyboard_type_text + polling detect_cursor in a loop. Returns when terminal status is 'idle' or timeout is reached. Use this for long-running commands where you need to wait for completion before sending the next command.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["command"] = QJsonObject{{"type", "string"}, {"description", "Command text to type. A newline is appended automatically if not present."}};
+        props["max_wait_ms"] = QJsonObject{{"type", "integer"}, {"description", "Maximum time to wait for terminal to become idle (milliseconds)."}, {"default", 30000}, {"minimum", 5000}, {"maximum", 120000}};
+        props["poll_interval_ms"] = QJsonObject{{"type", "integer"}, {"description", "Time between detect_cursor polls (milliseconds)."}, {"default", 2000}, {"minimum", 500}, {"maximum", 10000}};
+        props["initial_delay_ms"] = QJsonObject{{"type", "integer"}, {"description", "Delay after typing command before first poll (lets output start)."}, {"default", 1500}, {"minimum", 0}, {"maximum", 10000}};
+        props["samples"] = QJsonObject{{"type", "integer"}, {"description", "Frames per detect_cursor call."}, {"default", 5}, {"minimum", 3}, {"maximum", 8}};
+        props["detect_interval_ms"] = QJsonObject{{"type", "integer"}, {"description", "Interval between frames in detect_cursor."}, {"default", 350}, {"minimum", 200}, {"maximum", 1000}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray{"command"};
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
     // ---- Script Execution ----
     {
         QJsonObject tool;
@@ -417,6 +457,8 @@ QJsonObject McpToolHandler::callTool(const QString& name, const QJsonObject& arg
     if (name == MCP_TOOL_SYSTEM_STATUS)              return toolSystemStatus(arguments);
     if (name == MCP_TOOL_USB_SWITCH)                 return toolUsbSwitch(arguments);
     if (name == MCP_TOOL_SCREEN_TO_MARKDOWN)         return toolScreenToMarkdown(arguments);
+    if (name == MCP_TOOL_DETECT_CURSOR)              return toolDetectCursor(arguments);
+    if (name == MCP_TOOL_RUN_COMMAND_AND_WAIT)       return toolRunCommandAndWait(arguments);
     if (name == MCP_TOOL_FIRMWARE_CHECK)             return toolFirmwareCheck(arguments);
     if (name == MCP_TOOL_FIRMWARE_UPDATE)            return toolFirmwareUpdate(arguments);
     if (name == MCP_TOOL_KEYMOD_SCAN)                return toolKeymodScan(arguments);
@@ -431,39 +473,24 @@ QJsonObject McpToolHandler::callTool(const QString& name, const QJsonObject& arg
 
 QJsonObject McpToolHandler::toolMouseMoveAbsolute(const QJsonObject& args)
 {
-    int x = args.value("x").toInt();
-    int y = args.value("y").toInt();
-
-    MouseManager& mm = HostManager::getInstance().getMouseManager();
-    mm.handleAbsoluteMouseAction(x, y, 0, 0);
-
-    // Add delay to allow CH32V208 to process the command
-    QThread::msleep(30);
-
+    QJsonObject result = SharedToolExecutor::instance().mouseMoveAbsolute(args);
+    if (result.contains("error")) {
+        return errorResult(result["error"].toString());
+    }
+    int x = result["x"].toInt();
+    int y = result["y"].toInt();
     return textResult(QString("Mouse moved to absolute position (%1, %2)").arg(x).arg(y));
 }
 
 QJsonObject McpToolHandler::toolMouseClick(const QJsonObject& args)
 {
-    int x = args.value("x").toInt();
-    int y = args.value("y").toInt();
-    int button = parseMouseButton(args.value("button").toString("left"));
-    int count = args.value("count").toInt(1);
-
-    MouseManager& mm = HostManager::getInstance().getMouseManager();
-
-    for (int i = 0; i < count; ++i) {
-        // Press
-        mm.handleAbsoluteMouseAction(x, y, button, 0);
-        QThread::msleep(50);
-        // Release
-        mm.handleAbsoluteMouseAction(x, y, 0, 0);
-        if (i < count - 1) {
-            QThread::msleep(80);  // Delay between clicks
-        }
+    QJsonObject result = SharedToolExecutor::instance().mouseClick(args);
+    if (result.contains("error")) {
+        return errorResult(result["error"].toString());
     }
-
-    QString btnStr = args.value("button").toString("left");
+    int count = result["count"].toInt();
+    int x = result["x"].toInt();
+    int y = result["y"].toInt();
     return textResult(QString("Mouse %1-click at (%2, %3)").arg(count).arg(x).arg(y));
 }
 
@@ -653,49 +680,12 @@ QJsonObject McpToolHandler::toolKeyboardTypeText(const QJsonObject& args)
         debugLog.close();
     }
 
-    HostManager& hm = HostManager::getInstance();
-
-    // Characters that require Shift modifier when typed
-    static const QString shiftChars = "!@#$%^&*()_+{}|:\"<>?~";
-
-    // Process each character individually with proper press/release
-    // This bypasses the QTimer-based batching in pasteTextToTarget which can be unreliable
-    for (QChar ch : text) {
-        int keyCode = ch.unicode();
-        int modifiers = 0;
-
-        // Map special characters to Qt key codes
-        if (ch == '\n' || ch == '\r') {
-            keyCode = Qt::Key_Return;
-        } else if (ch == '\t') {
-            keyCode = Qt::Key_Tab;
-        } else if (ch >= 'a' && ch <= 'z') {
-            // Convert lowercase ASCII to Qt::Key_A through Qt::Key_Z (which are 0x41-0x5A)
-            keyCode = Qt::Key_A + (ch.toLower().unicode() - 'a');
-        } else if (ch >= 'A' && ch <= 'Z') {
-            // Convert uppercase ASCII to Qt::Key_A through Qt::Key_Z (which are 0x41-0x5A)
-            keyCode = Qt::Key_A + (ch.toUpper().unicode() - 'A');
-            modifiers = Qt::ShiftModifier;  // Uppercase needs Shift
-        } else if (shiftChars.contains(ch)) {
-            // Symbols that need Shift
-            modifiers = Qt::ShiftModifier;
-        }
-
-        // Press key
-        hm.handleKeyboardAction(keyCode, modifiers, true);
-        QCoreApplication::processEvents();
-        QThread::msleep(50);
-
-        // Release key
-        hm.handleKeyboardAction(keyCode, modifiers, false);
-        QCoreApplication::processEvents();
-        QThread::msleep(50);
+    QJsonObject result = SharedToolExecutor::instance().typeTextCommand(args);
+    if (result.contains("error")) {
+        return errorResult(result["error"].toString());
     }
-
-    // Final delay after typing complete to ensure last character is processed
-    QThread::msleep(100);
-
-    return textResult(QString("Typed text (%1 chars): %2").arg(text.length()).arg(text));
+    int chars = result["chars_typed"].toInt();
+    return textResult(QString("Typed text (%1 chars): %2").arg(chars).arg(text));
 }
 
 QJsonObject McpToolHandler::toolKeyboardSendKeys(const QJsonObject& args)
@@ -791,15 +781,11 @@ QJsonObject McpToolHandler::toolKeyboardSetLayout(const QJsonObject& args)
 
 QJsonObject McpToolHandler::toolCaptureScreen(const QJsonObject& args)
 {
-    if (!m_cameraManager) {
-        return errorResult("CameraManager not initialized");
-    }
-
     int quality = args.value("quality").toInt(90);
     quality = qBound(1, quality, 100);
 
-    // Get the current frame
-    QImage frame = m_cameraManager->getLatestOriginalFrame();
+    // Get the current frame via shared executor
+    QImage frame = SharedToolExecutor::instance().captureFrame();
     if (frame.isNull()) {
         return errorResult("No frame available from camera");
     }
@@ -1077,45 +1063,37 @@ QJsonObject McpToolHandler::toolScreenToMarkdown(const QJsonObject& args)
         return errorResult("Screen to Markdown feature is disabled. Enable it in Preferences -> MCP Server.");
     }
 
-    if (!m_cameraManager) {
-        return errorResult("CameraManager not initialized");
+    QJsonObject result = SharedToolExecutor::instance().screenToMarkdown(args);
+    if (result.contains("error")) {
+        return errorResult(result["error"].toString());
     }
+    return textResult(result["markdown"].toString());
+}
 
-    if (!m_screenAnalyzer) {
-        return errorResult("ScreenAnalyzer not initialized");
+// ==========================================================================
+// Cursor Detection Tool
+// ==========================================================================
+
+QJsonObject McpToolHandler::toolDetectCursor(const QJsonObject& args)
+{
+    QJsonObject result = SharedToolExecutor::instance().detectCursor(args);
+    if (result.contains("error")) {
+        return errorResult(result["error"].toString());
     }
+    return textResult(QJsonDocument(result).toJson(QJsonDocument::Compact));
+}
 
-    if (!m_screenAnalyzer->isAvailable()) {
-        return errorResult("OCR engine not available. Tesseract may not be installed.");
+// ==========================================================================
+// Run Command and Wait Implementation
+// ==========================================================================
+
+QJsonObject McpToolHandler::toolRunCommandAndWait(const QJsonObject& args)
+{
+    QJsonObject result = SharedToolExecutor::instance().runCommandAndWait(args);
+    if (result.contains("error")) {
+        return errorResult(result["error"].toString());
     }
-
-    // Get detail level parameter
-    QString detailLevel = args.value("detail_level").toString("detailed");
-    if (detailLevel != "basic" && detailLevel != "detailed") {
-        detailLevel = "detailed";
-    }
-
-    // Get analysis mode. Terminal mode reads the screen as lines of text and
-    // OCRs only the region that changed since the previous call, which suits
-    // a scrolling console far better than the general UI-element pass.
-    const QString modeStr = args.value("mode").toString("general").toLower();
-    const AnalysisMode mode = (modeStr == "terminal") ? AnalysisMode::Terminal
-                                                      : AnalysisMode::General;
-
-    // Get the current frame
-    QImage frame = m_cameraManager->getLatestOriginalFrame();
-    if (frame.isNull()) {
-        return errorResult("No frame available from camera");
-    }
-
-    qCInfo(log_server_mcp_tool) << "Analyzing screen with detail level:" << detailLevel
-                                << "mode:" << modeStr;
-
-    // Analyze the screen
-    ScreenAnalysis analysis = m_screenAnalyzer->analyzeScreen(frame, detailLevel, mode);
-
-    // Return the Markdown output
-    return textResult(analysis.markdownOutput);
+    return textResult(QJsonDocument(result).toJson(QJsonDocument::Compact));
 }
 
 // ==========================================================================

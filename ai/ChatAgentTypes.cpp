@@ -1,6 +1,7 @@
 #include "ChatAgentTypes.h"
 #include "ChatInputRouter.h"
 #include "ChatToolExecution.h"
+#include "WebSearchManager.h"
 #include "ui/globalsetting.h"
 #include "log/opflogging.h"
 #include <QJsonDocument>
@@ -59,7 +60,9 @@ QList<ChatApiMessage> MainPlannerAgent::buildPlanningConversation(
         "mouse/move_mouse, mouse/left_click, mouse/left_drag, "
         "mouse/right_click, mouse/double_click, system/run_bash, "
         "system/set_target_system, system/web_search, "
-        "recording/start_recording, recording/stop_recording."));
+        "recording/start_recording, recording/stop_recording, "
+        "terminal/detect_cursor (detect if terminal is idle), "
+        "terminal/run_command_and_wait (type command and wait for completion)."));
 
     if (!plannerPrompt.trimmed().isEmpty()) {
         conversation.append(ChatApiMessage::textMessage(ChatRole::System, plannerPrompt));
@@ -608,7 +611,7 @@ void WebSearchTaskAgent::applyResponse(const QString &response, ChatTask &task)
     QString query = obj["query"].toString().trimmed();
 
     if (status == "completed" && !query.isEmpty()) {
-        QString result = ChatToolExecution::instance().webSearch(query);
+        QString result = WebSearchManager::instance().search(query);
         task.status = ChatTaskStatus::Completed;
         QString summary = obj["result_summary"].toString().trimmed();
         task.resultSummary = summary.isEmpty()

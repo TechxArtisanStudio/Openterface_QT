@@ -267,6 +267,14 @@ public:
     QMap<QString, bool> getChatAllToolsEnabled() const;
     void setChatAllToolsEnabled(const QMap<QString, bool> &tools);
 
+    // AI Chat Web Search provider settings
+    void setChatWebSearchProviders(const QStringList &providerIds);
+    QStringList getChatWebSearchProviders() const;
+    void setChatExaApiKey(const QString &key);
+    QString getChatExaApiKey() const;
+    void setChatParallelApiKey(const QString &key);
+    QString getChatParallelApiKey() const;
+
 signals:
     /// Emitted when the target OS for the AI agent changes (e.g. via the chat
     /// header button or the set_target_system tool). Listeners can refresh any

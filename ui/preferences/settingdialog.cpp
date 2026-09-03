@@ -30,6 +30,7 @@
 #include "mcppage.h"
 #include "edidconfigpage.h"
 #include "../customkey/virtualkeyboardpage.h"
+#include "../chat/ToolsSettingsPage.h"
 #include "host/cameramanager.h"
 
 #include <QCamera>
@@ -77,12 +78,14 @@ SettingDialog::SettingDialog(CameraManager *cameraManager, QWidget *parent)
     , edidConfigPage(new EdidConfigPage(this))
     , virtualKeyboardPage(new VirtualKeyboardPage(this))
     , chatSettingsPage(new ChatSettingsPage(this))
+    , toolsSettingsPage(new ToolsSettingsPage(this))
     , m_currentPageIndex(-1)
 
 {
     // Initialize the list of settings pages for dirty-checking
     m_pages << logPage << videoPage << qobject_cast<PreferencePageBase*>(audioPage)
             << targetControlPage << mcpPage
+            << qobject_cast<PreferencePageBase*>(toolsSettingsPage)
             << qobject_cast<PreferencePageBase*>(chatSettingsPage);
 
     ui->setupUi(this);
@@ -132,25 +135,45 @@ void SettingDialog::createSettingTree() {
     settingTree->setHeaderHidden(true);
     settingTree->setSelectionMode(QAbstractItemView::SingleSelection);
 
-    settingTree->setRootIsDecorated(false);
+    // Allow expanding/collapsing of parent items
+    settingTree->setRootIsDecorated(true);
 
-    // QStringList names = {"Log"};
-    QStringList names = {
+    // Top-level items (flat structure)
+    QStringList topLevelNames = {
         tr("General"),              // 0
         tr("Video"),                // 1
         tr("Audio"),                // 2
         tr("Target Control"),       // 3
-        tr("MCP"),                  // 4
-        tr("Video Firmware"),       // 5
-        tr("Control Chip Firmware"),// 6
-        tr("EDID Configuration"),   // 7
-        tr("Virtual Keyboard"),     // 8
-        tr("AI Chat")              // 9
+        tr("Video Firmware"),       // 4
+        tr("Control Chip Firmware"),// 5
+        tr("EDID Configuration"),   // 6
+        tr("Virtual Keyboard"),     // 7
     };
-    for (const QString &name : names) {     // add item to setting tree
+
+    for (const QString &name : topLevelNames) {
         QTreeWidgetItem *item = new QTreeWidgetItem(settingTree);
         item->setText(0, name);
     }
+
+    // AI category with sub-items (hierarchical structure)
+    QTreeWidgetItem *aiParent = new QTreeWidgetItem(settingTree);
+    aiParent->setText(0, tr("AI"));
+    aiParent->setFlags(aiParent->flags() | Qt::ItemIsAutoTristate);
+
+    // AI sub-items
+    QStringList aiSubItems = {
+        tr("MCP"),      // 8
+        tr("Tools"),    // 9
+        tr("Chat")      // 10
+    };
+
+    for (const QString &name : aiSubItems) {
+        QTreeWidgetItem *child = new QTreeWidgetItem(aiParent);
+        child->setText(0, name);
+    }
+
+    // Expand the AI category by default
+    aiParent->setExpanded(true);
 }
 
 void SettingDialog::createPages() {
@@ -168,11 +191,12 @@ void SettingDialog::createPages() {
     addScrollablePage(videoPage);
     addScrollablePage(audioPage);
     addScrollablePage(targetControlPage);
-    addScrollablePage(mcpPage);
     addScrollablePage(firmwarePage);
     addScrollablePage(controlChipFirmwarePage);
     addScrollablePage(edidConfigPage);
     addScrollablePage(virtualKeyboardPage);
+    addScrollablePage(mcpPage);
+    addScrollablePage(toolsSettingsPage);
     addScrollablePage(chatSettingsPage);
 }
 
@@ -195,20 +219,31 @@ void SettingDialog::changePage(QTreeWidgetItem *current, QTreeWidgetItem *previo
         current = previous;
         if (!current) return;
     }
-    
+
     QString itemText = current->text(0);
     int newPageIndex = -1;
 
+    // Top-level items
     if (itemText == tr("General")) newPageIndex = 0;
     else if (itemText == tr("Video")) newPageIndex = 1;
     else if (itemText == tr("Audio")) newPageIndex = 2;
     else if (itemText == tr("Target Control")) newPageIndex = 3;
-    else if (itemText == tr("MCP")) newPageIndex = 4;
-    else if (itemText == tr("Video Firmware")) newPageIndex = 5;
-    else if (itemText == tr("Control Chip Firmware")) newPageIndex = 6;
-    else if (itemText == tr("EDID Configuration")) newPageIndex = 7;
-    else if (itemText == tr("Virtual Keyboard")) newPageIndex = 8;
-    else if (itemText == tr("AI Chat")) newPageIndex = 9;
+    else if (itemText == tr("Video Firmware")) newPageIndex = 4;
+    else if (itemText == tr("Control Chip Firmware")) newPageIndex = 5;
+    else if (itemText == tr("EDID Configuration")) newPageIndex = 6;
+    else if (itemText == tr("Virtual Keyboard")) newPageIndex = 7;
+    // AI sub-items
+    else if (itemText == tr("MCP")) newPageIndex = 8;
+    else if (itemText == tr("Tools")) newPageIndex = 9;
+    else if (itemText == tr("Chat")) newPageIndex = 10;
+    else if (itemText == tr("AI")) {
+        // If user clicks on the parent "AI" item, select the first child (MCP)
+        QTreeWidgetItem *firstChild = current->child(0);
+        if (firstChild) {
+            settingTree->setCurrentItem(firstChild);
+            return;
+        }
+    }
 
     // Only switch page if it is different from the current page
     if (newPageIndex != -1 && newPageIndex != m_currentPageIndex) {
@@ -257,11 +292,20 @@ VirtualKeyboardPage* SettingDialog::getVirtualKeyboardPage() {
 }
 
 void SettingDialog::selectPage(const QString& pageName) {
+    // Search in top-level items
     for (int i = 0; i < settingTree->topLevelItemCount(); ++i) {
         QTreeWidgetItem *item = settingTree->topLevelItem(i);
         if (item->text(0) == pageName) {
             settingTree->setCurrentItem(item);
             return;
+        }
+        // Search in child items
+        for (int j = 0; j < item->childCount(); ++j) {
+            QTreeWidgetItem *child = item->child(j);
+            if (child->text(0) == pageName) {
+                settingTree->setCurrentItem(child);
+                return;
+            }
         }
     }
 }
@@ -277,9 +321,21 @@ bool SettingDialog::hasUnsavedChanges() const
 QStringList SettingDialog::dirtyPageNames() const
 {
     QStringList names;
-    for (int i = 0; i < settingTree->topLevelItemCount() && i < m_pages.size(); ++i) {
+    // Map m_pages indices to names (m_pages only contains PreferencePageBase pages)
+    // m_pages order: logPage, videoPage, audioPage, targetControlPage, mcpPage, toolsSettingsPage, chatSettingsPage
+    QStringList pageNames = {
+        tr("General"),              // 0: logPage
+        tr("Video"),                // 1: videoPage
+        tr("Audio"),                // 2: audioPage
+        tr("Target Control"),       // 3: targetControlPage
+        tr("MCP"),                  // 4: mcpPage
+        tr("Tools"),                // 5: toolsSettingsPage
+        tr("Chat")                  // 6: chatSettingsPage
+    };
+
+    for (int i = 0; i < m_pages.size() && i < pageNames.size(); ++i) {
         if (m_pages[i] && m_pages[i]->isDirty()) {
-            names << settingTree->topLevelItem(i)->text(0);
+            names << pageNames[i];
         }
     }
     return names;

@@ -415,6 +415,24 @@ QString ChatConversationBuilder::buildAvailableToolsString() const
                  "Args: query (string — the search query)";
     }
 
+    // Terminal detection tools
+    if (settings.getChatToolEnabled("detect_cursor")) {
+        tools << "- detect_cursor: Detect whether the TARGET terminal is waiting for user input by combining "
+                 "three signals: cursor blink detection (temporal frame differencing), screen stability, and "
+                 "shell prompt OCR. Returns status: 'idle' (terminal ready), 'likely_idle' (probably ready), "
+                 "'outputting' (content still flowing), or 'unknown'. Use after running a command to check if "
+                 "the terminal is ready for the next command. "
+                 "Args: samples (optional, default 5, range 3-8), interval_ms (optional, default 350, range 200-1000).";
+    }
+    if (settings.getChatToolEnabled("run_command_and_wait")) {
+        tools << "- run_command_and_wait: Type a command on the TARGET terminal and wait until the terminal "
+                 "is idle (ready for next input). Combines type_text + enter + polling detect_cursor. Returns "
+                 "when terminal status is 'idle' or timeout is reached. Use this for long-running commands where "
+                 "you need to wait for completion before sending the next command. "
+                 "Args: command (string, required — newline appended automatically), max_wait_ms (optional, default 30000), "
+                 "poll_interval_ms (optional, default 2000), initial_delay_ms (optional, default 1500).";
+    }
+
     if (tools.isEmpty()) {
         return "(No tools enabled)";
     }

@@ -29,7 +29,6 @@
 #include <QButtonGroup>
 #include <QScrollArea>
 #include <QTabWidget>
-#include <QHeaderView>
 
 ChatSettingsPage::ChatSettingsPage(QWidget *parent)
     : PreferencePageBase(parent)
@@ -179,44 +178,6 @@ void ChatSettingsPage::setupUI()
 
     contentLayout->addWidget(modeGroup);
 
-    // ---- Tools Configuration Group (Tree View) ----
-    auto *toolsGroup = new QGroupBox(tr("Tools Configuration"));
-    auto *toolsLayout = new QVBoxLayout(toolsGroup);
-
-    auto *toolsInfoLabel = new QLabel(tr("Enable or disable specific AI tools. Disabled tools will not be available to the AI agent."));
-    toolsInfoLabel->setWordWrap(true);
-    toolsInfoLabel->setStyleSheet("color: gray; font-size: 10px;");
-    toolsLayout->addWidget(toolsInfoLabel);
-
-    // Master Select All checkbox
-    m_selectAllToolsCheck = new QCheckBox(tr("Select All"));
-    m_selectAllToolsCheck->setChecked(true);
-    m_selectAllToolsCheck->setStyleSheet("font-weight: bold;");
-    toolsLayout->addWidget(m_selectAllToolsCheck);
-
-    // Tools tree view
-    m_toolsTreeView = new QTreeView();
-    m_toolsTreeView->setRootIsDecorated(true);
-    m_toolsTreeView->setAlternatingRowColors(false);
-    m_toolsTreeView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    m_toolsTreeView->setIndentation(20);
-    m_toolsTreeView->setMaximumHeight(280);
-
-    m_toolsModel = new QStandardItemModel(this);
-    m_toolsModel->setColumnCount(2);
-    m_toolsModel->setHorizontalHeaderLabels({tr("Tool"), tr("Description")});
-
-    m_toolsTreeView->setModel(m_toolsModel);
-    m_toolsTreeView->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    m_toolsTreeView->header()->setStretchLastSection(true);
-
-    // Populate the tree
-    populateToolsTree();
-
-    toolsLayout->addWidget(m_toolsTreeView);
-
-    contentLayout->addWidget(toolsGroup);
-
     // ---- Prompts Group (with tabs) ----
     auto *promptsGroup = new QGroupBox(tr("Prompts"));
     auto *promptsLayout = new QVBoxLayout(promptsGroup);
@@ -277,269 +238,12 @@ void ChatSettingsPage::setupUI()
     connect(m_agenticModeRadio, &QRadioButton::toggled, this, [this]{ checkDirtyState(); });
     connect(m_plannerModeRadio, &QRadioButton::toggled, this, [this]{ checkDirtyState(); });
     connect(m_guideModeRadio, &QRadioButton::toggled, this, [this]{ checkDirtyState(); });
-    // Tool checkboxes - tree view
-    connect(m_selectAllToolsCheck, &QCheckBox::toggled, this, [this](bool checked) {
-        // Propagate to all items in the tree
-        Qt::CheckState state = checked ? Qt::Checked : Qt::Unchecked;
-        for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
-            QStandardItem *group = m_toolsModel->item(g);
-            if (group && group->isCheckable()) {
-                group->setCheckState(state);
-            }
-            for (int c = 0; c < group->rowCount(); ++c) {
-                QStandardItem *child = group->child(c, 0);
-                if (child && child->isCheckable()) {
-                    child->setCheckState(state);
-                }
-            }
-        }
-        checkDirtyState();
-    });
 
-    // Model changed signal - handle group checkbox propagation
-    static bool propagating = false;
-    connect(m_toolsModel, &QStandardItemModel::itemChanged, this, [this](QStandardItem* item){
-        if (propagating) return;
-
-        // If changed item is a group (has children), propagate check state to all children
-        if (item && item->rowCount() > 0 && item->isCheckable()) {
-            Qt::CheckState groupState = item->checkState();
-
-            // Check if all children already match this state
-            bool allMatch = true;
-            bool anyChecked = false;
-            for (int c = 0; c < item->rowCount(); ++c) {
-                QStandardItem* child = item->child(c, 0);
-                if (child && child->isCheckable()) {
-                    if (child->checkState() != groupState) allMatch = false;
-                    if (child->checkState() == Qt::Checked) anyChecked = true;
-                }
-            }
-
-            // Determine desired state
-            Qt::CheckState desiredState;
-            if (allMatch) {
-                desiredState = (groupState == Qt::Checked) ? Qt::Unchecked : Qt::Checked;
-            } else if (groupState == Qt::PartiallyChecked) {
-                desiredState = anyChecked ? Qt::Checked : Qt::Unchecked;
-            } else {
-                desiredState = groupState;
-            }
-
-            // Guard against recursive signals while updating children
-            propagating = true;
-            item->setCheckState(desiredState);
-            for (int c = 0; c < item->rowCount(); ++c) {
-                QStandardItem* child = item->child(c, 0);
-                if (child && child->isCheckable()) {
-                    child->setCheckState(desiredState);
-                }
-            }
-            propagating = false;
-        }
-
-        // Sync selectAll checkbox
-        bool allChecked = true;
-        for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
-            QStandardItem* grp = m_toolsModel->item(g);
-            for (int c = 0; c < grp->rowCount(); ++c) {
-                QStandardItem* child = grp->child(c, 0);
-                if (child && child->isCheckable() && child->checkState() != Qt::Checked) {
-                    allChecked = false;
-                    break;
-                }
-            }
-            if (!allChecked) break;
-        }
-        m_selectAllToolsCheck->blockSignals(true);
-        m_selectAllToolsCheck->setChecked(allChecked);
-        m_selectAllToolsCheck->blockSignals(false);
-
-        checkDirtyState();
-    });
     connect(m_systemPromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
     connect(m_plannerPromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
     connect(m_screenTaskPromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
     connect(m_typingTaskPromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
     connect(m_guidePromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
-}
-
-void ChatSettingsPage::populateToolsTree()
-{
-    m_toolsModel->removeRows(0, m_toolsModel->rowCount());
-
-    // Screen tools group
-    QStandardItem *screenGroup = new QStandardItem(tr("Screen Tools"));
-    screenGroup->setCheckable(true);
-    screenGroup->setCheckState(Qt::Checked);
-    screenGroup->setEditable(false);
-    QFont f = screenGroup->font();
-    f.setBold(true);
-    screenGroup->setFont(f);
-
-    QStandardItem *screenCapture = new QStandardItem(tr("Screen Capture"));
-    screenCapture->setCheckable(true);
-    screenCapture->setCheckState(Qt::Checked);
-    screenCapture->setEditable(false);
-    screenCapture->setData("capture_screen", Qt::UserRole + 1);
-    screenCapture->setToolTip(tr("Take screenshots of the target screen"));
-
-    QStandardItem *screenCaptureDesc = new QStandardItem(tr("capture_screen"));
-    screenCaptureDesc->setEditable(false);
-    screenCaptureDesc->setForeground(QColor(128, 128, 128));
-
-    QStandardItem *screenToMarkdown = new QStandardItem(tr("Screen to Markdown (OCR)"));
-    screenToMarkdown->setCheckable(true);
-    screenToMarkdown->setCheckState(Qt::Checked);
-    screenToMarkdown->setEditable(false);
-    screenToMarkdown->setData("screen_to_markdown", Qt::UserRole + 1);
-    screenToMarkdown->setToolTip(tr("Extract text from screen using OCR"));
-
-    QStandardItem *screenToMarkdownDesc = new QStandardItem(tr("screen_to_markdown"));
-    screenToMarkdownDesc->setEditable(false);
-    screenToMarkdownDesc->setForeground(QColor(128, 128, 128));
-
-    screenGroup->appendRow({screenCapture, screenCaptureDesc});
-    screenGroup->appendRow({screenToMarkdown, screenToMarkdownDesc});
-    m_toolsModel->appendRow(screenGroup);
-
-    // Mouse tools group
-    QStandardItem *mouseGroup = new QStandardItem(tr("Mouse Tools"));
-    mouseGroup->setCheckable(true);
-    mouseGroup->setCheckState(Qt::Checked);
-    mouseGroup->setEditable(false);
-    mouseGroup->setFont(f);
-
-    auto addMouseTool = [&](const QString &name, const QString &toolId, const QString &desc) {
-        QStandardItem *item = new QStandardItem(name);
-        item->setCheckable(true);
-        item->setCheckState(Qt::Checked);
-        item->setEditable(false);
-        item->setData(toolId, Qt::UserRole + 1);
-        item->setToolTip(desc);
-
-        QStandardItem *descItem = new QStandardItem(toolId);
-        descItem->setEditable(false);
-        descItem->setForeground(QColor(128, 128, 128));
-
-        mouseGroup->appendRow({item, descItem});
-    };
-
-    addMouseTool(tr("Move Mouse"), "move_mouse", tr("Move mouse cursor on target"));
-    addMouseTool(tr("Left Click"), "left_click", tr("Perform left click on target"));
-    addMouseTool(tr("Right Click"), "right_click", tr("Perform right click on target"));
-    addMouseTool(tr("Double Click"), "double_click", tr("Perform double click on target"));
-    addMouseTool(tr("Left Drag"), "left_drag", tr("Perform drag operation on target"));
-
-    m_toolsModel->appendRow(mouseGroup);
-
-    // Keyboard tools group
-    QStandardItem *keyboardGroup = new QStandardItem(tr("Keyboard Tools"));
-    keyboardGroup->setCheckable(true);
-    keyboardGroup->setCheckState(Qt::Checked);
-    keyboardGroup->setEditable(false);
-    keyboardGroup->setFont(f);
-
-    auto addKeyboardTool = [&](const QString &name, const QString &toolId, const QString &desc) {
-        QStandardItem *item = new QStandardItem(name);
-        item->setCheckable(true);
-        item->setCheckState(Qt::Checked);
-        item->setEditable(false);
-        item->setData(toolId, Qt::UserRole + 1);
-        item->setToolTip(desc);
-
-        QStandardItem *descItem = new QStandardItem(toolId);
-        descItem->setEditable(false);
-        descItem->setForeground(QColor(128, 128, 128));
-
-        keyboardGroup->appendRow({item, descItem});
-    };
-
-    addKeyboardTool(tr("Type Text"), "type_text", tr("Type text on target keyboard"));
-    addKeyboardTool(tr("Press Key"), "press_key", tr("Press key combinations on target"));
-    addKeyboardTool(tr("Repeat Key"), "repeat_key", tr("Press a key repeatedly (e.g., for BIOS entry)"));
-
-    m_toolsModel->appendRow(keyboardGroup);
-
-    // Recording tools group
-    QStandardItem *recordingGroup = new QStandardItem(tr("Recording Tools"));
-    recordingGroup->setCheckable(true);
-    recordingGroup->setCheckState(Qt::Checked);
-    recordingGroup->setEditable(false);
-    recordingGroup->setFont(f);
-
-    QStandardItem *startRecording = new QStandardItem(tr("Start Recording"));
-    startRecording->setCheckable(true);
-    startRecording->setCheckState(Qt::Checked);
-    startRecording->setEditable(false);
-    startRecording->setData("start_recording", Qt::UserRole + 1);
-    startRecording->setToolTip(tr("Start screen recording"));
-
-    QStandardItem *startRecordingDesc = new QStandardItem("start_recording");
-    startRecordingDesc->setEditable(false);
-    startRecordingDesc->setForeground(QColor(128, 128, 128));
-
-    QStandardItem *stopRecording = new QStandardItem(tr("Stop Recording"));
-    stopRecording->setCheckable(true);
-    stopRecording->setCheckState(Qt::Checked);
-    stopRecording->setEditable(false);
-    stopRecording->setData("stop_recording", Qt::UserRole + 1);
-    stopRecording->setToolTip(tr("Stop screen recording"));
-
-    QStandardItem *stopRecordingDesc = new QStandardItem("stop_recording");
-    stopRecordingDesc->setEditable(false);
-    stopRecordingDesc->setForeground(QColor(128, 128, 128));
-
-    recordingGroup->appendRow({startRecording, startRecordingDesc});
-    recordingGroup->appendRow({stopRecording, stopRecordingDesc});
-    m_toolsModel->appendRow(recordingGroup);
-
-    // System/Host tools group
-    QStandardItem *systemGroup = new QStandardItem(tr("System/Host Tools"));
-    systemGroup->setCheckable(true);
-    systemGroup->setCheckState(Qt::Checked);
-    systemGroup->setEditable(false);
-    systemGroup->setFont(f);
-
-    QStandardItem *setTargetSystem = new QStandardItem(tr("Set Target System"));
-    setTargetSystem->setCheckable(true);
-    setTargetSystem->setCheckState(Qt::Checked);
-    setTargetSystem->setEditable(false);
-    setTargetSystem->setData("set_target_system", Qt::UserRole + 1);
-    setTargetSystem->setToolTip(tr("Change target OS/environment setting"));
-
-    QStandardItem *setTargetSystemDesc = new QStandardItem("set_target_system");
-    setTargetSystemDesc->setEditable(false);
-    setTargetSystemDesc->setForeground(QColor(128, 128, 128));
-
-    QStandardItem *runBash = new QStandardItem(tr("Run Bash (Host)"));
-    runBash->setCheckable(true);
-    runBash->setCheckState(Qt::Checked);
-    runBash->setEditable(false);
-    runBash->setData("run_bash", Qt::UserRole + 1);
-    runBash->setToolTip(tr("Run commands on the host machine (not target)"));
-
-    QStandardItem *runBashDesc = new QStandardItem("run_bash");
-    runBashDesc->setEditable(false);
-    runBashDesc->setForeground(QColor(128, 128, 128));
-
-    QStandardItem *webSearch = new QStandardItem(tr("Web Search"));
-    webSearch->setCheckable(true);
-    webSearch->setCheckState(Qt::Checked);
-    webSearch->setEditable(false);
-    webSearch->setData("web_search", Qt::UserRole + 1);
-    webSearch->setToolTip(tr("Search the internet for information"));
-
-    QStandardItem *webSearchDesc = new QStandardItem("web_search");
-    webSearchDesc->setEditable(false);
-    webSearchDesc->setForeground(QColor(128, 128, 128));
-
-    systemGroup->appendRow({setTargetSystem, setTargetSystemDesc});
-    systemGroup->appendRow({runBash, runBashDesc});
-    systemGroup->appendRow({webSearch, webSearchDesc});
-    m_toolsModel->appendRow(systemGroup);
-
-    m_toolsTreeView->expandAll();
 }
 
 void ChatSettingsPage::initChatSettings()
@@ -580,52 +284,6 @@ void ChatSettingsPage::initChatSettings()
         m_agenticModeRadio->setChecked(true);  // Default to Agent mode
     }
 
-    // Tools configuration - load from settings into tree
-    auto &settings2 = GlobalSetting::instance();
-    for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
-        QStandardItem *group = m_toolsModel->item(g);
-        for (int c = 0; c < group->rowCount(); ++c) {
-            QStandardItem *toolItem = group->child(c, 0);
-            QString toolId = toolItem->data(Qt::UserRole + 1).toString();
-            bool enabled = settings2.getChatToolEnabled(toolId);
-            toolItem->setCheckState(enabled ? Qt::Checked : Qt::Unchecked);
-        }
-    }
-
-    // Update group check states based on children
-    for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
-        QStandardItem *group = m_toolsModel->item(g);
-        bool allChecked = true;
-        bool anyChecked = false;
-        for (int c = 0; c < group->rowCount(); ++c) {
-            QStandardItem *child = group->child(c, 0);
-            if (child && child->isCheckable()) {
-                if (child->checkState() == Qt::Checked) anyChecked = true;
-                else allChecked = false;
-            }
-        }
-        if (allChecked) group->setCheckState(Qt::Checked);
-        else if (anyChecked) group->setCheckState(Qt::PartiallyChecked);
-        else group->setCheckState(Qt::Unchecked);
-    }
-
-    // Update select all checkbox
-    bool allToolsChecked = true;
-    for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
-        QStandardItem *group = m_toolsModel->item(g);
-        for (int c = 0; c < group->rowCount(); ++c) {
-            QStandardItem *child = group->child(c, 0);
-            if (child && child->isCheckable() && child->checkState() != Qt::Checked) {
-                allToolsChecked = false;
-                break;
-            }
-        }
-        if (!allToolsChecked) break;
-    }
-    m_selectAllToolsCheck->blockSignals(true);
-    m_selectAllToolsCheck->setChecked(allToolsChecked);
-    m_selectAllToolsCheck->blockSignals(false);
-
     // Prompts
     m_systemPromptEdit->setPlainText(settings.getChatSystemPrompt());
     m_plannerPromptEdit->setPlainText(settings.getChatPlannerPrompt());
@@ -665,17 +323,6 @@ void ChatSettingsPage::applySettings()
     settings.setChatPlannerModeEnabled(m_plannerModeRadio->isChecked());
     settings.setChatGuideModeEnabled(m_guideModeRadio->isChecked());
 
-    // Tools configuration - save from tree to settings
-    for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
-        QStandardItem *group = m_toolsModel->item(g);
-        for (int c = 0; c < group->rowCount(); ++c) {
-            QStandardItem *toolItem = group->child(c, 0);
-            QString toolId = toolItem->data(Qt::UserRole + 1).toString();
-            bool enabled = toolItem->checkState() == Qt::Checked;
-            settings.setChatToolEnabled(toolId, enabled);
-        }
-    }
-
     // Prompts
     settings.setChatSystemPrompt(m_systemPromptEdit->toPlainText());
     settings.setChatPlannerPrompt(m_plannerPromptEdit->toPlainText());
@@ -707,47 +354,6 @@ void ChatSettingsPage::captureSnapshot()
     m_snap_screenTaskPrompt = m_screenTaskPromptEdit->toPlainText();
     m_snap_typingTaskPrompt = m_typingTaskPromptEdit->toPlainText();
     m_snap_guidePrompt = m_guidePromptEdit->toPlainText();
-    // Tool snapshots - read from tree
-    m_snap_screenCapture = false;
-    m_snap_screenToMarkdown = false;
-    m_snap_moveMouse = false;
-    m_snap_leftClick = false;
-    m_snap_rightClick = false;
-    m_snap_doubleClick = false;
-    m_snap_leftDrag = false;
-    m_snap_typeText = false;
-    m_snap_pressKey = false;
-    m_snap_repeatKey = false;
-    m_snap_startRecording = false;
-    m_snap_stopRecording = false;
-    m_snap_setTargetSystem = false;
-    m_snap_runBash = false;
-    m_snap_webSearch = false;
-
-    for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
-        QStandardItem *group = m_toolsModel->item(g);
-        for (int c = 0; c < group->rowCount(); ++c) {
-            QStandardItem *toolItem = group->child(c, 0);
-            QString toolId = toolItem->data(Qt::UserRole + 1).toString();
-            bool checked = toolItem->checkState() == Qt::Checked;
-
-            if (toolId == "capture_screen") m_snap_screenCapture = checked;
-            else if (toolId == "screen_to_markdown") m_snap_screenToMarkdown = checked;
-            else if (toolId == "move_mouse") m_snap_moveMouse = checked;
-            else if (toolId == "left_click") m_snap_leftClick = checked;
-            else if (toolId == "right_click") m_snap_rightClick = checked;
-            else if (toolId == "double_click") m_snap_doubleClick = checked;
-            else if (toolId == "left_drag") m_snap_leftDrag = checked;
-            else if (toolId == "type_text") m_snap_typeText = checked;
-            else if (toolId == "press_key") m_snap_pressKey = checked;
-            else if (toolId == "repeat_key") m_snap_repeatKey = checked;
-            else if (toolId == "start_recording") m_snap_startRecording = checked;
-            else if (toolId == "stop_recording") m_snap_stopRecording = checked;
-            else if (toolId == "set_target_system") m_snap_setTargetSystem = checked;
-            else if (toolId == "run_bash") m_snap_runBash = checked;
-            else if (toolId == "web_search") m_snap_webSearch = checked;
-        }
-    }
 }
 
 void ChatSettingsPage::revertToSnapshot()
@@ -780,70 +386,6 @@ void ChatSettingsPage::revertToSnapshot()
     m_screenTaskPromptEdit->setPlainText(m_snap_screenTaskPrompt);
     m_typingTaskPromptEdit->setPlainText(m_snap_typingTaskPrompt);
     m_guidePromptEdit->setPlainText(m_snap_guidePrompt);
-
-    // Tool checkboxes - restore to tree
-    auto setToolCheck = [this](const QString &toolId, bool checked) {
-        for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
-            QStandardItem *group = m_toolsModel->item(g);
-            for (int c = 0; c < group->rowCount(); ++c) {
-                QStandardItem *toolItem = group->child(c, 0);
-                if (toolItem->data(Qt::UserRole + 1).toString() == toolId) {
-                    toolItem->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
-                    return;
-                }
-            }
-        }
-    };
-
-    setToolCheck("capture_screen", m_snap_screenCapture);
-    setToolCheck("screen_to_markdown", m_snap_screenToMarkdown);
-    setToolCheck("move_mouse", m_snap_moveMouse);
-    setToolCheck("left_click", m_snap_leftClick);
-    setToolCheck("right_click", m_snap_rightClick);
-    setToolCheck("double_click", m_snap_doubleClick);
-    setToolCheck("left_drag", m_snap_leftDrag);
-    setToolCheck("type_text", m_snap_typeText);
-    setToolCheck("press_key", m_snap_pressKey);
-    setToolCheck("repeat_key", m_snap_repeatKey);
-    setToolCheck("start_recording", m_snap_startRecording);
-    setToolCheck("stop_recording", m_snap_stopRecording);
-    setToolCheck("set_target_system", m_snap_setTargetSystem);
-    setToolCheck("run_bash", m_snap_runBash);
-    setToolCheck("web_search", m_snap_webSearch);
-
-    // Update group check states
-    for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
-        QStandardItem *group = m_toolsModel->item(g);
-        bool allChecked = true;
-        bool anyChecked = false;
-        for (int c = 0; c < group->rowCount(); ++c) {
-            QStandardItem *child = group->child(c, 0);
-            if (child && child->isCheckable()) {
-                if (child->checkState() == Qt::Checked) anyChecked = true;
-                else allChecked = false;
-            }
-        }
-        if (allChecked) group->setCheckState(Qt::Checked);
-        else if (anyChecked) group->setCheckState(Qt::PartiallyChecked);
-        else group->setCheckState(Qt::Unchecked);
-    }
-
-    // Update select all
-    bool allToolsChecked = true;
-    for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
-        QStandardItem *group = m_toolsModel->item(g);
-        for (int c = 0; c < group->rowCount(); ++c) {
-            QStandardItem *child = group->child(c, 0);
-            if (child && child->isCheckable() && child->checkState() != Qt::Checked) {
-                allToolsChecked = false;
-                break;
-            }
-        }
-        if (!allToolsChecked) break;
-    }
-    m_selectAllToolsCheck->blockSignals(true);
-    m_selectAllToolsCheck->setChecked(allToolsChecked);
-    m_selectAllToolsCheck->blockSignals(false);
 }
 
 bool ChatSettingsPage::valuesMatchSnapshot() const
@@ -870,36 +412,6 @@ bool ChatSettingsPage::valuesMatchSnapshot() const
     if (m_screenTaskPromptEdit->toPlainText() != m_snap_screenTaskPrompt) return false;
     if (m_typingTaskPromptEdit->toPlainText() != m_snap_typingTaskPrompt) return false;
     if (m_guidePromptEdit->toPlainText() != m_snap_guidePrompt) return false;
-
-    // Tool checkboxes - check from tree
-    auto getToolCheck = [this](const QString &toolId) -> bool {
-        for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
-            QStandardItem *group = m_toolsModel->item(g);
-            for (int c = 0; c < group->rowCount(); ++c) {
-                QStandardItem *toolItem = group->child(c, 0);
-                if (toolItem->data(Qt::UserRole + 1).toString() == toolId) {
-                    return toolItem->checkState() == Qt::Checked;
-                }
-            }
-        }
-        return false;
-    };
-
-    if (getToolCheck("capture_screen") != m_snap_screenCapture) return false;
-    if (getToolCheck("screen_to_markdown") != m_snap_screenToMarkdown) return false;
-    if (getToolCheck("move_mouse") != m_snap_moveMouse) return false;
-    if (getToolCheck("left_click") != m_snap_leftClick) return false;
-    if (getToolCheck("right_click") != m_snap_rightClick) return false;
-    if (getToolCheck("double_click") != m_snap_doubleClick) return false;
-    if (getToolCheck("left_drag") != m_snap_leftDrag) return false;
-    if (getToolCheck("type_text") != m_snap_typeText) return false;
-    if (getToolCheck("press_key") != m_snap_pressKey) return false;
-    if (getToolCheck("repeat_key") != m_snap_repeatKey) return false;
-    if (getToolCheck("start_recording") != m_snap_startRecording) return false;
-    if (getToolCheck("stop_recording") != m_snap_stopRecording) return false;
-    if (getToolCheck("set_target_system") != m_snap_setTargetSystem) return false;
-    if (getToolCheck("run_bash") != m_snap_runBash) return false;
-    if (getToolCheck("web_search") != m_snap_webSearch) return false;
 
     return true;
 }

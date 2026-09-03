@@ -67,18 +67,6 @@ public:
      */
     QString runBashCommand(const QString &command) const;
 
-    /**
-     * @brief Search the web for information and return results.
-     * Tries DuckDuckGo Instant Answer API first, falls back to Wikipedia.
-     */
-    QString webSearch(const QString &query) const;
-
-    /// DuckDuckGo Instant Answer API search
-    QString webSearchDuckDuckGo(const QString &query) const;
-
-    /// Wikipedia API search (fallback when DuckDuckGo returns no results)
-    QString webSearchWikipedia(const QString &query) const;
-
 signals:
     /// Emitted when a tool produces a log message
     void toolLogMessage(const QString &message);

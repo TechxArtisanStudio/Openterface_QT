@@ -76,6 +76,30 @@ struct ScreenAnalysis {
 };
 
 /**
+ * Result of terminal idle detection.
+ * Combines multiple signals to determine if a terminal is waiting for user input:
+ *   1. Cursor blink detection (temporal differencing)
+ *   2. Screen stability (total change ratio between frames)
+ *   3. Shell prompt detection (OCR on last line)
+ */
+struct CursorDetectionResult {
+    bool detected;              // true if terminal appears to be idle/waiting
+    QRect position;             // Bounding box of the cursor in pixel coordinates (if detected)
+    int mcpX;                   // Cursor X in MCP range (0-4096)
+    int mcpY;                   // Cursor Y in MCP range (0-4096)
+    float confidence;           // Combined confidence (0.0 to 1.0)
+    QString status;             // "idle", "likely_idle", "outputting", "unknown"
+    QString description;        // Human-readable explanation
+
+    // Individual signal details (for debugging / advanced consumers)
+    bool cursorBlinkDetected;   // true if a blinking cursor was found
+    bool screenStable;          // true if screen changes are below threshold
+    float totalChangeRatio;     // total fraction of screen that changed between frames
+    bool promptDetected;        // true if a shell prompt pattern was found on last line
+    QString promptText;         // the detected prompt text (if any)
+};
+
+/**
  * Analysis mode for screen OCR.
  * General mode is optimized for UI elements with coordinates.
  * Terminal mode is optimized for monospaced command output.
@@ -83,6 +107,18 @@ struct ScreenAnalysis {
 enum class AnalysisMode {
     General,   // UI text with coordinates and element detection
     Terminal   // Terminal/command output with preserved layout
+};
+
+/**
+ * A small region that changed between two consecutive frames.
+ * Used internally by cursor blink detection to track which parts of the
+ * screen are changing over time.
+ */
+struct ChangeRegion {
+    QRect rect;               // Bounding box of the changed region
+    int pixelCount;           // Number of changed pixels
+    float ratio;              // Fraction of total screen that changed
+    QPointF centroid;         // Center point of the changed region
 };
 
 /**
@@ -103,6 +139,32 @@ public:
      */
     ScreenAnalysis analyzeScreen(const QImage& frame, const QString& detailLevel = "detailed",
                                  AnalysisMode mode = AnalysisMode::General);
+
+    /**
+     * Detect a blinking terminal cursor from a sequence of pre-captured frames.
+     *
+     * This uses temporal differencing: it analyzes pixel diffs between consecutive
+     * frames and checks whether the same small region changed in multiple diffs.
+     * A blinking cursor is the only thing that changes in an idle terminal, so if
+     * the only change is a small (~character-sized) region toggling at a fixed
+     * position, the terminal is waiting for input.
+     *
+     * The caller is responsible for capturing frames at appropriate intervals
+     * (typically 350ms apart, 5 frames total) and passing at least 3 frames.
+     * 350ms avoids phase-locking with common 500ms/1000ms/1200ms blink periods,
+     * and 5 frames gives 4 diffs over 1.4s — enough to catch slow blink rates.
+     *
+     * Algorithm overview:
+     * 1. Compute diffs between consecutive frame pairs
+     * 2. For each diff, find small changed regions (cursor-sized)
+     * 3. Check if the same position changed in multiple consecutive diffs
+     *    (this distinguishes a blinking cursor from new terminal output)
+     * 4. If a stable position toggles across 2+ diffs → cursor detected
+     *
+     * @param frames List of frames captured at regular intervals (min 3, at ~500ms apart)
+     * @return CursorDetectionResult with detection status, position, and confidence
+     */
+    CursorDetectionResult detectCursorFromFrames(const QList<QImage>& frames);
 
     /**
      * Check if Tesseract OCR is properly initialized and available.
@@ -239,6 +301,44 @@ private:
     void convertToMCPCoordinates(int pixelX, int pixelY,
                                  int screenWidth, int screenHeight,
                                  int& mcpX, int& mcpY);
+
+    // --- Cursor blink detection helpers ---
+
+    /**
+     * Find small changed regions between two frames.
+     * Uses cv::absdiff + threshold + contour detection to locate regions
+     * that changed between the two frames. Only returns regions that are
+     * small enough to be cursor-sized (filters out large content changes).
+     *
+     * @param frameA First frame
+     * @param frameB Second frame
+     * @param maxRatio Maximum change ratio to consider (regions larger than
+     *                 this fraction of the screen are ignored)
+     * @return List of small change regions with centroids
+     */
+    QList<ChangeRegion> findSmallChanges(const QImage& frameA, const QImage& frameB,
+                                          float maxRatio = 0.02f);
+
+    /**
+     * Check if two change regions are at approximately the same screen position.
+     * Used to determine if a cursor-sized change is toggling at a fixed location.
+     *
+     * @param a First change region
+     * @param b Second change region
+     * @param tolerance Maximum pixel distance between centroids to consider "same position"
+     * @return true if the regions are at approximately the same position
+     */
+    bool isSamePosition(const ChangeRegion& a, const ChangeRegion& b, float tolerance = 30.0f);
+
+    /**
+     * Detect a shell prompt on the last line of the terminal via OCR.
+     * Looks for common prompt patterns: "$ ", "# ", "> ", "% ", "~$ ", etc.
+     *
+     * @param frame The terminal screen image
+     * @param promptText Output: the detected prompt text if found
+     * @return true if a shell prompt pattern was detected on the last line
+     */
+    bool detectShellPrompt(const QImage& frame, QString& promptText);
 };
 
 #endif // SCREEN_ANALYZER_H

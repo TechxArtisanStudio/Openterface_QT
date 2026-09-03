@@ -143,13 +143,57 @@ void ChatManager::sendMessage(const QString &text, const QString &attachmentFile
     if (trimmed.isEmpty() && attachmentFilePath.isEmpty()) return;
     if (m_isSending) return;
 
+    // Handle special "stop" command from max iterations prompt
+    if (trimmed.toLower() == "stop") {
+        ChatMessage userMsg(ChatRole::User, trimmed);
+        userMsg.isStatusHint = true;  // Make it subtle
+        m_messages.append(userMsg);
+        emit messageAppended(userMsg);
+
+        // Show a status hint confirming the stop
+        ChatMessage stopMsg(ChatRole::Assistant, "⏹ Agent stopped by user.");
+        stopMsg.isStatusHint = true;
+        m_messages.append(stopMsg);
+        emit messageAppended(stopMsg);
+        persistHistory();
+        return;
+    }
+
+    // Handle special "continue" command from max iterations prompt
+    // This triggers a new agent run with a nudge to continue
+    bool isContinueCommand = (trimmed.toLower() == "continue");
+
     m_lastError.clear();
     emit lastErrorChanged(m_lastError);
 
     QString storedContent = trimmed.isEmpty() ? "Attached screenshot" : trimmed;
 
     ChatMessage msg(ChatRole::User, storedContent, attachmentFilePath);
+    // Note: We do NOT mark this as statusHint - we want the agent to see
+    // the user's explicit "continue" request in the conversation history.
     m_messages.append(msg);
+    int userMessageIndex = m_messages.size() - 1;  // Remember the user message index
+
+    // If this is a continue command, add a system message to nudge the agent
+    if (isContinueCommand) {
+        // Show a status hint confirming the continue (UI only)
+        ChatMessage continueMsg(ChatRole::Assistant, "▶ Continuing agent execution...");
+        continueMsg.isStatusHint = true;
+        m_messages.append(continueMsg);
+        emit messageAppended(continueMsg);
+
+        // Build a comprehensive context summary for the agent
+        QString nudge = "The user has asked you to continue. You previously reached the maximum iteration limit. "
+                       "Please continue working on the original task.\n\n"
+                       "IMPORTANT CONTEXT:\n"
+                       "- Review the conversation history above to understand what you were working on\n"
+                       "- The current screenshot shows the latest state of the target screen\n"
+                       "- Continue issuing tool calls to make progress on the task\n"
+                       "- If you're unsure what to do next, summarize what you've accomplished so far and ask for clarification";
+        ChatMessage nudgeMsg(ChatRole::System, nudge);
+        m_messages.append(nudgeMsg);
+        emit messageAppended(nudgeMsg);
+    }
 
     // IMPORTANT: Capture screen on the MAIN thread before spawning the worker.
     // The GStreamer backend's getLatestOriginalFrame() is NOT thread-safe
@@ -169,8 +213,8 @@ void ChatManager::sendMessage(const QString &text, const QString &attachmentFile
         ChatScreenCapture &sc = ChatScreenCapture::instance();
         QString capturedPath = sc.captureScreen();
         if (!capturedPath.isEmpty()) {
-            // Attach to the just-appended user message so the worker picks it up
-            m_messages.last().attachmentFilePath = capturedPath;
+            // Attach to the user message (not m_messages.last() which might be a nudge)
+            m_messages[userMessageIndex].attachmentFilePath = capturedPath;
             qCDebug(log_ai_chat) << "sendMessage: auto-captured screen on main thread:"
                                  << capturedPath;
         } else {
@@ -422,7 +466,15 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
     // adding a replacement (keeps only one nudge visible in history at a time).
     int lastNudgeIndex = -1;
 
+    // Track whether we reached max iterations (loop completed without break)
+    bool reachedMaxIterations = false;
+
     for (int iteration = 1; iteration <= maxIterations; ++iteration) {
+        // Track if this is the last iteration
+        if (iteration == maxIterations) {
+            reachedMaxIterations = true;
+        }
+
         if (m_cancelRequested) break;
 
         // In agentic mode, refresh the screenshot at every iteration (after
@@ -720,6 +772,7 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
                                  << "— model returned text only, no tool calls."
                                  << "Response preview:" << result.content.left(200);
             appendAssistantMessage(result.content);
+            reachedMaxIterations = false;  // Agent finished naturally
             break;
         }
 
@@ -820,6 +873,20 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
             imageDataURL.clear();
         }
 
+        persistHistory();
+    }
+
+    // If we reached max iterations, prompt the user to continue or stop
+    if (reachedMaxIterations && !m_cancelRequested) {
+        QString maxIterMsg = QString("**Reached maximum steps (%1).** The agent has completed %1 iterations. "
+                                     "Would you like to continue running?")
+            .arg(maxIterations);
+
+        ChatMessage msg(ChatRole::Assistant, maxIterMsg);
+        msg.quickReplies.append(ChatQuickReply("Continue", "continue"));
+        msg.quickReplies.append(ChatQuickReply("Stop", "stop"));
+        m_messages.append(msg);
+        emit messageAppended(msg);
         persistHistory();
     }
 

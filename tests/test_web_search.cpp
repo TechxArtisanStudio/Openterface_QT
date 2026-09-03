@@ -15,8 +15,11 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QUrl>
-#include <QDebug>
 #include <QStringList>
+#include <iostream>
+
+#define LOG(msg) std::cout << msg << std::endl
+#define LOG_QSTRING(msg) std::cout << (msg).toStdString() << std::endl
 
 // DuckDuckGo Instant Answer API search
 QString webSearchDuckDuckGo(const QString &query)
@@ -25,7 +28,8 @@ QString webSearchDuckDuckGo(const QString &query)
         return "web_search: missing query argument";
     }
 
-    qDebug() << "web_search: searching DuckDuckGo for" << query;
+    LOG("web_search: searching DuckDuckGo for:");
+    LOG_QSTRING(query);
 
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
@@ -34,7 +38,8 @@ QString webSearchDuckDuckGo(const QString &query)
     QString url = QString("https://api.duckduckgo.com/?q=%1&format=json&no_html=1&skip_disambig=1")
                   .arg(encodedQuery);
 
-    qDebug() << "web_search: fetching URL" << url;
+    LOG("web_search: fetching URL:");
+    LOG_QSTRING(url);
 
     process.start("curl", QStringList() << "-s" << url);
 
@@ -50,7 +55,7 @@ QString webSearchDuckDuckGo(const QString &query)
     QByteArray output = process.readAll();
     int exitCode = process.exitCode();
 
-    qDebug() << "web_search: curl exit code" << exitCode << "output length" << output.length();
+    std::cout << "web_search: curl exit code " << exitCode << " output length " << output.length() << std::endl;
 
     if (exitCode != 0) {
         return QString("web_search: curl failed with exit code %1").arg(exitCode);
@@ -62,7 +67,8 @@ QString webSearchDuckDuckGo(const QString &query)
 
     QJsonDocument doc = QJsonDocument::fromJson(output);
     if (doc.isNull()) {
-        qDebug() << "web_search: raw response:" << QString::fromUtf8(output).left(500);
+        LOG("web_search: raw response:");
+        std::cout << QString::fromUtf8(output).left(500).toStdString() << std::endl;
         return "web_search: failed to parse response";
     }
 
@@ -99,7 +105,7 @@ QString webSearchDuckDuckGo(const QString &query)
 
     if (root.contains("RelatedTopics")) {
         QJsonArray topics = root["RelatedTopics"].toArray();
-        qDebug() << "web_search: found" << topics.count() << "related topics";
+        std::cout << "web_search: found " << topics.count() << " related topics" << std::endl;
         int count = 0;
         for (const auto &topic : topics) {
             if (count >= 5) break;
@@ -115,12 +121,12 @@ QString webSearchDuckDuckGo(const QString &query)
     }
 
     if (results.isEmpty()) {
-        qDebug() << "web_search: no results found for query:" << query;
+        LOG("web_search: no results found for query");
         return "web_search: no results found";
     }
 
     QString result = results.join("\n");
-    qDebug() << "web_search: returning" << result.length() << "characters of results";
+    std::cout << "web_search: returning " << result.length() << " characters of results" << std::endl;
     return result;
 }
 
@@ -131,7 +137,8 @@ QString webSearchWikipedia(const QString &query)
         return "web_search: missing query argument";
     }
 
-    qDebug() << "web_search: searching Wikipedia for" << query;
+    LOG("web_search: searching Wikipedia for:");
+    LOG_QSTRING(query);
 
     QProcess process;
     process.setProcessChannelMode(QProcess::MergedChannels);
@@ -140,7 +147,8 @@ QString webSearchWikipedia(const QString &query)
     QString searchUrl = QString("https://en.wikipedia.org/w/api.php?action=opensearch&search=%1&limit=3&format=json")
                         .arg(encodedQuery);
 
-    qDebug() << "web_search: searching Wikipedia with URL" << searchUrl;
+    LOG("web_search: searching Wikipedia with URL:");
+    LOG_QSTRING(searchUrl);
 
     process.start("curl", QStringList() << "-s" << searchUrl);
 
@@ -174,7 +182,7 @@ QString webSearchWikipedia(const QString &query)
     QJsonArray urls = arr[3].toArray();
 
     if (titles.isEmpty()) {
-        qDebug() << "web_search: no Wikipedia articles found for:" << query;
+        LOG("web_search: no Wikipedia articles found for query");
         return "web_search: no results found";
     }
 
@@ -183,7 +191,8 @@ QString webSearchWikipedia(const QString &query)
     QString summaryUrl = QString("https://en.wikipedia.org/api/rest_v1/page/summary/%1")
                          .arg(encodedTitle);
 
-    qDebug() << "web_search: fetching Wikipedia summary from" << summaryUrl;
+    LOG("web_search: fetching Wikipedia summary from:");
+    LOG_QSTRING(summaryUrl);
 
     QProcess summaryProcess;
     summaryProcess.setProcessChannelMode(QProcess::MergedChannels);
@@ -226,7 +235,7 @@ QString webSearchWikipedia(const QString &query)
     }
 
     QString result = results.join("\n");
-    qDebug() << "web_search: Wikipedia returning" << result.length() << "characters";
+    std::cout << "web_search: Wikipedia returning " << result.length() << " characters" << std::endl;
     return result;
 }
 
@@ -238,7 +247,7 @@ QString webSearch(const QString &query)
         return ddgResult;
     }
 
-    qDebug() << "web_search: DuckDuckGo returned no results, trying Wikipedia";
+    LOG("web_search: DuckDuckGo returned no results, trying Wikipedia");
     return webSearchWikipedia(query);
 }
 
@@ -246,48 +255,139 @@ int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
 
-    qDebug() << "\n========================================";
-    qDebug() << "Testing Web Search Functionality";
-    qDebug() << "========================================\n";
+    LOG("");
+    LOG("========================================");
+    LOG("Testing Web Search Functionality");
+    LOG("========================================");
+    LOG("");
 
     // Test case 1: Well-known topic (should work with DuckDuckGo)
-    qDebug() << "\n--- Test 1: Search for 'Python programming' ---";
+    LOG("");
+    LOG("--- Test 1: Search for 'Python programming' ---");
     QString result1 = webSearch("Python programming");
-    qDebug() << "\nResult:";
-    qDebug() << result1.left(500) << "...";
-    qDebug() << "\nStatus:" << (result1.startsWith("web_search:") ? "FAILED" : "SUCCESS");
+    LOG("");
+    LOG("Result:");
+    std::cout << result1.left(500).toStdString() << "..." << std::endl;
+    LOG("");
+    std::cout << "Status: " << (result1.startsWith("web_search:") ? "FAILED" : "SUCCESS") << std::endl;
 
     // Test case 2: Current events / news (DuckDuckGo may fail, Wikipedia fallback)
-    qDebug() << "\n\n--- Test 2: Search for 'OpenAI' ---";
+    LOG("");
+    LOG("");
+    LOG("--- Test 2: Search for 'OpenAI' ---");
     QString result2 = webSearch("OpenAI");
-    qDebug() << "\nResult:";
-    qDebug() << result2.left(500) << "...";
-    qDebug() << "\nStatus:" << (result2.startsWith("web_search:") ? "FAILED" : "SUCCESS");
+    LOG("");
+    LOG("Result:");
+    std::cout << result2.left(500).toStdString() << "..." << std::endl;
+    LOG("");
+    std::cout << "Status: " << (result2.startsWith("web_search:") ? "FAILED" : "SUCCESS") << std::endl;
 
     // Test case 3: The user's test case - "open code"
-    qDebug() << "\n\n--- Test 3: Search for 'open code' (user's test case) ---";
+    LOG("");
+    LOG("");
+    LOG("--- Test 3: Search for 'open code' (user's test case) ---");
     QString result3 = webSearch("open code");
-    qDebug() << "\nResult:";
-    qDebug() << result3.left(500) << "...";
-    qDebug() << "\nStatus:" << (result3.startsWith("web_search:") ? "FAILED" : "SUCCESS");
+    LOG("");
+    LOG("Result:");
+    std::cout << result3.left(500).toStdString() << "..." << std::endl;
+    LOG("");
+    std::cout << "Status: " << (result3.startsWith("web_search:") ? "FAILED" : "SUCCESS") << std::endl;
+
+    // Test case 3b: "open source code" - more specific
+    LOG("");
+    LOG("");
+    LOG("--- Test 3b: Search for 'open source code' ---");
+    QString result3b = webSearch("open source code");
+    LOG("");
+    LOG("Result:");
+    std::cout << result3b.left(500).toStdString() << "..." << std::endl;
+    LOG("");
+    std::cout << "Status: " << (result3b.startsWith("web_search:") ? "FAILED" : "SUCCESS") << std::endl;
+
+    // Test case 3c: "open source software"
+    LOG("");
+    LOG("");
+    LOG("--- Test 3c: Search for 'open source software' ---");
+    QString result3c = webSearch("open source software");
+    LOG("");
+    LOG("Result:");
+    std::cout << result3c.left(500).toStdString() << "..." << std::endl;
+    LOG("");
+    std::cout << "Status: " << (result3c.startsWith("web_search:") ? "FAILED" : "SUCCESS") << std::endl;
 
     // Test case 4: Technical topic
-    qDebug() << "\n\n--- Test 4: Search for 'machine learning' ---";
+    LOG("");
+    LOG("");
+    LOG("--- Test 4: Search for 'machine learning' ---");
     QString result4 = webSearch("machine learning");
-    qDebug() << "\nResult:";
-    qDebug() << result4.left(500) << "...";
-    qDebug() << "\nStatus:" << (result4.startsWith("web_search:") ? "FAILED" : "SUCCESS");
+    LOG("");
+    LOG("Result:");
+    std::cout << result4.left(500).toStdString() << "..." << std::endl;
+    LOG("");
+    std::cout << "Status: " << (result4.startsWith("web_search:") ? "FAILED" : "SUCCESS") << std::endl;
 
     // Test case 5: Query that might not have results
-    qDebug() << "\n\n--- Test 5: Search for 'xyz123nonexistent' ---";
+    LOG("");
+    LOG("");
+    LOG("--- Test 5: Search for 'xyz123nonexistent' ---");
     QString result5 = webSearch("xyz123nonexistent");
-    qDebug() << "\nResult:";
-    qDebug() << result5.left(500) << "...";
-    qDebug() << "\nStatus:" << (result5.startsWith("web_search:") ? "EXPECTED FAILURE" : "UNEXPECTED SUCCESS");
+    LOG("");
+    LOG("Result:");
+    std::cout << result5.left(500).toStdString() << "..." << std::endl;
+    LOG("");
+    std::cout << "Status: " << (result5.startsWith("web_search:") ? "EXPECTED FAILURE" : "UNEXPECTED SUCCESS") << std::endl;
 
-    qDebug() << "\n\n========================================";
-    qDebug() << "Tests completed";
-    qDebug() << "========================================";
+    // Test case 6: Debug - show full DuckDuckGo response for "open code"
+    LOG("");
+    LOG("");
+    LOG("--- Test 6: Debug - Full DuckDuckGo response for 'open code' ---");
+    LOG("Testing DuckDuckGo only (no fallback):");
+    QString result6 = webSearchDuckDuckGo("open code");
+    LOG("");
+    LOG("Full Result:");
+    std::cout << result6.toStdString() << std::endl;
+    LOG("");
+    std::cout << "Status: " << (result6.startsWith("web_search:") ? "FAILED" : "SUCCESS") << std::endl;
+
+    // Test case 7: Debug - show full Wikipedia response for "open code"
+    LOG("");
+    LOG("");
+    LOG("--- Test 7: Debug - Full Wikipedia response for 'open code' ---");
+    LOG("Testing Wikipedia only (no fallback):");
+    QString result7 = webSearchWikipedia("open code");
+    LOG("");
+    LOG("Full Result:");
+    std::cout << result7.toStdString() << std::endl;
+    LOG("");
+    std::cout << "Status: " << (result7.startsWith("web_search:") ? "FAILED" : "SUCCESS") << std::endl;
+
+    // Test case 8: Edge case - single word
+    LOG("");
+    LOG("");
+    LOG("--- Test 8: Search for 'linux' (single word) ---");
+    QString result8 = webSearch("linux");
+    LOG("");
+    LOG("Result:");
+    std::cout << result8.left(500).toStdString() << "..." << std::endl;
+    LOG("");
+    std::cout << "Status: " << (result8.startsWith("web_search:") ? "FAILED" : "SUCCESS") << std::endl;
+
+    // Test case 9: Edge case - phrase with special characters
+    LOG("");
+    LOG("");
+    LOG("--- Test 9: Search for 'C++ programming' (special chars) ---");
+    QString result9 = webSearch("C++ programming");
+    LOG("");
+    LOG("Result:");
+    std::cout << result9.left(500).toStdString() << "..." << std::endl;
+    LOG("");
+    std::cout << "Status: " << (result9.startsWith("web_search:") ? "FAILED" : "SUCCESS") << std::endl;
+
+    LOG("");
+    LOG("");
+    LOG("========================================");
+    LOG("Tests completed");
+    LOG("========================================");
 
     return 0;
 }
