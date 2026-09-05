@@ -226,6 +226,9 @@ void MainWindow::initMcpServer()
     m_mcpServer->setScriptRunner(scriptRunner.get());
     m_mcpServer->setScriptExecutor(scriptExecutor.get());
 
+    // Also set CameraManager on SharedToolExecutor so detect_cursor works via MCP
+    SharedToolExecutor::instance().setCameraManager(m_cameraManager);
+
     connect(m_mcpServer, &McpServer::logMessage, this, [this](const QString& msg) {
         qCInfo(log_ui_mainwindow) << "[MCP]" << msg;
     });
