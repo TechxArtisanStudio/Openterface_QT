@@ -85,6 +85,8 @@ private:
     QJsonObject toolFirmwareUpdate(const QJsonObject& args);
     QJsonObject toolEdidInfo(const QJsonObject& args);
     QJsonObject toolEdidSet(const QJsonObject& args);
+    QJsonObject toolKeymodScan(const QJsonObject& args);
+    QJsonObject toolKeymodFlash(const QJsonObject& args);
 
     // --- Helpers ---
     static QJsonObject textResult(const QString& text);

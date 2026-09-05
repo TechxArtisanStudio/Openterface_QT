@@ -70,6 +70,8 @@
 #define MCP_TOOL_FIRMWARE_UPDATE           "firmware_update"
 #define MCP_TOOL_EDID_INFO                 "edid_info"
 #define MCP_TOOL_EDID_SET                  "edid_set"
+#define MCP_TOOL_KEYMOD_SCAN               "keymod_scan"
+#define MCP_TOOL_KEYMOD_FLASH              "keymod_flash"
 
 // Default Named Pipe Name
 #define MCP_DEFAULT_PIPE_NAME "openterface-mcp"
