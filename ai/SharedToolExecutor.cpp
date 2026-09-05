@@ -38,6 +38,7 @@ OPF_LOGGING_CATEGORY(log_shared_tool, "opf.shared.tool")
 
 SharedToolExecutor::SharedToolExecutor(QObject *parent)
     : QObject(parent)
+    , m_cameraManager(nullptr)
     , m_screenAnalyzer(new ScreenAnalyzer())
 {
 }
