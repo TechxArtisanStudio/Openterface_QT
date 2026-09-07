@@ -35,6 +35,7 @@
 #include <QThread>
 #include <algorithm>
 #include <functional>
+#include <memory>
 #include <QSet>
 #include "log/opflogging.h"
 
@@ -186,8 +187,13 @@ CameraManager::CameraManager(QObject *parent)
                 // HOTFIX (2026-09): Increased delays for USB re-enumeration stability.
                 // Camera can disappear briefly during USB re-enumeration (~2s).
                 constexpr int MAX_CAMERA_CONNECT_RETRIES = 4;
-                std::function<void(int)> tryConnectCamera;
-                tryConnectCamera = [this, sessionKey, portChain, &tryConnectCamera](int attempt) {
+                // The retry chain is deferred through QTimer, so the callable must outlive
+                // this handler's stack frame. Own it through a shared_ptr and let each pending
+                // timer hold a strong reference; the body keeps only a weak one, so there is
+                // no ownership cycle and the callable is released once no retry is pending.
+                auto tryConnectCamera = std::make_shared<std::function<void(int)>>();
+                std::weak_ptr<std::function<void(int)>> weakConnectCamera = tryConnectCamera;
+                *tryConnectCamera = [this, sessionKey, portChain, weakConnectCamera](int attempt) {
                     qWarning() << "[HOTPLUG-CAM] Camera connect attempt" << attempt + 1
                                << "/" << MAX_CAMERA_CONNECT_RETRIES
                                << "for portChain=" << portChain;
@@ -228,9 +234,11 @@ CameraManager::CameraManager(QObject *parent)
                             int retryDelay = 1500 + (attempt * 500);
                             qWarning() << "[HOTPLUG-CAM] Scheduling camera retry in"
                                        << retryDelay << "ms";
-                            QTimer::singleShot(retryDelay, this, [tryConnectCamera, attempt]() {
-                                tryConnectCamera(attempt + 1);
-                            });
+                            if (auto self = weakConnectCamera.lock()) {
+                                QTimer::singleShot(retryDelay, this, [self, attempt]() {
+                                    (*self)(attempt + 1);
+                                });
+                            }
                         } else {
                             qWarning() << "[HOTPLUG-CAM] Camera connect FAILED after all retries"
                                        << "for portChain=" << portChain;
@@ -258,7 +266,7 @@ CameraManager::CameraManager(QObject *parent)
                 constexpr int kInitialConnectDelayMs = 300;
 #endif
                 QTimer::singleShot(kInitialConnectDelayMs, this, [tryConnectCamera]() {
-                    tryConnectCamera(0);
+                    (*tryConnectCamera)(0);
                 });
             });
 
@@ -334,8 +342,11 @@ CameraManager::CameraManager(QObject *parent)
             // HOTFIX (2026-09): Increased delays for USB re-enumeration stability.
             // Openterface camera can disappear briefly during USB re-enumeration (~2s).
             constexpr int MAX_SERIAL_RECOVERY_RETRIES = 4;
-            std::function<void(int)> tryRestartCamera;
-            tryRestartCamera = [this, portChain, &tryRestartCamera](int attempt) {
+            // Same lifetime rule as the hotplug retry chain above: the callable is reached
+            // through QTimer after this handler has returned, so it cannot live on the stack.
+            auto tryRestartCamera = std::make_shared<std::function<void(int)>>();
+            std::weak_ptr<std::function<void(int)>> weakRestartCamera = tryRestartCamera;
+            *tryRestartCamera = [this, portChain, weakRestartCamera](int attempt) {
                 qWarning() << "[HOTPLUG-CAM][SerialRecovery] Camera restart attempt" << attempt + 1
                            << "/" << MAX_SERIAL_RECOVERY_RETRIES << "for portChain=" << portChain;
 
@@ -371,9 +382,11 @@ CameraManager::CameraManager(QObject *parent)
                         // 1500ms, 2000ms, 2500ms (was 500ms, 1000ms, 1500ms)
                         int retryDelay = 1500 + (attempt * 500);
                         qWarning() << "[HOTPLUG-CAM][SerialRecovery] Retrying in" << retryDelay << "ms";
-                        QTimer::singleShot(retryDelay, this, [tryRestartCamera, attempt]() {
-                            tryRestartCamera(attempt + 1);
-                        });
+                        if (auto self = weakRestartCamera.lock()) {
+                            QTimer::singleShot(retryDelay, this, [self, attempt]() {
+                                (*self)(attempt + 1);
+                            });
+                        }
                     } else {
                         qWarning() << "[HOTPLUG-CAM][SerialRecovery] Camera restart FAILED after all retries";
                     }
@@ -388,7 +401,7 @@ CameraManager::CameraManager(QObject *parent)
             constexpr int kSerialRecoveryDelayMs = 300;
 #endif
             QTimer::singleShot(kSerialRecoveryDelayMs, this, [tryRestartCamera]() {
-                tryRestartCamera(0);
+                (*tryRestartCamera)(0);
             });
         });
 
