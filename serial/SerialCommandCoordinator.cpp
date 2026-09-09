@@ -54,29 +54,19 @@ bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const Q
 {
     // DEBUG: Log to file for MCP keyboard diagnostics
     {
-        QFile debugLog("/tmp/serial-command-debug.log");
-        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-            QTextStream out(&debugLog);
-            out << "=== sendAsyncCommand called ===\n";
-            out << "m_ready: " << m_ready << "\n";
-            out << "force: " << force << "\n";
-            out << "serialPort: " << (void*)serialPort << "\n";
-            out << "serialPort->isOpen(): " << (serialPort ? serialPort->isOpen() : false) << "\n";
-            out << "data: " << QString::fromLatin1(data.toHex(' ')) << "\n";
-            debugLog.close();
-        }
+            qCDebug(log_core_serial) << "=== sendAsyncCommand called ===\n";
+            qCDebug(log_core_serial) << "m_ready: " << m_ready;
+            qCDebug(log_core_serial) << "force: " << force;
+            qCDebug(log_core_serial) << "serialPort: " << (void*)serialPort;
+            qCDebug(log_core_serial) << "serialPort->isOpen(): " << (serialPort ? serialPort->isOpen() : false);
+            qCDebug(log_core_serial) << "data: " << QString::fromLatin1(data.toHex(' '));
     }
 
     if (!force && !m_ready) {
         qCWarning(log_core_serial) << "⚠️ COMMAND DROPPED: not ready (m_ready=" << m_ready << ", force=" << force << ")";
         // Log dropped command
-        QFile debugLog("/tmp/serial-command-debug.log");
-        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-            QTextStream out(&debugLog);
-            out << "⚠️ COMMAND DROPPED: m_ready=" << m_ready << "\n";
-            out << "   data: " << QString::fromLatin1(data.toHex(' ')) << "\n";
-            debugLog.close();
-        }
+            qCDebug(log_core_serial) << "⚠️ COMMAND DROPPED: m_ready=" << m_ready;
+            qCDebug(log_core_serial) << "   data: " << QString::fromLatin1(data.toHex(' '));
         return false;
     }
 
@@ -368,16 +358,11 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
 
     // DEBUG: Log command execution attempt
     {
-        QFile debugLog("/tmp/serial-command-debug.log");
-        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-            QTextStream out(&debugLog);
-            out << "=== executeCommand called ===\n";
-            out << "command size: " << command.size() << "\n";
-            out << "command: " << QString::fromLatin1(command.toHex(' ')) << "\n";
-            out << "port: " << serialPort->portName() << "\n";
-            out << "baudrate: " << serialPort->baudRate() << "\n";
-            debugLog.close();
-        }
+            qCDebug(log_core_serial) << "=== executeCommand called ===\n";
+            qCDebug(log_core_serial) << "command size: " << command.size();
+            qCDebug(log_core_serial) << "command: " << QString::fromLatin1(command.toHex(' '));
+            qCDebug(log_core_serial) << "port: " << serialPort->portName();
+            qCDebug(log_core_serial) << "baudrate: " << serialPort->baudRate();
     }
 
     try {
@@ -390,12 +375,7 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
             // This turns a transient USB glitch into a permanent zombie state.
             serialPort->clearError();
             // Log error
-            QFile debugLog("/tmp/serial-command-debug.log");
-            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-                QTextStream out(&debugLog);
-                out << "⚠️ WRITE FAILED: " << serialPort->errorString() << "\n";
-                debugLog.close();
-            }
+                qCDebug(log_core_serial) << "⚠️ WRITE FAILED: " << serialPort->errorString();
             return false;
         }
 
@@ -405,12 +385,7 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
             // ZOMBIE STATE FIX: Clear error state for partial writes too
             serialPort->clearError();
             // Log partial write
-            QFile debugLog("/tmp/serial-command-debug.log");
-            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-                QTextStream out(&debugLog);
-                out << "⚠️ PARTIAL WRITE: expected " << command.size() << ", wrote " << bytesWritten << "\n";
-                debugLog.close();
-            }
+                qCDebug(log_core_serial) << "⚠️ PARTIAL WRITE: expected " << command.size() << ", wrote " << bytesWritten;
             return false;
         }
 
@@ -419,23 +394,13 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
             // ZOMBIE STATE FIX: Clear error state for write timeout too
             serialPort->clearError();
             // Log timeout
-            QFile debugLog("/tmp/serial-command-debug.log");
-            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-                QTextStream out(&debugLog);
-                out << "⚠️ WRITE TIMEOUT: " << serialPort->errorString() << "\n";
-                debugLog.close();
-            }
+                qCDebug(log_core_serial) << "⚠️ WRITE TIMEOUT: " << serialPort->errorString();
             return false;
         }
 
         // Log success
         {
-            QFile debugLog("/tmp/serial-command-debug.log");
-            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-                QTextStream out(&debugLog);
-                out << "✅ WRITE SUCCESS: " << bytesWritten << " bytes\n";
-                debugLog.close();
-            }
+                qCDebug(log_core_serial) << "✅ WRITE SUCCESS: " << bytesWritten << " bytes\n";
         }
 
         // Record command sent in statistics
