@@ -21,6 +21,7 @@
 */
 
 #include "mainwindowinitializer.h"
+#include "../advance/edid/edididentitycache.h"
 #include "../mainwindow.h"
 #include "mainwindow_ui_access.h"
 #include "../../global.h"
@@ -506,6 +507,9 @@ void MainWindowInitializer::deferredInitializeCamera()
     QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
         VideoHid::getInstance().start();
         qInfo() << "VideoHid started (on HID thread)";
+        // start() does not emit hidDeviceConnected for an already-resolved
+        // device; ask the identity cache (main thread) to read it.
+        QMetaObject::invokeMethod(&edid::EdidIdentityCache::instance(), "refreshCurrent", Qt::QueuedConnection);
     }, Qt::QueuedConnection);
 
     qCDebug(log_ui_mainwindowinitializer) << "Deferred: Initializing camera...";
@@ -697,8 +701,19 @@ void MainWindowInitializer::setupKeyboardShortcuts()
 void MainWindowInitializer::finalize()
 {
     qCDebug(log_ui_mainwindowinitializer) << "Finalizing initialization...";
-    QString windowTitle = QString("Openterface - %1").arg(APP_VERSION);
-    m_mainWindow->setWindowTitle(windowTitle);
+    // "Openterface - <version>[ - <EDID name>]": the name of the current unit
+    // is learned asynchronously (EdidIdentityCache), so set the plain title
+    // now and follow identity/device changes.
+    MainWindow *mainWindow = m_mainWindow;
+    auto applyTitle = [mainWindow]() {
+        mainWindow->setWindowTitle(edid::windowTitle(
+            QString(APP_VERSION), edid::EdidIdentityCache::instance().currentDisplayName()));
+    };
+    applyTitle();
+    QObject::connect(&edid::EdidIdentityCache::instance(), &edid::EdidIdentityCache::identityChanged,
+                     m_mainWindow, [applyTitle](const QString &, const edid::EdidIdentity &) { applyTitle(); });
+    QObject::connect(&edid::EdidIdentityCache::instance(), &edid::EdidIdentityCache::currentChanged,
+                     m_mainWindow, [applyTitle](const QString &) { applyTitle(); });
 
     m_mainWindow->mouseEdgeTimer = new QTimer(m_mainWindow);
     connect(m_mainWindow->mouseEdgeTimer, &QTimer::timeout, m_mainWindow, &MainWindow::checkMousePosition);
