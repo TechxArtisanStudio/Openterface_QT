@@ -224,6 +224,7 @@ void MainWindow::initMcpServer()
     m_mcpServer->setCameraManager(m_cameraManager);
     m_mcpServer->setScriptRunner(scriptRunner.get());
     m_mcpServer->setScriptExecutor(scriptExecutor.get());
+    m_mcpServer->setDeviceCoordinator(m_deviceCoordinator);
 
     connect(m_mcpServer, &McpServer::logMessage, this, [this](const QString& msg) {
         qCInfo(log_ui_mainwindow) << "[MCP]" << msg;

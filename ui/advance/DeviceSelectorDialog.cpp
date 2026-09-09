@@ -7,6 +7,8 @@
 #include "../../serial/SerialPortManager.h"
 #include "../../host/cameramanager.h"
 #include "../../video/videohid.h"
+#include "edid/edididentity.h"
+#include "edid/edididentitycache.h"
 #include "../globalsetting.h"
 #include <QLoggingCategory>
 #include <QHeaderView>
@@ -205,35 +207,9 @@ void DeviceSelectorDialog::populateDeviceList()
     
     qCDebug(log_device_selector) << "Populating list with" << m_currentDevices.size() << "devices";
     
-    // Additional safeguard: ensure only one device per port chain is displayed
-    QMap<QString, DeviceInfo> uniqueDevicesByPortChain;
-    for (const auto& device : m_currentDevices) {
-        if (!device.portChain.isEmpty()) {
-            // If we already have a device for this port chain, choose the one with more interfaces
-            if (uniqueDevicesByPortChain.contains(device.portChain)) {
-                const DeviceInfo& existing = uniqueDevicesByPortChain[device.portChain];
-                if (device.getInterfaceCount() > existing.getInterfaceCount()) {
-                    uniqueDevicesByPortChain[device.portChain] = device;
-                    qCDebug(log_device_selector) << "Replaced device for port chain" << device.portChain 
-                                                << "with more complete device (" << device.getInterfaceCount() << "vs" << existing.getInterfaceCount() << "interfaces)";
-                } else {
-                    qCDebug(log_device_selector) << "Keeping existing device for port chain" << device.portChain 
-                                                << "(" << existing.getInterfaceCount() << "vs" << device.getInterfaceCount() << "interfaces)";
-                }
-            } else {
-                uniqueDevicesByPortChain[device.portChain] = device;
-            }
-        }
-    }
-    
-    // Update m_currentDevices to only contain the deduplicated devices
-    m_currentDevices.clear();
-    for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
-        m_currentDevices.append(it.value());
-    }
-    
-    qCDebug(log_device_selector) << "After deduplication:" << m_currentDevices.size() << "unique devices";
-    
+    // One entry per unit (shared rule with the device menu and MCP device_list)
+    m_currentDevices = selectableDevices(m_currentDevices);
+
     for (const auto& device : m_currentDevices) {
         QString itemText = formatCompleteDeviceListItem(device);
         QListWidgetItem* item = new QListWidgetItem(itemText, m_deviceList);
@@ -266,7 +242,11 @@ QString DeviceSelectorDialog::formatDeviceListItem(const DeviceInfo& device)
 QString DeviceSelectorDialog::formatCompleteDeviceListItem(const DeviceInfo& device)
 {
     QStringList parts;
-    
+    // EDID display name first when the unit has been identified
+    const QString edidName = edid::EdidIdentityCache::instance().displayName(device.portChain);
+    if (!edidName.isEmpty()) {
+        parts << edidName << "-";
+    }
     // Make port chain more prominent at the start with cleaner format
     parts << QString(tr("Port %1")).arg(device.portChain);
     parts << tr("- Openterface Mini KVM");
