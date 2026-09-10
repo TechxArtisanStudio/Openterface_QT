@@ -901,6 +901,10 @@ void DeviceLifecycleManager::removeSession(const QString& sessionKey)
 void DeviceLifecycleManager::updateSessionFromDeviceInfo(
     DeviceSession& session, const DeviceInfo& device)
 {
+    qCInfo(log_lifecycle) << "updateSessionFromDeviceInfo for session" << session.sessionKey
+                          << "camera path:" << device.cameraDevicePath
+                          << "old camera path:" << session.camera.path;
+    
     session.portChain = device.portChain;
     session.companionPortChain = device.companionPortChain;
     session.vid = device.vid;
@@ -919,6 +923,8 @@ void DeviceLifecycleManager::updateSessionFromDeviceInfo(
             // Interface not present on this device
             if (iface.state == InterfaceState::Absent) return;  // Already absent
             // If it was present before but path is now gone, mark absent
+            qCWarning(log_lifecycle) << "Interface" << interfaceTypeToString(type) 
+                                     << "path became empty, marking as absent";
             iface.state = InterfaceState::Absent;
             iface.path.clear();
             iface.lastStateChange = QDateTime::currentDateTime();

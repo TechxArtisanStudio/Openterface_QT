@@ -63,6 +63,7 @@
 #include "device/DeviceManager.h"
 #include "serial/SerialPortManager.h"
 #include "host/cameramanager.h"
+#include "ai/SharedToolExecutor.h"
 #include "video/videohid.h"
 
 #ifdef Q_OS_WIN
@@ -263,6 +264,13 @@ int main(int argc, char *argv[])
         outs.flush();
     }
 
+    // DEBUG: Print to stderr immediately
+    fprintf(stderr, "DEBUG: main() called with %d args\n", argc);
+    for (int i = 0; i < argc; i++) {
+        fprintf(stderr, "DEBUG: argv[%d] = %s\n", i, argv[i]);
+    }
+    fflush(stderr);
+
     #ifdef Q_OS_WIN
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF);
     #endif
@@ -354,6 +362,10 @@ int main(int argc, char *argv[])
         CameraManager* cameraManager = new CameraManager(&app);
         qCDebug(log_app_main) << "CameraManager created";
         qInfo() << "CameraManager created for stdio mode";
+
+        // Set CameraManager on SharedToolExecutor so detect_cursor and other tools work via MCP
+        SharedToolExecutor::instance().setCameraManager(cameraManager);
+        qCDebug(log_app_main) << "SharedToolExecutor initialized with CameraManager";
 
         qCDebug(log_app_main) << "Starting camera initialization...";
         // Start VideoHid — required to initialize the video chip (MS2109/MS2130S) HID

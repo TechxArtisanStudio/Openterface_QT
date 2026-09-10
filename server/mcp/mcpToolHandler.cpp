@@ -340,6 +340,38 @@ QJsonArray McpToolHandler::listTools() const
         tools.append(tool);
     }
 
+    // ---- Screen Diff ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_SCREEN_DIFF;
+        tool["description"] = "Differential screen analysis — returns WHAT CHANGED on screen since the last capture, not a full description of what IS on screen. MUCH cheaper and more accurate than capture_screen for iterative navigation tasks (BIOS menus, terminal output). The report includes: (1) a BEFORE/AFTER text diff of the changed region, (2) the text currently highlighted/selected (BIOS reverse-video detection with foreground and background colors), and (3) the change ratio. Use this INSTEAD of capture_screen when navigating menus or monitoring terminal output — it tells you exactly what changed without requiring vision. No arguments.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        schema["properties"] = QJsonObject();
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
+    // ---- Navigate to Menu Item ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_NAVIGATE_TO_MENU_ITEM;
+        tool["description"] = "Navigate through a BIOS/TextUI menu to a SPECIFIC item by pressing an arrow key until that item is highlighted. Handles the press-and-verify loop for you using BIOS reverse-video detection. Use this INSTEAD of manually doing repeated press_key+screen_diff when moving to a known menu item. Args: target (string, REQUIRED — the menu item text to navigate to, e.g. \"ACPI Settings\"), direction (string, optional: \"up\", \"down\", \"left\", or \"right\", default \"down\"), max_steps (int, optional: max key presses before giving up, default 30). Returns success + the highlighted item text when reached, or a clear failure message if not found.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["target"] = QJsonObject{{"type", "string"}, {"description", "The menu item text to navigate to (e.g., \"Advanced\", \"ACPI Settings\", \"Boot\")"}};
+        props["direction"] = QJsonObject{{"type", "string"}, {"description", "Arrow key direction to press: up, down, left, or right"}, {"enum", QJsonArray{"up", "down", "left", "right"}}, {"default", "down"}};
+        props["max_steps"] = QJsonObject{{"type", "integer"}, {"description", "Maximum number of key presses before giving up"}, {"default", 30}, {"minimum", 1}, {"maximum", 200}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray{"target"};
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
     // ---- Script Execution ----
     {
         QJsonObject tool;
@@ -430,6 +462,8 @@ QJsonObject McpToolHandler::callTool(const QString& name, const QJsonObject& arg
     if (name == MCP_TOOL_RUN_COMMAND_AND_WAIT)       return toolRunCommandAndWait(arguments);
     if (name == MCP_TOOL_FIRMWARE_CHECK)             return toolFirmwareCheck(arguments);
     if (name == MCP_TOOL_FIRMWARE_UPDATE)            return toolFirmwareUpdate(arguments);
+    if (name == MCP_TOOL_SCREEN_DIFF)                return toolScreenDiff(arguments);
+    if (name == MCP_TOOL_NAVIGATE_TO_MENU_ITEM)      return toolNavigateToMenuItem(arguments);
 
     return errorResult("Unknown tool: " + name);
 }
@@ -1151,6 +1185,24 @@ QJsonObject McpToolHandler::toolFirmwareUpdate(const QJsonObject& args)
         "REQUIRED next steps: quit this app, power off BOTH ends of the KVM "
         "(host USB power and target power), then re-energize the KVM before booting the target.")
         .arg(cur, latest));
+}
+
+// ---- Screen Diff ----
+QJsonObject McpToolHandler::toolScreenDiff(const QJsonObject& args)
+{
+    Q_UNUSED(args)
+
+    // Delegate to SharedToolExecutor's screenDiff method
+    QJsonObject result = SharedToolExecutor::instance().screenDiff(args);
+    return result;  // Pass through the result as-is
+}
+
+// ---- Navigate to Menu Item ----
+QJsonObject McpToolHandler::toolNavigateToMenuItem(const QJsonObject& args)
+{
+    // Delegate to SharedToolExecutor's navigateToMenuItem method
+    QJsonObject result = SharedToolExecutor::instance().navigateToMenuItem(args);
+    return result;  // Pass through the result as-is
 }
 
 // ==========================================================================

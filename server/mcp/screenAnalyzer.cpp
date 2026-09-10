@@ -25,6 +25,11 @@
 #include <QDebug>
 #include <QRegularExpression>
 
+#include <cstdlib>
+#include <cstring>
+
+#include "bios_focus_detector.h"
+
 #ifdef HAVE_TESSERACT
 #include <tesseract/baseapi.h>
 #include <leptonica/allheaders.h>
@@ -174,6 +179,46 @@ ScreenAnalysis ScreenAnalyzer::analyzeScreen(const QImage& frame, const QString&
     qCInfo(log_screen_analyzer) << "Using general OCR mode";
     result.textElements = extractTextWithPositions(frame);
     qCInfo(log_screen_analyzer) << "Detected" << result.textElements.size() << "text elements";
+
+    // BIOS focus detection: analyze reverse-video/highlighted attributes
+    {
+        QImage rgbImage = frame.convertToFormat(QImage::Format_RGB888);
+        int width = rgbImage.width();
+        int height = rgbImage.height();
+        if (width >= 64 && height >= 32) {
+            int bufSize = width * height * 3;
+            unsigned char* buf = static_cast<unsigned char*>(malloc(bufSize));
+            if (buf) {
+                for (int y = 0; y < height; ++y) {
+                    const unsigned char* src = rgbImage.constBits() + y * rgbImage.bytesPerLine();
+                    memcpy(buf + y * width * 3, src, width * 3);
+                }
+                BiosFocusResult biosResult;
+                int ret = bios_detect_focus_from_pixels(buf, width, height, &biosResult);
+                free(buf);
+                if (ret == 0 && biosResult.num_highlights > 0) {
+                    for (int i = 0; i < biosResult.num_highlights; ++i) {
+                        BiosHighlight* hl = &biosResult.highlights[i];
+                        TextElement elem;
+                        elem.text = QString::fromUtf8(hl->text);
+                        int pixelX = (hl->col_start + hl->col_end) / 2;
+                        int pixelY = hl->row;
+                        elem.pixelX = pixelX;
+                        elem.pixelY = pixelY;
+                        elem.confidence = hl->confidence;
+                        int w = hl->col_end - hl->col_start;
+                        int h = 30; // approximate character height
+                        elem.boundingBox = QRect(hl->col_start, hl->row,
+                                                 w > 0 ? w : 1, h > 0 ? h : 1);
+                        convertToMCPCoordinates(pixelX, pixelY, width, height, elem.mcpX, elem.mcpY);
+                        result.textElements.append(elem);
+                    }
+                    qCInfo(log_screen_analyzer) << "BIOS detection found" << biosResult.num_highlights
+                                                << "highlight(s)";
+                }
+            }
+        }
+    }
 
     // Detect UI elements from text
     result.uiElements = detectUIElements(result.textElements, result.screenWidth, result.screenHeight);
@@ -794,6 +839,379 @@ QString ScreenAnalyzer::extractTerminalText(const QImage& frame)
 }
 
 // ============================================================================
+// extractTextFromRegion — OCR a region using the same settings as
+// extractTerminalText, so current/previous crops are directly comparable.
+// ============================================================================
+
+QString ScreenAnalyzer::extractTextFromRegion(const QImage& region)
+{
+    QString text;
+
+#ifdef HAVE_TESSERACT
+    if (!m_tesseract || region.isNull() || region.width() < 4 || region.height() < 4) {
+        return text;
+    }
+
+    // Preprocess with the same pipeline used for terminal OCR if OpenCV is available.
+    QImage processed = region;
+#ifdef HAVE_OPENCV
+    if (m_opencvAvailable) {
+        processed = preprocessForTerminal(region);
+    }
+#endif
+
+    QImage converted = processed.convertToFormat(QImage::Format_RGB32);
+
+    // Save Tesseract state — extractTextFromRegion is called from analyzeScreenDiff
+    // between other OCR calls; we must not leave PSM or variables in a surprising state.
+    tesseract::PageSegMode savedPSM = m_tesseract->GetPageSegMode();
+
+    m_tesseract->SetPageSegMode(tesseract::PSM_SINGLE_BLOCK);
+    m_tesseract->SetVariable("preserve_interword_spaces", "1");
+    m_tesseract->SetVariable("textord_heavy_line_nr", "0");
+    m_tesseract->SetVariable("language_model_ngram_on", "0");
+
+    m_tesseract->SetImage(
+        converted.constBits(),
+        converted.width(),
+        converted.height(),
+        4,
+        converted.bytesPerLine()
+    );
+
+    m_tesseract->Recognize(nullptr);
+    char* outText = m_tesseract->GetUTF8Text();
+    if (outText) {
+        text = QString::fromUtf8(outText);
+        delete[] outText;
+    }
+
+    m_tesseract->SetPageSegMode(savedPSM);
+#else
+    Q_UNUSED(region)
+#endif
+
+    return text;
+}
+
+// ============================================================================
+// buildDiffReport — LCS-based line diff, collapsing long unchanged runs.
+// ============================================================================
+
+QString ScreenAnalyzer::buildDiffReport(const QString& oldText, const QString& newText)
+{
+    QStringList oldLines = oldText.split('\n');
+    QStringList newLines = newText.split('\n');
+
+    // Drop trailing empty line produced by a final newline.
+    if (!oldLines.isEmpty() && oldLines.last().trimmed().isEmpty()) oldLines.removeLast();
+    if (!newLines.isEmpty() && newLines.last().trimmed().isEmpty()) newLines.removeLast();
+
+    int n = oldLines.size();
+    int m = newLines.size();
+
+    // LCS length table. For typical screen crops (< 100 lines each) this is cheap.
+    QVector<QVector<int>> dp(n + 1, QVector<int>(m + 1, 0));
+    for (int i = 1; i <= n; ++i) {
+        for (int j = 1; j <= m; ++j) {
+            if (oldLines[i - 1] == newLines[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = qMax(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+    }
+
+    // Backtrack to recover LCS in forward order.
+    QStringList lcs;
+    int i = n, j = m;
+    while (i > 0 && j > 0) {
+        if (oldLines[i - 1] == newLines[j - 1]) {
+            lcs.prepend(oldLines[i - 1]);
+            --i; --j;
+        } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+            --i;
+        } else {
+            --j;
+        }
+    }
+
+    // Walk old/new together, emitting diff hunks.
+    QStringList out;
+    int oi = 0, ni = 0, li = 0;
+    auto skipUnchanged = [&]() {
+        while (li < lcs.size() && oi < oldLines.size() && ni < newLines.size()
+               && oldLines[oi] == lcs[li] && newLines[ni] == lcs[li]) {
+            ++oi; ++ni; ++li;
+        }
+    };
+
+    while (li < lcs.size() || oi < oldLines.size() || ni < newLines.size()) {
+        skipUnchanged();
+        if (li >= lcs.size() && oi >= oldLines.size() && ni >= newLines.size()) break;
+
+        // Collect the next run of removed (old-only) and added (new-only) lines
+        // before the next LCS match.
+        QStringList removed, added;
+        while (oi < oldLines.size() && (li >= lcs.size() || oldLines[oi] != lcs[li])) {
+            removed.append(oldLines[oi++]);
+        }
+        while (ni < newLines.size() && (li >= lcs.size() || newLines[ni] != lcs[li])) {
+            added.append(newLines[ni++]);
+        }
+
+        if (!removed.isEmpty() || !added.isEmpty()) {
+            if (!out.isEmpty()) out << "---";
+            for (const QString& r : removed) out << ("- " + r);
+            for (const QString& a : added)     out << ("+ " + a);
+        }
+
+        // Consume the matched line plus any additional consecutive unchanged lines.
+        int unchangedStart = oi;
+        while (li < lcs.size() && oi < oldLines.size() && ni < newLines.size()
+               && oldLines[oi] == lcs[li] && newLines[ni] == lcs[li]) {
+            ++oi; ++ni; ++li;
+        }
+        int unchangedCount = oi - unchangedStart;
+        if (unchangedCount > 0) {
+            if (unchangedCount <= 4) {
+                for (int k = 0; k < unchangedCount; ++k) {
+                    out << ("  " + oldLines[unchangedStart + k]);
+                }
+            } else {
+                out << ("  " + oldLines[unchangedStart]);
+                out << QString("  ...(%1 unchanged lines)").arg(unchangedCount - 2);
+                out << ("  " + oldLines[oi - 1]);
+            }
+        }
+    }
+
+    return out.join('\n');
+}
+
+// ============================================================================
+// analyzeScreenDiff — differential screen analysis
+// ============================================================================
+//
+// Returns a structured report of WHAT CHANGED on screen between the current
+// frame and the previously stored frame, rather than a full description of
+// what IS on screen. This is dramatically cheaper for the AI agent to process:
+// a menu navigation usually changes 1-2 lines, not the whole screen.
+//
+// Also runs BIOS highlight (reverse-video) detection on the current frame,
+// so the agent is explicitly told which item is currently highlighted — this
+// fixes the "agent pressed enter without looking at what's highlighted" bug.
+
+ScreenDiffResult ScreenAnalyzer::analyzeScreenDiff(const QImage& frame)
+{
+    ScreenDiffResult result;
+    result.screenWidth = frame.width();
+    result.screenHeight = frame.height();
+
+    if (frame.isNull()) {
+        result.outcome = ScreenDiffResult::NoChange;
+        result.report = "# screen_diff\n\nNo frame available.\n";
+        return result;
+    }
+
+    // --- Step 1: detect changed region vs. stored previous frame -------------
+    QRect changedRect;
+    float changeRatio = 0.0f;
+    bool hasPrevious = detectChangedRegion(frame, changedRect, changeRatio);
+
+    if (!hasPrevious) {
+        // First capture — baseline.
+        result.outcome = ScreenDiffResult::FirstCapture;
+        result.currentText = extractTerminalText(frame);
+        updatePreviousFrame(frame);
+
+        result.report = "# screen_diff — baseline capture\n\n";
+        result.report += QString("Screen: %1x%2 (first capture, no previous frame to compare)\n\n")
+            .arg(result.screenWidth).arg(result.screenHeight);
+        result.report += "## Current screen\n\n```\n" + result.currentText;
+        if (!result.currentText.endsWith('\n')) result.report += '\n';
+        result.report += "```\n";
+        return result;
+    }
+
+    result.changeRatio = changeRatio;
+
+    if (changeRatio < 0.001f) {
+        result.outcome = ScreenDiffResult::NoChange;
+        updatePreviousFrame(frame);
+        result.report = "# screen_diff — no change\n\n"
+                        "Screen is identical to the previous frame. No action is needed — "
+                        "the screen has not changed since the last capture.\n";
+        return result;
+    }
+
+    if (changeRatio > 0.5f) {
+        // Major transition — menu entered, dialog opened, resolution change.
+        // Treat as a new baseline; diff is not meaningful.
+        result.outcome = ScreenDiffResult::FullChange;
+        result.currentText = extractTerminalText(frame);
+        updatePreviousFrame(frame);
+
+        result.report = QString("# screen_diff — full screen change (%1%)\n\n")
+            .arg(static_cast<int>(changeRatio * 100));
+        result.report += "The entire screen changed (menu transition, dialog popup, or similar). "
+                         "Here is the new screen content:\n\n```\n" + result.currentText;
+        if (!result.currentText.endsWith('\n')) result.report += '\n';
+        result.report += "```\n";
+        return result;
+    }
+
+    // --- Step 2: partial change — crop both frames to changed region ---------
+    result.outcome = ScreenDiffResult::PartialChange;
+    result.changedRect = changedRect;
+
+    // Pad the crop so OCR has a bit of context around the change.
+    const int pad = 24;
+    int x1 = qMax(0, changedRect.x() - pad);
+    int y1 = qMax(0, changedRect.y() - pad);
+    int x2 = qMin(frame.width(),  changedRect.right()  + 1 + pad);
+    int y2 = qMin(frame.height(), changedRect.bottom() + 1 + pad);
+
+    QImage currentCrop = frame.copy(x1, y1, x2 - x1, y2 - y1);
+
+    // The stored previous frame is at the SAME (full) resolution as currentFrame,
+    // so crop the same coordinates directly.
+    QImage prevCrop;
+    if (!m_previousFrame.isNull() && m_previousFrame.size() == frame.size()) {
+        prevCrop = m_previousFrame.copy(x1, y1, x2 - x1, y2 - y1);
+    }
+
+    result.currentText  = extractTextFromRegion(currentCrop);
+    result.previousText = prevCrop.isNull() ? QString() : extractTextFromRegion(prevCrop);
+
+    // --- Step 3: BIOS highlight detection on current frame -------------------
+    // This runs the same C detector used by analyzeScreen(General). It finds
+    // reverse-video / highlighted text — the exact signal that tells us which
+    // menu item is currently selected.
+    {
+        QImage rgbImage = frame.convertToFormat(QImage::Format_RGB888);
+        int width = rgbImage.width();
+        int height = rgbImage.height();
+        if (width >= 64 && height >= 32) {
+            int bufSize = width * height * 3;
+            unsigned char* buf = static_cast<unsigned char*>(malloc(bufSize));
+            if (buf) {
+                for (int y = 0; y < height; ++y) {
+                    const unsigned char* src = rgbImage.constBits() + y * rgbImage.bytesPerLine();
+                    memcpy(buf + y * width * 3, src, width * 3);
+                }
+                BiosFocusResult biosResult;
+                int ret = bios_detect_focus_from_pixels(buf, width, height, &biosResult);
+                free(buf);
+                if (ret == 0 && biosResult.num_highlights > 0) {
+                    // Take the first (typically only) highlight.
+                    BiosHighlight* hl = &biosResult.highlights[0];
+                    result.highlightedText = QString::fromUtf8(hl->text);
+                    result.highlightRect = QRect(hl->col_start, hl->row,
+                                                 hl->col_end - hl->col_start, 30);
+
+                    // Extract text (foreground) color from the center of the highlight
+                    // and background color from just above/below the highlight. This
+                    // gives the agent explicit color information about what's selected.
+                    QImage rgb = rgbImage;
+                    int rowY = hl->row;
+                    int rowH = 30;
+                    int colStart = hl->col_start;
+                    int colEnd = hl->col_end;
+
+                    // Foreground: sample middle row, inner half of the text
+                    {
+                        unsigned long rSum = 0, gSum = 0, bSum = 0;
+                        int count = 0;
+                        int yMid = rowY + rowH / 2;
+                        int xLo = colStart + (colEnd - colStart) / 4;
+                        int xHi = colStart + (colEnd - colStart) * 3 / 4;
+                        yMid = qBound(0, yMid, height - 1);
+                        xLo = qBound(0, xLo, width - 1);
+                        xHi = qBound(0, xHi, width);
+                        for (int x = xLo; x < xHi; ++x) {
+                            const unsigned char* p = rgb.constBits() + (yMid * width + x) * 3;
+                            rSum += p[0]; gSum += p[1]; bSum += p[2]; ++count;
+                        }
+                        if (count > 0) {
+                            result.highlightForeground = QString("rgb(%1,%2,%3)")
+                                .arg(rSum / count).arg(gSum / count).arg(bSum / count);
+                        }
+                    }
+
+                    // Background: sample row above the highlight (or below if at top edge)
+                    {
+                        unsigned long rSum = 0, gSum = 0, bSum = 0;
+                        int count = 0;
+                        int bgY = (rowY >= 4) ? (rowY - 2) : (rowY + rowH + 2);
+                        bgY = qBound(0, bgY, height - 1);
+                        for (int x = colStart; x < colEnd && x < width; ++x) {
+                            const unsigned char* p = rgb.constBits() + (bgY * width + x) * 3;
+                            rSum += p[0]; gSum += p[1]; bSum += p[2]; ++count;
+                        }
+                        if (count > 0) {
+                            result.highlightBackground = QString("rgb(%1,%2,%3)")
+                                .arg(rSum / count).arg(gSum / count).arg(bSum / count);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    updatePreviousFrame(frame);
+
+    // --- Step 4: assemble the report -----------------------------------------
+    result.report = QString("# screen_diff — changed region (%1x%2 at %3,%4)\n\n")
+        .arg(changedRect.width()).arg(changedRect.height())
+        .arg(changedRect.x()).arg(changedRect.y());
+    result.report += QString("Change ratio: %1%\n\n").arg(static_cast<int>(changeRatio * 100));
+
+    if (!result.highlightedText.trimmed().isEmpty()) {
+        result.report += QString("## CURRENTLY HIGHLIGHTED\n\n"
+                                 "**`%1`** is currently highlighted (selected) on screen "
+                                 "at position (%2, %3).\n")
+            .arg(result.highlightedText.trimmed())
+            .arg(result.highlightRect.x()).arg(result.highlightRect.y());
+        if (!result.highlightForeground.isEmpty() || !result.highlightBackground.isEmpty()) {
+            result.report += "Colors: ";
+            if (!result.highlightForeground.isEmpty()) {
+                result.report += QString("text=%1").arg(result.highlightForeground);
+            }
+            if (!result.highlightBackground.isEmpty()) {
+                if (!result.highlightForeground.isEmpty()) result.report += ", ";
+                result.report += QString("background=%1").arg(result.highlightBackground);
+            }
+            result.report += '\n';
+        }
+        result.report += '\n';
+    }
+
+    if (result.previousText.trimmed().isEmpty() && result.currentText.trimmed().isEmpty()) {
+        result.report += "Changed region detected visually but no text was recognized in "
+                         "either the previous or current crop.\n";
+        return result;
+    }
+
+    result.report += "## What changed in this region\n\n";
+    if (result.previousText.trimmed().isEmpty()) {
+        result.report += "(New content appeared — no previous text in this region)\n\n```\n"
+                         + result.currentText;
+        if (!result.currentText.endsWith('\n')) result.report += '\n';
+        result.report += "```\n";
+    } else if (result.previousText.trimmed() == result.currentText.trimmed()) {
+        // The pixel diff detected a change but OCR produced the same text —
+        // typically a highlight/color change, not a content change.
+        result.report += "Text in this region is unchanged — the visible change was likely "
+                         "a highlight / selection change (see HIGHLIGHTED above).\n";
+    } else {
+        result.report += "```\n" + buildDiffReport(result.previousText, result.currentText) + "\n```\n";
+    }
+
+    return result;
+}
+
+// ============================================================================
 // Non-OpenCV-dependent helpers (also available when OpenCV is absent)
 // ============================================================================
 
@@ -831,30 +1249,24 @@ bool ScreenAnalyzer::detectChangedRegion(const QImage& currentFrame, QRect& chan
     changedRect = QRect();
     changeRatio = 0.0f;
 
-    if (m_previousFrame.isNull() || m_previousFrame.size() != currentFrame.size()) {
-        // No previous frame to compare, or size mismatch — can't detect changes.
-        // The size check matters because we store a downscaled copy; if the screen
-        // resolution changed between calls, the diff would be meaningless.
+    if (m_previousFrame.isNull()) {
+        // No previous frame to compare — can't detect changes.
+        return false;
+    }
+
+    // If the screen resolution changed between calls, the diff would be meaningless.
+    if (m_previousFrame.size() != currentFrame.size()) {
         return false;
     }
 
 #ifdef HAVE_OPENCV
     // Convert both frames to grayscale Mats for comparison.
-    // We use the stored downscale copy vs. a fresh downscale of the current frame
-    // so both are at the same resolution for absdiff.
+    // Both are at the same resolution (see updatePreviousFrame), so no scaling is needed.
     cv::Mat prevMat = QImageToMat(m_previousFrame);
-    cv::Mat currFullMat = QImageToMat(currentFrame);
+    cv::Mat currMat = QImageToMat(currentFrame);
 
-    if (prevMat.empty() || currFullMat.empty()) {
+    if (prevMat.empty() || currMat.empty()) {
         return false;
-    }
-
-    // Downscale current frame to match the stored previous frame size
-    cv::Mat currMat;
-    if (currFullMat.cols != prevMat.cols || currFullMat.rows != prevMat.rows) {
-        cv::resize(currFullMat, currMat, prevMat.size(), 0, 0, cv::INTER_AREA);
-    } else {
-        currMat = currFullMat;
     }
 
     cv::Mat prevGray, currGray;
@@ -885,10 +1297,8 @@ bool ScreenAnalyzer::detectChangedRegion(const QImage& currentFrame, QRect& chan
         return true;  // Have previous, but no changes detected
     }
 
-    // Compute bounding box that contains all changed regions.
-    // Work in the original (full-resolution) coordinate space so the rect can
-    // be used to crop the full-res frame for OCR.
-    int scale = 2;  // We store at half resolution, so multiply back up
+    // Compute bounding box of all changed regions.
+    // Coordinates are in the same resolution as currentFrame.
     int minX = currentFrame.width(), minY = currentFrame.height();
     int maxX = 0, maxY = 0;
     int totalChangedPixels = 0;
@@ -899,24 +1309,18 @@ bool ScreenAnalyzer::detectChangedRegion(const QImage& currentFrame, QRect& chan
         // Filter out tiny noise contours
         if (r.width < 5 || r.height < 5) continue;
 
-        // Scale up to full resolution
-        int fx = r.x * scale;
-        int fy = r.y * scale;
-        int fw = r.width * scale;
-        int fh = r.height * scale;
-
         // Filter out very large contours that span most of the screen
         // (full-screen refresh, cursor blink covering everything, etc.)
-        if (fw > currentFrame.width() * 0.9 && fh > currentFrame.height() * 0.9) {
+        if (r.width > currentFrame.width() * 0.9 && r.height > currentFrame.height() * 0.9) {
             // Full-screen change — fall back to full-frame OCR
             return true;
         }
 
-        minX = std::min(minX, fx);
-        minY = std::min(minY, fy);
-        maxX = std::max(maxX, fx + fw);
-        maxY = std::max(maxY, fy + fh);
-        totalChangedPixels += fw * fh;
+        minX = std::min(minX, r.x);
+        minY = std::min(minY, r.y);
+        maxX = std::max(maxX, r.x + r.width);
+        maxY = std::max(maxY, r.y + r.height);
+        totalChangedPixels += r.width * r.height;
     }
 
     if (maxX <= minX || maxY <= minY) {
@@ -939,12 +1343,14 @@ bool ScreenAnalyzer::detectChangedRegion(const QImage& currentFrame, QRect& chan
 
 void ScreenAnalyzer::updatePreviousFrame(const QImage& frame)
 {
-    // Store a downscaled copy to save memory. We only need it for diff comparison,
-    // not for high-res OCR. Half resolution is enough for change detection and
-    // keeps memory usage bounded (a 4K frame = ~8MB RGB vs ~2MB at half-res).
+    // Store the frame at FULL resolution for diff comparison. We previously
+    // stored at half resolution to save memory, but that caused a size-mismatch
+    // bug: detectChangedRegion compares m_previousFrame.size() against the
+    // current frame size and aborts if they differ — so if we store half-res
+    // while the camera gives full-res frames, the diff never runs. Camera
+    // resolution is stable within a session, so full-res storage is correct.
     if (!frame.isNull()) {
-        m_previousFrame = frame.scaled(qMax(1, frame.width() / 2), qMax(1, frame.height() / 2),
-                                        Qt::IgnoreAspectRatio, Qt::FastTransformation);
+        m_previousFrame = frame;
     }
 }
 

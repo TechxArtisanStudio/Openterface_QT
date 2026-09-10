@@ -499,6 +499,7 @@ struct ChatSkill {
     QString prompt;
     bool captureScreen = false;
     QString userLabel;
+    QString description; // short description of what this skill does
 
     QString displayLabel() const {
         return userLabel.isEmpty() ? name : userLabel;
@@ -512,6 +513,7 @@ struct ChatSkill {
         obj["prompt"] = prompt;
         obj["captureScreen"] = captureScreen;
         if (!userLabel.isEmpty()) obj["userLabel"] = userLabel;
+        if (!description.isEmpty()) obj["description"] = description;
         return obj;
     }
 
@@ -523,6 +525,7 @@ struct ChatSkill {
         s.prompt = obj["prompt"].toString();
         s.captureScreen = obj["captureScreen"].toBool(false);
         s.userLabel = obj["userLabel"].toString();
+        s.description = obj["description"].toString();
         return s;
     }
 };

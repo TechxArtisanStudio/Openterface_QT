@@ -91,6 +91,36 @@ public:
     QJsonObject screenToMarkdown(const QJsonObject &args);
 
     /**
+     * @brief Differential screen analysis: return what CHANGED, not what IS.
+     *
+     * Compares the current frame against the previously stored frame, crops both
+     * to the changed region, runs OCR on each, and returns a text diff plus
+     * BIOS highlight info. Much cheaper and more accurate than a full screenshot
+     * for iterative navigation tasks (e.g. BIOS menus, terminal output).
+     *
+     * @param args JSON (currently unused — no parameters)
+     * @return Result object with keys: outcome, change_ratio, changed_rect,
+     *         highlighted_text, report. On error, contains "error" key.
+     */
+    QJsonObject screenDiff(const QJsonObject &args);
+
+    /**
+     * @brief Navigate to a specific menu item by repeatedly pressing an arrow key
+     *        until the item is highlighted.
+     *
+     * Useful for BIOS/TextUI menus where you know the target item name but don't
+     * know its current position in the menu list. Loops: capture → detect highlight
+     * → press arrow key → repeat, until the target is highlighted.
+     *
+     * @param args JSON with keys:
+     *   - target (string, required): the menu item text to navigate to
+     *   - direction (string, optional): "up" or "down" (default: "down")
+     *   - max_steps (int, optional): maximum key presses before giving up (default: 30)
+     * @return JSON with keys: success, target_found, steps_taken, final_highlight, message
+     */
+    QJsonObject navigateToMenuItem(const QJsonObject &args);
+
+    /**
      * @brief Capture current frame from camera.
      *
      * @return QImage of current frame, or null image on error.

@@ -76,3 +76,11 @@ Makefile
 # Build output directories (cmake / qmake)
 build-cmake/
 build-qmake/
+
+# Test MCP build artifacts
+tests/mcp/.qt/
+tests/mcp/CMakeCache.txt
+tests/mcp/CMakeFiles/
+tests/mcp/CTestTestfile.cmake
+tests/mcp/cmake_install.cmake
+tests/mcp/Makefile

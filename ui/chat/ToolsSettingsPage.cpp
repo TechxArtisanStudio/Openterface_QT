@@ -271,8 +271,46 @@ void ToolsSettingsPage::populateToolsTree()
     screenToMarkdownDesc->setEditable(false);
     screenToMarkdownDesc->setForeground(QColor(128, 128, 128));
 
+    QStandardItem *detectCursor = new QStandardItem(tr("Detect Cursor (Terminal Idle)"));
+    detectCursor->setCheckable(true);
+    detectCursor->setCheckState(Qt::Checked);
+    detectCursor->setEditable(false);
+    detectCursor->setData("detect_cursor", Qt::UserRole + 1);
+    detectCursor->setToolTip(tr("Detect whether the target terminal is idle and waiting for input"));
+
+    QStandardItem *detectCursorDesc = new QStandardItem("detect_cursor");
+    detectCursorDesc->setEditable(false);
+    detectCursorDesc->setForeground(QColor(128, 128, 128));
+
+    QStandardItem *screenDiff = new QStandardItem(tr("Screen Diff (Change Detection)"));
+    screenDiff->setCheckable(true);
+    screenDiff->setCheckState(Qt::Checked);
+    screenDiff->setEditable(false);
+    screenDiff->setData("screen_diff", Qt::UserRole + 1);
+    screenDiff->setToolTip(tr("Differential screen analysis — reports WHAT CHANGED since the last capture, "
+                              "including BIOS highlight detection. Much cheaper than vision for iterative navigation."));
+
+    QStandardItem *screenDiffDesc = new QStandardItem(tr("screen_diff"));
+    screenDiffDesc->setEditable(false);
+    screenDiffDesc->setForeground(QColor(128, 128, 128));
+
+    QStandardItem *navigateToItem = new QStandardItem(tr("Navigate to Menu Item"));
+    navigateToItem->setCheckable(true);
+    navigateToItem->setCheckState(Qt::Checked);
+    navigateToItem->setEditable(false);
+    navigateToItem->setData("navigate_to_menu_item", Qt::UserRole + 1);
+    navigateToItem->setToolTip(tr("Navigate BIOS/TextUI menus by pressing an arrow key until a specific item is highlighted. "
+                                  "Takes a target item name and handles the press-and-verify loop."));
+
+    QStandardItem *navigateToDesc = new QStandardItem(tr("navigate_to_menu_item"));
+    navigateToDesc->setEditable(false);
+    navigateToDesc->setForeground(QColor(128, 128, 128));
+
     screenGroup->appendRow({screenCapture, screenCaptureDesc});
     screenGroup->appendRow({screenToMarkdown, screenToMarkdownDesc});
+    screenGroup->appendRow({screenDiff, screenDiffDesc});
+    screenGroup->appendRow({navigateToItem, navigateToDesc});
+    screenGroup->appendRow({detectCursor, detectCursorDesc});
     m_toolsModel->appendRow(screenGroup);
 
     // Mouse tools group
@@ -406,22 +444,79 @@ void ToolsSettingsPage::populateToolsTree()
     webSearchDesc->setEditable(false);
     webSearchDesc->setForeground(QColor(128, 128, 128));
 
-    QStandardItem *detectCursor = new QStandardItem(tr("Detect Cursor (Terminal Idle)"));
-    detectCursor->setCheckable(true);
-    detectCursor->setCheckState(Qt::Checked);
-    detectCursor->setEditable(false);
-    detectCursor->setData("detect_cursor", Qt::UserRole + 1);
-    detectCursor->setToolTip(tr("Detect whether the target terminal is idle and waiting for input"));
+    QStandardItem *webFetch = new QStandardItem(tr("Web Fetch"));
+    webFetch->setCheckable(true);
+    webFetch->setCheckState(Qt::Checked);
+    webFetch->setEditable(false);
+    webFetch->setData("web_fetch", Qt::UserRole + 1);
+    webFetch->setToolTip(tr("Fetch the content of a specific URL"));
 
-    QStandardItem *detectCursorDesc = new QStandardItem("detect_cursor");
-    detectCursorDesc->setEditable(false);
-    detectCursorDesc->setForeground(QColor(128, 128, 128));
+    QStandardItem *webFetchDesc = new QStandardItem("web_fetch");
+    webFetchDesc->setEditable(false);
+    webFetchDesc->setForeground(QColor(128, 128, 128));
+
+    QStandardItem *runCommandAndWait = new QStandardItem(tr("Run Command and Wait"));
+    runCommandAndWait->setCheckable(true);
+    runCommandAndWait->setCheckState(Qt::Checked);
+    runCommandAndWait->setEditable(false);
+    runCommandAndWait->setData("run_command_and_wait", Qt::UserRole + 1);
+    runCommandAndWait->setToolTip(tr("Type a command on target terminal and wait for completion"));
+
+    QStandardItem *runCommandAndWaitDesc = new QStandardItem("run_command_and_wait");
+    runCommandAndWaitDesc->setEditable(false);
+    runCommandAndWaitDesc->setForeground(QColor(128, 128, 128));
 
     systemGroup->appendRow({setTargetSystem, setTargetSystemDesc});
     systemGroup->appendRow({runBash, runBashDesc});
     systemGroup->appendRow({webSearch, webSearchDesc});
-    systemGroup->appendRow({detectCursor, detectCursorDesc});
+    systemGroup->appendRow({webFetch, webFetchDesc});
+    systemGroup->appendRow({runCommandAndWait, runCommandAndWaitDesc});
     m_toolsModel->appendRow(systemGroup);
+
+    // Scheduling tools group
+    QStandardItem *schedulingGroup = new QStandardItem(tr("Scheduling Tools"));
+    schedulingGroup->setCheckable(true);
+    schedulingGroup->setCheckState(Qt::Checked);
+    schedulingGroup->setEditable(false);
+    schedulingGroup->setFont(f);
+
+    QStandardItem *scheduleTask = new QStandardItem(tr("Schedule Task"));
+    scheduleTask->setCheckable(true);
+    scheduleTask->setCheckState(Qt::Checked);
+    scheduleTask->setEditable(false);
+    scheduleTask->setData("schedule_task", Qt::UserRole + 1);
+    scheduleTask->setToolTip(tr("Schedule a task to run at a future time"));
+
+    QStandardItem *scheduleTaskDesc = new QStandardItem("schedule_task");
+    scheduleTaskDesc->setEditable(false);
+    scheduleTaskDesc->setForeground(QColor(128, 128, 128));
+
+    QStandardItem *listScheduledTasks = new QStandardItem(tr("List Scheduled Tasks"));
+    listScheduledTasks->setCheckable(true);
+    listScheduledTasks->setCheckState(Qt::Checked);
+    listScheduledTasks->setEditable(false);
+    listScheduledTasks->setData("list_scheduled_tasks", Qt::UserRole + 1);
+    listScheduledTasks->setToolTip(tr("List all scheduled tasks"));
+
+    QStandardItem *listScheduledTasksDesc = new QStandardItem("list_scheduled_tasks");
+    listScheduledTasksDesc->setEditable(false);
+    listScheduledTasksDesc->setForeground(QColor(128, 128, 128));
+
+    QStandardItem *cancelScheduledTask = new QStandardItem(tr("Cancel Scheduled Task"));
+    cancelScheduledTask->setCheckable(true);
+    cancelScheduledTask->setCheckState(Qt::Checked);
+    cancelScheduledTask->setEditable(false);
+    cancelScheduledTask->setData("cancel_scheduled_task", Qt::UserRole + 1);
+    cancelScheduledTask->setToolTip(tr("Cancel a scheduled task"));
+
+    QStandardItem *cancelScheduledTaskDesc = new QStandardItem("cancel_scheduled_task");
+    cancelScheduledTaskDesc->setEditable(false);
+    cancelScheduledTaskDesc->setForeground(QColor(128, 128, 128));
+
+    schedulingGroup->appendRow({scheduleTask, scheduleTaskDesc});
+    schedulingGroup->appendRow({listScheduledTasks, listScheduledTasksDesc});
+    schedulingGroup->appendRow({cancelScheduledTask, cancelScheduledTaskDesc});
+    m_toolsModel->appendRow(schedulingGroup);
 
     m_toolsTreeView->expandAll();
 }
@@ -518,6 +613,8 @@ void ToolsSettingsPage::captureSnapshot()
 {
     m_snap_screenCapture = false;
     m_snap_screenToMarkdown = false;
+    m_snap_screenDiff = false;
+    m_snap_navigateToItem = false;
     m_snap_moveMouse = false;
     m_snap_leftClick = false;
     m_snap_rightClick = false;
@@ -531,6 +628,8 @@ void ToolsSettingsPage::captureSnapshot()
     m_snap_setTargetSystem = false;
     m_snap_runBash = false;
     m_snap_webSearch = false;
+    m_snap_webFetch = false;
+    m_snap_detectCursor = false;
 
     for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
         QStandardItem *group = m_toolsModel->item(g);
@@ -541,6 +640,8 @@ void ToolsSettingsPage::captureSnapshot()
 
             if (toolId == "capture_screen") m_snap_screenCapture = checked;
             else if (toolId == "screen_to_markdown") m_snap_screenToMarkdown = checked;
+            else if (toolId == "screen_diff") m_snap_screenDiff = checked;
+            else if (toolId == "navigate_to_menu_item") m_snap_navigateToItem = checked;
             else if (toolId == "move_mouse") m_snap_moveMouse = checked;
             else if (toolId == "left_click") m_snap_leftClick = checked;
             else if (toolId == "right_click") m_snap_rightClick = checked;
@@ -554,6 +655,12 @@ void ToolsSettingsPage::captureSnapshot()
             else if (toolId == "set_target_system") m_snap_setTargetSystem = checked;
             else if (toolId == "run_bash") m_snap_runBash = checked;
             else if (toolId == "web_search") m_snap_webSearch = checked;
+            else if (toolId == "web_fetch") m_snap_webFetch = checked;
+            else if (toolId == "detect_cursor") m_snap_detectCursor = checked;
+            else if (toolId == "run_command_and_wait") m_snap_runCommandAndWait = checked;
+            else if (toolId == "schedule_task") m_snap_scheduleTask = checked;
+            else if (toolId == "list_scheduled_tasks") m_snap_listScheduledTasks = checked;
+            else if (toolId == "cancel_scheduled_task") m_snap_cancelScheduledTask = checked;
         }
     }
 
@@ -587,6 +694,8 @@ void ToolsSettingsPage::revertToSnapshot()
 
     setToolCheck("capture_screen", m_snap_screenCapture);
     setToolCheck("screen_to_markdown", m_snap_screenToMarkdown);
+    setToolCheck("screen_diff", m_snap_screenDiff);
+    setToolCheck("navigate_to_menu_item", m_snap_navigateToItem);
     setToolCheck("move_mouse", m_snap_moveMouse);
     setToolCheck("left_click", m_snap_leftClick);
     setToolCheck("right_click", m_snap_rightClick);
@@ -600,6 +709,12 @@ void ToolsSettingsPage::revertToSnapshot()
     setToolCheck("set_target_system", m_snap_setTargetSystem);
     setToolCheck("run_bash", m_snap_runBash);
     setToolCheck("web_search", m_snap_webSearch);
+    setToolCheck("web_fetch", m_snap_webFetch);
+    setToolCheck("detect_cursor", m_snap_detectCursor);
+    setToolCheck("run_command_and_wait", m_snap_runCommandAndWait);
+    setToolCheck("schedule_task", m_snap_scheduleTask);
+    setToolCheck("list_scheduled_tasks", m_snap_listScheduledTasks);
+    setToolCheck("cancel_scheduled_task", m_snap_cancelScheduledTask);
 
     // Update group check states
     for (int g = 0; g < m_toolsModel->rowCount(); ++g) {
@@ -665,6 +780,8 @@ bool ToolsSettingsPage::valuesMatchSnapshot() const
 
     if (getToolCheck("capture_screen") != m_snap_screenCapture) return false;
     if (getToolCheck("screen_to_markdown") != m_snap_screenToMarkdown) return false;
+    if (getToolCheck("screen_diff") != m_snap_screenDiff) return false;
+    if (getToolCheck("navigate_to_menu_item") != m_snap_navigateToItem) return false;
     if (getToolCheck("move_mouse") != m_snap_moveMouse) return false;
     if (getToolCheck("left_click") != m_snap_leftClick) return false;
     if (getToolCheck("right_click") != m_snap_rightClick) return false;
@@ -678,6 +795,12 @@ bool ToolsSettingsPage::valuesMatchSnapshot() const
     if (getToolCheck("set_target_system") != m_snap_setTargetSystem) return false;
     if (getToolCheck("run_bash") != m_snap_runBash) return false;
     if (getToolCheck("web_search") != m_snap_webSearch) return false;
+    if (getToolCheck("web_fetch") != m_snap_webFetch) return false;
+    if (getToolCheck("detect_cursor") != m_snap_detectCursor) return false;
+    if (getToolCheck("run_command_and_wait") != m_snap_runCommandAndWait) return false;
+    if (getToolCheck("schedule_task") != m_snap_scheduleTask) return false;
+    if (getToolCheck("list_scheduled_tasks") != m_snap_listScheduledTasks) return false;
+    if (getToolCheck("cancel_scheduled_task") != m_snap_cancelScheduledTask) return false;
 
     // Web search providers - check order and enabled state
     QStringList currentProviders;

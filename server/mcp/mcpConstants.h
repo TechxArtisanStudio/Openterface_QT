@@ -70,6 +70,8 @@
 #define MCP_TOOL_FIRMWARE_UPDATE           "firmware_update"
 #define MCP_TOOL_DETECT_CURSOR             "detect_cursor"
 #define MCP_TOOL_RUN_COMMAND_AND_WAIT      "run_command_and_wait"
+#define MCP_TOOL_SCREEN_DIFF               "screen_diff"
+#define MCP_TOOL_NAVIGATE_TO_MENU_ITEM     "navigate_to_menu_item"
 
 // Default Named Pipe Name
 #define MCP_DEFAULT_PIPE_NAME "openterface-mcp"
