@@ -2777,13 +2777,8 @@ bool SerialPortManager::writeData(const QByteArray &data) {
 bool SerialPortManager::writeDataInThread(const QByteArray &data) {
     // DEBUG: Log to file for MCP keyboard diagnostics
     {
-        QFile debugLog("/tmp/write-data-debug.log");
-        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-            QTextStream out(&debugLog);
-            out << "=== writeDataInThread called ===\n";
-            out << "data: " << QString::fromLatin1(data.toHex(' ')) << "\n";
-            debugLog.close();
-        }
+            qCDebug(log_core_serial_tx) << "=== writeDataInThread called ===\n";
+            qCDebug(log_core_serial_tx) << "data: " << QString::fromLatin1(data.toHex(' '));
     }
 
     // Enhanced serial port validation with detailed diagnostics
@@ -2793,12 +2788,7 @@ bool SerialPortManager::writeDataInThread(const QByteArray &data) {
                                    << "isOpen=" << (serialPort ? (serialPort->isOpen() ? "true" : "false") : "N/A")
                                    << "portName=" << (serialPort ? serialPort->portName() : "N/A");
         // Log failure
-        QFile debugLog("/tmp/write-data-debug.log");
-        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-            QTextStream out(&debugLog);
-            out << "⚠️ WRITE FAILED: serial port not valid\n";
-            debugLog.close();
-        }
+            qCDebug(log_core_serial_tx) << "⚠️ WRITE FAILED: serial port not valid\n";
         ready = false;
         if (m_commandCoordinator) {
             m_commandCoordinator->setReady(false);
@@ -2812,12 +2802,7 @@ bool SerialPortManager::writeDataInThread(const QByteArray &data) {
     if (!serialPort || !serialPort->isOpen()) {
         qCWarning(log_core_serial_conn) << "Serial port became invalid after mutex lock";
         // Log failure
-        QFile debugLog("/tmp/write-data-debug.log");
-        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-            QTextStream out(&debugLog);
-            out << "⚠️ WRITE FAILED: serial port invalid after mutex\n";
-            debugLog.close();
-        }
+            qCDebug(log_core_serial_tx) << "⚠️ WRITE FAILED: serial port invalid after mutex\n";
         ready = false;
         if (m_commandCoordinator) {
             m_commandCoordinator->setReady(false);
@@ -2834,24 +2819,14 @@ bool SerialPortManager::writeDataInThread(const QByteArray &data) {
             // subsequent write() calls even after the underlying USB issue is resolved.
             serialPort->clearError();
             // Log failure
-            QFile debugLog("/tmp/write-data-debug.log");
-            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-                QTextStream out(&debugLog);
-                out << "⚠️ WRITE FAILED: " << serialPort->errorString() << "\n";
-                debugLog.close();
-            }
+                qCDebug(log_core_serial_tx) << "⚠️ WRITE FAILED: " << serialPort->errorString();
             return false;
         } else if (bytesWritten != data.size()) {
             qCWarning(log_core_serial_tx) << "Partial write: expected" << data.size() << "bytes, wrote" << bytesWritten;
             // ZOMBIE STATE FIX: Clear error state for partial writes too
             serialPort->clearError();
             // Log failure
-            QFile debugLog("/tmp/write-data-debug.log");
-            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-                QTextStream out(&debugLog);
-                out << "⚠️ PARTIAL WRITE: expected " << data.size() << ", wrote " << bytesWritten << "\n";
-                debugLog.close();
-            }
+                qCDebug(log_core_serial_tx) << "⚠️ PARTIAL WRITE: expected " << data.size() << ", wrote " << bytesWritten;
             return false;
         }
 
@@ -2868,12 +2843,7 @@ bool SerialPortManager::writeDataInThread(const QByteArray &data) {
 
         // Log success
         {
-            QFile debugLog("/tmp/write-data-debug.log");
-            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-                QTextStream out(&debugLog);
-                out << "✅ WRITE SUCCESS: " << bytesWritten << " bytes\n";
-                debugLog.close();
-            }
+                qCDebug(log_core_serial_tx) << "✅ WRITE SUCCESS: " << bytesWritten << " bytes\n";
         }
 
 
