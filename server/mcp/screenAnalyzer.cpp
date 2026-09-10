@@ -28,7 +28,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "bios_focus_detector.h"
+#include "ai/bios_focus_detector/bios_focus_detector.h"
 
 #ifdef HAVE_TESSERACT
 #include <tesseract/baseapi.h>
