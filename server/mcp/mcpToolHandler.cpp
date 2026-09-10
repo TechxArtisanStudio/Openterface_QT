@@ -637,7 +637,8 @@ QJsonObject McpToolHandler::toolKeyboardTypeText(const QJsonObject& args)
 {
     QString text = args.value("text").toString();
 
-    // DEBUG: Log to file
+    // DEBUG: Log to file (only in Debug builds)
+#ifdef DEBUG
     QFile debugLog("/tmp/mcp-keyboard-debug.log");
     if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
         QTextStream out(&debugLog);
@@ -652,6 +653,7 @@ QJsonObject McpToolHandler::toolKeyboardTypeText(const QJsonObject& args)
         out << "SerialPortManager::portPath: " << spm.getCurrentSerialPortPath() << "\n";
         debugLog.close();
     }
+#endif
 
     HostManager& hm = HostManager::getInstance();
 

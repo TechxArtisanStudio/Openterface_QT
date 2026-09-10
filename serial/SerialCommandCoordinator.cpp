@@ -52,7 +52,8 @@ SerialCommandCoordinator::~SerialCommandCoordinator()
 
 bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const QByteArray &data, bool force)
 {
-    // DEBUG: Log to file for MCP keyboard diagnostics
+    // DEBUG: Log to file for MCP keyboard diagnostics (only in Debug builds)
+#ifdef DEBUG
     {
         QFile debugLog("/tmp/serial-command-debug.log");
         if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
@@ -66,10 +67,12 @@ bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const Q
             debugLog.close();
         }
     }
+#endif
 
     if (!force && !m_ready) {
         qCWarning(log_core_serial) << "⚠️ COMMAND DROPPED: not ready (m_ready=" << m_ready << ", force=" << force << ")";
         // Log dropped command
+#ifdef DEBUG
         QFile debugLog("/tmp/serial-command-debug.log");
         if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
             QTextStream out(&debugLog);
@@ -77,6 +80,7 @@ bool SerialCommandCoordinator::sendAsyncCommand(QSerialPort* serialPort, const Q
             out << "   data: " << QString::fromLatin1(data.toHex(' ')) << "\n";
             debugLog.close();
         }
+#endif
         return false;
     }
 
@@ -366,7 +370,8 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
         return false;
     }
 
-    // DEBUG: Log command execution attempt
+    // DEBUG: Log command execution attempt (only in Debug builds)
+#ifdef DEBUG
     {
         QFile debugLog("/tmp/serial-command-debug.log");
         if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
@@ -379,6 +384,7 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
             debugLog.close();
         }
     }
+#endif
 
     try {
         qint64 bytesWritten = serialPort->write(command);
@@ -390,12 +396,14 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
             // This turns a transient USB glitch into a permanent zombie state.
             serialPort->clearError();
             // Log error
+#ifdef DEBUG
             QFile debugLog("/tmp/serial-command-debug.log");
             if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
                 QTextStream out(&debugLog);
                 out << "⚠️ WRITE FAILED: " << serialPort->errorString() << "\n";
                 debugLog.close();
             }
+#endif
             return false;
         }
 
@@ -405,12 +413,14 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
             // ZOMBIE STATE FIX: Clear error state for partial writes too
             serialPort->clearError();
             // Log partial write
+#ifdef DEBUG
             QFile debugLog("/tmp/serial-command-debug.log");
             if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
                 QTextStream out(&debugLog);
                 out << "⚠️ PARTIAL WRITE: expected " << command.size() << ", wrote " << bytesWritten << "\n";
                 debugLog.close();
             }
+#endif
             return false;
         }
 
@@ -419,16 +429,19 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
             // ZOMBIE STATE FIX: Clear error state for write timeout too
             serialPort->clearError();
             // Log timeout
+#ifdef DEBUG
             QFile debugLog("/tmp/serial-command-debug.log");
             if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
                 QTextStream out(&debugLog);
                 out << "⚠️ WRITE TIMEOUT: " << serialPort->errorString() << "\n";
                 debugLog.close();
             }
+#endif
             return false;
         }
 
         // Log success
+#ifdef DEBUG
         {
             QFile debugLog("/tmp/serial-command-debug.log");
             if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
@@ -437,6 +450,7 @@ bool SerialCommandCoordinator::executeCommand(QSerialPort* serialPort, const QBy
                 debugLog.close();
             }
         }
+#endif
 
         // Record command sent in statistics
         if (m_statistics) {

@@ -37,7 +37,8 @@
 #include <memory>
 #include <functional>
 
-// DEBUG: File-based logging for MCP keyboard issue
+// DEBUG: File-based logging for MCP keyboard issue (only in Debug builds)
+#ifdef DEBUG
 #define DEBUG_LOG(msg) { \
     QFile f("/tmp/keyboard-debug.log"); \
     if (f.open(QIODevice::Append | QIODevice::Text)) { \
@@ -45,6 +46,9 @@
         out << msg << "\n"; \
     } \
 }
+#else
+#define DEBUG_LOG(msg) {}
+#endif
 
 OPF_LOGGING_CATEGORY(log_host_kb_mapping, "opf.host.keyboard.mapping")
 OPF_LOGGING_CATEGORY(log_host_kb_modifiers, "opf.host.keyboard.modifiers")
