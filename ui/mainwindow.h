@@ -392,6 +392,9 @@ private:
     /// main window (matching main window height, with a small gap).
     void updateChatWindowGeometry();
 
+    // Helper function to ensure window position is on-screen after restoring from settings
+    void adjustPositionToScreen();
+
 public:
     CameraManager* getCameraManager() const { return m_cameraManager; }
 
@@ -404,6 +407,7 @@ public slots:
     void toggleMcpServer(bool enabled);
     void onMcpSettingsApplied();
     void toggleChatWindow(bool visible);
+    bool isChatWindowVisible() const;
 
 };
 #endif // MAINWINDOW_H

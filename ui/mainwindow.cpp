@@ -163,7 +163,16 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     // Delegate all initialization to initializer
     m_initializer = new MainWindowInitializer(this);
     m_initializer->initialize();
-    
+
+    // Restore window position from settings
+    QSettings settings;
+    QPoint savedPos = settings.value("MainWindow/pos").toPoint();
+    if (!savedPos.isNull()) {
+        move(savedPos);
+        // Adjust to ensure window is on-screen
+        adjustPositionToScreen();
+    }
+
     // Defer VideoHid start to avoid 500ms blocking sleep during startup
     // This will be started after the window is shown
     qCDebug(log_ui_mainwindow) << "VideoHid will be started after window is shown";
@@ -340,6 +349,11 @@ void MainWindow::toggleChatWindow(bool visible)
     }
 
     GlobalSetting::instance().setChatWindowVisible(visible);
+}
+
+bool MainWindow::isChatWindowVisible() const
+{
+    return m_chatWindow && m_chatWindow->isVisible();
 }
 
 void MainWindow::updateChatWindowGeometry()
@@ -547,6 +561,13 @@ void MainWindow::moveEvent(QMoveEvent *event) {
         m_programmaticChatMove = true;
         m_chatWindow->move(m_chatWindow->pos() + delta);
         m_programmaticChatMove = false;
+    }
+
+    // Save the new position to settings only when window is in normal state
+    // (not maximized, not minimized) to avoid saving weird positions
+    if ((windowState() & Qt::WindowMaximized) == 0 && (windowState() & Qt::WindowMinimized) == 0) {
+        QSettings settings;
+        settings.setValue("MainWindow/pos", pos());
     }
 
     // Call the base class implementation
@@ -1237,6 +1258,21 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
                                            << "chatPos=" << chatPos << "-> idealPos=" << idealPos;
             }
         }
+    }
+
+    // Sync the menu action's checked state when the chat window is closed
+    // directly (e.g. via the window's X button).
+    if (watched == m_chatWindow && event->type() == QEvent::Close) {
+        ui->actionAIChat->blockSignals(true);
+        ui->actionAIChat->setChecked(false);
+        ui->actionAIChat->blockSignals(false);
+        // Also uncheck the magic wand button in the corner widget
+        if (m_cornerWidgetManager && m_cornerWidgetManager->aiChatButton) {
+            m_cornerWidgetManager->aiChatButton->blockSignals(true);
+            m_cornerWidgetManager->aiChatButton->setChecked(false);
+            m_cornerWidgetManager->aiChatButton->blockSignals(false);
+        }
+        GlobalSetting::instance().setChatWindowVisible(false);
     }
 
     return QMainWindow::eventFilter(watched, event);
@@ -2404,5 +2440,23 @@ void MainWindow::syncShortcutsState()
     // This function is now a no-op — shortcuts are never disabled based on focus.
     // Kept for API compatibility and potential future use.
     qCDebug(log_ui_mainwindow) << "syncShortcutsState called (no-op: shortcuts always enabled)";
+}
+
+void MainWindow::adjustPositionToScreen()
+{
+    // Determine the screen that the window is currently on (or the primary screen if not visible)
+    QPoint windowCenter = geometry().center();
+    QScreen *screen = QGuiApplication::screenAt(windowCenter);
+    if (!screen)
+        screen = QGuiApplication::primaryScreen();
+
+    QRect screenRect = screen->availableGeometry();
+    QRect windowRect = geometry();
+
+    // Clamp the window position to be entirely within the screen
+    int newX = qBound(screenRect.left(), windowRect.x(), screenRect.right() - windowRect.width());
+    int newY = qBound(screenRect.top(), windowRect.y(), screenRect.bottom() - windowRect.height());
+
+    move(newX, newY);
 }
 

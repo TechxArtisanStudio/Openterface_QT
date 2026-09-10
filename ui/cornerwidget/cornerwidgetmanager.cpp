@@ -12,6 +12,7 @@ CornerWidgetManager::CornerWidgetManager(QWidget *parent)
       screensaverButton(nullptr),
       recordingButton(nullptr),
       muteButton(nullptr),
+      aiChatButton(nullptr),
       cornerWidget(new QWidget(parent)),
       keyboardLayoutComboBox(nullptr),
       screenScaleButton(nullptr),
@@ -88,7 +89,8 @@ void CornerWidgetManager::createWidgets()
         {&pasteButton, "pasteButton", ":/images/paste.svg", "Paste text to target", "Ctrl+Shift+V"},
         {&screensaverButton, "screensaverButton", ":/images/screensaver.svg", "Mouse dance", "Ctrl+Shift+F10"},
         {&recordingButton, "recordingButton", ":/images/startRecord.svg", "Start/Stop Recording", "Ctrl+Shift+F11"},
-        {&muteButton, "muteButton", ":/images/audio.svg", "Mute/Unmute Audio", "Ctrl+Shift+F9"}
+        {&muteButton, "muteButton", ":/images/audio.svg", "Mute/Unmute Audio", "Ctrl+Shift+F9"},
+        {&aiChatButton, "aiChatButton", ":/images/magic_wand.svg", "AI Chat", "Ctrl+Shift+C"}
     };
 
     for (const auto& btn : buttons) {
@@ -114,6 +116,7 @@ void CornerWidgetManager::createWidgets()
     horizontalLayout->addWidget(screensaverButton);
     horizontalLayout->addWidget(recordingButton);
     horizontalLayout->addWidget(muteButton);
+    horizontalLayout->addWidget(aiChatButton);
     horizontalLayout->addWidget(toggleSwitch);
 }
 
@@ -180,6 +183,7 @@ void CornerWidgetManager::updateAllIcons()
     setButtonIcon(screensaverButton, ":/images/screensaver.svg");
     setButtonIcon(recordingButton, isRecording ? ":/images/stopRecord.svg" : ":/images/startRecord.svg");
     setButtonIcon(muteButton, isMuted ? ":/images/mute.svg" : ":/images/audio.svg");
+    setButtonIcon(aiChatButton, ":/images/magic_wand.svg");
 }
 
 void CornerWidgetManager::setupConnections()
@@ -193,6 +197,12 @@ void CornerWidgetManager::setupConnections()
     connect(fullScreenButton, &QPushButton::clicked, this, &CornerWidgetManager::fullScreenClicked);
     connect(pasteButton, &QPushButton::clicked, this, &CornerWidgetManager::pasteClicked);
     connect(screensaverButton, &QPushButton::toggled, this, &CornerWidgetManager::screensaverClicked);
+    
+    // AI Chat button - checkable to reflect open/close state
+    aiChatButton->setCheckable(true);
+    connect(aiChatButton, &QPushButton::toggled, this, [this](bool checked) {
+        emit aiChatToggled();
+    });
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
     connect(toggleSwitch, &QCheckBox::checkStateChanged, this, &CornerWidgetManager::toggleSwitchChanged);
 #else
