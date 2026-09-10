@@ -59,10 +59,13 @@ QList<ChatApiMessage> MainPlannerAgent::buildPlanningConversation(
         "typing/press_key, typing/repeat_key, macro/run_verified_macro, "
         "mouse/move_mouse, mouse/left_click, mouse/left_drag, "
         "mouse/right_click, mouse/double_click, system/run_bash, "
-        "system/set_target_system, system/web_search, "
+        "system/set_target_system, system/web_search, system/web_fetch, "
         "recording/start_recording, recording/stop_recording, "
         "terminal/detect_cursor (detect if terminal is idle), "
-        "terminal/run_command_and_wait (type command and wait for completion)."));
+        "terminal/run_command_and_wait (type command and wait for completion), "
+        "scheduling/schedule_task (schedule future work), "
+        "scheduling/list_scheduled_tasks (view scheduled work), "
+        "scheduling/cancel_scheduled_task (stop scheduled work)."));
 
     if (!plannerPrompt.trimmed().isEmpty()) {
         conversation.append(ChatApiMessage::textMessage(ChatRole::System, plannerPrompt));

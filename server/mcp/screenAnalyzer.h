@@ -100,6 +100,39 @@ struct CursorDetectionResult {
 };
 
 /**
+ * Result of differential screen analysis between two consecutive frames.
+ * Used by the screen_diff tool to report what CHANGED on screen, rather
+ * than what IS on screen. This is much cheaper for the AI agent to process
+ * than a full screenshot, and avoids vision-model hallucination about which
+ * menu item is highlighted, which value just changed, etc.
+ */
+struct ScreenDiffResult {
+    enum Outcome {
+        FirstCapture,   // no previous frame — baseline captured
+        NoChange,       // frames are essentially identical
+        FullChange,     // > 50% of screen changed — full OCR, baseline reset
+        PartialChange   // diff of changed region only
+    };
+
+    Outcome outcome = FirstCapture;
+    int screenWidth = 0;
+    int screenHeight = 0;
+
+    QRect changedRect;          // bounding box of all changed pixels (PartialChange only)
+    float changeRatio = 0.0f;   // fraction of screen that changed (0.0 - 1.0)
+
+    QString previousText;       // OCR of the old region (PartialChange only)
+    QString currentText;        // OCR of the new region (or full OCR for FullChange)
+
+    QString highlightedText;    // text currently highlighted (BIOS reverse-video), if any
+    QRect highlightRect;        // bounding box of the highlight
+    QString highlightForeground; // avg foreground color of highlight (e.g. "rgb(255,255,255)")
+    QString highlightBackground; // avg background color surrounding highlight (e.g. "rgb(0,0,170)")
+
+    QString report;             // human-readable report for the AI agent
+};
+
+/**
  * Analysis mode for screen OCR.
  * General mode is optimized for UI elements with coordinates.
  * Terminal mode is optimized for monospaced command output.
@@ -141,6 +174,28 @@ public:
                                  AnalysisMode mode = AnalysisMode::General);
 
     /**
+     * Differential screen analysis: compare current frame vs. the stored previous
+     * frame and report what CHANGED, not what IS.
+     *
+     * Algorithm:
+     *   1. If no previous frame exists: run full OCR, store frame, return FirstCapture.
+     *   2. Diff current vs. previous. If < 0.1% changed: return NoChange.
+     *   3. If > 50% changed (menu transition, dialog popup): full OCR, return FullChange.
+     *   4. Otherwise: crop both frames to the changed region (with padding for context),
+     *      OCR each, and produce a "BEFORE / AFTER" text diff.
+     *   5. Run BIOS highlight (reverse-video) detection on the current frame and include
+     *      the highlighted text in the report. This is the feature that fixes the BIOS
+     *      navigation bug — the agent is told explicitly "X is currently highlighted".
+     *
+     * The stored previous frame is updated on every call, so the next call will diff
+     * against the current frame.
+     *
+     * @param frame The current screen capture
+     * @return ScreenDiffResult with structured diff report
+     */
+    ScreenDiffResult analyzeScreenDiff(const QImage& frame);
+
+    /**
      * Detect a blinking terminal cursor from a sequence of pre-captured frames.
      *
      * This uses temporal differencing: it analyzes pixel diffs between consecutive
@@ -178,6 +233,16 @@ public:
      */
     bool isOpenCVAvailable() const;
 
+    /**
+     * Detect a shell prompt on the last line of the terminal via OCR.
+     * Looks for common prompt patterns: "$ ", "# ", "> ", "% ", "~$ ", etc.
+     *
+     * @param frame The terminal screen image
+     * @param promptText Output: the detected prompt text if found
+     * @return true if a shell prompt pattern was detected on the last line
+     */
+    bool detectShellPrompt(const QImage& frame, QString& promptText);
+
 private:
     tesseract::TessBaseAPI* m_tesseract;
     bool m_initialized;
@@ -206,6 +271,25 @@ private:
      * @return Plain text with preserved terminal layout
      */
     QString extractTerminalText(const QImage& frame);
+
+    /**
+     * Extract terminal-style text from a region (used by analyzeScreenDiff for both
+     * the current and previous crops). Uses the same preprocessing and Tesseract
+     * settings as extractTerminalText, so the two OCR outputs are comparable.
+     * @param region The image region to OCR
+     * @return Plain text with preserved layout
+     */
+    QString extractTextFromRegion(const QImage& region);
+
+    /**
+     * Produce a human-readable diff report from two text blocks (previous and current).
+     * Uses a simple LCS-based line diff, then collapses long runs of unchanged lines
+     * to keep the report compact for the AI agent.
+     * @param oldText OCR text from the previous frame's crop
+     * @param newText OCR text from the current frame's crop
+     * @return Diff report with - / + prefixes for removed / added lines
+     */
+    QString buildDiffReport(const QString& oldText, const QString& newText);
 
     /**
      * Detect the region that changed between the current frame and the previous frame.
@@ -329,16 +413,6 @@ private:
      * @return true if the regions are at approximately the same position
      */
     bool isSamePosition(const ChangeRegion& a, const ChangeRegion& b, float tolerance = 30.0f);
-
-    /**
-     * Detect a shell prompt on the last line of the terminal via OCR.
-     * Looks for common prompt patterns: "$ ", "# ", "> ", "% ", "~$ ", etc.
-     *
-     * @param frame The terminal screen image
-     * @param promptText Output: the detected prompt text if found
-     * @return true if a shell prompt pattern was detected on the last line
-     */
-    bool detectShellPrompt(const QImage& frame, QString& promptText);
 };
 
 #endif // SCREEN_ANALYZER_H

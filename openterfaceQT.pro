@@ -20,6 +20,7 @@ exists(/usr/bin/ccache) {
 }
 
 INCLUDEPATH += $$PWD
+INCLUDEPATH += $$PWD/ai/bios_focus_detector
 
 SOURCES += main.cpp \
     device/DeviceInfo.cpp \
@@ -76,6 +77,7 @@ SOURCES += main.cpp \
     server/mcp/mcpToolHandler.cpp \
     server/mcp/mcpSseTransport.cpp \
     server/mcp/screenAnalyzer.cpp \
+    ai/bios_focus_detector/bios_focus_detector.c \
     target/KeyboardLayouts.cpp \
     target/KeyboardManager.cpp \
     target/MouseManager.cpp \
@@ -166,7 +168,9 @@ SOURCES += main.cpp \
     ai/ChatScreenCapture.cpp \
     ai/SharedToolExecutor.cpp \
     ai/ChatSkillManager.cpp \
+    ai/ChatTaskScheduler.cpp \
     ai/ChatToolExecution.cpp \
+    ai/ChatSchedulerPersistence.cpp \
     ai/ChatTracing.cpp \
     ai/WebSearchManager.cpp \
     ai/WebSearchProviders.cpp \
@@ -365,7 +369,9 @@ HEADERS  += \
     ai/ChatScreenCapture.h \
     ai/SharedToolExecutor.h \
     ai/ChatSkillManager.h \
+    ai/ChatTaskScheduler.h \
     ai/ChatToolExecution.h \
+    ai/ChatSchedulerPersistence.h \
     ai/ChatTracing.h \
     ai/ChatTypes.h \
     ai/WebSearchManager.h \

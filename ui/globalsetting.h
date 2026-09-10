@@ -31,6 +31,7 @@
 #include <QByteArray>
 #include <QMap>
 #include <QPair>
+#include <QStringList>
 class GlobalSetting : public QObject
 {
     Q_OBJECT
@@ -275,6 +276,12 @@ public:
     void setChatParallelApiKey(const QString &key);
     QString getChatParallelApiKey() const;
 
+    // Nudge configuration (agent loop patterns and messages)
+    QStringList getNudgeContinuationPatterns() const;
+    QStringList getNudgeCompletionPatterns() const;
+    QString getNudgeMessage(const QString &key) const;
+    int getNudgeMaxXmlNudges() const;
+
 signals:
     /// Emitted when the target OS for the AI agent changes (e.g. via the chat
     /// header button or the set_target_system tool). Listeners can refresh any
@@ -291,6 +298,15 @@ private:
     // Load default prompts from JSON file
     void loadDefaultPrompts() const;
     QString getDefaultPrompt(const QString &key) const;
+
+    // Nudge config loaded from JSON file (default_nudge.json or user override)
+    mutable QStringList m_nudgeContinuationPatterns;
+    mutable QStringList m_nudgeCompletionPatterns;
+    mutable QMap<QString, QString> m_nudgeMessages;
+    mutable int m_nudgeMaxXmlNudges = 2;
+    mutable bool m_nudgeLoaded = false;
+
+    void loadNudgeConfig() const;
 };
 
 #endif // GLOBALSETTING_H

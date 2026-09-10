@@ -29,8 +29,10 @@
 #include <QSet>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QCoreApplication>
 #include <QDir>
+#include <QStandardPaths>
 
 GlobalSetting::GlobalSetting(QObject *parent)
     : QObject(parent),
@@ -88,6 +90,146 @@ QString GlobalSetting::getDefaultPrompt(const QString &key) const
 {
     loadDefaultPrompts();
     return m_defaultPrompts.value(key, QString());
+}
+
+// ---------------------------------------------------------------------------
+// Nudge configuration loading
+// ---------------------------------------------------------------------------
+// Helper: returns the platform-specific user config directory for Openterface.
+static QString openterfaceConfigDir()
+{
+#ifdef Q_OS_WIN
+    QString appData = qgetenv("APPDATA");
+    if (appData.isEmpty()) appData = QDir::homePath() + "/AppData/Roaming";
+    return appData + "/Openterface";
+#elif defined(Q_OS_MAC)
+    return QDir::homePath() + "/Library/Application Support/Openterface";
+#else
+    QString xdgConfig = qgetenv("XDG_CONFIG_HOME");
+    if (xdgConfig.isEmpty()) xdgConfig = QDir::homePath() + "/.config";
+    return xdgConfig + "/Openterface";
+#endif
+}
+
+void GlobalSetting::loadNudgeConfig() const
+{
+    if (m_nudgeLoaded) return;
+    m_nudgeLoaded = true;
+
+    // Search order: user override → shipped default
+    QString nudgePath;
+
+    // 1. User override in config directory
+    QString userPath = openterfaceConfigDir() + "/nudge.json";
+    if (QFile::exists(userPath)) {
+        nudgePath = userPath;
+    }
+
+    // 2. Shipped default alongside the application binary
+    if (nudgePath.isEmpty()) {
+        QString appPath = QCoreApplication::applicationDirPath() + "/../ai/default_nudge.json";
+        if (QFile::exists(appPath)) {
+            nudgePath = appPath;
+        }
+    }
+
+    // 3. Development source directory
+    if (nudgePath.isEmpty()) {
+        QString devPath = QDir::currentPath() + "/../ai/default_nudge.json";
+        if (QFile::exists(devPath)) {
+            nudgePath = devPath;
+        }
+    }
+
+    // 4. Installed system path
+    if (nudgePath.isEmpty()) {
+        QString sysPath = "/usr/share/openterface/ai/default_nudge.json";
+        if (QFile::exists(sysPath)) {
+            nudgePath = sysPath;
+        }
+    }
+
+    if (nudgePath.isEmpty()) {
+        qWarning() << "No nudge config found (tried user override and shipped default)";
+        return;
+    }
+
+    QFile file(nudgePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning() << "Failed to open nudge config:" << nudgePath;
+        return;
+    }
+
+    QByteArray jsonData = file.readAll();
+    file.close();
+
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(jsonData, &parseError);
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+        qWarning() << "Failed to parse nudge config JSON:" << parseError.errorString();
+        return;
+    }
+
+    QJsonObject root = doc.object();
+
+    // continuationPatterns
+    if (root.contains("continuationPatterns") && root["continuationPatterns"].isArray()) {
+        QJsonArray arr = root["continuationPatterns"].toArray();
+        for (const auto &v : arr) {
+            m_nudgeContinuationPatterns.append(v.toString().toLower());
+        }
+    }
+
+    // completionPatterns
+    if (root.contains("completionPatterns") && root["completionPatterns"].isArray()) {
+        QJsonArray arr = root["completionPatterns"].toArray();
+        for (const auto &v : arr) {
+            m_nudgeCompletionPatterns.append(v.toString().toLower());
+        }
+    }
+
+    // nudgeMessages
+    if (root.contains("nudgeMessages") && root["nudgeMessages"].isObject()) {
+        QJsonObject msgs = root["nudgeMessages"].toObject();
+        for (auto it = msgs.begin(); it != msgs.end(); ++it) {
+            m_nudgeMessages[it.key()] = it.value().toString();
+        }
+    }
+
+    // maxXmlNudges
+    if (root.contains("maxXmlNudges") && root["maxXmlNudges"].isDouble()) {
+        m_nudgeMaxXmlNudges = root["maxXmlNudges"].toInt();
+    }
+
+    qDebug() << "Loaded nudge config from" << nudgePath
+             << "— continuationPatterns:" << m_nudgeContinuationPatterns.size()
+             << "completionPatterns:" << m_nudgeCompletionPatterns.size()
+             << "nudgeMessages:" << m_nudgeMessages.keys()
+             << "maxXmlNudges:" << m_nudgeMaxXmlNudges;
+}
+
+QStringList GlobalSetting::getNudgeContinuationPatterns() const
+{
+    loadNudgeConfig();
+    return m_nudgeContinuationPatterns;
+}
+
+QStringList GlobalSetting::getNudgeCompletionPatterns() const
+{
+    loadNudgeConfig();
+    return m_nudgeCompletionPatterns;
+}
+
+QString GlobalSetting::getNudgeMessage(const QString &key) const
+{
+    loadNudgeConfig();
+    return m_nudgeMessages.value(key, QString());
+}
+
+int GlobalSetting::getNudgeMaxXmlNudges() const
+{
+    loadNudgeConfig();
+    return m_nudgeMaxXmlNudges;
 }
 
 void GlobalSetting::setFilterSettings(bool Chipinfo, bool keyboardPress, bool mideaKeyboard, bool mouseMoveABS, bool mouseMoveREL, bool HID)
@@ -966,12 +1108,14 @@ QMap<QString, bool> GlobalSetting::getChatAllToolsEnabled() const {
     QMap<QString, bool> tools;
     // Get all known tools and their enabled state
     QStringList toolNames = {
-        "capture_screen", "screen_to_markdown",
+        "capture_screen", "screen_to_markdown", "screen_diff", "navigate_to_menu_item",
         "move_mouse", "left_click", "right_click", "double_click", "left_drag",
         "type_text", "press_key", "repeat_key",
         "start_recording", "stop_recording",
         "run_bash", "set_target_system",
-        "detect_cursor", "web_search"
+        "detect_cursor", "web_search", "web_fetch",
+        "run_command_and_wait", "reboot_to_bios",
+        "schedule_task", "list_scheduled_tasks", "cancel_scheduled_task"
     };
     for (const QString &tool : toolNames) {
         tools[tool] = getChatToolEnabled(tool);

@@ -126,6 +126,8 @@ When the AI responds with a tool-call JSON block, `ChatToolExecution` parses and
 | `left_drag` | `x` (0.0–1.0), `y` (0.0–1.0) | Drag from current position to the given coordinates. |
 | `type_text` | `text` (string) | Type text on the target keyboard via USB HID. Uses batched keystroke simulation. |
 | `press_key` | `keys` (string, e.g. `"ctrl+l"`, `"enter"`) | Press a key combination on the target via USB HID. |
+| `repeat_key` | `keys` (string), `count` (int), `interval_ms` (int, default 1000) | Press a key repeatedly at specified intervals. Useful for entering BIOS (pressing DEL), accessing boot menus (F12, F2), or any situation requiring repeated key presses. |
+| `reboot_to_bios` | `bios_key` (string, default "del"), `delay_before_press_ms` (int, default 2000), `press_count` (int, default 20), `interval_ms` (int, default 1000) | Press the BIOS/UEFI entry key repeatedly after a delay. This tool assumes a reboot has ALREADY been initiated via other means (e.g., GUI click on reboot button, type_text 'reboot' + press_key 'enter', etc.). It does NOT send the reboot command itself. After the specified delay, it automatically presses the BIOS key WITHOUT waiting for screen capture, ensuring the BIOS entry window is not missed due to agent thinking time. Use when user asks to "boot into BIOS", "enter BIOS setup", or "access UEFI firmware settings". |
 | `run_bash` | `command` (string) | Run a shell command on the **HOST** machine (the one running Openterface). Not the target. |
 
 ### Tool-Call JSON Format
@@ -554,6 +556,58 @@ In Agent mode, the screen is re-captured at every iteration (except the first, w
 - State what it sees on screen in its response
 - Not assume screen state from prior iterations
 - Call `capture_screen` if the screenshot is missing or unclear
+
+### BIOS Boot Timing Challenge
+
+**Problem:** When a user asks to "boot into BIOS", the normal agent loop faces a critical timing issue:
+1. Agent sends reboot command to target
+2. Agent captures screen (blank during reboot)
+3. Agent analyzes blank screen and "thinks" (API call takes 1-3 seconds)
+4. Agent decides to press Del key
+5. By this time, the BIOS entry window (typically 2-5 seconds after power-on) has already passed
+
+The agent's thinking time makes it impossible to catch the BIOS entry window reliably.
+
+**Solution:** The `reboot_to_bios` tool bypasses the normal agent loop timing by:
+1. Waiting for a configurable delay (default 2000ms) after reboot has been initiated
+2. Automatically pressing the BIOS key repeatedly WITHOUT waiting for screen capture or AI response
+3. Completing the entire key-pressing sequence in a single tool execution
+
+**Example Usage:**
+```json
+// First: Initiate reboot via GUI click or command
+{
+  "tool_calls": [
+    {"tool": "type_text", "text": "reboot"},
+    {"tool": "press_key", "keys": "enter"}
+  ]
+}
+
+// Then: Press BIOS key repeatedly after delay
+{
+  "tool_calls": [
+    {
+      "tool": "reboot_to_bios",
+      "bios_key": "del",
+      "delay_before_press_ms": 2000,
+      "press_count": 20,
+      "interval_ms": 1000
+    }
+  ]
+}
+```
+
+This workflow:
+1. First sends the reboot command to the target
+2. Then immediately calls reboot_to_bios, which waits 2 seconds and presses the Del key 20 times (once per second)
+3. Ensures the BIOS setup is entered even if the agent is still processing
+
+**Supported BIOS Keys:** The `bios_key` parameter supports any key that `repeat_key` supports, including:
+- `del` / `delete` (most common for desktop BIOS)
+- `f2` (common for laptops)
+- `f10`, `f12` (boot menu keys)
+- `esc` (some systems)
+- Any modifier+key combination like `ctrl+alt+del`
 
 ---
 

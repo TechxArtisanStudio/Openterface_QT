@@ -83,6 +83,8 @@ private:
     // Snapshot members for tool states
     bool m_snap_screenCapture;
     bool m_snap_screenToMarkdown;
+    bool m_snap_screenDiff;
+    bool m_snap_navigateToItem;
     bool m_snap_moveMouse;
     bool m_snap_leftClick;
     bool m_snap_rightClick;
@@ -96,6 +98,12 @@ private:
     bool m_snap_setTargetSystem;
     bool m_snap_runBash;
     bool m_snap_webSearch;
+    bool m_snap_webFetch;
+    bool m_snap_detectCursor;
+    bool m_snap_runCommandAndWait;
+    bool m_snap_scheduleTask;
+    bool m_snap_listScheduledTasks;
+    bool m_snap_cancelScheduledTask;
 
     // Web search provider snapshots
     QStringList m_snap_webSearchProviders;
