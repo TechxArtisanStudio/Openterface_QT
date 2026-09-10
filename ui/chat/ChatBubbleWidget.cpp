@@ -430,9 +430,18 @@ QString ChatBubbleWidget::formatContentForDisplay(const QString &content) const
 
         // Split out the OCR section (if present)
         QString ocrSection;
+        QString afterOcrSection;
         int ocrIdx = body.indexOf("--- OCR Analysis Result ---");
         if (ocrIdx >= 0) {
-            ocrSection = body.mid(ocrIdx + strlen("--- OCR Analysis Result ---")).trimmed();
+            QString afterOcrStart = body.mid(ocrIdx + strlen("--- OCR Analysis Result ---")).trimmed();
+            // Check if there's additional content after the OCR section
+            int nextSectionIdx = afterOcrStart.indexOf("\n\nTerminal Output");
+            if (nextSectionIdx >= 0) {
+                ocrSection = afterOcrStart.left(nextSectionIdx).trimmed();
+                afterOcrSection = afterOcrStart.mid(nextSectionIdx).trimmed();
+            } else {
+                ocrSection = afterOcrStart;
+            }
             body = body.left(ocrIdx).trimmed();
         }
 
@@ -457,6 +466,10 @@ QString ChatBubbleWidget::formatContentForDisplay(const QString &content) const
             } else {
                 result += "```\n" + ocrSection + "\n```\n";
             }
+        }
+        if (!afterOcrSection.isEmpty()) {
+            // Add additional sections (like Terminal Output) with bold formatting
+            result += "\n**" + afterOcrSection + "**\n";
         }
         return result;
     }
