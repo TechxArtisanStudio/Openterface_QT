@@ -338,6 +338,7 @@ set(AI_SOURCES
     ai/ChatSkillManager.cpp ai/ChatSkillManager.h
     ai/ChatGuideMode.cpp ai/ChatGuideMode.h
     ai/ChatTaskScheduler.cpp ai/ChatTaskScheduler.h
+    ai/ChatSchedulerPersistence.cpp ai/ChatSchedulerPersistence.h
     ai/WebSearchProvider.h
     ai/WebSearchProviders.cpp ai/WebSearchProviders.h
     ai/WebSearchManager.cpp ai/WebSearchManager.h
