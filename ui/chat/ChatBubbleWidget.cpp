@@ -18,6 +18,7 @@
 #include <QJsonParseError>
 #include <QTimer>
 
+#include <QRegularExpression>
 ChatBubbleWidget::ChatBubbleWidget(QWidget *parent)
     : QWidget(parent)
 {
@@ -186,6 +187,17 @@ void ChatBubbleWidget::updateContent()
     // Tool-call JSON and TOOL_RESULT blocks are preprocessed into readable
     // markdown before rendering.
     QString displayContent = formatContentForDisplay(m_message.content);
+    
+    // For tool results, reduce heading sizes by converting to bold text
+    if (m_message.role == ChatRole::Tool) {
+        // Convert markdown headings to bold text to prevent oversized fonts
+        displayContent.replace(QRegularExpression("^# (.+)$", QRegularExpression::MultilineOption), "**\\1**");
+        displayContent.replace(QRegularExpression("^## (.+)$", QRegularExpression::MultilineOption), "**\\1**");
+        displayContent.replace(QRegularExpression("^### (.+)$", QRegularExpression::MultilineOption), "**\\1**");
+        displayContent.replace(QRegularExpression("^#### (.+)$", QRegularExpression::MultilineOption), "**\\1**");
+        displayContent.replace(QRegularExpression("^##### (.+)$", QRegularExpression::MultilineOption), "**\\1**");
+        displayContent.replace(QRegularExpression("^###### (.+)$", QRegularExpression::MultilineOption), "**\\1**");
+    }
     if (m_message.role == ChatRole::User || m_message.role == ChatRole::Assistant || m_message.role == ChatRole::Tool) {
         m_contentBrowser->setMarkdown(displayContent);
     } else {
