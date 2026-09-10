@@ -32,6 +32,12 @@
 #ifdef HAVE_OPENCV
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+#if CV_VERSION_MAJOR >= 5
+// OpenCV 5 moved cv::boundingRect(InputArray) from imgproc to the new
+// opencv2/geometry module, and imgproc.hpp no longer provides it
+// transitively. The module does not exist in OpenCV 4, hence the guard.
+#include <opencv2/geometry/2d.hpp>
+#endif
 #endif
 
 Q_LOGGING_CATEGORY(log_screen_analyzer, "opf.screen.analyzer")
