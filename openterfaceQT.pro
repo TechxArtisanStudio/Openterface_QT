@@ -20,6 +20,7 @@ exists(/usr/bin/ccache) {
 }
 
 INCLUDEPATH += $$PWD
+INCLUDEPATH += $$PWD/ai/bios_focus_detector
 
 SOURCES += main.cpp \
     device/DeviceInfo.cpp \
@@ -76,6 +77,7 @@ SOURCES += main.cpp \
     server/mcp/mcpToolHandler.cpp \
     server/mcp/mcpSseTransport.cpp \
     server/mcp/screenAnalyzer.cpp \
+    ai/bios_focus_detector/bios_focus_detector.c \
     target/KeyboardLayouts.cpp \
     target/KeyboardManager.cpp \
     target/MouseManager.cpp \
@@ -164,13 +166,19 @@ SOURCES += main.cpp \
     ai/ChatManager.cpp \
     ai/ChatPersistence.cpp \
     ai/ChatScreenCapture.cpp \
+    ai/SharedToolExecutor.cpp \
     ai/ChatSkillManager.cpp \
+    ai/ChatTaskScheduler.cpp \
     ai/ChatToolExecution.cpp \
+    ai/ChatSchedulerPersistence.cpp \
     ai/ChatTracing.cpp \
+    ai/WebSearchManager.cpp \
+    ai/WebSearchProviders.cpp \
     ui/chat/ChatBubbleWidget.cpp \
     ui/chat/ChatInputWidget.cpp \
     ui/chat/ChatPlanCardWidget.cpp \
     ui/chat/ChatSettingsPage.cpp \
+    ui/chat/ToolsSettingsPage.cpp \
     ui/chat/ChatSkillBar.cpp \
     ui/chat/ChatEmptyStateWidget.cpp \
     ui/chat/ChatTraceDialog.cpp \
@@ -359,14 +367,21 @@ HEADERS  += \
     ai/ChatManager.h \
     ai/ChatPersistence.h \
     ai/ChatScreenCapture.h \
+    ai/SharedToolExecutor.h \
     ai/ChatSkillManager.h \
+    ai/ChatTaskScheduler.h \
     ai/ChatToolExecution.h \
+    ai/ChatSchedulerPersistence.h \
     ai/ChatTracing.h \
     ai/ChatTypes.h \
+    ai/WebSearchManager.h \
+    ai/WebSearchProvider.h \
+    ai/WebSearchProviders.h \
     ui/chat/ChatBubbleWidget.h \
     ui/chat/ChatInputWidget.h \
     ui/chat/ChatPlanCardWidget.h \
     ui/chat/ChatSettingsPage.h \
+    ui/chat/ToolsSettingsPage.h \
     ui/chat/ChatSkillBar.h \
     ui/chat/ChatEmptyStateWidget.h \
     ui/chat/ChatTraceDialog.h \

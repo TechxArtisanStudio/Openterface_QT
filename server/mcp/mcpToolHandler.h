@@ -81,10 +81,12 @@ private:
     QJsonObject toolSystemStatus(const QJsonObject& args);
     QJsonObject toolUsbSwitch(const QJsonObject& args);
     QJsonObject toolScreenToMarkdown(const QJsonObject& args);
+    QJsonObject toolDetectCursor(const QJsonObject& args);
+    QJsonObject toolRunCommandAndWait(const QJsonObject& args);
     QJsonObject toolFirmwareCheck(const QJsonObject& args);
     QJsonObject toolFirmwareUpdate(const QJsonObject& args);
-    QJsonObject toolKeymodScan(const QJsonObject& args);
-    QJsonObject toolKeymodFlash(const QJsonObject& args);
+    QJsonObject toolScreenDiff(const QJsonObject& args);
+    QJsonObject toolNavigateToMenuItem(const QJsonObject& args);
 
     // --- Helpers ---
     static QJsonObject textResult(const QString& text);

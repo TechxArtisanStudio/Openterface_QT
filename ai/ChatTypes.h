@@ -113,6 +113,11 @@ struct ChatMessage {
     // Tool call ID for tool role messages (required by OpenAI API format).
     // Links this tool result back to the assistant's tool call.
     QString toolCallId;
+    // Processing time in milliseconds (for AI-generated messages)
+    int processingTimeMs = 0;
+    // Token usage (for AI-generated messages)
+    int inputTokens = 0;
+    int outputTokens = 0;
 
     ChatMessage()
         : id(QUuid::createUuid()), role(ChatRole::User), createdAt(QDateTime::currentDateTime()) {}
@@ -347,7 +352,9 @@ enum class ChatTargetSystem {
     Linux,
     IPhone,
     IPad,
-    Android
+    Android,
+    BIOS,       // BIOS/UEFI setup screens (text-based menu with color highlighting)
+    TextUI      // DOS-like text-based interfaces (e.g., old DOS apps, text menus)
 };
 
 inline QString chatTargetSystemToString(ChatTargetSystem s) {
@@ -358,6 +365,8 @@ inline QString chatTargetSystemToString(ChatTargetSystem s) {
         case ChatTargetSystem::IPhone:  return "iPhone";
         case ChatTargetSystem::IPad:    return "iPad";
         case ChatTargetSystem::Android: return "android";
+        case ChatTargetSystem::BIOS:    return "bios";
+        case ChatTargetSystem::TextUI:  return "textui";
     }
     return "linux";
 }
@@ -370,6 +379,8 @@ inline ChatTargetSystem chatTargetSystemFromString(const QString &str) {
     if (lower == "iphone")                     return ChatTargetSystem::IPhone;
     if (lower == "ipad")                       return ChatTargetSystem::IPad;
     if (lower == "android")                    return ChatTargetSystem::Android;
+    if (lower == "bios" || lower == "uefi")    return ChatTargetSystem::BIOS;
+    if (lower == "textui" || lower == "dos")   return ChatTargetSystem::TextUI;
     return ChatTargetSystem::Linux;
 }
 
@@ -381,6 +392,8 @@ inline QString chatTargetSystemDisplayName(ChatTargetSystem s) {
         case ChatTargetSystem::IPhone:  return "iPhone";
         case ChatTargetSystem::IPad:    return "iPad";
         case ChatTargetSystem::Android: return "Android";
+        case ChatTargetSystem::BIOS:    return "BIOS/UEFI";
+        case ChatTargetSystem::TextUI:  return "Text-based UI";
     }
     return "Linux";
 }
@@ -398,6 +411,9 @@ struct ChatCompletionResult {
     QString content;
     int inputTokenCount = -1;
     int outputTokenCount = -1;
+    // Tool calls from OpenAI function calling format
+    // Each entry: {"id": "call_xxx", "name": "tool_name", "arguments": "..."}
+    QList<QJsonObject> toolCalls;
 };
 
 // ============================================================================
@@ -406,6 +422,7 @@ struct ChatCompletionResult {
 struct AgentToolCall {
     QString tool;
     QVariantMap args;
+    QString toolCallId;  // OpenAI function calling format: unique ID for the tool call
 };
 
 // ============================================================================
@@ -486,6 +503,7 @@ struct ChatSkill {
     QString prompt;
     bool captureScreen = false;
     QString userLabel;
+    QString description; // short description of what this skill does
 
     QString displayLabel() const {
         return userLabel.isEmpty() ? name : userLabel;
@@ -499,6 +517,7 @@ struct ChatSkill {
         obj["prompt"] = prompt;
         obj["captureScreen"] = captureScreen;
         if (!userLabel.isEmpty()) obj["userLabel"] = userLabel;
+        if (!description.isEmpty()) obj["description"] = description;
         return obj;
     }
 
@@ -510,6 +529,7 @@ struct ChatSkill {
         s.prompt = obj["prompt"].toString();
         s.captureScreen = obj["captureScreen"].toBool(false);
         s.userLabel = obj["userLabel"].toString();
+        s.description = obj["description"].toString();
         return s;
     }
 };

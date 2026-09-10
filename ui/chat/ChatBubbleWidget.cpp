@@ -16,7 +16,9 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonParseError>
+#include <QTimer>
 
+#include <QRegularExpression>
 ChatBubbleWidget::ChatBubbleWidget(QWidget *parent)
     : QWidget(parent)
 {
@@ -84,6 +86,11 @@ void ChatBubbleWidget::setupUI()
         "QTextBrowser { padding: 8px; border-radius: 8px; background-color: transparent; }");
     m_layout->addWidget(m_contentBrowser);
 
+    m_metadataLabel = new QLabel();
+    m_metadataLabel->setVisible(false);
+    m_metadataLabel->setStyleSheet("font-size: 10px; color: #888; padding: 0px 8px;");
+    m_layout->addWidget(m_metadataLabel);
+
     m_attachmentLabel = new QLabel();
     m_attachmentLabel->setVisible(false);
     m_layout->addWidget(m_attachmentLabel);
@@ -134,9 +141,10 @@ void ChatBubbleWidget::updateContent()
         m_contentBrowser->setPlainText(m_message.content);
         // Pin height to actual document content — QTextBrowser's default
         // sizeHint is much taller than a single line of text.
+        // Add small padding to ensure no text clipping.
         m_contentBrowser->document()->adjustSize();
         m_contentBrowser->setFixedHeight(
-            static_cast<int>(m_contentBrowser->document()->size().height()) + 2);
+            static_cast<int>(m_contentBrowser->document()->size().height()) + 4);
         return;
     }
 
@@ -174,12 +182,23 @@ void ChatBubbleWidget::updateContent()
     m_contentBrowser->setStyleSheet(
         "QTextBrowser { padding: 8px; border-radius: 8px; " + bgStyle + " }");
 
-    // Content — render markdown for user and assistant messages; system
+    // Content — render markdown for user, assistant, and tool messages; system
     // messages stay as plain text (they're short status strings).
     // Tool-call JSON and TOOL_RESULT blocks are preprocessed into readable
     // markdown before rendering.
     QString displayContent = formatContentForDisplay(m_message.content);
-    if (m_message.role == ChatRole::User || m_message.role == ChatRole::Assistant) {
+    
+    // For tool results, reduce heading sizes by converting to bold text
+    if (m_message.role == ChatRole::Tool) {
+        // Convert markdown headings to bold text to prevent oversized fonts
+        displayContent.replace(QRegularExpression("^# (.+)$", QRegularExpression::MultilineOption), "**\\1**");
+        displayContent.replace(QRegularExpression("^## (.+)$", QRegularExpression::MultilineOption), "**\\1**");
+        displayContent.replace(QRegularExpression("^### (.+)$", QRegularExpression::MultilineOption), "**\\1**");
+        displayContent.replace(QRegularExpression("^#### (.+)$", QRegularExpression::MultilineOption), "**\\1**");
+        displayContent.replace(QRegularExpression("^##### (.+)$", QRegularExpression::MultilineOption), "**\\1**");
+        displayContent.replace(QRegularExpression("^###### (.+)$", QRegularExpression::MultilineOption), "**\\1**");
+    }
+    if (m_message.role == ChatRole::User || m_message.role == ChatRole::Assistant || m_message.role == ChatRole::Tool) {
         m_contentBrowser->setMarkdown(displayContent);
     } else {
         m_contentBrowser->setPlainText(displayContent);
@@ -187,9 +206,38 @@ void ChatBubbleWidget::updateContent()
     // QTextBrowser needs an explicit height when its internal scrollbar is off
     // (so the outer chat scroll area handles scrolling). Compute from the
     // document's laid-out size and pin the widget to that height.
+    // Set the text width first to ensure proper line wrapping calculation.
+    m_contentBrowser->document()->setTextWidth(m_contentBrowser->viewport()->width());
     m_contentBrowser->document()->adjustSize();
-    m_contentBrowser->setFixedHeight(
-        static_cast<int>(m_contentBrowser->document()->size().height()) + 4);
+
+    // Defer height calculation to ensure the document is fully laid out,
+    // especially for markdown content which needs time to measure properly.
+    QTimer::singleShot(0, this, [this]() {
+        m_contentBrowser->document()->setTextWidth(m_contentBrowser->viewport()->width());
+        m_contentBrowser->document()->adjustSize();
+        int docHeight = static_cast<int>(m_contentBrowser->document()->size().height());
+        // CSS padding is 8px top + 8px bottom = 16px. Add 4px safety margin.
+        m_contentBrowser->setFixedHeight(docHeight + 20);
+    });
+
+    // Metadata (processing time and token usage)
+    if (m_message.role == ChatRole::Assistant && (m_message.processingTimeMs > 0 || m_message.inputTokens > 0 || m_message.outputTokens > 0)) {
+        QStringList metadataParts;
+        if (m_message.processingTimeMs > 0) {
+            metadataParts.append(QString("⏱ %1s").arg(m_message.processingTimeMs / 1000.0, 0, 'f', 1));
+        }
+        if (m_message.inputTokens > 0 || m_message.outputTokens > 0) {
+            metadataParts.append(QString("🔤 %1↓ %2↑ tokens").arg(m_message.inputTokens).arg(m_message.outputTokens));
+        }
+        if (!metadataParts.isEmpty()) {
+            m_metadataLabel->setText(metadataParts.join(" • "));
+            m_metadataLabel->setVisible(true);
+        } else {
+            m_metadataLabel->setVisible(false);
+        }
+    } else {
+        m_metadataLabel->setVisible(false);
+    }
 
     // Attachment
     if (!m_message.attachmentFilePath.isEmpty()) {
@@ -216,7 +264,10 @@ void ChatBubbleWidget::updateContent()
         m_quickReplyContainer->setVisible(true);
         for (const auto &qr : m_message.quickReplies) {
             auto *chip = new QuickReplyWidget(qr.label, this);
-            connect(chip, &QuickReplyWidget::clicked, this, [this, qr]() {
+            connect(chip, &QuickReplyWidget::clicked, this, [this, qr, chip]() {
+                // Hide all quick reply buttons after click
+                m_quickReplyContainer->setVisible(false);
+                // Show feedback with the clicked button's label
                 emit quickReplyClicked(qr.sendText);
             });
             m_quickReplyLayout->addWidget(chip);
@@ -374,14 +425,27 @@ QString ChatBubbleWidget::formatContentForDisplay(const QString &content) const
         }
 
         QString header = timestamp.isEmpty()
-            ? QStringLiteral("✅ **Tool Result**")
-            : QStringLiteral("✅ **Tool Result** _(%1)_").arg(timestamp);
+            ? QStringLiteral("<small>✅ Tool Result</small>")
+            : QStringLiteral("<small>✅ Tool Result _(%1)_</small>").arg(timestamp);
 
         // Split out the OCR section (if present)
         QString ocrSection;
+        QString terminalHeading;
         int ocrIdx = body.indexOf("--- OCR Analysis Result ---");
         if (ocrIdx >= 0) {
-            ocrSection = body.mid(ocrIdx + strlen("--- OCR Analysis Result ---")).trimmed();
+            QString afterOcrStart = body.mid(ocrIdx + strlen("--- OCR Analysis Result ---")).trimmed();
+            // Check if OCR text starts with "# Terminal Output" heading
+            if (afterOcrStart.startsWith("# Terminal Output")) {
+                int headingEnd = afterOcrStart.indexOf("\n\n");
+                if (headingEnd >= 0) {
+                    terminalHeading = afterOcrStart.left(headingEnd).trimmed();
+                    ocrSection = afterOcrStart.mid(headingEnd).trimmed();
+                } else {
+                    ocrSection = afterOcrStart;
+                }
+            } else {
+                ocrSection = afterOcrStart;
+            }
             body = body.left(ocrIdx).trimmed();
         }
 
@@ -392,6 +456,10 @@ QString ChatBubbleWidget::formatContentForDisplay(const QString &content) const
             // Don't wrap in blockquote — that would break embedded markdown tables.
             result += body + "\n\n";
         }
+        // Display terminal heading if present (bold, separate line)
+        if (!terminalHeading.isEmpty()) {
+            result += "**" + terminalHeading + "**\n\n";
+        }
         if (!ocrSection.isEmpty()) {
             // OCR output is full markdown (headings, tables, lists).
             // Render directly so tables and headings display correctly.
@@ -400,7 +468,7 @@ QString ChatBubbleWidget::formatContentForDisplay(const QString &content) const
                             || ocrSection.contains('|')
                             || ocrSection.contains("**")
                             || ocrSection.contains("- ");
-            result += "**📝 OCR Output:**\n\n";
+            result += "<small>📝 OCR Output:</small>\n\n";
             if (hasMarkdown) {
                 result += ocrSection + "\n";
             } else {
@@ -471,7 +539,7 @@ QString ChatBubbleWidget::formatContentForDisplay(const QString &content) const
         // Collect all tool calls into a single table.
         // Rows: "tool_name | arg_key | arg_value". If a call has no args
         // (other than "tool"), emit one row with "(no arguments)".
-        result += QStringLiteral("\n🔧 **Tool Call%1**\n\n").arg(calls.size() > 1 ? "s" : "");
+        result += QStringLiteral("\n<small>🔧 Tool Call%1</small>\n\n").arg(calls.size() > 1 ? "s" : "");
         result += "| Tool | Argument | Value |\n|------|----------|-------|\n";
         for (const auto &call : calls) {
             QJsonObject args = call.second;

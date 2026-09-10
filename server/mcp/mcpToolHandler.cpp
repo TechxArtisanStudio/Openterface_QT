@@ -23,6 +23,7 @@
 #include "mcpToolHandler.h"
 #include "mcpProtocol.h"
 #include "screenAnalyzer.h"
+#include "ai/SharedToolExecutor.h"
 #include "host/HostManager.h"
 #include "ui/globalsetting.h"
 #include "host/cameramanager.h"
@@ -37,10 +38,8 @@
 #include "serial/SerialPortManager.h"
 #include "video/videohid.h"
 #include "video/firmwareoperationmanager.h"
-#include "ui/advance/wchflash/WCHFlashWorker.h"
 
 #include <QBuffer>
-#include <QFileInfo>
 #include <QJsonDocument>
 #include <QLoggingCategory>
 #include <QImage>
@@ -49,6 +48,7 @@
 #include <QStandardPaths>
 #include <QEventLoop>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QThread>
 #include <QCoreApplication>
 #include "log/opflogging.h"
@@ -302,6 +302,76 @@ QJsonArray McpToolHandler::listTools() const
         tools.append(tool);
     }
 
+    // ---- Cursor Detection ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_DETECT_CURSOR;
+        tool["description"] = "Detect whether the target terminal is waiting for user input by combining three independent signals: (1) cursor blink detection via temporal frame differencing — captures 5 frames at 350ms intervals and looks for a small region toggling on/off at a fixed position, (2) screen stability — measures total change ratio across frames to distinguish idle from active output, and (3) shell prompt detection via OCR on the bottom line. Returns cursor position (pixel and MCP coordinates), confidence, individual signal details, and a status: 'idle' (terminal waiting for input), 'likely_idle' (screen stable but cursor blink or prompt not confirmed), 'outputting' (content still flowing), or 'unknown'. Best used after running a command to check if it has finished and the shell is ready for the next input.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["samples"] = QJsonObject{{"type", "integer"}, {"description", "Number of frames to capture (minimum 3). 5 frames gives 4 diffs across 1.4s — enough to catch slow blink rates (up to ~2s period). More = higher confidence but slower."}, {"default", 5}, {"minimum", 3}, {"maximum", 8}};
+        props["interval_ms"] = QJsonObject{{"type", "integer"}, {"description", "Milliseconds between frame captures. 350ms avoids synchronizing with typical blink periods (500ms, 1000ms, 1200ms)."}, {"default", 350}, {"minimum", 200}, {"maximum", 1000}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
+    // ---- Run Command and Wait ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_RUN_COMMAND_AND_WAIT;
+        tool["description"] = "Type a command in the terminal and wait until the terminal is idle (ready for next input). Combines keyboard_type_text + polling detect_cursor in a loop. Returns when terminal status is 'idle' or timeout is reached. Use this for long-running commands where you need to wait for completion before sending the next command.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["command"] = QJsonObject{{"type", "string"}, {"description", "Command text to type. A newline is appended automatically if not present."}};
+        props["max_wait_ms"] = QJsonObject{{"type", "integer"}, {"description", "Maximum time to wait for terminal to become idle (milliseconds)."}, {"default", 30000}, {"minimum", 5000}, {"maximum", 120000}};
+        props["poll_interval_ms"] = QJsonObject{{"type", "integer"}, {"description", "Time between detect_cursor polls (milliseconds)."}, {"default", 2000}, {"minimum", 500}, {"maximum", 10000}};
+        props["initial_delay_ms"] = QJsonObject{{"type", "integer"}, {"description", "Delay after typing command before first poll (lets output start)."}, {"default", 1500}, {"minimum", 0}, {"maximum", 10000}};
+        props["samples"] = QJsonObject{{"type", "integer"}, {"description", "Frames per detect_cursor call."}, {"default", 5}, {"minimum", 3}, {"maximum", 8}};
+        props["detect_interval_ms"] = QJsonObject{{"type", "integer"}, {"description", "Interval between frames in detect_cursor."}, {"default", 350}, {"minimum", 200}, {"maximum", 1000}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray{"command"};
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
+    // ---- Screen Diff ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_SCREEN_DIFF;
+        tool["description"] = "Differential screen analysis — returns WHAT CHANGED on screen since the last capture, not a full description of what IS on screen. MUCH cheaper and more accurate than capture_screen for iterative navigation tasks (BIOS menus, terminal output). The report includes: (1) a BEFORE/AFTER text diff of the changed region, (2) the text currently highlighted/selected (BIOS reverse-video detection with foreground and background colors), and (3) the change ratio. Use this INSTEAD of capture_screen when navigating menus or monitoring terminal output — it tells you exactly what changed without requiring vision. No arguments.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        schema["properties"] = QJsonObject();
+        schema["required"] = QJsonArray();
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
+    // ---- Navigate to Menu Item ----
+    {
+        QJsonObject tool;
+        tool["name"] = MCP_TOOL_NAVIGATE_TO_MENU_ITEM;
+        tool["description"] = "Navigate through a BIOS/TextUI menu to a SPECIFIC item by pressing an arrow key until that item is highlighted. Handles the press-and-verify loop for you using BIOS reverse-video detection. Use this INSTEAD of manually doing repeated press_key+screen_diff when moving to a known menu item. Args: target (string, REQUIRED — the menu item text to navigate to, e.g. \"ACPI Settings\"), direction (string, optional: \"up\", \"down\", \"left\", or \"right\", default \"down\"), max_steps (int, optional: max key presses before giving up, default 30). Returns success + the highlighted item text when reached, or a clear failure message if not found.";
+
+        QJsonObject schema;
+        schema["type"] = "object";
+        QJsonObject props;
+        props["target"] = QJsonObject{{"type", "string"}, {"description", "The menu item text to navigate to (e.g., \"Advanced\", \"ACPI Settings\", \"Boot\")"}};
+        props["direction"] = QJsonObject{{"type", "string"}, {"description", "Arrow key direction to press: up, down, left, or right"}, {"enum", QJsonArray{"up", "down", "left", "right"}}, {"default", "down"}};
+        props["max_steps"] = QJsonObject{{"type", "integer"}, {"description", "Maximum number of key presses before giving up"}, {"default", 30}, {"minimum", 1}, {"maximum", 200}};
+        schema["properties"] = props;
+        schema["required"] = QJsonArray{"target"};
+        tool["inputSchema"] = schema;
+        tools.append(tool);
+    }
+
     // ---- Script Execution ----
     {
         QJsonObject tool;
@@ -363,35 +433,6 @@ QJsonArray McpToolHandler::listTools() const
         tools.append(tool);
     }
 
-    {
-        QJsonObject tool;
-        tool["name"] = MCP_TOOL_KEYMOD_SCAN;
-        tool["description"] = "Scan for WCH ISP bootloader devices, i.e. a KeyMod (CH32V208) control chip in ISP mode (USB ID 1a86:55e0 or 4348:55e0). The KeyMod only enters ISP mode physically: with the device fully unpowered, hold its BOOT button while reconnecting power. Returns the device list with the indices keymod_flash expects.";
-
-        QJsonObject schema;
-        schema["type"] = "object";
-        schema["properties"] = QJsonObject();
-        schema["required"] = QJsonArray();
-        tool["inputSchema"] = schema;
-        tools.append(tool);
-    }
-
-    {
-        QJsonObject tool;
-        tool["name"] = MCP_TOOL_KEYMOD_FLASH;
-        tool["description"] = "Flash a firmware file to the KeyMod (CH32V208) control chip over WCH ISP. Requires the device in ISP/bootloader mode (visible to keymod_scan). Erases, programs, verifies and resets the chip; blocks until done. After success the device must be power-cycled WITHOUT the BOOT button held to boot the new firmware.";
-
-        QJsonObject schema;
-        schema["type"] = "object";
-        QJsonObject props;
-        props["file"] = QJsonObject{{"type", "string"}, {"description", "Path to the firmware file (.hex Intel HEX or .bin raw binary) on the machine running this app"}};
-        props["device_index"] = QJsonObject{{"type", "integer"}, {"description", "Index into the keymod_scan device list (default 0)"}};
-        schema["properties"] = props;
-        schema["required"] = QJsonArray{"file"};
-        tool["inputSchema"] = schema;
-        tools.append(tool);
-    }
-
     return tools;
 }
 
@@ -417,10 +458,12 @@ QJsonObject McpToolHandler::callTool(const QString& name, const QJsonObject& arg
     if (name == MCP_TOOL_SYSTEM_STATUS)              return toolSystemStatus(arguments);
     if (name == MCP_TOOL_USB_SWITCH)                 return toolUsbSwitch(arguments);
     if (name == MCP_TOOL_SCREEN_TO_MARKDOWN)         return toolScreenToMarkdown(arguments);
+    if (name == MCP_TOOL_DETECT_CURSOR)              return toolDetectCursor(arguments);
+    if (name == MCP_TOOL_RUN_COMMAND_AND_WAIT)       return toolRunCommandAndWait(arguments);
     if (name == MCP_TOOL_FIRMWARE_CHECK)             return toolFirmwareCheck(arguments);
     if (name == MCP_TOOL_FIRMWARE_UPDATE)            return toolFirmwareUpdate(arguments);
-    if (name == MCP_TOOL_KEYMOD_SCAN)                return toolKeymodScan(arguments);
-    if (name == MCP_TOOL_KEYMOD_FLASH)               return toolKeymodFlash(arguments);
+    if (name == MCP_TOOL_SCREEN_DIFF)                return toolScreenDiff(arguments);
+    if (name == MCP_TOOL_NAVIGATE_TO_MENU_ITEM)      return toolNavigateToMenuItem(arguments);
 
     return errorResult("Unknown tool: " + name);
 }
@@ -431,39 +474,24 @@ QJsonObject McpToolHandler::callTool(const QString& name, const QJsonObject& arg
 
 QJsonObject McpToolHandler::toolMouseMoveAbsolute(const QJsonObject& args)
 {
-    int x = args.value("x").toInt();
-    int y = args.value("y").toInt();
-
-    MouseManager& mm = HostManager::getInstance().getMouseManager();
-    mm.handleAbsoluteMouseAction(x, y, 0, 0);
-
-    // Add delay to allow CH32V208 to process the command
-    QThread::msleep(30);
-
+    QJsonObject result = SharedToolExecutor::instance().mouseMoveAbsolute(args);
+    if (result.contains("error")) {
+        return errorResult(result["error"].toString());
+    }
+    int x = result["x"].toInt();
+    int y = result["y"].toInt();
     return textResult(QString("Mouse moved to absolute position (%1, %2)").arg(x).arg(y));
 }
 
 QJsonObject McpToolHandler::toolMouseClick(const QJsonObject& args)
 {
-    int x = args.value("x").toInt();
-    int y = args.value("y").toInt();
-    int button = parseMouseButton(args.value("button").toString("left"));
-    int count = args.value("count").toInt(1);
-
-    MouseManager& mm = HostManager::getInstance().getMouseManager();
-
-    for (int i = 0; i < count; ++i) {
-        // Press
-        mm.handleAbsoluteMouseAction(x, y, button, 0);
-        QThread::msleep(50);
-        // Release
-        mm.handleAbsoluteMouseAction(x, y, 0, 0);
-        if (i < count - 1) {
-            QThread::msleep(80);  // Delay between clicks
-        }
+    QJsonObject result = SharedToolExecutor::instance().mouseClick(args);
+    if (result.contains("error")) {
+        return errorResult(result["error"].toString());
     }
-
-    QString btnStr = args.value("button").toString("left");
+    int count = result["count"].toInt();
+    int x = result["x"].toInt();
+    int y = result["y"].toInt();
     return textResult(QString("Mouse %1-click at (%2, %3)").arg(count).arg(x).arg(y));
 }
 
@@ -653,49 +681,12 @@ QJsonObject McpToolHandler::toolKeyboardTypeText(const QJsonObject& args)
         debugLog.close();
     }
 
-    HostManager& hm = HostManager::getInstance();
-
-    // Characters that require Shift modifier when typed
-    static const QString shiftChars = "!@#$%^&*()_+{}|:\"<>?~";
-
-    // Process each character individually with proper press/release
-    // This bypasses the QTimer-based batching in pasteTextToTarget which can be unreliable
-    for (QChar ch : text) {
-        int keyCode = ch.unicode();
-        int modifiers = 0;
-
-        // Map special characters to Qt key codes
-        if (ch == '\n' || ch == '\r') {
-            keyCode = Qt::Key_Return;
-        } else if (ch == '\t') {
-            keyCode = Qt::Key_Tab;
-        } else if (ch >= 'a' && ch <= 'z') {
-            // Convert lowercase ASCII to Qt::Key_A through Qt::Key_Z (which are 0x41-0x5A)
-            keyCode = Qt::Key_A + (ch.toLower().unicode() - 'a');
-        } else if (ch >= 'A' && ch <= 'Z') {
-            // Convert uppercase ASCII to Qt::Key_A through Qt::Key_Z (which are 0x41-0x5A)
-            keyCode = Qt::Key_A + (ch.toUpper().unicode() - 'A');
-            modifiers = Qt::ShiftModifier;  // Uppercase needs Shift
-        } else if (shiftChars.contains(ch)) {
-            // Symbols that need Shift
-            modifiers = Qt::ShiftModifier;
-        }
-
-        // Press key
-        hm.handleKeyboardAction(keyCode, modifiers, true);
-        QCoreApplication::processEvents();
-        QThread::msleep(50);
-
-        // Release key
-        hm.handleKeyboardAction(keyCode, modifiers, false);
-        QCoreApplication::processEvents();
-        QThread::msleep(50);
+    QJsonObject result = SharedToolExecutor::instance().typeTextCommand(args);
+    if (result.contains("error")) {
+        return errorResult(result["error"].toString());
     }
-
-    // Final delay after typing complete to ensure last character is processed
-    QThread::msleep(100);
-
-    return textResult(QString("Typed text (%1 chars): %2").arg(text.length()).arg(text));
+    int chars = result["chars_typed"].toInt();
+    return textResult(QString("Typed text (%1 chars): %2").arg(chars).arg(text));
 }
 
 QJsonObject McpToolHandler::toolKeyboardSendKeys(const QJsonObject& args)
@@ -791,15 +782,11 @@ QJsonObject McpToolHandler::toolKeyboardSetLayout(const QJsonObject& args)
 
 QJsonObject McpToolHandler::toolCaptureScreen(const QJsonObject& args)
 {
-    if (!m_cameraManager) {
-        return errorResult("CameraManager not initialized");
-    }
-
     int quality = args.value("quality").toInt(90);
     quality = qBound(1, quality, 100);
 
-    // Get the current frame
-    QImage frame = m_cameraManager->getLatestOriginalFrame();
+    // Get the current frame via shared executor
+    QImage frame = SharedToolExecutor::instance().captureFrame();
     if (frame.isNull()) {
         return errorResult("No frame available from camera");
     }
@@ -1077,45 +1064,37 @@ QJsonObject McpToolHandler::toolScreenToMarkdown(const QJsonObject& args)
         return errorResult("Screen to Markdown feature is disabled. Enable it in Preferences -> MCP Server.");
     }
 
-    if (!m_cameraManager) {
-        return errorResult("CameraManager not initialized");
+    QJsonObject result = SharedToolExecutor::instance().screenToMarkdown(args);
+    if (result.contains("error")) {
+        return errorResult(result["error"].toString());
     }
+    return textResult(result["markdown"].toString());
+}
 
-    if (!m_screenAnalyzer) {
-        return errorResult("ScreenAnalyzer not initialized");
+// ==========================================================================
+// Cursor Detection Tool
+// ==========================================================================
+
+QJsonObject McpToolHandler::toolDetectCursor(const QJsonObject& args)
+{
+    QJsonObject result = SharedToolExecutor::instance().detectCursor(args);
+    if (result.contains("error")) {
+        return errorResult(result["error"].toString());
     }
+    return textResult(QJsonDocument(result).toJson(QJsonDocument::Compact));
+}
 
-    if (!m_screenAnalyzer->isAvailable()) {
-        return errorResult("OCR engine not available. Tesseract may not be installed.");
+// ==========================================================================
+// Run Command and Wait Implementation
+// ==========================================================================
+
+QJsonObject McpToolHandler::toolRunCommandAndWait(const QJsonObject& args)
+{
+    QJsonObject result = SharedToolExecutor::instance().runCommandAndWait(args);
+    if (result.contains("error")) {
+        return errorResult(result["error"].toString());
     }
-
-    // Get detail level parameter
-    QString detailLevel = args.value("detail_level").toString("detailed");
-    if (detailLevel != "basic" && detailLevel != "detailed") {
-        detailLevel = "detailed";
-    }
-
-    // Get analysis mode. Terminal mode reads the screen as lines of text and
-    // OCRs only the region that changed since the previous call, which suits
-    // a scrolling console far better than the general UI-element pass.
-    const QString modeStr = args.value("mode").toString("general").toLower();
-    const AnalysisMode mode = (modeStr == "terminal") ? AnalysisMode::Terminal
-                                                      : AnalysisMode::General;
-
-    // Get the current frame
-    QImage frame = m_cameraManager->getLatestOriginalFrame();
-    if (frame.isNull()) {
-        return errorResult("No frame available from camera");
-    }
-
-    qCInfo(log_server_mcp_tool) << "Analyzing screen with detail level:" << detailLevel
-                                << "mode:" << modeStr;
-
-    // Analyze the screen
-    ScreenAnalysis analysis = m_screenAnalyzer->analyzeScreen(frame, detailLevel, mode);
-
-    // Return the Markdown output
-    return textResult(analysis.markdownOutput);
+    return textResult(QJsonDocument(result).toJson(QJsonDocument::Compact));
 }
 
 // ==========================================================================
@@ -1208,105 +1187,22 @@ QJsonObject McpToolHandler::toolFirmwareUpdate(const QJsonObject& args)
         .arg(cur, latest));
 }
 
-// ==========================================================================
-// KeyMod (CH32V208) Firmware Tool Implementations
-// ==========================================================================
-// Both tools wrap WCHFlashWorker, the same object the Control Chip Firmware
-// preference page drives. Its slots run synchronously and emit their signals
-// inline, so on this thread plain lambda connections capture the results
-// without an event loop.
-
-QJsonObject McpToolHandler::toolKeymodScan(const QJsonObject& args)
+// ---- Screen Diff ----
+QJsonObject McpToolHandler::toolScreenDiff(const QJsonObject& args)
 {
-    Q_UNUSED(args);
+    Q_UNUSED(args)
 
-    WCHFlashWorker worker;
-    QStringList devices;
-    QStringList log;
-    connect(&worker, &WCHFlashWorker::devicesFound,
-            [&devices](const QStringList& d) { devices = d; });
-    connect(&worker, &WCHFlashWorker::logMessage,
-            [&log](const QString& m) { log << m; });
-
-    worker.scanDevices();
-
-    if (devices.isEmpty()) {
-        return textResult(
-            "No WCH ISP devices found. The KeyMod must be in ISP/bootloader mode: "
-            "with the device fully unpowered (host USB AND target side), hold the "
-            "BOOT button while reconnecting power, then release. In ISP mode it "
-            "enumerates as 1a86:55e0 or 4348:55e0.\n" + log.join("\n"));
-    }
-
-    QString out = QString("Found %1 WCH ISP device(s):\n").arg(devices.size());
-    for (int i = 0; i < devices.size(); ++i)
-        out += QString("  [%1] %2\n").arg(i).arg(devices.at(i));
-    return textResult(out);
+    // Delegate to SharedToolExecutor's screenDiff method
+    QJsonObject result = SharedToolExecutor::instance().screenDiff(args);
+    return result;  // Pass through the result as-is
 }
 
-QJsonObject McpToolHandler::toolKeymodFlash(const QJsonObject& args)
+// ---- Navigate to Menu Item ----
+QJsonObject McpToolHandler::toolNavigateToMenuItem(const QJsonObject& args)
 {
-    const QString file = args.value("file").toString();
-    const int index = args.value("device_index").toInt(0);
-
-    if (file.isEmpty())
-        return errorResult("Missing required argument 'file' (path to a .hex or .bin firmware file).");
-    QFileInfo fi(file);
-    if (!fi.isFile())
-        return errorResult("Firmware file not found: " + file);
-    const QString suffix = fi.suffix().toLower();
-    if (suffix != "hex" && suffix != "bin")
-        return errorResult(QString("Unsupported firmware file type '.%1' (expected .hex or .bin).").arg(suffix));
-
-    WCHFlashWorker worker;
-    QStringList devices;
-    QStringList log;
-    QString chipInfo;
-    bool done = false;
-    bool ok = false;
-    QString resultMsg;
-
-    connect(&worker, &WCHFlashWorker::devicesFound,
-            [&devices](const QStringList& d) { devices = d; });
-    connect(&worker, &WCHFlashWorker::deviceConnected,
-            [&chipInfo](const QString& info) { chipInfo = info; });
-    connect(&worker, &WCHFlashWorker::logMessage,
-            [&log](const QString& m) { log << m; });
-    connect(&worker, &WCHFlashWorker::finished,
-            [&done, &ok, &resultMsg](bool success, const QString& msg) {
-                done = true; ok = success; resultMsg = msg;
-            });
-
-    worker.scanDevices();
-    if (devices.isEmpty()) {
-        return errorResult(
-            "No WCH ISP devices found; nothing flashed. Put the KeyMod in "
-            "ISP/bootloader mode (hold BOOT while powering on) and confirm with "
-            "keymod_scan first.\n" + log.join("\n"));
-    }
-    if (index < 0 || index >= devices.size()) {
-        return errorResult(QString("device_index %1 out of range: %2 device(s) found. "
-            "Run keymod_scan for the list.").arg(index).arg(devices.size()));
-    }
-
-    // connectDevice emits finished(false, ...) only on failure
-    worker.connectDevice(index);
-    if (done)
-        return errorResult(resultMsg + "\n" + log.join("\n"));
-
-    qCInfo(log_server_mcp_tool) << "KeyMod flash starting:" << file << "chip:" << chipInfo;
-    worker.flashFirmware(file);
-
-    if (!done)
-        return errorResult("Flash ended without a result (internal error).\n" + log.join("\n"));
-    if (!ok)
-        return errorResult(resultMsg + "\n" + log.join("\n"));
-
-    return textResult(QString(
-        "%1\nChip: %2\n"
-        "REQUIRED next step: power-cycle the device WITHOUT the BOOT button held; "
-        "it then boots the new firmware.\n\nLog:\n%3")
-        .arg(resultMsg, chipInfo, log.join("\n")));
+    // Delegate to SharedToolExecutor's navigateToMenuItem method
+    QJsonObject result = SharedToolExecutor::instance().navigateToMenuItem(args);
+    return result;  // Pass through the result as-is
 }
 
 // ==========================================================================

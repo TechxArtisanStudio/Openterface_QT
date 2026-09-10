@@ -13,6 +13,12 @@
 #include <QClipboard>
 #include <QPainter>
 #include <QStyleOption>
+#include <QTimer>
+#include <QMenu>
+#include <QActionGroup>
+#include <QLoggingCategory>
+
+Q_DECLARE_LOGGING_CATEGORY(log_ai_chat)
 
 ChatWindow::ChatWindow(QWidget *parent)
     : QWidget(parent)
@@ -28,18 +34,22 @@ ChatWindow::ChatWindow(QWidget *parent)
 
     // Connect to ChatManager signals
     ChatManager &mgr = ChatManager::instance();
-    connect(&mgr, &ChatManager::messageAppended, this, [this](const ChatMessage &) {
+    connect(&mgr, &ChatManager::messageAppended, this, [this](const ChatMessage &msg) {
+        qCDebug(log_ai_chat) << "ChatWindow received messageAppended signal for message:" << msg.content.left(100);
         refreshBubbles();
         scrollToBottom();
+        qCDebug(log_ai_chat) << "refreshBubbles and scrollToBottom completed";
     });
     connect(&mgr, &ChatManager::messageUpdated, this, [this](int index, const ChatMessage &msg) {
         // Update just the specific bubble instead of rebuilding all
         if (index >= 0 && index < m_bubbleWidgets.size()) {
             m_bubbleWidgets[index]->setMessage(msg, index);
         }
+        scrollToBottom();
     });
     connect(&mgr, &ChatManager::messagesChanged, this, [this]() {
         refreshBubbles();
+        scrollToBottom();
     });
     connect(&mgr, &ChatManager::lastErrorChanged, this, [this](const QString &error) {
         m_errorRow->setVisible(!error.isEmpty());
@@ -47,6 +57,7 @@ ChatWindow::ChatWindow(QWidget *parent)
     });
     connect(&mgr, &ChatManager::planChanged, this, [this]() {
         updatePlanCard();
+        scrollToBottom();
     });
     connect(&mgr, &ChatManager::agentRequestStatusChanged, this,
             [this](const QUuid & /*messageID*/, const GuideAutoNextStatus &status) {
@@ -60,6 +71,7 @@ ChatWindow::ChatWindow(QWidget *parent)
             m_statusLabel->setVisible(!status.text.isEmpty()
                                       && status.phase != GuideAutoNextStatus::Completed);
         }
+        scrollToBottom();
     });
     connect(&mgr, &ChatManager::sendingStateChanged, this, [this](bool sending) {
         m_inputWidget->setSending(sending);
@@ -72,8 +84,23 @@ ChatWindow::ChatWindow(QWidget *parent)
     connect(&ChatSkillManager::instance(), &ChatSkillManager::skillsChanged,
             this, &ChatWindow::updateEmptyState);
 
+    // Initialize mode combo box from saved settings
+    GlobalSetting &gs = GlobalSetting::instance();
+    // Keep the header target-OS button in sync when the setting is changed from
+    // elsewhere (e.g. the AI calling set_target_system).
+    connect(&gs, &GlobalSetting::chatTargetSystemChanged,
+            this, &ChatWindow::updateTargetOsButton);
+    if (gs.getChatGuideModeEnabled()) {
+        m_modeCombo->setCurrentIndex(2);  // Guide mode
+    } else if (gs.getChatPlannerModeEnabled()) {
+        m_modeCombo->setCurrentIndex(1);  // Planner mode
+    } else {
+        m_modeCombo->setCurrentIndex(0);  // Agent mode (default)
+    }
+
     updateEmptyState();
     updatePlanCard();
+    updateModeUI();
 }
 
 ChatWindow::~ChatWindow() = default;
@@ -115,9 +142,63 @@ void ChatWindow::setupUI()
     m_traceBtn->setFlat(true);
     m_traceBtn->setFixedSize(28, 28);
 
+    // Target OS button (next to the + button): shows current target OS and lets
+    // the user change it. The selection is stored in GlobalSetting and consumed
+    // by ChatManager when assembling the agent prompt.
+    m_targetOsBtn = new QPushButton();
+    m_targetOsBtn->setCursor(Qt::PointingHandCursor);
+    m_targetOsBtn->setToolTip("Target OS (click to change)");
+    m_targetOsBtn->setMinimumHeight(28);
+    // Draw a small monitor icon to the left of the OS name text.
+    {
+        QPixmap pix(20, 20);
+        pix.fill(Qt::transparent);
+        QPainter p(&pix);
+        p.setRenderHint(QPainter::Antialiasing);
+        QPen pen(palette().color(QPalette::WindowText), 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        p.setPen(pen);
+        p.setBrush(Qt::NoBrush);
+        // Monitor body
+        p.drawRoundedRect(QRectF(2, 3, 16, 10), 1.5, 1.5);
+        // Stand
+        p.drawLine(QPointF(10, 13), QPointF(10, 16));
+        p.drawLine(QPointF(6, 16), QPointF(14, 16));
+        m_targetOsBtn->setIcon(QIcon(pix));
+    }
+    m_targetOsBtn->setIconSize(QSize(20, 20));
+    {
+        auto *menu = new QMenu(m_targetOsBtn);
+        auto *group = new QActionGroup(menu);
+        group->setExclusive(true);
+        const QList<ChatTargetSystem> systems = {
+            ChatTargetSystem::Linux,
+            ChatTargetSystem::MacOS,
+            ChatTargetSystem::Windows,
+            ChatTargetSystem::IPhone,
+            ChatTargetSystem::IPad,
+            ChatTargetSystem::Android,
+            ChatTargetSystem::BIOS,
+            ChatTargetSystem::TextUI,
+        };
+        for (ChatTargetSystem sys : systems) {
+            auto *act = new QAction(chatTargetSystemDisplayName(sys), menu);
+            act->setCheckable(true);
+            act->setData(QVariant::fromValue(static_cast<int>(sys)));
+            group->addAction(act);
+            menu->addAction(act);
+            connect(act, &QAction::triggered, this, [this, sys]() {
+                GlobalSetting::instance().setChatTargetSystem(chatTargetSystemToString(sys));
+                updateTargetOsButton();
+            });
+        }
+        m_targetOsBtn->setMenu(menu);
+    }
+    updateTargetOsButton();
+
     m_topBar->addWidget(m_modeCombo);
     m_topBar->addStretch();
     m_topBar->addWidget(m_newSessionBtn);
+    m_topBar->addWidget(m_targetOsBtn);
     m_topBar->addWidget(m_traceBtn);
     m_mainLayout->addLayout(m_topBar);
 
@@ -230,8 +311,21 @@ void ChatWindow::clearAll()
 
 void ChatWindow::scrollToBottom()
 {
-    QScrollBar *sb = m_scrollArea->verticalScrollBar();
-    if (sb) sb->setValue(sb->maximum());
+    // Defer the scroll to allow the layout to fully update.
+    // We use a small delay (50ms) instead of 0ms to ensure all widgets have
+    // finished their layout calculations, especially the QTextBrowser in chat
+    // bubbles which needs time to measure text height after content changes.
+    QTimer::singleShot(50, this, [this]() {
+        // Force layout update before calculating scroll position
+        m_scrollArea->widget()->updateGeometry();
+        m_scrollArea->widget()->layout()->activate();
+
+        QScrollBar *sb = m_scrollArea->verticalScrollBar();
+        if (sb) {
+            // Scroll to the absolute maximum to ensure we reach the bottom
+            sb->setValue(sb->maximum());
+        }
+    });
 }
 
 void ChatWindow::onSendClicked()
@@ -340,6 +434,7 @@ void ChatWindow::updateModeUI()
 void ChatWindow::refreshBubbles()
 {
     auto messages = ChatManager::instance().messages();
+    qCDebug(log_ai_chat) << "refreshBubbles called, messages count:" << messages.size();
 
     // Switch to messages page when there are messages
     if (!messages.isEmpty()) {
@@ -362,6 +457,7 @@ void ChatWindow::refreshBubbles()
         m_bubbleWidgets.append(bubble);
         // Insert before the stretch
         m_messageLayout->insertWidget(m_messageLayout->count() - 1, bubble);
+        qCDebug(log_ai_chat) << "Created bubble for message" << idx << ":" << messages[idx].content.left(50);
     }
 
     // Update all bubbles
@@ -397,4 +493,27 @@ void ChatWindow::updatePlanCard()
 void ChatWindow::updateEmptyState()
 {
     m_emptyState->setSkills(ChatSkillManager::instance().skills());
+}
+
+void ChatWindow::updateTargetOsButton()
+{
+    if (!m_targetOsBtn) return;
+    const QString sys = GlobalSetting::instance().getChatTargetSystem();
+    const ChatTargetSystem ts = chatTargetSystemFromString(sys);
+    const QString display = chatTargetSystemDisplayName(ts);
+    m_targetOsBtn->setText(display);
+    // Highlight the matching menu action
+    if (auto *menu = m_targetOsBtn->menu()) {
+        for (QAction *act : menu->actions()) {
+            const ChatTargetSystem actSys =
+                static_cast<ChatTargetSystem>(act->data().toInt());
+            act->setChecked(actSys == ts);
+        }
+    }
+}
+
+void ChatWindow::onTargetOsSelected(const QString &system)
+{
+    GlobalSetting::instance().setChatTargetSystem(system);
+    updateTargetOsButton();
 }

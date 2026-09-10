@@ -145,6 +145,8 @@ static struct CategoryMeta {
     {"opf.ui.mcp.page",            "MCP Page",             "Info"},
     {"opf.diagnostics",            "Diagnostics",          "Info"},
     {"opf.video.recording",        "Video Recording",      "Info"},
+    // === AI Chat ===
+    {"openterface.ai.chat",        "AI Chat",              "Debug"},
 };
 
 static const CategoryMeta* findCategoryMeta(const QString& category) {
@@ -479,6 +481,11 @@ void LogPage::populateCategoryTree()
             groupMap["UI"].append(cat);
             placed = true;
         }
+        // AI Chat: openterface.ai.*
+        else if (cat.startsWith("openterface.ai.")) {
+            groupMap["AI Chat"].append(cat);
+            placed = true;
+        }
 
         if (!placed) {
             uncategorized.append(cat);
@@ -502,12 +509,13 @@ void LogPage::populateCategoryTree()
         {"Server", "Server"},
         {"System", "System"},
         {"UI", "UI"},
+        {"AI Chat", "AI Chat"},
         {"Other", "Other"}
     };
 
     // Create top-level groups in a stable order
     QStringList groupOrder = {"Serial", "Input", "HID/Chip", "Device", "Camera/Backend",
-                              "Audio", "Scripts", "Server", "System", "UI", "Other"};
+                              "Audio", "Scripts", "Server", "System", "UI", "AI Chat", "Other"};
     for (const QString &groupName : groupOrder) {
         if (!groupMap.contains(groupName)) continue;
         const QStringList &cats = groupMap[groupName];

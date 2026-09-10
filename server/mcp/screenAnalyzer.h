@@ -76,6 +76,63 @@ struct ScreenAnalysis {
 };
 
 /**
+ * Result of terminal idle detection.
+ * Combines multiple signals to determine if a terminal is waiting for user input:
+ *   1. Cursor blink detection (temporal differencing)
+ *   2. Screen stability (total change ratio between frames)
+ *   3. Shell prompt detection (OCR on last line)
+ */
+struct CursorDetectionResult {
+    bool detected;              // true if terminal appears to be idle/waiting
+    QRect position;             // Bounding box of the cursor in pixel coordinates (if detected)
+    int mcpX;                   // Cursor X in MCP range (0-4096)
+    int mcpY;                   // Cursor Y in MCP range (0-4096)
+    float confidence;           // Combined confidence (0.0 to 1.0)
+    QString status;             // "idle", "likely_idle", "outputting", "unknown"
+    QString description;        // Human-readable explanation
+
+    // Individual signal details (for debugging / advanced consumers)
+    bool cursorBlinkDetected;   // true if a blinking cursor was found
+    bool screenStable;          // true if screen changes are below threshold
+    float totalChangeRatio;     // total fraction of screen that changed between frames
+    bool promptDetected;        // true if a shell prompt pattern was found on last line
+    QString promptText;         // the detected prompt text (if any)
+};
+
+/**
+ * Result of differential screen analysis between two consecutive frames.
+ * Used by the screen_diff tool to report what CHANGED on screen, rather
+ * than what IS on screen. This is much cheaper for the AI agent to process
+ * than a full screenshot, and avoids vision-model hallucination about which
+ * menu item is highlighted, which value just changed, etc.
+ */
+struct ScreenDiffResult {
+    enum Outcome {
+        FirstCapture,   // no previous frame — baseline captured
+        NoChange,       // frames are essentially identical
+        FullChange,     // > 50% of screen changed — full OCR, baseline reset
+        PartialChange   // diff of changed region only
+    };
+
+    Outcome outcome = FirstCapture;
+    int screenWidth = 0;
+    int screenHeight = 0;
+
+    QRect changedRect;          // bounding box of all changed pixels (PartialChange only)
+    float changeRatio = 0.0f;   // fraction of screen that changed (0.0 - 1.0)
+
+    QString previousText;       // OCR of the old region (PartialChange only)
+    QString currentText;        // OCR of the new region (or full OCR for FullChange)
+
+    QString highlightedText;    // text currently highlighted (BIOS reverse-video), if any
+    QRect highlightRect;        // bounding box of the highlight
+    QString highlightForeground; // avg foreground color of highlight (e.g. "rgb(255,255,255)")
+    QString highlightBackground; // avg background color surrounding highlight (e.g. "rgb(0,0,170)")
+
+    QString report;             // human-readable report for the AI agent
+};
+
+/**
  * Analysis mode for screen OCR.
  * General mode is optimized for UI elements with coordinates.
  * Terminal mode is optimized for monospaced command output.
@@ -83,6 +140,18 @@ struct ScreenAnalysis {
 enum class AnalysisMode {
     General,   // UI text with coordinates and element detection
     Terminal   // Terminal/command output with preserved layout
+};
+
+/**
+ * A small region that changed between two consecutive frames.
+ * Used internally by cursor blink detection to track which parts of the
+ * screen are changing over time.
+ */
+struct ChangeRegion {
+    QRect rect;               // Bounding box of the changed region
+    int pixelCount;           // Number of changed pixels
+    float ratio;              // Fraction of total screen that changed
+    QPointF centroid;         // Center point of the changed region
 };
 
 /**
@@ -105,6 +174,54 @@ public:
                                  AnalysisMode mode = AnalysisMode::General);
 
     /**
+     * Differential screen analysis: compare current frame vs. the stored previous
+     * frame and report what CHANGED, not what IS.
+     *
+     * Algorithm:
+     *   1. If no previous frame exists: run full OCR, store frame, return FirstCapture.
+     *   2. Diff current vs. previous. If < 0.1% changed: return NoChange.
+     *   3. If > 50% changed (menu transition, dialog popup): full OCR, return FullChange.
+     *   4. Otherwise: crop both frames to the changed region (with padding for context),
+     *      OCR each, and produce a "BEFORE / AFTER" text diff.
+     *   5. Run BIOS highlight (reverse-video) detection on the current frame and include
+     *      the highlighted text in the report. This is the feature that fixes the BIOS
+     *      navigation bug — the agent is told explicitly "X is currently highlighted".
+     *
+     * The stored previous frame is updated on every call, so the next call will diff
+     * against the current frame.
+     *
+     * @param frame The current screen capture
+     * @return ScreenDiffResult with structured diff report
+     */
+    ScreenDiffResult analyzeScreenDiff(const QImage& frame);
+
+    /**
+     * Detect a blinking terminal cursor from a sequence of pre-captured frames.
+     *
+     * This uses temporal differencing: it analyzes pixel diffs between consecutive
+     * frames and checks whether the same small region changed in multiple diffs.
+     * A blinking cursor is the only thing that changes in an idle terminal, so if
+     * the only change is a small (~character-sized) region toggling at a fixed
+     * position, the terminal is waiting for input.
+     *
+     * The caller is responsible for capturing frames at appropriate intervals
+     * (typically 350ms apart, 5 frames total) and passing at least 3 frames.
+     * 350ms avoids phase-locking with common 500ms/1000ms/1200ms blink periods,
+     * and 5 frames gives 4 diffs over 1.4s — enough to catch slow blink rates.
+     *
+     * Algorithm overview:
+     * 1. Compute diffs between consecutive frame pairs
+     * 2. For each diff, find small changed regions (cursor-sized)
+     * 3. Check if the same position changed in multiple consecutive diffs
+     *    (this distinguishes a blinking cursor from new terminal output)
+     * 4. If a stable position toggles across 2+ diffs → cursor detected
+     *
+     * @param frames List of frames captured at regular intervals (min 3, at ~500ms apart)
+     * @return CursorDetectionResult with detection status, position, and confidence
+     */
+    CursorDetectionResult detectCursorFromFrames(const QList<QImage>& frames);
+
+    /**
      * Check if Tesseract OCR is properly initialized and available.
      * @return true if OCR is ready to use
      */
@@ -115,6 +232,16 @@ public:
      * @return true if OpenCV was compiled in
      */
     bool isOpenCVAvailable() const;
+
+    /**
+     * Detect a shell prompt on the last line of the terminal via OCR.
+     * Looks for common prompt patterns: "$ ", "# ", "> ", "% ", "~$ ", etc.
+     *
+     * @param frame The terminal screen image
+     * @param promptText Output: the detected prompt text if found
+     * @return true if a shell prompt pattern was detected on the last line
+     */
+    bool detectShellPrompt(const QImage& frame, QString& promptText);
 
 private:
     tesseract::TessBaseAPI* m_tesseract;
@@ -144,6 +271,25 @@ private:
      * @return Plain text with preserved terminal layout
      */
     QString extractTerminalText(const QImage& frame);
+
+    /**
+     * Extract terminal-style text from a region (used by analyzeScreenDiff for both
+     * the current and previous crops). Uses the same preprocessing and Tesseract
+     * settings as extractTerminalText, so the two OCR outputs are comparable.
+     * @param region The image region to OCR
+     * @return Plain text with preserved layout
+     */
+    QString extractTextFromRegion(const QImage& region);
+
+    /**
+     * Produce a human-readable diff report from two text blocks (previous and current).
+     * Uses a simple LCS-based line diff, then collapses long runs of unchanged lines
+     * to keep the report compact for the AI agent.
+     * @param oldText OCR text from the previous frame's crop
+     * @param newText OCR text from the current frame's crop
+     * @return Diff report with - / + prefixes for removed / added lines
+     */
+    QString buildDiffReport(const QString& oldText, const QString& newText);
 
     /**
      * Detect the region that changed between the current frame and the previous frame.
@@ -239,6 +385,34 @@ private:
     void convertToMCPCoordinates(int pixelX, int pixelY,
                                  int screenWidth, int screenHeight,
                                  int& mcpX, int& mcpY);
+
+    // --- Cursor blink detection helpers ---
+
+    /**
+     * Find small changed regions between two frames.
+     * Uses cv::absdiff + threshold + contour detection to locate regions
+     * that changed between the two frames. Only returns regions that are
+     * small enough to be cursor-sized (filters out large content changes).
+     *
+     * @param frameA First frame
+     * @param frameB Second frame
+     * @param maxRatio Maximum change ratio to consider (regions larger than
+     *                 this fraction of the screen are ignored)
+     * @return List of small change regions with centroids
+     */
+    QList<ChangeRegion> findSmallChanges(const QImage& frameA, const QImage& frameB,
+                                          float maxRatio = 0.02f);
+
+    /**
+     * Check if two change regions are at approximately the same screen position.
+     * Used to determine if a cursor-sized change is toggling at a fixed location.
+     *
+     * @param a First change region
+     * @param b Second change region
+     * @param tolerance Maximum pixel distance between centroids to consider "same position"
+     * @return true if the regions are at approximately the same position
+     */
+    bool isSamePosition(const ChangeRegion& a, const ChangeRegion& b, float tolerance = 30.0f);
 };
 
 #endif // SCREEN_ANALYZER_H

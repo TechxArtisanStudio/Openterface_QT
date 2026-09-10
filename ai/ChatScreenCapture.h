@@ -46,6 +46,9 @@ public:
     /// Set the CameraManager to use for screen captures
     void setCameraManager(CameraManager *cam);
 
+    /// Get the CameraManager (for tools that need frame access)
+    CameraManager *cameraManager() const { return m_cameraManager; }
+
     /// Capture the current target screen and return the file path.
     /// Returns empty string on failure.
     QString captureScreen();

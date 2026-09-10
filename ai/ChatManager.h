@@ -55,6 +55,15 @@ public:
 
     QList<ChatTaskTraceEntry> plannerTraceEntries() const { return m_plannerTraceEntries; }
 
+    /// Target system (BIOS/UEFI, TextUI, Linux, ...) pinned for the active agent task.
+    /// A fresh (non-"continue") user message snapshots the persisted setting; subsequent
+    /// "continue" runs reuse that pin so the task keeps operating in the same mode.
+    /// This prevents a mid-task set_target_system correction (e.g. the model briefly
+    /// calling set_target_system("linux") while the target was still booting toward BIOS)
+    /// from leaking into the "continue" run and causing it to drop screen images /
+    /// use OCR on a BIOS screen.
+    QString effectiveAgentTargetSystem() const;
+
     // ========================================================================
     // Actions
     // ========================================================================
@@ -177,6 +186,8 @@ private:
     void loadHistory();
     void presentAIError(const QString &error);
     void appendAssistantMessage(const QString &content, const QString &attachment = QString());
+    void appendAssistantMessage(const QString &content, int processingTimeMs, int inputTokens, int outputTokens);
+    void appendAssistantMessage(const QString &content, const QString &attachment, int processingTimeMs, int inputTokens, int outputTokens);
     void startAgentRequestStatus(const QUuid &messageID);
     void completeAgentRequestStatus(const QUuid &messageID);
     void failAgentRequestStatus(const QUuid &messageID, const QString &error);
@@ -184,6 +195,13 @@ private:
     void clearGuideOverlay();
     void startGuideAutoNextStatus(const QUuid &messageID);
     void cancelGuideAutoNextStatus(const QUuid &messageID);
+
+    // ========================================================================
+    // Scheduled task handling
+    // ========================================================================
+
+    /// Handle scheduled task ready for execution
+    void onScheduledTaskReady(const QString &taskId, const QString &prompt);
 
     // ========================================================================
     // State
@@ -203,6 +221,19 @@ private:
     QHash<QUuid, GuideAutoNextStatus> m_agentRequestStatuses;
 
     bool m_cancelRequested = false;
+
+    // Track currently executing scheduled task
+    QString m_executingScheduledTaskId;
+
+    // Task-scoped target system pin. When a fresh (non-"continue") agentic
+    // user message starts an agent run, m_taskTargetSystem is snapshotted
+    // from GlobalSetting::getChatTargetSystem() and stays fixed for every
+    // subsequent "continue" of the same task. This guarantees that e.g. a
+    // "boot into BIOS and configure X" task keeps running with BIOS/TextUI
+    // behavior (capture_screen vision, no OCR substitution) even if the model
+    // briefly wrote a different value via set_target_system mid-task.
+    QString m_taskTargetSystem;
+    bool m_hasTaskTargetSystem = false;
 };
 
 #endif // CHAT_MANAGER_H

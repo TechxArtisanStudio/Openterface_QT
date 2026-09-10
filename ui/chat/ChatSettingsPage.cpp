@@ -80,8 +80,8 @@ void ChatSettingsPage::setupUI()
     // Target system
     auto *targetLayout = new QHBoxLayout();
     m_targetSystemCombo = new QComboBox();
-    m_targetSystemCombo->addItems({"Linux", "macOS", "Windows", "iPhone", "iPad", "Android"});
-    m_targetSystemCombo->setToolTip(tr("Target operating system for AI context"));
+    m_targetSystemCombo->addItems({"Linux", "macOS", "Windows", "iPhone", "iPad", "Android", "BIOS/UEFI", "Text-based UI"});
+    m_targetSystemCombo->setToolTip(tr("Target operating system for AI context. Select BIOS/UEFI or Text-based UI for text-menu environments where OCR cannot detect selection state."));
     targetLayout->addWidget(new QLabel(tr("Target System:")));
     targetLayout->addWidget(m_targetSystemCombo);
     targetLayout->addStretch();
@@ -238,6 +238,7 @@ void ChatSettingsPage::setupUI()
     connect(m_agenticModeRadio, &QRadioButton::toggled, this, [this]{ checkDirtyState(); });
     connect(m_plannerModeRadio, &QRadioButton::toggled, this, [this]{ checkDirtyState(); });
     connect(m_guideModeRadio, &QRadioButton::toggled, this, [this]{ checkDirtyState(); });
+
     connect(m_systemPromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
     connect(m_plannerPromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
     connect(m_screenTaskPromptEdit, &QTextEdit::textChanged, this, [this]{ checkDirtyState(); });
@@ -260,6 +261,8 @@ void ChatSettingsPage::initChatSettings()
     else if (ts == "iphone") m_targetSystemCombo->setCurrentIndex(3);
     else if (ts == "ipad") m_targetSystemCombo->setCurrentIndex(4);
     else if (ts == "android") m_targetSystemCombo->setCurrentIndex(5);
+    else if (ts == "bios" || ts == "uefi") m_targetSystemCombo->setCurrentIndex(6);
+    else if (ts == "textui" || ts == "dos") m_targetSystemCombo->setCurrentIndex(7);
     else m_targetSystemCombo->setCurrentIndex(0); // Linux
 
     m_agentMaxIterationsSpin->setValue(settings.getChatAgentMaxIterations());
@@ -302,7 +305,7 @@ void ChatSettingsPage::applySettings()
 
     // Target system
     int tsIndex = m_targetSystemCombo->currentIndex();
-    QStringList systems = {"linux", "macOS", "windows", "iPhone", "iPad", "android"};
+    QStringList systems = {"linux", "macOS", "windows", "iPhone", "iPad", "android", "bios", "textui"};
     settings.setChatTargetSystem(systems.value(tsIndex, "linux"));
 
     settings.setChatAgentMaxIterations(m_agentMaxIterationsSpin->value());

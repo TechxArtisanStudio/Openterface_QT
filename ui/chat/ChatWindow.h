@@ -99,18 +99,22 @@ private slots:
     void onGuideExecuteNextClicked(int messageIndex);
     void onGuideCompleteClicked(int messageIndex);
 
+    void onTargetOsSelected(const QString &system);
+
 private:
     void setupUI();
     void updateModeUI();
     void refreshBubbles();
     void updatePlanCard();
     void updateEmptyState();
+    void updateTargetOsButton();
     ChatBubbleWidget *createBubbleWidget(int index);
 
     // Layout
     QVBoxLayout *m_mainLayout;
     QHBoxLayout *m_topBar;
     QComboBox *m_modeCombo;
+    QPushButton *m_targetOsBtn;
     QPushButton *m_newSessionBtn;
     QPushButton *m_traceBtn;
     ChatEmptyStateWidget *m_emptyState;

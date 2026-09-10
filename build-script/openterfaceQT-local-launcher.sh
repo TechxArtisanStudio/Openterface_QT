@@ -92,13 +92,28 @@ if [ ${#PRELOAD_LIBS[@]} -gt 0 ]; then
     export LD_PRELOAD=$(IFS=':'; echo "${PRELOAD_LIBS[*]}")
 fi
 
-# Qt plugin paths
+# Qt plugin paths - include both lib and lib64 for TLS support
 if [ -z "$QT_PLUGIN_PATH" ]; then
-    export QT_PLUGIN_PATH="/usr/lib/qt6/plugins"
+    export QT_PLUGIN_PATH="/usr/lib/qt6/plugins:/usr/lib64/qt6/plugins"
+else
+    # Ensure both paths are included
+    case "$QT_PLUGIN_PATH" in
+        */usr/lib64/qt6/plugins*) ;;
+        *) export QT_PLUGIN_PATH="$QT_PLUGIN_PATH:/usr/lib64/qt6/plugins" ;;
+    esac
+fi
+
+# Ensure Qt can find TLS/SSL plugins - critical for HTTPS connections
+export QT_TLS_BACKEND="openssl"
+if [ -d "/usr/lib/qt6/plugins/tls" ]; then
+    export QT_PLUGIN_PATH="$QT_PLUGIN_PATH:/usr/lib/qt6/plugins/tls"
+fi
+if [ -d "/usr/lib64/qt6/plugins/tls" ]; then
+    export QT_PLUGIN_PATH="$QT_PLUGIN_PATH:/usr/lib64/qt6/plugins/tls"
 fi
 
 if [ -z "$QT_QPA_PLATFORM_PLUGIN_PATH" ]; then
-    export QT_QPA_PLATFORM_PLUGIN_PATH="/usr/lib/qt6/plugins/platforms"
+    export QT_QPA_PLATFORM_PLUGIN_PATH="/usr/lib/qt6/plugins/platforms:/usr/lib64/qt6/plugins/platforms"
 fi
 
 if [ -z "$QML2_IMPORT_PATH" ]; then
@@ -116,6 +131,9 @@ if [ -z "$QT_QPA_PLATFORM" ]; then
     fi
 fi
 
+# Enable debug logging for AI chat and web search
+export QT_LOGGING_RULES="log_ai_chat.debug=true"
+
 # ==================================================
 # Execute
 # ==================================================
@@ -123,6 +141,8 @@ echo "Executing: $APP_BIN $@" | tee -a "$LAUNCHER_LOG"
 echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH" | tee -a "$LAUNCHER_LOG"
 echo "LD_PRELOAD (first 3): $(echo "$LD_PRELOAD" | tr ':' '\n' | head -3 | tr '\n' ':')" | tee -a "$LAUNCHER_LOG"
 echo "QT_QPA_PLATFORM: $QT_QPA_PLATFORM" | tee -a "$LAUNCHER_LOG"
+echo "QT_TLS_BACKEND: $QT_TLS_BACKEND" | tee -a "$LAUNCHER_LOG"
+echo "QT_PLUGIN_PATH: $QT_PLUGIN_PATH" | tee -a "$LAUNCHER_LOG"
 
 APP_LOG="/tmp/openterfaceqt-app-$(date +%s).log"
 "$APP_BIN" "$@" 2>&1 | tee -a "$APP_LOG"

@@ -323,6 +323,7 @@ set(AI_SOURCES
     ai/ChatManager.cpp ai/ChatManager.h
     ai/ChatInputRouter.cpp ai/ChatInputRouter.h
     ai/ChatScreenCapture.cpp ai/ChatScreenCapture.h
+    ai/SharedToolExecutor.cpp ai/SharedToolExecutor.h
     ai/ChatConversationBuilder.cpp ai/ChatConversationBuilder.h
     ai/ChatToolExecution.cpp ai/ChatToolExecution.h
     ai/ChatAgentTypes.cpp ai/ChatAgentTypes.h
@@ -330,6 +331,9 @@ set(AI_SOURCES
     ai/ChatTracing.cpp ai/ChatTracing.h
     ai/ChatSkillManager.cpp ai/ChatSkillManager.h
     ai/ChatGuideMode.cpp ai/ChatGuideMode.h
+    ai/WebSearchProvider.h
+    ai/WebSearchProviders.cpp ai/WebSearchProviders.h
+    ai/WebSearchManager.cpp ai/WebSearchManager.h
 )
 
 # AI chat UI sources
@@ -357,6 +361,7 @@ set(AI_SOURCES
     ai/ChatManager.cpp ai/ChatManager.h
     ai/ChatInputRouter.cpp ai/ChatInputRouter.h
     ai/ChatScreenCapture.cpp ai/ChatScreenCapture.h
+    ai/SharedToolExecutor.cpp ai/SharedToolExecutor.h
     ai/ChatConversationBuilder.cpp ai/ChatConversationBuilder.h
     ai/ChatToolExecution.cpp ai/ChatToolExecution.h
     ai/ChatAgentTypes.cpp ai/ChatAgentTypes.h
@@ -364,6 +369,9 @@ set(AI_SOURCES
     ai/ChatTracing.cpp ai/ChatTracing.h
     ai/ChatSkillManager.cpp ai/ChatSkillManager.h
     ai/ChatGuideMode.cpp ai/ChatGuideMode.h
+    ai/WebSearchProvider.h
+    ai/WebSearchProviders.cpp ai/WebSearchProviders.h
+    ai/WebSearchManager.cpp ai/WebSearchManager.h
 )
 
 # AI chat UI sources

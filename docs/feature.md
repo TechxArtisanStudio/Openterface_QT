@@ -105,3 +105,45 @@ The following commands are supported in the scripts:
   - German
   - Japanese
   - Swedish
+
+## AI Chat Assistant
+- The software includes an integrated AI Chat Assistant that can control the KVM and interact with the target device using natural language commands.
+- **Chat Modes**:
+  - **Agent Mode**: AI can directly execute actions on the target device (mouse clicks, keyboard input, screen capture, etc.)
+  - **Planner Mode**: AI creates a multi-step execution plan for user approval before performing actions
+  - **Guide Mode**: AI provides turn-by-turn instructions to help users accomplish tasks manually
+- **Available Tools** (configurable in Preferences → AI Chat):
+  - **Screen Tools**: Screen capture and OCR-based screen-to-markdown conversion
+  - **Mouse Tools**: Move mouse, left/right/double click, drag operations
+  - **Keyboard Tools**: Type text, press keys, repeat keys
+  - **Recording Tools**: Start/stop screen recording
+  - **System/Host Tools**: Set target system, run bash commands on host, web search
+- **Web Search**:
+  - Multi-provider web search system with automatic fallback chain
+  - **Providers** (in order of priority):
+    1. **Exa AI** - AI-optimized semantic search via MCP (works anonymously)
+    2. **Parallel AI** - AI-optimized search via MCP (works anonymously)
+    3. **DuckDuckGo** - Instant Answer API (free, no API key)
+    4. **Wikipedia** - Encyclopedia search (free, no API key)
+  - All providers work without API keys (anonymous access)
+  - Automatic fallback: if one provider fails, tries the next
+  - Clear error messages for SSL/TLS configuration issues
+  - Configurable provider order in Preferences → AI Chat → Tools → Web Search
+- **Tools Configuration**:
+  - Tools are organized in a hierarchical tree structure for easy management
+  - Each tool category can be expanded/collapsed
+  - Checking a category enables/disables all tools in that group
+  - "Select All" checkbox to quickly enable/disable all tools
+  - Individual tools can be toggled independently
+  - Tool IDs are displayed for reference (e.g., `capture_screen`, `move_mouse`)
+- **API Configuration**:
+  - Supports OpenAI-compatible APIs
+  - Configurable base URL, API key, and model selection
+- **Target System Support**:
+  - Linux, macOS, Windows, iPhone, iPad, Android, BIOS/UEFI, Text-based UI
+  - Context-aware prompts adapt to the selected target system
+- **Customizable Prompts**:
+  - System prompt for agent mode
+  - Planner prompt for multi-step planning
+  - Screen task and typing task prompts
+  - Guide mode instructions

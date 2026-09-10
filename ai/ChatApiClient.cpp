@@ -26,6 +26,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QDateTime>
 #include <QLoggingCategory>
 #include <QHttpMultiPart>
 #include <QScopeGuard>
@@ -194,6 +195,11 @@ void ChatApiClient::doPost(
             // no indication of what's actually wrong.
             QByteArray errorBody = reply->readAll();
             int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+
+            // HTTP 429 = rate limited. Record a cooldown so the caller backs off
+            // instead of immediately firing another request at the API.
+            if (httpStatus == 429) recordRateLimit(httpStatus, reply);
+
             QString errStr;
             if (httpStatus >= 400 && !errorBody.isEmpty()) {
                 QString body = QString::fromUtf8(errorBody).left(500);
@@ -216,6 +222,10 @@ void ChatApiClient::doPost(
 
         // Check HTTP status
         if (httpStatus < 200 || httpStatus >= 300) {
+            // HTTP 429 = rate limited. Record a cooldown so the caller backs off
+            // instead of immediately firing another request at the API.
+            if (httpStatus == 429) recordRateLimit(httpStatus, reply);
+
             QString body = QString::fromUtf8(responseData).left(500);
             QString errStr = QString("Chat API error %1: %2").arg(httpStatus).arg(body);
             qCWarning(log_ai_chat) << "AI Chat HTTP error:" << errStr;
@@ -223,6 +233,9 @@ void ChatApiClient::doPost(
             if (found.callback) found.callback(false, empty, errStr);
             return;
         }
+
+        // A successful (2xx) response means the rate limit, if any, has lifted.
+        clearRateLimit();
 
         // Parse response
         QJsonParseError parseErr;
@@ -247,8 +260,29 @@ void ChatApiClient::doPost(
             return;
         }
 
-        QString content = choices.first().toObject()["message"].toObject()["content"].toString();
-        if (content.isEmpty()) {
+        QJsonObject message = choices.first().toObject()["message"].toObject();
+        QString content = message["content"].toString();
+
+        // Extract tool_calls from OpenAI function calling format
+        QList<QJsonObject> toolCalls;
+        if (message.contains("tool_calls") && message["tool_calls"].isArray()) {
+            QJsonArray toolCallsArray = message["tool_calls"].toArray();
+            for (const auto &toolCallVal : toolCallsArray) {
+                QJsonObject toolCallObj = toolCallVal.toObject();
+                if (toolCallObj.contains("function") && toolCallObj["function"].isObject()) {
+                    QJsonObject functionObj = toolCallObj["function"].toObject();
+                    QJsonObject toolCall;
+                    toolCall["id"] = toolCallObj["id"].toString();
+                    toolCall["name"] = functionObj["name"].toString();
+                    toolCall["arguments"] = functionObj["arguments"].toString();
+                    toolCalls.append(toolCall);
+                }
+            }
+            qCDebug(log_ai_chat) << "Extracted" << toolCalls.size() << "tool_calls from API response";
+        }
+
+        // Only treat empty content as error if there are also no tool_calls
+        if (content.isEmpty() && toolCalls.isEmpty()) {
             QString errStr = "Empty assistant content";
             qCWarning(log_ai_chat) << "AI Chat:" << errStr;
             ChatCompletionResult empty;
@@ -259,6 +293,7 @@ void ChatApiClient::doPost(
         // Extract usage
         ChatCompletionResult result;
         result.content = content;
+        result.toolCalls = toolCalls;
         QJsonObject usage = respObj["usage"].toObject();
         if (!usage.isEmpty()) {
             result.inputTokenCount = usage["prompt_tokens"].toInt(-1);
@@ -266,6 +301,7 @@ void ChatApiClient::doPost(
         }
 
         qCDebug(log_ai_chat) << "AI Chat response received: chars=" << content.length()
+                             << "toolCalls=" << toolCalls.size()
                              << "inputTokens=" << result.inputTokenCount
                              << "outputTokens=" << result.outputTokenCount;
 
@@ -281,4 +317,63 @@ void ChatApiClient::cancelAll()
         }
     }
     m_pendingRequests.clear();
+}
+
+// ============================================================================
+// Rate-limit (HTTP 429) handling
+// ============================================================================
+
+bool ChatApiClient::isRateLimited() const
+{
+    return QDateTime::currentMSecsSinceEpoch() < m_rateLimitUntilMs.load();
+}
+
+qint64 ChatApiClient::rateLimitRemainingMs() const
+{
+    qint64 until = m_rateLimitUntilMs.load();
+    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now >= until) return 0;
+    return until - now;
+}
+
+void ChatApiClient::recordRateLimit(int httpStatus, const QNetworkReply *reply)
+{
+    if (httpStatus != 429) return;
+
+    const int consecutive = m_consecutive429Count.fetch_add(1) + 1;
+
+    // Exponential backoff: 30s, 60s, 120s, 240s ... capped at 5 minutes.
+    // Each fresh 429 bumps the wait so a stubborn rate limit is not
+    // hammered at a constant interval.
+    static constexpr qint64 BASE_BACKOFF_MS = 30000;
+    static constexpr qint64 MAX_BACKOFF_MS  = 300000;
+    qint64 backoffMs = BASE_BACKOFF_MS;
+    for (int i = 1; i < consecutive; ++i) {
+        backoffMs = qMin(backoffMs * 2, MAX_BACKOFF_MS);
+    }
+
+    // Prefer the server's Retry-After header when it provides one — it tells
+    // us exactly when the upstream expects to accept requests again.
+    if (reply) {
+        const QByteArray retryAfter = reply->rawHeader("Retry-After");
+        if (!retryAfter.isEmpty()) {
+            bool ok = false;
+            const qint64 seconds = retryAfter.toLongLong(&ok);
+            if (ok && seconds > 0) {
+                backoffMs = qMax(backoffMs, seconds * 1000);
+            }
+        }
+    }
+
+    m_rateLimitUntilMs.store(QDateTime::currentMSecsSinceEpoch() + backoffMs);
+
+    qCWarning(log_ai_chat) << "Rate-limited (HTTP 429) — throttling for"
+                           << (backoffMs / 1000.0) << "s"
+                           << "(consecutive 429s:" << consecutive << ")";
+}
+
+void ChatApiClient::clearRateLimit()
+{
+    m_consecutive429Count.store(0);
+    m_rateLimitUntilMs.store(0);
 }

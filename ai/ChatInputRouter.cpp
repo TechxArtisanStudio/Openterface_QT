@@ -150,15 +150,107 @@ void ChatInputRouter::doClick(int button, int absX, int absY, bool isDoubleClick
 void ChatInputRouter::sendText(const QString &text)
 {
     if (text.isEmpty()) return;
-    HostManager::getInstance().getKeyboardManager().pasteTextToTarget(text);
+
+    // Check if text contains angle-bracket shortcuts that need conversion
+    if (text.contains('<') && text.contains('>')) {
+        // Parse text and convert angle-bracket shortcuts to key presses
+        QString remaining = text;
+        QString textBuffer;
+
+        while (!remaining.isEmpty()) {
+            int startIdx = remaining.indexOf('<');
+
+            if (startIdx < 0) {
+                // No more shortcuts, type the rest
+                textBuffer += remaining;
+                break;
+            }
+
+            // Add text before the shortcut
+            if (startIdx > 0) {
+                textBuffer += remaining.left(startIdx);
+            }
+
+            // Find closing bracket
+            int endIdx = remaining.indexOf('>', startIdx);
+            if (endIdx < 0) {
+                // No closing bracket, treat rest as text
+                textBuffer += remaining.mid(startIdx);
+                break;
+            }
+
+            // Flush text buffer before sending shortcut
+            if (!textBuffer.isEmpty()) {
+                HostManager::getInstance().getKeyboardManager().pasteTextToTarget(textBuffer);
+                textBuffer.clear();
+                QThread::msleep(50);
+            }
+
+            // Extract and send the shortcut
+            QString shortcut = remaining.mid(startIdx + 1, endIdx - startIdx - 1);
+            sendShortcut(shortcut);
+
+            // Move past this shortcut
+            remaining = remaining.mid(endIdx + 1);
+        }
+
+        // Flush any remaining text
+        if (!textBuffer.isEmpty()) {
+            HostManager::getInstance().getKeyboardManager().pasteTextToTarget(textBuffer);
+        }
+    } else {
+        // No shortcuts, just type the text
+        HostManager::getInstance().getKeyboardManager().pasteTextToTarget(text);
+    }
 }
 
 void ChatInputRouter::sendShortcut(const QString &shortcut)
 {
     if (shortcut.isEmpty()) return;
 
+    // Normalize the shortcut format - handle both "ctrl+alt+t" and "<ctrl><alt>t"
+    QString normalized = shortcut.trimmed();
+
+    // Convert angle-bracket format to plus-separated format
+    // "<ctrl><alt>t" -> "ctrl+alt+t"
+    // "<ctrl>l" -> "ctrl+l"
+    // "<enter>" -> "enter"
+    if (normalized.contains('<') || normalized.contains('>')) {
+        QString converted;
+        int i = 0;
+        while (i < normalized.length()) {
+            if (normalized[i] == '<') {
+                // Find closing >
+                int end = normalized.indexOf('>', i);
+                if (end > i) {
+                    if (!converted.isEmpty()) converted += '+';
+                    converted += normalized.mid(i + 1, end - i - 1);
+                    i = end + 1;
+                } else {
+                    i++;
+                }
+            } else if (normalized[i].isLetterOrNumber()) {
+                // Regular key character(s)
+                if (!converted.isEmpty() && !converted.endsWith('+')) {
+                    converted += '+';
+                }
+                // Collect consecutive alphanumeric chars
+                int start = i;
+                while (i < normalized.length() && normalized[i].isLetterOrNumber()) {
+                    i++;
+                }
+                converted += normalized.mid(start, i - start);
+            } else {
+                i++;
+            }
+        }
+        normalized = converted;
+    }
+
+    qCDebug(log_ai_chat) << "AI shortcut: original=" << shortcut << "normalized=" << normalized;
+
     // Parse shortcut like "ctrl+l", "alt+f4", "ctrl+shift+t"
-    QStringList parts = shortcut.toLower().split('+');
+    QStringList parts = normalized.toLower().split('+');
     for (auto &p : parts) p = p.trimmed();
     if (parts.isEmpty()) return;
 
