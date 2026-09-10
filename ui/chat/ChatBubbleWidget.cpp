@@ -430,15 +430,19 @@ QString ChatBubbleWidget::formatContentForDisplay(const QString &content) const
 
         // Split out the OCR section (if present)
         QString ocrSection;
-        QString afterOcrSection;
+        QString terminalHeading;
         int ocrIdx = body.indexOf("--- OCR Analysis Result ---");
         if (ocrIdx >= 0) {
             QString afterOcrStart = body.mid(ocrIdx + strlen("--- OCR Analysis Result ---")).trimmed();
-            // Check if there's additional content after the OCR section
-            int nextSectionIdx = afterOcrStart.indexOf("\n\nTerminal Output");
-            if (nextSectionIdx >= 0) {
-                ocrSection = afterOcrStart.left(nextSectionIdx).trimmed();
-                afterOcrSection = afterOcrStart.mid(nextSectionIdx).trimmed();
+            // Check if OCR text starts with "# Terminal Output" heading
+            if (afterOcrStart.startsWith("# Terminal Output")) {
+                int headingEnd = afterOcrStart.indexOf("\n\n");
+                if (headingEnd >= 0) {
+                    terminalHeading = afterOcrStart.left(headingEnd).trimmed();
+                    ocrSection = afterOcrStart.mid(headingEnd).trimmed();
+                } else {
+                    ocrSection = afterOcrStart;
+                }
             } else {
                 ocrSection = afterOcrStart;
             }
@@ -451,6 +455,10 @@ QString ChatBubbleWidget::formatContentForDisplay(const QString &content) const
             // Render body as-is (may contain short status text).
             // Don't wrap in blockquote — that would break embedded markdown tables.
             result += body + "\n\n";
+        }
+        // Display terminal heading if present (bold, separate line)
+        if (!terminalHeading.isEmpty()) {
+            result += "**" + terminalHeading + "**\n\n";
         }
         if (!ocrSection.isEmpty()) {
             // OCR output is full markdown (headings, tables, lists).
@@ -466,10 +474,6 @@ QString ChatBubbleWidget::formatContentForDisplay(const QString &content) const
             } else {
                 result += "```\n" + ocrSection + "\n```\n";
             }
-        }
-        if (!afterOcrSection.isEmpty()) {
-            // Add additional sections (like Terminal Output) with bold formatting
-            result += "\n**" + afterOcrSection + "**\n";
         }
         return result;
     }
