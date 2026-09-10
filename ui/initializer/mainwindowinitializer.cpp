@@ -249,6 +249,15 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     connect(m_cornerWidgetManager, &CornerWidgetManager::keyboardLayoutChanged, m_mainWindow, &MainWindow::onKeyboardLayoutCombobox_Changed);
     connect(m_cornerWidgetManager, &CornerWidgetManager::recordingToggled, m_mainWindow, &MainWindow::toggleRecording);
     connect(m_cornerWidgetManager, &CornerWidgetManager::muteToggled, m_mainWindow, &MainWindow::toggleMute);
+    connect(m_cornerWidgetManager, &CornerWidgetManager::aiChatToggled, m_mainWindow, [this]() {
+        // Toggle the AI Chat window - sync both the menu action and magic wand button
+        bool willShow = !m_mainWindow->isChatWindowVisible();
+        m_mainWindow->toggleChatWindow(willShow);
+        // Sync menu action
+        m_ui->actionAIChat->blockSignals(true);
+        m_ui->actionAIChat->setChecked(willShow);
+        m_ui->actionAIChat->blockSignals(false);
+    });
 
     // Connect SerialPortManager USB status changes to CornerWidgetManager
     connect(&SerialPortManager::getInstance(), &SerialPortManager::usbStatusChanged,
@@ -376,7 +385,15 @@ void MainWindowInitializer::connectActionSignals()
     connect(m_ui->actionRecordingSettings, &QAction::triggered, m_mainWindow, &MainWindow::showRecordingSettings);
     connect(m_ui->actionHardwareDiagnostics, &QAction::triggered, m_mainWindow, &MainWindow::showHardwareDiagnostics);
     connect(m_ui->actionHotplugTest, &QAction::triggered, m_mainWindow, &MainWindow::showHotplugTest);
-    connect(m_ui->actionAIChat, &QAction::toggled, m_mainWindow, &MainWindow::toggleChatWindow);
+    connect(m_ui->actionAIChat, &QAction::toggled, m_mainWindow, [this](bool checked) {
+        m_mainWindow->toggleChatWindow(checked);
+        // Sync the magic wand button checked state
+        if (m_cornerWidgetManager && m_cornerWidgetManager->aiChatButton) {
+            m_cornerWidgetManager->aiChatButton->blockSignals(true);
+            m_cornerWidgetManager->aiChatButton->setChecked(checked);
+            m_cornerWidgetManager->aiChatButton->blockSignals(false);
+        }
+    });
     // Connect baudrate actions to the MenuCoordinator which handles baudrate logic
     // Use the QActionGroup triggered(QAction*) signal to call the MenuCoordinator slot.
     // We use the string-based SIGNAL/SLOT so that the private slot onBaudrateMenuTriggered

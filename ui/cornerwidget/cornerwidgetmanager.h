@@ -32,6 +32,7 @@ public:
     QPushButton *screensaverButton;
     QPushButton *recordingButton;
     QPushButton *muteButton;
+    QPushButton *aiChatButton;
 
 signals:
     void zoomInClicked();
@@ -47,6 +48,7 @@ signals:
     void keyboardLayoutChanged(const QString &layout);
     void recordingToggled();
     void muteToggled();
+    void aiChatToggled();
 
 private:
     void createWidgets();

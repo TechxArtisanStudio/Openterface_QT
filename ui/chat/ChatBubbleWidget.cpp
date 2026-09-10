@@ -16,6 +16,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonParseError>
+#include <QTimer>
 
 ChatBubbleWidget::ChatBubbleWidget(QWidget *parent)
     : QWidget(parent)
@@ -197,12 +198,15 @@ void ChatBubbleWidget::updateContent()
     m_contentBrowser->document()->setTextWidth(m_contentBrowser->viewport()->width());
     m_contentBrowser->document()->adjustSize();
 
-    // Calculate height with very generous padding to prevent any text clipping.
-    // Markdown rendering adds significant extra spacing for paragraphs, headings,
-    // code blocks, and lists. Assistant messages especially need more room.
-    // We add 60px: 16px CSS padding + 44px safety margin for markdown spacing.
-    int docHeight = static_cast<int>(m_contentBrowser->document()->size().height());
-    m_contentBrowser->setFixedHeight(docHeight + 60);
+    // Defer height calculation to ensure the document is fully laid out,
+    // especially for markdown content which needs time to measure properly.
+    QTimer::singleShot(0, this, [this]() {
+        m_contentBrowser->document()->setTextWidth(m_contentBrowser->viewport()->width());
+        m_contentBrowser->document()->adjustSize();
+        int docHeight = static_cast<int>(m_contentBrowser->document()->size().height());
+        // CSS padding is 8px top + 8px bottom = 16px. Add 4px safety margin.
+        m_contentBrowser->setFixedHeight(docHeight + 20);
+    });
 
     // Metadata (processing time and token usage)
     if (m_message.role == ChatRole::Assistant && (m_message.processingTimeMs > 0 || m_message.inputTokens > 0 || m_message.outputTokens > 0)) {
@@ -409,8 +413,8 @@ QString ChatBubbleWidget::formatContentForDisplay(const QString &content) const
         }
 
         QString header = timestamp.isEmpty()
-            ? QStringLiteral("✅ **Tool Result**")
-            : QStringLiteral("✅ **Tool Result** _(%1)_").arg(timestamp);
+            ? QStringLiteral("<small>✅ Tool Result</small>")
+            : QStringLiteral("<small>✅ Tool Result _(%1)_</small>").arg(timestamp);
 
         // Split out the OCR section (if present)
         QString ocrSection;
@@ -435,7 +439,7 @@ QString ChatBubbleWidget::formatContentForDisplay(const QString &content) const
                             || ocrSection.contains('|')
                             || ocrSection.contains("**")
                             || ocrSection.contains("- ");
-            result += "**📝 OCR Output:**\n\n";
+            result += "<small>📝 OCR Output:</small>\n\n";
             if (hasMarkdown) {
                 result += ocrSection + "\n";
             } else {
@@ -506,7 +510,7 @@ QString ChatBubbleWidget::formatContentForDisplay(const QString &content) const
         // Collect all tool calls into a single table.
         // Rows: "tool_name | arg_key | arg_value". If a call has no args
         // (other than "tool"), emit one row with "(no arguments)".
-        result += QStringLiteral("\n🔧 **Tool Call%1**\n\n").arg(calls.size() > 1 ? "s" : "");
+        result += QStringLiteral("\n<small>🔧 Tool Call%1</small>\n\n").arg(calls.size() > 1 ? "s" : "");
         result += "| Tool | Argument | Value |\n|------|----------|-------|\n";
         for (const auto &call : calls) {
             QJsonObject args = call.second;
