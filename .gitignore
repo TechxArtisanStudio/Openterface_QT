@@ -76,3 +76,6 @@ Makefile
 # Build output directories (cmake / qmake)
 build-cmake/
 build-qmake/
+build-script/ffmpeg-build/*
+build-script/ffmpeg-build-temp/*
+build-shared-app/*
