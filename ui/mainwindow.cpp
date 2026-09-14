@@ -151,15 +151,15 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     , m_windowControlManager(nullptr)
 {
     qCDebug(log_ui_mainwindow) << "Initializing MainWindow...";
-    
+
     ui->setupUi(this);
-    
+
     // Initialize WindowLayoutCoordinator early - needed before checkInitSize()
     m_windowLayoutCoordinator = new WindowLayoutCoordinator(this, videoPane, menuBar(), statusBar(), this);
-    
+
     // Initialize SystemKeyBlocker focus target — only swallow keys when VideoPane has focus
     SystemKeyBlocker::instance().setFocusTarget(videoPane);
-    
+
     // Delegate all initialization to initializer
     m_initializer = new MainWindowInitializer(this);
     m_initializer->initialize();
@@ -176,7 +176,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     // Defer VideoHid start to avoid 500ms blocking sleep during startup
     // This will be started after the window is shown
     qCDebug(log_ui_mainwindow) << "VideoHid will be started after window is shown";
-    
+
     qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
 }
 
@@ -2454,8 +2454,26 @@ void MainWindow::adjustPositionToScreen()
     QRect windowRect = geometry();
 
     // Clamp the window position to be entirely within the screen
-    int newX = qBound(screenRect.left(), windowRect.x(), screenRect.right() - windowRect.width());
-    int newY = qBound(screenRect.top(), windowRect.y(), screenRect.bottom() - windowRect.height());
+    // Fix: Handle case where window is larger than screen or screen has non-zero offset
+    int newX, newY;
+
+    // For X coordinate
+    int maxX = screenRect.right() - windowRect.width();
+    if (screenRect.left() > maxX) {
+        // Window is wider than screen, just position at screen left edge
+        newX = screenRect.left();
+    } else {
+        newX = qBound(screenRect.left(), windowRect.x(), maxX);
+    }
+
+    // For Y coordinate
+    int maxY = screenRect.bottom() - windowRect.height();
+    if (screenRect.top() > maxY) {
+        // Window is taller than screen, just position at screen top edge
+        newY = screenRect.top();
+    } else {
+        newY = qBound(screenRect.top(), windowRect.y(), maxY);
+    }
 
     move(newX, newY);
 }
