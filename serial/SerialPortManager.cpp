@@ -2734,7 +2734,9 @@ bool SerialPortManager::reconfigureHidChip(int targetBaudrate)
     
     qCDebug(log_core_serial_rx) << "Configuration response size:" << retBtyes.size() << "data:" << retBtyes.toHex(' ');
     
-    if(retBtyes.size() > 0){
+    // A zero-initialised CmdDataResult has data == DEF_CMD_SUCCESS (0x00), so a
+    // truncated response must never reach the success check below.
+    if (retBtyes.size() >= static_cast<qsizetype>(sizeof(CmdDataResult))) {
         CmdDataResult dataResult = fromByteArray<CmdDataResult>(retBtyes);
         if(dataResult.data == DEF_CMD_SUCCESS){
             qCDebug(log_core_serial_config) << "Set data config success, reconfig to" << targetBaudrate << "baudrate and mode 0x" << QString::number(mode, 16);
@@ -2743,6 +2745,9 @@ bool SerialPortManager::reconfigureHidChip(int targetBaudrate)
             qCWarning(log_core_serial_config) << "Set data config fail with status code:" << QString("0x%1").arg(dataResult.data, 2, 16, QChar('0'));
             dumpError(dataResult.data, retBtyes);
         } 
+    } else if (!retBtyes.isEmpty()) {
+        qCWarning(log_core_serial_rx) << "Set data config response too short:" << retBtyes.size()
+                                      << "bytes (expected" << sizeof(CmdDataResult) << ") data:" << retBtyes.toHex(' ');
     }else{
         qCWarning(log_core_serial_rx) << "Set data config response empty. Port may not be responding.";
         qCWarning(log_core_serial_conn) << "Current port:" << (serialPort ? serialPort->portName() : "null") 
