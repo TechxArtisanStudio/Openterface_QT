@@ -204,7 +204,18 @@ void MainWindow::startServer(){
 
     // 1. create and start TCP server
     tcpServer = new TcpServer(this);
-    tcpServer->startServer(SERVER_PORT);
+    if (!tcpServer->startServer(SERVER_PORT)) {
+        qCWarning(log_ui_mainwindow) << "Failed to start TCP server on port" << SERVER_PORT;
+        if (m_statusBarManager) {
+            m_statusBarManager->setStatusUpdate(QString("TCP Server failed to start on port %1").arg(SERVER_PORT));
+        }
+        if (ui->actionTCPServer) {
+            ui->actionTCPServer->setChecked(false);
+        }
+        tcpServer->deleteLater();
+        tcpServer = nullptr;
+        return;
+    }
     tcpServer->setCameraManager(m_cameraManager);
 
     connect(m_cameraManager, &CameraManager::lastImagePath, tcpServer, &TcpServer::handleImgPath);
@@ -215,7 +226,9 @@ void MainWindow::startServer(){
     m_tcpServerRunning = true;
     if (m_statusBarManager) {
         m_statusBarManager->setTcpServerVisible(true);
-        m_statusBarManager->setStatusUpdate(QString("TCP Server running on port %1").arg(SERVER_PORT));
+        m_statusBarManager->setStatusUpdate(QString("TCP Server running on %1:%2")
+                                                .arg(tcpServer->serverAddress().toString())
+                                                .arg(tcpServer->serverPort()));
     }
 
     // 7. Update menu action to show server is running
@@ -223,7 +236,8 @@ void MainWindow::startServer(){
         ui->actionTCPServer->setChecked(true);
     }
 
-    qCDebug(log_ui_mainwindow) << "TCP Server started at port 12345 with auto image capture";
+    qCDebug(log_ui_mainwindow) << "TCP Server started on" << tcpServer->serverAddress().toString()
+                               << "port" << tcpServer->serverPort() << "with auto image capture";
 }
 
 void MainWindow::initMcpServer()
