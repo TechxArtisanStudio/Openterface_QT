@@ -255,15 +255,6 @@ void applyMediaBackendSetting(){
 
 int main(int argc, char *argv[])
 {
-    // TEMP: Early startup logging
-    QFile earlyLog("C:/openterface_startup.log");
-    (void)earlyLog.open(QIODevice::WriteOnly | QIODevice::Append);
-    if (earlyLog.isOpen()) {
-        QTextStream outs(&earlyLog);
-        outs << "[EARLY] main() entered\n";
-        outs.flush();
-    }
-
     #ifdef Q_OS_WIN
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF);
     #endif
