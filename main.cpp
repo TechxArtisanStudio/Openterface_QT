@@ -255,15 +255,6 @@ void applyMediaBackendSetting(){
 
 int main(int argc, char *argv[])
 {
-    // TEMP: Early startup logging
-    QFile earlyLog("C:/openterface_startup.log");
-    (void)earlyLog.open(QIODevice::WriteOnly | QIODevice::Append);
-    if (earlyLog.isOpen()) {
-        QTextStream outs(&earlyLog);
-        outs << "[EARLY] main() entered\n";
-        outs.flush();
-    }
-
     // DEBUG: Print to stderr immediately
     fprintf(stderr, "DEBUG: main() called with %d args\n", argc);
     for (int i = 0; i < argc; i++) {
