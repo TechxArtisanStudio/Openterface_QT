@@ -203,6 +203,7 @@ set(UI_CORE_SOURCES
     ui/inputhandler.cpp ui/inputhandler.h
     ui/loghandler.cpp ui/loghandler.h
     ui/mainwindow.cpp ui/mainwindow.h ui/mainwindow.ui
+    ui/ShortcutManager.cpp ui/ShortcutManager.h
     ui/videopane.cpp ui/videopane.h
     ui/languagemanager.cpp ui/languagemanager.h
     ui/screensavermanager.cpp ui/screensavermanager.h

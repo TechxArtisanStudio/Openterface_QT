@@ -257,6 +257,9 @@ private slots:
     // and get forwarded to the target instead of being intercepted by the app.
     void syncShortcutsState();
 
+    // Register all UI actions with ShortcutManager for unified control
+    void registerUIActions();
+
 protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;

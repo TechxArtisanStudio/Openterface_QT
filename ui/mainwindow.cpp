@@ -52,6 +52,7 @@
 #include "ui/advance/devicediagnosticsdialog.h"
 #include "ui/hotplug/HotplugTestDialog.h"
 #include "ui/customkey/customkeydialog.h"
+#include "ShortcutManager.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -153,6 +154,9 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     qCDebug(log_ui_mainwindow) << "Initializing MainWindow...";
 
     ui->setupUi(this);
+
+    // Register all UI actions with ShortcutManager
+    registerUIActions();
 
     // Initialize WindowLayoutCoordinator early - needed before checkInitSize()
     m_windowLayoutCoordinator = new WindowLayoutCoordinator(this, videoPane, menuBar(), statusBar(), this);
@@ -953,6 +957,16 @@ void MainWindow::configureSettings() {
             }
             // Re-sync shortcuts
             syncShortcutsState();
+        });
+        // Connect shortcuts enabled toggle from LogPage
+        connect(logPage, &LogPage::shortcutsEnabledChanged, this, [this](bool enabled) {
+            if (enabled) {
+                ShortcutManager::instance().enableAll();
+                qCInfo(log_ui_mainwindow) << "Keyboard shortcuts enabled";
+            } else {
+                ShortcutManager::instance().disableAll();
+                qCInfo(log_ui_mainwindow) << "Keyboard shortcuts disabled";
+            }
         });
         m_statusBarManager->setHideKeyboardInput(GlobalSetting::instance().getHideKeyboardInput());
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
@@ -2440,6 +2454,37 @@ void MainWindow::syncShortcutsState()
     // This function is now a no-op — shortcuts are never disabled based on focus.
     // Kept for API compatibility and potential future use.
     qCDebug(log_ui_mainwindow) << "syncShortcutsState called (no-op: shortcuts always enabled)";
+}
+
+void MainWindow::registerUIActions()
+{
+    ShortcutManager &mgr = ShortcutManager::instance();
+
+    // Register all actions defined in mainwindow.ui
+    // For each action, we create a QShortcut with 'this' (MainWindow) as parent
+    if (ui->actionExit) mgr.registerAction(ui->actionExit, this);
+    if (ui->actionPreferences) mgr.registerAction(ui->actionPreferences, this);
+    if (ui->actionUpdate) mgr.registerAction(ui->actionUpdate, this);
+    if (ui->actionEnvironment) mgr.registerAction(ui->actionEnvironment, this);
+    if (ui->actionAbout) mgr.registerAction(ui->actionAbout, this);
+    if (ui->actionPaste) mgr.registerAction(ui->actionPaste, this);
+    if (ui->actionScriptTool) mgr.registerAction(ui->actionScriptTool, this);
+    if (ui->actionRecordingSettings) mgr.registerAction(ui->actionRecordingSettings, this);
+    if (ui->actionHardwareDiagnostics) mgr.registerAction(ui->actionHardwareDiagnostics, this);
+    if (ui->actionHotplugTest) mgr.registerAction(ui->actionHotplugTest, this);
+    if (ui->actionTCPServer) mgr.registerAction(ui->actionTCPServer, this);
+    if (ui->actionEnvironmentSetup) mgr.registerAction(ui->actionEnvironmentSetup, this);
+    if (ui->actionDeviceSelector) mgr.registerAction(ui->actionDeviceSelector, this);
+
+    // Mouse mode actions
+    if (ui->actionTo_Host) mgr.registerAction(ui->actionTo_Host, this);           // Ctrl+Shift+H
+    if (ui->actionTo_Target) mgr.registerAction(ui->actionTo_Target, this);       // Ctrl+Shift+T
+    if (ui->actionAbsolute) mgr.registerAction(ui->actionAbsolute, this);         // Ctrl+Alt+A
+    if (ui->actionRelative) mgr.registerAction(ui->actionRelative, this);         // Ctrl+T
+    if (ui->actionMouseAutoHide) mgr.registerAction(ui->actionMouseAutoHide, this);     // Ctrl+Alt+H
+    if (ui->actionMouseAlwaysShow) mgr.registerAction(ui->actionMouseAlwaysShow, this); // Ctrl+Alt+S
+
+    qCDebug(log_ui_mainwindow) << "Registered" << mgr.shortcutCount() << "shortcuts with ShortcutManager";
 }
 
 void MainWindow::adjustPositionToScreen()
