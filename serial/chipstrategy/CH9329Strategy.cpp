@@ -131,7 +131,7 @@ bool CH9329Strategy::performReset(
     }
     
     // Check response status
-    if (response.size() >= 6 && response[5] == DEF_CMD_SUCCESS) {
+    if (isSuccessfulCH9329Response(response, static_cast<uint8_t>(configCommand[3]))) {
         qCDebug(log_core_serial) << "CH9329: Reconfiguration command successful";
         
         // Also explicitly log reconfiguration success to file during diagnostics
@@ -143,7 +143,7 @@ bool CH9329Strategy::performReset(
         
         // Send reset command
         QByteArray resetResponse = sendSyncCommand(CMD_RESET, true);
-        if (resetResponse.isEmpty()) {
+        if (!isSuccessfulCH9329Response(resetResponse, static_cast<uint8_t>(CMD_RESET[3]))) {
             qCWarning(log_core_serial) << "CH9329: Reset command failed";
             return false;
         }

@@ -4035,7 +4035,13 @@ void SerialPortManager::applyCommandBasedBaudrateChange(int baudRate, const QStr
     }
     command[5] = mode; 
     command.append(CMD_SET_PARA_CFG_MID);
-    sendSyncCommand(command, true);
+    const QByteArray configResponse = sendSyncCommand(command, true);
+    if (!isSuccessfulCH9329Response(configResponse, static_cast<uint8_t>(command[3]))) {
+        qCWarning(log_core_serial_config) << logPrefix
+                                         << "CH9329 rejected the baudrate configuration:"
+                                         << configResponse.toHex(' ');
+        return;
+    }
     bool success = sendResetCommand();
     QThread::msleep(500);
     success = success && setBaudRate(baudRate);
