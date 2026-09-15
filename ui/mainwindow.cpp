@@ -675,6 +675,20 @@ void MainWindow::onActionResetSerialPortTriggered()
     }
 }
 
+// On MS2109 units the switchable USB-A port only re-enumerates the attached
+// device after a DTR pulse on the serial chip. The macOS app pulses DTR after
+// every software switch on MS2109 (Openterface_MacOS #29, PR #35). This app did
+// the same through onSwitchableUsbToggle() -> restartSwitchableUSB() until those
+// VideoHid callbacks were commented out in af0ae15 (#470). Pulse after the
+// register write so the mux has already moved when the port restarts.
+static void pulseSwitchableUsbAfterSwitch()
+{
+    if (VideoHid::getInstance().getChipType() != VideoChipType::MS2109) {
+        return;
+    }
+    SerialPortManager::getInstance().restartSwitchableUSB();
+}
+
 void MainWindow::onActionSwitchToHostTriggered()
 {
     bool isCH32V208 = SerialPortManager::getInstance().isChipTypeCH32V208();
@@ -685,6 +699,7 @@ void MainWindow::onActionSwitchToHostTriggered()
         // Post to VideoHid's dedicated thread so the HID I/O doesn't stall the UI.
         QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
             VideoHid::getInstance().switchToHost();
+            pulseSwitchableUsbAfterSwitch();
         }, Qt::QueuedConnection);
         ui->actionTo_Host->setChecked(true);
         ui->actionTo_Target->setChecked(false);
@@ -702,6 +717,7 @@ void MainWindow::onActionSwitchToTargetTriggered()
         // Post to VideoHid's dedicated thread so the HID I/O doesn't stall the UI.
         QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
             VideoHid::getInstance().switchToTarget();
+            pulseSwitchableUsbAfterSwitch();
         }, Qt::QueuedConnection);
         ui->actionTo_Host->setChecked(false);
         ui->actionTo_Target->setChecked(true);
