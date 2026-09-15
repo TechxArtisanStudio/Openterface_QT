@@ -550,6 +550,10 @@ private:
     
     // Command-based baudrate change for CH9329 and unknown chips
     void applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix);
+
+    // Drop DTR after the port connects so the switchable USB-A port is enabled
+    // (CH9329 units only). Must run on the serial worker thread.
+    void enableSwitchableUsbPort();
     
     // Command tracking methods
     void checkCommandLossRate();

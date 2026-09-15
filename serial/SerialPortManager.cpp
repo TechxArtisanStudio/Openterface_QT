@@ -1357,8 +1357,9 @@ void SerialPortManager::onSerialPortConnectionSuccess(const QString &portName){
         log(QString("Serial port opened successfully: %1 at %2 baud").arg(portName).arg(serialPort->baudRate()));
     }
 
-    qCDebug(log_core_serial_usbswitch) << "Enable the switchable USB now...";
-    // serialPort->setDataTerminalReady(false);
+    // Queued, not direct: the code that emits serialPortConnectionSuccess may
+    // still hold m_serialPortMutex, which enableSwitchableUsbPort() takes.
+    QMetaObject::invokeMethod(this, [this]() { enableSwitchableUsbPort(); }, Qt::QueuedConnection);
 
     // Start connection watchdog (Phase 3 refactoring)
     // HOTPLUG FIX: Only start if not already running — restarting an active watchdog
@@ -3019,6 +3020,40 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
  * Restart the switchable USB port
  * Set the DTR to high for 0.5s to restart the USB port
  */
+/*
+ * Opening the tty asserts DTR, and on CH9329 (MS2109-based) Mini-KVM units DTR
+ * holds the switchable USB-A port off. restartSwitchableUSB() pulses DTR high
+ * and then leaves it low for the same reason. Clear DTR once the port is up so
+ * a device on that port enumerates without waiting for the first USB switch;
+ * otherwise it stays unusable after startup, reconnects, and baud-rate probing.
+ * This used to be done in onSerialPortConnectionSuccess() until upstream
+ * 10a1e6b (#79) commented it out. CH32V208 units switch over serial commands,
+ * so DTR is left alone there.
+ */
+void SerialPortManager::enableSwitchableUsbPort()
+{
+    if (QThread::currentThread() != m_serialWorkerThread) {
+        if (!m_serialWorkerThread || !m_serialWorkerThread->isRunning()) {
+            return;
+        }
+        QMetaObject::invokeMethod(this, [this]() { enableSwitchableUsbPort(); }, Qt::QueuedConnection);
+        return;
+    }
+    if (m_isShuttingDown || !isChipTypeCH9329()) {
+        return;
+    }
+
+    QMutexLocker locker(&m_serialPortMutex);
+    if (!serialPort || !serialPort->isOpen()) {
+        qCDebug(log_core_serial_usbswitch) << "Switchable USB not enabled: serial port is not open";
+        return;
+    }
+    qCDebug(log_core_serial_usbswitch) << "Enable the switchable USB now (DTR low)";
+    if (!serialPort->setDataTerminalReady(false)) {
+        qCWarning(log_core_serial_usbswitch) << "Failed to clear DTR for switchable USB:" << serialPort->errorString();
+    }
+}
+
 void SerialPortManager::restartSwitchableUSB(){
     // DTR is toggled on the QSerialPort directly; that must happen in the
     // worker thread (see sendAsyncCommand()). MainWindow calls this from the UI.
