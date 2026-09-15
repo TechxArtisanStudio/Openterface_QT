@@ -55,6 +55,10 @@ add_test(NAME HotplugDebounce COMMAND test_hotplug_debounce)
 add_test(NAME HotplugMonitor COMMAND test_hotplug_monitor)
 add_test(NAME HotplugScenarios COMMAND test_hotplug_scenarios)
 
+add_executable(test_ch9329_config serial/test_ch9329_config.cpp)
+target_link_libraries(test_ch9329_config PRIVATE Qt6::Core Qt6::Test)
+add_test(NAME CH9329Config COMMAND test_ch9329_config)
+
 # Test 4: Four-subsystem integration
 add_executable(test_subsystem_integration
     hotplug/test_subsystem_integration.cpp

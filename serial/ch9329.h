@@ -17,8 +17,9 @@ const QByteArray CMD_RESET = QByteArray::fromHex("57 AB 00 0F 00");
 const QByteArray CMD_SET_DEFAULT_CFG = QByteArray::fromHex("57 AB 00 0C 00");
 const QByteArray CMD_SET_USB_STRING_PREFIX = QByteArray::fromHex("57 AB 00 0B");
 const QByteArray CMD_SEND_KB_GENERAL_DATA = QByteArray::fromHex("57 AB 00 02 08 00 00 00 00 00 00 00 00");
-const QByteArray CMD_SET_PARA_CFG_PREFIX_115200 = QByteArray::fromHex("57 AB 00 09 32 00 80 00 00 01 C2 00");
-const QByteArray CMD_SET_PARA_CFG_PREFIX_9600 = QByteArray::fromHex("57 AB 00 09 32 00 80 00 00 00 25 80");
+// SET_PARA_CFG accepts software serial modes 0x00-0x02; 0x80-0x82 are read-only pin states.
+const QByteArray CMD_SET_PARA_CFG_PREFIX_115200 = QByteArray::fromHex("57 AB 00 09 32 00 00 00 00 01 C2 00");
+const QByteArray CMD_SET_PARA_CFG_PREFIX_9600 = QByteArray::fromHex("57 AB 00 09 32 00 00 00 00 00 25 80");
 const QByteArray CMD_SET_PARA_CFG_MID = QByteArray::fromHex("08 00 00 03 86 1a 29 e1 00 00 00 01 00 0d 00 00 00 00 00 00 00") + QByteArray(22, 0x00) ;
 
 // New USB switch commands for CH32V208 serial port (firmware with new USB switching protocol)
@@ -53,6 +54,24 @@ const uint8_t DEF_CMD_ERR_SUM = 0xE4;
 const uint8_t DEF_CMD_ERR_PARA = 0xE5;
 /* Command error when operate */
 const uint8_t DEF_CMD_ERR_OPERATE = 0xE6;
+
+inline bool isSuccessfulCH9329Response(const QByteArray &response, uint8_t command)
+{
+    if (response.size() != 7
+        || static_cast<uint8_t>(response[0]) != 0x57
+        || static_cast<uint8_t>(response[1]) != 0xAB
+        || static_cast<uint8_t>(response[3]) != (command | 0x80)
+        || static_cast<uint8_t>(response[4]) != 0x01
+        || static_cast<uint8_t>(response[5]) != DEF_CMD_SUCCESS) {
+        return false;
+    }
+
+    uint8_t checksum = 0;
+    for (qsizetype i = 0; i < response.size() - 1; ++i) {
+        checksum = static_cast<uint8_t>(checksum + static_cast<uint8_t>(response[i]));
+    }
+    return checksum == static_cast<uint8_t>(response.back());
+}
 
 static uint16_t toLittleEndian(uint16_t value) {
     return (value >> 8) | (value << 8);

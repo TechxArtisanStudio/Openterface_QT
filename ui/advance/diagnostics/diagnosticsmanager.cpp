@@ -1174,8 +1174,8 @@ bool DiagnosticsManager::performHighBaudrateTest()
         appendToLog("Sending configuration command for 115200 baudrate...");
         QByteArray configResponse = serialManager.sendSyncCommand(command, true);
         
-        if (configResponse.isEmpty()) {
-            appendToLog("No response received from configuration command");
+        if (!isSuccessfulCH9329Response(configResponse, static_cast<uint8_t>(command[3]))) {
+            appendToLog(QString("Configuration command failed: %1").arg(QString(configResponse.toHex(' '))));
             return false;
         }
         
