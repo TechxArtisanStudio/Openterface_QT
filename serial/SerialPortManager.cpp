@@ -1039,6 +1039,7 @@ ConfigResult SerialPortManager::sendAndProcessConfigCommand() {
     static QSettings settings("Techxartisan", "Openterface");
     Q_UNUSED(settings.value("hardware/operatingMode", 0x02).toUInt()); // hostConfigMode unused in this context
     result.mode = config.mode;
+    result.workingBaudrate = static_cast<int>(config.baudrate);
     result.success = true;
     return result;
 }
