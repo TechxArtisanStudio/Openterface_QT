@@ -680,25 +680,24 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             }
         }
 
-        // Build the modifier byte and keycode array with CH9329 workaround.
+        // Build the modifier byte and keycode array with maximum compatibility.
         //
-        // CH9329 firmware issue: modifier byte bits 2-7 (Alt=0x04, GUI=0x08) are
-        // not correctly processed by some CH9329 firmware versions on Linux targets.
-        // Bits 0-1 (Ctrl=0x01, Shift=0x02) work correctly.
+        // For maximum compatibility across different targets and CH9329 firmware versions,
+        // we use a "dual placement" strategy:
+        // - ALL modifier keycodes are placed in the keycode array (0xE0-0xE7)
+        // - ALL modifier bits are set in the modifier byte (bits 0-7)
         //
-        // Workaround strategy:
-        // - Ctrl (0x01) and Shift (0x02): set in modifier byte ONLY (these work)
-        // - Alt (0x04) and GUI (0x08): put keycodes in keycode array ONLY,
-        //   do NOT set in modifier byte (avoids CH9329 firmware bug)
-        // - This matches how sendCtrlAltDel() works: Ctrl/Alt in both byte and array,
-        //   but Alt is in the array which the target processes correctly.
+        // This provides redundancy:
+        // - Targets that correctly process the modifier byte will see modifier state there
+        // - Targets that don't process certain modifier bits (CH9329 firmware bug with
+        //   Alt/GUI on some versions) will still see the modifier keycodes in the array
+        // - This matches the approach used in sendCtrlAltDel() which works reliably
         //
         // USB HID spec: modifier keycodes (0xE0-0xE7) in the keycode array are
         // treated as modifier state by compliant HID implementations.
 
-        // Only set Ctrl and Shift bits in modifier byte (these are known to work)
-        uint8_t safeModifierByte = combinedModifiers & 0x03; // Only bits 0-1
-        keyData[5] = safeModifierByte;
+        // Set ALL modifier bits in modifier byte for maximum compatibility
+        keyData[5] = combinedModifiers;
 
         // Put ALL active modifier keycodes in the keycode array
         int keyIndex = 0;
@@ -998,22 +997,37 @@ void KeyboardManager::sendKey(int keyCode, int modifiers, bool isKeyDown) {
 }
 
 void KeyboardManager::releaseAllKeys() {
-    if (currentMappedKeyCodes.isEmpty() && currentModifiers == 0) {
-        return;  // Nothing held — skip
-    }
-
-    qCDebug(log_host_kb_state) << "releaseAllKeys: clearing"
-                               << currentMappedKeyCodes.size() << "keys and modifiers 0x"
+    qCInfo(log_host_kb_state) << "releaseAllKeys: called - current state:"
+                               << currentMappedKeyCodes.size() << "keys, modifiers 0x"
                                << QString::number(currentModifiers, 16);
 
     // Build a zero HID report to release all keys on the target
     QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;
-    // keyData[5] (modifier byte) and keyData[7..12] (keycode array) are already zero
-    // in the CMD_SEND_KB_GENERAL_DATA template — just send it as-is.
-    SerialPortManager::getInstance().sendCommandAsync(keyData, false);
 
+    // Explicitly clear all positions to ensure complete release
+    // keyData[5] = modifier byte (already 0 in template)
+    // keyData[7..12] = keycode array (already 0 in template)
+    // But let's be explicit for safety
+    keyData[5] = 0x00;  // Clear modifier byte
+    for (int i = 7; i < 13; ++i) {
+        keyData[i] = 0x00;  // Clear all 6 keycode slots
+    }
+
+    // Log the actual bytes being sent for debugging
+    QString hexData;
+    for (int i = 0; i < keyData.size(); ++i) {
+        hexData += QString("%1 ").arg(static_cast<unsigned char>(keyData[i]), 2, 16, QChar('0')).toUpper();
+    }
+    qCInfo(log_host_kb_state) << "releaseAllKeys: sending HID report: [" + hexData.trimmed() + "]";
+
+    // Use force=true to ensure the command is sent even if serial port is not in ready state
+    // This is critical for releasing stuck keys when window loses focus
+    SerialPortManager::getInstance().sendCommandAsync(keyData, true);
+
+    // Clear internal state
     currentMappedKeyCodes.clear();
     currentModifiers = 0;
+    qCInfo(log_host_kb_state) << "releaseAllKeys: all keys cleared successfully";
 }
 
 void KeyboardManager::getKeyboardLayout() {

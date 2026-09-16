@@ -277,16 +277,8 @@ if "%USE_SHARED%"=="1" (
     echo Copying hardware acceleration libraries...
     if exist "C:\msys64\mingw64\bin\libmfx-1.dll" xcopy /Y "C:\msys64\mingw64\bin\libmfx-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
 
-    REM Use MSYS2 MinGW runtime for libwinpthread (has clock_gettime64/pthread_cond_timedwait64)
     REM Use Qt MinGW runtime for libgcc_s_seh and libstdc++ to stay ABI-compatible with Qt DLLs.
     echo Copying MinGW runtime DLLs...
-    if exist "C:\msys64\mingw64\bin\libwinpthread-1.dll" (
-        xcopy /Y "C:\msys64\mingw64\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
-        echo   Copied libwinpthread-1.dll from MSYS2 MinGW (has 64-bit time_t support)
-    ) else if exist "%MINGW_PATH%\bin\libwinpthread-1.dll" (
-        xcopy /Y "%MINGW_PATH%\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
-        echo   Copied libwinpthread-1.dll from Qt MinGW (fallback)
-    )
     if exist "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" (
         xcopy /Y "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
         echo   Copied libgcc_s_seh-1.dll from Qt MinGW
@@ -325,6 +317,21 @@ if "%USE_SHARED%"=="1" (
         echo   Qt DLLs are not available via PATH or system directories.
         echo   Consider running windeployqt manually:
         echo     windeployqt %OUTPUT_DIR%\openterfaceQT.exe --multimedia --network
+    )
+
+    REM ============================================================================
+    REM Copy libwinpthread-1.dll AFTER windeployqt to prevent it from being overwritten
+    REM windeployqt may copy the old Qt MinGW version (52KB, Mar 2022) which lacks
+    REM pthread_cond_timedwait64. We need the MSYS2 version (64KB, 2024) which has it.
+    REM ============================================================================
+    echo.
+    echo Ensuring correct libwinpthread-1.dll version (with pthread_cond_timedwait64)...
+    if exist "C:\msys64\mingw64\bin\libwinpthread-1.dll" (
+        xcopy /Y "C:\msys64\mingw64\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
+        echo   Copied libwinpthread-1.dll from MSYS2 MinGW (has 64-bit time_t support)
+    ) else (
+        echo ERROR: MSYS2 libwinpthread-1.dll not found! Please install MSYS2 MinGW.
+        exit /b 1
     )
     
     echo.
@@ -424,8 +431,11 @@ if "%USE_SHARED%"=="0" (
     del /Q "%OUTPUT_DIR%\libstdc++-6.dll" >nul 2>nul
     if exist "C:\msys64\mingw64\bin\libwinpthread-1.dll" (
         xcopy /Y "C:\msys64\mingw64\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
-    ) else if exist "%MINGW_PATH%\bin\libwinpthread-1.dll" (
-        xcopy /Y "%MINGW_PATH%\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
+        echo   Using MSYS2 libwinpthread-1.dll (has pthread_cond_timedwait64 support)
+    ) else (
+        echo ERROR: MSYS2 libwinpthread-1.dll not found at C:\msys64\mingw64\bin\libwinpthread-1.dll
+        echo Please install MSYS2 MinGW for proper pthread_cond_timedwait64 support
+        exit /b 1
     )
     if exist "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" xcopy /Y "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
     if exist "%MINGW_PATH%\bin\libstdc++-6.dll" xcopy /Y "%MINGW_PATH%\bin\libstdc++-6.dll" "%OUTPUT_DIR%\" >nul 2>nul

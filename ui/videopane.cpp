@@ -1113,6 +1113,19 @@ void VideoPane::keyReleaseEvent(QKeyEvent *event)
     }
 }
 
+void VideoPane::focusOutEvent(QFocusEvent *event)
+{
+    qCInfo(log_ui_video) << "VideoPane::focusOutEvent called - releasing all keys";
+
+    // When the VideoPane loses focus (e.g., Alt+Tab, clicking outside the window),
+    // we need to release all currently held keys on the target machine.
+    // Otherwise, the target will think keys are still being held down.
+    HostManager::getInstance().releaseAllKeys();
+
+    // Pass the event to base class
+    QGraphicsView::focusOutEvent(event);
+}
+
 void VideoPane::mousePressEvent(QMouseEvent *event)
 {
     // Validate coordinate transformation consistency (debug helper)
