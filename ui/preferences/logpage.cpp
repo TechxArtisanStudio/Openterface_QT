@@ -409,7 +409,9 @@ void LogPage::setupUI()
     QLabel *shortcutsDescription = new QLabel(
         tr("When disabled, all application keyboard shortcuts (e.g. Ctrl+P, Alt+F11, "
            "Ctrl+Shift+S) will be turned off. Useful when you want all key presses "
-           "to be forwarded to the target without app interference."));
+           "to be forwarded to the target without app interference.\n\n"
+           "Note: When System Key Blocker is enabled, shortcuts are also inactive "
+           "regardless of this setting, because all keyboard events are captured at OS level."));
     shortcutsDescription->setWordWrap(true);
     shortcutsDescription->setStyleSheet(commentsFontSize);
 
