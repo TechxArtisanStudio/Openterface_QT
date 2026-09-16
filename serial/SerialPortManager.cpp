@@ -3451,13 +3451,19 @@ void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
     // Handle CH9329 chip - use commands
     if (isChipTypeCH9329()) {
         qCInfo(log_core_serial_config) << "CH9329 chip - using command-based baudrate change";
-        applyCommandBasedBaudrateChange(baudRate, "CH9329 chip: User selected baudrate");
+        if (!applyCommandBasedBaudrateChange(baudRate, "CH9329 chip: User selected baudrate")) {
+            qCWarning(log_core_serial_config) << "Failed to apply baudrate change to CH9329 chip";
+            emit statusUpdate(QString("Failed to switch to %1 baudrate. Please try again.").arg(baudRate));
+        }
         return;
     }
-    
+
     // Unknown chip - try CH9329 approach as fallback
     qCWarning(log_core_serial_config) << "Unknown chip type - attempting CH9329 approach";
-    applyCommandBasedBaudrateChange(baudRate, "User selected baudrate");
+    if (!applyCommandBasedBaudrateChange(baudRate, "User selected baudrate")) {
+        qCWarning(log_core_serial_config) << "Failed to apply baudrate change (unknown chip)";
+        emit statusUpdate(QString("Failed to switch to %1 baudrate. Please try again.").arg(baudRate));
+    }
 }
 
 void SerialPortManager::clearStoredBaudrate() {
@@ -4123,30 +4129,70 @@ void SerialPortManager::stopConnectionWatchdog()
     }
 }
 
-void SerialPortManager::applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix)
+bool SerialPortManager::applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix)
 {
     QByteArray command;
     static QSettings settings("Techxartisan", "Openterface");
     uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
-    
+
     if (baudRate == BAUDRATE_LOWSPEED) {
         command = CMD_SET_PARA_CFG_PREFIX_9600;
     } else {
         command = CMD_SET_PARA_CFG_PREFIX_115200;
     }
-    command[5] = mode; 
+    command[5] = mode;
     command.append(CMD_SET_PARA_CFG_MID);
-    sendSyncCommand(command, true);
-    bool success = sendResetCommand();
-    QThread::msleep(500);
-    success = success && setBaudRate(baudRate);
-    QThread::msleep(500);
-    success = success && restartPort();
-    if (success) {
-        qCInfo(log_core_serial_config) << logPrefix << "applied successfully:" << baudRate;
-    } else {
-        qCWarning(log_core_serial_config) << logPrefix << "Failed to apply user selected baudrate:" << baudRate;
+
+    qCDebug(log_core_serial_config) << logPrefix << "Sending configuration command:" << command.toHex(' ');
+
+    // Send configuration command and check response
+    QByteArray response = sendSyncCommand(command, true);
+
+    if (response.isEmpty()) {
+        qCWarning(log_core_serial_config) << logPrefix << "No response to configuration command";
+        return false;
     }
+
+    qCDebug(log_core_serial_config) << logPrefix << "Configuration response:" << response.toHex(' ');
+
+    // Parse response and check status
+    if (response.size() >= 6) {
+        CmdDataResult dataResult = fromByteArray<CmdDataResult>(response);
+        if (dataResult.data != DEF_CMD_SUCCESS) {
+            qCWarning(log_core_serial_config) << logPrefix << "Configuration command failed with status:"
+                                              << QString("0x%1").arg(dataResult.data, 2, 16, QChar('0'));
+            dumpError(dataResult.data, response);
+            return false;
+        }
+        qCDebug(log_core_serial_config) << logPrefix << "Configuration command accepted by chip";
+    } else {
+        qCWarning(log_core_serial_config) << logPrefix << "Invalid response size:" << response.size();
+        return false;
+    }
+
+    // Send reset command
+    bool success = sendResetCommand();
+    if (!success) {
+        qCWarning(log_core_serial_config) << logPrefix << "Reset command failed";
+        return false;
+    }
+
+    QThread::msleep(500);
+    success = setBaudRate(baudRate);
+    if (!success) {
+        qCWarning(log_core_serial_config) << logPrefix << "Failed to set local baudrate:" << baudRate;
+        return false;
+    }
+
+    QThread::msleep(500);
+    success = restartPort();
+    if (!success) {
+        qCWarning(log_core_serial_config) << logPrefix << "Failed to restart port";
+        return false;
+    }
+
+    qCInfo(log_core_serial_config) << logPrefix << "applied successfully:" << baudRate;
+    return true;
 }
 
 // ========== IRecoveryHandler Interface Implementation (Phase 3) ==========
