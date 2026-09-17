@@ -124,25 +124,33 @@ bool CH9329Strategy::performReset(
     // Build and send reconfiguration command
     QByteArray configCommand = buildReconfigurationCommand(targetBaudrate, mode);
     QByteArray response = sendSyncCommand(configCommand, true);
-    
+
+    qCDebug(log_core_serial) << "[DEBUG CH9329 performReset] Target baudrate:" << targetBaudrate
+                             << "Command sent:" << configCommand.toHex(' ')
+                             << "Response received:" << response.toHex(' ')
+                             << "Response size:" << response.size();
+
     if (response.isEmpty()) {
         qCWarning(log_core_serial) << "CH9329: No response to reconfiguration command";
         return false;
     }
-    
+
     // Check response status
     if (response.size() >= 6 && response[5] == DEF_CMD_SUCCESS) {
         qCDebug(log_core_serial) << "CH9329: Reconfiguration command successful";
-        
+
         // Also explicitly log reconfiguration success to file during diagnostics
         if (SerialPortManager* manager = &SerialPortManager::getInstance()) {
             if (manager->getSerialLogFilePath().contains("serial_log_diagnostics")) {
                 manager->log(QString("CH9329 RECONFIG SUCCESS: baudrate=%1").arg(targetBaudrate));
             }
         }
-        
+
         // Send reset command
+        qCDebug(log_core_serial) << "[DEBUG CH9329 performReset] Sending CMD_RESET...";
         QByteArray resetResponse = sendSyncCommand(CMD_RESET, true);
+        qCDebug(log_core_serial) << "[DEBUG CH9329 performReset] CMD_RESET response:" << resetResponse.toHex(' ');
+
         if (resetResponse.isEmpty()) {
             qCWarning(log_core_serial) << "CH9329: Reset command failed";
             return false;

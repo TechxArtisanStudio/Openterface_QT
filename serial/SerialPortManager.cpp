@@ -1035,11 +1035,17 @@ ConfigResult SerialPortManager::sendAndProcessConfigCommand() {
                              << "VID:" << QString("%1").arg(config.vid, 4, 16, QChar('0')).toUpper()
                              << "PID:" << QString("%1").arg(config.pid, 4, 16, QChar('0')).toUpper()
                              << "custom_usb_desc:" << QString("0x%1").arg(config.custom_usb_desc, 2, 16, QChar('0'));
-    
+
+    // DEBUG: Log raw hex data and parsed baudrate from chip
+    qCDebug(log_core_serial_config) << "[DEBUG sendAndProcessConfigCommand] Raw CMD_GET_PARA_CFG response:" << retByte.toHex(' ');
+    qCDebug(log_core_serial_config) << "[DEBUG sendAndProcessConfigCommand] Parsed config.baudrate =" << config.baudrate
+                             << "(0x" << QString::number(config.baudrate, 16) << ")";
+
     static QSettings settings("Techxartisan", "Openterface");
     Q_UNUSED(settings.value("hardware/operatingMode", 0x02).toUInt()); // hostConfigMode unused in this context
     result.mode = config.mode;
     result.workingBaudrate = static_cast<int>(config.baudrate);
+    qCDebug(log_core_serial_config) << "[DEBUG sendAndProcessConfigCommand] result.workingBaudrate set to:" << result.workingBaudrate;
     result.success = true;
     return result;
 }
@@ -1063,10 +1069,14 @@ void SerialPortManager::handleChipSpecificLogic(const ConfigResult &config) {
 
 void SerialPortManager::storeBaudrateIfNeeded(int workingBaudrate) {
     int stored = GlobalSetting::instance().getSerialPortBaudrate();
+    qCDebug(log_core_serial_config) << "[DEBUG storeBaudrateIfNeeded] workingBaudrate=" << workingBaudrate
+                             << "stored=" << stored
+                             << (stored != workingBaudrate ? "MISMATCH - will overwrite" : "MATCH - no action");
     if (stored != workingBaudrate) {
         // Use chip strategy to validate baudrate if available
         if (m_chipStrategy) {
             workingBaudrate = m_chipStrategy->validateBaudrate(workingBaudrate);
+            qCDebug(log_core_serial_config) << "[DEBUG storeBaudrateIfNeeded] After chip strategy validate: workingBaudrate=" << workingBaudrate;
         } else if (isChipTypeCH32V208() && workingBaudrate != BAUDRATE_HIGHSPEED) {
             qCWarning(log_core_serial_config) << "CH32V208 chip: Forcing stored baudrate to 115200 instead of" << workingBaudrate;
             workingBaudrate = BAUDRATE_HIGHSPEED;
@@ -1223,6 +1233,8 @@ void SerialPortManager::attemptCH9329Connection(const QString &portName, const Q
 
             ConfigResult config = sendAndProcessConfigCommand();
             if (config.success) {
+                qCDebug(log_core_serial_config) << "[DEBUG attemptCH9329Connection] config.workingBaudrate=" << config.workingBaudrate
+                                         << "opened at baudrate=" << currentBaud;
                 handleChipSpecificLogic(config);
                 storeBaudrateIfNeeded(config.workingBaudrate);
 
