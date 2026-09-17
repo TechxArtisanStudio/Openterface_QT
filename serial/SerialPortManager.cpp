@@ -1231,10 +1231,83 @@ void SerialPortManager::attemptCH9329Connection(const QString &portName, const Q
             m_pendingInitPortName.clear();
             m_pendingInitBaudrate = 0;
 
+            // Save stored baudrate BEFORE sendAndProcessConfigCommand overwrites it
+            int previousStoredBaudrate = GlobalSetting::instance().getSerialPortBaudrate();
+
             ConfigResult config = sendAndProcessConfigCommand();
             if (config.success) {
                 qCDebug(log_core_serial_config) << "[DEBUG attemptCH9329Connection] config.workingBaudrate=" << config.workingBaudrate
                                          << "opened at baudrate=" << currentBaud;
+
+                // === Factory Default Recovery ===
+                // After abnormal USB disconnect, CH9329 may revert to factory defaults
+                // (mode=0x82, baudrate=9600). Detect this and restore the user's preferred baudrate.
+                // Mode byte: 0x82 = factory default (0x02 | 0x80), 0x02 = user config
+                if ((config.mode & 0x80) && m_chipStrategy
+                    && previousStoredBaudrate > 0
+                    && m_chipStrategy->supportsBaudrate(previousStoredBaudrate)
+                    && previousStoredBaudrate != config.workingBaudrate) {
+
+                    qCInfo(log_core_serial_config) << "[BAUDRATE RECOVERY] CH9329 reverted to factory defaults"
+                        << "(mode=0x" << QString::number(config.mode, 16)
+                        << ", baudrate=" << config.workingBaudrate << ")"
+                        << "— restoring stored baudrate:" << previousStoredBaudrate;
+
+                    // Build and send CMD_SET_PARA_CFG to restore the stored baudrate
+                    uint8_t operatingMode = config.mode & 0x7F; // Strip factory default flag
+                    QByteArray cfgCmd = m_chipStrategy->buildReconfigurationCommand(previousStoredBaudrate, operatingMode);
+                    QByteArray cfgResp = sendSyncCommand(cfgCmd, true);
+
+                    if (!cfgResp.isEmpty() && cfgResp.size() >= 6 && cfgResp[5] == 0x00) {
+                        qCInfo(log_core_serial_config) << "[BAUDRATE RECOVERY] CMD_SET_PARA_CFG successful"
+                            << "— chip will operate at" << previousStoredBaudrate;
+
+                        // Wait for Flash write to complete
+                        QThread::msleep(50);
+
+                        // Close port and restart at restored baudrate
+                        closePortInternal();
+                        QThread::msleep(100);
+
+                        if (openPort(portName, previousStoredBaudrate)) {
+                            QThread::msleep(50);
+
+                            // Verify chip responds at new baudrate
+                            QByteArray verifyResp = sendSyncCommand(CMD_GET_INFO, true);
+                            if (!verifyResp.isEmpty() && verifyResp.size() >= 4) {
+                                qCInfo(log_core_serial_config) << "[BAUDRATE RECOVERY] Verified chip at"
+                                    << previousStoredBaudrate << "— recovery complete";
+
+                                // Re-read config at new baudrate to update GlobalSetting
+                                config = sendAndProcessConfigCommand();
+                                if (config.success) {
+                                    handleChipSpecificLogic(config);
+                                    storeBaudrateIfNeeded(config.workingBaudrate);
+
+                                    ready = true;
+                                    if (m_commandCoordinator) {
+                                        m_commandCoordinator->setReady(true);
+                                    }
+                                    emit serialPortConnectionSuccess(portName);
+                                    return;
+                                }
+                            }
+                            qCWarning(log_core_serial_config) << "[BAUDRATE RECOVERY] Verification failed at"
+                                << previousStoredBaudrate << "— falling through to normal flow";
+                            closePortInternal();
+                            QThread::msleep(100);
+                        } else {
+                            qCWarning(log_core_serial_config) << "[BAUDRATE RECOVERY] Failed to reopen port at"
+                                << previousStoredBaudrate << "— falling through to normal flow";
+                        }
+                    } else {
+                        qCWarning(log_core_serial_config) << "[BAUDRATE RECOVERY] CMD_SET_PARA_CFG failed"
+                            << "— response:" << cfgResp.toHex(' ')
+                            << "— continuing with factory default baudrate";
+                    }
+                    // If recovery failed, continue with normal flow at factory default baudrate
+                }
+
                 handleChipSpecificLogic(config);
                 storeBaudrateIfNeeded(config.workingBaudrate);
 
