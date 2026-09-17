@@ -69,7 +69,7 @@ int CH9329Strategy::getAlternateBaudrate(int currentBaudrate) const
 QByteArray CH9329Strategy::buildReconfigurationCommand(int targetBaudrate, uint8_t mode) const
 {
     QByteArray command;
-    
+
     if (targetBaudrate == BAUDRATE_LOW) {
         command = CMD_SET_PARA_CFG_PREFIX_9600;
         qCDebug(log_core_serial) << "CH9329: Building 9600 baudrate configuration command";
@@ -77,14 +77,17 @@ QByteArray CH9329Strategy::buildReconfigurationCommand(int targetBaudrate, uint8
         command = CMD_SET_PARA_CFG_PREFIX_115200;
         qCDebug(log_core_serial) << "CH9329: Building 115200 baudrate configuration command";
     }
-    
+
     // Set mode byte at index 5 (6th byte)
     command[5] = mode;
-    
+
     // Append the mid portion of the command
     command.append(CMD_SET_PARA_CFG_MID);
-    
-    qCDebug(log_core_serial) << "CH9329: Configuration command built:" << command.toHex(' ');
+
+    // DEBUG: Log complete command before checksum is added
+    qCDebug(log_core_serial) << "[DEBUG buildReconfigurationCommand] Complete command (before checksum):" << command.toHex(' ')
+                             << "Length:" << command.size() << "bytes";
+
     return command;
 }
 
@@ -123,6 +126,7 @@ bool CH9329Strategy::performReset(
     
     // Build and send reconfiguration command
     QByteArray configCommand = buildReconfigurationCommand(targetBaudrate, mode);
+    qCDebug(log_core_serial) << "[DEBUG performReset] Sending CMD_SET_PARA_CFG:" << configCommand.toHex(' ');
     QByteArray response = sendSyncCommand(configCommand, true);
 
     qCDebug(log_core_serial) << "[DEBUG CH9329 performReset] Target baudrate:" << targetBaudrate
@@ -145,6 +149,10 @@ bool CH9329Strategy::performReset(
                 manager->log(QString("CH9329 RECONFIG SUCCESS: baudrate=%1").arg(targetBaudrate));
             }
         }
+
+        // Wait for Flash write to complete (typical NOR Flash needs 10-20ms)
+        qCDebug(log_core_serial) << "[DEBUG performReset] Waiting 50ms for Flash write to complete...";
+        QThread::msleep(50);
 
         // Send reset command
         qCDebug(log_core_serial) << "[DEBUG CH9329 performReset] Sending CMD_RESET...";
