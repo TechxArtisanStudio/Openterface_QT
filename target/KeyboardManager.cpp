@@ -866,7 +866,7 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
     const int delayBetweenChars = qMax(userConfiguredDelay, baudrateSafeDelayMs);
 
     if (delayBetweenChars > userConfiguredDelay) {
-        qCDebug(log_core_input) << "Using baudrate-safe delay:" << delayBetweenChars
+        qCDebug(log_host_kb_special) << "Using baudrate-safe delay:" << delayBetweenChars
                                  << "ms (baudrate:" << baudrate << ", min:" << minDelayMs
                                  << "ms, user config:" << userConfiguredDelay << "ms)";
     }
