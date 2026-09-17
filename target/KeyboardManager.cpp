@@ -847,16 +847,44 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
     state->typedChars = 0;
 
     const int batchSize = GlobalSetting::instance().getChatBatchSize();
-    const int delayBetweenBatches = GlobalSetting::instance().getChatTypingDelayMs();
+    const int userConfiguredDelay = GlobalSetting::instance().getChatTypingDelayMs();
+
+    // Calculate baudrate-aware delay to prevent CH340 buffer overflow
+    // Each character requires 3 commands (press + release + null report) = 39 bytes
+    // Including start/stop bits: 39 bytes × 10 bits/byte = 312 bits
+    // Minimum delay = bits / baudrate × 1000ms
+    // We add a safety margin to account for CH340 buffer latency and USB overhead
+    int baudrate = SerialPortManager::getInstance().getCurrentBaudrate();
+    const int bytesPerChar = 39;  // 3 commands × 13 bytes each
+    const int bitsPerChar = bytesPerChar * 10;  // 10 bits per byte (1 start + 8 data + 1 stop)
+    int minDelayMs = (bitsPerChar * 1000) / baudrate;
+
+    // Use 1.5x safety margin + 2ms overhead, minimum 5ms
+    int baudrateSafeDelayMs = qMax(static_cast<int>(minDelayMs * 1.5) + 2, 5);
+
+    // Use the larger of user-configured delay or baudrate-safe delay
+    const int delayBetweenChars = qMax(userConfiguredDelay, baudrateSafeDelayMs);
+
+    if (delayBetweenChars > userConfiguredDelay) {
+        qCDebug(log_core_input) << "Using baudrate-safe delay:" << delayBetweenChars
+                                 << "ms (baudrate:" << baudrate << ", min:" << minDelayMs
+                                 << "ms, user config:" << userConfiguredDelay << "ms)";
+    }
+
+    // Batch delay uses the same per-character calculation
+    // For batchSize characters, we need at least batchSize × minDelayMs
+    int minBatchDelayMs = (batchSize * delayBetweenChars);
+    int batchDelayMs = qMax(userConfiguredDelay, minBatchDelayMs);
 
     qCDebug(log_host_kb_special) << "Paste config: batchSize=" << batchSize
-                                 << "delayBetweenBatches=" << delayBetweenBatches
-                                 << "perCharDelay=" << GlobalSetting::instance().getChatTypingDelayMs();
+                                 << "batchDelayMs=" << batchDelayMs
+                                 << "delayBetweenChars=" << delayBetweenChars
+                                 << "baudrate=" << baudrate;
 
     // Shared function — captured by value in lambdas below so the
     // std::function outlives this method's stack frame.
     auto tick = std::make_shared<std::function<void()>>();
-    *tick = [this, state, batchSize, delayBetweenBatches, tick]() {
+    *tick = [this, state, batchSize, delayBetweenChars, batchDelayMs, tick]() {
         if (state->typedChars == 0) {
             qCDebug(log_host_kb_special) << "Paste tick STARTING — first character about to be sent"
                                          << "(total=" << state->totalChars << ")";
@@ -875,7 +903,9 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
             if (needAltGr) modifiers |= Qt::GroupSwitchModifier;
 
             handlePasteChar(key, modifiers);
-            QThread::msleep(GlobalSetting::instance().getChatTypingDelayMs()); // delayBetweenChars
+            // Baudrate-aware delay: ensure CH340 has time to output serial data
+            // before we send the next character's commands
+            QThread::msleep(delayBetweenChars);
             emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
 
             state->typedChars++;
@@ -884,7 +914,9 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
 
         if (!state->remaining.isEmpty()) {
             // Schedule next batch on the thread that owns `this`
-            QTimer::singleShot(delayBetweenBatches, this, [tick]() { (*tick)(); });
+            // Use batchDelayMs to ensure CH340 buffer has time to drain
+            // before the next batch of characters is sent
+            QTimer::singleShot(batchDelayMs, this, [tick]() { (*tick)(); });
         } else {
             qCDebug(log_host_kb_special) << "Paste COMPLETE — all" << state->totalChars << "characters sent";
         }
