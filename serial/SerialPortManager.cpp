@@ -1265,6 +1265,21 @@ void SerialPortManager::attemptCH9329Connection(const QString &portName, const Q
                         // Wait for Flash write to complete
                         QThread::msleep(50);
 
+                        // Send CMD_RESET to make the chip apply the new config and restart
+                        // Without CMD_RESET, the chip keeps running at the old baudrate even
+                        // though CMD_SET_PARA_CFG returned success (Flash written but not applied).
+                        qCInfo(log_core_serial_config) << "[BAUDRATE RECOVERY] Sending CMD_RESET to apply new config...";
+                        QByteArray resetResp = sendSyncCommand(CMD_RESET, true);
+                        if (resetResp.isEmpty()) {
+                            qCWarning(log_core_serial_config) << "[BAUDRATE RECOVERY] CMD_RESET returned no response"
+                                << "— chip may not have applied the new baudrate";
+                        } else {
+                            qCDebug(log_core_serial_config) << "[BAUDRATE RECOVERY] CMD_RESET response:" << resetResp.toHex(' ');
+                        }
+
+                        // Wait for chip to restart after reset
+                        QThread::msleep(100);
+
                         // Close port and restart at restored baudrate
                         closePortInternal();
                         QThread::msleep(100);
