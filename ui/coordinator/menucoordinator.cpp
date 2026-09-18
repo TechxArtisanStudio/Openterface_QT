@@ -256,7 +256,8 @@ void MenuCoordinator::showBaudrateChangeMessage(int baudrate)
     msgBox.setIcon(QMessageBox::Information);
     msgBox.setWindowTitle("Baudrate Changed");
     msgBox.setText(QString("Baudrate has been changed to %1.\n\n"
-                          "The device is reconnecting automatically...")
+                          "If the status bar shows the new baudrate, the switch was successful.\n"
+                          "If not, please unplug and replug the device to make it effective.")
                           .arg(baudrate));
     msgBox.addButton(QMessageBox::Ok);
     msgBox.exec();
