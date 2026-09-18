@@ -839,12 +839,20 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
         QMap<uint8_t, int> mapping;
         int totalChars;
         int typedChars;
+        int reconnectAttempts;       // Number of reconnection attempts made
+        bool waitingForReconnect;    // True when waiting for serial port reconnection
     };
     auto state = std::make_shared<PasteState>();
     state->remaining = text;
     state->mapping = charMapping;
     state->totalChars = text.length();
     state->typedChars = 0;
+    state->reconnectAttempts = 0;
+    state->waitingForReconnect = false;
+
+    // Maximum reconnection wait attempts (500ms per attempt × 60 = 30 seconds max wait)
+    const int maxReconnectAttempts = 60;
+    const int reconnectCheckIntervalMs = 500;
 
     const int batchSize = GlobalSetting::instance().getChatBatchSize();
     const int userConfiguredDelay = GlobalSetting::instance().getChatTypingDelayMs();
@@ -884,11 +892,52 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
     // Shared function — captured by value in lambdas below so the
     // std::function outlives this method's stack frame.
     auto tick = std::make_shared<std::function<void()>>();
-    *tick = [this, state, batchSize, delayBetweenChars, batchDelayMs, tick]() {
-        if (state->typedChars == 0) {
+    *tick = [this, state, batchSize, delayBetweenChars, batchDelayMs,
+             maxReconnectAttempts, reconnectCheckIntervalMs, tick]() {
+        if (state->typedChars == 0 && state->reconnectAttempts == 0) {
             qCDebug(log_host_kb_special) << "Paste tick STARTING — first character about to be sent"
                                          << "(total=" << state->totalChars << ")";
         }
+
+        // AUTO-RECONNECT: Check if serial port is ready before processing
+        bool portReady = SerialPortManager::getInstance().isPortReady();
+        if (!portReady) {
+            // Port is disconnected — pause transfer and wait for reconnection
+            if (!state->waitingForReconnect) {
+                state->waitingForReconnect = true;
+                state->reconnectAttempts = 0;
+                qCWarning(log_host_kb_special) << "Paste PAUSED — serial port disconnected"
+                                               << "(typed:" << state->typedChars << "/" << state->totalChars << ")"
+                                               << "— waiting for auto-reconnection...";
+            }
+
+            state->reconnectAttempts++;
+            if (state->reconnectAttempts > maxReconnectAttempts) {
+                // Max wait time exceeded — cancel transfer
+                qCWarning(log_host_kb_special) << "Paste CANCELLED — serial port did not reconnect after"
+                                               << (maxReconnectAttempts * reconnectCheckIntervalMs / 1000) << "seconds"
+                                               << "(typed:" << state->typedChars << "/" << state->totalChars << ")";
+                return;  // Stop the transfer
+            }
+
+            // Schedule a retry check
+            QTimer::singleShot(reconnectCheckIntervalMs, this, [tick]() { (*tick)(); });
+            return;
+        }
+
+        // Port is ready — if we were waiting for reconnection, log the resumption
+        if (state->waitingForReconnect) {
+            qCInfo(log_host_kb_special) << "Paste RESUMED — serial port reconnected after"
+                                        << state->reconnectAttempts << "checks"
+                                        << "(remaining:" << state->remaining.length() << "chars)";
+            state->waitingForReconnect = false;
+            state->reconnectAttempts = 0;
+
+            // Send a priming null key event to reset USB HID channel after reconnection
+            emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
+            QThread::msleep(50);
+        }
+
         // Process up to batchSize characters
         for (int i = 0; i < batchSize && !state->remaining.isEmpty(); ++i) {
             QChar ch = state->remaining.at(0);
