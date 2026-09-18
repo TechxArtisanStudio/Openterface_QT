@@ -49,7 +49,7 @@ jobs:
       - name: Wait for required workflows
         run: |
           # Fixed list of workflows to wait for
-          WORKFLOWS=("windows-build.yaml" "windows-portable-build.yaml" "windows-arm64-build.yaml" "linux-build.yaml" "linux-portable-build.yaml" "arm64shared-lib-build.yml")
+          WORKFLOWS=("windows-build.yaml" "windows-portable-build.yaml" "windows-arm64-build.yaml" "linux-build.yaml")
           
           echo "Workflows to wait for:"
           for workflow in "${WORKFLOWS[@]}"; do
