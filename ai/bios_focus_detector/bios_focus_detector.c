@@ -330,7 +330,7 @@ static int detect_highlight_rows(
                                    red bar reads anywhere from R=121 to R=196 */
 #define BAR_CHANNEL_TOL 50      /* and no single channel further off than this */
 #define BAR_GAP 16              /* longest gap of glyph pixels inside a bar row */
-#define BAR_MIN_WIDTH 48
+#define BAR_MIN_WIDTH 24        /* a focused button: "<Yes>" is 40 px */
 #define BAR_MIN_HEIGHT 8
 #define BAR_MAX_HEIGHT 64
 #define BAR_MIN_FILL 0.45f      /* bar-coloured share of a row run */
@@ -536,12 +536,271 @@ static int detect_highlight_bars(const unsigned char* pixels, int width, int hei
     return 0;
 }
 
-/* Share of letters, digits and spaces in an OCR result: garbage reads low. */
+/* OCR a rectangle; `ink` decides per pixel what is glyph (drawn black). */
+typedef int (*InkFn)(const unsigned char* p, const void* ctx);
+
+static char* ocr_region(const unsigned char* pixels, int width, int height,
+                        int x0, int y0, int x1, int y1, InkFn ink, const void* ctx) {
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 >= width) x1 = width - 1;
+    if (y1 >= height) y1 = height - 1;
+    if (x1 <= x0 || y1 <= y0) return NULL;
+    int pad = 4;
+    int cw = x1 - x0 + 1 + 2 * pad, ch = y1 - y0 + 1 + 2 * pad;
+    int nw = cw * OCR_UPSCALE, nh = ch * OCR_UPSCALE;
+    unsigned char* img = malloc((size_t)nw * nh * 3);
+    if (!img) return NULL;
+    for (int dy = 0; dy < nh; dy++) {
+        for (int dx = 0; dx < nw; dx++) {
+            int sx = x0 - pad + dx / OCR_UPSCALE, sy = y0 - pad + dy / OCR_UPSCALE;
+            int on = sx >= x0 && sx <= x1 && sy >= y0 && sy <= y1
+                     && ink(pixels + ((size_t)sy * width + sx) * 3, ctx);
+            memset(img + ((size_t)dy * nw + dx) * 3, on ? 0 : 255, 3);
+        }
+    }
+    char base[128], in[160], out[160], cmd[512];
+    snprintf(base, sizeof(base), "/tmp/bios_ocr_%d_r%d_%d", (int)getpid(), y0, x0);
+    snprintf(in, sizeof(in), "%s.png", base);
+    snprintf(out, sizeof(out), "%s.txt", base);
+    stbi_write_png(in, nw, nh, 3, img, nw * 3);
+    free(img);
+    snprintf(cmd, sizeof(cmd), "tesseract %s %s --psm %d 2>/dev/null", in, base, TESSERACT_PSM);
+    char* text = NULL;
+    if (system(cmd) == 0) {
+        FILE* f = fopen(out, "r");
+        if (f) {
+            text = calloc(1, BIOS_MAX_TEXT_LEN);
+            if (text && !fgets(text, BIOS_MAX_TEXT_LEN, f)) text[0] = '\0';
+            fclose(f);
+        }
+    }
+    unlink(in); unlink(out);
+    if (text) {
+        size_t len = strlen(text);
+        while (len > 0 && (text[len - 1] == '\n' || text[len - 1] == ' ')) text[--len] = '\0';
+    }
+    return text;
+}
+
+/*
+ * Coloured highlights that are not bars.
+ *
+ * Two more styles, both found through pixels of a SATURATED colour (menu
+ * text is otherwise white or gray):
+ *   - coloured text: the focused line is drawn in its own colour (GRUB
+ *     themes: gold among white). The line's own glyphs are the label.
+ *   - a cursor cell: newt checklists in the Debian installer's dark theme
+ *     mark focus only with a one-character block inside "[ ]" -- with a
+ *     "*" or "x" cut out of it when the box is ticked. The label is the
+ *     text to the right of the cell.
+ * Rows with enough saturated pixels are grouped into line bands and split
+ * into segments at wide gaps. A segment one text line tall that is at least
+ * half filled and about one character wide is a cursor cell; one that is
+ * mostly empty (glyphs) and wider is coloured text. Wide filled segments
+ * are bars (handled above); tall ones (logos) are ignored.
+ */
+#define SAT_MIN_LUM 70.0f
+#define SAT_ROW_MIN 3           /* tinted pixels for a row to belong to a band */
+#define SAT_SEG_GAP 40          /* px without a tinted pixel that splits a segment */
+#define LINE_MIN_H 8
+#define LINE_MAX_H 48
+
+/* How far from gray a pixel is: max - min channel. */
+static int chroma(const unsigned char* p) {
+    int mx = p[0], mn = p[0];
+    for (int k = 1; k < 3; k++) { if (p[k] > mx) mx = p[k]; if (p[k] < mn) mn = p[k]; }
+    return mx - mn;
+}
+
+/* "Tinted": clearly more coloured than the screen's ordinary text. The
+ * threshold is relative because MJPEG chroma subsampling washes thin coloured
+ * glyphs out: GRUB's gold menu text measured chroma ~18 against ~5 for its
+ * white text, far below what a solid block keeps. */
+static int is_tinted(const unsigned char* p, int t) {
+    return chroma(p) >= t && color_luminance(p[0], p[1], p[2]) >= SAT_MIN_LUM;
+}
+
+typedef struct { float bg; int t; } InkCtx;
+
+/* Glyph = clearly brighter or darker than the background luminance. */
+static int ink_contrast(const unsigned char* p, const void* ctx) {
+    return fabsf(color_luminance(p[0], p[1], p[2]) - ((const InkCtx*)ctx)->bg) > 60.0f;
+}
+
+static void add_highlight(BiosFocusResult* result, int row, int x0, int x1, float conf, const char* text) {
+    if (result->num_highlights >= BIOS_MAX_HIGHLIGHTS) return;
+    BiosHighlight* hl = &result->highlights[result->num_highlights++];
+    hl->row = row; hl->col_start = x0; hl->col_end = x1; hl->confidence = conf;
+    if (text && text[0]) snprintf(hl->text, BIOS_MAX_TEXT_LEN, "%s", text);
+    else snprintf(hl->text, BIOS_MAX_TEXT_LEN, "Highlight row y=%d", row);
+}
+
+/* Most common luminance in a rectangle: its background. */
+static float mode_luminance(const unsigned char* pixels, int width, int height,
+                            int x0, int y0, int x1, int y1) {
+    int hist[32] = {0};
+    for (int y = y0 < 0 ? 0 : y0; y <= y1 && y < height; y++)
+        for (int x = x0 < 0 ? 0 : x0; x <= x1 && x < width; x++) {
+            const unsigned char* q = pixels + ((size_t)y * width + x) * 3;
+            hist[(int)color_luminance(q[0], q[1], q[2]) / 8]++;
+        }
+    int mode = 0;
+    for (int k = 1; k < 32; k++) if (hist[k] > hist[mode]) mode = k;
+    return mode * 8 + 4;
+}
+
+static const char* skip_debris(const char* t) {
+    while (t && *t && !((*t >= 'a' && *t <= 'z') || (*t >= 'A' && *t <= 'Z')
+                        || (*t >= '0' && *t <= '9') || *t == '('))
+        t++;
+    return t;
+}
+
+static void colored_segment(const unsigned char* pixels, int width, int height,
+                            int x0, int x1, int y0, int y1, int t, BiosFocusResult* result) {
+    int w = x1 - x0 + 1, h = y1 - y0 + 1;
+    if (h < LINE_MIN_H || h > LINE_MAX_H) return;
+    InkCtx ctx;
+    ctx.t = t;
+    ctx.bg = mode_luminance(pixels, width, height, x0 - 40, y0, x1 + 40, y1);
+    long tinted = 0, glyph = 0;
+    for (int y = y0; y <= y1; y++)
+        for (int x = x0; x <= x1; x++) {
+            const unsigned char* q = pixels + ((size_t)y * width + x) * 3;
+            if (is_tinted(q, t)) tinted++;
+            if (ink_contrast(q, &ctx)) glyph++;
+        }
+    float fill = (float)tinted / ((float)w * h);
+    int mid = (y0 + y1) / 2;
+
+    if (fill >= 0.5f && w >= 5 && w <= 40 && w * 5 <= h * 6) {
+        /* Cursor cell. The label runs right from the cell to the end of the
+         * text: stop at the first gap of 48 px without glyphs. */
+        ctx.bg = mode_luminance(pixels, width, height, x1 + 1, y0, x1 + 400, y1);
+        int end = x1, gap = 0;
+        for (int x = x1 + 1; x < width && gap < 48; x++) {
+            int col_ink = 0;
+            for (int y = y0; y <= y1 && !col_ink; y++)
+                col_ink = ink_contrast(pixels + ((size_t)y * width + x) * 3, &ctx);
+            if (col_ink) { end = x; gap = 0; } else gap++;
+        }
+        if (end - x1 < 16) return;                     /* nothing to its right */
+        char* txt = ocr_region(pixels, width, height, x1 + 1, y0, end, y1, ink_contrast, &ctx);
+        add_highlight(result, mid, x0, end, 0.93f, skip_debris(txt)); /* drops the "]" closing the box */
+        free(txt);
+    } else if (fill < 0.5f && w >= 32 && glyph > 0 && tinted * 10 >= glyph * 3) {
+        /* Coloured text: a good share (30%) of the line's glyph pixels are
+         * tinted; a white line has next to none, even under JPEG. Read the glyphs by contrast:
+         * thin coloured strokes lose too much colour to be read by it. */
+        /* The tinted rows can be shorter than the letters: after MJPEG the
+         * thin tops and bottoms of glyphs keep too little colour. Extend the
+         * crop to the rows that still have glyph contrast (at most 8 px). */
+        int oy0 = y0, oy1 = y1;
+        for (int k = 0; k < 8 && oy0 > 0; k++) {
+            int any = 0;
+            for (int x = x0; x <= x1 && !any; x++) any = ink_contrast(pixels + ((size_t)(oy0 - 1) * width + x) * 3, &ctx);
+            if (!any) break;
+            oy0--;
+        }
+        for (int k = 0; k < 8 && oy1 < height - 1; k++) {
+            int any = 0;
+            for (int x = x0; x <= x1 && !any; x++) any = ink_contrast(pixels + ((size_t)(oy1 + 1) * width + x) * 3, &ctx);
+            if (!any) break;
+            oy1++;
+        }
+        char* txt = ocr_region(pixels, width, height, x0, oy0, x1, oy1, ink_contrast, &ctx);
+        add_highlight(result, mid, x0, x1, 0.85f, txt);
+        free(txt);
+    }
+}
+
+static int detect_colored_lines(const unsigned char* pixels, int width, int height,
+                                BiosFocusResult* result) {
+    /* Threshold from the screen's own text: 2.5x the 25th-percentile chroma
+     * of its glyph pixels (pixels far from the background luminance), at
+     * least 12. Not the median: a coloured logo (GRUB's gold shields) is a
+     * large share of the "glyph" pixels and would lift it past the text. */
+    float bg = mode_luminance(pixels, width, height, 0, 0, width - 1, height - 1);
+    long hist[256] = {0}, n = 0;
+    for (size_t i = 0; i < (size_t)width * height; i++) {
+        const unsigned char* q = pixels + i * 3;
+        if (fabsf(color_luminance(q[0], q[1], q[2]) - bg) > 60.0f) { hist[chroma(q)]++; n++; }
+    }
+    int p25 = 0;
+    for (long acc = 0; p25 < 255 && (acc += hist[p25]) < n / 4; p25++) {}
+    int t = (int)(p25 * 2.5f);
+    if (t < 12) t = 12;
+    /* ...and at most 24: white text keeps chroma <= 10 even at JPEG q60, but
+     * a cream-white logo can lift the percentile past thin gold glyphs. */
+    if (t > 24) t = 24;
+
+    int first = result->num_highlights;
+    int* rowsat = calloc(height, sizeof(int));
+    if (!rowsat) return -1;
+    for (int y = 0; y < height; y++)
+        for (int x = 0; x < width; x++)
+            if (is_tinted(pixels + ((size_t)y * width + x) * 3, t)) rowsat[y]++;
+    int y = 0;
+    while (y < height) {
+        if (rowsat[y] < SAT_ROW_MIN) { y++; continue; }
+        int y0 = y;
+        while (y < height && rowsat[y] >= SAT_ROW_MIN) y++;
+        int y1 = y - 1;
+        if (y1 - y0 + 1 > LINE_MAX_H) continue;        /* logo or picture */
+        /* split the band into segments at wide gaps */
+        int x = 0;
+        while (x < width) {
+            int col = 0;
+            for (int yy = y0; yy <= y1 && !col; yy++) col = is_tinted(pixels + ((size_t)yy * width + x) * 3, t);
+            if (!col) { x++; continue; }
+            int x0 = x, last = x;
+            for (int xx = x + 1; xx < width && xx - last <= SAT_SEG_GAP; xx++) {
+                int c = 0;
+                for (int yy = y0; yy <= y1 && !c; yy++) c = is_tinted(pixels + ((size_t)yy * width + xx) * 3, t);
+                if (c) last = xx;
+            }
+            /* tighten the band to this segment's own rows */
+            int sy0 = y1, sy1 = y0;
+            for (int yy = y0; yy <= y1; yy++)
+                for (int xx = x0; xx <= last; xx++)
+                    if (is_tinted(pixels + ((size_t)yy * width + xx) * 3, t)) {
+                        if (yy < sy0) sy0 = yy;
+                        if (yy > sy1) sy1 = yy;
+                        break;
+                    }
+            colored_segment(pixels, width, height, x0, last, sy0, sy1, t, result);
+            x = last + 1;
+        }
+    }
+    free(rowsat);
+    /* A menu has one coloured line (plus perhaps a coloured title). More
+     * than three coloured TEXT lines is decoration -- a coloured banner on a
+     * console -- not a highlight. Cursor cells (0.93) are kept. */
+    int text_lines = 0;
+    for (int i = first; i < result->num_highlights; i++)
+        if (result->highlights[i].confidence < 0.9f) text_lines++;
+    if (text_lines > 3) {
+        int k = first;
+        for (int i = first; i < result->num_highlights; i++)
+            if (result->highlights[i].confidence >= 0.9f) result->highlights[k++] = result->highlights[i];
+        result->num_highlights = k;
+    }
+    return 0;
+}
+
+/* Share of characters that occur in real menu labels: letters, digits,
+ * spaces and label punctuation ("en_US.UTF-8", "(large text)", "[*]", "<Yes>").
+ * Garbage reads low: non-ASCII bytes, "|", "~", "{"... */
 static float text_quality(const char* t) {
     int n = 0, good = 0;
-    for (const unsigned char* p = (const unsigned char*)t; *p; p++, n++)
-        if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == ' ')
+    for (const unsigned char* p = (const unsigned char*)t; *p; p++) {
+        if ((*p & 0xC0) == 0x80) continue;   /* count characters, not UTF-8 bytes */
+        n++;
+        if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9')
+            || (*p && strchr(" ._-()/:,[]+*'&!?#<>", *p)))
             good++;
+    }
     return n ? (float)good / n : 0.0f;
 }
 
@@ -560,17 +819,25 @@ int bios_detect_focus_from_pixels(
     memset(result, 0, sizeof(BiosFocusResult));
     if (detect_highlight_rows(pixels, width, height, result) != 0) return -1;
     /* A focused item is one line (two with a tab bar). Many bright rows mean
-     * the screen simply has bright text -- a console log -- not a highlight. */
+     * the screen simply has bright text -- a console log, a dark-theme menu --
+     * not a highlight. Drop them: they would also fill every result slot. */
+    if (result->num_highlights > 3) result->num_highlights = 0;
     int bright_rows = result->num_highlights;
     if (detect_highlight_bars(pixels, width, height, result) != 0) return -1;
+    if (detect_colored_lines(pixels, width, height, result) != 0) return -1;
     /* Both detectors can fire (and the bright-text one misfires on light
      * frames). Rank: a read that is mostly not text, or no read at all,
      * goes to the back, so highlights[0] is the most credible item. */
     for (int i = 0; i < result->num_highlights; i++) {
         BiosHighlight* hl = &result->highlights[i];
-        if (strncmp(hl->text, "Highlight ", 10) == 0 || text_quality(hl->text) < 0.7f
-            || (i < bright_rows && bright_rows > 3))
+        (void)bright_rows;
+        if (strncmp(hl->text, "Highlight ", 10) == 0 || text_quality(hl->text) < 0.7f)
             hl->confidence = 0.3f;
+        /* A bright line read across a dialog's border ("| ... |") or spanning
+         * most of the screen is a paragraph, not a menu item. */
+        else if (hl->confidence < 0.91f && hl->confidence > 0.89f
+                 && (hl->text[0] == '|' || hl->col_end - hl->col_start > width * 6 / 10))
+            hl->confidence = 0.4f;
     }
     qsort(result->highlights, result->num_highlights, sizeof(BiosHighlight), by_confidence);
     return 0;
