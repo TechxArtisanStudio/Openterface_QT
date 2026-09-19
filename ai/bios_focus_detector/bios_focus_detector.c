@@ -118,7 +118,7 @@ static char* ocr_row(
         return NULL;
     }
 
-    char* text = malloc(BIOS_MAX_TEXT_LEN);
+    char* text = calloc(1, BIOS_MAX_TEXT_LEN);
     if (!text) {
         fclose(f);
         unlink(input_path);
@@ -126,7 +126,9 @@ static char* ocr_row(
         return NULL;
     }
 
-    fgets(text, BIOS_MAX_TEXT_LEN, f);
+    /* An empty OCR result must read as "", not as whatever the heap held:
+     * unchecked, this returned bytes like "x\x05Pc" as the highlight text. */
+    if (!fgets(text, BIOS_MAX_TEXT_LEN, f)) text[0] = '\0';
     fclose(f);
 
     // Cleanup temp files
@@ -795,6 +797,7 @@ static int detect_colored_lines(const unsigned char* pixels, int width, int heig
 static float text_quality(const char* t) {
     int n = 0, good = 0;
     for (const unsigned char* p = (const unsigned char*)t; *p; p++) {
+        if (*p < 0x20) return 0.0f;          /* a control character: not OCR text at all */
         if ((*p & 0xC0) == 0x80) continue;   /* count characters, not UTF-8 bytes */
         n++;
         if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9')
