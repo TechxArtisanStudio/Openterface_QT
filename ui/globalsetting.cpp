@@ -533,16 +533,37 @@ bool GlobalSetting::getUpdateNeverRemind() const
 }
 
 // Port chain management for Openterface devices
+//
+// The selected unit is per PROCESS. Several instances may run against several
+// units at once, and they all share one settings file; reading the selection
+// back from it would hand each instance whatever the last writer chose. So the
+// live value is held in memory, and the persisted one is only the default a
+// process starts from when it has not selected anything yet.
 void GlobalSetting::setOpenterfacePortChain(const QString& portChain) {
+    {
+        QMutexLocker lock(&m_portChainMutex);
+        m_portChain = portChain;
+        m_portChainSetInProcess = true;
+    }
     m_settings.setValue("openterface/portChain", portChain);
-    m_settings.sync(); // Ensure immediate write to storage
+    m_settings.sync(); // persist as the startup default
 }
 
 QString GlobalSetting::getOpenterfacePortChain() const {
+    {
+        QMutexLocker lock(&m_portChainMutex);
+        if (m_portChainSetInProcess)
+            return m_portChain;
+    }
     return m_settings.value("openterface/portChain", "").toString();
 }
 
 void GlobalSetting::clearOpenterfacePortChain() {
+    {
+        QMutexLocker lock(&m_portChainMutex);
+        m_portChain.clear();
+        m_portChainSetInProcess = true;   // cleared here: do not fall back to disk
+    }
     m_settings.remove("openterface/portChain");
     m_settings.sync();
 }
