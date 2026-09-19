@@ -521,24 +521,25 @@ QJsonObject SharedToolExecutor::screenDiff(const QJsonObject &args)
 
 namespace {
 
-// Run BIOS reverse-video highlight detection and return the currently
-// highlighted item's text (trimmed), or empty string if none is highlighted.
-QString detectCurrentHighlight(const QImage &frame)
+// Run highlight detection (bright text or a coloured bar, see
+// bios_focus_detector.c) and return the texts of all credible highlights,
+// most credible first. A screen may show two at once (e.g. a tab and an item).
+QStringList detectCurrentHighlights(const QImage &frame)
 {
-    if (frame.isNull()) return QString();
+    if (frame.isNull()) return {};
     QImage rgbImage = frame.convertToFormat(QImage::Format_RGB888);
     int width = rgbImage.width();
     int height = rgbImage.height();
     if (width < 64 || height < 32) {
-        qCDebug(log_shared_tool) << "detectCurrentHighlight: frame too small:" << width << "x" << height;
-        return QString();
+        qCDebug(log_shared_tool) << "detectCurrentHighlights: frame too small:" << width << "x" << height;
+        return {};
     }
 
     int bufSize = width * height * 3;
     unsigned char *buf = static_cast<unsigned char *>(malloc(bufSize));
     if (!buf) {
-        qCWarning(log_shared_tool) << "detectCurrentHighlight: malloc failed for buffer size" << bufSize;
-        return QString();
+        qCWarning(log_shared_tool) << "detectCurrentHighlights: malloc failed for buffer size" << bufSize;
+        return {};
     }
 
     for (int y = 0; y < height; ++y) {
@@ -551,35 +552,40 @@ QString detectCurrentHighlight(const QImage &frame)
     free(buf);
 
     if (ret != 0) {
-        qCWarning(log_shared_tool) << "detectCurrentHighlight: bios_detect_focus_from_pixels returned" << ret;
-        return QString();
-    }
-    if (biosResult.num_highlights == 0) {
-        qCDebug(log_shared_tool) << "detectCurrentHighlight: no highlights found";
-        return QString();
+        qCWarning(log_shared_tool) << "detectCurrentHighlights: bios_detect_focus_from_pixels returned" << ret;
+        return {};
     }
 
-    QString text = QString::fromUtf8(biosResult.highlights[0].text).trimmed();
-    qCDebug(log_shared_tool) << "detectCurrentHighlight: found" << biosResult.num_highlights << "highlight(s), first:" << text;
-
-    // Check if OCR failed and we got the fallback diagnostic message
-    if (text.startsWith("Highlight row y=")) {
-        qCWarning(log_shared_tool) << "detectCurrentHighlight: OCR failed, got fallback message:" << text;
+    // The detector ranks unreadable or implausible highlights low (0.3).
+    QStringList texts;
+    for (int i = 0; i < biosResult.num_highlights; ++i) {
+        if (biosResult.highlights[i].confidence < 0.5f) continue;
+        QString text = QString::fromUtf8(biosResult.highlights[i].text).trimmed();
+        if (!text.isEmpty()) texts << text;
     }
-
-    return text;
+    qCDebug(log_shared_tool) << "detectCurrentHighlights:" << texts;
+    return texts;
 }
 
-// Case-insensitive fuzzy match. "ACPI Settings" should match "ACPI  settings"
-// or a truncated OCR read like "ACPI Settin". Normalizes by collapsing spaces
-// and lower-casing, then checks equality / containment in both directions.
+// Case-insensitive fuzzy match. "ACPI Settings" should match "ACPI  settings",
+// a line with a leading menu number ("3 ACPI Settings"), or a truncated OCR
+// read like "ACPI Settin". A short fragment must not match a longer target:
+// OCR noise such as "a" or "Se" would otherwise "find" almost anything.
 bool highlightMatchesTarget(const QString &highlight, const QString &target)
 {
     QString h = highlight.simplified().toLower();
     QString t = target.simplified().toLower();
     if (h.isEmpty() || t.isEmpty()) return false;
     if (h == t) return true;
-    if (h.contains(t) || t.contains(h)) return true;
+    if (h.contains(t)) return true;
+    if (t.contains(h) && h.size() >= 3 && h.size() * 5 >= t.size() * 3) return true;
+    return false;
+}
+
+bool anyHighlightMatches(const QStringList &highlights, const QString &target)
+{
+    for (const QString &h : highlights)
+        if (highlightMatchesTarget(h, target)) return true;
     return false;
 }
 
@@ -632,20 +638,21 @@ QJsonObject SharedToolExecutor::navigateToMenuItem(const QJsonObject &args)
             return QJsonObject{{"error", "No frame available from camera"}};
         }
 
-        QString highlight = detectCurrentHighlight(frame);
-        qCDebug(log_shared_tool) << "navigateToMenuItem step" << step << "- detected highlight:" << highlight;
+        QStringList highlights = detectCurrentHighlights(frame);
+        qCDebug(log_shared_tool) << "navigateToMenuItem step" << step << "- detected highlights:" << highlights;
 
         // Check before pressing (in case the target is already highlighted).
-        if (!highlight.isEmpty() && highlightMatchesTarget(highlight, target)) {
+        if (anyHighlightMatches(highlights, target)) {
             QJsonObject response;
             response["success"] = true;
             response["target_found"] = true;
             response["steps_taken"] = step;
             response["direction"] = dirName;
-            response["final_highlight"] = highlight;
-            response["message"] = QString("Target '%1' is already highlighted (no key press needed).")
-                .arg(target);
-            qCInfo(log_shared_tool) << "navigateToMenuItem: target already highlighted:" << highlight;
+            response["final_highlight"] = highlights.join(" | ");
+            response["message"] = step == 0
+                ? QString("Target '%1' is already highlighted (no key press needed).").arg(target)
+                : QString("Reached target '%1' after %2 step(s).").arg(target).arg(step);
+            qCInfo(log_shared_tool) << "navigateToMenuItem: target highlighted after" << step << "steps:" << highlights;
             return response;
         }
 
@@ -655,33 +662,35 @@ QJsonObject SharedToolExecutor::navigateToMenuItem(const QJsonObject &args)
         hostManager.handleKeyboardAction(keyCode, 0, false);
         stepsTaken = step + 1;
 
-        // Give the target screen time to redraw before reading it again.
-        QThread::msleep(180);
-
-        // Re-read and check.
-        QImage frame2 = m_cameraManager->getLatestOriginalFrame();
-        if (frame2.isNull()) continue;
-        QString highlight2 = detectCurrentHighlight(frame2);
-        qCDebug(log_shared_tool) << "navigateToMenuItem step" << stepsTaken << "- after press highlight:" << highlight2;
-
-        if (!highlight2.isEmpty() && highlightMatchesTarget(highlight2, target)) {
-            QJsonObject response;
-            response["success"] = true;
-            response["target_found"] = true;
-            response["steps_taken"] = stepsTaken;
-            response["direction"] = dirName;
-            response["final_highlight"] = highlight2;
-            response["message"] = QString("Reached target '%1' after %2 step(s).")
-                .arg(target).arg(stepsTaken);
-            qCInfo(log_shared_tool) << "navigateToMenuItem: reached target" << target
-                                    << "after" << stepsTaken << "steps";
-            return response;
+        // Wait until the highlight actually moves. A fixed short delay reads a
+        // frame from before the redraw (capture + MJPEG latency), and the loop
+        // then presses again and overshoots. At the end of a list the
+        // highlight never moves; give up waiting after 1.2 s.
+        QElapsedTimer waited;
+        waited.start();
+        while (waited.elapsed() < 1200) {
+            QThread::msleep(150);
+            QImage after = m_cameraManager->getLatestOriginalFrame();
+            if (after.isNull()) continue;
+            QStringList now = detectCurrentHighlights(after);
+            if (now != highlights) break;
         }
     }
 
     // Failed to reach target within max steps.
     QImage finalFrame = m_cameraManager->getLatestOriginalFrame();
-    QString finalHighlight = finalFrame.isNull() ? QString() : detectCurrentHighlight(finalFrame);
+    QStringList finalHighlights = finalFrame.isNull() ? QStringList() : detectCurrentHighlights(finalFrame);
+    QString finalHighlight = finalHighlights.join(" | ");
+    if (anyHighlightMatches(finalHighlights, target)) {   // reached on the very last press
+        QJsonObject response;
+        response["success"] = true;
+        response["target_found"] = true;
+        response["steps_taken"] = stepsTaken;
+        response["direction"] = dirName;
+        response["final_highlight"] = finalHighlight;
+        response["message"] = QString("Reached target '%1' after %2 step(s).").arg(target).arg(stepsTaken);
+        return response;
+    }
 
     QJsonObject response;
     response["success"] = false;

@@ -90,7 +90,7 @@ static char* ocr_row(
 
     // Save as PNG
     char tmp_path[256];
-    snprintf(tmp_path, sizeof(tmp_path), "/tmp/bios_ocr_%d", (int)(y * 1000 + x_start));
+    snprintf(tmp_path, sizeof(tmp_path), "/tmp/bios_ocr_%d_%d", (int)getpid(), (int)(y * 1000 + x_start));
     char input_path[260];
     snprintf(input_path, sizeof(input_path), "%s.png", tmp_path);
     char output_path[260];
@@ -308,6 +308,244 @@ static int detect_highlight_rows(
     return 0;
 }
 
+/*
+ * Colored-bar highlights.
+ *
+ * Many text UIs mark the focused item with a solid bar in a colour of its own
+ * rather than with brighter text: newt/whiptail and the Debian installer (a
+ * red bar), dialog/ncurses, GRUB (an inverted bar). The bright-text detector
+ * above cannot see those. Here, a highlight is a rectangle of one colour:
+ *   - one text line tall (BAR_MIN_HEIGHT..BAR_MAX_HEIGHT) and clearly wider
+ *     than tall;
+ *   - bounded: the rows just above and below it are NOT mostly that colour
+ *     (this rejects panels and backgrounds, which merely contain text);
+ *   - with text inside: some, but not most, of its pixels are another colour
+ *     (this rejects shadows and empty blocks).
+ * Rows are scanned for long runs of one colour that tolerate short gaps (the
+ * glyphs drawn on the bar), and runs with the same colour and edges in
+ * consecutive rows are stacked into rectangles.
+ */
+#define BAR_COLOR_TOL 90        /* sum of |dR|+|dG|+|dB| from the bar's mean colour;
+                                   wide because the units deliver MJPEG, and a solid
+                                   red bar reads anywhere from R=121 to R=196 */
+#define BAR_CHANNEL_TOL 50      /* and no single channel further off than this */
+#define BAR_GAP 16              /* longest gap of glyph pixels inside a bar row */
+#define BAR_MIN_WIDTH 48
+#define BAR_MIN_HEIGHT 8
+#define BAR_MAX_HEIGHT 64
+#define BAR_MIN_FILL 0.45f      /* bar-coloured share of a row run */
+#define BAR_EDGE_TOL 6          /* run edges may wobble this much between rows */
+#define BAR_OUTSIDE_MAX 0.30f   /* max bar-coloured share of the rows above/below */
+#define BAR_TEXT_MIN 0.03f      /* glyph pixel share inside the bar */
+#define BAR_TEXT_MAX 0.60f
+#define BAR_MAX_RUNS 32
+#define BAR_MAX_GROUPS 256
+
+typedef struct { int x0, x1; unsigned char c[3]; } BarRun;
+typedef struct { int x0, x1, y0, y1; unsigned char c[3]; int open; } BarGroup;
+
+static int bar_close(const unsigned char* p, const unsigned char* c) {
+    int dr = abs(p[0] - c[0]), dg = abs(p[1] - c[1]), db = abs(p[2] - c[2]);
+    int mx = dr > dg ? dr : dg; if (db > mx) mx = db;
+    /* Both limits: the sum alone lets pink glyphs on a red bar pass for the
+     * gray panel beside it (255,185,194 vs 184,184,184 sums to 80). */
+    return dr + dg + db <= BAR_COLOR_TOL && mx <= BAR_CHANNEL_TOL;
+}
+
+/* Row means of one bar still differ a lot under MJPEG (R=186 in one row, 134
+ * in the next), so rows are stacked with twice the per-pixel limits. A gray
+ * panel and a red bar stay far apart even then. */
+static int bar_group_close(const unsigned char* a, const unsigned char* b) {
+    int dr = abs(a[0] - b[0]), dg = abs(a[1] - b[1]), db = abs(a[2] - b[2]);
+    int mx = dr > dg ? dr : dg; if (db > mx) mx = db;
+    return dr + dg + db <= 2 * BAR_COLOR_TOL && mx <= 2 * BAR_CHANNEL_TOL;
+}
+
+static int bar_row_runs(const unsigned char* pixels, int width, int y, BarRun* runs) {
+    int n = 0, x = 0;
+    const unsigned char* row = pixels + (size_t)y * width * 3;
+    while (x < width && n < BAR_MAX_RUNS) {
+        /* compare against the running mean of the run, not its first pixel */
+        long sr = row[x * 3], sg = row[x * 3 + 1], sb = row[x * 3 + 2];
+        unsigned char c[3] = { row[x * 3], row[x * 3 + 1], row[x * 3 + 2] };
+        int last = x, count = 1;
+        for (int j = x + 1; j < width; j++) {
+            const unsigned char* p = row + j * 3;
+            if (bar_close(p, c)) {
+                last = j; count++;
+                sr += p[0]; sg += p[1]; sb += p[2];
+                c[0] = (unsigned char)(sr / count); c[1] = (unsigned char)(sg / count); c[2] = (unsigned char)(sb / count);
+            } else if (j - last > BAR_GAP) break;
+        }
+        int len = last - x + 1;
+        if (len >= BAR_MIN_WIDTH && count >= BAR_MIN_FILL * len) {
+            runs[n].x0 = x; runs[n].x1 = last;
+            memcpy(runs[n].c, c, 3);
+            n++;
+            x = last + 1;
+        } else {
+            x++;
+        }
+    }
+    return n;
+}
+
+static float bar_share(const unsigned char* pixels, int width, int height,
+                       int y, int x0, int x1, const unsigned char* c) {
+    if (y < 0 || y >= height) return 0.0f;
+    int hit = 0;
+    for (int x = x0; x <= x1; x++)
+        if (bar_close(pixels + ((size_t)y * width + x) * 3, c)) hit++;
+    return (float)hit / (float)(x1 - x0 + 1);
+}
+
+/* OCR the inside of a bar. Ink is what differs clearly in BRIGHTNESS from the
+ * bar: the dark JPEG fringes around glyphs on a red bar are merely other
+ * shades of red and must not thicken the letters. */
+static char* ocr_bar(const unsigned char* pixels, int width, const BarGroup* g) {
+    int pad = 4;
+    int cw = g->x1 - g->x0 + 1 + 2 * pad, ch = g->y1 - g->y0 + 1 + 2 * pad;
+    int nw = cw * OCR_UPSCALE, nh = ch * OCR_UPSCALE;
+    float bar_lum = color_luminance(g->c[0], g->c[1], g->c[2]);
+    unsigned char* img = malloc((size_t)nw * nh * 3);
+    if (!img) return NULL;
+    for (int dy = 0; dy < nh; dy++) {
+        for (int dx = 0; dx < nw; dx++) {
+            int sx = g->x0 - pad + dx / OCR_UPSCALE, sy = g->y0 - pad + dy / OCR_UPSCALE;
+            int ink = 0;
+            if (sx >= g->x0 && sx <= g->x1 && sy >= g->y0 && sy <= g->y1) {
+                const unsigned char* p = pixels + ((size_t)sy * width + sx) * 3;
+                ink = fabsf(color_luminance(p[0], p[1], p[2]) - bar_lum) > 60.0f;
+            }
+            memset(img + ((size_t)dy * nw + dx) * 3, ink ? 0 : 255, 3);
+        }
+    }
+    char base[128], in[160], out[160], cmd[512];
+    snprintf(base, sizeof(base), "/tmp/bios_bar_%d_%d_%d", (int)getpid(), g->y0, g->x0);
+    snprintf(in, sizeof(in), "%s.png", base);
+    snprintf(out, sizeof(out), "%s.txt", base);
+    stbi_write_png(in, nw, nh, 3, img, nw * 3);
+    free(img);
+    snprintf(cmd, sizeof(cmd), "tesseract %s %s --psm %d 2>/dev/null", in, base, TESSERACT_PSM);
+    char* text = NULL;
+    if (system(cmd) == 0) {
+        FILE* f = fopen(out, "r");
+        if (f) {
+            text = calloc(1, BIOS_MAX_TEXT_LEN);
+            if (text && !fgets(text, BIOS_MAX_TEXT_LEN, f)) text[0] = '\0';
+            fclose(f);
+        }
+    }
+    unlink(in); unlink(out);
+    if (text) {
+        size_t len = strlen(text);
+        while (len > 0 && (text[len - 1] == '\n' || text[len - 1] == ' ')) text[--len] = '\0';
+    }
+    return text;
+}
+
+static void bar_consider(const unsigned char* pixels, int width, int height,
+                         const BarGroup* group, BiosFocusResult* result) {
+    /* A bar can reach us in fragments (a glyph row breaks the stacking).
+     * Grow the rectangle while the neighbouring row is still mostly the bar
+     * colour, so every fragment grows to the same full bar; duplicates are
+     * dropped below. */
+    BarGroup grown = *group, *g = &grown;
+    while (g->y0 > 0 && g->y1 - g->y0 + 1 <= BAR_MAX_HEIGHT
+           && bar_share(pixels, width, height, g->y0 - 1, g->x0, g->x1, g->c) >= 0.5f) g->y0--;
+    while (g->y1 < height - 1 && g->y1 - g->y0 + 1 <= BAR_MAX_HEIGHT
+           && bar_share(pixels, width, height, g->y1 + 1, g->x0, g->x1, g->c) >= 0.5f) g->y1++;
+    for (int i = 0; i < result->num_highlights; i++) {
+        const BiosHighlight* o = &result->highlights[i];
+        if (o->row >= g->y0 && o->row <= g->y1 && o->col_start <= g->x1 && o->col_end >= g->x0
+            && o->confidence > 0.94f) return;    /* this bar is already recorded */
+    }
+    int w = g->x1 - g->x0 + 1, h = g->y1 - g->y0 + 1;
+    if (h < BAR_MIN_HEIGHT || h > BAR_MAX_HEIGHT || w < BAR_MIN_WIDTH || w < 2 * h) return;
+    if (w > width * 9 / 10) return;
+    if (bar_share(pixels, width, height, g->y0 - 3, g->x0, g->x1, g->c) > BAR_OUTSIDE_MAX) return;
+    if (bar_share(pixels, width, height, g->y1 + 3, g->x0, g->x1, g->c) > BAR_OUTSIDE_MAX) return;
+    long ink = 0;
+    for (int y = g->y0; y <= g->y1; y++)
+        for (int x = g->x0; x <= g->x1; x++)
+            if (!bar_close(pixels + ((size_t)y * width + x) * 3, g->c)) ink++;
+    float ink_share = (float)ink / ((float)w * h);
+    if (ink_share < BAR_TEXT_MIN || ink_share > BAR_TEXT_MAX) return;
+    if (result->num_highlights >= BIOS_MAX_HIGHLIGHTS) return;
+
+    BiosHighlight* hl = &result->highlights[result->num_highlights++];
+    hl->row = (g->y0 + g->y1) / 2;
+    hl->col_start = g->x0;
+    hl->col_end = g->x1;
+    hl->confidence = 0.95f;
+    char* t = ocr_bar(pixels, width, g);
+    if (t && t[0]) snprintf(hl->text, BIOS_MAX_TEXT_LEN, "%s", t);
+    else snprintf(hl->text, BIOS_MAX_TEXT_LEN, "Highlight bar y=%d", hl->row);
+    free(t);
+}
+
+static int detect_highlight_bars(const unsigned char* pixels, int width, int height,
+                                 BiosFocusResult* result) {
+    BarGroup* groups = calloc(BAR_MAX_GROUPS, sizeof(BarGroup));
+    if (!groups) return -1;
+    int ng = 0;
+    BarRun runs[BAR_MAX_RUNS];
+    for (int y = 0; y <= height; y++) {
+        int nr = (y < height) ? bar_row_runs(pixels, width, y, runs) : 0;
+        int extended[BAR_MAX_GROUPS] = {0};
+        for (int r = 0; r < nr; r++) {
+            int hit = -1;
+            for (int i = 0; i < ng; i++) {
+                BarGroup* g = &groups[i];
+                if (g->open && g->y1 == y - 1 && !extended[i]
+                    && abs(g->x0 - runs[r].x0) <= BAR_EDGE_TOL
+                    && abs(g->x1 - runs[r].x1) <= BAR_EDGE_TOL
+                    && bar_group_close(runs[r].c, g->c)) { hit = i; break; }
+            }
+            if (hit >= 0) {
+                BarGroup* g = &groups[hit];
+                int rows = g->y1 - g->y0 + 1;   /* keep the group colour a mean of its rows */
+                for (int k = 0; k < 3; k++) g->c[k] = (unsigned char)((g->c[k] * rows + runs[r].c[k]) / (rows + 1));
+                g->y1 = y;
+                extended[hit] = 1;
+            } else if (ng < BAR_MAX_GROUPS) {
+                BarGroup* g = &groups[ng];
+                g->x0 = runs[r].x0; g->x1 = runs[r].x1; g->y0 = g->y1 = y;
+                memcpy(g->c, runs[r].c, 3); g->open = 1;
+                extended[ng] = 1;
+                ng++;
+            }
+        }
+        /* close groups that did not continue into this row */
+        for (int i = 0; i < ng; i++) {
+            if (groups[i].open && !extended[i]) {
+                groups[i].open = 0;
+                bar_consider(pixels, width, height, &groups[i], result);
+            }
+        }
+        /* compact closed groups away */
+        int k = 0;
+        for (int i = 0; i < ng; i++) if (groups[i].open) groups[k++] = groups[i];
+        ng = k;
+    }
+    free(groups);
+    return 0;
+}
+
+/* Share of letters, digits and spaces in an OCR result: garbage reads low. */
+static float text_quality(const char* t) {
+    int n = 0, good = 0;
+    for (const unsigned char* p = (const unsigned char*)t; *p; p++, n++)
+        if ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == ' ')
+            good++;
+    return n ? (float)good / n : 0.0f;
+}
+
+static int by_confidence(const void* a, const void* b) {
+    float ca = ((const BiosHighlight*)a)->confidence, cb = ((const BiosHighlight*)b)->confidence;
+    return (ca < cb) - (ca > cb);
+}
+
 int bios_detect_focus_from_pixels(
     const unsigned char* pixels,
     int width,
@@ -316,7 +554,22 @@ int bios_detect_focus_from_pixels(
 ) {
     if (!pixels || !result) return -1;
     memset(result, 0, sizeof(BiosFocusResult));
-    return detect_highlight_rows(pixels, width, height, result);
+    if (detect_highlight_rows(pixels, width, height, result) != 0) return -1;
+    /* A focused item is one line (two with a tab bar). Many bright rows mean
+     * the screen simply has bright text -- a console log -- not a highlight. */
+    int bright_rows = result->num_highlights;
+    if (detect_highlight_bars(pixels, width, height, result) != 0) return -1;
+    /* Both detectors can fire (and the bright-text one misfires on light
+     * frames). Rank: a read that is mostly not text, or no read at all,
+     * goes to the back, so highlights[0] is the most credible item. */
+    for (int i = 0; i < result->num_highlights; i++) {
+        BiosHighlight* hl = &result->highlights[i];
+        if (strncmp(hl->text, "Highlight ", 10) == 0 || text_quality(hl->text) < 0.7f
+            || (i < bright_rows && bright_rows > 3))
+            hl->confidence = 0.3f;
+    }
+    qsort(result->highlights, result->num_highlights, sizeof(BiosHighlight), by_confidence);
+    return 0;
 }
 
 int bios_detect_focus(const char* image_path, BiosFocusResult* result) {
