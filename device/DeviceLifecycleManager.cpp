@@ -374,6 +374,14 @@ void DeviceLifecycleManager::onDeviceDetected(const DeviceInfo& device)
             return;
         }
 
+        // Another unit than the one this instance drives: leave it alone.
+        // It still shows up in the device list, which comes from HotplugMonitor.
+        if (!DeviceManager::getInstance().mayAdoptUnit(device.portChain)) {
+            qCInfo(log_lifecycle) << "Device" << device.portChain
+                                  << "is not the selected unit — not connecting it";
+            return;
+        }
+
         // New device — create session
         auto& session = createSession(device);
         qCInfo(log_lifecycle) << "New session created:" << key
@@ -394,7 +402,10 @@ void DeviceLifecycleManager::onDeviceDetected(const DeviceInfo& device)
         updateSessionFromDeviceInfo(session, device);
         session.lastActivity = QDateTime::currentDateTime();
 
-        if (session.state == DeviceSessionState::Recovering
+        if (!DeviceManager::getInstance().mayAdoptUnit(session.portChain)) {
+            qCInfo(log_lifecycle) << "Device reappeared in session" << key
+                                  << "but is not the selected unit — not reconnecting it";
+        } else if (session.state == DeviceSessionState::Recovering
             || session.state == DeviceSessionState::Disconnected) {
             qCInfo(log_lifecycle) << "Device reappeared in session" << key
                                   << "(state was" << sessionStateToString(session.state) << ")";

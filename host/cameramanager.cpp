@@ -2540,6 +2540,11 @@ void CameraManager::connectToHotplugMonitor()
                 qCDebug(log_ui_camera) << "  Device port chain:" << device.portChain;
                 qCDebug(log_ui_camera) << "========================================";
 
+                if (!DeviceManager::getInstance().mayAdoptUnit(device.portChain)) {
+                    qCDebug(log_ui_camera) << "Device is not the selected unit, skipping camera auto-switch";
+                    return;
+                }
+
                 // Quick check: if device has no camera component and camera is
                 // already active, bail out immediately (no expensive enumeration).
                 bool hasCameraInfoFromDeviceManager = device.hasCameraDevice();

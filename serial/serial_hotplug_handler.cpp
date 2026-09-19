@@ -185,6 +185,11 @@ void SerialHotplugHandler::OnDevicePluggedIn(const DeviceInfo& device)
         return;
     }
 
+    if (!DeviceManager::getInstance().mayAdoptUnit(device.portChain)) {
+        qCInfo(log_core_serial) << "  → Not the selected unit, not auto-connecting";
+        return;
+    }
+
     if (!serial_open_) {
         // If auto-connect is not yet allowed (e.g., manager still initializing), save pending request
         if (!allow_auto_connect_) {

@@ -120,6 +120,9 @@ public:
     // Port chain management for Openterface devices
     void setOpenterfacePortChain(const QString& portChain);
     QString getOpenterfacePortChain() const;
+    // The unit selected in THIS process, or empty if none has been selected yet.
+    // Unlike getOpenterfacePortChain() it never falls back to the persisted default.
+    QString getProcessPortChain() const;
     void clearOpenterfacePortChain();
 
     // Serial port baudrate management

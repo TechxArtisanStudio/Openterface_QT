@@ -792,6 +792,11 @@ void AudioManager::connectToHotplugMonitor()
                     return;
                 }
                 
+                if (!DeviceManager::getInstance().mayAdoptUnit(device.portChain)) {
+                    qCDebug(log_core_host_audio) << "Device at port" << device.portChain << "is not the selected unit, skipping audio auto-start";
+                    return;
+                }
+
                 // Verify this is an Openterface device by checking the audio device ID
                 if (!device.audioDeviceId.contains("Openterface", Qt::CaseInsensitive)) {
                     qCDebug(log_core_host_audio) << "Device at port" << device.portChain << "is not an Openterface audio device, skipping audio auto-start";

@@ -631,6 +631,11 @@ void VideoHid::connectToHotplugMonitor()
                     return;
                 }
                 
+                if (!DeviceManager::getInstance().mayAdoptUnit(device.portChain)) {
+                    qCDebug(log_hid_device) << "Device at port" << device.portChain << "is not the selected unit, skipping HID auto-switch";
+                    return;
+                }
+
                 // Check if there's currently an active HID device
                 if (isInTransaction()) {
                     qCDebug(log_hid_device) << "HID device already active, skipping auto-switch to port:" << device.portChain;

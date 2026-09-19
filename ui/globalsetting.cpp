@@ -558,6 +558,12 @@ QString GlobalSetting::getOpenterfacePortChain() const {
     return m_settings.value("openterface/portChain", "").toString();
 }
 
+QString GlobalSetting::getProcessPortChain() const
+{
+    QMutexLocker lock(&m_portChainMutex);
+    return m_portChainSetInProcess ? m_portChain : QString();
+}
+
 void GlobalSetting::clearOpenterfacePortChain() {
     {
         QMutexLocker lock(&m_portChainMutex);
