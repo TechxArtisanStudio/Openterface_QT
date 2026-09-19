@@ -336,7 +336,7 @@ static int detect_highlight_rows(
 #define BAR_MIN_FILL 0.45f      /* bar-coloured share of a row run */
 #define BAR_EDGE_TOL 6          /* run edges may wobble this much between rows */
 #define BAR_OUTSIDE_MAX 0.30f   /* max bar-coloured share of the rows above/below */
-#define BAR_TEXT_MIN 0.03f      /* glyph pixel share inside the bar */
+#define BAR_TEXT_MIN 0.008f     /* glyph share inside the bar: "none" on a 416 px bar is 2.3%; empty bars ~0 */
 #define BAR_TEXT_MAX 0.60f
 #define BAR_MAX_RUNS 32
 #define BAR_MAX_GROUPS 256
