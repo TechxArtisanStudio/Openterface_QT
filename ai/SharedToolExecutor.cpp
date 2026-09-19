@@ -567,19 +567,40 @@ QStringList detectCurrentHighlights(const QImage &frame)
     return texts;
 }
 
-// Case-insensitive fuzzy match. "ACPI Settings" should match "ACPI  settings",
-// a line with a leading menu number ("3 ACPI Settings"), or a truncated OCR
-// read like "ACPI Settin". A short fragment must not match a longer target:
-// OCR noise such as "a" or "Se" would otherwise "find" almost anything.
+// Smallest edit distance between `t` and any substring of `h` (Sellers'
+// algorithm: the match may start and end anywhere in h).
+int approxSubstringDistance(const QString &h, const QString &t)
+{
+    const int m = t.size(), n = h.size();
+    QVector<int> prev(m + 1), cur(m + 1);
+    for (int i = 0; i <= m; ++i) prev[i] = i;
+    int best = prev[m];
+    for (int j = 1; j <= n; ++j) {
+        cur[0] = 0;                                  // a match may start at any column
+        for (int i = 1; i <= m; ++i) {
+            int sub = prev[i - 1] + (t[i - 1] == h[j - 1] ? 0 : 1);
+            cur[i] = qMin(sub, qMin(prev[i] + 1, cur[i - 1] + 1));
+        }
+        best = qMin(best, cur[m]);                   // ...and end at any column
+        std::swap(prev, cur);
+    }
+    return best;
+}
+
+// Case-insensitive fuzzy match against an OCR read of the highlighted line.
+// The read may carry a menu number ("3 ACPI Settings"), be clipped ("5 Save
+// and Exi") or misread a letter ("Gawe and Exit"), so the target counts as
+// found if it occurs in the read with at most one error per five characters.
+// A short fragment must not match: OCR noise such as "a" or "Se" would
+// otherwise "find" almost anything.
 bool highlightMatchesTarget(const QString &highlight, const QString &target)
 {
     QString h = highlight.simplified().toLower();
     QString t = target.simplified().toLower();
-    if (h.isEmpty() || t.isEmpty()) return false;
-    if (h == t) return true;
+    if (h.size() < 3 || t.isEmpty()) return false;
     if (h.contains(t)) return true;
-    if (t.contains(h) && h.size() >= 3 && h.size() * 5 >= t.size() * 3) return true;
-    return false;
+    const int allowed = qMax(1, t.size() / 5);
+    return approxSubstringDistance(h, t) <= allowed;
 }
 
 bool anyHighlightMatches(const QStringList &highlights, const QString &target)

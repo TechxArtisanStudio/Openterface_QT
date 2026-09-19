@@ -451,10 +451,14 @@ static void bar_consider(const unsigned char* pixels, int width, int height,
      * colour, so every fragment grows to the same full bar; duplicates are
      * dropped below. */
     BarGroup grown = *group, *g = &grown;
+    /* A glyph baseline full of dark JPEG fringes can match as little as 49%,
+     * so a row also counts if the one beyond it is clearly bar. */
     while (g->y0 > 0 && g->y1 - g->y0 + 1 <= BAR_MAX_HEIGHT
-           && bar_share(pixels, width, height, g->y0 - 1, g->x0, g->x1, g->c) >= 0.5f) g->y0--;
+           && (bar_share(pixels, width, height, g->y0 - 1, g->x0, g->x1, g->c) >= 0.35f
+               || bar_share(pixels, width, height, g->y0 - 2, g->x0, g->x1, g->c) >= 0.5f)) g->y0--;
     while (g->y1 < height - 1 && g->y1 - g->y0 + 1 <= BAR_MAX_HEIGHT
-           && bar_share(pixels, width, height, g->y1 + 1, g->x0, g->x1, g->c) >= 0.5f) g->y1++;
+           && (bar_share(pixels, width, height, g->y1 + 1, g->x0, g->x1, g->c) >= 0.35f
+               || bar_share(pixels, width, height, g->y1 + 2, g->x0, g->x1, g->c) >= 0.5f)) g->y1++;
     for (int i = 0; i < result->num_highlights; i++) {
         const BiosHighlight* o = &result->highlights[i];
         if (o->row >= g->y0 && o->row <= g->y1 && o->col_start <= g->x1 && o->col_end >= g->x0
