@@ -548,19 +548,34 @@ static char* ocr_region(const unsigned char* pixels, int width, int height,
     if (x1 >= width) x1 = width - 1;
     if (y1 >= height) y1 = height - 1;
     if (x1 <= x0 || y1 <= y0) return NULL;
-    int pad = 4;
+    /* Ink mask of the crop (with a blank margin), upscaled 4x BILINEARLY and
+     * thresholded at half. Nearest-neighbour blocks misled tesseract on the
+     * installer's small font ("LXQt" read as "LKOt"); smoothing first fixed it. */
+    int pad = 4, sc = 4;
     int cw = x1 - x0 + 1 + 2 * pad, ch = y1 - y0 + 1 + 2 * pad;
-    int nw = cw * OCR_UPSCALE, nh = ch * OCR_UPSCALE;
+    float* mask = calloc((size_t)cw * ch, sizeof(float));
+    if (!mask) return NULL;
+    for (int y = y0; y <= y1; y++)
+        for (int x = x0; x <= x1; x++)
+            if (ink(pixels + ((size_t)y * width + x) * 3, ctx))
+                mask[(size_t)(y - y0 + pad) * cw + (x - x0 + pad)] = 1.0f;
+    int nw = cw * sc, nh = ch * sc;
     unsigned char* img = malloc((size_t)nw * nh * 3);
-    if (!img) return NULL;
+    if (!img) { free(mask); return NULL; }
     for (int dy = 0; dy < nh; dy++) {
+        float fy = (dy + 0.5f) / sc - 0.5f;
+        int iy = (int)floorf(fy); float ty = fy - iy;
+        int y0c = iy < 0 ? 0 : (iy >= ch ? ch - 1 : iy), y1c = iy + 1 < 0 ? 0 : (iy + 1 >= ch ? ch - 1 : iy + 1);
         for (int dx = 0; dx < nw; dx++) {
-            int sx = x0 - pad + dx / OCR_UPSCALE, sy = y0 - pad + dy / OCR_UPSCALE;
-            int on = sx >= x0 && sx <= x1 && sy >= y0 && sy <= y1
-                     && ink(pixels + ((size_t)sy * width + sx) * 3, ctx);
-            memset(img + ((size_t)dy * nw + dx) * 3, on ? 0 : 255, 3);
+            float fx = (dx + 0.5f) / sc - 0.5f;
+            int ix = (int)floorf(fx); float tx = fx - ix;
+            int x0c = ix < 0 ? 0 : (ix >= cw ? cw - 1 : ix), x1c = ix + 1 < 0 ? 0 : (ix + 1 >= cw ? cw - 1 : ix + 1);
+            float v = (1 - ty) * ((1 - tx) * mask[(size_t)y0c * cw + x0c] + tx * mask[(size_t)y0c * cw + x1c])
+                    + ty * ((1 - tx) * mask[(size_t)y1c * cw + x0c] + tx * mask[(size_t)y1c * cw + x1c]);
+            memset(img + ((size_t)dy * nw + dx) * 3, v >= 0.5f ? 0 : 255, 3);
         }
     }
+    free(mask);
     char base[128], in[160], out[160], cmd[512];
     snprintf(base, sizeof(base), "/tmp/bios_ocr_%d_r%d_%d", (int)getpid(), y0, x0);
     snprintf(in, sizeof(in), "%s.png", base);
