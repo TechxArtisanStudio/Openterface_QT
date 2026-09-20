@@ -452,6 +452,14 @@ bool GlobalSetting::getSystemKeyBlockerEnabled() const {
     return m_settings.value("keyboard/systemKeyBlocker", false).toBool();
 }
 
+void GlobalSetting::setShortcutsEnabled(bool enabled) {
+    m_settings.setValue("keyboard/shortcutsEnabled", enabled);
+}
+
+bool GlobalSetting::getShortcutsEnabled() const {
+    return m_settings.value("keyboard/shortcutsEnabled", true).toBool();
+}
+
 void GlobalSetting::setMouseAutoHideEnable(bool enable){
     m_settings.setValue("mouse/autoHide", enable);
 }
