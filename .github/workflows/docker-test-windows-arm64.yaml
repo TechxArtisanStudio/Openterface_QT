@@ -380,7 +380,7 @@ jobs:
           name: openterface-gui-screenshots-arm64
           path: screenshots-arm64/
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7
 
       - name: Generate test report
         if: always()
@@ -464,4 +464,4 @@ jobs:
           name: test-report-arm64
           path: test-report-arm64.md
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 7

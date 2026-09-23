@@ -100,7 +100,7 @@ jobs:
           name: openterfaceQT.windows.amd.installer.unsigned
           path: artifacts/windows
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
       - name: Submit AMD64 installer signing request
         uses: signpath/github-action-submit-signing-request@v1.2
@@ -120,7 +120,7 @@ jobs:
         with:
           name: openterfaceQT_windows_amd64_installer_signed
           path: artifacts/windows/signed/openterfaceQT.windows.amd64.installer.exe
-          retention-days: 30
+          retention-days: 7
 
   sign-amd64-portable:
     needs: wait-for-builds
@@ -147,7 +147,7 @@ jobs:
           name: openterfaceQT.windows.amd.portable.unsigned.exe
           path: artifacts/windows/portable
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
       - name: Submit AMD64 portable signing request
         uses: signpath/github-action-submit-signing-request@v1.2
@@ -167,7 +167,7 @@ jobs:
         with:
           name: openterfaceQT_windows_amd64_portable_signed
           path: artifacts/windows/signed/openterfaceQT-portable.exe
-          retention-days: 30
+          retention-days: 7
 
   sign-arm64-installer:
     needs: wait-for-builds
@@ -194,7 +194,7 @@ jobs:
           name: openterfaceQT.windows.arm64.installer.unsigned
           path: artifacts/windows/arm64
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
       - name: Submit ARM64 installer signing request
         uses: signpath/github-action-submit-signing-request@v1.2
@@ -214,7 +214,7 @@ jobs:
         with:
           name: openterfaceQT_windows_arm64_installer_signed
           path: artifacts/windows/arm64/signed/openterfaceQT.windows.arm64.installer.exe
-          retention-days: 30
+          retention-days: 7
 
   sign-arm64-portable:
     needs: wait-for-builds
@@ -241,7 +241,7 @@ jobs:
           name: openterfaceQT.windows.arm64.portable.unsigned.exe
           path: artifacts/windows/arm64/portable
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
       - name: Submit ARM64 portable signing request
         uses: signpath/github-action-submit-signing-request@v1.2
@@ -261,7 +261,7 @@ jobs:
         with:
           name: openterfaceQT_windows_arm64_portable_signed
           path: artifacts/windows/arm64/portable/signed/openterfaceQT.exe
-          retention-days: 30
+          retention-days: 7
   create-release:
     needs: [wait-for-builds, sign-amd64-installer, sign-amd64-portable, sign-arm64-installer, sign-arm64-portable]
     if: ${{ always() && (needs.wait-for-builds.result == 'success') && (inputs.skip_windows_signing || (needs.sign-amd64-installer.result == 'success' || needs.sign-amd64-installer.result == 'skipped') && (needs.sign-amd64-portable.result == 'success' || needs.sign-amd64-portable.result == 'skipped') && (needs.sign-arm64-installer.result == 'success' || needs.sign-arm64-installer.result == 'skipped') && (needs.sign-arm64-portable.result == 'success' || needs.sign-arm64-portable.result == 'skipped')) }}

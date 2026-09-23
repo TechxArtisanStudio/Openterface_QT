@@ -551,7 +551,7 @@ jobs:
           name: openterfaceQT_windows_arm64_portable
           path: build/openterfaceQT.exe
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
 
       # -----------------------------------------------------------------------
       # Installer: package the static exe into an NSIS installer
@@ -628,4 +628,4 @@ jobs:
           name: openterfaceQT_windows_arm64_installer
           path: Output/*.exe
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7

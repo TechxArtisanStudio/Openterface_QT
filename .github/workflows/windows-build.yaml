@@ -333,7 +333,7 @@ jobs:
           name: ffmpeg-configure-log
           path: ${{ env.SOURCE_DIR }}/build-script/ffmpeg-build-temp/ffmpeg-configure.log
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 7
 
       - name: Cache LibUSB
         id: cache-libusb
@@ -423,7 +423,7 @@ jobs:
           name: ffmpeg-build-log
           path: ${{ github.workspace }}/ffmpeg_build.log
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 7
 
       - name: Upload LibUSB Build Log
         if: always()
@@ -432,7 +432,7 @@ jobs:
           name: libusb-build-log
           path: ${{ github.workspace }}/libusb_build.log
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 7
 
       - name: Dump FFmpeg and LibUSB logs (tail)
         if: always()
@@ -1032,7 +1032,7 @@ jobs:
           name: output-folder
           path: ${{ env.SOURCE_DIR }}\Output
           if-no-files-found: warn 
-          retention-days: 30
+          retention-days: 7
 
       - name: Install NSIS (if missing)
         shell: pwsh
@@ -1065,7 +1065,7 @@ jobs:
           name: openterfaceQT_windows_amd64_installer
           path: ${{ env.SOURCE_DIR }}\Output\*.exe
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
       - name: Copy package to workspace for inspection (optional)
         shell: pwsh

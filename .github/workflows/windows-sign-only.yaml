@@ -50,7 +50,7 @@ jobs:
           name: openterfaceQT.windows.amd.installer.unsigned
           path: artifacts/windows
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
       - name: Submit installer signing request
         if: ${{ inputs.sign_amd64_installer }}
@@ -72,7 +72,7 @@ jobs:
         with:
           name: openterfaceQT.windows.amd.installer
           path: artifacts/windows/signed/openterfaceQT.windows.amd64.installer.exe
-          retention-days: 30
+          retention-days: 7
 
       # -----------------------------------------------------------------------
       # Windows ARM64 Installer signing
@@ -95,7 +95,7 @@ jobs:
           name: openterfaceQT.windows.arm64.installer.unsigned
           path: artifacts/windows/arm64
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
       - name: Submit ARM64 installer signing request
         if: ${{ inputs.sign_arm64_installer }}
@@ -117,7 +117,7 @@ jobs:
         with:
           name: openterfaceQT.windows.arm64.installer
           path: artifacts/windows/arm64/signed/openterfaceQT.windows.arm64.installer.exe
-          retention-days: 30
+          retention-days: 7
 
       # -----------------------------------------------------------------------
       # Windows ARM64 PORTABLE signing
@@ -140,7 +140,7 @@ jobs:
           name: openterfaceQT.windows.arm64.portable.unsigned.exe
           path: artifacts/windows/arm64/portable
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
       - name: Submit ARM64 portable signing request
         if: ${{ inputs.sign_arm64_portable }}
@@ -162,4 +162,4 @@ jobs:
         with:
           name: openterfaceQT.windows.arm64.portable.exe
           path: artifacts/windows/arm64/portable/signed/openterfaceQT.exe
-          retention-days: 30
+          retention-days: 7
