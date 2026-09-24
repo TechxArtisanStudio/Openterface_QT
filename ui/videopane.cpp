@@ -34,8 +34,6 @@
 #include <QTimer>
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
-#include <thread>
-#include <chrono>
 #include <cmath>
 
 #ifdef Q_OS_LINUX
@@ -1356,11 +1354,6 @@ void VideoPane::setupForGStreamerOverlay()
         qCDebug(log_ui_video) << "VideoPane: GStreamer overlay widget already exists, ensuring visibility";
         m_overlayWidget->show();
         m_overlayWidget->raise(); // Ensure it's on top
-        // // Schedule fitToWindow() after a short delay using a background thread
-        // std::thread([this]() {
-        //     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        //     QMetaObject::invokeMethod(this, [this]() { this->fitToWindow(); }, Qt::QueuedConnection);
-        // }).detach();
     }
 }
 
@@ -1636,13 +1629,13 @@ void VideoPane::onCameraActiveChanged(bool active)
     }else{
         // Camera activated — defer fitToWindow to allow the first frames to arrive
         // and let the sizing logic work with actual video dimensions.
-        std::thread([this]() {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            QMetaObject::invokeMethod(this, [this]() {
-                qCInfo(log_ui_video) << "VideoPane: Calling fitToWindow after camera activation";
-                this->fitToWindow();
-            }, Qt::QueuedConnection);
-        }).detach();
+        // Use a context-bound single-shot timer: Qt cancels it automatically if
+        // this VideoPane is destroyed before it fires, so there is no dangling
+        // 'this' (a detached std::thread here previously caused a use-after-free).
+        QTimer::singleShot(1000, this, [this]() {
+            qCInfo(log_ui_video) << "VideoPane: Calling fitToWindow after camera activation";
+            fitToWindow();
+        });
     }
 }
 
