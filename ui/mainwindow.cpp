@@ -1124,14 +1124,13 @@ void MainWindow::openKeyboardMapEditor() {
     
     KeyboardMapEditor* editor = new KeyboardMapEditor(this);
     
-    connect(editor, &QDialog::finished, this, [this, editor](int result) {
-        if (result == QDialog::Accepted) {
-            // Refresh keyboard layouts in main window
-            initializeKeyboardLayouts();
-        }
-        editor->deleteLater();
-    });
-    
+connect(editor, &QDialog::finished, this, [this, editor](int /*result*/) {
+    // Refresh keyboard layouts in main window. Layouts can be imported or
+    // saved without the dialog being accepted, so refresh in every case.
+    initializeKeyboardLayouts();
+    editor->deleteLater();
+});
+
     editor->show();
 }
 
