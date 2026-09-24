@@ -26,6 +26,7 @@
 
 #include <QObject>
 #include <QSettings>
+#include <QMutex>
 #include <QSize>
 #include <QLoggingCategory>
 #include <QByteArray>
@@ -119,6 +120,9 @@ public:
     // Port chain management for Openterface devices
     void setOpenterfacePortChain(const QString& portChain);
     QString getOpenterfacePortChain() const;
+    // The unit selected in THIS process, or empty if none has been selected yet.
+    // Unlike getOpenterfacePortChain() it never falls back to the persisted default.
+    QString getProcessPortChain() const;
     void clearOpenterfacePortChain();
 
     // Serial port baudrate management
@@ -294,6 +298,15 @@ signals:
 
 private:
     QSettings m_settings;
+
+    // The unit THIS process is bound to. Kept in memory rather than read back
+    // from m_settings, because every app instance on a host shares one config
+    // file: with several instances running, reading the selection from disk
+    // returns whichever instance wrote last. The on-disk value is still written,
+    // but only serves as the default a fresh process starts from.
+    mutable QMutex m_portChainMutex;
+    QString m_portChain;
+    bool m_portChainSetInProcess = false;
 
     // Default prompts loaded from JSON file
     mutable QMap<QString, QString> m_defaultPrompts;

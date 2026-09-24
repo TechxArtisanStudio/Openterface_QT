@@ -123,6 +123,10 @@ public:
     }
     
     // Helper methods for component switching
+    // Whether a hotplug of the unit at portChain may connect it in this process:
+    // only if no unit has been selected here yet, or it is the selected unit
+    // coming back. A hotplug of ANOTHER unit must never take over the selection.
+    bool mayAdoptUnit(const QString& portChain) const;
     bool switchSerialPortByPortChain(const QString& portChain);
     bool switchHIDDeviceByPortChain(const QString& portChain);
     bool switchAudioDeviceByPortChain(const QString& portChain);
