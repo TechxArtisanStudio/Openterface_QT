@@ -37,14 +37,12 @@
 #include <memory>
 #include <functional>
 
-// DEBUG: File-based logging for MCP keyboard issue
-#define DEBUG_LOG(msg) { \
-    QFile f("/tmp/keyboard-debug.log"); \
-    if (f.open(QIODevice::Append | QIODevice::Text)) { \
-        QTextStream out(&f); \
-        out << msg << "\n"; \
-    } \
-}
+// Diagnostics for the keyboard path. This used to append to
+// /tmp/keyboard-debug.log unconditionally, opening and closing the file on
+// every key event; route it through the project's logging categories instead
+// so it is off by default and selectable with QT_LOGGING_RULES, e.g.
+//   QT_LOGGING_RULES='opf.host.keyboard.state.debug=true'
+#define DEBUG_LOG(msg) qCDebug(log_host_kb_state) << (msg)
 
 OPF_LOGGING_CATEGORY(log_host_kb_mapping, "opf.host.keyboard.mapping")
 OPF_LOGGING_CATEGORY(log_host_kb_modifiers, "opf.host.keyboard.modifiers")
