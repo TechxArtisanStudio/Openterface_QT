@@ -2626,6 +2626,12 @@ void SerialPortManager::readData() {
         qCWarning(log_core_serial_rx) << "readData called from wrong thread, ignoring";
         return;
     }
+
+    // A synchronous command is collecting its reply; leave the bytes for it.
+    if (m_syncCommandInProgress.load()) {
+        qCDebug(log_core_serial_rx) << "readData: sync command in progress, deferring to the sync collector";
+        return;
+    }
     
     // Mutex protection for serial port access to prevent concurrent access
     QMutexLocker locker(&m_serialPortMutex);
@@ -2997,6 +3003,26 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
     if (m_isShuttingDown || !m_commandCoordinator) {
         return false;
     }
+
+    // QSerialPort, like every QIODevice, may only be used from the thread it
+    // lives in (the serial worker thread). Callers on other threads, such as
+    // the diagnostics dialog and the status-bar lock keys, are re-dispatched
+    // onto the worker's event loop.
+    if (QThread::currentThread() != m_serialWorkerThread) {
+        if (!m_serialWorkerThread || !m_serialWorkerThread->isRunning()) {
+            qCWarning(log_core_serial_cmd) << "Cannot send async command: serial worker thread is not running";
+            return false;
+        }
+        // Same precondition SerialCommandCoordinator::sendAsyncCommand() checks,
+        // so callers still get an immediate false when the port is not ready.
+        if (!force && !ready.load()) {
+            return false;
+        }
+        QMetaObject::invokeMethod(this, [this, data, force]() {
+            sendAsyncCommand(data, force);
+        }, Qt::QueuedConnection);
+        return true; // Queued; the write outcome is reported through the usual signals and logs
+    }
     
     // Track async message sent
     m_asyncMessagesSent++;
@@ -3012,16 +3038,82 @@ bool SerialPortManager::sendAsyncCommand(const QByteArray &data, bool force) {
  /*
  * Send the sync command to the serial port
  */
+// Upper bound a caller on another thread waits for a sync command to be run
+// on the serial worker. The command itself times out after 1 s in
+// SerialCommandCoordinator; the rest is headroom for work already queued on
+// the worker (baud-rate retries, reconnect handling).
+static constexpr int CROSS_THREAD_SYNC_TIMEOUT_MS = 5000;
+
 QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force) {
     if (m_isShuttingDown || !m_commandCoordinator) {
         return QByteArray();
     }
-    
+
+    // QSerialPort may only be used from the serial worker thread. Callers on
+    // other threads (DiagnosticsManager, HotplugTestWizard) are re-dispatched.
+    // Like factoryResetHipChipSync(), the caller waits in a local event loop
+    // instead of a BlockingQueuedConnection: freezing the main thread's event
+    // loop breaks signal delivery that the worker's reset and reconnect
+    // sequences depend on.
+    if (QThread::currentThread() != m_serialWorkerThread) {
+        if (!m_serialWorkerThread || !m_serialWorkerThread->isRunning()) {
+            qCWarning(log_core_serial_cmd) << "Cannot send sync command: serial worker thread is not running";
+            return QByteArray();
+        }
+
+        // Heap-allocated so a worker that runs after the caller has timed out
+        // and returned never writes into a dead stack frame.
+        struct CrossThreadSyncCall {
+            std::atomic<bool> done{false};
+            std::atomic<bool> abandoned{false};
+            QByteArray response; // written by the worker before `done` is set
+        };
+        auto call = std::make_shared<CrossThreadSyncCall>();
+
+        QMetaObject::invokeMethod(this, [this, call, data, force]() {
+            if (call->abandoned.load()) {
+                return; // Caller already gave up; do not touch the port for it.
+            }
+            call->response = sendSyncCommand(data, force);
+            call->done.store(true);
+        }, Qt::QueuedConnection);
+
+        QEventLoop loop;
+        QTimer poll;
+        QObject::connect(&poll, &QTimer::timeout, &loop, [&loop, call]() {
+            if (call->done.load()) {
+                loop.quit();
+            }
+        });
+        poll.start(10);
+        QTimer::singleShot(CROSS_THREAD_SYNC_TIMEOUT_MS, &loop, &QEventLoop::quit);
+        loop.exec(QEventLoop::ExcludeUserInputEvents);
+
+        if (!call->done.load()) {
+            call->abandoned.store(true);
+            qCWarning(log_core_serial_cmd) << "Sync command not completed by the serial worker within"
+                                           << CROSS_THREAD_SYNC_TIMEOUT_MS << "ms:" << data.toHex(' ');
+            return QByteArray();
+        }
+        return call->response;
+    }
+
     // Update command coordinator ready state with our current ready state
     m_commandCoordinator->setReady(ready.load());
-    
-    // Delegate to command coordinator
-    return m_commandCoordinator->sendSyncCommand(serialPort, data, force);
+
+    // While the coordinator waits in waitForReadyRead(), QSerialPort emits
+    // readyRead synchronously. Tell readData() to leave the bytes alone so the
+    // synchronous collector receives the reply instead of the async parser.
+    m_syncCommandInProgress.store(true);
+    QByteArray response = m_commandCoordinator->sendSyncCommand(serialPort, data, force);
+    m_syncCommandInProgress.store(false);
+
+    // Anything that arrived after the reply (for example a periodic GET_INFO
+    // response) is still in the buffer; hand it to the normal parser.
+    if (serialPort && serialPort->isOpen() && serialPort->bytesAvailable() > 0) {
+        QMetaObject::invokeMethod(this, &SerialPortManager::readData, Qt::QueuedConnection);
+    }
+    return response;
 }
 
 /*
@@ -3029,6 +3121,17 @@ QByteArray SerialPortManager::sendSyncCommand(const QByteArray &data, bool force
  * Set the DTR to high for 0.5s to restart the USB port
  */
 void SerialPortManager::restartSwitchableUSB(){
+    // DTR is toggled on the QSerialPort directly; that must happen in the
+    // worker thread (see sendAsyncCommand()). MainWindow calls this from the UI.
+    if (QThread::currentThread() != m_serialWorkerThread) {
+        if (!m_serialWorkerThread || !m_serialWorkerThread->isRunning()) {
+            qCWarning(log_core_serial_usbswitch) << "Cannot restart switchable USB - serial worker thread is not running";
+            return;
+        }
+        QMetaObject::invokeMethod(this, [this]() { restartSwitchableUSB(); }, Qt::QueuedConnection);
+        return;
+    }
+
     if(!isSerialPortValid()){
         qCWarning(log_core_serial_usbswitch) << "Cannot restart switchable USB - serial port not valid";
         return;
