@@ -74,6 +74,10 @@
 #define MCP_TOOL_RUN_COMMAND_AND_WAIT      "run_command_and_wait"
 #define MCP_TOOL_SCREEN_DIFF               "screen_diff"
 #define MCP_TOOL_NAVIGATE_TO_MENU_ITEM     "navigate_to_menu_item"
+#define MCP_TOOL_EDID_INFO                 "edid_info"
+#define MCP_TOOL_EDID_SET                  "edid_set"
+#define MCP_TOOL_DEVICE_LIST               "device_list"
+#define MCP_TOOL_DEVICE_SELECT             "device_select"
 
 // Default Named Pipe Name
 #define MCP_DEFAULT_PIPE_NAME "openterface-mcp"

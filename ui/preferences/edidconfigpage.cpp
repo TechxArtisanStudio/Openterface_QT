@@ -24,7 +24,7 @@
 #include "../advance/edid/edidutils.h"
 #include "../advance/edid/firmwareutils.h"
 #include "../../video/videohid.h"
-#include "../../video/firmwareoperationmanager.h"
+#include "../advance/edid/edidsettingsmanager.h"
 #include "../../video/ms2109.h"
 #include "../../serial/SerialPortManager.h"
 #include <QMessageBox>
@@ -52,8 +52,7 @@ EdidConfigPage::EdidConfigPage(QWidget *parent)
     , progressLabel(nullptr)
     , cancelReadingButton(nullptr)
     , infoLabel(nullptr)
-    , firmwareOperationManager(nullptr)
-    , m_tempFirmwarePath()
+    , m_edidManager(nullptr)
     , m_pendingFirmwareData()
     , m_operationFinished(false)
     , m_updateMode(false)
@@ -67,10 +66,8 @@ EdidConfigPage::EdidConfigPage(QWidget *parent)
 
 EdidConfigPage::~EdidConfigPage()
 {
-    if (firmwareOperationManager) {
-        firmwareOperationManager->cancel();
-        firmwareOperationManager->deleteLater();
-        firmwareOperationManager = nullptr;
+    if (m_edidManager) {
+        m_edidManager->cancel();   // child of this page; Qt deletes it
     }
 }
 
@@ -337,31 +334,17 @@ void EdidConfigPage::setProgressState(bool active, const QString &labelText)
     }
 }
 
-bool EdidConfigPage::validateAsciiInput(const QString &text, int maxLen,
-                                         const QString &fieldName, QString &errorMessage) const
+bool EdidConfigPage::validateAsciiInput(const QString &text, int maxLen, const QString &fieldName, QString &errorMessage) const
 {
-    if (text.isEmpty()) {
-        errorMessage = tr("%1 cannot be empty when enabled.").arg(fieldName);
-        return false;
-    }
-    if (text.length() > maxLen) {
-        errorMessage = tr("%1 cannot exceed %2 characters.").arg(fieldName).arg(maxLen);
-        return false;
-    }
-    for (const QChar &ch : text) {
-        if (ch.unicode() > 127) {
-            errorMessage = tr("%1 must contain only ASCII characters.").arg(fieldName);
-            return false;
-        }
-    }
-    return true;
+    Q_UNUSED(maxLen);   // the EDID descriptor length is fixed; the manager owns the rule
+    return edid::EdidSettingsManager::validateField(text, fieldName, errorMessage);
 }
 
 void EdidConfigPage::shutdownFirmwareOperation()
 {
     m_operationFinished = true;
-    if (firmwareOperationManager) {
-        firmwareOperationManager->cancel();
+    if (m_edidManager) {
+        m_edidManager->cancel();
     }
     setProgressState(false, tr(""));
 }
@@ -390,66 +373,48 @@ void EdidConfigPage::stopAllDevices()
 // Firmware operation manager
 // ---------------------------------------------------------------------------
 
-void EdidConfigPage::ensureFirmwareOperationManager()
+void EdidConfigPage::ensureEdidManager()
 {
-    if (firmwareOperationManager) {
+    if (m_edidManager) {
         return;
     }
-
-    firmwareOperationManager = new FirmwareOperationManager(&VideoHid::getInstance(), ADDR_EEPROM, this);
-    connect(firmwareOperationManager, &FirmwareOperationManager::progress,
+    m_edidManager = new edid::EdidSettingsManager(this);
+    connect(m_edidManager, &edid::EdidSettingsManager::progress,
             this, &EdidConfigPage::onFirmwareReadProgress);
-    connect(firmwareOperationManager, &FirmwareOperationManager::readFinished,
-            this, [this](bool success, const QByteArray &firmwareData, const QString &errorMsg) {
-        if (!errorMsg.isEmpty()) {
-            onFirmwareReadError(errorMsg);
+
+    connect(m_edidManager, &edid::EdidSettingsManager::identityRead, this,
+            [this](bool ok, const edid::EdidIdentity &id, const QString &error) {
+        setProgressState(false, tr(""));
+        if (!ok) {
+            onFirmwareReadError(error);
             return;
         }
-        if (success) {
-            m_pendingFirmwareData = firmwareData;
-        }
-        onFirmwareReadFinished(success);
+        m_pendingFirmwareData = id.rawImage;
+        processFirmwareReadResult(true);
     });
 
-    connect(firmwareOperationManager, &FirmwareOperationManager::readCompleted,
-            this, [this](bool success, const QByteArray &firmwareData, const QString &errorMsg) {
-        if (!success) {
-            onFirmwareReadError(errorMsg);
-            return;
-        }
-        if (m_updateMode) {
-            if (!processAndWriteFirmware()) {
-                showErrorAndRestart(tr("Processing Error"),
-                                    tr("Failed to process EDID settings."),
-                                    tr("EDID processing error"));
-                return;
-            }
-            return;
-        }
-        // Normal settings load path — populate UI
-        processFirmwareReadResult(success);
-        QPointer<EdidConfigPage> selfPtr(this);
-        QTimer::singleShot(500, this, [this, selfPtr]() {
-            if (!selfPtr) return;
-            VideoHid::getInstance().start();
-        });
-    });
-
-    connect(firmwareOperationManager, &FirmwareOperationManager::writeFinished,
-            this, [this](bool success, const QString &errorMsg) {
-        if (success) {
-            m_operationFinished = true;
-            setProgressState(false, tr(""));
-            QMessageBox::information(this, tr("Success"),
-                tr("Display settings updated successfully!\n\n"
-                   "The application will now exit.\n"
-                   "Please disconnect and reconnect the entire device to apply the changes."));
-            QApplication::quit();
-        } else {
+    connect(m_edidManager, &edid::EdidSettingsManager::settingsApplied, this,
+            [this](bool ok, bool verified, const edid::EdidIdentity &, const edid::EdidIdentity &, const QString &error) {
+        if (!ok) {
             showErrorAndRestart(tr("Write Error"),
-                errorMsg.isEmpty() ? tr("Failed to write firmware to device.") : errorMsg,
+                error.isEmpty() ? tr("Failed to write firmware to device.") : error,
                 tr("firmware write failure"));
+            return;
         }
+        m_operationFinished = true;
+        setProgressState(false, tr(""));
+        if (!verified) {
+            QMessageBox::warning(this, tr("Not Verified"),
+                tr("The write completed but the read-back does not match what was written.\n\n%1\n\n"
+                   "A copy of the previous firmware image was saved to:\n%2")
+                    .arg(error, m_edidManager->backupPath()));
+            return;
+        }
+        QMessageBox::information(this, tr("Success"),
+            tr("Display settings updated and verified by read-back!\n\n"
+               "The application will now exit.\n"
+               "Please disconnect and reconnect the entire device to apply the changes."));
+        QApplication::quit();
     });
 }
 
@@ -459,27 +424,11 @@ void EdidConfigPage::ensureFirmwareOperationManager()
 
 void EdidConfigPage::loadCurrentEDIDSettings()
 {
-
-    VideoHid &videoHid = VideoHid::getInstance();
-    videoHid.stopPollingOnly();
-    QThread::msleep(100);
-
-    quint32 firmwareSize = videoHid.readFirmwareSize();
-    if (firmwareSize == 0) {
-        qWarning() << "Failed to read firmware size, cannot load current EDID settings";
-        displayNameLineEdit->setPlaceholderText(tr("Failed to read firmware — enter display name"));
-        videoHid.start();
-        return;
-    }
-
     setProgressState(true, tr("Reading firmware data..."));
     setControlsEnabled(false);
-
-    m_tempFirmwarePath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                         + "/temp_firmware_read.bin";
     m_updateMode = false;
-    ensureFirmwareOperationManager();
-    firmwareOperationManager->readFirmware(firmwareSize, m_tempFirmwarePath);
+    ensureEdidManager();
+    m_edidManager->readIdentity();
 }
 
 void EdidConfigPage::onFirmwareReadProgress(int percent)
@@ -491,54 +440,12 @@ void EdidConfigPage::onFirmwareReadProgress(int percent)
 
 void EdidConfigPage::onFirmwareReadFinished(bool success)
 {
+    // Kept for the slot table; the manager's identityRead/settingsApplied
+    // handlers in ensureEdidManager() do the work now.
     setProgressState(false, tr(""));
-
-    if (m_updateMode) {
-        if (!success) {
-            showErrorAndRestart(tr("Read Error"),
-                                tr("Failed to read firmware from device."),
-                                tr("firmware read failure"));
-            return;
-        }
-
-        QByteArray firmwareData = m_pendingFirmwareData;
-        QString newName = displayNameLineEdit->text().trimmed();
-
-        // Apply display name via EDIDUtils directly (no EdidProcessor needed — no resolution changes)
-        int edidOffset;
-        QByteArray edidBlock;
-        if (!parseEdidBlock(firmwareData, edidOffset, edidBlock)) {
-            showErrorAndRestart(tr("Processing Error"),
-                                tr("Failed to parse EDID block."),
-                                tr("EDID parsing error"));
-            return;
-        }
-        edid::EDIDUtils::updateEDIDDisplayName(edidBlock, newName);
-        quint8 edidChecksum = edid::EDIDUtils::calculateEDIDChecksum(edidBlock);
-        edidBlock[127] = edidChecksum;
-        firmwareData.replace(edidOffset, 128, edidBlock);
-
-        // Firmware-level checksum
-        quint16 firmwareChecksum = edid::FirmwareUtils::calculateFirmwareChecksumWithDiff(
-            m_pendingFirmwareData, firmwareData);
-        if (firmwareData.size() >= 2) {
-            firmwareData[firmwareData.size() - 2] = static_cast<char>((firmwareChecksum >> 8) & 0xFF);
-            firmwareData[firmwareData.size() - 1] = static_cast<char>(firmwareChecksum & 0xFF);
-        }
-
-        m_pendingFirmwareData = firmwareData;
-        setProgressState(true, tr("Waiting for firmware thread to finish before write..."));
-        return;
+    if (!m_updateMode) {
+        processFirmwareReadResult(success);
     }
-
-    // Normal settings load path
-    processFirmwareReadResult(success);
-
-    QPointer<EdidConfigPage> selfPtr(this);
-    QTimer::singleShot(500, this, [this, selfPtr]() {
-        if (!selfPtr) return;
-        VideoHid::getInstance().start();
-    });
 }
 
 void EdidConfigPage::onFirmwareReadError(const QString &errorMessage)
@@ -664,38 +571,12 @@ void EdidConfigPage::onApplyButtonClicked()
 
 bool EdidConfigPage::updateDisplayName(const QString &newName)
 {
-
-    VideoHid &videoHid = VideoHid::getInstance();
-    videoHid.stopPollingOnly();
-
     setProgressState(true, tr("Updating display name..."));
-
-    quint32 firmwareSize = VideoHid::getInstance().readFirmwareSize();
-    if (firmwareSize == 0) {
-        showErrorAndRestart(tr("Firmware Error"),
-                            tr("Failed to read firmware size."),
-                            tr("firmware size read error"));
-        return false;
-    }
-
-    m_tempFirmwarePath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                         + "/temp_firmware_update.bin";
-    m_updateMode = true;
-    ensureFirmwareOperationManager();
-    firmwareOperationManager->readFirmware(firmwareSize, m_tempFirmwarePath);
-    return true;
-}
-
-bool EdidConfigPage::processAndWriteFirmware()
-{
-    if (m_pendingFirmwareData.isEmpty()) {
-        qWarning() << "No pending firmware data to write";
-        return false;
-    }
-
     applyButton->setEnabled(false);
-    setProgressState(true, tr("Writing modified firmware..."));
-    firmwareOperationManager->writeFirmware(m_pendingFirmwareData, m_tempFirmwarePath);
+    m_updateMode = true;
+    ensureEdidManager();
+    // Read -> edit -> write -> read back & verify, all inside the manager.
+    m_edidManager->applySettings(newName, QString());
     return true;
 }
 
