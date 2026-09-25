@@ -125,6 +125,7 @@ jobs:
             libtool
             git
             perl
+            wget
 
       - name: Refresh MSYS2 PGP keys and update
         shell: msys2 {0}
@@ -182,8 +183,12 @@ jobs:
             mingw-w64-clang-aarch64-libb2
             mingw-w64-clang-aarch64-brotli
             mingw-w64-clang-aarch64-libjpeg-turbo
+            mingw-w64-clang-aarch64-libusb
             mingw-w64-clang-aarch64-pcre2
             mingw-w64-clang-aarch64-zstd
+            mingw-w64-clang-aarch64-lz4
+            mingw-w64-clang-aarch64-lzo2
+            mingw-w64-clang-aarch64-libxml2
             mingw-w64-clang-aarch64-libpng
             mingw-w64-clang-aarch64-freetype
             mingw-w64-clang-aarch64-fontconfig
@@ -193,11 +198,26 @@ jobs:
             mingw-w64-clang-aarch64-gettext-runtime
             mingw-w64-clang-aarch64-expat
             mingw-w64-clang-aarch64-libffi
-            mingw-w64-clang-aarch64-libxml2
+            mingw-w64-clang-aarch64-p11-kit
+            mingw-w64-clang-aarch64-libtasn1
+            mingw-w64-clang-aarch64-gmp
+            mingw-w64-clang-aarch64-nettle
+            mingw-w64-clang-aarch64-libunistring
+            mingw-w64-clang-aarch64-libidn2
+            mingw-w64-clang-aarch64-libpsl
+            mingw-w64-clang-aarch64-nghttp2
+            mingw-w64-clang-aarch64-nghttp3
+            mingw-w64-clang-aarch64-ngtcp2
+            mingw-w64-clang-aarch64-curl
+            mingw-w64-clang-aarch64-ca-certificates
+            mingw-w64-clang-aarch64-libunwind
+            mingw-w64-clang-aarch64-libwinpthread
             diffutils
             make
+            libtool
             git
             perl
+            wget
 
       - name: Refresh MSYS2 PGP keys and update
         shell: msys2 {0}
@@ -268,6 +288,7 @@ jobs:
             mingw-w64-clang-aarch64-clang
             mingw-w64-clang-aarch64-compiler-rt
             mingw-w64-clang-aarch64-cmake
+            mingw-w64-clang-aarch64-ninja
             mingw-w64-clang-aarch64-make
             mingw-w64-clang-aarch64-nasm
             mingw-w64-clang-aarch64-pkgconf
@@ -279,10 +300,40 @@ jobs:
             mingw-w64-clang-aarch64-libb2
             mingw-w64-clang-aarch64-brotli
             mingw-w64-clang-aarch64-libjpeg-turbo
+            mingw-w64-clang-aarch64-libusb
+            mingw-w64-clang-aarch64-pcre2
             mingw-w64-clang-aarch64-zstd
+            mingw-w64-clang-aarch64-lz4
+            mingw-w64-clang-aarch64-lzo2
+            mingw-w64-clang-aarch64-libxml2
+            mingw-w64-clang-aarch64-libpng
+            mingw-w64-clang-aarch64-freetype
+            mingw-w64-clang-aarch64-fontconfig
+            mingw-w64-clang-aarch64-harfbuzz
+            mingw-w64-clang-aarch64-pixman
+            mingw-w64-clang-aarch64-glib2
+            mingw-w64-clang-aarch64-gettext-runtime
+            mingw-w64-clang-aarch64-expat
+            mingw-w64-clang-aarch64-libffi
+            mingw-w64-clang-aarch64-p11-kit
+            mingw-w64-clang-aarch64-libtasn1
+            mingw-w64-clang-aarch64-gmp
+            mingw-w64-clang-aarch64-nettle
+            mingw-w64-clang-aarch64-libunistring
+            mingw-w64-clang-aarch64-libidn2
+            mingw-w64-clang-aarch64-libpsl
+            mingw-w64-clang-aarch64-nghttp2
+            mingw-w64-clang-aarch64-nghttp3
+            mingw-w64-clang-aarch64-ngtcp2
+            mingw-w64-clang-aarch64-curl
+            mingw-w64-clang-aarch64-ca-certificates
+            mingw-w64-clang-aarch64-libunwind
+            mingw-w64-clang-aarch64-libwinpthread
             diffutils
             make
+            libtool
             git
+            perl
             wget
 
       - name: Refresh MSYS2 PGP keys and update
@@ -353,7 +404,9 @@ jobs:
             mingw-w64-clang-aarch64-clang
             mingw-w64-clang-aarch64-compiler-rt
             mingw-w64-clang-aarch64-cmake
+            mingw-w64-clang-aarch64-ninja
             mingw-w64-clang-aarch64-make
+            mingw-w64-clang-aarch64-nasm
             mingw-w64-clang-aarch64-pkgconf
             mingw-w64-clang-aarch64-zlib
             mingw-w64-clang-aarch64-bzip2
@@ -367,20 +420,37 @@ jobs:
             mingw-w64-clang-aarch64-pcre2
             mingw-w64-clang-aarch64-zstd
             mingw-w64-clang-aarch64-lz4
+            mingw-w64-clang-aarch64-lzo2
+            mingw-w64-clang-aarch64-libxml2
             mingw-w64-clang-aarch64-libpng
             mingw-w64-clang-aarch64-freetype
             mingw-w64-clang-aarch64-fontconfig
             mingw-w64-clang-aarch64-harfbuzz
             mingw-w64-clang-aarch64-pixman
-            mingw-w64-clang-aarch64-libxml2
             mingw-w64-clang-aarch64-glib2
             mingw-w64-clang-aarch64-gettext-runtime
             mingw-w64-clang-aarch64-expat
             mingw-w64-clang-aarch64-libffi
+            mingw-w64-clang-aarch64-p11-kit
+            mingw-w64-clang-aarch64-libtasn1
+            mingw-w64-clang-aarch64-gmp
+            mingw-w64-clang-aarch64-nettle
+            mingw-w64-clang-aarch64-libunistring
+            mingw-w64-clang-aarch64-libidn2
+            mingw-w64-clang-aarch64-libpsl
+            mingw-w64-clang-aarch64-nghttp2
+            mingw-w64-clang-aarch64-nghttp3
+            mingw-w64-clang-aarch64-ngtcp2
+            mingw-w64-clang-aarch64-curl
+            mingw-w64-clang-aarch64-ca-certificates
+            mingw-w64-clang-aarch64-libunwind
             mingw-w64-clang-aarch64-libwinpthread
             diffutils
             make
+            libtool
             git
+            perl
+            wget
 
       - name: Refresh MSYS2 PGP keys and update
         shell: msys2 {0}
