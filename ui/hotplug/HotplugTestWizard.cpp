@@ -31,10 +31,9 @@
 #include <QTimer>
 #include <QApplication>
 #include <QtConcurrent>
-#include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_DECLARE_LOGGING_CATEGORY(log_test_wizard)
-Q_LOGGING_CATEGORY(log_test_wizard, "opf.test.hotplug")
+OPF_LOGGING_CATEGORY(log_test_wizard, "opf.test.hotplug")
 
 // Helper to find the CameraManager instance (not a singleton, parented to QApplication)
 static CameraManager* findCameraManager()

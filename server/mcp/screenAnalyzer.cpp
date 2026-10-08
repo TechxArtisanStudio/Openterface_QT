@@ -21,7 +21,6 @@
 */
 
 #include "screenAnalyzer.h"
-#include <QLoggingCategory>
 #include <QDebug>
 #include <QRegularExpression>
 
@@ -29,6 +28,7 @@
 #include <cstring>
 
 #include "ai/bios_focus_detector/bios_focus_detector.h"
+#include "log/opflogging.h"
 
 #ifdef HAVE_TESSERACT
 #include <tesseract/baseapi.h>
@@ -46,7 +46,7 @@
 #endif
 #endif
 
-Q_LOGGING_CATEGORY(log_screen_analyzer, "opf.screen.analyzer")
+OPF_LOGGING_CATEGORY(log_screen_analyzer, "opf.screen.analyzer")
 
 ScreenAnalyzer::ScreenAnalyzer()
     : m_tesseract(nullptr)

@@ -10,9 +10,10 @@
 #include "wch/WCHUSBTransport.h"
 #include "wch/WCHHexParser.h"
 #include "serial/ch9329.h"
+#include "log/opflogging.h"
 
 // Define the logging category required by ch9329.h
-Q_LOGGING_CATEGORY(log_core_serial, "opf.core.serial")
+OPF_LOGGING_CATEGORY(log_core_serial, "opf.core.serial")
 
 /**
  * @brief Hardware integration test for firmware flashing.
