@@ -252,18 +252,11 @@ void VideoHid::start() {
     }
     
     if (!m_currentHIDDevicePath.isEmpty()) {
-        // Do not block UI thread with firmware read/drivers in startup
-        (void)QtConcurrent::run([this]() {
-            std::string captureCardFirmwareVersion = getFirmwareVersion();
-            qCDebug(log_hid_firmware) << "Firmware VERSION async:" << QString::fromStdString(captureCardFirmwareVersion);
-            GlobalVar::instance().setCaptureCardFirmwareVersion(captureCardFirmwareVersion);
-            bool switchValue = getSpdifout();
-            this->isHardSwitchOnTarget = switchValue;
-            qCDebug(log_hid_poll) << "SPDIFOUT async:" << switchValue;
-            if (eventCallback) {
-                setSpdifout(switchValue);
-            }
-        });
+        // HID power-saving: Skip firmware version and SPDIFOUT read to reduce USB power consumption
+        // These operations were previously done asynchronously but they consume significant USB power
+        // and can cause USB drive recognition issues. USB switching still works via setSpdifout().
+        qCDebug(log_hid_firmware) << "Skipping firmware/SPDIFOUT read to save USB power";
+        qCDebug(log_hid_firmware) << "USB switching functionality remains available via setSpdifout()";
     } else {
         qCDebug(log_hid_firmware) << "No HID device path available at start; skipping immediate firmware/SPDIF load";
     }
@@ -278,6 +271,26 @@ void VideoHid::start() {
     // The PollingThread's startupRetryCount handles any initial failures
     qCDebug(log_hid_poll) << "Brief device stabilization (50ms) before starting polling thread...";
     QThread::msleep(50);
+
+    // CRITICAL: Sync software state with physical hardware switch at startup
+    // Read actual GPIO0 (physical switch position) and sync SPDIFOUT to match it
+    // This ensures software and hardware are consistent from the start
+    bool physicalSwitchOnTarget = getGpio0();
+    qCInfo(log_hid_device) << "Startup sync: physical switch (GPIO0) is on"
+                           << (physicalSwitchOnTarget ? "target" : "host")
+                           << "- syncing SPDIFOUT to match";
+
+    // Initialize tracking variable to actual hardware state
+    isHardSwitchOnTarget = physicalSwitchOnTarget;
+
+    // Sync SPDIFOUT register to match physical switch position
+    // This ensures USB is routed to the correct side as indicated by the physical switch
+    setSpdifout(physicalSwitchOnTarget);
+
+    // Emit signal to update UI toggle switch to match physical switch
+    if (eventCallback) {
+        emit gpio0StatusChanged(physicalSwitchOnTarget);
+    }
 
     // Log the detected chip type
     qCDebug(log_hid_poll) << "Starting polling thread with chip type:" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
@@ -352,44 +365,30 @@ void VideoHid::pollDeviceStatus() {
 
     // Device is already open - no need for beginTransaction/endTransaction
     try {
+        // Read current physical switch position from GPIO0 register
         bool currentSwitchOnTarget = getGpio0();
-        // qCDebug(log_hid_device) << "chip type" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
 
-        // Track HDMI input state every cycle so UI code can rely on the
-        // poller instead of issuing its own USB reads.
-        bool hdmiNow = isHdmiConnected();
-        bool previous = m_lastHdmiConnected.exchange(hdmiNow);
-        if (previous != hdmiNow) {
-            qCDebug(log_hid_poll) << "HDMI input status changed:" << (hdmiNow ? "connected" : "disconnected");
-            emit hdmiInputStatusChanged(hdmiNow);
-        }
+        // Check if physical switch position has changed
+        if (currentSwitchOnTarget != isHardSwitchOnTarget) {
+            qCInfo(log_hid_device) << "Physical switch detected: changed from"
+                                   << (isHardSwitchOnTarget ? "target" : "host")
+                                   << "to" << (currentSwitchOnTarget ? "target" : "host")
+                                   << "- syncing SPDIFOUT register";
 
-        if (eventCallback) {
-            VideoHidResolutionInfo info = getInputStatus();
-            normalizeResolution(info);
+            // Sync the SPDIFOUT register to match the physical switch position
+            handleSpdifToggle(currentSwitchOnTarget);
 
-            float aspectRatio = info.height ? static_cast<float>(info.width) / info.height : 0;
-            GlobalVar::instance().setInputAspectRatio(aspectRatio);
+            // Update our tracking of the last known physical switch state
+            isHardSwitchOnTarget = currentSwitchOnTarget;
 
-            if (info.hdmiConnected) {
-                if (GlobalVar::instance().getInputWidth() != static_cast<int>(info.width) || GlobalVar::instance().getInputHeight() != static_cast<int>(info.height)) {
-                    qCDebug(log_hid_poll).nospace() << "Resolution changed from "
-                                         << GlobalVar::instance().getInputWidth() << "x" << GlobalVar::instance().getInputHeight()
-                                         << " to " << info.width << "x" << info.height;
-                    emit inputResolutionChanged(GlobalVar::instance().getInputWidth(), GlobalVar::instance().getInputHeight(), info.width, info.height);
-                }
-                qCDebug(log_hid_poll) << "Emitting resolution update - Width:" << info.width << "Height:" << info.height << "FPS:" << info.fps << "PixelClock:" << info.pixclk << "MHz";
-                emit resolutionChangeUpdate(static_cast<int>(info.width), static_cast<int>(info.height), info.fps, info.pixclk);
-            } else {
-                // qCDebug(log_hid_poll) << "No HDMI connection detected, emitting zero resolution";
-                emit resolutionChangeUpdate(0, 0, 0, 0);
-            }
-
-            if (m_chipImpl ? m_chipImpl->type() == VideoChipType::MS2109 : false){
+            // Emit signal to update UI toggle switch
+            if (eventCallback) {
                 emit gpio0StatusChanged(currentSwitchOnTarget);
             }
-            
         }
+
+        // Note: HDMI and resolution polling are intentionally disabled to save USB power
+        // and prevent USB drive drops. Only GPIO0 polling is enabled for hardware switch detection.
     }
     catch (...) {
         qCDebug(log_hid_poll)  << "Exception occurred during timer processing";
@@ -976,3 +975,4 @@ int safe_stoi(std::string str, int defaultValue) {
         return defaultValue;
     }
 }
+

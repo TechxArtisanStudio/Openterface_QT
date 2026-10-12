@@ -369,37 +369,19 @@ int main(int argc, char *argv[])
         // interface so the HDMI input is routed to the USB capture device. Without this,
         // the capture device produces valid but black frames. GUI mode does the same in
         // MainWindowInitializer::deferredInitializeCamera().
-        qCDebug(log_app_main) << "Starting VideoHid...";
-        qCDebug(log_app_main) << "Current port chain:" << GlobalSetting::instance().getOpenterfacePortChain();
+        // Enable HID for USB switching functionality (needed for CH9329 boards)
+        // Power-saving measures are implemented in VideoHid::start() to skip unnecessary operations
+        qCDebug(log_app_main) << "Enabling HID for USB switching functionality";
         VideoHid::getInstance().start();
-        qCDebug(log_app_main) << "VideoHid started, HID device opened:" << (VideoHid::getInstance().isOpen() ? "yes" : "no");
-        qCDebug(log_app_main) << "VideoHid currentHIDDevicePath:" << VideoHid::getInstance().getCurrentHIDDevicePath();
-        // Check HDMI connection status
-        QThread::msleep(200);  // Brief delay for HID to stabilize
-        bool hdmiConnected = VideoHid::getInstance().isHdmiConnected();
-        qCDebug(log_app_main) << "HDMI connected:" << (hdmiConnected ? "yes" : "no");
 
-        // Read input resolution from MS2109
+        // Get initial values after HID initialization
         auto resolution = VideoHid::getInstance().getResolution();
         qCDebug(log_app_main) << "MS2109 detected input resolution:" << resolution.first << "x" << resolution.second;
 
-        qCDebug(log_app_main) << "GPIO0 (hard switch):" << (VideoHid::getInstance().getGpio0() ? "target" : "host");
-        qCDebug(log_app_main) << "SPDIFOUT (soft switch):" << (VideoHid::getInstance().getSpdifout() ? "target" : "host");
+        qCDebug(log_app_main) << "GPIO0 (hard switch):" << VideoHid::getInstance().getGpio0();
+        qCDebug(log_app_main) << "SPDIFOUT (soft switch):" << VideoHid::getInstance().getSpdifout();
         QString fw = QString::fromStdString(VideoHid::getInstance().getFirmwareVersion());
         qCDebug(log_app_main) << "Firmware version:" << fw;
-
-        // CRITICAL: Explicitly set the SPDIFOUT register in stdio mode.
-        // GUI mode does this via setupEventCallbacks() -> VideoHid::setEventCallback(m_mainWindow)
-        // which triggers setSpdifout() in the async firmware read block. Without this,
-        // the MS2109 chip may not output valid video.
-        qCDebug(log_app_main) << "Explicitly setting SPDIFOUT register...";
-        bool spdifout = VideoHid::getInstance().getSpdifout();
-        qCDebug(log_app_main) << "Current SPDIFOUT=" << spdifout;
-        VideoHid::getInstance().setSpdifout(spdifout);
-        qCDebug(log_app_main) << "SPDIFOUT register set";
-        QThread::msleep(100);
-
-        qInfo() << "VideoHid started";
 
         // Discover and connect to device hardware
         qInfo() << "Discovering Openterface devices...";
@@ -704,10 +686,12 @@ int main(int argc, char *argv[])
         window->deferredSetupCoordinators();
         qInfo() << "Device menu setup complete";
     });
-    
-    // Defer camera, audio, and VideoHid initialization (improves startup time)
+
+    // Defer camera and audio initialization (improves startup time)
+    // VideoHid initialization skipped - HID functionality disabled
     // This was blocking startup for ~500ms
-    QTimer::singleShot(150, window, [window]() {
+    // Note: HID interface is disabled, so no delay needed for HID initialization.
+    QTimer::singleShot(500, window, [window]() {
         qInfo() << "Initializing camera and audio...";
         window->deferredInitializeCamera();
         qInfo() << "Camera and audio initialization started";

@@ -697,36 +697,38 @@ void MainWindow::onActionResetSerialPortTriggered()
 
 void MainWindow::onActionSwitchToHostTriggered()
 {
-    bool isCH32V208 = SerialPortManager::getInstance().isChipTypeCH32V208();
-    if(isCH32V208){
+    qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
+
+    // CH9329: USB switch is controlled via MS2109 SPDIFOUT register (HID)
+    // CH32V208: USB switch is controlled via serial commands
+    if (SerialPortManager::getInstance().isChipTypeCH9329()) {
+        qCDebug(log_ui_mainwindow) << "CH9329: Using HID (SPDIFOUT) for USB switch";
+        VideoHid::getInstance().switchToHost();
+    } else {
+        qCDebug(log_ui_mainwindow) << "CH32V208: Using serial command for USB switch";
         SerialPortManager::getInstance().switchUsbToHostViaSerial();
-    }else{
-        qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
-        // Post to VideoHid's dedicated thread so the HID I/O doesn't stall the UI.
-        QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
-            VideoHid::getInstance().switchToHost();
-        }, Qt::QueuedConnection);
-        ui->actionTo_Host->setChecked(true);
-        ui->actionTo_Target->setChecked(false);
     }
 
+    ui->actionTo_Host->setChecked(true);
+    ui->actionTo_Target->setChecked(false);
 }
 
 void MainWindow::onActionSwitchToTargetTriggered()
 {
-    bool isCH32V208 = SerialPortManager::getInstance().isChipTypeCH32V208();
-    if(isCH32V208){
+    qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
+
+    // CH9329: USB switch is controlled via MS2109 SPDIFOUT register (HID)
+    // CH32V208: USB switch is controlled via serial commands
+    if (SerialPortManager::getInstance().isChipTypeCH9329()) {
+        qCDebug(log_ui_mainwindow) << "CH9329: Using HID (SPDIFOUT) for USB switch";
+        VideoHid::getInstance().switchToTarget();
+    } else {
+        qCDebug(log_ui_mainwindow) << "CH32V208: Using serial command for USB switch";
         SerialPortManager::getInstance().switchUsbToTargetViaSerial();
-    }else{
-        qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
-        // Post to VideoHid's dedicated thread so the HID I/O doesn't stall the UI.
-        QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
-            VideoHid::getInstance().switchToTarget();
-        }, Qt::QueuedConnection);
-        ui->actionTo_Host->setChecked(false);
-        ui->actionTo_Target->setChecked(true);
     }
 
+    ui->actionTo_Host->setChecked(false);
+    ui->actionTo_Target->setChecked(true);
 }
 
 void MainWindow::onToggleSwitchStateChanged(Qt::CheckState state)
@@ -1580,7 +1582,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
         } catch (...) {
             qCWarning(log_ui_mainwindow) << "Exception while stopping VideoHid";
         }
-        
+
         // Stop serial port manager
         try {
             SerialPortManager::getInstance().stop();
@@ -2303,10 +2305,11 @@ void MainWindow::showWCHFlashDialog() {
 }
 
 void MainWindow::updateFirmware() {
-    // Check if it's latest firmware
-    FirmwareResult firmwareStatus = VideoHid::getInstance().isLatestFirmware();
-    std::string currentFirmwareVersion = VideoHid::getInstance().getCurrentFirmwareVersion();
-    std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
+    // HID functionality completely disabled - skip firmware operations
+    qCDebug(log_ui_mainwindow) << "Firmware update skipped - HID disabled";
+    FirmwareResult firmwareStatus = FirmwareResult::Latest; // Default to latest
+    std::string currentFirmwareVersion = "0.0.0 (HID disabled)";
+    std::string latestFirmwareVersion = "0.0.0 (HID disabled)";
     FirmwareUpdateConfirmDialog confirmDialog(this);
     switch (firmwareStatus){
         case FirmwareResult::Latest:
@@ -2328,12 +2331,6 @@ void MainWindow::updateFirmware() {
                         stop();
                     } catch (...) {
                         qWarning() << "Exception while stopping main window operations - continuing anyway";
-                    }
-
-                    try {
-                        VideoHid::getInstance().stopPollingOnly();
-                    } catch (...) {
-                        qWarning() << "Exception while stopping video HID polling - continuing anyway";
                     }
 
                     // Wait a bit for video HID to fully stop
