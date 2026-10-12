@@ -67,6 +67,14 @@ public:
      */
     QString runBashCommand(const QString &command) const;
 
+    /**
+     * @brief Fetch the content of a URL and return extracted text.
+     * @param url The URL to fetch
+     * @param maxLength Maximum characters to return (default 8000)
+     * @return Extracted text content or error message prefixed with "web_fetch: error:"
+     */
+    QString fetchUrlContent(const QString &url, int maxLength = 8000) const;
+
 signals:
     /// Emitted when a tool produces a log message
     void toolLogMessage(const QString &message);

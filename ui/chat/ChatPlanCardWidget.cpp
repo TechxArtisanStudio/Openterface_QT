@@ -64,5 +64,25 @@ void ChatPlanCardWidget::updateContent()
 
     bool canApprove = (m_plan.status == ChatPlanStatus::AwaitingApproval);
     m_approveBtn->setEnabled(canApprove);
-    m_approveBtn->setText(canApprove ? "Approve & Run" : chatPlanStatusToString(m_plan.status));
+
+    if (canApprove) {
+        // Green button when clickable
+        m_approveBtn->setText("Approve & Run");
+        m_approveBtn->setStyleSheet("background-color: #28a745; color: white; padding: 6px;");
+    } else {
+        QString statusText = chatPlanStatusToString(m_plan.status);
+        // Capitalize first letter
+        if (!statusText.isEmpty()) {
+            statusText[0] = statusText[0].toUpper();
+        }
+        m_approveBtn->setText(statusText);
+
+        // Normal grey button with green text when completed
+        if (m_plan.status == ChatPlanStatus::Completed) {
+            m_approveBtn->setStyleSheet("background-color: #f0f0f0; color: #28a745; padding: 6px; border: 1px solid #ccc;");
+        } else {
+            // Normal grey button for other non-clickable states
+            m_approveBtn->setStyleSheet("background-color: #f0f0f0; color: #333; padding: 6px; border: 1px solid #ccc;");
+        }
+    }
 }

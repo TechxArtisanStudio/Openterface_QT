@@ -73,6 +73,12 @@ private:
      * portion, preserving any text before or after the JSON block.
      */
     QString stripToolCallJson(const QString &text) const;
+
+    /**
+     * @brief Build the available tools string based on enabled settings.
+     * @return Formatted string listing available tools with descriptions
+     */
+    QString buildAvailableToolsString() const;
 };
 
 #endif // CHAT_CONVERSATION_BUILDER_H

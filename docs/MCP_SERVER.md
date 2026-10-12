@@ -169,6 +169,84 @@ KeyboardManager::handleKeyboardAction()
 SerialPortManager → USB serial → CH9329/CH32V208 chip → target computer
 ```
 
+### 2.4 Shared Tool Executor Architecture
+
+The MCP server and AI Chat system share a common tool execution layer through the `SharedToolExecutor` singleton. This ensures consistent behavior between MCP tool calls and AI Chat tool execution while eliminating code duplication.
+
+#### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────┐
+│              SharedToolExecutor (Singleton)          │
+│                                                     │
+│  Core Methods:                                      │
+│  - detectCursor()          Terminal idle detection  │
+│  - runCommandAndWait()     Execute + poll for idle  │
+│  - screenToMarkdown()      OCR-based screen text    │
+│  - differentialAnalysis()  Change detection         │
+│  - captureScreen()         Screenshot capture       │
+│  - typeText()              Keyboard input           │
+│  - pressKey()              Key combinations         │
+│  - mouseClick()            Mouse actions            │
+└─────────────────────────────────────────────────────┘
+         ▲                    ▲
+         │                    │
+    ┌────┴────┐          ┌────┴────┐
+    │   MCP   │          │AI Chat  │
+    │ Handler │          │ System  │
+    └─────────┘          └─────────┘
+```
+
+#### Key Benefits
+
+1. **Consistent Behavior**: Tools behave identically whether called via MCP or AI Chat
+2. **Code Reuse**: Single implementation for both systems
+3. **Maintainability**: Bug fixes apply to both MCP and AI Chat
+4. **Performance**: Shared resources (camera, screen analyzer)
+
+#### Used By
+
+**MCP Tool Handler** (`server/mcp/mcpToolHandler.cpp`):
+- All MCP tools delegate to `SharedToolExecutor`
+- Example: `toolCaptureScreen()` → `SharedToolExecutor::instance().captureScreen(args)`
+
+**AI Chat System** (`ai/ChatToolExecution.cpp`):
+- All AI Chat tools delegate to `SharedToolExecutor`
+- Example: `executeTool(capture_screen)` → `SharedToolExecutor::instance().captureScreen(args)`
+
+#### Core Capabilities
+
+| Capability | MCP Tool | AI Chat Tool | Description |
+|------------|----------|--------------|-------------|
+| Terminal Detection | N/A | N/A | `detectCursor()` - Cursor blink analysis |
+| Command Execution | `run_command_and_wait` | `run_bash` | Execute + wait for completion |
+| Screen Analysis | `screen_to_markdown` | `screen_to_markdown` | OCR-based text extraction |
+| Change Detection | N/A | N/A | `differentialAnalysis()` - Screen diff |
+| Screen Capture | `capture_screen` | `capture_screen` | Screenshot capture |
+| Keyboard Input | `keyboard_type_text` | `type_text` | Text input |
+| Key Combinations | `keyboard_press_key` | `press_key` | Key presses |
+| Mouse Actions | `mouse_click` | `left_click`/`right_click` | Mouse control |
+
+#### Initialization
+
+The `SharedToolExecutor` is initialized during application startup:
+
+1. `MainWindow` creates `CameraManager`
+2. `MainWindow` injects it into `SharedToolExecutor`: `SharedToolExecutor::instance().setCameraManager(cam)`
+3. Both MCP and AI Chat systems can now access the shared instance
+
+#### Thread Safety
+
+The `SharedToolExecutor` is thread-safe for concurrent access from:
+- MCP server threads (multiple transports)
+- AI Chat background worker thread
+- Main GUI thread (for screen capture)
+
+Internal synchronization ensures:
+- Camera frame access is serialized
+- Shared state is protected
+- Resource cleanup is coordinated
+
 ---
 
 ## 3. Prerequisites & Setup
@@ -2567,6 +2645,18 @@ server/
 │   ├── mcpToolHandler.h/cpp  — Tool registry: listTools() and callTool() dispatch
 │   ├── mcpServer.h/cpp       — Top-level server: transport lifecycle, dependency injection
 │   └── mcpSseTransport.h/cpp — SSE HTTP transport: QHttpServer, session mgmt, keepalives
+
+ai/
+├── ChatTypes.h               — Core data types (ChatMessage, ChatCompletionResult, etc.)
+├── ChatManager.h/cpp         — Main orchestrator singleton
+├── ChatApiClient.h/cpp       — OpenAI-compatible HTTP client with native function calling
+├── ChatToolExecution.h/cpp   — Parses and executes tool calls (native + legacy formats)
+├── ChatScreenCapture.h/cpp   — Captures target screen frames
+├── ChatInputRouter.h/cpp     — Routes mouse/keyboard to target via HID
+├── SharedToolExecutor.h/cpp  — Shared tool execution layer for MCP and AI Chat
+├── WebSearchManager.h/cpp    — Multi-provider web search orchestration
+├── WebSearchProviders.h/cpp  — Concrete search provider implementations
+└── WebSearchProvider.h       — Base search provider interface
 ```
 
 ---

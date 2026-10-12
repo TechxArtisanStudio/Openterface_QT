@@ -25,8 +25,10 @@
 
 #include <QObject>
 #include <QNetworkAccessManager>
+#include <QNetworkReply>
 #include <QUrl>
 #include <QString>
+#include <atomic>
 #include <functional>
 #include "ChatTypes.h"
 
@@ -68,6 +70,22 @@ public:
      */
     void cancelAll();
 
+    // ------------------------------------------------------------------
+    // Rate-limit (HTTP 429) awareness
+    //
+    // When the API responds with 429 we don't just report the error — we
+    // record a cooldown window (from Retry-After when present, otherwise an
+    // exponential backoff that grows with each consecutive 429) so callers
+    // can pause before issuing further requests instead of hammering the
+    // upstream. Any successful 2xx response clears the state.
+    // ------------------------------------------------------------------
+
+    /** True while we are inside a rate-limit cooldown window. Thread-safe. */
+    bool isRateLimited() const;
+
+    /** Milliseconds remaining in the current cooldown (0 if not limited). */
+    qint64 rateLimitRemainingMs() const;
+
 signals:
     /**
      * @brief Emitted when a request starts (for logging/tracing).
@@ -80,7 +98,18 @@ signals:
     void responseReceived(int httpStatus, int bodyBytes);
 
 private:
+    // Called from the finished handler whenever we observe an HTTP 429.
+    void recordRateLimit(int httpStatus, const QNetworkReply *reply);
+    // Called from the finished handler on any successful 2xx response.
+    void clearRateLimit();
+
     QNetworkAccessManager *m_networkManager;
+
+    /// Epoch-ms timestamp when the current cooldown expires (0 = not limited).
+    /// Atomic so the status can be read from worker threads.
+    std::atomic<qint64> m_rateLimitUntilMs{0};
+    /// Consecutive 429 responses seen; drives the exponential backoff.
+    std::atomic<int> m_consecutive429Count{0};
 
     /// Internal: actually perform the HTTP post. Always runs on the main thread.
     void doPost(

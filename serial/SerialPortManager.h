@@ -543,7 +543,7 @@ private:
     }
     
     // Command-based baudrate change for CH9329 and unknown chips
-    void applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix);
+    bool applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix);
     
     // Command tracking methods
     void checkCommandLossRate();

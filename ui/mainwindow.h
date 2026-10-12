@@ -257,6 +257,9 @@ private slots:
     // and get forwarded to the target instead of being intercepted by the app.
     void syncShortcutsState();
 
+    // Register all UI actions with ShortcutManager for unified control
+    void registerUIActions();
+
 protected:
     void closeEvent(QCloseEvent *event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -385,6 +388,16 @@ private:
 
     // --- AI Chat Window ---
     class ChatWindow *m_chatWindow = nullptr;
+    bool m_chatWindowWasVisibleBeforeMaximize = false;
+    bool m_chatWindowSnapped = false;          // Chat is docked to main window's right edge
+    bool m_programmaticChatMove = false;       // Suppress event-filter during programmatic moves
+
+    /// Reposition the chat window so it stays docked to the right side of the
+    /// main window (matching main window height, with a small gap).
+    void updateChatWindowGeometry();
+
+    // Helper function to ensure window position is on-screen after restoring from settings
+    void adjustPositionToScreen();
 
 public:
     CameraManager* getCameraManager() const { return m_cameraManager; }
@@ -398,6 +411,7 @@ public slots:
     void toggleMcpServer(bool enabled);
     void onMcpSettingsApplied();
     void toggleChatWindow(bool visible);
+    bool isChatWindowVisible() const;
 
 };
 #endif // MAINWINDOW_H

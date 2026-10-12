@@ -260,6 +260,8 @@ void McpServer::sendResponse(const QJsonObject& response, QIODevice* device)
 
 bool McpServer::startStdio()
 {
+    fprintf(stderr, "[DEBUG-MCP-START] startStdio() called\n");
+    fflush(stderr);
     qCDebug(log_server_mcp) << "startStdio() called";
     if (m_stdioMode) {
         qCWarning(log_server_mcp) << "MCP stdio mode already active";
@@ -312,6 +314,8 @@ bool McpServer::startStdio()
 
 void McpServer::onStdinReadyRead()
 {
+    fprintf(stderr, "[DEBUG-MCP-TIMER] onStdinReadyRead called\n");
+    fflush(stderr);
     qCDebug(log_server_mcp) << "[DEBUG-MCP] onStdinReadyRead called";
     if (!m_stdinFile || !m_stdoutFile) {
         qCDebug(log_server_mcp) << "[DEBUG-MCP] stdin or stdout file not open";

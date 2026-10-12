@@ -32,9 +32,12 @@ void ChatScreenCapture::setCameraManager(CameraManager *cam)
 QString ChatScreenCapture::tempFilePath() const
 {
     QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    // Use a subdirectory to keep /tmp clean
+    QString openterfaceDir = QDir(dir).filePath("openterface");
+    QDir().mkpath(openterfaceDir);
     QString filename = QString("openterface_chat_%1.jpg")
         .arg(QDateTime::currentMSecsSinceEpoch());
-    return QDir(dir).filePath(filename);
+    return QDir(openterfaceDir).filePath(filename);
 }
 
 QString ChatScreenCapture::captureScreen()

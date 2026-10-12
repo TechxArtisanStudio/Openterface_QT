@@ -1,9 +1,10 @@
-/* generated — contains angle-bracket literals via unicode escapes */
 #ifndef CHAT_EMPTY_STATE_WIDGET_H
 #define CHAT_EMPTY_STATE_WIDGET_H
 
 #include <QWidget>
 #include <QVBoxLayout>
+#include <QGridLayout>
+#include <QLayout>
 #include <QPushButton>
 #include <QLabel>
 #include "ai/ChatTypes.h"
@@ -25,12 +26,15 @@ public:
 signals:
     void skillClicked(const QString &skillId);
 
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override;
+
 private:
     void rebuildButtons();
 
     QVBoxLayout *m_layout;
     QWidget *m_buttonContainer;
-    QVBoxLayout *m_buttonLayout;
+    QGridLayout *m_buttonLayout;
     QList<ChatSkill> m_skills;
 };
 

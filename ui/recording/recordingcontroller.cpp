@@ -70,11 +70,29 @@ RecordingController::RecordingController(CameraManager *cameraManager, StatusBar
 RecordingController::~RecordingController()
 {
     qCDebug(log_ui_recordingcontroller) << "Destroying RecordingController";
-    
+
     // Stop recording if still active
     if (m_isRecording) {
         stopRecording();
     }
+}
+
+RecordingController &RecordingController::instance()
+{
+    static RecordingController *inst = nullptr;
+    if (!inst) {
+        // Find the MainWindow and get its RecordingController
+        for (QWidget *widget : QApplication::topLevelWidgets()) {
+            if (MainWindow *mainWin = qobject_cast<MainWindow*>(widget)) {
+                inst = mainWin->findChild<RecordingController*>();
+                if (inst) break;
+            }
+        }
+        if (!inst) {
+            qCCritical(log_ui_recordingcontroller) << "RecordingController::instance() called before initialization!";
+        }
+    }
+    return *inst;
 }
 
 bool RecordingController::isRecording() const

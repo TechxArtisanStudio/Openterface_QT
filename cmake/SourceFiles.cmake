@@ -203,6 +203,7 @@ set(UI_CORE_SOURCES
     ui/inputhandler.cpp ui/inputhandler.h
     ui/loghandler.cpp ui/loghandler.h
     ui/mainwindow.cpp ui/mainwindow.h ui/mainwindow.ui
+    ui/ShortcutManager.cpp ui/ShortcutManager.h
     ui/videopane.cpp ui/videopane.h
     ui/languagemanager.cpp ui/languagemanager.h
     ui/screensavermanager.cpp ui/screensavermanager.h
@@ -316,34 +317,6 @@ set(UI_PREFERENCES_SOURCES
     ui/preferences/edidconfigpage.cpp ui/preferences/edidconfigpage.h
 )
 
-# AI chat backend sources
-set(AI_SOURCES
-    ai/ChatTypes.h
-    ai/ChatApiClient.cpp ai/ChatApiClient.h
-    ai/ChatManager.cpp ai/ChatManager.h
-    ai/ChatInputRouter.cpp ai/ChatInputRouter.h
-    ai/ChatScreenCapture.cpp ai/ChatScreenCapture.h
-    ai/ChatConversationBuilder.cpp ai/ChatConversationBuilder.h
-    ai/ChatToolExecution.cpp ai/ChatToolExecution.h
-    ai/ChatAgentTypes.cpp ai/ChatAgentTypes.h
-    ai/ChatPersistence.cpp ai/ChatPersistence.h
-    ai/ChatTracing.cpp ai/ChatTracing.h
-    ai/ChatSkillManager.cpp ai/ChatSkillManager.h
-    ai/ChatGuideMode.cpp ai/ChatGuideMode.h
-)
-
-# AI chat UI sources
-set(UI_CHAT_SOURCES
-    ui/chat/ChatWindow.cpp ui/chat/ChatWindow.h
-    ui/chat/ChatBubbleWidget.cpp ui/chat/ChatBubbleWidget.h
-    ui/chat/ChatInputWidget.cpp ui/chat/ChatInputWidget.h
-    ui/chat/ChatPlanCardWidget.cpp ui/chat/ChatPlanCardWidget.h
-    ui/chat/ChatSkillBar.cpp ui/chat/ChatSkillBar.h
-    ui/chat/ChatTraceDialog.cpp ui/chat/ChatTraceDialog.h
-    ui/chat/ChatSettingsPage.cpp ui/chat/ChatSettingsPage.h
-    ui/chat/QuickReplyWidget.h
-)
-
 # Log infrastructure
 set(LOG_SOURCES
     log/logcategoryregistry.cpp log/logcategoryregistry.h
@@ -357,6 +330,7 @@ set(AI_SOURCES
     ai/ChatManager.cpp ai/ChatManager.h
     ai/ChatInputRouter.cpp ai/ChatInputRouter.h
     ai/ChatScreenCapture.cpp ai/ChatScreenCapture.h
+    ai/SharedToolExecutor.cpp ai/SharedToolExecutor.h
     ai/ChatConversationBuilder.cpp ai/ChatConversationBuilder.h
     ai/ChatToolExecution.cpp ai/ChatToolExecution.h
     ai/ChatAgentTypes.cpp ai/ChatAgentTypes.h
@@ -364,6 +338,13 @@ set(AI_SOURCES
     ai/ChatTracing.cpp ai/ChatTracing.h
     ai/ChatSkillManager.cpp ai/ChatSkillManager.h
     ai/ChatGuideMode.cpp ai/ChatGuideMode.h
+    ai/ChatTaskScheduler.cpp ai/ChatTaskScheduler.h
+    ai/ChatSchedulerPersistence.cpp ai/ChatSchedulerPersistence.h
+    ai/WebSearchProvider.h
+    ai/WebSearchProviders.cpp ai/WebSearchProviders.h
+    ai/WebSearchManager.cpp ai/WebSearchManager.h
+    ai/bios_focus_detector/bios_focus_detector.c
+    ai/bios_focus_detector/bios_focus_detector.h
 )
 
 # AI chat UI sources
@@ -376,6 +357,7 @@ set(UI_CHAT_SOURCES
     ui/chat/ChatEmptyStateWidget.cpp ui/chat/ChatEmptyStateWidget.h
     ui/chat/ChatTraceDialog.cpp ui/chat/ChatTraceDialog.h
     ui/chat/ChatSettingsPage.cpp ui/chat/ChatSettingsPage.h
+    ui/chat/ToolsSettingsPage.cpp ui/chat/ToolsSettingsPage.h
     ui/chat/QuickReplyWidget.h
 )
 

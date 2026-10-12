@@ -125,6 +125,86 @@ public:
 };
 
 // ============================================================================
+// PressKeyTaskAgent - Determines keyboard shortcut to press
+// ============================================================================
+class PressKeyTaskAgent : public TaskAgentExecutor
+{
+public:
+    QString agentName() const override { return "typing"; }
+    QString toolName() const override { return "press_key"; }
+    QString prompt() const override;
+
+    QList<ChatApiMessage> buildTaskConversation(
+        const QString &systemPrompt,
+        const ChatExecutionPlan &plan,
+        const ChatTask &task,
+        const QString &imageDataURL = QString()
+    ) const override;
+
+    void applyResponse(const QString &response, ChatTask &task) override;
+};
+
+// ============================================================================
+// ScreenToMarkdownTaskAgent - Extracts text using OCR
+// ============================================================================
+class ScreenToMarkdownTaskAgent : public TaskAgentExecutor
+{
+public:
+    QString agentName() const override { return "screen"; }
+    QString toolName() const override { return "screen_to_markdown"; }
+    QString prompt() const override;
+
+    QList<ChatApiMessage> buildTaskConversation(
+        const QString &systemPrompt,
+        const ChatExecutionPlan &plan,
+        const ChatTask &task,
+        const QString &imageDataURL = QString()
+    ) const override;
+
+    void applyResponse(const QString &response, ChatTask &task) override;
+};
+
+// ============================================================================
+// RunBashTaskAgent - Executes bash command on host
+// ============================================================================
+class RunBashTaskAgent : public TaskAgentExecutor
+{
+public:
+    QString agentName() const override { return "system"; }
+    QString toolName() const override { return "run_bash"; }
+    QString prompt() const override;
+
+    QList<ChatApiMessage> buildTaskConversation(
+        const QString &systemPrompt,
+        const ChatExecutionPlan &plan,
+        const ChatTask &task,
+        const QString &imageDataURL = QString()
+    ) const override;
+
+    void applyResponse(const QString &response, ChatTask &task) override;
+};
+
+// ============================================================================
+// WebSearchTaskAgent - Searches the internet
+// ============================================================================
+class WebSearchTaskAgent : public TaskAgentExecutor
+{
+public:
+    QString agentName() const override { return "system"; }
+    QString toolName() const override { return "web_search"; }
+    QString prompt() const override;
+
+    QList<ChatApiMessage> buildTaskConversation(
+        const QString &systemPrompt,
+        const ChatExecutionPlan &plan,
+        const ChatTask &task,
+        const QString &imageDataURL = QString()
+    ) const override;
+
+    void applyResponse(const QString &response, ChatTask &task) override;
+};
+
+// ============================================================================
 // MouseTaskAgent - Determines click/move coordinates
 // ============================================================================
 class MouseTaskAgent : public TaskAgentExecutor

@@ -31,6 +31,7 @@
 #include <QTextEdit>
 #include <QGroupBox>
 #include <QLabel>
+#include <QCheckBox>
 
 /**
  * Preferences page for AI Chat settings.
@@ -41,6 +42,9 @@
  *   - Chat mode (Chat/Agent/Planner/Guide)
  *   - Agent max iterations
  *   - System prompt, Planner prompt, Guide prompt
+ *
+ * Note: Tools configuration and Web Search Provider configuration
+ * have been moved to ToolsSettingsPage.
  *
  * Inherits PreferencePageBase so it gets an Apply/Revert/Cancel button bar
  * with dirty-state tracking.
@@ -72,7 +76,7 @@ private:
     QComboBox   *m_targetSystemCombo;
     QSpinBox    *m_agentMaxIterationsSpin;
 
-    // Typing/Paste settings
+    // Typing/Paste Settings
     QSpinBox    *m_typingDelaySpin;
     QSpinBox    *m_batchSizeSpin;
     QSpinBox    *m_mouseToKeyboardDelaySpin;

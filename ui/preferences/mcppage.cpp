@@ -214,6 +214,7 @@ void McpPage::setupUI()
     connect(m_enableCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
     connect(m_transportCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this]{ checkDirtyState(); });
+    connect(m_screenToMarkdownCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
     connect(m_ssePortSpin, QOverload<int>::of(&QSpinBox::valueChanged),
             this, [this]{ checkDirtyState(); });
     connect(m_sseBindPresetCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -422,6 +423,7 @@ bool McpPage::valuesMatchSnapshot() const
 {
     return m_enableCheckBox->isChecked() == m_snap_enableChecked
         && m_transportCombo->currentIndex() == m_snap_transportIndex
+        && m_screenToMarkdownCheckBox->isChecked() == m_snap_screenToMarkdownChecked
         && m_ssePortSpin->value() == m_snap_ssePort
         && m_sseBindPresetCombo->currentIndex() == m_snap_sseBindPresetIndex
         && m_sseBindCustomEdit->text() == m_snap_sseBindCustom

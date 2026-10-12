@@ -51,14 +51,36 @@ void ChatSkillManager::seedAndLoad()
         dir.mkpath(folder);
     }
 
-    // Write each built-in skill as a JSON file if it isn't there already
+    // Write each built-in skill as a JSON file if it isn't there already,
+    // or update it if it's missing the description field (migration for older versions)
     QList<ChatSkill> builtins = builtInSkills();
     for (const auto &skill : builtins) {
         QString filePath = QDir(folder).filePath(skill.id + ".json");
+        bool shouldWrite = false;
+        ChatSkill skillToWrite = skill;
+        
         if (!QFile::exists(filePath)) {
+            shouldWrite = true;
+        } else {
+            // Check if existing file is missing description
+            QFile readFile(filePath);
+            if (readFile.open(QIODevice::ReadOnly)) {
+                QJsonDocument doc = QJsonDocument::fromJson(readFile.readAll());
+                readFile.close();
+                QJsonObject obj = doc.object();
+                if (!obj.contains("description") && !skill.description.isEmpty()) {
+                    shouldWrite = true;
+                    // Preserve user customizations from old file
+                    if (obj.contains("userLabel")) {
+                        skillToWrite.userLabel = obj["userLabel"].toString();
+                    }
+                }
+            }
+        }
+        if (shouldWrite) {
             QFile file(filePath);
             if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-                QJsonDocument doc(skill.toJson());
+                QJsonDocument doc(skillToWrite.toJson());
                 file.write(doc.toJson(QJsonDocument::Indented));
                 file.close();
             }
@@ -151,11 +173,13 @@ QList<ChatSkill> ChatSkillManager::builtInSkills() const
     // acting — it needs to know whether a terminal is already open, etc.
 
     auto makeSkill = [](const QString &id, const QString &name,
-                        const QString &prompt, bool capture = true) {
+                        const QString &prompt, const QString &description,
+                        bool capture = true) {
         ChatSkill s;
         s.id = id;
         s.name = name;
         s.prompt = prompt;
+        s.description = description;
         s.captureScreen = capture;
         return s;
     };
@@ -164,28 +188,44 @@ QList<ChatSkill> ChatSkillManager::builtInSkills() const
         makeSkill("check-ip", "Check IP",
             "Check the IP address configuration on the target machine. "
             "Open a terminal if needed, run 'ip addr' (or 'ifconfig'), and report "
-            "all network interfaces and their IP addresses."),
+            "all network interfaces and their IP addresses.",
+            "View network interfaces and IP addresses"),
 
         makeSkill("enable-ssh", "Enable SSH",
             "Enable and start the SSH server on the target machine. "
             "If on a Debian/Ubuntu-based system, run: sudo apt install -y openssh-server && sudo systemctl enable --now ssh. "
             "If on a RHEL/Fedora-based system, run: sudo dnf install -y openssh-server && sudo systemctl enable --now sshd. "
-            "Then verify it's running with 'systemctl status ssh' (or 'sshd') and report the result."),
+            "Then verify it's running with 'systemctl status ssh' (or 'sshd') and report the result.",
+            "Install and start SSH server"),
 
         makeSkill("check-disk", "Check Disk",
             "Check disk space usage on the target machine. "
-            "Open a terminal if needed, run 'df -h', and report the disk usage for all mounted filesystems."),
+            "Open a terminal if needed, run 'df -h', and report the disk usage for all mounted filesystems.",
+            "Show disk space usage"),
 
         makeSkill("check-memory", "Check Memory",
             "Check memory usage on the target machine. "
-            "Open a terminal if needed, run 'free -h', and report total, used, and available memory."),
+            "Open a terminal if needed, run 'free -h', and report total, used, and available memory.",
+            "Show RAM usage statistics"),
 
         makeSkill("check-system", "System Info",
             "Show system information on the target machine. "
-            "Open a terminal if needed, run 'uname -a' and 'cat /etc/os-release', and report the OS name, version, kernel, and architecture."),
+            "Open a terminal if needed, run 'uname -a' and 'cat /etc/os-release', and report the OS name, version, kernel, and architecture.",
+            "Display OS and kernel details"),
 
         makeSkill("check-network", "Network Ports",
             "Check listening network ports and connections on the target machine. "
-            "Open a terminal if needed, run 'ss -tuln', and report all listening ports and their associated services."),
+            "Open a terminal if needed, run 'ss -tuln', and report all listening ports and their associated services.",
+            "List listening ports and services"),
+
+        makeSkill("disable-screen-lock", "Disable Screen Lock",
+            "Disable screen lock and screen blanking on the target machine to keep it always on. "
+            "Open a terminal if needed and run the following commands:\n"
+            "1. Disable screen blanking: 'xset s off' and 'xset -dpms'\n"
+            "2. Disable screen lock (GNOME): 'gsettings set org.gnome.desktop.session idle-delay 0'\n"
+            "3. Disable auto-suspend: 'gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing''\n"
+            "For other desktop environments, use 'xset s off -dpms' and configure the DE's power settings accordingly. "
+            "Report the commands executed and their results.",
+            "Prevent screen from turning off"),
     };
 }
