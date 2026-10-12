@@ -1,6 +1,7 @@
 ﻿#include "videohid.h"
 #include "firmwarereader.h"
 #include "videohidchip.h"
+#include "../device/DeviceManager.h"
 #include <QThread>
 #include <QDebug>
 #include "log/opflogging.h"
@@ -236,6 +237,18 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data,
 
     // Allow background reads to resume before restarting the polling thread.
     m_flashInProgress.store(false, std::memory_order_release);
+
+    // After a firmware write (successful or not), the device may re-enumerate with a
+    // different HID interface. Clear the cached device path so the next open() call
+    // forces fresh device discovery instead of using a potentially stale path.
+    clearDevicePathCache();
+
+    if (!success) {
+        // On failure, the device may be in an undefined state (especially MS2130S).
+        // Force a fresh device discovery after a brief delay to let Windows re-enumerate.
+        qCInfo(log_hid_firmware) << "writeEeprom: firmware write failed, clearing caches and forcing re-discovery";
+        DeviceManager::getInstance().discoverDevices();
+    }
 
     if (hadPolling) {
         // After MS2130S firmware flash the device needs a power cycle to boot the new

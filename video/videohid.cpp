@@ -515,27 +515,39 @@ bool VideoHid::beginTransaction() {
     }
     
     // We'll retry a few times in case of temporary device issues
-    const int MAX_RETRIES = 3;
+    const int MAX_RETRIES = 5;
     bool success = false;
-    
+
     for (int attempt = 0; attempt < MAX_RETRIES && !success; attempt++) {
         if (attempt > 0) {
             qCDebug(log_hid_device) << "Retry attempt" << attempt << "to open HID device";
-            // Wait a short time between retries
-            QThread::msleep(100); 
+            // Wait between retries - longer delay to allow HID interface re-enumeration
+            // especially after MS2130S firmware burn failures
+            QThread::msleep(500);
         }
-        
+
         success = m_deviceTransport ? m_deviceTransport->open() : false;
     }
 
     if (success) {
         m_inTransaction = true;
-        
+
+        // If the device path was discovered by the transport (e.g. via VID/PID fallback)
+        // but not yet stored in m_currentHIDDevicePath, sync it now so that detectChipType()
+        // and other code can use the correct path.
+        if (m_currentHIDDevicePath.isEmpty() && m_deviceTransport) {
+            QString transportPath = m_deviceTransport->getHIDDevicePath();
+            if (!transportPath.isEmpty()) {
+                m_currentHIDDevicePath = transportPath;
+                qCDebug(log_hid_detect) << "Synced device path from transport:" << transportPath;
+            }
+        }
+
         // Detect chip type if it's unknown
         if (m_chipType == VideoChipType::UNKNOWN) {
             detectChipType();
             qCDebug(log_hid_detect) << "Detected chip type:" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
-            
+
             // Add stabilization delay for both chip types to ensure device is ready
             if (m_chipImpl && m_chipImpl->type() == VideoChipType::MS2130S) {
                 qCDebug(log_hid_device) << "Performing MS2130S-specific initialization";
@@ -545,7 +557,7 @@ bool VideoHid::beginTransaction() {
                 QThread::msleep(100);
             }
         }
-        
+
         qCDebug(log_hid_device)  << "HID transaction started";
         return true;
     } else {
@@ -702,8 +714,10 @@ QString VideoHid::findMatchingHIDDevice(const QString& portChain) const
     DeviceManager& deviceManager = DeviceManager::getInstance();
     
     // Retry logic for HID device detection - HID devices may take time to enumerate after hotplug
-    const int maxRetries = 3;
-    const int retryDelayMs = 200; // 200ms delay between retries
+    // After a firmware burn failure on MS2130S the chip may need several seconds to re-enumerate
+    // its HID interface, so we use generous timeouts here.
+    const int maxRetries = 8;
+    const int retryDelayMs = 500; // 500ms delay between retries (total ~4s)
     
     for (int retry = 0; retry < maxRetries; ++retry) {
         if (retry > 0) {
@@ -881,6 +895,21 @@ FirmwareResult VideoHid::isLatestFirmware() {
         qCWarning(log_hid_firmware) << "TLS/SSL not available - skipping firmware check";
         fireware_result = FirmwareResult::CheckFailed;
         return FirmwareResult::CheckFailed;
+    }
+
+    // If chip type is still unknown (e.g. device was in recovery mode when first detected),
+    // try to detect it now before selecting firmware.
+    if (m_chipType == VideoChipType::UNKNOWN) {
+        qCDebug(log_hid_firmware) << "Chip type unknown before firmware check, attempting re-detection";
+        if (m_currentHIDDevicePath.isEmpty() && m_deviceTransport) {
+            QString transportPath = m_deviceTransport->getHIDDevicePath();
+            if (!transportPath.isEmpty()) {
+                m_currentHIDDevicePath = transportPath;
+                qCDebug(log_hid_firmware) << "Synced device path from transport for chip detection:" << transportPath;
+            }
+        }
+        detectChipType();
+        qCDebug(log_hid_firmware) << "Re-detection result:" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
     }
 
     qCDebug(log_hid_firmware) << "Checking for latest firmware...";
