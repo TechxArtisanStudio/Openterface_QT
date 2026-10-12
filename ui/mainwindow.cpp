@@ -1292,6 +1292,32 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
     return QMainWindow::eventFilter(watched, event);
 }
 
+void MainWindow::changeEvent(QEvent *event)
+{
+    QMainWindow::changeEvent(event);
+
+    // Handle application and window focus loss events to release all keys
+    if (event->type() == QEvent::ApplicationDeactivate ||
+        event->type() == QEvent::WindowDeactivate ||
+        event->type() == QEvent::FocusOut) {
+        // When application or window loses focus, release all keys to prevent stuck keys
+        qCInfo(log_ui_mainwindow) << "Application/window deactivated or focus out - releasing all keys";
+        HostManager::getInstance().releaseAllKeys();
+    }
+    // Also handle window state changes (like minimization)
+    else if (event->type() == QEvent::WindowStateChange) {
+        QWindowStateChangeEvent *windowStateEvent = static_cast<QWindowStateChangeEvent*>(event);
+        // Check if window is minimized
+        if (windowStateEvent->oldState() & Qt::WindowMinimized) {
+            // Window was minimized, now restored - no action needed
+        } else if (this->windowState() & Qt::WindowMinimized) {
+            // Window is now minimized - release keys
+            qCInfo(log_ui_mainwindow) << "Window minimized - releasing all keys";
+            HostManager::getInstance().releaseAllKeys();
+        }
+    }
+}
+
 void MainWindow::record()
 {
     // Use the recording controller if available, otherwise fall back to CameraManager

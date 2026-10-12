@@ -261,6 +261,7 @@ void HostManager::handleKeyboardAction(int keyCode, int modifiers, bool isKeyDow
 
 void HostManager::releaseAllKeys()
 {
+    qCInfo(log_core_host) << "releaseAllKeys() called - clearing all keyboard state";
     keyboardManager.releaseAllKeys();
 }
 

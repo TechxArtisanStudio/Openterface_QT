@@ -308,8 +308,19 @@ std::wstring WindowsHIDTransport::getHIDDevicePathW()
         }
     }
 
-    // Fallback: enumerate all HID devices looking for known VID/PID 0x534D:0x2109
+    // Fallback: enumerate all HID devices looking for known VID/PID pairs
+    // MS2109: 0x534D:0x2109, MS2130S: 0x345F:0x2132
+    // MS2130S recovery/DFU mode after flash failure: 0x345F:0x0001
     qCDebug(log_win_transport) << "Falling back to VID/PID enumeration for HID device discovery";
+
+    // Known chip VID/PID pairs to search for
+    struct VidPid { uint16_t vid; uint16_t pid; const char* name; };
+    static const VidPid knownChips[] = {
+        { 0x345F, 0x2132, "MS2130S" },
+        { 0x345F, 0x0001, "MS2130S Recovery/DFU" },  // Post-flash failure state
+        { 0x345F, 0x2109, "MS2109S" },
+        { 0x534D, 0x2109, "MS2109"  },
+    };
 
     GUID hidGuid;
     HidD_GetHidGuid(&hidGuid);
@@ -340,13 +351,19 @@ std::wstring WindowsHIDTransport::getHIDDevicePathW()
                                   NULL, OPEN_EXISTING, 0, NULL);
             if (h != INVALID_HANDLE_VALUE) {
                 HIDD_ATTRIBUTES attr; attr.Size = sizeof(attr);
-                if (HidD_GetAttributes(h, &attr) &&
-                    attr.VendorID == 0x534D && attr.ProductID == 0x2109) {
-                    std::wstring path = detail->DevicePath;
-                    CloseHandle(h);
-                    free(detail);
-                    SetupDiDestroyDeviceInfoList(deviceInfoSet);
-                    return path;
+                if (HidD_GetAttributes(h, &attr)) {
+                    for (const auto& chip : knownChips) {
+                        if (attr.VendorID == chip.vid && attr.ProductID == chip.pid) {
+                            qCDebug(log_win_transport) << "Fallback found" << chip.name
+                                << "device (VID:" << QString("0x%1").arg(attr.VendorID, 4, 16, QChar('0'))
+                                << "PID:" << QString("0x%1").arg(attr.ProductID, 4, 16, QChar('0')) << ")";
+                            std::wstring path = detail->DevicePath;
+                            CloseHandle(h);
+                            free(detail);
+                            SetupDiDestroyDeviceInfoList(deviceInfoSet);
+                            return path;
+                        }
+                    }
                 }
                 CloseHandle(h);
             }
