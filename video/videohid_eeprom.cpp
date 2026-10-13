@@ -1,6 +1,8 @@
 ﻿#include "videohid.h"
 #include "firmwarereader.h"
 #include "videohidchip.h"
+#include "detection/ChipDetector.h"
+#include "deviceaccessguard.h"
 #include "../device/DeviceManager.h"
 #include <QThread>
 #include <QDebug>
@@ -170,31 +172,95 @@ bool VideoHid::writeChunk(quint16 address, const QByteArray &data,
 bool VideoHid::writeEeprom(quint16 address, const QByteArray &data,
                            std::function<void(int)> chunkCallback)
 {
+    // Use RAII guard to acquire exclusive device access.
+    // This sets m_flashInProgress flag and stops polling thread cooperatively.
+    DeviceAccessGuard guard(*this);
+    if (!guard.isExclusive()) {
+        qCWarning(log_hid_firmware) << "writeEeprom: Failed to acquire exclusive device access";
+        return false;
+    }
+
+    qCDebug(log_hid_firmware) << "writeEeprom: Exclusive access acquired via DeviceAccessGuard";
+
+    // Before firmware write, ensure chip type is correctly detected.
+    // This is critical for devices in recovery mode (345F:0001) which should be MS2130S.
+    // Re-detect if chip type is unknown or if device path suggests recovery mode.
+    qCDebug(log_hid_firmware) << "writeEeprom: Checking if chip detection is needed, m_chipType ="
+        << (m_chipType == VideoChipType::UNKNOWN ? "UNKNOWN" :
+            m_chipType == VideoChipType::MS2130S ? "MS2130S" :
+            m_chipType == VideoChipType::MS2109S ? "MS2109S" : "MS2109");
+
+    if (m_chipType == VideoChipType::UNKNOWN || m_chipType == VideoChipType::MS2109S) {
+        // Get device path from transport if not cached
+        QString devicePath = m_currentHIDDevicePath;
+        qCDebug(log_hid_firmware) << "writeEeprom: m_currentHIDDevicePath =" << devicePath;
+
+        if (devicePath.isEmpty() && m_deviceTransport) {
+            devicePath = m_deviceTransport->getHIDDevicePath();
+            qCDebug(log_hid_firmware) << "writeEeprom: Got device path from transport:" << devicePath;
+            // Sync the path so detectChipType() can use it
+            if (!devicePath.isEmpty()) {
+                qCDebug(log_hid_firmware) << "writeEeprom: Syncing device path from transport for chip detection:" << devicePath;
+                m_currentHIDDevicePath = devicePath;
+            }
+        }
+
+        if (!devicePath.isEmpty()) {
+            // Check if device is in recovery mode (345F:0001)
+            if (devicePath.contains("0001", Qt::CaseInsensitive) &&
+                devicePath.contains("345F", Qt::CaseInsensitive)) {
+                qCDebug(log_hid_firmware) << "writeEeprom: Device appears to be in recovery mode (345F:0001), manually setting MS2130S";
+                // Polling is now stopped, so we can safely set chip type without mutex
+                if (!m_chipImpl || m_chipType != VideoChipType::MS2130S) {
+                    m_chipImpl = ChipDetector::createChip(VideoChipType::MS2130S, this);
+                    m_chipType = VideoChipType::MS2130S;
+                    qCDebug(log_hid_firmware) << "writeEeprom: Manually set m_chipType to MS2130S and created m_chipImpl";
+                }
+            } else if (m_chipType == VideoChipType::UNKNOWN) {
+                qCDebug(log_hid_firmware) << "writeEeprom: Chip type unknown, re-detecting";
+                detectChipType();
+            }
+        } else {
+            qCWarning(log_hid_firmware) << "writeEeprom: No device path available for chip re-detection!";
+        }
+    }
+
     // Snapshot chip type once to avoid hotplug race changing behavior mid-flash.
     const VideoChipType chipTypeAtStart = m_chipType;
+    qCDebug(log_hid_firmware) << "writeEeprom: chipTypeAtStart ="
+        << (chipTypeAtStart == VideoChipType::MS2130S ? "MS2130S" :
+            chipTypeAtStart == VideoChipType::MS2109S ? "MS2109S" :
+            chipTypeAtStart == VideoChipType::MS2109 ? "MS2109" : "UNKNOWN");
 
-    // Signal all background HID reads (polling thread AND any QtConcurrent threads from start())
-    // to bail out immediately so they don't compete with firmware write on the USB bus.
-    m_flashInProgress.store(true, std::memory_order_release);
-
-    // Pause polling during EEPROM updates to avoid concurrent HID bus contention.
-    bool hadPolling = (m_pollingThread != nullptr);
-    if (hadPolling) {
-        qCDebug(log_hid_firmware) << "writeEeprom: stopping polling thread to avoid HID bus contention";
-        stopPollingOnly();
-        QThread::msleep(50); // brief delay for thread stop handshake
-    }
+    // Debug logging to identify chip type and implementation
+    auto chipTypeToString = [](VideoChipType t) -> const char* {
+        switch (t) {
+            case VideoChipType::MS2109:  return "MS2109";
+            case VideoChipType::MS2109S: return "MS2109S";
+            case VideoChipType::MS2130S: return "MS2130S";
+            default:                     return "UNKNOWN";
+        }
+    };
+    qCDebug(log_hid_firmware) << "writeEeprom: chipTypeAtStart =" << chipTypeToString(chipTypeAtStart)
+                              << "m_chipImpl.get() =" << (void*)m_chipImpl.get()
+                              << "address =" << QString("0x%1").arg(address, 4, 16, QChar('0'))
+                              << "data size =" << data.size();
 
     bool success = true;
 
     if (chipTypeAtStart == VideoChipType::MS2130S) {
+        qCDebug(log_hid_firmware) << "writeEeprom: Taking MS2130S SPI flash write path";
+
         // Override the chip's onChunkWritten for the duration of this write so it calls
         // our callback instead of the removed firmwareWriteChunkComplete signal.
         if (auto* ms2130s = dynamic_cast<Ms2130sChip*>(m_chipImpl.get())) {
+            qCDebug(log_hid_firmware) << "writeEeprom: Successfully cast to Ms2130sChip, calling writeFirmware()";
             ms2130s->onChunkWritten = [this, chunkCallback](quint32 n) {
                 written_size = n;
                 if (chunkCallback) chunkCallback(static_cast<int>(n));
             };
+        } else {
+            qCWarning(log_hid_firmware) << "writeEeprom: chipType is MS2130S but m_chipImpl is not Ms2130sChip!";
         }
         if (auto* ms2130s = dynamic_cast<Ms2130sChip*>(m_chipImpl.get()))
             success = ms2130s->writeFirmware(address, data);
@@ -205,6 +271,7 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data,
             ms2130s->onChunkWritten = [this](quint32 n) { written_size = n; };
         }
     } else {
+        qCDebug(log_hid_firmware) << "writeEeprom: Taking generic EEPROM write path (chipType is not MS2130S)";
         const int MAX_CHUNK = 16;
         QByteArray remainingData = data;
         written_size = 0;
@@ -235,8 +302,9 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data,
         }
     }
 
-    // Allow background reads to resume before restarting the polling thread.
-    m_flashInProgress.store(false, std::memory_order_release);
+    // Guard destructor will automatically:
+    // 1. Clear m_flashInProgress flag
+    // 2. Clean up polling thread if it was stopped
 
     // After a firmware write (successful or not), the device may re-enumerate with a
     // different HID interface. Clear the cached device path so the next open() call
@@ -250,17 +318,15 @@ bool VideoHid::writeEeprom(quint16 address, const QByteArray &data,
         DeviceManager::getInstance().discoverDevices();
     }
 
-    if (hadPolling) {
-        // After MS2130S firmware flash the device needs a power cycle to boot the new
-        // firmware.  Restarting the polling thread immediately would hammer a device
-        // that is still in an undefined state, generating confusing errors.
-        if (chipTypeAtStart != VideoChipType::MS2130S) {
-            qCDebug(log_hid_firmware) << "writeEeprom: restarting polling thread after EEPROM update";
-            start();
-        } else {
-            qCInfo(log_hid_firmware) << "writeEeprom: NOT restarting polling �?MS2130S needs power cycle after flash"
-                                 << "(chip snapshot at start:" << static_cast<int>(chipTypeAtStart) << ")";
-        }
+    // After MS2130S firmware flash the device needs a power cycle to boot the new
+    // firmware.  Restarting the polling thread immediately would hammer a device
+    // that is still in an undefined state, generating confusing errors.
+    if (chipTypeAtStart != VideoChipType::MS2130S) {
+        qCDebug(log_hid_firmware) << "writeEeprom: restarting polling thread after EEPROM update";
+        start();
+    } else {
+        qCInfo(log_hid_firmware) << "writeEeprom: NOT restarting polling - MS2130S needs power cycle after flash"
+                             << "(chip snapshot at start:" << static_cast<int>(chipTypeAtStart) << ")";
     }
 
     return success;
