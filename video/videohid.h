@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QTimer>
+#include <QThread>
 #include <atomic>
 #include "firmware/FirmwareNetworkClient.h"
 #include <vector>
@@ -56,6 +57,7 @@ class VideoHid : public QObject, public IHIDTransport
 
     friend class FirmwareWriter;
     friend class FirmwareReader;
+    friend class DeviceAccessGuard;
 
 public:
     static VideoHid* getPointer(){
@@ -202,7 +204,16 @@ private:
     QString m_cachedPortChain;     // port chain m_cachedDevicePath was resolved for
 
     // Polling thread used to poll device status periodically.
-    class PollingThread; // forward-declared in videohid.cpp
+    class PollingThread : public QThread {
+    public:
+        PollingThread(VideoHid* owner, int intervalMs = 1000) : m_owner(owner), m_intervalMs(intervalMs), m_running(true) {}
+        void run() override;
+        void stop() { m_running = false; }
+    private:
+        VideoHid* m_owner{nullptr};
+        int m_intervalMs{1000};
+        std::atomic_bool m_running{true};
+    };
     friend class PollingThread;
     PollingThread *m_pollingThread{nullptr};
     int m_pollIntervalMs{1000};
@@ -272,6 +283,7 @@ private:
     QString m_currentHIDPortChain;
 
     // Chip detection and implementation
+    mutable QMutex m_chipMutex;  // Protects m_chipType and m_chipImpl from concurrent access
     VideoChipType m_chipType = VideoChipType::UNKNOWN;
     std::unique_ptr<VideoChip> m_chipImpl{nullptr};
 
@@ -283,8 +295,8 @@ private:
 
 public:
     Q_INVOKABLE void detectChipType();
-    VideoChipType getChipType() const { return m_chipType; }
-    VideoChip* getChipImpl() const { return m_chipImpl.get(); }
+    VideoChipType getChipType() const;
+    VideoChip* getChipImpl() const;
 
 public slots:
     bool performWriteEeprom(quint16 address, const QByteArray &data);
