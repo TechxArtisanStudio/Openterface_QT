@@ -79,45 +79,68 @@ goto :CHECK_STATIC
 
 :CHECK_SHARED
 echo Checking for shared FFmpeg libraries...
+set FOUND_LIBS=0
+set FOUND_WHAT=
+
+rem Check for import lib
 if exist "%FFMPEG_PREFIX%\lib\libavformat.dll.a" (
-    echo ✓ Found import lib: %FFMPEG_PREFIX%\lib\libavformat.dll.a
-    goto :CHECK_SHARED_COMPAT
+    set FOUND_LIBS=1
+    set FOUND_WHAT=import lib: %FFMPEG_PREFIX%\lib\libavformat.dll.a
+) else (
+    rem Check for DLLs
+    dir /b "%FFMPEG_PREFIX%\bin\avformat-*.dll" >nul 2>nul
+    if not errorlevel 1 (
+        set FOUND_LIBS=1
+        set FOUND_WHAT=DLLs found at %FFMPEG_PREFIX%\bin
+    )
 )
 
-rem Try to find DLLs under bin
-set FOUND_DLLS=0
-dir /b "%FFMPEG_PREFIX%\bin\avformat-*.dll" >nul 2>nul
-if errorlevel 0 set FOUND_DLLS=1
-if "%FOUND_DLLS%"=="1" (
-    echo ✓ Found FFmpeg DLL(s) under %FFMPEG_PREFIX%\bin
-    goto :CHECK_SHARED_COMPAT
-) else (
+if "%FOUND_LIBS%"=="1" (
+    echo [OK] Found %FOUND_WHAT%
+)
+
+echo DEBUG: FOUND_LIBS=%FOUND_LIBS%
+
+if "%FOUND_LIBS%"=="0" (
     echo Error: FFmpeg shared libraries not found at %FFMPEG_PREFIX%
-    echo.
-    echo Please install or build shared FFmpeg (e.g. into %FFMPEG_PREFIX%)
-    echo.
+    echo(
+    echo Please install or build shared FFmpeg ^(e.g. into %FFMPEG_PREFIX%^)
+    echo(
     exit /b 1
 )
+
+goto :CHECK_SHARED_COMPAT
 
 :CHECK_SHARED_COMPAT
 rem Guard against Qt MinGW + MSYS2 shared FFmpeg runtime mismatch.
 rem If avutil needs clock_gettime64, shared mode usually requires newer
 rem libwinpthread that conflicts with Qt6Multimedia (__emutls). Fallback to static.
 set NEEDS_64TIME=0
-for %%F in ("%FFMPEG_PREFIX%\bin\avutil-*.dll") do (
-    "%MINGW_PATH%\bin\objdump.exe" -p "%%~fF" | findstr /I "clock_gettime64" >nul 2>nul
-    if not errorlevel 1 set NEEDS_64TIME=1
-)
+
+rem Check avutil-58.dll
+if not exist "%FFMPEG_PREFIX%\bin\avutil-58.dll" goto :CHECK_AVUTIL_59
+"%MINGW_PATH%\bin\objdump.exe" -p "%FFMPEG_PREFIX%\bin\avutil-58.dll" 2>nul | findstr /I "clock_gettime64" >nul 2>nul
+if not errorlevel 1 set NEEDS_64TIME=1
+goto :CHECK_SHARED_COMPAT_RESULT
+
+:CHECK_AVUTIL_59
+if not exist "%FFMPEG_PREFIX%\bin\avutil-59.dll" goto :CHECK_AVUTIL_60
+"%MINGW_PATH%\bin\objdump.exe" -p "%FFMPEG_PREFIX%\bin\avutil-59.dll" 2>nul | findstr /I "clock_gettime64" >nul 2>nul
+if not errorlevel 1 set NEEDS_64TIME=1
+goto :CHECK_SHARED_COMPAT_RESULT
+
+:CHECK_AVUTIL_60
+if not exist "%FFMPEG_PREFIX%\bin\avutil-60.dll" goto :CHECK_SHARED_COMPAT_RESULT
+"%MINGW_PATH%\bin\objdump.exe" -p "%FFMPEG_PREFIX%\bin\avutil-60.dll" 2>nul | findstr /I "clock_gettime64" >nul 2>nul
+if not errorlevel 1 set NEEDS_64TIME=1
+
+:CHECK_SHARED_COMPAT_RESULT
 if "%NEEDS_64TIME%"=="1" (
-    echo.
+    echo(
     echo ============================================================================
-    echo WARNING: Detected shared FFmpeg requiring clock_gettime64.
-    echo This conflicts with Qt MinGW runtime used by Qt6Multimedia (__emutls).
-    echo Auto-fallback to STATIC FFmpeg mode to avoid startup entry-point errors.
+    echo INFO: Detected shared FFmpeg requiring clock_gettime64.
+    echo Using MSYS2 MinGW libwinpthread-1.dll which has 64-bit time_t support.
     echo ============================================================================
-    set USE_SHARED=0
-    set FFMPEG_PREFIX=C:\ffmpeg-static
-    goto :CHECK_STATIC
 )
 goto :CHECK_LIBUSB
 
@@ -200,7 +223,8 @@ echo.
 
 REM Build the project
 echo Building project...
-cmake --build "%OUTPUT_DIR%" --config Debug -- -j 4
+REM Run CMake build with limited parallelism to avoid memory issues
+cmake --build "%OUTPUT_DIR%" --config Debug -- -j 2
 
 if %errorlevel% neq 0 (
     echo Build failed
@@ -236,6 +260,12 @@ if "%USE_SHARED%"=="1" (
     if exist "C:\libusb\lib\libusb-1.0.dll" xcopy /Y "C:\libusb\lib\libusb-1.0.dll" "%OUTPUT_DIR%\" >nul 2>nul
     if exist "%CD%\lib\libusb-1.0.dll" xcopy /Y "%CD%\lib\libusb-1.0.dll" "%OUTPUT_DIR%\" >nul 2>nul
 
+    REM Copy libusb as msys-usb-1.0.dll (MSYS2 libusb exports as msys-usb-1.0.dll internally)
+    if exist "%OUTPUT_DIR%\libusb-1.0.dll" (
+        copy /Y "%OUTPUT_DIR%\libusb-1.0.dll" "%OUTPUT_DIR%\msys-usb-1.0.dll" >nul 2>nul
+        echo   Copied libusb-1.0.dll as msys-usb-1.0.dll (MSYS2 ABI compatibility)
+    )
+
     REM Copy MSYS2/MinGW compression dependencies (non-C++ runtime)
     echo Copying compression and runtime libraries...
     if exist "C:\msys64\mingw64\bin\libiconv-2.dll" xcopy /Y "C:\msys64\mingw64\bin\libiconv-2.dll" "%OUTPUT_DIR%\" >nul 2>nul
@@ -247,15 +277,15 @@ if "%USE_SHARED%"=="1" (
     echo Copying hardware acceleration libraries...
     if exist "C:\msys64\mingw64\bin\libmfx-1.dll" xcopy /Y "C:\msys64\mingw64\bin\libmfx-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
 
-    REM Use Qt MinGW runtime to stay ABI/TLS-compatible with deployed Qt DLLs.
-    echo Copying MinGW runtime DLLs from Qt MinGW - ABI matched to Qt DLLs...
-    if exist "%MINGW_PATH%\bin\libwinpthread-1.dll" (
-        xcopy /Y "%MINGW_PATH%\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
-        echo   Copied libwinpthread-1.dll from Qt MinGW
-    )
+    REM Use Qt MinGW runtime for libgcc_s_seh and libstdc++ to stay ABI-compatible with Qt DLLs.
+    echo Copying MinGW runtime DLLs...
     if exist "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" (
         xcopy /Y "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
         echo   Copied libgcc_s_seh-1.dll from Qt MinGW
+    )
+    if exist "%MINGW_PATH%\bin\libssp-0.dll" (
+        xcopy /Y "%MINGW_PATH%\bin\libssp-0.dll" "%OUTPUT_DIR%\" >nul 2>nul
+        echo   Copied libssp-0.dll from Qt MinGW
     )
     if exist "%MINGW_PATH%\bin\libstdc++-6.dll" (
         xcopy /Y "%MINGW_PATH%\bin\libstdc++-6.dll" "%OUTPUT_DIR%\" >nul 2>nul
@@ -287,6 +317,21 @@ if "%USE_SHARED%"=="1" (
         echo   Qt DLLs are not available via PATH or system directories.
         echo   Consider running windeployqt manually:
         echo     windeployqt %OUTPUT_DIR%\openterfaceQT.exe --multimedia --network
+    )
+
+    REM ============================================================================
+    REM Copy libwinpthread-1.dll AFTER windeployqt to prevent it from being overwritten
+    REM windeployqt may copy the old Qt MinGW version (52KB, Mar 2022) which lacks
+    REM pthread_cond_timedwait64. We need the MSYS2 version (64KB, 2024) which has it.
+    REM ============================================================================
+    echo.
+    echo Ensuring correct libwinpthread-1.dll version (with pthread_cond_timedwait64)...
+    if exist "C:\msys64\mingw64\bin\libwinpthread-1.dll" (
+        xcopy /Y "C:\msys64\mingw64\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
+        echo   Copied libwinpthread-1.dll from MSYS2 MinGW (has 64-bit time_t support)
+    ) else (
+        echo ERROR: MSYS2 libwinpthread-1.dll not found! Please install MSYS2 MinGW.
+        exit /b 1
     )
     
     echo.
@@ -384,7 +429,14 @@ if "%USE_SHARED%"=="0" (
     del /Q "%OUTPUT_DIR%\libwinpthread-1.dll" >nul 2>nul
     del /Q "%OUTPUT_DIR%\libgcc_s_seh-1.dll" >nul 2>nul
     del /Q "%OUTPUT_DIR%\libstdc++-6.dll" >nul 2>nul
-    if exist "%MINGW_PATH%\bin\libwinpthread-1.dll" xcopy /Y "%MINGW_PATH%\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
+    if exist "C:\msys64\mingw64\bin\libwinpthread-1.dll" (
+        xcopy /Y "C:\msys64\mingw64\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
+        echo   Using MSYS2 libwinpthread-1.dll (has pthread_cond_timedwait64 support)
+    ) else (
+        echo ERROR: MSYS2 libwinpthread-1.dll not found at C:\msys64\mingw64\bin\libwinpthread-1.dll
+        echo Please install MSYS2 MinGW for proper pthread_cond_timedwait64 support
+        exit /b 1
+    )
     if exist "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" xcopy /Y "%MINGW_PATH%\bin\libgcc_s_seh-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
     if exist "%MINGW_PATH%\bin\libstdc++-6.dll" xcopy /Y "%MINGW_PATH%\bin\libstdc++-6.dll" "%OUTPUT_DIR%\" >nul 2>nul
 )

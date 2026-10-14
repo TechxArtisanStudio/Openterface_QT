@@ -228,6 +228,10 @@ void LogPage::setupUI()
     systemKeyBlockerCheckBox = new QCheckBox(tr("Enable System Key Blocker"));
     systemKeyBlockerCheckBox->setObjectName("systemKeyBlockerCheckBox");
 
+    shortcutsEnabledCheckBox = new QCheckBox(tr("Enable keyboard shortcuts"));
+    shortcutsEnabledCheckBox->setObjectName("shortcutsEnabledCheckBox");
+    shortcutsEnabledCheckBox->setChecked(true);
+
     // Layout
     QHBoxLayout *logFilePathLayout = new QHBoxLayout();
     logFilePathLayout->addWidget(logFilePathLineEdit);
@@ -397,6 +401,24 @@ void LogPage::setupUI()
     logLayout->addWidget(systemKeyBlockerDescription);
     logLayout->addWidget(systemKeyBlockerCheckBox);
 
+    // Keyboard Shortcuts section
+    QLabel *shortcutsLabel = new QLabel(QString("<span style='font-weight: bold;'>%1</span>").arg(tr("Keyboard Shortcuts")));
+    shortcutsLabel->setTextFormat(Qt::RichText);
+    shortcutsLabel->setStyleSheet(bigLabelFontSize);
+
+    QLabel *shortcutsDescription = new QLabel(
+        tr("When disabled, all application keyboard shortcuts (e.g. Ctrl+P, Alt+F11, "
+           "Ctrl+Shift+S) will be turned off. Useful when you want all key presses "
+           "to be forwarded to the target without app interference.\n\n"
+           "Note: When System Key Blocker is enabled, shortcuts are also inactive "
+           "regardless of this setting, because all keyboard events are captured at OS level."));
+    shortcutsDescription->setWordWrap(true);
+    shortcutsDescription->setStyleSheet(commentsFontSize);
+
+    logLayout->addWidget(shortcutsLabel);
+    logLayout->addWidget(shortcutsDescription);
+    logLayout->addWidget(shortcutsEnabledCheckBox);
+
     // Button bar via base class
     createButtonBar(logLayout);
 
@@ -408,6 +430,7 @@ void LogPage::setupUI()
     connect(floatingWindowCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
     connect(floatingWindowOpacitySlider, &QSlider::valueChanged, this, [this]{ checkDirtyState(); });
     connect(systemKeyBlockerCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
+    connect(shortcutsEnabledCheckBox, &QCheckBox::toggled, this, [this]{ checkDirtyState(); });
 
     logLayout->addStretch();
 }
@@ -709,6 +732,7 @@ void LogPage::initLogSettings()
     });
 
     systemKeyBlockerCheckBox->setChecked(GlobalSetting::instance().getSystemKeyBlockerEnabled());
+    shortcutsEnabledCheckBox->setChecked(GlobalSetting::instance().getShortcutsEnabled());
     logFilePathLineEdit->setText(settings.value("log/logFilePath", "").toString());
 
     // Apply initial filter rules
@@ -760,6 +784,11 @@ void LogPage::applySettings()
     bool systemKeyBlockerEnabled = systemKeyBlockerCheckBox->isChecked();
     GlobalSetting::instance().setSystemKeyBlockerEnabled(systemKeyBlockerEnabled);
     emit systemKeyBlockerToggled(systemKeyBlockerEnabled);
+
+    // Keyboard shortcuts
+    bool shortcutsEnabled = shortcutsEnabledCheckBox->isChecked();
+    GlobalSetting::instance().setShortcutsEnabled(shortcutsEnabled);
+    emit shortcutsEnabledChanged(shortcutsEnabled);
 }
 
 void LogPage::captureSnapshot()
@@ -771,6 +800,7 @@ void LogPage::captureSnapshot()
     m_snap_floatingWindow = floatingWindowCheckBox->isChecked();
     m_snap_floatingWindowOpacity = floatingWindowOpacitySlider->value();
     m_snap_systemKeyBlocker = systemKeyBlockerCheckBox->isChecked();
+    m_snap_shortcutsEnabled = shortcutsEnabledCheckBox->isChecked();
 
     // Capture tree state
     m_snap_categoryStates.clear();
@@ -796,6 +826,7 @@ void LogPage::revertToSnapshot()
     floatingWindowCheckBox->setChecked(m_snap_floatingWindow);
     floatingWindowOpacitySlider->setValue(m_snap_floatingWindowOpacity);
     systemKeyBlockerCheckBox->setChecked(m_snap_systemKeyBlocker);
+    shortcutsEnabledCheckBox->setChecked(m_snap_shortcutsEnabled);
 
     // Restore tree state — suppress group-propagation handler
     m_restoring = true;
@@ -859,6 +890,7 @@ bool LogPage::valuesMatchSnapshot() const
     if (floatingWindowCheckBox->isChecked() != m_snap_floatingWindow) return false;
     if (floatingWindowOpacitySlider->value() != m_snap_floatingWindowOpacity) return false;
     if (systemKeyBlockerCheckBox->isChecked() != m_snap_systemKeyBlocker) return false;
+    if (shortcutsEnabledCheckBox->isChecked() != m_snap_shortcutsEnabled) return false;
 
     // Check tree state
     for (int g = 0; g < categoryModel->rowCount(); ++g) {

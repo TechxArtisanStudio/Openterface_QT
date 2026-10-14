@@ -124,51 +124,48 @@ FirmwareOperationManager* VideoHid::getFirmwareOperationManager() const {
     return m_firmwareOpManager;
 }
 
-// Nested PollingThread type definition for VideoHid
-class VideoHid::PollingThread : public QThread {
-public:
-    PollingThread(VideoHid* owner, int intervalMs = 1000) : m_owner(owner), m_intervalMs(intervalMs), m_running(true) {}
-    void run() override {
-        qCDebug(log_hid_poll) << "PollingThread started with interval (ms):" << m_intervalMs;
-        while (m_running) {
-            if (m_owner) {
-                try {
-                    m_owner->pollDeviceStatus();
-                } catch (...) {
-                    qCWarning(log_hid_poll) << "Exception in PollingThread while calling pollDeviceStatus";
-                }
-            }
-            // Use interruptible sleep for faster shutdown response
-            int remainingSleep = m_intervalMs;
-            const int sleepChunk = 100; // 100ms chunks
-            while (m_running && remainingSleep > 0) {
-                int actualSleep = qMin(sleepChunk, remainingSleep);
-                QThread::msleep(actualSleep);
-                remainingSleep -= actualSleep;
+// PollingThread::run() implementation
+void VideoHid::PollingThread::run() {
+    qCDebug(log_hid_poll) << "PollingThread started with interval (ms):" << m_intervalMs;
+    while (m_running) {
+        if (m_owner) {
+            try {
+                m_owner->pollDeviceStatus();
+            } catch (...) {
+                qCWarning(log_hid_poll) << "Exception in PollingThread while calling pollDeviceStatus";
             }
         }
-        qCDebug(log_hid_poll) << "PollingThread stopping";
+        // Use interruptible sleep for faster shutdown response
+        int remainingSleep = m_intervalMs;
+        const int sleepChunk = 100; // 100ms chunks
+        while (m_running && remainingSleep > 0) {
+            int actualSleep = qMin(sleepChunk, remainingSleep);
+            QThread::msleep(actualSleep);
+            remainingSleep -= actualSleep;
+        }
     }
-    void stop() { m_running = false; }
-private:
-    VideoHid* m_owner{nullptr};
-    int m_intervalMs{1000};
-    std::atomic_bool m_running{true};
-};
+    qCDebug(log_hid_poll) << "PollingThread stopping";
+}
 
 Ms2130sChip* VideoHid::getMs2130sChip() const {
+    QMutexLocker locker(&m_chipMutex);
     return dynamic_cast<Ms2130sChip*>(m_chipImpl.get());
 }
 
 // Detect chipset type based on VID/PID from the HID device path.
 void VideoHid::detectChipType() {
-    const VideoChipType previousChipType = m_chipType;
+    // Read previous chip type under mutex for thread safety
+    VideoChipType previousChipType;
+    {
+        QMutexLocker locker(&m_chipMutex);
+        previousChipType = m_chipType;
+    }
 
     qCDebug(log_hid_detect) << "Detecting chip type from device path:" << m_currentHIDDevicePath;
     qCDebug(log_hid_detect) << "Current port chain:" << m_currentHIDPortChain;
 
-    // Detect chip type first (may do USB I/O), then swap under the I/O mutex.
-    // The mutex serializes this swap with usbXdataRead4Byte() so the polling
+    // Detect chip type first (may do USB I/O), then swap under the chip mutex.
+    // The mutex serializes this swap with other threads so the polling
     // thread never dereferences a deleted chip object (use-after-free -> SEGV).
     VideoChipType detectedType = ChipDetector::detect(m_currentHIDDevicePath, m_currentHIDPortChain);
 
@@ -189,10 +186,10 @@ void VideoHid::detectChipType() {
         };
     }
 
-    // Atomic swap under the I/O mutex: polling thread either sees old chip
+    // Atomic swap under the chip mutex: polling thread either sees old chip
     // (and finishes its current read) or the new one - never a dangling ptr.
     {
-        QMutexLocker locker(&m_registerIoMutex);
+        QMutexLocker locker(&m_chipMutex);
         m_chipImpl = std::move(newChip);
         m_chipType = detectedType;
     }
@@ -212,6 +209,18 @@ void VideoHid::detectChipType() {
         qCDebug(log_hid_detect) << "Chip type changed from" << chipName(previousChipType)
                               << "to" << chipName(m_chipType);
     }
+}
+
+// Thread-safe accessor for chip type
+VideoChipType VideoHid::getChipType() const {
+    QMutexLocker locker(&m_chipMutex);
+    return m_chipType;
+}
+
+// Thread-safe accessor for chip implementation
+VideoChip* VideoHid::getChipImpl() const {
+    QMutexLocker locker(&m_chipMutex);
+    return m_chipImpl.get();
 }
 
 // Update the start method to keep HID device continuously open
@@ -282,15 +291,19 @@ void VideoHid::stop() {
     if (m_pollingThread) {
         m_pollingThread->stop();
         m_pollingThread->quit();
-        if (!m_pollingThread->wait(2000)) {
-            qCWarning(log_hid_poll) << "Polling thread did not stop within 2 seconds, forcing termination";
-            m_pollingThread->terminate();
-            m_pollingThread->wait(1000);
+        // PollingThread's run() checks m_running every 100ms, so it should exit quickly.
+        // Wait up to 5 seconds for graceful shutdown.
+        if (!m_pollingThread->wait(5000)) {
+            qCWarning(log_hid_poll) << "Polling thread did not stop within 5 seconds!"
+                                    << "This may indicate a USB I/O deadlock. Device may need replug.";
+            // Don't terminate - let the thread leak rather than risk corruption
+            // The thread will be cleaned up when the process exits
+        } else {
+            delete m_pollingThread;
         }
-        delete m_pollingThread;
         m_pollingThread = nullptr;
     }
-    
+
     // Close the HID device when stopping
     endTransaction();
     // Reset chip implementation and type to force re-detection on next start
@@ -304,21 +317,23 @@ void VideoHid::stopPollingOnly() {
     if (m_pollingThread) {
         qCDebug(log_hid_poll) << "Signaling polling thread to stop...";
         m_pollingThread->stop();
-        
+
         qCDebug(log_hid_poll) << "Quitting polling thread...";
         m_pollingThread->quit();
-        
+
         qCDebug(log_hid_poll) << "Waiting for polling thread to finish...";
-        if (!m_pollingThread->wait(3000)) {
-            qCWarning(log_hid_poll) << "Polling thread did not stop within 3 seconds, forcing termination";
-            m_pollingThread->terminate();
-            m_pollingThread->wait(1000);
+        // PollingThread's run() checks m_running every 100ms, so it should exit quickly.
+        // Wait up to 5 seconds for graceful shutdown.
+        if (!m_pollingThread->wait(5000)) {
+            qCWarning(log_hid_poll) << "Polling thread did not stop within 5 seconds!"
+                                    << "This may indicate a USB I/O deadlock. Device may need replug.";
+            // Don't terminate - let the thread leak rather than risk corruption
+        } else {
+            qCDebug(log_hid_poll) << "Deleting polling thread...";
+            delete m_pollingThread;
+            qCDebug(log_hid_poll) << "Polling thread deleted successfully";
         }
-        
-        qCDebug(log_hid_poll) << "Deleting polling thread...";
-        delete m_pollingThread;
         m_pollingThread = nullptr;
-        qCDebug(log_hid_poll) << "Polling thread deleted successfully";
     } else {
         qCDebug(log_hid_poll) << "No polling thread to stop";
     }
@@ -329,6 +344,12 @@ void VideoHid::stopPollingOnly() {
 
 // Poll device status previously implemented inline in the timer lambda
 void VideoHid::pollDeviceStatus() {
+    // Early exit if flash operation in progress - prevents contention during firmware write
+    if (m_flashInProgress.load(std::memory_order_acquire)) {
+        qCDebug(log_hid_poll) << "Skipping poll - flash operation in progress";
+        return;
+    }
+
     // Device is already open - no need for beginTransaction/endTransaction
     try {
         bool currentSwitchOnTarget = getGpio0();
@@ -483,7 +504,12 @@ bool VideoHid::sendFeatureReport(uint8_t* buffer, size_t bufferLength) {
 
 // IHIDTransport::open / close
 bool VideoHid::open() {
-    if (m_inTransaction) return true;
+    qCDebug(log_hid_device) << "VideoHid::open() called, m_inTransaction=" << m_inTransaction;
+    if (m_inTransaction) {
+        qCDebug(log_hid_device) << "VideoHid::open() - already in transaction, returning true";
+        return true;
+    }
+    qCDebug(log_hid_device) << "VideoHid::open() - calling beginTransaction()";
     return beginTransaction();
 }
 
@@ -509,33 +535,49 @@ bool VideoHid::reopenSync() {
 }
 
 bool VideoHid::beginTransaction() {
+    qCDebug(log_hid_device) << "VideoHid::beginTransaction() called, m_inTransaction=" << m_inTransaction
+                            << " m_deviceTransport=" << (void*)m_deviceTransport.get();
     if (m_inTransaction) {
         qCDebug(log_hid_device)  << "Transaction already in progress";
         return true;  // Already in a transaction
     }
-    
+
     // We'll retry a few times in case of temporary device issues
-    const int MAX_RETRIES = 3;
+    const int MAX_RETRIES = 5;
     bool success = false;
-    
+
     for (int attempt = 0; attempt < MAX_RETRIES && !success; attempt++) {
         if (attempt > 0) {
             qCDebug(log_hid_device) << "Retry attempt" << attempt << "to open HID device";
-            // Wait a short time between retries
-            QThread::msleep(100); 
+            // Wait between retries - longer delay to allow HID interface re-enumeration
+            // especially after MS2130S firmware burn failures
+            QThread::msleep(500);
         }
-        
+
+        qCDebug(log_hid_device) << "beginTransaction: calling m_deviceTransport->open() attempt" << attempt;
         success = m_deviceTransport ? m_deviceTransport->open() : false;
+        qCDebug(log_hid_device) << "beginTransaction: m_deviceTransport->open() returned" << success;
     }
 
     if (success) {
         m_inTransaction = true;
-        
+
+        // If the device path was discovered by the transport (e.g. via VID/PID fallback)
+        // but not yet stored in m_currentHIDDevicePath, sync it now so that detectChipType()
+        // and other code can use the correct path.
+        if (m_currentHIDDevicePath.isEmpty() && m_deviceTransport) {
+            QString transportPath = m_deviceTransport->getHIDDevicePath();
+            if (!transportPath.isEmpty()) {
+                m_currentHIDDevicePath = transportPath;
+                qCDebug(log_hid_detect) << "Synced device path from transport:" << transportPath;
+            }
+        }
+
         // Detect chip type if it's unknown
         if (m_chipType == VideoChipType::UNKNOWN) {
             detectChipType();
             qCDebug(log_hid_detect) << "Detected chip type:" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
-            
+
             // Add stabilization delay for both chip types to ensure device is ready
             if (m_chipImpl && m_chipImpl->type() == VideoChipType::MS2130S) {
                 qCDebug(log_hid_device) << "Performing MS2130S-specific initialization";
@@ -545,7 +587,7 @@ bool VideoHid::beginTransaction() {
                 QThread::msleep(100);
             }
         }
-        
+
         qCDebug(log_hid_device)  << "HID transaction started";
         return true;
     } else {
@@ -702,8 +744,10 @@ QString VideoHid::findMatchingHIDDevice(const QString& portChain) const
     DeviceManager& deviceManager = DeviceManager::getInstance();
     
     // Retry logic for HID device detection - HID devices may take time to enumerate after hotplug
-    const int maxRetries = 3;
-    const int retryDelayMs = 200; // 200ms delay between retries
+    // After a firmware burn failure on MS2130S the chip may need several seconds to re-enumerate
+    // its HID interface, so we use generous timeouts here.
+    const int maxRetries = 8;
+    const int retryDelayMs = 500; // 500ms delay between retries (total ~4s)
     
     for (int retry = 0; retry < maxRetries; ++retry) {
         if (retry > 0) {
@@ -881,6 +925,21 @@ FirmwareResult VideoHid::isLatestFirmware() {
         qCWarning(log_hid_firmware) << "TLS/SSL not available - skipping firmware check";
         fireware_result = FirmwareResult::CheckFailed;
         return FirmwareResult::CheckFailed;
+    }
+
+    // If chip type is still unknown (e.g. device was in recovery mode when first detected),
+    // try to detect it now before selecting firmware.
+    if (m_chipType == VideoChipType::UNKNOWN) {
+        qCDebug(log_hid_firmware) << "Chip type unknown before firmware check, attempting re-detection";
+        if (m_currentHIDDevicePath.isEmpty() && m_deviceTransport) {
+            QString transportPath = m_deviceTransport->getHIDDevicePath();
+            if (!transportPath.isEmpty()) {
+                m_currentHIDDevicePath = transportPath;
+                qCDebug(log_hid_firmware) << "Synced device path from transport for chip detection:" << transportPath;
+            }
+        }
+        detectChipType();
+        qCDebug(log_hid_firmware) << "Re-detection result:" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
     }
 
     qCDebug(log_hid_firmware) << "Checking for latest firmware...";

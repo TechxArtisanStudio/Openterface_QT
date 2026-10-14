@@ -6,19 +6,28 @@ aqtinstall.log
 debug/*
 # .vscode
 openterfaceQT.pro.user*
+
+# FFmpeg build artifacts
+build-script/ffmpeg-build-temp/
+build-script/ffmpeg-build/
+build-script/temp/
+build-script/libusb-build-temp/
 build-script/drivers/*
-build-script/ffmpeg-build/*
-build-script/temp/*
+
+# FFmpeg compiled outputs (if placed elsewhere)
+**/ffmpeg-build-temp/
+**/ffmpeg-*.tar.*
+**/ffmpeg-configure.log
+**/ffmpeg-build.log
+
 .DS_Store
 .flatpak-builder/*
 .build-dir/*
 host/backend/gstreamerbackendhandler.cpp
 build_static/*
-ffmpeg-build-temp/*
 CmakeLists.txt.user
 .cache/*
 debug.log
-build-script/libusb-build-temp/*
 .claude/*
 obj/*
 moc/*
@@ -76,6 +85,7 @@ Makefile
 # Build output directories (cmake / qmake)
 build-cmake/
 build-qmake/
+build-shared-app/
 
 # Test MCP build artifacts
 tests/mcp/.qt/

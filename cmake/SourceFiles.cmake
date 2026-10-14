@@ -184,6 +184,7 @@ set(VIDEO_SOURCES
     video/videohid.cpp video/videohid.h
     video/videohid_register.cpp
     video/videohid_eeprom.cpp
+    video/deviceaccessguard.cpp video/deviceaccessguard.h
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/firmwarereader.cpp video/firmwarereader.h
     video/firmwareoperationmanager.cpp video/firmwareoperationmanager.h
@@ -203,6 +204,7 @@ set(UI_CORE_SOURCES
     ui/inputhandler.cpp ui/inputhandler.h
     ui/loghandler.cpp ui/loghandler.h
     ui/mainwindow.cpp ui/mainwindow.h ui/mainwindow.ui
+    ui/ShortcutManager.cpp ui/ShortcutManager.h
     ui/videopane.cpp ui/videopane.h
     ui/languagemanager.cpp ui/languagemanager.h
     ui/screensavermanager.cpp ui/screensavermanager.h

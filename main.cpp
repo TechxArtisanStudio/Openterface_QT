@@ -264,13 +264,6 @@ int main(int argc, char *argv[])
         outs.flush();
     }
 
-    // DEBUG: Print to stderr immediately
-    fprintf(stderr, "DEBUG: main() called with %d args\n", argc);
-    for (int i = 0; i < argc; i++) {
-        fprintf(stderr, "DEBUG: argv[%d] = %s\n", i, argv[i]);
-    }
-    fflush(stderr);
-
     #ifdef Q_OS_WIN
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF);
     #endif
@@ -575,7 +568,7 @@ int main(int argc, char *argv[])
         return 0;
     }
     setupEnv();
-    
+
     qInfo() << "Creating QApplication...";
     QApplication app(argc, argv);
 
@@ -608,7 +601,7 @@ int main(int argc, char *argv[])
         "  border: 1px solid palette(dark);"
         "}"
     );
-    
+
     QCoreApplication::setApplicationName("Openterface Mini-KVM");
     QCoreApplication::setOrganizationName("TechxArtisan");
     QCoreApplication::setApplicationVersion(APP_VERSION);
@@ -624,22 +617,22 @@ int main(int argc, char *argv[])
         pixmap = QPixmap(800, 600);
         pixmap.fill(QColor(15, 9, 9)); // Dark background from Openterface branding
     }
-    
+
     // Create and show the splash screen as a pointer so it persists
     SplashScreen* splash = new SplashScreen(pixmap);
     splash->show();
     splash->raise();
     splash->activateWindow();
-    
+
     qInfo() << "Splash screen shown, starting initialization";
-    
+
     // Start the loading animation
     splash->showLoadingMessage();
     qInfo() << "Animation started";
-    
+
     // Process events to show splash screen
     app.processEvents();
-    
+
     // Load settings immediately (fast operation)
     qInfo() << "Loading settings...";
     GlobalSetting::instance().loadLogSettings();
@@ -653,17 +646,17 @@ int main(int argc, char *argv[])
 
     applyMediaBackendSetting();
     LogHandler::instance().enableLogStore();
-    
+
     // Load keyboard layouts immediately - required for keyboard functionality
     qInfo() << "Loading keyboard layouts...";
     QString keyboardConfigPath = ":/config/keyboards";
     KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
-    
+
     // Process events to keep UI responsive
     app.processEvents();
-    
+
     qInfo() << "Creating main window...";
-    
+
     // Create main window and language manager
     LanguageManager* languageManager = new LanguageManager(&app);
     languageManager->initialize("en");
@@ -823,7 +816,7 @@ int main(int argc, char *argv[])
     #ifdef HAVE_GSTREAMER
     gst_deinit();
     #endif
-    
+
     qInfo() << "Application cleanup complete, returning" << result;
     return result;
 }

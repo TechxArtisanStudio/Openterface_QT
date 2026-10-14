@@ -99,9 +99,15 @@ bool WindowsHIDTransport::isOpen() const
 
 bool WindowsHIDTransport::openLocked()
 {
-    if (m_handle != INVALID_HANDLE_VALUE) return true;
+    qCDebug(log_win_transport) << "WindowsHIDTransport::openLocked() entered, m_handle=" << m_handle;
+    if (m_handle != INVALID_HANDLE_VALUE) {
+        qCDebug(log_win_transport) << "WindowsHIDTransport::openLocked() - handle already valid";
+        return true;
+    }
 
+    qCDebug(log_win_transport) << "WindowsHIDTransport::openLocked() - calling getHIDDevicePathW()";
     std::wstring devicePath = getHIDDevicePathW();
+    qCDebug(log_win_transport) << "WindowsHIDTransport::openLocked() - getHIDDevicePathW() returned, path empty=" << devicePath.empty();
     if (devicePath.empty()) {
         qCWarning(log_win_transport) << "openLocked: failed to get valid HID device path";
         return false;
@@ -119,6 +125,7 @@ bool WindowsHIDTransport::openLocked()
     // Open with GENERIC_READ + FILE_FLAG_OVERLAPPED.
     // GENERIC_WRITE causes the HID class driver to hold the write channel exclusively,
     // preventing the device from ACKing feature report IOCTLs promptly.
+    qCDebug(log_win_transport) << "WindowsHIDTransport::openLocked() - calling CreateFileW()";
     m_handle = CreateFileW(devicePath.c_str(),
                            GENERIC_READ,
                            FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -126,6 +133,7 @@ bool WindowsHIDTransport::openLocked()
                            OPEN_EXISTING,
                            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
                            NULL);
+    qCDebug(log_win_transport) << "WindowsHIDTransport::openLocked() - CreateFileW() returned, handle=" << m_handle;
 
     if (m_handle == INVALID_HANDLE_VALUE) {
         DWORD error = GetLastError();
@@ -148,7 +156,9 @@ void WindowsHIDTransport::closeLocked()
 
 bool WindowsHIDTransport::open()
 {
+    qCDebug(log_win_transport) << "WindowsHIDTransport::open() - acquiring m_mutex";
     QMutexLocker locker(&m_mutex);
+    qCDebug(log_win_transport) << "WindowsHIDTransport::open() - m_mutex acquired, calling openLocked()";
     return openLocked();
 }
 
@@ -298,8 +308,10 @@ std::wstring WindowsHIDTransport::getHIDDevicePathW()
 
         if (!hidPath.isEmpty()) {
             // For MS2130S devices we need the full \\?\hid... path
+            // Handle both normal mode (PID_2132) and recovery/DFU mode (PID_0001)
             if (hidPath.contains("VID_345F", Qt::CaseInsensitive) &&
-                hidPath.contains("PID_2132", Qt::CaseInsensitive)) {
+                (hidPath.contains("PID_2132", Qt::CaseInsensitive) ||
+                 hidPath.contains("PID_0001", Qt::CaseInsensitive))) {
                 std::wstring fullPath = getProperDevicePath(hidPath.toStdWString());
                 if (!fullPath.empty())
                     return fullPath;
@@ -308,8 +320,19 @@ std::wstring WindowsHIDTransport::getHIDDevicePathW()
         }
     }
 
-    // Fallback: enumerate all HID devices looking for known VID/PID 0x534D:0x2109
+    // Fallback: enumerate all HID devices looking for known VID/PID pairs
+    // MS2109: 0x534D:0x2109, MS2130S: 0x345F:0x2132
+    // MS2130S recovery/DFU mode after flash failure: 0x345F:0x0001
     qCDebug(log_win_transport) << "Falling back to VID/PID enumeration for HID device discovery";
+
+    // Known chip VID/PID pairs to search for
+    struct VidPid { uint16_t vid; uint16_t pid; const char* name; };
+    static const VidPid knownChips[] = {
+        { 0x345F, 0x2132, "MS2130S" },
+        { 0x345F, 0x0001, "MS2130S Recovery/DFU" },  // Post-flash failure state
+        { 0x345F, 0x2109, "MS2109S" },
+        { 0x534D, 0x2109, "MS2109"  },
+    };
 
     GUID hidGuid;
     HidD_GetHidGuid(&hidGuid);
@@ -340,13 +363,19 @@ std::wstring WindowsHIDTransport::getHIDDevicePathW()
                                   NULL, OPEN_EXISTING, 0, NULL);
             if (h != INVALID_HANDLE_VALUE) {
                 HIDD_ATTRIBUTES attr; attr.Size = sizeof(attr);
-                if (HidD_GetAttributes(h, &attr) &&
-                    attr.VendorID == 0x534D && attr.ProductID == 0x2109) {
-                    std::wstring path = detail->DevicePath;
-                    CloseHandle(h);
-                    free(detail);
-                    SetupDiDestroyDeviceInfoList(deviceInfoSet);
-                    return path;
+                if (HidD_GetAttributes(h, &attr)) {
+                    for (const auto& chip : knownChips) {
+                        if (attr.VendorID == chip.vid && attr.ProductID == chip.pid) {
+                            qCDebug(log_win_transport) << "Fallback found" << chip.name
+                                << "device (VID:" << QString("0x%1").arg(attr.VendorID, 4, 16, QChar('0'))
+                                << "PID:" << QString("0x%1").arg(attr.ProductID, 4, 16, QChar('0')) << ")";
+                            std::wstring path = detail->DevicePath;
+                            CloseHandle(h);
+                            free(detail);
+                            SetupDiDestroyDeviceInfoList(deviceInfoSet);
+                            return path;
+                        }
+                    }
                 }
                 CloseHandle(h);
             }

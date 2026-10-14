@@ -101,6 +101,7 @@ SOURCES += main.cpp \
     ui/inputhandler.cpp \
     ui/loghandler.cpp \
     ui/mainwindow.cpp \
+    ui/ShortcutManager.cpp \
     ui/videopane.cpp \
     ui/languagemanager.cpp \
     ui/screensavermanager.cpp \
@@ -299,6 +300,7 @@ HEADERS  += \
     ui/inputhandler.h \
     ui/loghandler.h \
     ui/mainwindow.h \
+    ui/ShortcutManager.h \
     ui/splashscreen.h \
     ui/videopane.h \
     ui/statusevents.h \

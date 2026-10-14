@@ -53,6 +53,7 @@
 #include "../../server/tcpServer.h"
 #include "../../SysKeyBlocker/SystemKeyBlocker.h"
 #include "../customkey/customkeymanager.h"
+#include "../ShortcutManager.h"
 
 #include <QTimer>
 #include <QStackedLayout>
@@ -611,42 +612,56 @@ void MainWindowInitializer::setupEventCallbacks()
 void MainWindowInitializer::setupKeyboardShortcuts()
 {
     qCDebug(log_ui_mainwindowinitializer) << "Setting up keyboard shortcuts...";
-    
+
+    ShortcutManager &shortcutMgr = ShortcutManager::instance();
+
     // Alt+F11: Toggle fullscreen
     QShortcut *fullscreenShortcut = new QShortcut(QKeySequence(Qt::ALT | Qt::Key_F11), m_mainWindow);
-    
+    shortcutMgr.registerShortcut(fullscreenShortcut);
+
     // Ctrl+Shift+A: Open Screen Aspect Ratio dialog
     QShortcut *aspectRatioShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A), m_mainWindow);
-    
+    shortcutMgr.registerShortcut(aspectRatioShortcut);
+
     // Zoom shortcuts
     QShortcut *zoomInShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Plus), m_mainWindow);
+    shortcutMgr.registerShortcut(zoomInShortcut);
     QShortcut *zoomOutShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Minus), m_mainWindow);
+    shortcutMgr.registerShortcut(zoomOutShortcut);
     QShortcut *actualSizeShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_0), m_mainWindow);
-    
+    shortcutMgr.registerShortcut(actualSizeShortcut);
+
     // Screenshot shortcut
     QShortcut *screenshotShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), m_mainWindow);
-    
+    shortcutMgr.registerShortcut(screenshotShortcut);
+
     // Paste to target shortcut
     QShortcut *pasteShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_V), m_mainWindow);
+    shortcutMgr.registerShortcut(pasteShortcut);
 
     // Ctrl+Shift+F10: Toggle mouse dance (screensaver)
     QShortcut *mouseDanceShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F10), m_mainWindow);
+    shortcutMgr.registerShortcut(mouseDanceShortcut);
 
     // Ctrl+Shift+F11: Toggle recording
     QShortcut *recordingShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F11), m_mainWindow);
+    shortcutMgr.registerShortcut(recordingShortcut);
 
     // Ctrl+Shift+F9: Toggle mute audio
     QShortcut *muteShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F9), m_mainWindow);
+    shortcutMgr.registerShortcut(muteShortcut);
 
     // Ctrl+Shift+K: Toggle function key and composite key toolbar
     QShortcut *virtualKeyboardShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_K), m_mainWindow);
-    
+    shortcutMgr.registerShortcut(virtualKeyboardShortcut);
+
     // // Ctrl+F: Find/Search or Fullscreen toggle
     // QKeySequence findSeq(Qt::CTRL | Qt::Key_F);
     // QShortcut *findShortcut = new QShortcut(findSeq, m_mainWindow);
-    
+
     // Ctrl+P: Open preferences/settings dialog (explicit shortcut — .ui file has this via auto-connect but add QShortcut for reliability)
     QShortcut *preferencesShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_P), m_mainWindow);
+    shortcutMgr.registerShortcut(preferencesShortcut);
 
     // CRITICAL FIX: Capture specific pointers instead of 'this' to avoid dangling reference
     // MainWindowInitializer is destroyed after constructor completes, so capturing 'this' causes crash

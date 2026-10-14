@@ -179,6 +179,10 @@ public:
     void setSystemKeyBlockerEnabled(bool enabled);
     bool getSystemKeyBlockerEnabled() const;
 
+    // Keyboard shortcuts master toggle
+    void setShortcutsEnabled(bool enabled);
+    bool getShortcutsEnabled() const;
+
     // Update reminder settings
     // Stores the epoch seconds of the last update check (used for 30-day throttle)
     void setUpdateLastChecked(qint64 secsSinceEpoch);

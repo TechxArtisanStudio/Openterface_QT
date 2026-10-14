@@ -44,6 +44,7 @@ VideoChipType ChipDetector::detect(const QString& devicePath, const QString& /*p
     };
 
     if      (hasVidPid(QLatin1String("345F"), QLatin1String("2132"))) { isMS2130S = true; qCDebug(log_hid_detect) << "ChipDetector: MS2130S (345F:2132)"; }
+    else if (hasVidPid(QLatin1String("345F"), QLatin1String("0001"))) { isMS2130S = true; qCDebug(log_hid_detect) << "ChipDetector: MS2130S recovery/DFU mode (345F:0001)"; }
     else if (hasVidPid(QLatin1String("345F"), QLatin1String("2109"))) { isMS2109S = true; qCDebug(log_hid_detect) << "ChipDetector: MS2109S (345F:2109)"; }
     else if (hasVidPid(QLatin1String("534D"), QLatin1String("2109"))) { isMS2109  = true; qCDebug(log_hid_detect) << "ChipDetector: MS2109  (534D:2109)"; }
 
@@ -75,6 +76,7 @@ VideoChipType ChipDetector::detect(const QString& devicePath, const QString& /*p
                 qCDebug(log_hid_detect) << "ChipDetector sysfs:" << cur << "vid=" << vid << "pid=" << pid;
 
                 if      (vid == QLatin1String("345F") && pid == QLatin1String("2132")) { isMS2130S = true; break; }
+                else if (vid == QLatin1String("345F") && pid == QLatin1String("0001")) { isMS2130S = true; qCDebug(log_hid_detect) << "ChipDetector: MS2130S recovery/DFU mode (345F:0001)"; break; }
                 else if (vid == QLatin1String("345F") && pid == QLatin1String("2109")) { isMS2109S = true; break; }
                 else if (vid == QLatin1String("534D") && pid == QLatin1String("2109")) { isMS2109  = true; break; }
             }
@@ -85,6 +87,7 @@ VideoChipType ChipDetector::detect(const QString& devicePath, const QString& /*p
 
         if (!isMS2130S && !isMS2109S && !isMS2109) {
             if      (devicePath.contains(QLatin1String("345F"), Qt::CaseInsensitive) && devicePath.contains(QLatin1String("2132"), Qt::CaseInsensitive)) { isMS2130S = true; qCDebug(log_hid_detect) << "ChipDetector: MS2130S path fallback"; }
+            else if (devicePath.contains(QLatin1String("345F"), Qt::CaseInsensitive) && devicePath.contains(QLatin1String("0001"), Qt::CaseInsensitive)) { isMS2130S = true; qCDebug(log_hid_detect) << "ChipDetector: MS2130S recovery/DFU mode path fallback (345F:0001)"; }
             else if (devicePath.contains(QLatin1String("345F"), Qt::CaseInsensitive) && devicePath.contains(QLatin1String("2109"), Qt::CaseInsensitive)) { isMS2109S = true; qCDebug(log_hid_detect) << "ChipDetector: MS2109S path fallback"; }
             else if (devicePath.contains(QLatin1String("534D"), Qt::CaseInsensitive) && devicePath.contains(QLatin1String("2109"), Qt::CaseInsensitive)) { isMS2109  = true; qCDebug(log_hid_detect) << "ChipDetector: MS2109  path fallback"; }
         }
