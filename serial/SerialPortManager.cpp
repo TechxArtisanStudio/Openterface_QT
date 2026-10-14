@@ -3992,18 +3992,18 @@ void SerialPortManager::stopConnectionWatchdog()
     }
 }
 
-void SerialPortManager::applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix)
+bool SerialPortManager::applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix)
 {
     QByteArray command;
     static QSettings settings("Techxartisan", "Openterface");
     uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
-    
+
     if (baudRate == BAUDRATE_LOWSPEED) {
         command = CMD_SET_PARA_CFG_PREFIX_9600;
     } else {
         command = CMD_SET_PARA_CFG_PREFIX_115200;
     }
-    command[5] = mode; 
+    command[5] = mode;
     command.append(CMD_SET_PARA_CFG_MID);
     sendSyncCommand(command, true);
     bool success = sendResetCommand();
@@ -4016,6 +4016,7 @@ void SerialPortManager::applyCommandBasedBaudrateChange(int baudRate, const QStr
     } else {
         qCWarning(log_core_serial_config) << logPrefix << "Failed to apply user selected baudrate:" << baudRate;
     }
+    return success;
 }
 
 // ========== IRecoveryHandler Interface Implementation (Phase 3) ==========
