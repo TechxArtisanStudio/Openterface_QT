@@ -665,23 +665,14 @@ QJsonObject McpToolHandler::toolKeyboardTypeText(const QJsonObject& args)
 {
     QString text = args.value("text").toString();
 
-    // DEBUG: Log to file (only in Debug builds)
-#ifdef DEBUG
-    QFile debugLog("/tmp/mcp-keyboard-debug.log");
-    if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-        QTextStream out(&debugLog);
-        out << "=== toolKeyboardTypeText called ===\n";
-        out << "Text: " << text << "\n";
-        out << "Thread ID: " << QThread::currentThreadId() << "\n";
-
-        // Check serial port ready state
+    {
         SerialPortManager& spm = SerialPortManager::getInstance();
-        out << "SerialPortManager::ready: " << spm.isPortReady() << "\n";
-        out << "SerialPortManager::isPortOpen: " << spm.isPortOpen() << "\n";
-        out << "SerialPortManager::portPath: " << spm.getCurrentSerialPortPath() << "\n";
-        debugLog.close();
+        qCDebug(log_server_mcp_tool) << "toolKeyboardTypeText:" << text
+                                << "thread" << QThread::currentThreadId()
+                                << "serial ready" << spm.isPortReady()
+                                << "open" << spm.isPortOpen()
+                                << "path" << spm.getCurrentSerialPortPath();
     }
-#endif
 
     QJsonObject result = SharedToolExecutor::instance().typeTextCommand(args);
     if (result.contains("error")) {

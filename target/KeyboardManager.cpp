@@ -37,18 +37,12 @@
 #include <memory>
 #include <functional>
 
-// DEBUG: File-based logging for MCP keyboard issue (only in Debug builds)
-#ifdef DEBUG
-#define DEBUG_LOG(msg) { \
-    QFile f("/tmp/keyboard-debug.log"); \
-    if (f.open(QIODevice::Append | QIODevice::Text)) { \
-        QTextStream out(&f); \
-        out << msg << "\n"; \
-    } \
-}
-#else
-#define DEBUG_LOG(msg) {}
-#endif
+// Diagnostics for the keyboard path. This used to append to
+// /tmp/keyboard-debug.log unconditionally, opening and closing the file on
+// every key event; route it through the project's logging categories instead
+// so it is off by default and selectable with QT_LOGGING_RULES, e.g.
+//   QT_LOGGING_RULES='opf.host.keyboard.state.debug=true'
+#define DEBUG_LOG(msg) qCDebug(log_host_kb_state) << (msg)
 
 OPF_LOGGING_CATEGORY(log_host_kb_mapping, "opf.host.keyboard.mapping")
 OPF_LOGGING_CATEGORY(log_host_kb_modifiers, "opf.host.keyboard.modifiers")
@@ -680,24 +674,25 @@ void KeyboardManager::handleKeyboardAction(int keyCode, int modifiers, bool isKe
             }
         }
 
-        // Build the modifier byte and keycode array with maximum compatibility.
+        // Build the modifier byte and keycode array with CH9329 workaround.
         //
-        // For maximum compatibility across different targets and CH9329 firmware versions,
-        // we use a "dual placement" strategy:
-        // - ALL modifier keycodes are placed in the keycode array (0xE0-0xE7)
-        // - ALL modifier bits are set in the modifier byte (bits 0-7)
+        // CH9329 firmware issue: modifier byte bits 2-7 (Alt=0x04, GUI=0x08) are
+        // not correctly processed by some CH9329 firmware versions on Linux targets.
+        // Bits 0-1 (Ctrl=0x01, Shift=0x02) work correctly.
         //
-        // This provides redundancy:
-        // - Targets that correctly process the modifier byte will see modifier state there
-        // - Targets that don't process certain modifier bits (CH9329 firmware bug with
-        //   Alt/GUI on some versions) will still see the modifier keycodes in the array
-        // - This matches the approach used in sendCtrlAltDel() which works reliably
+        // Workaround strategy:
+        // - Ctrl (0x01) and Shift (0x02): set in modifier byte ONLY (these work)
+        // - Alt (0x04) and GUI (0x08): put keycodes in keycode array ONLY,
+        //   do NOT set in modifier byte (avoids CH9329 firmware bug)
+        // - This matches how sendCtrlAltDel() works: Ctrl/Alt in both byte and array,
+        //   but Alt is in the array which the target processes correctly.
         //
         // USB HID spec: modifier keycodes (0xE0-0xE7) in the keycode array are
         // treated as modifier state by compliant HID implementations.
 
-        // Set ALL modifier bits in modifier byte for maximum compatibility
-        keyData[5] = combinedModifiers;
+        // Only set Ctrl and Shift bits in modifier byte (these are known to work)
+        uint8_t safeModifierByte = combinedModifiers & 0x03; // Only bits 0-1
+        keyData[5] = safeModifierByte;
 
         // Put ALL active modifier keycodes in the keycode array
         int keyIndex = 0;
@@ -842,20 +837,12 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
         QMap<uint8_t, int> mapping;
         int totalChars;
         int typedChars;
-        int reconnectAttempts;       // Number of reconnection attempts made
-        bool waitingForReconnect;    // True when waiting for serial port reconnection
     };
     auto state = std::make_shared<PasteState>();
     state->remaining = text;
     state->mapping = charMapping;
     state->totalChars = text.length();
     state->typedChars = 0;
-    state->reconnectAttempts = 0;
-    state->waitingForReconnect = false;
-
-    // Maximum reconnection wait attempts (500ms per attempt × 60 = 30 seconds max wait)
-    const int maxReconnectAttempts = 60;
-    const int reconnectCheckIntervalMs = 500;
 
     const int batchSize = GlobalSetting::instance().getChatBatchSize();
     const int delayBetweenBatches = GlobalSetting::instance().getChatTypingDelayMs();
@@ -867,52 +854,11 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
     // Shared function — captured by value in lambdas below so the
     // std::function outlives this method's stack frame.
     auto tick = std::make_shared<std::function<void()>>();
-    *tick = [this, state, batchSize, delayBetweenBatches,
-             maxReconnectAttempts, reconnectCheckIntervalMs, tick]() {
-        if (state->typedChars == 0 && state->reconnectAttempts == 0) {
+    *tick = [this, state, batchSize, delayBetweenBatches, tick]() {
+        if (state->typedChars == 0) {
             qCDebug(log_host_kb_special) << "Paste tick STARTING — first character about to be sent"
                                          << "(total=" << state->totalChars << ")";
         }
-
-        // AUTO-RECONNECT: Check if serial port is ready before processing
-        bool portReady = SerialPortManager::getInstance().isPortReady();
-        if (!portReady) {
-            // Port is disconnected — pause transfer and wait for reconnection
-            if (!state->waitingForReconnect) {
-                state->waitingForReconnect = true;
-                state->reconnectAttempts = 0;
-                qCWarning(log_host_kb_special) << "Paste PAUSED — serial port disconnected"
-                                               << "(typed:" << state->typedChars << "/" << state->totalChars << ")"
-                                               << "— waiting for auto-reconnection...";
-            }
-
-            state->reconnectAttempts++;
-            if (state->reconnectAttempts > maxReconnectAttempts) {
-                // Max wait time exceeded — cancel transfer
-                qCWarning(log_host_kb_special) << "Paste CANCELLED — serial port did not reconnect after"
-                                               << (maxReconnectAttempts * reconnectCheckIntervalMs / 1000) << "seconds"
-                                               << "(typed:" << state->typedChars << "/" << state->totalChars << ")";
-                return;  // Stop the transfer
-            }
-
-            // Schedule a retry check
-            QTimer::singleShot(reconnectCheckIntervalMs, this, [tick]() { (*tick)(); });
-            return;
-        }
-
-        // Port is ready — if we were waiting for reconnection, log the resumption
-        if (state->waitingForReconnect) {
-            qCInfo(log_host_kb_special) << "Paste RESUMED — serial port reconnected after"
-                                        << state->reconnectAttempts << "checks"
-                                        << "(remaining:" << state->remaining.length() << "chars)";
-            state->waitingForReconnect = false;
-            state->reconnectAttempts = 0;
-
-            // Send a priming null key event to reset USB HID channel after reconnection
-            emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
-            QThread::msleep(50);
-        }
-
         // Process up to batchSize characters
         for (int i = 0; i < batchSize && !state->remaining.isEmpty(); ++i) {
             QChar ch = state->remaining.at(0);
@@ -927,7 +873,7 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
             if (needAltGr) modifiers |= Qt::GroupSwitchModifier;
 
             handlePasteChar(key, modifiers);
-            QThread::msleep(GlobalSetting::instance().getChatTypingDelayMs());
+            QThread::msleep(GlobalSetting::instance().getChatTypingDelayMs()); // delayBetweenChars
             emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
 
             state->typedChars++;
@@ -1046,37 +992,22 @@ void KeyboardManager::sendKey(int keyCode, int modifiers, bool isKeyDown) {
 }
 
 void KeyboardManager::releaseAllKeys() {
-    qCInfo(log_host_kb_state) << "releaseAllKeys: called - current state:"
-                               << currentMappedKeyCodes.size() << "keys, modifiers 0x"
+    if (currentMappedKeyCodes.isEmpty() && currentModifiers == 0) {
+        return;  // Nothing held — skip
+    }
+
+    qCDebug(log_host_kb_state) << "releaseAllKeys: clearing"
+                               << currentMappedKeyCodes.size() << "keys and modifiers 0x"
                                << QString::number(currentModifiers, 16);
 
     // Build a zero HID report to release all keys on the target
     QByteArray keyData = CMD_SEND_KB_GENERAL_DATA;
+    // keyData[5] (modifier byte) and keyData[7..12] (keycode array) are already zero
+    // in the CMD_SEND_KB_GENERAL_DATA template — just send it as-is.
+    SerialPortManager::getInstance().sendCommandAsync(keyData, false);
 
-    // Explicitly clear all positions to ensure complete release
-    // keyData[5] = modifier byte (already 0 in template)
-    // keyData[7..12] = keycode array (already 0 in template)
-    // But let's be explicit for safety
-    keyData[5] = 0x00;  // Clear modifier byte
-    for (int i = 7; i < 13; ++i) {
-        keyData[i] = 0x00;  // Clear all 6 keycode slots
-    }
-
-    // Log the actual bytes being sent for debugging
-    QString hexData;
-    for (int i = 0; i < keyData.size(); ++i) {
-        hexData += QString("%1 ").arg(static_cast<unsigned char>(keyData[i]), 2, 16, QChar('0')).toUpper();
-    }
-    qCInfo(log_host_kb_state) << "releaseAllKeys: sending HID report: [" + hexData.trimmed() + "]";
-
-    // Use force=true to ensure the command is sent even if serial port is not in ready state
-    // This is critical for releasing stuck keys when window loses focus
-    SerialPortManager::getInstance().sendCommandAsync(keyData, true);
-
-    // Clear internal state
     currentMappedKeyCodes.clear();
     currentModifiers = 0;
-    qCInfo(log_host_kb_state) << "releaseAllKeys: all keys cleared successfully";
 }
 
 void KeyboardManager::getKeyboardLayout() {

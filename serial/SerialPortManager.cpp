@@ -1035,17 +1035,10 @@ ConfigResult SerialPortManager::sendAndProcessConfigCommand() {
                              << "VID:" << QString("%1").arg(config.vid, 4, 16, QChar('0')).toUpper()
                              << "PID:" << QString("%1").arg(config.pid, 4, 16, QChar('0')).toUpper()
                              << "custom_usb_desc:" << QString("0x%1").arg(config.custom_usb_desc, 2, 16, QChar('0'));
-
-    // DEBUG: Log raw hex data and parsed baudrate from chip
-    qCDebug(log_core_serial_config) << "[DEBUG sendAndProcessConfigCommand] Raw CMD_GET_PARA_CFG response:" << retByte.toHex(' ');
-    qCDebug(log_core_serial_config) << "[DEBUG sendAndProcessConfigCommand] Parsed config.baudrate =" << config.baudrate
-                             << "(0x" << QString::number(config.baudrate, 16) << ")";
-
+    
     static QSettings settings("Techxartisan", "Openterface");
     Q_UNUSED(settings.value("hardware/operatingMode", 0x02).toUInt()); // hostConfigMode unused in this context
     result.mode = config.mode;
-    result.workingBaudrate = static_cast<int>(config.baudrate);
-    qCDebug(log_core_serial_config) << "[DEBUG sendAndProcessConfigCommand] result.workingBaudrate set to:" << result.workingBaudrate;
     result.success = true;
     return result;
 }
@@ -1069,14 +1062,10 @@ void SerialPortManager::handleChipSpecificLogic(const ConfigResult &config) {
 
 void SerialPortManager::storeBaudrateIfNeeded(int workingBaudrate) {
     int stored = GlobalSetting::instance().getSerialPortBaudrate();
-    qCDebug(log_core_serial_config) << "[DEBUG storeBaudrateIfNeeded] workingBaudrate=" << workingBaudrate
-                             << "stored=" << stored
-                             << (stored != workingBaudrate ? "MISMATCH - will overwrite" : "MATCH - no action");
     if (stored != workingBaudrate) {
         // Use chip strategy to validate baudrate if available
         if (m_chipStrategy) {
             workingBaudrate = m_chipStrategy->validateBaudrate(workingBaudrate);
-            qCDebug(log_core_serial_config) << "[DEBUG storeBaudrateIfNeeded] After chip strategy validate: workingBaudrate=" << workingBaudrate;
         } else if (isChipTypeCH32V208() && workingBaudrate != BAUDRATE_HIGHSPEED) {
             qCWarning(log_core_serial_config) << "CH32V208 chip: Forcing stored baudrate to 115200 instead of" << workingBaudrate;
             workingBaudrate = BAUDRATE_HIGHSPEED;
@@ -1231,98 +1220,8 @@ void SerialPortManager::attemptCH9329Connection(const QString &portName, const Q
             m_pendingInitPortName.clear();
             m_pendingInitBaudrate = 0;
 
-            // Save stored baudrate BEFORE sendAndProcessConfigCommand overwrites it
-            int previousStoredBaudrate = GlobalSetting::instance().getSerialPortBaudrate();
-
             ConfigResult config = sendAndProcessConfigCommand();
             if (config.success) {
-                qCDebug(log_core_serial_config) << "[DEBUG attemptCH9329Connection] config.workingBaudrate=" << config.workingBaudrate
-                                         << "opened at baudrate=" << currentBaud;
-
-                // === Factory Default Recovery ===
-                // After abnormal USB disconnect, CH9329 may revert to factory defaults
-                // (mode=0x82, baudrate=9600). Detect this and restore the user's preferred baudrate.
-                // Mode byte: 0x82 = factory default (0x02 | 0x80), 0x02 = user config
-                if ((config.mode & 0x80) && m_chipStrategy
-                    && previousStoredBaudrate > 0
-                    && m_chipStrategy->supportsBaudrate(previousStoredBaudrate)
-                    && previousStoredBaudrate != config.workingBaudrate) {
-
-                    qCInfo(log_core_serial_config) << "[BAUDRATE RECOVERY] CH9329 reverted to factory defaults"
-                        << "(mode=0x" << QString::number(config.mode, 16)
-                        << ", baudrate=" << config.workingBaudrate << ")"
-                        << "— restoring stored baudrate:" << previousStoredBaudrate;
-
-                    // Build and send CMD_SET_PARA_CFG to restore the stored baudrate
-                    uint8_t operatingMode = config.mode & 0x7F; // Strip factory default flag
-                    QByteArray cfgCmd = m_chipStrategy->buildReconfigurationCommand(previousStoredBaudrate, operatingMode);
-                    QByteArray cfgResp = sendSyncCommand(cfgCmd, true);
-
-                    if (!cfgResp.isEmpty() && cfgResp.size() >= 6 && cfgResp[5] == 0x00) {
-                        qCInfo(log_core_serial_config) << "[BAUDRATE RECOVERY] CMD_SET_PARA_CFG successful"
-                            << "— chip will operate at" << previousStoredBaudrate;
-
-                        // Wait for Flash write to complete
-                        QThread::msleep(50);
-
-                        // Send CMD_RESET to make the chip apply the new config and restart
-                        // Without CMD_RESET, the chip keeps running at the old baudrate even
-                        // though CMD_SET_PARA_CFG returned success (Flash written but not applied).
-                        qCInfo(log_core_serial_config) << "[BAUDRATE RECOVERY] Sending CMD_RESET to apply new config...";
-                        QByteArray resetResp = sendSyncCommand(CMD_RESET, true);
-                        if (resetResp.isEmpty()) {
-                            qCWarning(log_core_serial_config) << "[BAUDRATE RECOVERY] CMD_RESET returned no response"
-                                << "— chip may not have applied the new baudrate";
-                        } else {
-                            qCDebug(log_core_serial_config) << "[BAUDRATE RECOVERY] CMD_RESET response:" << resetResp.toHex(' ');
-                        }
-
-                        // Wait for chip to restart after reset
-                        QThread::msleep(100);
-
-                        // Close port and restart at restored baudrate
-                        closePortInternal();
-                        QThread::msleep(100);
-
-                        if (openPort(portName, previousStoredBaudrate)) {
-                            QThread::msleep(50);
-
-                            // Verify chip responds at new baudrate
-                            QByteArray verifyResp = sendSyncCommand(CMD_GET_INFO, true);
-                            if (!verifyResp.isEmpty() && verifyResp.size() >= 4) {
-                                qCInfo(log_core_serial_config) << "[BAUDRATE RECOVERY] Verified chip at"
-                                    << previousStoredBaudrate << "— recovery complete";
-
-                                // Re-read config at new baudrate to update GlobalSetting
-                                config = sendAndProcessConfigCommand();
-                                if (config.success) {
-                                    handleChipSpecificLogic(config);
-                                    storeBaudrateIfNeeded(config.workingBaudrate);
-
-                                    ready = true;
-                                    if (m_commandCoordinator) {
-                                        m_commandCoordinator->setReady(true);
-                                    }
-                                    emit serialPortConnectionSuccess(portName);
-                                    return;
-                                }
-                            }
-                            qCWarning(log_core_serial_config) << "[BAUDRATE RECOVERY] Verification failed at"
-                                << previousStoredBaudrate << "— falling through to normal flow";
-                            closePortInternal();
-                            QThread::msleep(100);
-                        } else {
-                            qCWarning(log_core_serial_config) << "[BAUDRATE RECOVERY] Failed to reopen port at"
-                                << previousStoredBaudrate << "— falling through to normal flow";
-                        }
-                    } else {
-                        qCWarning(log_core_serial_config) << "[BAUDRATE RECOVERY] CMD_SET_PARA_CFG failed"
-                            << "— response:" << cfgResp.toHex(' ')
-                            << "— continuing with factory default baudrate";
-                    }
-                    // If recovery failed, continue with normal flow at factory default baudrate
-                }
-
                 handleChipSpecificLogic(config);
                 storeBaudrateIfNeeded(config.workingBaudrate);
 
@@ -2876,18 +2775,11 @@ bool SerialPortManager::writeData(const QByteArray &data) {
 }
 
 bool SerialPortManager::writeDataInThread(const QByteArray &data) {
-    // DEBUG: Log to file for MCP keyboard diagnostics (only in Debug builds)
-#ifdef DEBUG
+    // DEBUG: Log to file for MCP keyboard diagnostics
     {
-        QFile debugLog("/tmp/write-data-debug.log");
-        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-            QTextStream out(&debugLog);
-            out << "=== writeDataInThread called ===\n";
-            out << "data: " << QString::fromLatin1(data.toHex(' ')) << "\n";
-            debugLog.close();
-        }
+            qCDebug(log_core_serial_tx) << "=== writeDataInThread called ===\n";
+            qCDebug(log_core_serial_tx) << "data: " << QString::fromLatin1(data.toHex(' '));
     }
-#endif
 
     // Enhanced serial port validation with detailed diagnostics
     if (!isSerialPortValid()) {
@@ -2896,14 +2788,7 @@ bool SerialPortManager::writeDataInThread(const QByteArray &data) {
                                    << "isOpen=" << (serialPort ? (serialPort->isOpen() ? "true" : "false") : "N/A")
                                    << "portName=" << (serialPort ? serialPort->portName() : "N/A");
         // Log failure
-#ifdef DEBUG
-        QFile debugLog("/tmp/write-data-debug.log");
-        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-            QTextStream out(&debugLog);
-            out << "⚠️ WRITE FAILED: serial port not valid\n";
-            debugLog.close();
-        }
-#endif
+            qCDebug(log_core_serial_tx) << "⚠️ WRITE FAILED: serial port not valid\n";
         ready = false;
         if (m_commandCoordinator) {
             m_commandCoordinator->setReady(false);
@@ -2917,14 +2802,7 @@ bool SerialPortManager::writeDataInThread(const QByteArray &data) {
     if (!serialPort || !serialPort->isOpen()) {
         qCWarning(log_core_serial_conn) << "Serial port became invalid after mutex lock";
         // Log failure
-#ifdef DEBUG
-        QFile debugLog("/tmp/write-data-debug.log");
-        if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-            QTextStream out(&debugLog);
-            out << "⚠️ WRITE FAILED: serial port invalid after mutex\n";
-            debugLog.close();
-        }
-#endif
+            qCDebug(log_core_serial_tx) << "⚠️ WRITE FAILED: serial port invalid after mutex\n";
         ready = false;
         if (m_commandCoordinator) {
             m_commandCoordinator->setReady(false);
@@ -2941,28 +2819,14 @@ bool SerialPortManager::writeDataInThread(const QByteArray &data) {
             // subsequent write() calls even after the underlying USB issue is resolved.
             serialPort->clearError();
             // Log failure
-#ifdef DEBUG
-            QFile debugLog("/tmp/write-data-debug.log");
-            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-                QTextStream out(&debugLog);
-                out << "⚠️ WRITE FAILED: " << serialPort->errorString() << "\n";
-                debugLog.close();
-            }
-#endif
+                qCDebug(log_core_serial_tx) << "⚠️ WRITE FAILED: " << serialPort->errorString();
             return false;
         } else if (bytesWritten != data.size()) {
             qCWarning(log_core_serial_tx) << "Partial write: expected" << data.size() << "bytes, wrote" << bytesWritten;
             // ZOMBIE STATE FIX: Clear error state for partial writes too
             serialPort->clearError();
             // Log failure
-#ifdef DEBUG
-            QFile debugLog("/tmp/write-data-debug.log");
-            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-                QTextStream out(&debugLog);
-                out << "⚠️ PARTIAL WRITE: expected " << data.size() << ", wrote " << bytesWritten << "\n";
-                debugLog.close();
-            }
-#endif
+                qCDebug(log_core_serial_tx) << "⚠️ PARTIAL WRITE: expected " << data.size() << ", wrote " << bytesWritten;
             return false;
         }
 
@@ -2978,16 +2842,9 @@ bool SerialPortManager::writeDataInThread(const QByteArray &data) {
         }
 
         // Log success
-#ifdef DEBUG
         {
-            QFile debugLog("/tmp/write-data-debug.log");
-            if (debugLog.open(QIODevice::Append | QIODevice::Text)) {
-                QTextStream out(&debugLog);
-                out << "✅ WRITE SUCCESS: " << bytesWritten << " bytes\n";
-                debugLog.close();
-            }
+                qCDebug(log_core_serial_tx) << "✅ WRITE SUCCESS: " << bytesWritten << " bytes\n";
         }
-#endif
 
 
         return true;
@@ -3463,19 +3320,13 @@ void SerialPortManager::setUserSelectedBaudrate(int baudRate) {
     // Handle CH9329 chip - use commands
     if (isChipTypeCH9329()) {
         qCInfo(log_core_serial_config) << "CH9329 chip - using command-based baudrate change";
-        if (!applyCommandBasedBaudrateChange(baudRate, "CH9329 chip: User selected baudrate")) {
-            qCWarning(log_core_serial_config) << "Failed to apply baudrate change to CH9329 chip";
-            emit statusUpdate(QString("Failed to switch to %1 baudrate. Please try again.").arg(baudRate));
-        }
+        applyCommandBasedBaudrateChange(baudRate, "CH9329 chip: User selected baudrate");
         return;
     }
-
+    
     // Unknown chip - try CH9329 approach as fallback
     qCWarning(log_core_serial_config) << "Unknown chip type - attempting CH9329 approach";
-    if (!applyCommandBasedBaudrateChange(baudRate, "User selected baudrate")) {
-        qCWarning(log_core_serial_config) << "Failed to apply baudrate change (unknown chip)";
-        emit statusUpdate(QString("Failed to switch to %1 baudrate. Please try again.").arg(baudRate));
-    }
+    applyCommandBasedBaudrateChange(baudRate, "User selected baudrate");
 }
 
 void SerialPortManager::clearStoredBaudrate() {
@@ -4141,70 +3992,30 @@ void SerialPortManager::stopConnectionWatchdog()
     }
 }
 
-bool SerialPortManager::applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix)
+void SerialPortManager::applyCommandBasedBaudrateChange(int baudRate, const QString& logPrefix)
 {
     QByteArray command;
     static QSettings settings("Techxartisan", "Openterface");
     uint8_t mode = (settings.value("hardware/operatingMode", 0x02).toUInt());
-
+    
     if (baudRate == BAUDRATE_LOWSPEED) {
         command = CMD_SET_PARA_CFG_PREFIX_9600;
     } else {
         command = CMD_SET_PARA_CFG_PREFIX_115200;
     }
-    command[5] = mode;
+    command[5] = mode; 
     command.append(CMD_SET_PARA_CFG_MID);
-
-    qCDebug(log_core_serial_config) << logPrefix << "Sending configuration command:" << command.toHex(' ');
-
-    // Send configuration command and check response
-    QByteArray response = sendSyncCommand(command, true);
-
-    if (response.isEmpty()) {
-        qCWarning(log_core_serial_config) << logPrefix << "No response to configuration command";
-        return false;
-    }
-
-    qCDebug(log_core_serial_config) << logPrefix << "Configuration response:" << response.toHex(' ');
-
-    // Parse response and check status
-    if (response.size() >= 6) {
-        CmdDataResult dataResult = fromByteArray<CmdDataResult>(response);
-        if (dataResult.data != DEF_CMD_SUCCESS) {
-            qCWarning(log_core_serial_config) << logPrefix << "Configuration command failed with status:"
-                                              << QString("0x%1").arg(dataResult.data, 2, 16, QChar('0'));
-            dumpError(dataResult.data, response);
-            return false;
-        }
-        qCDebug(log_core_serial_config) << logPrefix << "Configuration command accepted by chip";
-    } else {
-        qCWarning(log_core_serial_config) << logPrefix << "Invalid response size:" << response.size();
-        return false;
-    }
-
-    // Send reset command
+    sendSyncCommand(command, true);
     bool success = sendResetCommand();
-    if (!success) {
-        qCWarning(log_core_serial_config) << logPrefix << "Reset command failed";
-        return false;
-    }
-
     QThread::msleep(500);
-    success = setBaudRate(baudRate);
-    if (!success) {
-        qCWarning(log_core_serial_config) << logPrefix << "Failed to set local baudrate:" << baudRate;
-        return false;
-    }
-
+    success = success && setBaudRate(baudRate);
     QThread::msleep(500);
-    success = restartPort();
-    if (!success) {
-        qCWarning(log_core_serial_config) << logPrefix << "Failed to restart port";
-        return false;
+    success = success && restartPort();
+    if (success) {
+        qCInfo(log_core_serial_config) << logPrefix << "applied successfully:" << baudRate;
+    } else {
+        qCWarning(log_core_serial_config) << logPrefix << "Failed to apply user selected baudrate:" << baudRate;
     }
-
-    qCInfo(log_core_serial_config) << logPrefix << "applied successfully:" << baudRate;
-    return true;
 }
 
 // ========== IRecoveryHandler Interface Implementation (Phase 3) ==========
