@@ -238,6 +238,7 @@ void MainWindow::initMcpServer()
     m_mcpServer->setCameraManager(m_cameraManager);
     m_mcpServer->setScriptRunner(scriptRunner.get());
     m_mcpServer->setScriptExecutor(scriptExecutor.get());
+    m_mcpServer->setDeviceCoordinator(m_deviceCoordinator);
 
     // Also set CameraManager on SharedToolExecutor so detect_cursor works via MCP
     SharedToolExecutor::instance().setCameraManager(m_cameraManager);
