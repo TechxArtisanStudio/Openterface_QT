@@ -282,6 +282,26 @@ void KeyboardLayoutManager::loadLayouts(const QString& configDir) {
         }
     }
 
+    // Finally load the user's custom layouts (saved or imported through the
+    // Keyboard Mapping Editor). They are loaded last so that a custom layout
+    // with the same name as a built-in one takes precedence.
+    QDir customDir(getCustomLayoutsDir());
+    if (customDir.exists()) {
+        QFileInfoList customFiles = customDir.entryInfoList(QStringList() << "*.json", QDir::Files);
+        qCDebug(log_keyboard_layouts) << "Found" << customFiles.size() << "custom layout files in" << customDir.path();
+
+        for (const QFileInfo& file : customFiles) {
+            KeyboardLayoutConfig config = KeyboardLayoutConfig::fromJsonFile(file.absoluteFilePath());
+            if (!config.name.isEmpty()) {
+                layouts[config.name] = config;
+                qCDebug(log_keyboard_layouts) << "Loaded custom layout:" << config.name;
+            } else {
+                qCWarning(log_keyboard_layouts) << "Skipping invalid custom layout file:" << file.absoluteFilePath();
+            }
+        }
+    }
+
+    
     qCDebug(log_keyboard_layouts) << "Finished loading layouts. Total layouts loaded:" << layouts.size();
     if (layouts.isEmpty()) {
         qWarning() << "No keyboard layouts were loaded! Make sure the JSON files exist in either" 
@@ -438,6 +458,29 @@ QString KeyboardLayoutManager::exportLayoutToJson(const KeyboardLayoutConfig& co
     if (!unicodeMapObj.isEmpty()) {
         root["unicode_map"] = unicodeMapObj;
     }
+
+    // Export need_shift_keys / need_altgr_keys. Without them a layout that is
+    // saved and loaded again from disk would lose its Shift/AltGr handling.
+    // Printable characters are written as a single-character string and other
+    // values as a hex string of at least two digits, which is what
+    // fromJsonFile() expects.
+    auto exportKeyList = [](const QList<int>& keys) {
+        QJsonArray arr;
+        for (int key : keys) {
+            if (key >= 0x20 && key <= 0xFFFF) {
+                arr.append(QString(QChar(static_cast<ushort>(key))));
+            } else {
+                arr.append(QString("%1").arg(key, 2, 16, QChar('0')));
+            }
+        }
+        return arr;
+    };
+    if (!config.needShiftKeys.isEmpty()) {
+        root["need_shift_keys"] = exportKeyList(config.needShiftKeys);
+    }
+    if (!config.needAltGrKeys.isEmpty()) {
+        root["need_altgr_keys"] = exportKeyList(config.needAltGrKeys);
+    }
     
     QJsonDocument doc(root);
     return doc.toJson(QJsonDocument::Indented);
@@ -452,6 +495,20 @@ bool KeyboardLayoutManager::importLayoutFromJson(const QString& jsonPath) {
     
     layouts[config.name] = config;
     qCDebug(log_keyboard_layouts) << "Imported layout:" << config.name;
+
+    // Keep a copy in the custom layouts directory so the layout is still
+    // available after the application is restarted.
+    QString fileName = config.name;
+    fileName.replace(" ", "_");
+    fileName = fileName.toLower();
+    const QString destPath = getCustomLayoutsDir() + "/" + fileName + ".json";
+    if (QFileInfo(jsonPath).absoluteFilePath() != QFileInfo(destPath).absoluteFilePath()) {
+        QFile::remove(destPath);
+        if (!QFile::copy(jsonPath, destPath)) {
+            qWarning() << "Layout" << config.name << "was imported but could not be saved to"
+                       << destPath << "- it will be lost when the application exits";
+        }
+    }
     return true;
 }
 
