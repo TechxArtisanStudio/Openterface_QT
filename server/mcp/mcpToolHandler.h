@@ -87,6 +87,8 @@ private:
     QJsonObject toolFirmwareUpdate(const QJsonObject& args);
     QJsonObject toolScreenDiff(const QJsonObject& args);
     QJsonObject toolNavigateToMenuItem(const QJsonObject& args);
+    QJsonObject toolEdidInfo(const QJsonObject& args);
+    QJsonObject toolEdidSet(const QJsonObject& args);
 
     // --- Helpers ---
     static QJsonObject textResult(const QString& text);

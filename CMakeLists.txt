@@ -3,6 +3,7 @@ project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
 
 # Option to control static vs dynamic linking
 option(OPENTERFACE_BUILD_STATIC "Link libraries statically where possible" ON)
+option(OPENTERFACE_BUILD_UNIT_TESTS "Build the unit tests in tests/unit (needs Qt6::Test)" OFF)
 message(STATUS "OPENTERFACE_BUILD_STATIC: ${OPENTERFACE_BUILD_STATIC}")
 
 # If we want a static build on Windows prefer .a libraries when CMake searches (set early so find_package uses it)
@@ -105,6 +106,11 @@ endif()
 
 # Include source files from modular file
 include(cmake/SourceFiles.cmake)
+
+if(OPENTERFACE_BUILD_UNIT_TESTS)
+    enable_testing()
+    add_subdirectory(tests/unit)
+endif()
 qt_add_executable(openterfaceQT WIN32 ${SOURCE_FILES})
 
 # Explicitly add Windows resource file with forward slash path
