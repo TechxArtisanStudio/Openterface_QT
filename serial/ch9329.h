@@ -2,6 +2,8 @@
 #define CH9329_H
 
 #include <cstdint>
+#include <cstring>
+#include <type_traits>
 #include <QByteArray>
 #include <QDebug>
 #include <QLoggingCategory>
@@ -65,18 +67,20 @@ static uint32_t toLittleEndian(uint32_t value) {
            ((value << 24) & 0xff000000); // Move byte 0 to byte 3
 }
 
+// Reinterpret a raw response as a packed struct. The caller must check that
+// data.size() >= sizeof(T) before trusting any field: on a short buffer the
+// returned struct is value-initialised (all zero), nothing is read past the
+// end of the buffer, and a warning is logged.
 template <typename T>
 T fromByteArray(const QByteArray &data) {
+    static_assert(std::is_trivially_copyable<T>::value,
+                  "fromByteArray requires a trivially copyable struct");
     T result{};
-    if (data.size() > 0) {
+    if (data.size() >= static_cast<qsizetype>(sizeof(T))) {
         std::memcpy(&result, data.constData(), sizeof(T));
-        // Debugging: Print the raw data
-        // qDebug() << "Raw data:" << data.toHex(' ');
-
-        // Debugging: Print the parsed fields
-        // result.dump();
     } else {
-        qWarning(log_core_serial) << "Data size is too small to parse struct of size" << sizeof(T);
+        qWarning(log_core_serial) << "Data size" << data.size()
+                                  << "is too small to parse struct of size" << sizeof(T);
         qDebug(log_core_serial) << "Data content:" << data.toHex(' ');
     }
     return result;
