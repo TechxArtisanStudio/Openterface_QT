@@ -599,6 +599,12 @@ bool DeviceManager::switchAudioDeviceByPortChain(const QString& portChain)
     }
 }
 
+bool DeviceManager::mayAdoptUnit(const QString& portChain) const
+{
+    const QString selected = GlobalSetting::instance().getProcessPortChain();
+    return selected.isEmpty() || selected == portChain;
+}
+
 bool DeviceManager::switchSerialPortByPortChain(const QString& portChain)
 {
     qCDebug(log_device_manager) << "Attempting to switch serial port to device at port chain:" << portChain;
