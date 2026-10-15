@@ -395,6 +395,12 @@ private:
     // Serial port state machine to prevent race conditions
     std::atomic<SerialPortState> m_portState{SerialPortState::CLOSED};
 
+    // Set (in the worker thread only) while a synchronous command is collecting
+    // its reply via waitForReadyRead(). readData() must leave the bytes in the
+    // port buffer while this is set, otherwise the directly-connected readyRead
+    // slot drains the reply before the synchronous collector can read it.
+    std::atomic<bool> m_syncCommandInProgress{false};
+
     // Flag set to true when device is detected as unplugged, preventing port operations until cleared
     // This prevents race conditions where open attempts occur while device is being removed
     std::atomic<bool> m_deviceUnpluggedDetected{false};
