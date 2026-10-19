@@ -64,6 +64,7 @@ set(keyboard_layouts_resource_files
     "config/keyboards/qwerty_us.json"
     "config/keyboards/qwertz_de.json"
     "config/keyboards/qwerty_es.json"
+    "config/keyboards/qwerty_se.json"
 )
  
 qt_add_resources(openterfaceQT "keyboard_layouts"
