@@ -410,7 +410,7 @@ if [ "$PLATFORM" = "windows" ]; then
   # exposed in errno.h when _POSIX_C_SOURCE or _GNU_SOURCE is defined.
   # Qt's qsystemsemaphore.cpp and qsharedmemory.cpp use these without including errno.h.
   # Add the feature test macro to C_FLAGS and CXX_FLAGS.
-  POSIX_C_SOURCE_DEFINE="_POSIX_C_SOURCE=200809L"
+  POSIX_C_SOURCE_DEFINE="_GNU_SOURCE"
   cmake_args+=(
     -DCMAKE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -D${POSIX_C_SOURCE_DEFINE}"
     -DCMAKE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include algorithm -D${POSIX_C_SOURCE_DEFINE}"
@@ -468,7 +468,7 @@ for m in "${MODULES[@]}"; do
     # exposed in errno.h when _POSIX_C_SOURCE or _GNU_SOURCE is defined.
     # Qt's qsystemsemaphore.cpp and qsharedmemory.cpp use these without including errno.h.
     # Add the feature test macro to C_FLAGS and CXX_FLAGS.
-    POSIX_C_SOURCE_DEFINE="_POSIX_C_SOURCE=200809L"
+    POSIX_C_SOURCE_DEFINE="_GNU_SOURCE"
     MODULE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -D${POSIX_C_SOURCE_DEFINE}"
     MODULE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include algorithm -D${POSIX_C_SOURCE_DEFINE}"
   else
