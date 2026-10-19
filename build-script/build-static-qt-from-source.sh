@@ -415,11 +415,11 @@ if [ "$PLATFORM" = "windows" ]; then
       echo "WARNING: Static library not found: $lib_path"
     fi
   done
-  
-  cmake_args+=( 
-    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L${OPENSSL_LIB_DIR} -L${MINGW_PATH}/lib -static-libgcc -static-libstdc++" 
-    -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}" 
-    -DCMAKE_REQUIRED_LIBRARIES="ws2_32;crypt32;advapi32;user32;gdi32" 
+
+  cmake_args+=(
+    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L${OPENSSL_LIB_DIR} -L${MINGW_PATH}/lib ${STATIC_COMPRESSION_LIBS} -static-libgcc -static-libstdc++"
+    -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}"
+    -DCMAKE_REQUIRED_LIBRARIES="ws2_32;crypt32;advapi32;user32;gdi32"
   )
 fi
 
@@ -441,7 +441,7 @@ for m in "${MODULES[@]}"; do
     -G "Ninja"
     -DCMAKE_C_COMPILER="${CC_BIN}"
     -DCMAKE_CXX_COMPILER="${CXX_BIN}"
-    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS}"
+    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L${OPENSSL_LIB_DIR} -L${MINGW_PATH}/lib ${STATIC_COMPRESSION_LIBS} -static-libgcc -static-libstdc++"
     -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}"
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
     -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}"

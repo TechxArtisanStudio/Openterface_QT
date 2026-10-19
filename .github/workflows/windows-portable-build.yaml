@@ -52,11 +52,51 @@ jobs:
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-lld
+            mingw-w64-x86_64-zstd
             diffutils
             make
             libtool
             git
             perl
+
+      - name: Verify OpenSSL and zstd installation
+        id: verify-deps
+        shell: msys2 {0}
+        run: |
+          echo "Verifying OpenSSL installation in MSYS2..."
+          if [ -f "/mingw64/lib/libssl.a" ] && [ -f "/mingw64/lib/libcrypto.a" ]; then
+            echo "✓ OpenSSL static libraries found:"
+            echo "  libssl.a: $(ls -la /mingw64/lib/libssl.a)"
+            echo "  libcrypto.a: $(ls -la /mingw64/lib/libcrypto.a)"
+          else
+            echo "✗ OpenSSL static libraries NOT found in /mingw64/lib/"
+            echo "Checking what OpenSSL files are available:"
+            ls -la /mingw64/lib/libssl* /mingw64/lib/libcrypto* 2>/dev/null || echo "No OpenSSL* files found in /mingw64/lib/"
+            echo "Available files in /mingw64/lib/ related to SSL:"
+            ls -la /mingw64/lib/ | grep -i ssl || echo "No SSL-related files found"
+            echo "Available files in /mingw64/lib/ related to crypto:"
+            ls -la /mingw64/lib/ | grep -i crypto || echo "No crypto-related files found"
+          fi
+
+          # Check for OpenSSL headers
+          if [ -f "/mingw64/include/openssl/ssl.h" ]; then
+            echo "✓ OpenSSL headers found: /mingw64/include/openssl/ssl.h"
+          else
+            echo "✗ OpenSSL headers NOT found in /mingw64/include/openssl/"
+            echo "Available files in /mingw64/include/openssl/:"
+            ls -la /mingw64/include/openssl/ 2>/dev/null || echo "No openssl directory found"
+          fi
+
+          echo ""
+          echo "Verifying zstd installation..."
+          if [ -f "/mingw64/lib/libzstd.a" ]; then
+            echo "✓ zstd static library found:"
+            echo "  libzstd.a: $(ls -la /mingw64/lib/libzstd.a)"
+          else
+            echo "✗ zstd static library NOT found in /mingw64/lib/"
+            ls -la /mingw64/lib/libzstd* 2>/dev/null || echo "No zstd files found in /mingw64/lib/"
+          fi
+        continue-on-error: true
 
       - name: Cache Qt static build
         id: cache-qt
@@ -107,6 +147,7 @@ jobs:
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-lld
+            mingw-w64-x86_64-zstd
             diffutils
             make
             libtool
@@ -183,6 +224,7 @@ jobs:
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-lld
+            mingw-w64-x86_64-zstd
             diffutils
             make
             libtool
@@ -253,6 +295,7 @@ jobs:
             mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-lld
+            mingw-w64-x86_64-zstd
             diffutils
             make
             libtool
