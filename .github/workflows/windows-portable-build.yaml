@@ -41,7 +41,6 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-make
             mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-yasm
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-bzip2
             mingw-w64-x86_64-xz
@@ -98,7 +97,6 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-make
             mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-yasm
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-bzip2
             mingw-w64-x86_64-xz
@@ -176,7 +174,6 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-make
             mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-yasm
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-bzip2
             mingw-w64-x86_64-xz
@@ -248,7 +245,6 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-make
             mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-yasm
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-bzip2
             mingw-w64-x86_64-xz
@@ -461,7 +457,6 @@ jobs:
             mingw-w64-x86_64-cmake \
             mingw-w64-x86_64-make \
             mingw-w64-x86_64-nasm \
-            mingw-w64-x86_64-yasm \
             mingw-w64-x86_64-zlib \
             mingw-w64-x86_64-bzip2 \
             mingw-w64-x86_64-xz \
