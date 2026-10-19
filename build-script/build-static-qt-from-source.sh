@@ -95,7 +95,7 @@ fi
 # Convert to Windows paths if needed (cygpath available)
 winpath() {
   if command -v cygpath >/dev/null 2>&1; then
-    cygpath -w "$1"
+    cygpath -m "$1"
   else
     # Manual conversion for MSYS2 paths (accounting for msys64/ prefix in actual paths)
     local path="$1"
