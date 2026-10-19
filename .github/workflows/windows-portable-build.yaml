@@ -50,7 +50,6 @@ jobs:
             mingw-w64-x86_64-libb2
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
-            mingw-w64-x86_64-libusb
             mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-lld
             diffutils
@@ -106,7 +105,6 @@ jobs:
             mingw-w64-x86_64-libb2
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
-            mingw-w64-x86_64-libusb
             mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-lld
             diffutils
@@ -183,7 +181,6 @@ jobs:
             mingw-w64-x86_64-libb2
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
-            mingw-w64-x86_64-libusb
             mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-lld
             diffutils
@@ -254,7 +251,6 @@ jobs:
             mingw-w64-x86_64-libb2
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
-            mingw-w64-x86_64-libusb
             mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-lld
             diffutils
@@ -312,9 +308,9 @@ jobs:
                 }
                 
                 # Replace absolute library paths with linker flags to let the linker search
-                $systemLibs = @('libz.a', 'libbz2.a', 'libb2.a', 'liblzma.a', 'libmfx.a', 
+                $systemLibs = @('libz.a', 'libbz2.a', 'libb2.a', 'liblzma.a', 'libmfx.a',
                                 'libwinpthread.a', 'libiconv.a', 'libbrotlidec.a', 'libbrotlicommon.a',
-                                'libusb-1.0.a', 'libzstd.a', 'libcrypto.a', 'libssl.a')
+                                'libzstd.a', 'libcrypto.a', 'libssl.a')
                 
                 foreach ($lib in $systemLibs) {
                   $libName = $lib -replace '^lib', '' -replace '\.a$', ''
@@ -466,7 +462,6 @@ jobs:
             mingw-w64-x86_64-libb2 \
             mingw-w64-x86_64-brotli \
             mingw-w64-x86_64-libjpeg-turbo \
-            mingw-w64-x86_64-libusb \
             mingw-w64-x86_64-pcre2 \
             mingw-w64-x86_64-zstd
           
@@ -554,7 +549,7 @@ jobs:
           
           # Verify critical static libraries exist
           echo "Verifying static libraries in ${MSYS_MINGW_PATH}/lib:"
-          for lib in libz.a libbz2.a libb2.a liblzma.a libmfx.a libwinpthread.a libiconv.a libbrotlidec.a libbrotlicommon.a libbrotlienc.a libusb-1.0.a libzstd.a libcrypto.a libssl.a; do
+          for lib in libz.a libbz2.a libb2.a liblzma.a libmfx.a libwinpthread.a libiconv.a libbrotlidec.a libbrotlicommon.a libbrotlienc.a libzstd.a libcrypto.a libssl.a; do
             if [ -f "${MSYS_MINGW_PATH}/lib/$lib" ]; then
               echo "  ✓ $lib"
             else
@@ -577,7 +572,7 @@ jobs:
           # List actual library files to confirm they exist
           echo ""
           echo "=== Listing actual MSYS2 libraries ==="
-          ls -lh /mingw64/lib/libz.a /mingw64/lib/libbz2.a /mingw64/lib/libusb-1.0.a 2>&1 || echo "Some libraries not found!"
+          ls -lh /mingw64/lib/libz.a /mingw64/lib/libbz2.a 2>&1 || echo "Some libraries not found!"
           
           echo ""
           echo "=== Checking Windows path accessibility from MSYS2 ==="
