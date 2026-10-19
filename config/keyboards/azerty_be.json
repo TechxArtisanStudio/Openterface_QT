@@ -45,14 +45,17 @@
         "Key_Space": "0x2C",
         "Key_ParenRight": "0x2D",
         "Key_Minus": "0x2E", "Key_Underscore": "0x2E",
-        
+
         "Key_AsciiCircum": "0x2F", "Key_Dead_Diaeresis": "0x2F",
         "Key_Dollar": "0x30", "Key_Asterisk": "0x30",
         "Key_Percent": "0x34",
         "Key_Comma": "0x10", "Key_Question" : "0x10",
-        "Key_Equal": "0x38", "Key_plus" : "0x38",
-        "Key_Period": "0x36",
-        "Key_Slash" : "0x37",
+        "Key_Equal": "0x38", "Key_Plus": "0x38",
+        "Key_Period": "0x36", "Key_Semicolon": "0x36",
+        "Key_Slash" : "0x37", "Key_Colon": "0x37",
+        "Key_Less": "0x64", "Key_Greater": "0x64", "Key_Backslash": "0x64",
+        "Key_BracketLeft": "0x2F", "Key_BracketRight": "0x30",
+        "Key_Ccedilla": "0x26", "Key_AsciiTilde": "0x38", "Key_QuoteLeft": "0x31",
         "Key_CapsLock": "0x39",
         "Key_Shift": "0xE5",
         "Key_Control": "0xE4",
@@ -81,13 +84,13 @@
         "Key_Delete": "0x4C"
     },
     "char_mapping": {
-        "a": "Key_Q", "A": "Key_Q", 
-        "q": "Key_A", "Q": "Key_A",
+        "a": "Key_A", "A": "Key_A",
+        "q": "Key_Q", "Q": "Key_Q",
         "b": "Key_B", "B": "Key_B",
         "c": "Key_C", "C": "Key_C",
         "d": "Key_D", "D": "Key_D",
         "e": "Key_E", "E": "Key_E",
-        "f": "Key_F", "F": "Key_F", 
+        "f": "Key_F", "F": "Key_F",
         "g": "Key_G", "G": "Key_G",
         "h": "Key_H", "H": "Key_H",
         "i": "Key_I", "I": "Key_I",
@@ -103,10 +106,10 @@
         "t": "Key_T", "T": "Key_T",
         "u": "Key_U", "U": "Key_U",
         "v": "Key_V", "V": "Key_V",
-        "w": "Key_Z", "W": "Key_Z",
+        "w": "Key_W", "W": "Key_W",
         "x": "Key_X", "X": "Key_X",
         "y": "Key_Y", "Y": "Key_Y",
-        "z": "Key_W", "Z": "Key_W",
+        "z": "Key_Z", "Z": "Key_Z",
         "1": "Key_Ampersand", "&": "Key_Ampersand",
         "2": "Key_Eacute", "é": "Key_Eacute",
         "3": "Key_QuoteDbl", "\"": "Key_QuoteDbl",
@@ -115,21 +118,29 @@
         "6": "Key_section", "§": "Key_section",
         "7": "Key_Egrave", "è": "Key_Egrave",
         "8": "Key_Exclam", "!": "Key_Exclam",
-        "9": "U+00C7", "ç": "U+00C7",
+        "9": "Key_9", "ç": "Key_Ccedilla",
         "0": "Key_Agrave", "à": "Key_Agrave",
-        "=": "Key_Equal",
+        "=": "Key_Equal", "+": "Key_Plus",
         ";": "Key_Semicolon",
-        ":": "Key_Semicolon",
+        ":": "Key_Colon",
         " ": "Key_Space",
         "\t": "Key_Tab",
         "\n": "Key_Return", "\r": "Key_Return",
-        "ù": "Key_BracketRight"
+        "ù": "Key_Percent",
+        "#": "Key_NumberSign", "$": "Key_Dollar", "%": "Key_Percent",
+        ")": "Key_ParenRight", "*": "Key_Asterisk", ",": "Key_Comma",
+        "-": "Key_Minus", "_": "Key_Underscore", ".": "Key_Period",
+        "/": "Key_Slash", "?": "Key_Question", "@": "Key_At",
+        "<": "Key_Less", ">": "Key_Greater", "\\": "Key_Backslash",
+        "[": "Key_BracketLeft", "]": "Key_BracketRight",
+        "{": "Key_BraceLeft", "}": "Key_BraceRight", "|": "Key_Bar",
+        "^": "Key_Dead_Circumflex", "~": "Key_AsciiTilde", "`": "Key_QuoteLeft"
     },
     "unicode_map": {
         "U+003A": "0x37",
         "U+003B": "0x36",
         "U+00C7": "0x26",
-        "U+00D9": "0x34", 
+        "U+00D9": "0x34",
         "U+00B0": "0x2D",
         "U+00A3": "0x31",
         "U+039C": "0x31",
@@ -141,9 +152,9 @@
         "J", "K", "L", "M", "N", "O", "P", "Q", "R",
         "S", "T", "U", "V", "W", "X", "Y", "Z",
         "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",
-        "°", "_", "¨", "*", "%", "U+00A3", "?", ".", "/", "+"
+        "°", "_", "¨", "*", "%", "U+00A3", "?", ".", "/", "+", ">"
     ],
     "need_altgr_keys": [
-        "€", "|", "@", "#", "^", "{", "}", "[", "]", "´", "`", "~", "//"
+        "€", "|", "@", "#", "^", "{", "}", "[", "]", "´", "`", "~", "\\"
     ]
-} 
+}
