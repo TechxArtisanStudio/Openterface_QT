@@ -385,8 +385,6 @@ cmake_args=(
   -DOPENSSL_INCLUDE_DIR="${OPENSSL_INCLUDE_DIR}"
   -DOPENSSL_CRYPTO_LIBRARY="${OPENSSL_LIB_DIR}/libcrypto.a"
   -DOPENSSL_SSL_LIBRARY="${OPENSSL_LIB_DIR}/libssl.a"
-  -DCMAKE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC"
-  -DCMAKE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include algorithm"
   ..
 )
 
@@ -398,8 +396,26 @@ if [ -n "${VCPKG_ROOT:-}" ] && [ -n "${VCPKG_TRIPLET:-}" ] && [ -f "${VCPKG_ROOT
   )
 fi
 
+# Set C/CXX flags for non-Windows platforms (Windows flags are set below)
+if [ "$PLATFORM" != "windows" ]; then
+  cmake_args+=(
+    -DCMAKE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC"
+    -DCMAKE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include algorithm"
+  )
+fi
+
 # Add windows-specific linker flags
 if [ "$PLATFORM" = "windows" ]; then
+  # On Windows with MinGW/clang, POSIX error codes (EPERM, EACCES, etc.) are only
+  # exposed in errno.h when _POSIX_C_SOURCE or _GNU_SOURCE is defined.
+  # Qt's qsystemsemaphore.cpp and qsharedmemory.cpp use these without including errno.h.
+  # Add the feature test macro to C_FLAGS and CXX_FLAGS.
+  POSIX_C_SOURCE_DEFINE="_POSIX_C_SOURCE=200809L"
+  cmake_args+=(
+    -DCMAKE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -D${POSIX_C_SOURCE_DEFINE}"
+    -DCMAKE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include algorithm -D${POSIX_C_SOURCE_DEFINE}"
+  )
+
   # Force static linking of zstd from MSYS2 instead of vcpkg
   ZSTD_STATIC_LIB="${MINGW_PATH}/lib/libzstd.a"
   if [ -f "$ZSTD_STATIC_LIB" ]; then
@@ -445,6 +461,21 @@ for m in "${MODULES[@]}"; do
   echo "Building module $m..."
   mkdir -p "$m/build"
   pushd "$m/build" >/dev/null
+
+  # Set C/CXX flags based on platform
+  if [ "$PLATFORM" = "windows" ]; then
+    # On Windows with MinGW/clang, POSIX error codes (EPERM, EACCES, etc.) are only
+    # exposed in errno.h when _POSIX_C_SOURCE or _GNU_SOURCE is defined.
+    # Qt's qsystemsemaphore.cpp and qsharedmemory.cpp use these without including errno.h.
+    # Add the feature test macro to C_FLAGS and CXX_FLAGS.
+    POSIX_C_SOURCE_DEFINE="_POSIX_C_SOURCE=200809L"
+    MODULE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -D${POSIX_C_SOURCE_DEFINE}"
+    MODULE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include algorithm -D${POSIX_C_SOURCE_DEFINE}"
+  else
+    MODULE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC"
+    MODULE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include algorithm"
+  fi
+
   module_cmake_args=(
     -G "Ninja"
     -DCMAKE_C_COMPILER="${CC_BIN}"
@@ -467,6 +498,8 @@ for m in "${MODULES[@]}"; do
     -DOPENSSL_INCLUDE_DIR="$(winpath "$OPENSSL_INCLUDE_DIR")"
     -DOPENSSL_CRYPTO_LIBRARY="$(winpath "$OPENSSL_LIB_DIR/libcrypto.a")"
     -DOPENSSL_SSL_LIBRARY="$(winpath "$OPENSSL_LIB_DIR/libssl.a")"
+    -DCMAKE_C_FLAGS="${MODULE_C_FLAGS}"
+    -DCMAKE_CXX_FLAGS="${MODULE_CXX_FLAGS}"
     ..
   )
   if [ -n "${VCPKG_ROOT:-}" ] && [ -n "${VCPKG_TRIPLET:-}" ] && [ -f "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" ]; then
