@@ -3,6 +3,8 @@
 
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QHostAddress>
+#include <QPointer>
 #include <QString>
 #include <QFile>
 #include <QImage>
@@ -35,7 +37,12 @@ class TcpServer : public QTcpServer {
 
 public:
     explicit TcpServer(QObject *parent = nullptr);
-    void startServer(quint16 port);
+
+    // Start listening. Returns false if the socket could not be bound.
+    // The server has no authentication, so it binds to loopback by default;
+    // set OPENTERFACE_TCP_BIND_ADDRESS (an IP address or "any") to expose it.
+    bool startServer(quint16 port, const QHostAddress& address = defaultBindAddress());
+    static QHostAddress defaultBindAddress();
     void setCameraManager(CameraManager* cameraManager);
 
 signals:
@@ -53,7 +60,9 @@ private slots:
     void onReadyRead();
     
 private:
-    QTcpSocket *currentClient;
+    // QPointer: nulls itself when the socket is deleted, so a client that
+    // disconnects mid-command can never be dereferenced after deletion.
+    QPointer<QTcpSocket> currentClient;
     QString lastImgPath;
     CameraManager* m_cameraManager;
     QImage m_currentFrame;
