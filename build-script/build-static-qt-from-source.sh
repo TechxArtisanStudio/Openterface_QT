@@ -97,12 +97,12 @@ winpath() {
   if command -v cygpath >/dev/null 2>&1; then
     cygpath -w "$1"
   else
-    # Manual conversion for MSYS2 paths
+    # Manual conversion for MSYS2 paths (accounting for msys64/ prefix in actual paths)
     local path="$1"
     if [[ "$path" == /mingw64/* ]]; then
-      echo "C:/msys64/mingw64${path#/mingw64}"
+      echo "C:/msys64/msys64/mingw64${path#/mingw64}"
     elif [[ "$path" == /clangarm64/* ]]; then
-      echo "C:/msys64/clangarm64${path#/clangarm64}"
+      echo "C:/msys64/msys64/clangarm64${path#/clangarm64}"
     else
       echo "$path"
     fi
