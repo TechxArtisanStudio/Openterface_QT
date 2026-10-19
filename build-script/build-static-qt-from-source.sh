@@ -396,7 +396,7 @@ if [ "$PLATFORM" = "windows" ]; then
   ZSTD_STATIC_LIB="${MINGW_PATH}/lib/libzstd.a"
   if [ -f "$ZSTD_STATIC_LIB" ]; then
     echo "Using static zstd from: $ZSTD_STATIC_LIB"
-    cmake_args+=( -DZSTD_LIBRARY="$ZSTD_STATIC_LIB" -DZSTD_INCLUDE_DIR="${MINGW_PATH}/include" )
+    cmake_args+=( -DZSTD_LIBRARY="$(winpath "$ZSTD_STATIC_LIB")" -DZSTD_INCLUDE_DIR="$(winpath "${MINGW_PATH}/include")" )
   else
     echo "WARNING: Static zstd library not found at $ZSTD_STATIC_LIB"
     echo "Installing zstd static library via pacman..."
@@ -409,7 +409,7 @@ if [ "$PLATFORM" = "windows" ]; then
   for lib in zstd brotlidec brotlienc brotlicommon z bz2 lzma; do
     lib_path="${MINGW_PATH}/lib/lib${lib}.a"
     if [ -f "$lib_path" ]; then
-      STATIC_COMPRESSION_LIBS="${STATIC_COMPRESSION_LIBS} ${lib_path}"
+      STATIC_COMPRESSION_LIBS="${STATIC_COMPRESSION_LIBS} $(winpath "$lib_path")"
       echo "Found static library: $lib_path"
     else
       echo "WARNING: Static library not found: $lib_path"
@@ -417,7 +417,7 @@ if [ "$PLATFORM" = "windows" ]; then
   done
 
   cmake_args+=(
-    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L${OPENSSL_LIB_DIR} -L${MINGW_PATH}/lib ${STATIC_COMPRESSION_LIBS} -static-libgcc -static-libstdc++"
+    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L$(winpath "$OPENSSL_LIB_DIR") -L$(winpath "$MINGW_PATH/lib") ${STATIC_COMPRESSION_LIBS} -static-libgcc -static-libstdc++"
     -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}"
     -DCMAKE_REQUIRED_LIBRARIES="ws2_32;crypt32;advapi32;user32;gdi32"
   )
@@ -441,7 +441,7 @@ for m in "${MODULES[@]}"; do
     -G "Ninja"
     -DCMAKE_C_COMPILER="${CC_BIN}"
     -DCMAKE_CXX_COMPILER="${CXX_BIN}"
-    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L${OPENSSL_LIB_DIR} -L${MINGW_PATH}/lib ${STATIC_COMPRESSION_LIBS} -static-libgcc -static-libstdc++"
+    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L$(winpath "$OPENSSL_LIB_DIR") -L$(winpath "$MINGW_PATH/lib") ${STATIC_COMPRESSION_LIBS} -static-libgcc -static-libstdc++"
     -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}"
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
     -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}"
@@ -455,10 +455,10 @@ for m in "${MODULES[@]}"; do
     -DINPUT_libclang=no
     -DCMAKE_DISABLE_FIND_PACKAGE_Clang=TRUE
     -DCMAKE_DISABLE_FIND_PACKAGE_LLVM=TRUE
-    -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT}"
-    -DOPENSSL_INCLUDE_DIR="${OPENSSL_INCLUDE_DIR}"
-    -DOPENSSL_CRYPTO_LIBRARY="${OPENSSL_LIB_DIR}/libcrypto.a"
-    -DOPENSSL_SSL_LIBRARY="${OPENSSL_LIB_DIR}/libssl.a"
+    -DOPENSSL_ROOT_DIR="$(winpath "$OPENSSL_ROOT")"
+    -DOPENSSL_INCLUDE_DIR="$(winpath "$OPENSSL_INCLUDE_DIR")"
+    -DOPENSSL_CRYPTO_LIBRARY="$(winpath "$OPENSSL_LIB_DIR/libcrypto.a")"
+    -DOPENSSL_SSL_LIBRARY="$(winpath "$OPENSSL_LIB_DIR/libssl.a")"
     ..
   )
   if [ -n "${VCPKG_ROOT:-}" ] && [ -n "${VCPKG_TRIPLET:-}" ] && [ -f "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" ]; then
