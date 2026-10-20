@@ -93,6 +93,23 @@ jobs:
             git
             perl
 
+      # libusb was moved from mingw64 to ucrt64 repo in MSYS2
+      # Install it separately from the ucrt64 repository
+      - name: Install libusb from ucrt64 repo
+        shell: msys2 {0}
+        run: |
+          echo "Installing libusb from ucrt64 repository..."
+          # Enable ucrt64 repo temporarily
+          echo "[ucrt64]" >> /etc/pacman.conf
+          echo "Server = https://mirror.msys2.org/msys2/mingw/ucrt64/" >> /etc/pacman.conf
+          pacman -Sy --noconfirm --needed mingw-w64-ucrt-x86_64-libusb
+          # Copy libusb files to mingw64 paths for build compatibility
+          cp /ucrt64/bin/libusb-1.0.dll /mingw64/bin/ 2>/dev/null || true
+          cp /ucrt64/lib/libusb-1.0.a /mingw64/lib/ 2>/dev/null || true
+          cp /ucrt64/lib/libusb-1.0.dll.a /mingw64/lib/ 2>/dev/null || true
+          cp -r /ucrt64/include/libusb-1.0 /mingw64/include/ 2>/dev/null || true
+          echo "libusb installed successfully"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -339,9 +356,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:\libusb
-          key: libusb-1.0.27-windows-v1
+          key: libusb-1.0.30-ucrt64-windows-v1
           restore-keys: |
-            libusb-1.0.27-windows-v1
+            libusb-1.0.30-ucrt64-windows-v1
 
       - name: Verify and Setup LibUSB
         if: steps.cache-libusb.outputs.cache-hit != 'true' || github.event.inputs.force_rebuild == 'true'
@@ -349,13 +366,21 @@ jobs:
         run: |
           echo "Setting up LibUSB for Qt/MinGW compatibility..."
 
-          # Update package DB and ensure MinGW libusb package is installed
-          echo "Updating package database and installing mingw-w64-x86_64-libusb (if needed)..."
-          pacman -Sy --noconfirm --needed mingw-w64-x86_64-libusb || echo "pacman returned non-zero status"
+          # libusb was moved from mingw64 to ucrt64 repo in MSYS2
+          # Install from ucrt64 repository
+          echo "Installing libusb from ucrt64 repository..."
+
+          # Enable ucrt64 repo if not already enabled
+          if ! grep -q "^\[ucrt64\]" /etc/pacman.conf; then
+            echo "[ucrt64]" >> /etc/pacman.conf
+            echo "Server = https://mirror.msys2.org/msys2/mingw/ucrt64/" >> /etc/pacman.conf
+          fi
+
+          pacman -Sy --noconfirm --needed mingw-w64-ucrt-x86_64-libusb || echo "pacman returned non-zero status"
 
           # List package files if installed (helps debugging)
-          if pacman -Qi mingw-w64-x86_64-libusb >/dev/null 2>&1; then
-            echo "Installed files for mingw-w64-x86_64-libusb:"; pacman -Ql mingw-w64-x86_64-libusb || true
+          if pacman -Qi mingw-w64-ucrt-x86_64-libusb >/dev/null 2>&1; then
+            echo "Installed files for mingw-w64-ucrt-x86_64-libusb:"; pacman -Ql mingw-w64-ucrt-x86_64-libusb || true
           fi
 
           # Create cache directory structure
@@ -363,22 +388,23 @@ jobs:
 
           LIBUSB_FOUND=false
 
-          # Preferred: MinGW libusb DLL (best ABI compatibility with Qt/MinGW)
-          if [ -f "/mingw64/bin/libusb-1.0.dll" ]; then
-            echo "✓ Found MinGW libusb-1.0.dll"
-            cp /mingw64/bin/libusb-1.0.dll /c/libusb/bin/ || true
-            cp /mingw64/bin/libusb-1.0.dll /c/libusb/bin/msys-usb-1.0.dll || true
-            # Copy MinGW runtime dependencies that might be needed
-            cp /mingw64/bin/libwinpthread-1.dll /c/libusb/bin/ 2>/dev/null || true
-            cp /mingw64/bin/libgcc_s_seh-1.dll /c/libusb/bin/ 2>/dev/null || true
-            
+          # Preferred: ucrt64 libusb DLL
+          if [ -f "/ucrt64/bin/libusb-1.0.dll" ]; then
+            echo "✓ Found ucrt64 libusb-1.0.dll"
+            cp /ucrt64/bin/libusb-1.0.dll /c/libusb/bin/ || true
+            cp /ucrt64/bin/libusb-1.0.dll /c/libusb/bin/msys-usb-1.0.dll || true
             # Copy library and header files for linking
-            cp /mingw64/lib/*usb* /c/libusb/lib/ 2>/dev/null || echo "No USB libs to copy"
-            cp -r /mingw64/include/libusb* /c/libusb/include/ 2>/dev/null || echo "No USB headers to copy"
-            
+            cp /ucrt64/lib/libusb-1.0.a /c/libusb/lib/ 2>/dev/null || true
+            cp /ucrt64/lib/libusb-1.0.dll.a /c/libusb/lib/ 2>/dev/null || true
+            cp -r /ucrt64/include/libusb-1.0 /c/libusb/include/ 2>/dev/null || true
+            # Also copy to mingw64 paths for build compatibility
+            cp /ucrt64/bin/libusb-1.0.dll /mingw64/bin/ 2>/dev/null || true
+            cp /ucrt64/lib/libusb-1.0.a /mingw64/lib/ 2>/dev/null || true
+            cp /ucrt64/lib/libusb-1.0.dll.a /mingw64/lib/ 2>/dev/null || true
+            cp -r /ucrt64/include/libusb-1.0 /mingw64/include/ 2>/dev/null || true
             LIBUSB_FOUND=true
           else
-            echo "MinGW libusb-1.0.dll not found in /mingw64/bin"
+            echo "ucrt64 libusb-1.0.dll not found in /ucrt64/bin"
           fi
 
           # Fallback: check cached copy or search for possible DLLs and copy them
@@ -406,7 +432,7 @@ jobs:
             echo "ERROR: libusb-1.0.dll not found after installation and search attempts."
             echo "Suggestions:"
             echo "  - Enable 'force_rebuild' input to force reinstallation in CI or run the workflow again."
-            echo "  - Ensure MSYS2 pacman can access mingw-w64-x86_64-libusb (network/firewall issues may block it)."
+            echo "  - Ensure MSYS2 pacman can access mingw-w64-ucrt-x86_64-libusb (network/firewall issues may block it)."
             echo "  - As a last resort place a compatible libusb-1.0.dll in /c/libusb/bin or next to the executable."
             exit 1
           fi
@@ -531,13 +557,19 @@ jobs:
             cp /mingw64/bin/libusb-1.0.dll ${{ env.PACKAGE_DIR }}
             cp /mingw64/bin/libusb-1.0.dll ${{ env.PACKAGE_DIR }}/msys-usb-1.0.dll
             echo "✓ Copied MinGW libusb-1.0.dll and created msys-usb-1.0.dll (best compatibility)"
-            
+
             # Copy MinGW runtime dependencies to prevent ABI mismatches
             cp /mingw64/bin/libgcc_s_dw2-1.dll ${{ env.PACKAGE_DIR }} 2>/dev/null || echo "MinGW libgcc_s_dw2-1.dll not needed"
             cp /mingw64/bin/libwinpthread-1.dll ${{ env.PACKAGE_DIR }} 2>/dev/null && echo "✓ Copied MinGW pthread" || echo "MinGW pthread not needed"
             LIBUSB_FOUND=true
-            
-          # No UCRT64 fallback (MinGW64 only)
+          fi
+
+          # Priority 3: Check ucrt64 directly (libusb was moved here from mingw64)
+          if [ "$LIBUSB_FOUND" = "false" ] && [ -f "/ucrt64/bin/libusb-1.0.dll" ]; then
+            cp /ucrt64/bin/libusb-1.0.dll ${{ env.PACKAGE_DIR }}
+            cp /ucrt64/bin/libusb-1.0.dll ${{ env.PACKAGE_DIR }}/msys-usb-1.0.dll
+            echo "✓ Copied ucrt64 libusb-1.0.dll and created msys-usb-1.0.dll"
+            LIBUSB_FOUND=true
           fi
           
           # Copy additional MinGW runtime DLLs that may be needed for LibUSB compatibility
