@@ -287,6 +287,7 @@ set(UI_TOOLBAR_SOURCES
 # UI virtual keyboard sources
 set(UI_VIRTUALKEYBOARD_SOURCES
     ui/virtualkeyboard/VirtualKeyboardDialog.cpp ui/virtualkeyboard/VirtualKeyboardDialog.h
+    ui/virtualkeyboard/ShiftedKeyButton.cpp ui/virtualkeyboard/ShiftedKeyButton.h
 )
 
 # UI recording sources

@@ -1,13 +1,19 @@
 #include "toolbarmanager.h"
 #include "global.h"
+#include "../globalsetting.h"
 #include "host/HostManager.h"
 #include "../customkey/customkeymanager.h"
+#include "../../target/KeyboardLayouts.h"
+#include "log/opflogging.h"
 #include <QHBoxLayout>
 #include <QWidget>
 #include <QToolButton>
 #include <QStyle>
 #include <QTimer>
 #include <QPropertyAnimation>
+#include <QSettings>
+
+OPF_LOGGING_CATEGORY(log_toolbar_keyboard, "opf.ui.keyboard")
 
 const QString ToolbarManager::commonButtonStyle =
         "QPushButton { "
@@ -40,6 +46,9 @@ const QList<ToolbarManager::ModifierInfo> ToolbarManager::modifierButtons = {
 
 ToolbarManager::ToolbarManager(QWidget *parent) : QObject(parent)
 {
+    // Load saved keyboard layout preference from GlobalSetting (same as corner widget)
+    GlobalSetting::instance().getKeyboardLayout(m_currentLayout);
+
     setupToolbar();
 }
 
@@ -68,6 +77,27 @@ void ToolbarManager::setupToolbar()
 
     toolbar->addSeparator();
 
+    // Add keyboard layout selector
+    m_layoutComboBox = new QComboBox(toolbar);
+    m_layoutComboBox->setToolTip(tr("Select Keyboard Layout"));
+    m_layoutComboBox->setStyleSheet(
+        "QComboBox { "
+        "   border: 1px solid palette(mid); "
+        "   background-color: palette(button); "
+        "   color: palette(buttonText); "
+        "   padding: 2px; "
+        "   margin: 2px; "
+        "   min-width: 100px; "
+        "} "
+        "QComboBox QAbstractItemView { "
+        "   background-color: palette(base); "
+        "   color: palette(text); "
+        "}"
+    );
+    toolbar->addWidget(m_layoutComboBox);
+    connect(m_layoutComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &ToolbarManager::onLayoutChanged);
+
     // Repeating keystroke combo box
     QComboBox *repeatingKeystrokeComboBox = new QComboBox(toolbar);
     repeatingKeystrokeComboBox->setStyleSheet(
@@ -92,6 +122,9 @@ void ToolbarManager::setupToolbar()
 
     connect(repeatingKeystrokeComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &ToolbarManager::onRepeatingKeystrokeChanged);
+
+    // Populate keyboard layout selector (already created in rebuildToolbar)
+    populateLayoutSelector();
 }
 
 void ToolbarManager::rebuildToolbar()
@@ -108,10 +141,13 @@ void ToolbarManager::rebuildToolbar()
     }
 
     // Add virtual keyboard button first
-    QPushButton *virtualKbButton = new QPushButton(tr("⌨"), toolbar);
+    QPushButton *virtualKbButton = new QPushButton(toolbar);
     virtualKbButton->setToolTip(tr("Virtual Keyboard"));
+    virtualKbButton->setIcon(QIcon(":/images/keyboard.svg"));
+    virtualKbButton->setIconSize(QSize(24, 24));
     virtualKbButton->setStyleSheet(commonButtonStyle);
-    virtualKbButton->setFixedWidth(40);
+    virtualKbButton->setFixedWidth(45);
+    virtualKbButton->setFixedHeight(32);
     toolbar->addWidget(virtualKbButton);
     connect(virtualKbButton, &QPushButton::clicked, this, &ToolbarManager::onVirtualKeyboardClicked);
 
@@ -320,4 +356,80 @@ void ToolbarManager::updateStyles()
             );
         }
     }
+}
+
+void ToolbarManager::populateLayoutSelector()
+{
+    if (!m_layoutComboBox) return;
+
+    // Get available layouts from KeyboardLayoutManager
+    QStringList layouts = KeyboardLayoutManager::getInstance().getAvailableLayouts();
+
+    // Clear existing items
+    m_layoutComboBox->clear();
+
+    // Add layouts to combo box
+    for (const QString& layout : layouts) {
+        m_layoutComboBox->addItem(layout, layout);
+    }
+
+    // Set to the saved layout from GlobalSetting if available, otherwise use US QWERTY
+    if (!m_currentLayout.isEmpty()) {
+        int savedIndex = m_layoutComboBox->findText(m_currentLayout);
+        if (savedIndex >= 0) {
+            m_layoutComboBox->setCurrentIndex(savedIndex);
+        } else {
+            // Saved layout not found, fall back to US QWERTY
+            int defaultIndex = m_layoutComboBox->findText("US QWERTY");
+            if (defaultIndex >= 0) {
+                m_layoutComboBox->setCurrentIndex(defaultIndex);
+                m_currentLayout = "US QWERTY";
+            }
+        }
+    } else {
+        // No saved layout, default to US QWERTY
+        int defaultIndex = m_layoutComboBox->findText("US QWERTY");
+        if (defaultIndex >= 0) {
+            m_layoutComboBox->setCurrentIndex(defaultIndex);
+            m_currentLayout = "US QWERTY";
+        }
+    }
+}
+
+void ToolbarManager::onLayoutChanged(int index)
+{
+    if (!m_layoutComboBox) return;
+
+    QString layoutName = m_layoutComboBox->itemText(index);
+    qCInfo(log_toolbar_keyboard) << "Layout changed to:" << layoutName << "current:" << m_currentLayout;
+    if (!layoutName.isEmpty() && layoutName != m_currentLayout) {
+        m_currentLayout = layoutName;
+
+        // Save the layout preference using GlobalSetting (same as corner widget)
+        GlobalSetting::instance().setKeyboardLayout(m_currentLayout);
+
+        qCInfo(log_toolbar_keyboard) << "Emitting layoutChanged signal:" << layoutName;
+        emit layoutChanged(layoutName);
+    }
+}
+
+void ToolbarManager::setCurrentLayout(const QString& layoutName)
+{
+    if (layoutName == m_currentLayout) return;
+
+    qCInfo(log_toolbar_keyboard) << "Setting toolbar layout to:" << layoutName;
+    m_currentLayout = layoutName;
+
+    // Update the combo box selection without emitting signal (to avoid circular updates)
+    if (m_layoutComboBox) {
+        m_layoutComboBox->blockSignals(true);
+        int index = m_layoutComboBox->findText(layoutName);
+        if (index >= 0) {
+            m_layoutComboBox->setCurrentIndex(index);
+        }
+        m_layoutComboBox->blockSignals(false);
+    }
+
+    // Save the layout preference using GlobalSetting (same as corner widget)
+    GlobalSetting::instance().setKeyboardLayout(m_currentLayout);
 }

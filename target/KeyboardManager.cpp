@@ -828,7 +828,7 @@ bool KeyboardManager::isLockKey(int keycode) {
     return keycode == Qt::Key_NumLock || keycode == Qt::Key_CapsLock || keycode == Qt::Key_ScrollLock;
 }
 
-void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping) {
+void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<int, int>& charMapping) {
     qCDebug(log_host_kb_special) << "Handle pasting characters now:" << text.length() << "chars, text=\"" << text << "\"";
 
     // Use shared state + shared std::function so the recursive tick
@@ -836,7 +836,7 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
     // automatically when no more ticks are pending.
     struct PasteState {
         QString remaining;
-        QMap<uint8_t, int> mapping;
+        QMap<int, int> mapping;
         int totalChars;
         int typedChars;
         int reconnectAttempts;       // Number of reconnection attempts made
@@ -913,7 +913,7 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
         // Process up to batchSize characters
         for (int i = 0; i < batchSize && !state->remaining.isEmpty(); ++i) {
             QChar ch = state->remaining.at(0);
-            uint8_t charString = ch.unicode();
+            int charString = ch.unicode();
             int key = state->mapping.value(charString, 0);
 
             bool needShift = needShiftWhenPaste(ch);

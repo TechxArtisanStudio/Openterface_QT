@@ -118,6 +118,9 @@ private:
     
     // Timer slot for processing pending mouse move
     void processPendingMouseMove();
+
+signals:
+    void keyPressed(int keyCode);
 };
 
 #endif // INPUTHANDLER_H

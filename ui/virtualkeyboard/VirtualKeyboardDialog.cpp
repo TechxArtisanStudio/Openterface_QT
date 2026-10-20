@@ -1,110 +1,27 @@
 #include "VirtualKeyboardDialog.h"
 #include "../../host/HostManager.h"
+#include "../../target/KeyboardLayouts.h"
+#include "log/opflogging.h"
 #include <QKeySequence>
 #include <QDebug>
 #include <QApplication>
 #include <QPalette>
+#include <QFont>
+#include <QFontDatabase>
+#include "ShiftedKeyButton.h"
 
-// Finger zone colors (MadTyping style)
-// Left pinky: light blue, Left ring: light green, Left middle: light yellow, Left index: light orange
-// Right index: light coral, Right middle: light pink, Right ring: light purple, Right pinky: light cyan
-static const QString leftPinkyStyle =
+OPF_LOGGING_CATEGORY(log_virtual_keyboard, "opf.ui.keyboard")
+
+// Neutral key style (no color coding)
+static const QString buttonStyle =
     "QPushButton { "
     "   border: 1px solid #999; border-radius: 4px; "
     "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-    "       stop:0 #d4e8ff, stop:0.5 #b8d4f0, stop:1 #9cc0e0); "
-    "   color: #222; padding: 6px 8px; margin: 1px; "
-    "   min-width: 38px; min-height: 38px; font-size: 13px; font-weight: 500; "
+    "       stop:0 #ffffff, stop:0.5 #f5f5f5, stop:1 #e8e8e8); "
+    "   color: #000; padding: 4px 6px; margin: 1px; "
+    "   font-size: 11px; font-weight: 600; "
     "} "
-    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #c0dcff, stop:0.5 #a8c8e8, stop:1 #90b8d8); } "
-    "QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #a8c8e8, stop:0.5 #90b8d8, stop:1 #78a8c8); }";
-
-static const QString leftRingStyle =
-    "QPushButton { "
-    "   border: 1px solid #999; border-radius: 4px; "
-    "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-    "       stop:0 #d4ffd4, stop:0.5 #b8e8b8, stop:1 #9cd09c); "
-    "   color: #222; padding: 6px 8px; margin: 1px; "
-    "   min-width: 38px; min-height: 38px; font-size: 13px; font-weight: 500; "
-    "} "
-    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #c0f0c0, stop:0.5 #a8d8a8, stop:1 #90c890); } "
-    "QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #a8d8a8, stop:0.5 #90c890, stop:1 #78b878); }";
-
-static const QString leftMiddleStyle =
-    "QPushButton { "
-    "   border: 1px solid #999; border-radius: 4px; "
-    "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-    "       stop:0 #ffffd4, stop:0.5 #f0e8b8, stop:1 #e0d09c); "
-    "   color: #222; padding: 6px 8px; margin: 1px; "
-    "   min-width: 38px; min-height: 38px; font-size: 13px; font-weight: 500; "
-    "} "
-    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #fff0c0, stop:0.5 #e8d8a8, stop:1 #d8c890); } "
-    "QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e8d8a8, stop:0.5 #d8c890, stop:1 #c8b878); }";
-
-static const QString leftIndexStyle =
-    "QPushButton { "
-    "   border: 1px solid #999; border-radius: 4px; "
-    "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-    "       stop:0 #ffe8d4, stop:0.5 #f0d0b8, stop:1 #e0b89c); "
-    "   color: #222; padding: 6px 8px; margin: 1px; "
-    "   min-width: 38px; min-height: 38px; font-size: 13px; font-weight: 500; "
-    "} "
-    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffd8c0, stop:0.5 #e8c0a8, stop:1 #d8a890); } "
-    "QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e8c0a8, stop:0.5 #d8a890, stop:1 #c89878); }";
-
-static const QString rightIndexStyle =
-    "QPushButton { "
-    "   border: 1px solid #999; border-radius: 4px; "
-    "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-    "       stop:0 #ffd4d4, stop:0.5 #f0b8b8, stop:1 #e09c9c); "
-    "   color: #222; padding: 6px 8px; margin: 1px; "
-    "   min-width: 38px; min-height: 38px; font-size: 13px; font-weight: 500; "
-    "} "
-    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffc0c0, stop:0.5 #e8a8a8, stop:1 #d89090); } "
-    "QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e8a8a8, stop:0.5 #d89090, stop:1 #c87878); }";
-
-static const QString rightMiddleStyle =
-    "QPushButton { "
-    "   border: 1px solid #999; border-radius: 4px; "
-    "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-    "       stop:0 #ffd4e8, stop:0.5 #f0b8d0, stop:1 #e09cb8); "
-    "   color: #222; padding: 6px 8px; margin: 1px; "
-    "   min-width: 38px; min-height: 38px; font-size: 13px; font-weight: 500; "
-    "} "
-    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #ffc0d8, stop:0.5 #e8a8c0, stop:1 #d890a8); } "
-    "QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e8a8c0, stop:0.5 #d890a8, stop:1 #c87890); }";
-
-static const QString rightRingStyle =
-    "QPushButton { "
-    "   border: 1px solid #999; border-radius: 4px; "
-    "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-    "       stop:0 #e8d4ff, stop:0.5 #d0b8f0, stop:1 #b89ce0); "
-    "   color: #222; padding: 6px 8px; margin: 1px; "
-    "   min-width: 38px; min-height: 38px; font-size: 13px; font-weight: 500; "
-    "} "
-    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #d8c0ff, stop:0.5 #c0a8e8, stop:1 #a890d8); } "
-    "QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #c0a8e8, stop:0.5 #a890d8, stop:1 #9078c8); }";
-
-static const QString rightPinkyStyle =
-    "QPushButton { "
-    "   border: 1px solid #999; border-radius: 4px; "
-    "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-    "       stop:0 #d4ffff, stop:0.5 #b8e8e8, stop:1 #9cd0d0); "
-    "   color: #222; padding: 6px 8px; margin: 1px; "
-    "   min-width: 38px; min-height: 38px; font-size: 13px; font-weight: 500; "
-    "} "
-    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #c0f0f0, stop:0.5 #a8d8d8, stop:1 #90c8c8); } "
-    "QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #a8d8d8, stop:0.5 #90c8c8, stop:1 #78b8b8); }";
-
-static const QString thumbStyle =
-    "QPushButton { "
-    "   border: 1px solid #999; border-radius: 4px; "
-    "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-    "       stop:0 #f0f0f0, stop:0.5 #e0e0e0, stop:1 #d0d0d0); "
-    "   color: #222; padding: 6px 8px; margin: 1px; "
-    "   min-width: 38px; min-height: 38px; font-size: 13px; font-weight: 500; "
-    "} "
-    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e8e8e8, stop:0.5 #d8d8d8, stop:1 #c8c8c8); } "
+    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f0f0f0, stop:0.5 #e8e8e8, stop:1 #d8d8d8); } "
     "QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #d0d0d0, stop:0.5 #c0c0c0, stop:1 #b0b0b0); }";
 
 static const QString modifierKeyStyle =
@@ -112,67 +29,91 @@ static const QString modifierKeyStyle =
     "   border: 1px solid #999; border-radius: 4px; "
     "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
     "       stop:0 #f5f5f5, stop:0.5 #e0e0e0, stop:1 #cccccc); "
-    "   color: #222; padding: 6px 8px; margin: 1px; "
-    "   min-width: 50px; min-height: 38px; font-size: 12px; font-weight: 600; "
+    "   color: #222; padding: 4px 6px; margin: 1px; "
+    "   font-size: 10px; font-weight: 600; "
     "} "
     "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #eeeeee, stop:0.5 #d8d8d8, stop:1 #c0c0c0); } "
     "QPushButton:checked { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #d0e8ff, stop:0.5 #a0c8ff, stop:1 #80b0ff); border: 2px solid #4a90d9; color: #1a3a5c; } "
     "QPushButton:checked:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #c0dfff, stop:0.5 #90c0ff, stop:1 #70a8ff); }";
 
-static const QString functionKeyStyle =
-    "QPushButton { "
-    "   border: 1px solid #999; border-radius: 4px; "
-    "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-    "       stop:0 #f0f0f0, stop:0.5 #e0e0e0, stop:1 #d0d0d0); "
-    "   color: #444; padding: 4px 6px; margin: 1px; "
-    "   min-width: 36px; min-height: 30px; font-size: 11px; font-weight: 500; "
-    "} "
-    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e8e8e8, stop:0.5 #d8d8d8, stop:1 #c8c8c8); } "
-    "QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #d0d0d0, stop:0.5 #c0c0c0, stop:1 #b0b0b0); }";
-
-static const QString navigationKeyStyle =
-    "QPushButton { "
-    "   border: 1px solid #999; border-radius: 4px; "
-    "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-    "       stop:0 #e8e8e8, stop:0.5 #d8d8d8, stop:1 #c8c8c8); "
-    "   color: #333; padding: 4px 6px; margin: 1px; "
-    "   min-width: 36px; min-height: 30px; font-size: 11px; font-weight: 600; "
-    "} "
-    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #e0e0e0, stop:0.5 #d0d0d0, stop:1 #c0c0c0); } "
-    "QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #c8c8c8, stop:0.5 #b8b8b8, stop:1 #a8a8a8); }";
-
-const QString VirtualKeyboardDialog::buttonStyle = thumbStyle;
-const QString VirtualKeyboardDialog::modifierButtonStyle = modifierKeyStyle;
-const QString VirtualKeyboardDialog::pressedButtonStyle = navigationKeyStyle;
-
-VirtualKeyboardDialog::VirtualKeyboardDialog(QWidget *parent)
+VirtualKeyboardDialog::VirtualKeyboardDialog(QWidget *parent, const QString& layoutName)
     : QDialog(parent)
     , currentModifiers(0)
+    , m_dragging(false)
+    , m_currentLayoutName(layoutName)
 {
-    setWindowTitle(tr("Openterface Keyboard"));
-    setWindowFlags(Qt::Dialog | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
+    qInfo() << "[VirtualKeyboardDialog] Constructor called with layoutName:" << layoutName;
+
+    setWindowFlags(Qt::Dialog | Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint);
     setAttribute(Qt::WA_DeleteOnClose, false);
 
     setupUI();
     createKeyboardLayout();
+
+    // Update key labels based on the selected layout
+    if (!m_currentLayoutName.isEmpty()) {
+        qInfo() << "[VirtualKeyboardDialog] Calling updateKeyLabelsForLayout with:" << m_currentLayoutName;
+        updateKeyLabelsForLayout(m_currentLayoutName);
+    } else {
+        qWarning() << "[VirtualKeyboardDialog] m_currentLayoutName is empty, skipping updateKeyLabelsForLayout";
+    }
+
+    // Set a font that supports Japanese characters
+    QFont japaneseFont;
+    QStringList japaneseFontFamilies = {
+        "Noto Sans CJK JP",
+        "Takao Gothic",
+        "IPAGothic",
+        "Droid Sans Japanese",
+        "Noto Sans Mono CJK JP",
+        "Droid Sans Fallback"
+    };
+
+    for (const QString& family : japaneseFontFamilies) {
+        QFont testFont(family);
+        if (QFontDatabase::families().contains(family)) {
+            japaneseFont = testFont;
+            qCInfo(log_virtual_keyboard) << "Found Japanese font family:" << family;
+            break;
+        }
+    }
+
+    // If none of the specific Japanese fonts are found, try to find any font that supports Japanese
+    if (japaneseFont.family().isEmpty()) {
+        // Fallback: try to find a font that can display Japanese characters
+        QStringList families = QFontDatabase::families();
+        for (const QString& family : families) {
+            QFont testFont(family);
+            // Check if the font can actually render Japanese characters
+            // This is a heuristic - if the font name contains certain keywords, it might support CJK
+            if (family.contains("Noto", Qt::CaseInsensitive) &&
+                (family.contains("CJK", Qt::CaseInsensitive) ||
+                 family.contains("Sans", Qt::CaseInsensitive))) {
+                japaneseFont = testFont;
+                qCInfo(log_virtual_keyboard) << "Found fallback Japanese font family:" << family;
+                break;
+            }
+        }
+    }
+
+    if (!japaneseFont.family().isEmpty()) {
+        // Set the font on this dialog
+        this->setFont(japaneseFont);
+        qCInfo(log_virtual_keyboard) << "Set dialog font to:" << japaneseFont.family();
+    } else {
+        qCInfo(log_virtual_keyboard) << "No Japanese-capable font found, using system default";
+    }
+
     adjustSize();
 }
 
 void VirtualKeyboardDialog::setupUI()
 {
-    // Set dialog background color for keyboard-like appearance
     setStyleSheet(
         "QDialog { "
         "   background-color: #e5e5e5; "
         "   border: 1px solid #999; "
         "   border-radius: 8px; "
-        "} "
-        "QLabel#titleLabel { "
-        "   color: #333; "
-        "   font-size: 14px; "
-        "   font-weight: bold; "
-        "   padding: 4px 8px; "
-        "   background-color: transparent; "
         "}"
     );
 
@@ -180,16 +121,6 @@ void VirtualKeyboardDialog::setupUI()
     mainLayout->setSpacing(3);
     mainLayout->setContentsMargins(10, 6, 10, 10);
 
-    // Header with title
-    QHBoxLayout* headerLayout = new QHBoxLayout();
-    headerLayout->setContentsMargins(0, 0, 0, 0);
-    QLabel* titleLabel = new QLabel(tr("Openterface Keyboard"), this);
-    titleLabel->setObjectName("titleLabel");
-    headerLayout->addWidget(titleLabel);
-    headerLayout->addStretch();
-    mainLayout->addLayout(headerLayout);
-
-    // Keyboard container with darker background for depth
     QWidget* keyboardContainer = new QWidget(this);
     keyboardContainer->setStyleSheet(
         "QWidget { "
@@ -200,406 +131,433 @@ void VirtualKeyboardDialog::setupUI()
         "}"
     );
 
-    keyboardLayout = new QGridLayout(keyboardContainer);
-    keyboardLayout->setSpacing(2);
-    keyboardLayout->setContentsMargins(6, 6, 6, 6);
+    // Use QVBoxLayout for rows — each row is an independent QHBoxLayout
+    QVBoxLayout* rowsLayout = new QVBoxLayout(keyboardContainer);
+    rowsLayout->setSpacing(3);
+    rowsLayout->setContentsMargins(6, 6, 6, 6);
 
     mainLayout->addWidget(keyboardContainer);
-
     setLayout(mainLayout);
+
+    // Store rowsLayout for row builders
+    keyboardLayout = nullptr; // not used anymore
+    m_rowsLayout = rowsLayout;
 }
 
 void VirtualKeyboardDialog::createKeyboardLayout()
 {
-    int row = 0;
-
-    // Row 0: Function keys
-    addFunctionKeyRow(keyboardLayout, row++);
-
-    // Row 1: Number row
-    addNumberRow(keyboardLayout, row++);
-
-    // Row 2: Tab row (QWERTY)
-    addTabRow(keyboardLayout, row++);
-
-    // Row 3: Caps row (ASDF)
-    addCapsRow(keyboardLayout, row++);
-
-    // Row 4: Shift row (ZXCV)
-    addShiftRow(keyboardLayout, row++);
-
-    // Row 5: Bottom row (Ctrl, Alt, Win, Space)
-    addBottomRow(keyboardLayout, row++);
-
-    // Row 6: Navigation keys (arrows, Home, End, PageUp, PageDown)
-    addNavigationRow(keyboardLayout, row++);
+    // Build the standard QWERTY layout for visual consistency
+    // The actual character mapping is handled by KeyboardLayoutManager
+    // based on m_currentLayoutName when sending keystrokes
+    addFunctionKeyRow(m_rowsLayout);
+    addNumberRow(m_rowsLayout);
+    addTabRow(m_rowsLayout);
+    addCapsRow(m_rowsLayout);
+    addShiftRow(m_rowsLayout);
+    addBottomRow(m_rowsLayout);
 }
 
-void VirtualKeyboardDialog::addFunctionKeyRow(QGridLayout* layout, int row)
+void VirtualKeyboardDialog::setKeyboardLayout(const QString& layoutName)
 {
-    int col = 0;
+    if (m_currentLayoutName == layoutName) {
+        return; // No change needed
+    }
 
-    // Esc key
-    QPushButton* escBtn = createKeyButton("Esc", Qt::Key_Escape);
-    layout->addWidget(escBtn, row, col++);
+    qCInfo(log_virtual_keyboard) << "VirtualKeyboardDialog: Changing layout from" << m_currentLayoutName << "to" << layoutName;
+    m_currentLayoutName = layoutName;
 
-    // Spacing
-    col++;
+    // Clear existing layout and rebuild with new key positions
+    clearKeyboardLayout();
+    createKeyboardLayout();
 
-    // F1-F12
-    for (int i = 0; i < 12; i++) {
-        QPushButton* fBtn = createKeyButton(QString("F%1").arg(i + 1), Qt::Key_F1 + i);
-        layout->addWidget(fBtn, row, col++);
-        // Add spacing after F4 and F8
-        if (i == 3 || i == 7) {
-            col++;
+    // Update key labels based on the new layout
+    updateKeyLabelsForLayout(layoutName);
+}
+
+void VirtualKeyboardDialog::updateKeyLabelsForLayout(const QString& layoutName)
+{
+    qCInfo(log_virtual_keyboard) << "updateKeyLabelsForLayout called with layout:" << layoutName;
+
+    // Get the layout configuration
+    KeyboardLayoutConfig config = KeyboardLayoutManager::getInstance().getLayout(layoutName);
+    if (config.name.isEmpty()) {
+        qWarning() << "Layout not found:" << layoutName;
+        return;
+    }
+
+    qCInfo(log_virtual_keyboard) << "Found layout:" << config.name << "with" << config.charMapping.size() << "char mappings";
+
+    // Debug: Show charMapping entries for number keys
+    qInfo() << "[updateKeyLabelsForLayout] charMapping for number keys:";
+    for (int keyCode = Qt::Key_0; keyCode <= Qt::Key_9; ++keyCode) {
+        qInfo() << "  Looking for characters that map to keyCode" << keyCode << "(0x" << QString::number(keyCode, 16) << "):";
+        for (auto it = config.charMapping.begin(); it != config.charMapping.end(); ++it) {
+            if (it.value() == keyCode) {
+                QChar ch = QChar(it.key());
+                bool needsShift = config.needShiftKeys.contains(ch.unicode());
+                qInfo() << "    Character" << QString(ch) << "(U+" << QString::number(ch.unicode(), 16) << ") needsShift:" << needsShift;
+            }
         }
     }
 
-    // Del key
-    col++;
-    QPushButton* delBtn = createKeyButton("Del", Qt::Key_Delete);
-    layout->addWidget(delBtn, row, col++);
-}
+    // Build a mapping: Qt key code -> (base character, shifted character)
+    // The JSON charMapping tells us: character -> Qt key code
+    // We need to reverse this to: Qt key code -> character(s)
+    QMap<int, QPair<QString, QString>> keyToChars;
 
-void VirtualKeyboardDialog::addNumberRow(QGridLayout* layout, int row)
-{
-    int col = 0;
+    // Special keys that should keep their text labels (functional keys)
+    QSet<int> specialFunctionKeys;
+    specialFunctionKeys.insert(Qt::Key_Tab);
+    specialFunctionKeys.insert(Qt::Key_Backspace);
+    specialFunctionKeys.insert(Qt::Key_Return);
+    specialFunctionKeys.insert(Qt::Key_Enter);
+    specialFunctionKeys.insert(Qt::Key_Escape);
+    specialFunctionKeys.insert(Qt::Key_Delete);
+    specialFunctionKeys.insert(Qt::Key_Insert);
+    specialFunctionKeys.insert(Qt::Key_Pause);
+    specialFunctionKeys.insert(Qt::Key_Print);
+    specialFunctionKeys.insert(Qt::Key_SysReq);
+    specialFunctionKeys.insert(Qt::Key_Clear);
+    specialFunctionKeys.insert(Qt::Key_CapsLock);
+    specialFunctionKeys.insert(Qt::Key_NumLock);
+    specialFunctionKeys.insert(Qt::Key_ScrollLock);
+    specialFunctionKeys.insert(Qt::Key_Kanji);
+    specialFunctionKeys.insert(Qt::Key_Muhenkan);
+    specialFunctionKeys.insert(Qt::Key_Henkan);
+    specialFunctionKeys.insert(Qt::Key_yen);
+    specialFunctionKeys.insert(Qt::Key_Zenkaku);
+    specialFunctionKeys.insert(Qt::Key_Zenkaku_Hankaku);
+    // Function keys
+    for (int i = Qt::Key_F1; i <= Qt::Key_F35; ++i) {
+        specialFunctionKeys.insert(i);
+    }
+    // Modifier keys (they show text like "Ctrl", "Alt", etc.)
+    specialFunctionKeys.insert(Qt::Key_Control);
+    specialFunctionKeys.insert(Qt::Key_Shift);
+    specialFunctionKeys.insert(Qt::Key_Alt);
+    specialFunctionKeys.insert(Qt::Key_Meta);
+    specialFunctionKeys.insert(Qt::Key_AltGr);
+    // Navigation keys
+    specialFunctionKeys.insert(Qt::Key_Left);
+    specialFunctionKeys.insert(Qt::Key_Up);
+    specialFunctionKeys.insert(Qt::Key_Right);
+    specialFunctionKeys.insert(Qt::Key_Down);
+    specialFunctionKeys.insert(Qt::Key_Home);
+    specialFunctionKeys.insert(Qt::Key_End);
+    specialFunctionKeys.insert(Qt::Key_PageUp);
+    specialFunctionKeys.insert(Qt::Key_PageDown);
 
-    // Backtick/tilde
-    QPushButton* graveBtn = createKeyButton("`", Qt::Key_QuoteLeft);
-    layout->addWidget(graveBtn, row, col++);
+    // Iterate through char_mapping to build the reverse mapping
+    // charMapping is QMap<int, int> where:
+    // - key (int) is the Unicode codepoint of the character
+    // - value (int) is the Qt key code
+    for (auto it = config.charMapping.begin(); it != config.charMapping.end(); ++it) {
+        QChar ch = QChar(it.key());
+        int qtKeyCode = it.value();
 
-    // Number keys 1-0
-    for (int i = 0; i < 10; i++) {
-        int keyCode = (i == 9) ? Qt::Key_0 : (Qt::Key_1 + i);
-        QPushButton* numBtn = createKeyButton(QString::number((i + 1) % 10), keyCode);
-        layout->addWidget(numBtn, row, col++);
+        if (qtKeyCode == 0) {
+            continue;
+        }
+
+        // Skip special function keys - we'll keep their text labels unchanged
+        if (specialFunctionKeys.contains(qtKeyCode)) {
+            continue;
+        }
+
+        // Initialize the entry if not present
+        if (!keyToChars.contains(qtKeyCode)) {
+            keyToChars[qtKeyCode] = qMakePair(QString(), QString());
+        }
+
+        // Determine if this character requires shift
+        bool needsShift = config.needShiftKeys.contains(ch.unicode());
+
+        // Check if this is a basic ASCII letter or digit
+        bool isBasicLetter = (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9');
+
+        if (needsShift) {
+            // This character is produced when shift is pressed
+            QString& currentShifted = keyToChars[qtKeyCode].second;
+            // Overwrite if:
+            // 1. Slot is empty, OR
+            // 2. Current is a basic letter/digit and new is special (prefer special shifted chars like "È" over "E")
+            bool currentIsBasic = !currentShifted.isEmpty() &&
+                                  ((currentShifted[0] >= 'a' && currentShifted[0] <= 'z') ||
+                                   (currentShifted[0] >= 'A' && currentShifted[0] <= 'Z') ||
+                                   (currentShifted[0] >= '0' && currentShifted[0] <= '9'));
+            if (currentShifted.isEmpty() || (currentIsBasic && !isBasicLetter)) {
+                currentShifted = QString(ch);
+            }
+        } else {
+            // This character is produced without shift
+            QString& currentBase = keyToChars[qtKeyCode].first;
+            // Only overwrite if slot is empty or current is also a basic letter
+            // This prevents special chars like "è" from overwriting basic "e"
+            bool currentIsBasic = !currentBase.isEmpty() &&
+                                  ((currentBase[0] >= 'a' && currentBase[0] <= 'z') ||
+                                   (currentBase[0] >= 'A' && currentBase[0] <= 'Z') ||
+                                   (currentBase[0] >= '0' && currentBase[0] <= '9'));
+            if (currentBase.isEmpty() || (currentIsBasic && isBasicLetter)) {
+                currentBase = QString(ch);
+            }
+        }
     }
 
-    // Minus and equals
-    QPushButton* minusBtn = createKeyButton("-", Qt::Key_Minus);
-    layout->addWidget(minusBtn, row, col++);
-
-    QPushButton* equalBtn = createKeyButton("=", Qt::Key_Equal);
-    layout->addWidget(equalBtn, row, col++);
-
-    // Backspace (wider)
-    QPushButton* backspaceBtn = createKeyButton("Backspace", Qt::Key_Backspace);
-    backspaceBtn->setMinimumWidth(80);
-    layout->addWidget(backspaceBtn, row, col++, 1, 2);
-}
-
-void VirtualKeyboardDialog::addTabRow(QGridLayout* layout, int row)
-{
-    int col = 0;
-
-    // Tab key (wider)
-    QPushButton* tabBtn = createKeyButton("Tab", Qt::Key_Tab);
-    tabBtn->setMinimumWidth(60);
-    layout->addWidget(tabBtn, row, col++, 1, 2);
-
-    // QWERTYUIOP
-    QString keys = "QWERTYUIOP";
-    for (int i = 0; i < keys.length(); i++) {
-        QChar key = keys[i];
-        int keyCode = Qt::Key_A + (key.toLatin1() - 'A');
-        QPushButton* keyBtn = createKeyButton(key, keyCode);
-        layout->addWidget(keyBtn, row, col++);
+    // Second pass: for keys that only have one character defined,
+    // duplicate it to both base and shifted (for keys like Space, Enter, etc.)
+    for (auto it = keyToChars.begin(); it != keyToChars.end(); ++it) {
+        if (it.value().first.isEmpty() && !it.value().second.isEmpty()) {
+            // Only shifted defined, use it for base too
+            it.value().first = it.value().second;
+        } else if (!it.value().first.isEmpty() && it.value().second.isEmpty()) {
+            // Only base defined, use it for shifted too
+            it.value().second = it.value().first;
+        }
     }
 
-    // Bracket keys
-    QPushButton* leftBracketBtn = createKeyButton("[", Qt::Key_BracketLeft);
-    layout->addWidget(leftBracketBtn, row, col++);
+    qCInfo(log_virtual_keyboard) << "Built keyToChars mapping with" << keyToChars.size() << "entries";
 
-    QPushButton* rightBracketBtn = createKeyButton("]", Qt::Key_BracketRight);
-    layout->addWidget(rightBracketBtn, row, col++);
-
-    // Backslash (wider)
-    QPushButton* backslashBtn = createKeyButton("\\", Qt::Key_Backslash);
-    backslashBtn->setMinimumWidth(60);
-    layout->addWidget(backslashBtn, row, col++, 1, 2);
-}
-
-void VirtualKeyboardDialog::addCapsRow(QGridLayout* layout, int row)
-{
-    int col = 0;
-
-    // Caps Lock key (wider)
-    QPushButton* capsBtn = createKeyButton("Caps", Qt::Key_CapsLock);
-    capsBtn->setMinimumWidth(70);
-    layout->addWidget(capsBtn, row, col++, 1, 2);
-
-    // ASDFGHJKL
-    QString keys = "ASDFGHJKL";
-    for (int i = 0; i < keys.length(); i++) {
-        QChar key = keys[i];
-        int keyCode = Qt::Key_A + (key.toLatin1() - 'A');
-        QPushButton* keyBtn = createKeyButton(key, keyCode);
-        layout->addWidget(keyBtn, row, col++);
+    // Debug: Print ALL keyToChars entries for letter keys
+    qInfo() << "[updateKeyLabelsForLayout] keyToChars for letter keys:";
+    for (int keyCode = Qt::Key_A; keyCode <= Qt::Key_Z; ++keyCode) {
+        if (keyToChars.contains(keyCode)) {
+            QString base = keyToChars[keyCode].first;
+            QString shifted = keyToChars[keyCode].second;
+            qInfo() << "  Key" << QChar('A' + (keyCode - Qt::Key_A)) << "(0x" << QString::number(keyCode, 16) << "): base='" << base << "' shifted='" << shifted << "'";
+        }
     }
 
-    // Semicolon and apostrophe
-    QPushButton* semicolonBtn = createKeyButton(";", Qt::Key_Semicolon);
-    layout->addWidget(semicolonBtn, row, col++);
+    // Now update all the buttons
+    int updatedCount = 0;
+    int skippedCount = 0;
+    qInfo() << "[updateKeyLabelsForLayout] Updating" << keyCodeToWidgetMap.size() << "widgets";
+    for (auto it = keyCodeToWidgetMap.begin(); it != keyCodeToWidgetMap.end(); ++it) {
+        int keyCode = it.key();
+        QWidget* widget = it.value();
 
-    QPushButton* apostropheBtn = createKeyButton("'", Qt::Key_Apostrophe);
-    layout->addWidget(apostropheBtn, row, col++);
+        if (!widget) continue;
 
-    // Enter key (wider)
-    QPushButton* enterBtn = createKeyButton("Enter", Qt::Key_Return);
-    enterBtn->setMinimumWidth(90);
-    layout->addWidget(enterBtn, row, col++, 1, 2);
-}
+        QPushButton* button = qobject_cast<QPushButton*>(widget);
+        ShiftedKeyButton* shiftedButton = qobject_cast<ShiftedKeyButton*>(widget);
 
-void VirtualKeyboardDialog::addShiftRow(QGridLayout* layout, int row)
-{
-    int col = 0;
+        if (button && !shiftedButton) {
+            // Regular button - update text if we have a mapping and it's not a special function key
+            if (!specialFunctionKeys.contains(keyCode) && keyToChars.contains(keyCode)) {
+                QString baseChar = keyToChars[keyCode].first;
+                if (!baseChar.isEmpty()) {
+                    button->setText(baseChar);
+                    updatedCount++;
+                    // Log all key updates
+                    qInfo() << "[updateKeyLabelsForLayout] Updated QPushButton keyCode:" << keyCode << "(0x" << QString::number(keyCode, 16) << ") to text:" << baseChar;
+                }
+            } else {
+                skippedCount++;
+            }
+            // Special function keys keep their text unchanged
+        } else if (shiftedButton) {
+            // ShiftedKeyButton - update both base and shifted characters
+            if (keyToChars.contains(keyCode)) {
+                QString baseChar = keyToChars[keyCode].first;
+                QString shiftedChar = keyToChars[keyCode].second;
 
-    // Left Shift key (wider)
-    QPushButton* leftShiftBtn = createKeyButton("Shift", Qt::Key_Shift, true);
-    leftShiftBtn->setMinimumWidth(90);
-    leftShiftBtn->setCheckable(true);
-    modifierButtons[leftShiftBtn] = Qt::ShiftModifier;
-    connect(leftShiftBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
-    layout->addWidget(leftShiftBtn, row, col++, 1, 2);
-
-    // ZXCVBNM
-    QString keys = "ZXCVBNM";
-    for (int i = 0; i < keys.length(); i++) {
-        QChar key = keys[i];
-        int keyCode = Qt::Key_A + (key.toLatin1() - 'A');
-        QPushButton* keyBtn = createKeyButton(key, keyCode);
-        layout->addWidget(keyBtn, row, col++);
+                if (!baseChar.isEmpty() || !shiftedChar.isEmpty()) {
+                    // Update the shifted button's labels
+                    shiftedButton->setCharacters(baseChar, shiftedChar);
+                    updatedCount++;
+                    // Log all key updates
+                    qInfo() << "[updateKeyLabelsForLayout] Updated ShiftedKeyButton keyCode:" << keyCode << "(0x" << QString::number(keyCode, 16) << ") to base:" << baseChar << "shifted:" << shiftedChar;
+                }
+            } else {
+                skippedCount++;
+            }
+        }
     }
 
-    // Comma, period, slash
-    QPushButton* commaBtn = createKeyButton(",", Qt::Key_Comma);
-    layout->addWidget(commaBtn, row, col++);
-
-    QPushButton* periodBtn = createKeyButton(".", Qt::Key_Period);
-    layout->addWidget(periodBtn, row, col++);
-
-    QPushButton* slashBtn = createKeyButton("/", Qt::Key_Slash);
-    layout->addWidget(slashBtn, row, col++);
-
-    // Right Shift key (wider)
-    QPushButton* rightShiftBtn = createKeyButton("Shift", Qt::Key_Shift, true);
-    rightShiftBtn->setMinimumWidth(110);
-    rightShiftBtn->setCheckable(true);
-    modifierButtons[rightShiftBtn] = Qt::ShiftModifier;
-    connect(rightShiftBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
-    layout->addWidget(rightShiftBtn, row, col++, 1, 2);
+    qCInfo(log_virtual_keyboard) << "updateKeyLabelsForLayout complete:" << updatedCount << "updated," << skippedCount << "skipped," << keyCodeToWidgetMap.size() << "total widgets";
 }
 
-void VirtualKeyboardDialog::addBottomRow(QGridLayout* layout, int row)
+// Helper function to find what character a Qt key code produces in a given layout
+static QString findCharForQtKey(int qtKeyCode, const KeyboardLayoutConfig& config, bool shifted = false)
 {
-    int col = 0;
+    qCInfo(log_virtual_keyboard) << "findCharForQtKey: looking for keyCode" << qtKeyCode << "in layout" << config.name << "(shifted=" << shifted << ")";
 
-    // Left Ctrl
-    QPushButton* leftCtrlBtn = createKeyButton("Ctrl", Qt::Key_Control, true);
-    leftCtrlBtn->setCheckable(true);
-    modifierButtons[leftCtrlBtn] = Qt::ControlModifier;
-    connect(leftCtrlBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
-    layout->addWidget(leftCtrlBtn, row, col++);
+    // Debug: Print all entries in char_mapping
+    qCInfo(log_virtual_keyboard) << "char_mapping contents:";
+    for (auto it = config.charMapping.begin(); it != config.charMapping.end(); ++it) {
+        QChar ch = QChar(it.key());
+        int mappedKeyCode = it.value();
+        qCInfo(log_virtual_keyboard) << "  " << QString(ch) << "(U+" << QString::number(ch.unicode(), 16) << ") -> keyCode 0x" << QString::number(mappedKeyCode, 16) << " (" << mappedKeyCode << ")";
+    }
 
-    // Left Alt
-    QPushButton* leftAltBtn = createKeyButton("Alt", Qt::Key_Alt, true);
-    leftAltBtn->setCheckable(true);
-    modifierButtons[leftAltBtn] = Qt::AltModifier;
-    connect(leftAltBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
-    layout->addWidget(leftAltBtn, row, col++);
+    // Build reverse mapping: Qt key code -> character
+    // For layouts like Japanese, we need to find ALL characters that map to this key
+    // and pick the right one (unshifted by default, shifted if requested)
+    QList<QChar> unshiftedChars;
+    QList<QChar> shiftedChars;
 
-    // Left Win/Meta
-    QPushButton* leftWinBtn = createKeyButton("Win", Qt::Key_Meta, true);
-    leftWinBtn->setCheckable(true);
-    modifierButtons[leftWinBtn] = Qt::MetaModifier;
-    connect(leftWinBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
-    layout->addWidget(leftWinBtn, row, col++);
+    for (auto it = config.charMapping.begin(); it != config.charMapping.end(); ++it) {
+        QChar ch = QChar(it.key());
+        int mappedKeyCode = it.value();
 
-    // Space bar (wide)
-    QPushButton* spaceBtn = createKeyButton("Space", Qt::Key_Space);
-    spaceBtn->setMinimumWidth(250);
-    layout->addWidget(spaceBtn, row, col++, 1, 5);
+        if (mappedKeyCode == qtKeyCode) {
+            qCInfo(log_virtual_keyboard) << "  Found char" << QString(ch) << "(U+" << QString::number(ch.unicode(), 16) << ") -> keyCode" << mappedKeyCode;
 
-    // Right Win/Meta
-    QPushButton* rightWinBtn = createKeyButton("Win", Qt::Key_Meta, true);
-    rightWinBtn->setCheckable(true);
-    modifierButtons[rightWinBtn] = Qt::MetaModifier;
-    connect(rightWinBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
-    layout->addWidget(rightWinBtn, row, col++);
+            // Check if this character needs shift
+            bool needsShift = config.needShiftKeys.contains(ch.unicode());
+            qCInfo(log_virtual_keyboard) << "    needsShift: " << needsShift << " (shifted=" << shifted << ")";
 
-    // Right Alt
-    QPushButton* rightAltBtn = createKeyButton("Alt", Qt::Key_Alt, true);
-    rightAltBtn->setCheckable(true);
-    modifierButtons[rightAltBtn] = Qt::AltModifier;
-    connect(rightAltBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
-    layout->addWidget(rightAltBtn, row, col++);
+            if (needsShift) {
+                shiftedChars.append(ch);
+                qCInfo(log_virtual_keyboard) << "    Added to shiftedChars";
+            } else {
+                unshiftedChars.append(ch);
+                qCInfo(log_virtual_keyboard) << "    Added to unshiftedChars";
+            }
+        }
+    }
 
-    // Right Ctrl
-    QPushButton* rightCtrlBtn = createKeyButton("Ctrl", Qt::Key_Control, true);
-    rightCtrlBtn->setCheckable(true);
-    modifierButtons[rightCtrlBtn] = Qt::ControlModifier;
-    connect(rightCtrlBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
-    layout->addWidget(rightCtrlBtn, row, col++);
+    qCInfo(log_virtual_keyboard) << "  unshiftedChars count:" << unshiftedChars.size() << ", shiftedChars count:" << shiftedChars.size();
+
+    // Helper to find basic ASCII letter in a list (prefer "e" over "è")
+    auto findBasicLetter = [](const QList<QChar>& chars) -> QChar {
+        for (QChar ch : chars) {
+            if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
+                return ch;
+            }
+        }
+        return QChar();
+    };
+
+    // Return the appropriate character, preferring basic ASCII letters
+    if (shifted && !shiftedChars.isEmpty()) {
+        QChar basicLetter = findBasicLetter(shiftedChars);
+        if (!basicLetter.isNull()) {
+            qCInfo(log_virtual_keyboard) << "  Returning basic shifted char" << QString(basicLetter);
+            return QString(basicLetter);
+        }
+        qCInfo(log_virtual_keyboard) << "  Returning first shifted char" << QString(shiftedChars.first());
+        return QString(shiftedChars.first());
+    } else if (!unshiftedChars.isEmpty()) {
+        QChar basicLetter = findBasicLetter(unshiftedChars);
+        if (!basicLetter.isNull()) {
+            qCInfo(log_virtual_keyboard) << "  Returning basic unshifted char" << QString(basicLetter);
+            return QString(basicLetter);
+        }
+        qCInfo(log_virtual_keyboard) << "  Returning first unshifted char" << QString(unshiftedChars.first());
+        return QString(unshiftedChars.first());
+    } else if (!shiftedChars.isEmpty()) {
+        // If we only have shifted chars, return the first one
+        QChar basicLetter = findBasicLetter(shiftedChars);
+        if (!basicLetter.isNull()) {
+            qCInfo(log_virtual_keyboard) << "  Returning basic shifted char" << QString(basicLetter);
+            return QString(basicLetter);
+        }
+        qCInfo(log_virtual_keyboard) << "  Returning first shifted char" << QString(shiftedChars.first());
+        return QString(shiftedChars.first());
+    }
+
+    qCInfo(log_virtual_keyboard) << "  NO MATCH FOUND for keyCode" << qtKeyCode;
+
+    // Fallback: return default character for this key code
+    if (qtKeyCode >= Qt::Key_A && qtKeyCode <= Qt::Key_Z) {
+        QChar ch = QChar('A' + (qtKeyCode - Qt::Key_A));
+        qCInfo(log_virtual_keyboard) << "  Using fallback char" << QString(ch);
+        return shifted ? QString(ch).toUpper() : QString(ch).toLower();
+    }
+
+    return QString();
 }
 
-void VirtualKeyboardDialog::addNavigationRow(QGridLayout* layout, int row)
+// Helper function to find Qt key code for a given character in the current layout
+int VirtualKeyboardDialog::findQtKeyForChar(const QString& baseChar, const QString& shiftedChar, const KeyboardLayoutConfig& config)
 {
-    int col = 0;
+    // If we have a base character, look it up in char_mapping
+    if (!baseChar.isEmpty()) {
+        QChar baseCh = baseChar[0];  // Take first character (should be single char)
+        if (config.charMapping.contains(baseCh.unicode())) {
+            return config.charMapping.value(baseCh.unicode());
+        }
+    }
 
-    // Insert key (wider)
-    QPushButton* insertBtn = createKeyButton("Insert", Qt::Key_Insert);
-    insertBtn->setMinimumWidth(70);
-    layout->addWidget(insertBtn, row, col++, 1, 2);
+    // If we have a shifted character and base lookup failed, try the shifted character
+    if (!shiftedChar.isEmpty()) {
+        QChar shiftedCh = shiftedChar[0];  // Take first character
+        if (config.charMapping.contains(shiftedCh.unicode())) {
+            return config.charMapping.value(shiftedCh.unicode());
+        }
+    }
 
-    // Home key (wider)
-    QPushButton* homeBtn = createKeyButton("Home", Qt::Key_Home);
-    homeBtn->setMinimumWidth(60);
-    layout->addWidget(homeBtn, row, col++, 1, 2);
+    // If neither worked, return 0 (invalid key code)
+    return 0;
+}
 
-    // Page Up key (wider)
-    QPushButton* pageUpBtn = createKeyButton("PgUp", Qt::Key_PageUp);
-    pageUpBtn->setMinimumWidth(60);
-    layout->addWidget(pageUpBtn, row, col++, 1, 2);
+void VirtualKeyboardDialog::clearKeyboardLayout()
+{
+    // Clear the widget map
+    keyCodeToWidgetMap.clear();
+    modifierButtons.clear();
 
-    // Delete key
-    QPushButton* delBtn = createKeyButton("Del", Qt::Key_Delete);
-    layout->addWidget(delBtn, row, col++);
-
-    // End key (wider)
-    QPushButton* endBtn = createKeyButton("End", Qt::Key_End);
-    endBtn->setMinimumWidth(60);
-    layout->addWidget(endBtn, row, col++, 1, 2);
-
-    // Page Down key (wider)
-    QPushButton* pageDownBtn = createKeyButton("PgDn", Qt::Key_PageDown);
-    pageDownBtn->setMinimumWidth(60);
-    layout->addWidget(pageDownBtn, row, col++, 1, 2);
-
-    // Arrow keys: Up, Left, Down, Right
-    QPushButton* upBtn = createKeyButton("↑", Qt::Key_Up);
-    upBtn->setMinimumWidth(40);
-    layout->addWidget(upBtn, row, col++, 1, 1);
-
-    // Left arrow
-    QPushButton* leftBtn = createKeyButton("←", Qt::Key_Left);
-    leftBtn->setMinimumWidth(40);
-    layout->addWidget(leftBtn, row, col++, 1, 1);
-
-    // Down arrow
-    QPushButton* downBtn = createKeyButton("↓", Qt::Key_Down);
-    downBtn->setMinimumWidth(40);
-    layout->addWidget(downBtn, row, col++, 1, 1);
-
-    // Right arrow
-    QPushButton* rightBtn = createKeyButton("→", Qt::Key_Right);
-    rightBtn->setMinimumWidth(40);
-    layout->addWidget(rightBtn, row, col++, 1, 1);
+    // Remove all widgets from the rows layout
+    if (m_rowsLayout) {
+        QLayoutItem* item;
+        while ((item = m_rowsLayout->takeAt(0)) != nullptr) {
+            if (item->layout()) {
+                // Recursively delete sub-layouts
+                QLayout* subLayout = item->layout();
+                QLayoutItem* subItem;
+                while ((subItem = subLayout->takeAt(0)) != nullptr) {
+                    if (subItem->widget()) {
+                        subItem->widget()->deleteLater();
+                    }
+                    delete subItem;
+                }
+                delete subLayout;
+            } else if (item->widget()) {
+                item->widget()->deleteLater();
+            }
+            delete item;
+        }
+    }
 }
 
 QPushButton* VirtualKeyboardDialog::createKeyButton(const QString& text, int keyCode, bool isModifier)
 {
     QPushButton* button = new QPushButton(text, this);
 
-    // Apply finger zone colors based on key (MadTyping style)
     if (isModifier) {
         button->setStyleSheet(modifierKeyStyle);
     } else {
-        // Map keys to finger zones
-        switch (keyCode) {
-            // Left pinky: 1, Q, A, Z, Tab, CapsLock, Backspace
-            case Qt::Key_1:
-            case Qt::Key_Q:
-            case Qt::Key_A:
-            case Qt::Key_Z:
-            case Qt::Key_Tab:
-            case Qt::Key_CapsLock:
-            case Qt::Key_Backspace:
-                button->setStyleSheet(leftPinkyStyle);
-                break;
+        button->setStyleSheet(buttonStyle);
+    }
 
-            // Left ring: 2, W, S, X
-            case Qt::Key_2:
-            case Qt::Key_W:
-            case Qt::Key_S:
-            case Qt::Key_X:
-                button->setStyleSheet(leftRingStyle);
-                break;
+    // Set font that supports Japanese characters
+    QFont buttonFont;
+    QStringList japaneseFontFamilies = {
+        "Noto Sans CJK JP",
+        "Takao Gothic",
+        "IPAGothic",
+        "Droid Sans Japanese",
+        "Noto Sans Mono CJK JP",
+        "Droid Sans Fallback"
+    };
 
-            // Left middle: 3, E, D, C
-            case Qt::Key_3:
-            case Qt::Key_E:
-            case Qt::Key_D:
-            case Qt::Key_C:
-                button->setStyleSheet(leftMiddleStyle);
-                break;
-
-            // Left index: 4,5,R,T,F,G,V,B
-            case Qt::Key_4:
-            case Qt::Key_5:
-            case Qt::Key_R:
-            case Qt::Key_T:
-            case Qt::Key_F:
-            case Qt::Key_G:
-            case Qt::Key_V:
-            case Qt::Key_B:
-                button->setStyleSheet(leftIndexStyle);
-                break;
-
-            // Right index: 6,7,Y,U,H,J,N,M
-            case Qt::Key_6:
-            case Qt::Key_7:
-            case Qt::Key_Y:
-            case Qt::Key_U:
-            case Qt::Key_H:
-            case Qt::Key_J:
-            case Qt::Key_N:
-            case Qt::Key_M:
-                button->setStyleSheet(rightIndexStyle);
-                break;
-
-            // Right middle: 8,I,K,,
-            case Qt::Key_8:
-            case Qt::Key_I:
-            case Qt::Key_K:
-            case Qt::Key_Comma:
-                button->setStyleSheet(rightMiddleStyle);
-                break;
-
-            // Right ring: 9,O,L,.
-            case Qt::Key_9:
-            case Qt::Key_O:
-            case Qt::Key_L:
-            case Qt::Key_Period:
-                button->setStyleSheet(rightRingStyle);
-                break;
-
-            // Right pinky: 0,-,=,P,[,],\,;,',/,Enter,Right Shift
-            case Qt::Key_0:
-            case Qt::Key_Minus:
-            case Qt::Key_Equal:
-            case Qt::Key_P:
-            case Qt::Key_BracketLeft:
-            case Qt::Key_BracketRight:
-            case Qt::Key_Backslash:
-            case Qt::Key_Semicolon:
-            case Qt::Key_Apostrophe:
-            case Qt::Key_Slash:
-            case Qt::Key_Return:
-            case Qt::Key_Shift: // Right Shift - handled separately in layout
-                button->setStyleSheet(rightPinkyStyle);
-                break;
-
-            // Default to standard style for space and other keys
-            default:
-                button->setStyleSheet(thumbStyle);
-                break;
+    for (const QString& family : japaneseFontFamilies) {
+        if (QFontDatabase::families().contains(family)) {
+            buttonFont = QFont(family);
+            break;
         }
+    }
+
+    if (!buttonFont.family().isEmpty()) {
+        button->setFont(buttonFont);
     }
 
     button->setProperty("keyCode", keyCode);
     button->setProperty("isModifier", isModifier);
+    button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
+    // Store in map for quick lookup
+    keyCodeToWidgetMap[keyCode] = button;
 
     if (!isModifier) {
         connect(button, &QPushButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
@@ -608,20 +566,611 @@ QPushButton* VirtualKeyboardDialog::createKeyButton(const QString& text, int key
     return button;
 }
 
+void VirtualKeyboardDialog::showKeyPressFeedback(int keyCode, int durationMs)
+{
+    QWidget* widget = findWidgetByKeyCode(keyCode);
+    if (!widget) return;
+
+    QPushButton* button = qobject_cast<QPushButton*>(widget);
+    ShiftedKeyButton* shiftedButton = qobject_cast<ShiftedKeyButton*>(widget);
+
+    if (button) {
+        // Temporarily change the button style to show pressed state
+        QString pressedStyle =
+            "QPushButton { "
+            "   border: 2px solid #4a90d9; border-radius: 4px; "
+            "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+            "       stop:0 #d0e8ff, stop:0.5 #a0c8ff, stop:1 #80b0ff); "
+            "   color: #1a3a5c; padding: 4px 6px; margin: 1px; "
+            "   font-size: 11px; font-weight: 500; "
+            "}";
+
+        button->setStyleSheet(pressedStyle);
+
+        // Restore original style after duration
+        QTimer::singleShot(durationMs, this, [button, this, keyCode]() {
+            // Check if it's a modifier button
+            bool isModifier = button->property("isModifier").toBool();
+            if (isModifier) {
+                button->setStyleSheet(modifierKeyStyle);
+            } else {
+                button->setStyleSheet(buttonStyle);
+            }
+        });
+    } else if (shiftedButton) {
+        // For ShiftedKeyButton, we need to access the internal button
+        // We can use findChild to get the QPushButton inside
+        QPushButton* internalButton = shiftedButton->findChild<QPushButton*>();
+        if (internalButton) {
+            QString pressedStyle =
+                "QPushButton { "
+                "   border: 2px solid #4a90d9; border-radius: 4px; "
+                "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+                "       stop:0 #d0e8ff, stop:0.5 #a0c8ff, stop:1 #80b0ff); "
+                "   color: transparent; padding: 4px 6px; margin: 1px; "
+                "   font-size: 11px; font-weight: 500; "
+                "}";
+
+            internalButton->setStyleSheet(pressedStyle);
+
+            // Restore original style after duration
+            QTimer::singleShot(durationMs, this, [internalButton]() {
+                QString originalStyle =
+                    "QPushButton { "
+                    "   border: 1px solid #999; border-radius: 4px; "
+                    "   background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+                    "       stop:0 #ffffff, stop:0.5 #f5f5f5, stop:1 #e8e8e8); "
+                    "   color: transparent; padding: 4px 6px; margin: 1px; "
+                    "   font-size: 11px; font-weight: 500; "
+                    "} "
+                    "QPushButton:hover { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #f0f0f0, stop:0.5 #e8e8e8, stop:1 #d8d8d8); } "
+                    "QPushButton:pressed { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #d0d0d0, stop:0.5 #c0c0c0, stop:1 #b0b0b0); }";
+                internalButton->setStyleSheet(originalStyle);
+            });
+        }
+    }
+}
+
+QWidget* VirtualKeyboardDialog::findWidgetByKeyCode(int keyCode)
+{
+    return keyCodeToWidgetMap.value(keyCode, nullptr);
+}
+
+void VirtualKeyboardDialog::registerShiftedKeyButton(ShiftedKeyButton* button)
+{
+    if (button) {
+        int keyCode = button->property("keyCode").toInt();
+        if (keyCode) {
+            keyCodeToWidgetMap[keyCode] = button;
+        }
+    }
+}
+
+static void setKeyWidth(QPushButton* btn, int baseWidth, double factor)
+{
+    int w = static_cast<int>(baseWidth * factor);
+    btn->setMinimumWidth(w);
+    btn->setMaximumWidth(w);
+    btn->setFixedHeight(40);
+}
+
+static void setKeyWidth(QWidget* widget, int baseWidth, double factor)
+{
+    int w = static_cast<int>(baseWidth * factor);
+    widget->setMinimumWidth(w);
+    widget->setMaximumWidth(w);
+}
+
+// Helper: add a fixed-width spacer to a QHBoxLayout
+static void addSpacer(QHBoxLayout* layout, int pixelWidth)
+{
+    QSpacerItem* spacer = new QSpacerItem(pixelWidth, 0, QSizePolicy::Fixed, QSizePolicy::Minimum);
+    layout->addItem(spacer);
+}
+
+void VirtualKeyboardDialog::addFunctionKeyRow(QVBoxLayout* rowsLayout)
+{
+    QHBoxLayout* row = new QHBoxLayout();
+    row->setSpacing(2);
+    row->setContentsMargins(0, 0, 0, 0);
+
+    int baseWidth = 36;
+
+    QPushButton* escBtn = createKeyButton("Esc", Qt::Key_Escape);
+    setKeyWidth(escBtn, baseWidth, 1.0);
+    row->addWidget(escBtn);
+
+    for (int i = 0; i < 4; i++) {
+        QPushButton* fBtn = createKeyButton(QString("F%1").arg(i + 1), Qt::Key_F1 + i);
+        setKeyWidth(fBtn, baseWidth, 1.0);
+        row->addWidget(fBtn);
+    }
+
+    for (int i = 0; i < 4; i++) {
+        QPushButton* fBtn = createKeyButton(QString("F%1").arg(i + 5), Qt::Key_F5 + i);
+        setKeyWidth(fBtn, baseWidth, 1.0);
+        row->addWidget(fBtn);
+    }
+
+    for (int i = 0; i < 4; i++) {
+        QPushButton* fBtn = createKeyButton(QString("F%1").arg(i + 9), Qt::Key_F9 + i);
+        setKeyWidth(fBtn, baseWidth, 1.0);
+        row->addWidget(fBtn);
+    }
+
+    QPushButton* delBtn = createKeyButton("Del", Qt::Key_Delete);
+    setKeyWidth(delBtn, baseWidth, 1.0);
+    row->addWidget(delBtn);
+
+    rowsLayout->addLayout(row);
+}
+
+void VirtualKeyboardDialog::addNumberRow(QVBoxLayout* rowsLayout)
+{
+    QHBoxLayout* row = new QHBoxLayout();
+    row->setSpacing(2);
+    row->setContentsMargins(0, 0, 0, 0);
+
+    int baseWidth = 36;
+
+    addSpacer(row, baseWidth * 0.05);
+
+    ShiftedKeyButton* graveBtn = new ShiftedKeyButton("`", "~", Qt::Key_QuoteLeft, this);
+    graveBtn->setFixedHeight(40);
+    graveBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setKeyWidth(graveBtn, baseWidth, 1.0);
+    connect(graveBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+    registerShiftedKeyButton(graveBtn);
+    row->addWidget(graveBtn);
+
+    for (int i = 0; i < 9; i++) {
+        int keyCode = Qt::Key_1 + i;
+        QString baseChar = QString::number(i + 1);
+        QString shiftedChars[] = {"!", "@", "#", "$", "%", "^", "&", "*", "("};
+        QString shiftedChar = shiftedChars[i];
+        ShiftedKeyButton* numBtn = new ShiftedKeyButton(baseChar, shiftedChar, keyCode, this);
+        numBtn->setFixedHeight(40);
+        numBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        setKeyWidth(numBtn, baseWidth, 1.0);
+        connect(numBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+        registerShiftedKeyButton(numBtn);
+        row->addWidget(numBtn);
+    }
+
+    ShiftedKeyButton* zeroBtn = new ShiftedKeyButton("0", ")", Qt::Key_0, this);
+    zeroBtn->setFixedHeight(40);
+    zeroBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setKeyWidth(zeroBtn, baseWidth, 1.0);
+    connect(zeroBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+    registerShiftedKeyButton(zeroBtn);
+    row->addWidget(zeroBtn);
+
+    ShiftedKeyButton* minusBtn = new ShiftedKeyButton("-", "_", Qt::Key_Minus, this);
+    minusBtn->setFixedHeight(40);
+    minusBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setKeyWidth(minusBtn, baseWidth, 1.0);
+    connect(minusBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+    registerShiftedKeyButton(minusBtn);
+    row->addWidget(minusBtn);
+
+    ShiftedKeyButton* equalBtn = new ShiftedKeyButton("=", "+", Qt::Key_Equal, this);
+    equalBtn->setFixedHeight(40);
+    equalBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setKeyWidth(equalBtn, baseWidth, 1.0);
+    connect(equalBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+    registerShiftedKeyButton(equalBtn);
+    row->addWidget(equalBtn);
+
+    QPushButton* backspaceBtn = createKeyButton("Backspace", Qt::Key_Backspace);
+    backspaceBtn->setStyleSheet(buttonStyle + " QPushButton { font-size: 9px; }");
+    setKeyWidth(backspaceBtn, baseWidth, 2.0);
+    row->addWidget(backspaceBtn);
+
+    rowsLayout->addLayout(row);
+}
+
+void VirtualKeyboardDialog::addTabRow(QVBoxLayout* rowsLayout)
+{
+    QHBoxLayout* row = new QHBoxLayout();
+    row->setSpacing(2);
+    row->setContentsMargins(0, 0, 0, 0);
+
+    int baseWidth = 36;
+
+    addSpacer(row, baseWidth * 0.1);
+
+    // Get current layout config
+    KeyboardLayoutConfig config = KeyboardLayoutManager::getInstance().getLayout(m_currentLayoutName);
+    bool useLayout = !config.name.isEmpty();
+
+    QPushButton* tabBtn = createKeyButton("Tab", Qt::Key_Tab);
+    setKeyWidth(tabBtn, baseWidth, 1.5);
+    row->addWidget(tabBtn);
+
+    // For QWERTY layout, use hardcoded keys; for other layouts, use dynamic mapping
+    if (useLayout && m_currentLayoutName != "US QWERTY") {
+        // Dynamic layout: for each physical key position, find what character it produces
+        // Physical key positions: Q, W, E, R, T, Y, U, I, O, P
+        QList<int> physicalKeyCodes = {
+            Qt::Key_Q, Qt::Key_W, Qt::Key_E, Qt::Key_R, Qt::Key_T,
+            Qt::Key_Y, Qt::Key_U, Qt::Key_I, Qt::Key_O, Qt::Key_P
+        };
+
+        for (int keyCode : physicalKeyCodes) {
+            // Find what character this key produces in the current layout
+            QString displayChar = findCharForQtKey(keyCode, config, false);
+            qCInfo(log_virtual_keyboard) << "Key" << keyCode << "-> displayChar:" << displayChar << "unicode:" << (displayChar.isEmpty() ? -1 : displayChar[0].unicode());
+            if (displayChar.isEmpty()) {
+                // Fallback to default QWERTY character
+                displayChar = QChar('A' + (keyCode - Qt::Key_A)).toLower();
+            }
+
+            // Don't call toUpper() on Japanese characters - they don't have case
+            QString buttonText = displayChar;
+            if (displayChar.length() == 1 && displayChar[0].isLetter() && displayChar[0].isLower()) {
+                buttonText = displayChar.toUpper();
+            }
+
+            QPushButton* keyBtn = createKeyButton(buttonText, keyCode);
+            setKeyWidth(keyBtn, baseWidth, 1.0);
+            row->addWidget(keyBtn);
+        }
+    } else {
+        // Standard QWERTY layout
+        QString keys = "QWERTYUIOP";
+        for (int i = 0; i < keys.length(); i++) {
+            QChar key = keys[i];
+            int keyCode = Qt::Key_A + (key.toLatin1() - 'A');
+            QPushButton* keyBtn = createKeyButton(key, keyCode);
+            setKeyWidth(keyBtn, baseWidth, 1.0);
+            row->addWidget(keyBtn);
+        }
+    }
+
+    ShiftedKeyButton* leftBracketBtn = new ShiftedKeyButton("[", "{", Qt::Key_BracketLeft, this);
+    leftBracketBtn->setFixedHeight(40);
+    leftBracketBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setKeyWidth(leftBracketBtn, baseWidth, 1.0);
+    connect(leftBracketBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+    registerShiftedKeyButton(leftBracketBtn);
+    row->addWidget(leftBracketBtn);
+
+    ShiftedKeyButton* rightBracketBtn = new ShiftedKeyButton("]", "}", Qt::Key_BracketRight, this);
+    rightBracketBtn->setFixedHeight(40);
+    rightBracketBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setKeyWidth(rightBracketBtn, baseWidth, 1.0);
+    connect(rightBracketBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+    registerShiftedKeyButton(rightBracketBtn);
+    row->addWidget(rightBracketBtn);
+
+    ShiftedKeyButton* backslashBtn = new ShiftedKeyButton("\\", "|", Qt::Key_Backslash, this);
+    backslashBtn->setFixedHeight(40);
+    backslashBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setKeyWidth(backslashBtn, baseWidth, 1.5);
+    connect(backslashBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+    registerShiftedKeyButton(backslashBtn);
+    row->addWidget(backslashBtn);
+
+    rowsLayout->addLayout(row);
+}
+
+void VirtualKeyboardDialog::addCapsRow(QVBoxLayout* rowsLayout)
+{
+    QHBoxLayout* row = new QHBoxLayout();
+    row->setSpacing(2);
+    row->setContentsMargins(0, 0, 0, 0);
+
+    int baseWidth = 36;
+
+    addSpacer(row, baseWidth * 0.15);
+
+    QPushButton* capsBtn = createKeyButton("Caps Lock", Qt::Key_CapsLock);
+    capsBtn->setStyleSheet(buttonStyle + " QPushButton { font-size: 9px; }");
+    setKeyWidth(capsBtn, baseWidth, 1.75);
+    row->addWidget(capsBtn);
+
+    // Get current layout config
+    KeyboardLayoutConfig config = KeyboardLayoutManager::getInstance().getLayout(m_currentLayoutName);
+    bool useLayout = !config.name.isEmpty();
+
+    // For QWERTY layout, use hardcoded keys; for other layouts, use dynamic mapping
+    if (useLayout && m_currentLayoutName != "US QWERTY") {
+        // Dynamic layout: for each physical key position, find what character it produces
+        // Physical key positions: A, S, D, F, G, H, J, K, L
+        QList<int> physicalKeyCodes = {
+            Qt::Key_A, Qt::Key_S, Qt::Key_D, Qt::Key_F, Qt::Key_G,
+            Qt::Key_H, Qt::Key_J, Qt::Key_K, Qt::Key_L
+        };
+
+        for (int keyCode : physicalKeyCodes) {
+            // Find what character this key produces in the current layout
+            QString displayChar = findCharForQtKey(keyCode, config, false);
+            qCInfo(log_virtual_keyboard) << "Key" << keyCode << "-> displayChar:" << displayChar << "unicode:" << (displayChar.isEmpty() ? -1 : displayChar[0].unicode());
+            if (displayChar.isEmpty()) {
+                // Fallback to default QWERTY character
+                displayChar = QChar('A' + (keyCode - Qt::Key_A)).toLower();
+            }
+
+            // Don't call toUpper() on Japanese characters - they don't have case
+            QString buttonText = displayChar;
+            if (displayChar.length() == 1 && displayChar[0].isLetter() && displayChar[0].isLower()) {
+                buttonText = displayChar.toUpper();
+            }
+
+            QPushButton* keyBtn = createKeyButton(buttonText, keyCode);
+            setKeyWidth(keyBtn, baseWidth, 1.0);
+            row->addWidget(keyBtn);
+        }
+    } else {
+        // Standard QWERTY layout
+        QString keys = "ASDFGHJKL";
+        for (int i = 0; i < keys.length(); i++) {
+            QChar key = keys[i];
+            int keyCode = Qt::Key_A + (key.toLatin1() - 'A');
+            QPushButton* keyBtn = createKeyButton(key, keyCode);
+            setKeyWidth(keyBtn, baseWidth, 1.0);
+            row->addWidget(keyBtn);
+        }
+    }
+
+    ShiftedKeyButton* semicolonBtn = new ShiftedKeyButton(";", ":", Qt::Key_Semicolon, this);
+    semicolonBtn->setFixedHeight(40);
+    semicolonBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setKeyWidth(semicolonBtn, baseWidth, 1.0);
+    connect(semicolonBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+    registerShiftedKeyButton(semicolonBtn);
+    row->addWidget(semicolonBtn);
+
+    ShiftedKeyButton* apostropheBtn = new ShiftedKeyButton("'", "\"", Qt::Key_Apostrophe, this);
+    apostropheBtn->setFixedHeight(40);
+    apostropheBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setKeyWidth(apostropheBtn, baseWidth, 1.0);
+    connect(apostropheBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+    registerShiftedKeyButton(apostropheBtn);
+    row->addWidget(apostropheBtn);
+
+    // Rectangle Enter key (ANSI layout)
+    QPushButton* enterBtn = createKeyButton("Enter", Qt::Key_Return);
+    setKeyWidth(enterBtn, baseWidth, 2.25);
+    row->addWidget(enterBtn);
+
+    rowsLayout->addLayout(row);
+}
+
+void VirtualKeyboardDialog::addShiftRow(QVBoxLayout* rowsLayout)
+{
+    QHBoxLayout* row = new QHBoxLayout();
+    row->setSpacing(2);
+    row->setContentsMargins(0, 0, 0, 0);
+
+    int baseWidth = 36;
+
+    addSpacer(row, baseWidth * 0.175);
+
+    QPushButton* leftShiftBtn = createKeyButton("Shift", Qt::Key_Shift, true);
+    leftShiftBtn->setCheckable(true);
+    modifierButtons[leftShiftBtn] = Qt::ShiftModifier;
+    connect(leftShiftBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
+    setKeyWidth(leftShiftBtn, baseWidth, 2.25);
+    row->addWidget(leftShiftBtn);
+
+    // Get current layout config
+    KeyboardLayoutConfig config = KeyboardLayoutManager::getInstance().getLayout(m_currentLayoutName);
+    bool useLayout = !config.name.isEmpty();
+
+    // For QWERTY layout, use hardcoded keys; for other layouts, use dynamic mapping
+    if (useLayout && m_currentLayoutName != "US QWERTY") {
+        // Dynamic layout: for each physical key position, find what character it produces
+        // Physical key positions: Z, X, C, V, B, N, M
+        QList<int> physicalKeyCodes = {
+            Qt::Key_Z, Qt::Key_X, Qt::Key_C, Qt::Key_V, Qt::Key_B,
+            Qt::Key_N, Qt::Key_M
+        };
+
+        for (int keyCode : physicalKeyCodes) {
+            // Find what character this key produces in the current layout
+            QString displayChar = findCharForQtKey(keyCode, config, false);
+            qCInfo(log_virtual_keyboard) << "Key" << keyCode << "-> displayChar:" << displayChar << "unicode:" << (displayChar.isEmpty() ? -1 : displayChar[0].unicode());
+            if (displayChar.isEmpty()) {
+                // Fallback to default QWERTY character
+                displayChar = QChar('A' + (keyCode - Qt::Key_A)).toLower();
+            }
+
+            // Don't call toUpper() on Japanese characters - they don't have case
+            QString buttonText = displayChar;
+            if (displayChar.length() == 1 && displayChar[0].isLetter() && displayChar[0].isLower()) {
+                buttonText = displayChar.toUpper();
+            }
+
+            QPushButton* keyBtn = createKeyButton(buttonText, keyCode);
+            setKeyWidth(keyBtn, baseWidth, 1.0);
+            row->addWidget(keyBtn);
+        }
+    } else {
+        // Standard QWERTY layout
+        QString keys = "ZXCVBNM";
+        for (int i = 0; i < keys.length(); i++) {
+            QChar key = keys[i];
+            int keyCode = Qt::Key_A + (key.toLatin1() - 'A');
+            QPushButton* keyBtn = createKeyButton(key, keyCode);
+            setKeyWidth(keyBtn, baseWidth, 1.0);
+            row->addWidget(keyBtn);
+        }
+    }
+
+    ShiftedKeyButton* commaBtn = new ShiftedKeyButton(",", "<", Qt::Key_Comma, this);
+    commaBtn->setFixedHeight(40);
+    commaBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setKeyWidth(commaBtn, baseWidth, 1.0);
+    connect(commaBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+    registerShiftedKeyButton(commaBtn);
+    row->addWidget(commaBtn);
+
+    ShiftedKeyButton* periodBtn = new ShiftedKeyButton(".", ">", Qt::Key_Period, this);
+    periodBtn->setFixedHeight(40);
+    periodBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setKeyWidth(periodBtn, baseWidth, 1.0);
+    connect(periodBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+    registerShiftedKeyButton(periodBtn);
+    row->addWidget(periodBtn);
+
+    ShiftedKeyButton* slashBtn = new ShiftedKeyButton("/", "?", Qt::Key_Slash, this);
+    slashBtn->setFixedHeight(40);
+    slashBtn->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    setKeyWidth(slashBtn, baseWidth, 1.0);
+    connect(slashBtn, &ShiftedKeyButton::clicked, this, &VirtualKeyboardDialog::onKeyClicked);
+    registerShiftedKeyButton(slashBtn);
+    row->addWidget(slashBtn);
+
+    QPushButton* rightShiftBtn = createKeyButton("Shift", Qt::Key_Shift, true);
+    rightShiftBtn->setCheckable(true);
+    modifierButtons[rightShiftBtn] = Qt::ShiftModifier;
+    connect(rightShiftBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
+    setKeyWidth(rightShiftBtn, baseWidth, 2.75);
+    row->addWidget(rightShiftBtn);
+
+    rowsLayout->addLayout(row);
+}
+
+void VirtualKeyboardDialog::addNavigationRow(QVBoxLayout* rowsLayout)
+{
+    QHBoxLayout* row = new QHBoxLayout();
+    row->setSpacing(2);
+    row->setContentsMargins(0, 0, 0, 0);
+
+    int baseWidth = 36;
+
+    addSpacer(row, baseWidth * 2.0);
+
+    QPushButton* insertBtn = createKeyButton("Insert", Qt::Key_Insert);
+    setKeyWidth(insertBtn, baseWidth, 1.0);
+    row->addWidget(insertBtn);
+
+    QPushButton* homeBtn = createKeyButton("Home", Qt::Key_Home);
+    setKeyWidth(homeBtn, baseWidth, 1.0);
+    row->addWidget(homeBtn);
+
+    QPushButton* pageUpBtn = createKeyButton("PgUp", Qt::Key_PageUp);
+    setKeyWidth(pageUpBtn, baseWidth, 1.0);
+    row->addWidget(pageUpBtn);
+
+    QPushButton* delBtn = createKeyButton("Del", Qt::Key_Delete);
+    setKeyWidth(delBtn, baseWidth, 1.0);
+    row->addWidget(delBtn);
+
+    QPushButton* endBtn = createKeyButton("End", Qt::Key_End);
+    setKeyWidth(endBtn, baseWidth, 1.0);
+    row->addWidget(endBtn);
+
+    QPushButton* pageDownBtn = createKeyButton("PgDn", Qt::Key_PageDown);
+    setKeyWidth(pageDownBtn, baseWidth, 1.0);
+    row->addWidget(pageDownBtn);
+
+    addSpacer(row, baseWidth * 3.0);
+
+    QPushButton* upBtn = createKeyButton("Up", Qt::Key_Up);
+    setKeyWidth(upBtn, baseWidth, 1.0);
+    row->addWidget(upBtn);
+
+    QPushButton* leftBtn = createKeyButton("Left", Qt::Key_Left);
+    setKeyWidth(leftBtn, baseWidth, 1.0);
+    row->addWidget(leftBtn);
+
+    QPushButton* downBtn = createKeyButton("Down", Qt::Key_Down);
+    setKeyWidth(downBtn, baseWidth, 1.0);
+    row->addWidget(downBtn);
+
+    QPushButton* rightBtn = createKeyButton("Right", Qt::Key_Right);
+    setKeyWidth(rightBtn, baseWidth, 1.0);
+    row->addWidget(rightBtn);
+
+    row->addStretch();
+    rowsLayout->addLayout(row);
+}
+
+void VirtualKeyboardDialog::addBottomRow(QVBoxLayout* rowsLayout)
+{
+    QHBoxLayout* row = new QHBoxLayout();
+    row->setSpacing(2);
+    row->setContentsMargins(0, 0, 0, 0);
+
+    int baseWidth = 36;
+
+    addSpacer(row, baseWidth * 0.2);
+
+    QPushButton* leftCtrlBtn = createKeyButton("Ctrl", Qt::Key_Control, true);
+    leftCtrlBtn->setCheckable(true);
+    modifierButtons[leftCtrlBtn] = Qt::ControlModifier;
+    connect(leftCtrlBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
+    setKeyWidth(leftCtrlBtn, baseWidth, 1.25);
+    row->addWidget(leftCtrlBtn);
+
+    QPushButton* leftWinBtn = createKeyButton("Win", Qt::Key_Meta, true);
+    leftWinBtn->setCheckable(true);
+    modifierButtons[leftWinBtn] = Qt::MetaModifier;
+    connect(leftWinBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
+    setKeyWidth(leftWinBtn, baseWidth, 1.25);
+    row->addWidget(leftWinBtn);
+
+    QPushButton* leftAltBtn = createKeyButton("Alt", Qt::Key_Alt, true);
+    leftAltBtn->setCheckable(true);
+    modifierButtons[leftAltBtn] = Qt::AltModifier;
+    connect(leftAltBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
+    setKeyWidth(leftAltBtn, baseWidth, 1.25);
+    row->addWidget(leftAltBtn);
+
+    QPushButton* spaceBtn = createKeyButton("Space", Qt::Key_Space);
+    setKeyWidth(spaceBtn, baseWidth, 6.25);
+    row->addWidget(spaceBtn);
+
+    QPushButton* rightAltBtn = createKeyButton("Alt", Qt::Key_Alt, true);
+    rightAltBtn->setCheckable(true);
+    modifierButtons[rightAltBtn] = Qt::AltModifier;
+    connect(rightAltBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
+    setKeyWidth(rightAltBtn, baseWidth, 1.25);
+    row->addWidget(rightAltBtn);
+
+    QPushButton* rightWinBtn = createKeyButton("Win", Qt::Key_Meta, true);
+    rightWinBtn->setCheckable(true);
+    modifierButtons[rightWinBtn] = Qt::MetaModifier;
+    connect(rightWinBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
+    setKeyWidth(rightWinBtn, baseWidth, 1.25);
+    row->addWidget(rightWinBtn);
+
+    QPushButton* menuBtn = createKeyButton("Menu", Qt::Key_Menu, true);
+    setKeyWidth(menuBtn, baseWidth, 1.25);
+    row->addWidget(menuBtn);
+
+    QPushButton* rightCtrlBtn = createKeyButton("Ctrl", Qt::Key_Control, true);
+    rightCtrlBtn->setCheckable(true);
+    modifierButtons[rightCtrlBtn] = Qt::ControlModifier;
+    connect(rightCtrlBtn, &QPushButton::toggled, this, &VirtualKeyboardDialog::onModifierToggled);
+    setKeyWidth(rightCtrlBtn, baseWidth, 1.25);
+    row->addWidget(rightCtrlBtn);
+
+    rowsLayout->addLayout(row);
+}
+
 void VirtualKeyboardDialog::onKeyClicked()
 {
-    QPushButton* button = qobject_cast<QPushButton*>(sender());
-    if (!button) return;
+    QObject* senderObj = sender();
+    int keyCode = 0;
 
-    int keyCode = button->property("keyCode").toInt();
-    if (keyCode == 0) return;
+    if (QPushButton* button = qobject_cast<QPushButton*>(senderObj)) {
+        keyCode = button->property("keyCode").toInt();
+    } else if (ShiftedKeyButton* shiftedButton = qobject_cast<ShiftedKeyButton*>(senderObj)) {
+        keyCode = shiftedButton->property("keyCode").toInt();
+    }
 
-    // Special case: Ctrl+Alt+Del
+    if (!keyCode) return;
+
+    // Show visual feedback
+    showKeyPressFeedback(keyCode);
+
     if (keyCode == Qt::Key_Delete &&
         (currentModifiers & Qt::ControlModifier) &&
         (currentModifiers & Qt::AltModifier)) {
         HostManager::getInstance().sendCtrlAltDel();
-        // Uncheck modifier buttons
         for (auto it = modifierButtons.begin(); it != modifierButtons.end(); ++it) {
             it.key()->setChecked(false);
         }
@@ -629,10 +1178,8 @@ void VirtualKeyboardDialog::onKeyClicked()
         return;
     }
 
-    // Send the key with current modifiers
     HostManager::getInstance().handleFunctionKey(keyCode, currentModifiers);
 
-    // Auto-release shift after key press (like a real keyboard)
     for (auto it = modifierButtons.begin(); it != modifierButtons.end(); ++it) {
         if (it.value() == Qt::ShiftModifier && it.key()->isChecked()) {
             it.key()->setChecked(false);
@@ -655,10 +1202,34 @@ void VirtualKeyboardDialog::onModifierToggled(bool checked)
         currentModifiers &= ~modifier;
     }
 
-    // Sync all modifier buttons with the same modifier flag
     for (auto it = modifierButtons.begin(); it != modifierButtons.end(); ++it) {
         if (it.value() == modifier && it.key() != button) {
             it.key()->setChecked(checked);
         }
+    }
+}
+
+void VirtualKeyboardDialog::mousePressEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton) {
+        m_dragging = true;
+        m_dragPosition = event->globalPosition().toPoint() - frameGeometry().topLeft();
+        event->accept();
+    }
+}
+
+void VirtualKeyboardDialog::mouseMoveEvent(QMouseEvent* event)
+{
+    if (m_dragging && (event->buttons() & Qt::LeftButton)) {
+        move(event->globalPosition().toPoint() - m_dragPosition);
+        event->accept();
+    }
+}
+
+void VirtualKeyboardDialog::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton) {
+        m_dragging = false;
+        event->accept();
     }
 }

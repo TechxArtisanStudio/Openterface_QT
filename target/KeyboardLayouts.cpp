@@ -367,7 +367,7 @@ bool KeyboardLayoutManager::saveCustomLayout(const KeyboardLayoutConfig& config,
 KeyboardLayoutConfig KeyboardLayoutManager::mergeCorrections(
     const KeyboardLayoutConfig& base,
     const QMap<int, uint8_t>& keyMapCorrections,
-    const QMap<uint8_t, int>& charMapCorrections)
+    const QMap<int, int>& charMapCorrections)
 {
     KeyboardLayoutConfig merged = base;
     
