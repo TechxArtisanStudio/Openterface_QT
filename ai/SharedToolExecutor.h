@@ -168,6 +168,7 @@ public:
 
 private:
     explicit SharedToolExecutor(QObject *parent = nullptr);
+    ~SharedToolExecutor() override;
 
     CameraManager *m_cameraManager = nullptr;
     ScreenAnalyzer *m_screenAnalyzer = nullptr;

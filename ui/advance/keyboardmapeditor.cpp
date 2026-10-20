@@ -112,42 +112,37 @@ void KeyTestWidget::keyPressEvent(QKeyEvent *event)
                                      << "Unicode: 0x" << QString::number(charCode, 16);
         
         // Check if this character has a mapping in the layout
-        // Note: charMapping uses uint8_t key, so only works for ASCII/Latin-1 range
-        if (charCode < 256) {
-            uint8_t byteCode = static_cast<uint8_t>(charCode);
-            qCDebug(log_keyboard_editor) << "Looking up byteCode:" << byteCode 
-                                        << "in charMapping (size:" << m_layout.charMapping.size() << ")";
-            
-            if (m_layout.charMapping.contains(byteCode)) {
-                int mappedQtKey = m_layout.charMapping.value(byteCode);
-                qCDebug(log_keyboard_editor) << "charMapping[" << byteCode << "] = Qt key 0x" 
-                                            << QString::number(mappedQtKey, 16);
-                
-                currentHID = m_layout.keyMap.value(mappedQtKey, 0);
-                qCDebug(log_keyboard_editor) << "keyMap[0x" << QString::number(mappedQtKey, 16) 
-                                            << "] = HID 0x" << QString::number(currentHID, 16);
-                
-                if (currentHID != 0) {
-                    qCDebug(log_keyboard_editor) << "Found HID via character mapping:" 
-                                                << "char=" << ch 
-                                                << "(0x" << QString::number(charCode, 16) << ")"
-                                                << "-> Qt key=0x" << QString::number(mappedQtKey, 16)
-                                                << "-> HID=0x" << QString::number(currentHID, 16);
-                }
-            } else {
-                qCDebug(log_keyboard_editor) << "Character" << ch << "not found in charMapping";
-                
-                // Debug: print first 10 entries of charMapping
-                qCDebug(log_keyboard_editor) << "First 10 charMapping entries:";
-                int count = 0;
-                for (auto it = m_layout.charMapping.begin(); it != m_layout.charMapping.end() && count < 10; ++it, ++count) {
-                    qCDebug(log_keyboard_editor) << "  charMapping[" << it.key() 
-                                                << "] (char:" << QChar(it.key()) << ") = Qt key 0x" 
-                                                << QString::number(it.value(), 16);
-                }
+        // charMapping uses int key (Unicode codepoint), supports full Unicode range
+        qCDebug(log_keyboard_editor) << "Looking up charCode:" << charCode
+                                    << "in charMapping (size:" << m_layout.charMapping.size() << ")";
+
+        if (m_layout.charMapping.contains(charCode)) {
+            int mappedQtKey = m_layout.charMapping.value(charCode);
+            qCDebug(log_keyboard_editor) << "charMapping[" << charCode << "] = Qt key 0x"
+                                        << QString::number(mappedQtKey, 16);
+
+            currentHID = m_layout.keyMap.value(mappedQtKey, 0);
+            qCDebug(log_keyboard_editor) << "keyMap[0x" << QString::number(mappedQtKey, 16)
+                                        << "] = HID 0x" << QString::number(currentHID, 16);
+
+            if (currentHID != 0) {
+                qCDebug(log_keyboard_editor) << "Found HID via character mapping:"
+                                            << "char=" << ch
+                                            << "(0x" << QString::number(charCode, 16) << ")"
+                                            << "-> Qt key=0x" << QString::number(mappedQtKey, 16)
+                                            << "-> HID=0x" << QString::number(currentHID, 16);
             }
         } else {
-            qCDebug(log_keyboard_editor) << "Character Unicode value" << charCode << "out of uint8_t range";
+            qCDebug(log_keyboard_editor) << "Character" << ch << "not found in charMapping";
+
+            // Debug: print first 10 entries of charMapping
+            qCDebug(log_keyboard_editor) << "First 10 charMapping entries:";
+            int count = 0;
+            for (auto it = m_layout.charMapping.begin(); it != m_layout.charMapping.end() && count < 10; ++it, ++count) {
+                qCDebug(log_keyboard_editor) << "  charMapping[" << it.key()
+                                            << "] (char:" << QChar(it.key()) << ") = Qt key 0x"
+                                            << QString::number(it.value(), 16);
+            }
         }
     }
     
@@ -701,7 +696,7 @@ void KeyboardMapEditor::onSaveLayout()
     
     // Apply corrections to base layout
     QMap<int, uint8_t> keyMapCorrections;
-    QMap<uint8_t, int> charMapCorrections;
+    QMap<int, int> charMapCorrections;
     
     for (auto it = m_corrections.begin(); it != m_corrections.end(); ++it) {
         const KeyMappingCorrection& corr = it.value();
@@ -761,7 +756,7 @@ void KeyboardMapEditor::onExportJson()
     }
     
     KeyboardLayoutConfig exportLayout = KeyboardLayoutManager::getInstance().mergeCorrections(
-        m_baseLayout, keyMapCorrections, QMap<uint8_t, int>()
+        m_baseLayout, keyMapCorrections, QMap<int, int>()
     );
     exportLayout.name = customName;
     
@@ -863,7 +858,7 @@ void KeyboardMapEditor::applyCorrectionsToLayout()
     }
     
     KeyboardLayoutConfig testLayout = KeyboardLayoutManager::getInstance().mergeCorrections(
-        m_baseLayout, keyMapCorrections, QMap<uint8_t, int>()
+        m_baseLayout, keyMapCorrections, QMap<int, int>()
     );
     
     m_testWidget->setCurrentLayout(testLayout);

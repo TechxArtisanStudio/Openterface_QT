@@ -32,6 +32,7 @@
 #include "host/cameramanager.h"
 #include "chat/ChatWindow.h"
 #include "ai/ChatManager.h"
+#include "ai/ChatTaskScheduler.h"
 #include "ai/ChatScreenCapture.h"
 #include "ai/SharedToolExecutor.h"
 #include "serial/SerialPortManager.h"
@@ -1466,13 +1467,16 @@ void MainWindow::stop(){
     // Note: Do NOT use wildcard disconnect() calls as they cause crashes during shutdown
     // when trying to disconnect from destroyed signals on partially-destroyed objects.
     // Qt will handle signal disconnections automatically when objects are destroyed.
-    
+
     m_cameraManager->stopCamera();
 
     // Don't call closePort() here because SerialPortManager::stop() will handle it
     // Calling it here causes queued close operations that execute during processEvents
     // qDebug() << "Closing serial port...";
     // SerialPortManager::getInstance().closePort();
+
+    // Stop ChatTaskScheduler timer to prevent "QObject::killTimer: Timers cannot be stopped from another thread"
+    ChatTaskScheduler::instance().stop();
 
 }
 

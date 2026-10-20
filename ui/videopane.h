@@ -101,6 +101,9 @@ public:
     void setRenderQuality(bool highQuality);
     bool renderQualityHigh() const { return m_highQualityRendering; }
 
+    // Get InputHandler for connecting signals
+    InputHandler* getInputHandler() const { return m_inputHandler; }
+
 signals:
     void mouseMoved(const QPoint& position, const QString& event);
     void videoPaneResized(const QSize& newSize);  // Signal for video pane resize events

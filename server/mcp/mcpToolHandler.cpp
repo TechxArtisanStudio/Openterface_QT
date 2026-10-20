@@ -67,6 +67,12 @@ McpToolHandler::McpToolHandler(QObject *parent)
 {
 }
 
+McpToolHandler::~McpToolHandler()
+{
+    delete m_screenAnalyzer;
+    m_screenAnalyzer = nullptr;
+}
+
 void McpToolHandler::setCameraManager(CameraManager* cam) {
     m_cameraManager = cam;
 }

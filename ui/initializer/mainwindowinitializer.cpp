@@ -55,6 +55,7 @@
 #include "../../SysKeyBlocker/SystemKeyBlocker.h"
 #include "../customkey/customkeymanager.h"
 #include "../ShortcutManager.h"
+#include "../virtualkeyboard/VirtualKeyboardDialog.h"
 
 #include <QTimer>
 #include <QStackedLayout>
@@ -73,6 +74,7 @@ MainWindowInitializer::MainWindowInitializer(MainWindow *mainWindow, QObject *pa
     , m_cameraManager(mainWindow->m_cameraManager)
     , m_statusBarManager(nullptr)  // Will be created during initialization
     , m_cornerWidgetManager(mainWindow->m_cornerWidgetManager)
+    , m_virtualKeyboardDialog(nullptr)
     , m_windowLayoutCoordinator(mainWindow->m_windowLayoutCoordinator)
     , m_toolbarManager(mainWindow->toolbarManager)
     , m_windowControlManager(nullptr)  // Will be created during initialization
@@ -249,6 +251,47 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     connect(m_cornerWidgetManager, &CornerWidgetManager::screensaverClicked, m_mainWindow, &MainWindow::onActionScreensaver);
     connect(m_cornerWidgetManager, &CornerWidgetManager::toggleSwitchChanged, m_mainWindow, &MainWindow::onToggleSwitchStateChanged);
     connect(m_cornerWidgetManager, &CornerWidgetManager::keyboardLayoutChanged, m_mainWindow, &MainWindow::onKeyboardLayoutCombobox_Changed);
+
+    // Also update virtual keyboard when layout changes from main header dropdown
+    connect(m_cornerWidgetManager, &CornerWidgetManager::keyboardLayoutChanged, this, [this](const QString& layoutName) {
+        qCInfo(log_ui_mainwindowinitializer) << "Corner widget layout changed to:" << layoutName;
+        if (m_virtualKeyboardDialog) {
+            qCInfo(log_ui_mainwindowinitializer) << "Recreating virtual keyboard dialog with layout:" << layoutName;
+
+            // Disconnect the destroyed signal from the old dialog to prevent it from nulling out our pointer
+            disconnect(m_virtualKeyboardDialog, &QObject::destroyed, this, nullptr);
+
+            // Hide and delete the old dialog
+            m_virtualKeyboardDialog->hide();
+            m_virtualKeyboardDialog->deleteLater();
+            m_virtualKeyboardDialog = nullptr;
+
+            // Create new dialog with the new layout
+            m_virtualKeyboardDialog = new VirtualKeyboardDialog(m_mainWindow, layoutName);
+            // Connect physical keyboard input to virtual keyboard feedback
+            if (m_videoPane && m_videoPane->getInputHandler()) {
+                connect(m_videoPane->getInputHandler(), &InputHandler::keyPressed,
+                        m_virtualKeyboardDialog, [this](int keyCode) {
+                            m_virtualKeyboardDialog->showKeyPressFeedback(keyCode, 150);
+                        });
+            }
+            // Connect to destroyed signal to null out our pointer when dialog is deleted
+            connect(m_virtualKeyboardDialog, &QObject::destroyed, this, [this]() {
+                m_virtualKeyboardDialog = nullptr;
+            });
+
+            // Show the new dialog
+            m_virtualKeyboardDialog->show();
+            m_virtualKeyboardDialog->raise();
+            m_virtualKeyboardDialog->activateWindow();
+        }
+        // Also update toolbar's layout combo box to stay in sync
+        if (m_toolbarManager) {
+            qCInfo(log_ui_mainwindowinitializer) << "Syncing toolbar layout to:" << layoutName;
+            m_toolbarManager->setCurrentLayout(layoutName);
+        }
+    });
+
     connect(m_cornerWidgetManager, &CornerWidgetManager::recordingToggled, m_mainWindow, &MainWindow::toggleRecording);
     connect(m_cornerWidgetManager, &CornerWidgetManager::muteToggled, m_mainWindow, &MainWindow::toggleMute);
     connect(m_cornerWidgetManager, &CornerWidgetManager::aiChatToggled, m_mainWindow, [this]() {
@@ -408,6 +451,73 @@ void MainWindowInitializer::setupToolbar()
                 m_mainWindow->settingDialog->selectPage(tr("Virtual Keyboard"));
             }
         });
+    });
+
+    // Connect virtual keyboard button to show/hide virtual keyboard dialog
+    connect(m_toolbarManager, &ToolbarManager::openVirtualKeyboard, m_mainWindow, [this]() {
+        if (!m_virtualKeyboardDialog) {
+            // Get current layout from toolbar manager
+            QString currentLayout = m_toolbarManager->getCurrentLayout();
+            qCInfo(log_ui_mainwindowinitializer) << "Creating virtual keyboard dialog with layout:" << currentLayout;
+            m_virtualKeyboardDialog = new VirtualKeyboardDialog(m_mainWindow, currentLayout);
+            // Connect physical keyboard input to virtual keyboard feedback
+            if (m_videoPane && m_videoPane->getInputHandler()) {
+                connect(m_videoPane->getInputHandler(), &InputHandler::keyPressed,
+                        m_virtualKeyboardDialog, [this](int keyCode) {
+                            m_virtualKeyboardDialog->showKeyPressFeedback(keyCode, 150);
+                        });
+            }
+            // Connect to destroyed signal to null out our pointer when dialog is deleted
+            connect(m_virtualKeyboardDialog, &QObject::destroyed, this, [this]() {
+                m_virtualKeyboardDialog = nullptr;
+            });
+        }
+        if (m_virtualKeyboardDialog->isVisible()) {
+            qCInfo(log_ui_mainwindowinitializer) << "Hiding virtual keyboard dialog";
+            m_virtualKeyboardDialog->hide();
+        } else {
+            qCInfo(log_ui_mainwindowinitializer) << "Showing virtual keyboard dialog";
+            m_virtualKeyboardDialog->show();
+            m_virtualKeyboardDialog->raise();
+            m_virtualKeyboardDialog->activateWindow();
+        }
+    });
+
+    // Connect layout changes to update virtual keyboard
+    connect(m_toolbarManager, &ToolbarManager::layoutChanged, m_mainWindow, [this](const QString& layoutName) {
+        qCInfo(log_ui_mainwindowinitializer) << "Toolbar layout changed to:" << layoutName;
+        if (m_virtualKeyboardDialog) {
+            qCInfo(log_ui_mainwindowinitializer) << "Recreating virtual keyboard dialog with layout:" << layoutName;
+
+            // Disconnect the destroyed signal from the old dialog to prevent it from nulling out our pointer
+            disconnect(m_virtualKeyboardDialog, &QObject::destroyed, this, nullptr);
+
+            // Hide and delete the old dialog
+            m_virtualKeyboardDialog->hide();
+            m_virtualKeyboardDialog->deleteLater();
+            m_virtualKeyboardDialog = nullptr;
+
+            // Create new dialog with the new layout
+            m_virtualKeyboardDialog = new VirtualKeyboardDialog(m_mainWindow, layoutName);
+            // Connect physical keyboard input to virtual keyboard feedback
+            if (m_videoPane && m_videoPane->getInputHandler()) {
+                connect(m_videoPane->getInputHandler(), &InputHandler::keyPressed,
+                        m_virtualKeyboardDialog, [this](int keyCode) {
+                            m_virtualKeyboardDialog->showKeyPressFeedback(keyCode, 150);
+                        });
+            }
+            // Connect to destroyed signal to null out our pointer when dialog is deleted
+            connect(m_virtualKeyboardDialog, &QObject::destroyed, this, [this]() {
+                m_virtualKeyboardDialog = nullptr;
+            });
+
+            // Show the new dialog
+            m_virtualKeyboardDialog->show();
+            m_virtualKeyboardDialog->raise();
+            m_virtualKeyboardDialog->activateWindow();
+        } else {
+            // Virtual keyboard dialog not open, no need to recreate
+        }
     });
 
     // Connect CustomKeyManager signal to rebuild toolbar live

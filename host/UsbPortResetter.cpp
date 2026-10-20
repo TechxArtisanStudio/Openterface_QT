@@ -24,7 +24,7 @@
 #include <QDebug>
 #include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_usb_reset, "opf.usb.reset")
+OPF_LOGGING_CATEGORY(log_usb_reset, "opf.usb.reset")
 
 #ifdef __linux__
 #include <libusb-1.0/libusb.h>

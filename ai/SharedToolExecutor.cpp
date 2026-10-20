@@ -44,6 +44,12 @@ SharedToolExecutor::SharedToolExecutor(QObject *parent)
 {
 }
 
+SharedToolExecutor::~SharedToolExecutor()
+{
+    delete m_screenAnalyzer;
+    m_screenAnalyzer = nullptr;
+}
+
 SharedToolExecutor &SharedToolExecutor::instance()
 {
     static SharedToolExecutor inst;

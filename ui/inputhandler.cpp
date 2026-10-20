@@ -636,6 +636,9 @@ void InputHandler::handleKeyPressEvent(QKeyEvent *event)
 {
     HostManager::getInstance().handleKeyPress(event);
 
+    // Emit signal for virtual keyboard feedback
+    emit keyPressed(event->key());
+
     if(!m_holdingEsc && event->key() == Qt::Key_Escape && !GlobalVar::instance().isAbsoluteMouseMode()) {
         if (!m_videoPane) {
             qCWarning(log_ui_input) << "InputHandler::handleKeyPressEvent - m_videoPane is null!";

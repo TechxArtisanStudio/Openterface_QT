@@ -28,9 +28,9 @@
 #include "serial/SerialPortManager.h"
 
 #include <QDateTime>
-#include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_lifecycle, "opf.device.lifecycle")
+OPF_LOGGING_CATEGORY(log_lifecycle, "opf.device.lifecycle")
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Construction / Singleton

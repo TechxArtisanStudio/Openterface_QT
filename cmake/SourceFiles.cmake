@@ -288,6 +288,12 @@ set(UI_TOOLBAR_SOURCES
     ui/toolbar/toolbarmanager.cpp ui/toolbar/toolbarmanager.h
 )
 
+# UI virtual keyboard sources
+set(UI_VIRTUALKEYBOARD_SOURCES
+    ui/virtualkeyboard/VirtualKeyboardDialog.cpp ui/virtualkeyboard/VirtualKeyboardDialog.h
+    ui/virtualkeyboard/ShiftedKeyButton.cpp ui/virtualkeyboard/ShiftedKeyButton.h
+)
+
 # UI recording sources
 set(UI_RECORDING_SOURCES
     ui/recording/recordingcontroller.cpp ui/recording/recordingcontroller.h
@@ -393,6 +399,7 @@ set(SOURCE_FILES
     ${UI_CORNERWIDGET_SOURCES}
     ${UI_WINDOWCONTROL_SOURCES}
     ${UI_TOOLBAR_SOURCES}
+    ${UI_VIRTUALKEYBOARD_SOURCES}
     ${UI_RECORDING_SOURCES}
     ${UI_PREFERENCES_SOURCES}
     ${UI_FLOATING_WINDOW_SOURCES}

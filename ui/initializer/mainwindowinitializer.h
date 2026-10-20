@@ -41,6 +41,7 @@ class DeviceCoordinator;
 class MenuCoordinator;
 class LanguageManager;
 class QTimer;
+class VirtualKeyboardDialog;
 
 namespace Ui {
     class MainWindow;
@@ -205,7 +206,7 @@ private:
     // Member variables
     MainWindow *m_mainWindow;                ///< Reference to MainWindow (not owned)
     Ui::MainWindow *m_ui;                    ///< Reference to UI (not owned)
-    
+
     // Component references (not owned, managed by MainWindow)
     QStackedLayout *m_stackedLayout;
     VideoPane *m_videoPane;
@@ -220,6 +221,9 @@ private:
     LanguageManager *m_languageManager;
     QTimer *m_mouseEdgeTimer;
     QThread *m_hidThread;  ///< Thread for VideoHid operations
+
+    // Dialogs
+    VirtualKeyboardDialog *m_virtualKeyboardDialog = nullptr;  ///< Virtual keyboard dialog
 };
 
 #endif // MAINWINDOWINITIALIZER_H
