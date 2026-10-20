@@ -412,8 +412,8 @@ if [ "$PLATFORM" = "windows" ]; then
   # Add the feature test macro to C_FLAGS and CXX_FLAGS.
   POSIX_C_SOURCE_DEFINE="_POSIX_C_SOURCE=200809L"
   cmake_args+=(
-    -DCMAKE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include errno.h"
-    -DCMAKE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include algorithm -include errno.h"
+    -DCMAKE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include errno.h -include stdlib.h"
+    -DCMAKE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include algorithm -include errno.h -include exception -include stdlib.h"
   )
 
   # Force static linking of zstd from MSYS2 instead of vcpkg
