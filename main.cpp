@@ -688,10 +688,8 @@ int main(int argc, char *argv[])
     });
 
     // Defer camera and audio initialization (improves startup time)
-    // VideoHid initialization skipped - HID functionality disabled
     // This was blocking startup for ~500ms
-    // Note: HID interface is disabled, so no delay needed for HID initialization.
-    QTimer::singleShot(500, window, [window]() {
+    QTimer::singleShot(150, window, [window]() {
         qInfo() << "Initializing camera and audio...";
         window->deferredInitializeCamera();
         qInfo() << "Camera and audio initialization started";

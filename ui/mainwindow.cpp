@@ -2305,11 +2305,10 @@ void MainWindow::showWCHFlashDialog() {
 }
 
 void MainWindow::updateFirmware() {
-    // HID functionality completely disabled - skip firmware operations
-    qCDebug(log_ui_mainwindow) << "Firmware update skipped - HID disabled";
-    FirmwareResult firmwareStatus = FirmwareResult::Latest; // Default to latest
-    std::string currentFirmwareVersion = "0.0.0 (HID disabled)";
-    std::string latestFirmwareVersion = "0.0.0 (HID disabled)";
+    // Check if it's latest firmware
+    FirmwareResult firmwareStatus = VideoHid::getInstance().isLatestFirmware();
+    std::string currentFirmwareVersion = VideoHid::getInstance().getCurrentFirmwareVersion();
+    std::string latestFirmwareVersion = VideoHid::getInstance().getLatestFirmwareVersion();
     FirmwareUpdateConfirmDialog confirmDialog(this);
     switch (firmwareStatus){
         case FirmwareResult::Latest:
@@ -2331,6 +2330,12 @@ void MainWindow::updateFirmware() {
                         stop();
                     } catch (...) {
                         qWarning() << "Exception while stopping main window operations - continuing anyway";
+                    }
+
+                    try {
+                        VideoHid::getInstance().stopPollingOnly();
+                    } catch (...) {
+                        qWarning() << "Exception while stopping video HID polling - continuing anyway";
                     }
 
                     // Wait a bit for video HID to fully stop

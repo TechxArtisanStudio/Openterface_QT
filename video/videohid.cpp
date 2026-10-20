@@ -252,11 +252,12 @@ void VideoHid::start() {
     }
     
     if (!m_currentHIDDevicePath.isEmpty()) {
-        // HID power-saving: Skip firmware version and SPDIFOUT read to reduce USB power consumption
-        // These operations were previously done asynchronously but they consume significant USB power
-        // and can cause USB drive recognition issues. USB switching still works via setSpdifout().
-        qCDebug(log_hid_firmware) << "Skipping firmware/SPDIFOUT read to save USB power";
-        qCDebug(log_hid_firmware) << "USB switching functionality remains available via setSpdifout()";
+        // Do not block UI thread with firmware read in startup
+        (void)QtConcurrent::run([this]() {
+            std::string captureCardFirmwareVersion = getFirmwareVersion();
+            qCDebug(log_hid_firmware) << "Firmware VERSION async:" << QString::fromStdString(captureCardFirmwareVersion);
+            GlobalVar::instance().setCaptureCardFirmwareVersion(captureCardFirmwareVersion);
+        });
     } else {
         qCDebug(log_hid_firmware) << "No HID device path available at start; skipping immediate firmware/SPDIF load";
     }
@@ -387,8 +388,35 @@ void VideoHid::pollDeviceStatus() {
             }
         }
 
-        // Note: HDMI and resolution polling are intentionally disabled to save USB power
-        // and prevent USB drive drops. Only GPIO0 polling is enabled for hardware switch detection.
+        // Track HDMI input state every cycle so UI code can rely on the
+        // poller instead of issuing its own USB reads.
+        bool hdmiNow = isHdmiConnected();
+        bool previous = m_lastHdmiConnected.exchange(hdmiNow);
+        if (previous != hdmiNow) {
+            qCDebug(log_hid_poll) << "HDMI input status changed:" << (hdmiNow ? "connected" : "disconnected");
+            emit hdmiInputStatusChanged(hdmiNow);
+        }
+
+        if (eventCallback) {
+            VideoHidResolutionInfo info = getInputStatus();
+            normalizeResolution(info);
+
+            float aspectRatio = info.height ? static_cast<float>(info.width) / info.height : 0;
+            GlobalVar::instance().setInputAspectRatio(aspectRatio);
+
+            if (info.hdmiConnected) {
+                if (GlobalVar::instance().getInputWidth() != static_cast<int>(info.width) || GlobalVar::instance().getInputHeight() != static_cast<int>(info.height)) {
+                    qCDebug(log_hid_poll).nospace() << "Resolution changed from "
+                                         << GlobalVar::instance().getInputWidth() << "x" << GlobalVar::instance().getInputHeight()
+                                         << " to " << info.width << "x" << info.height;
+                    emit inputResolutionChanged(GlobalVar::instance().getInputWidth(), GlobalVar::instance().getInputHeight(), info.width, info.height);
+                }
+                qCDebug(log_hid_poll) << "Emitting resolution update - Width:" << info.width << "Height:" << info.height << "FPS:" << info.fps << "PixelClock:" << info.pixclk << "MHz";
+                emit resolutionChangeUpdate(static_cast<int>(info.width), static_cast<int>(info.height), info.fps, info.pixclk);
+            } else {
+                emit resolutionChangeUpdate(0, 0, 0, 0);
+            }
+        }
     }
     catch (...) {
         qCDebug(log_hid_poll)  << "Exception occurred during timer processing";

@@ -6,7 +6,7 @@
 #endif
 #include "../../serial/SerialPortManager.h"
 #include "../../host/cameramanager.h"
-#include "../../video/videohid.h"  // Restored for USB switching functionality
+#include "../../video/videohid.h"  // For HID device status tracking
 #include "edid/edididentity.h"
 #include "edid/edididentitycache.h"
 #include "../globalsetting.h"
@@ -24,7 +24,7 @@ DeviceSelectorDialog::DeviceSelectorDialog(CameraManager *cameraManager, VideoHi
     : QDialog(parent)
     , m_serialPortManager(&SerialPortManager::getInstance())
     , m_cameraManager(cameraManager)
-    , m_videoHid(videoHid)  // Restored for USB switching
+    , m_videoHid(videoHid)  // For HID device status tracking in device selector UI
     , m_autoRefreshTimer(new QTimer(this))
     , m_autoRefreshEnabled(false)
     , m_totalHotplugEvents(0)
@@ -364,11 +364,16 @@ QString DeviceSelectorDialog::formatDeviceDetails(const DeviceInfo& device)
     }
     
     if (device.hasHidDevice()) {
-        // HID functionality disabled - always show as not available
+        // Check if this is the currently active HID device
         QString currentHIDPath;
         QString currentHIDPortChain;
+        if (m_videoHid) {
+            currentHIDPath = m_videoHid->getCurrentHIDDevicePath();
+            currentHIDPortChain = m_videoHid->getCurrentHIDPortChain();
+        }
 
-        bool isActiveHID = false; // HID disabled
+        bool isActiveHID = (!currentHIDPortChain.isEmpty() && currentHIDPortChain == device.portChain) ||
+                          (!currentHIDPath.isEmpty() && currentHIDPath == device.hidDevicePath);
 
         QString activeStatus = isActiveHID ? tr(" (Active)") : "";
         details << QString(tr("\U0001f5b1\ufe0f <b>HID Interface:</b> Available%1")).arg(activeStatus);

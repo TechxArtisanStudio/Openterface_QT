@@ -13,17 +13,24 @@ Q_DECLARE_LOGGING_CATEGORY(log_hid_device)
 Get the input resolution from capture card.
 */
 QPair<int, int> VideoHid::getResolution() {
-    // HID functionality disabled - return default values
-    qCDebug(log_hid_poll) << "getResolution: HID disabled - returning default resolution (0x0)";
+    VideoHidResolutionInfo info = getInputStatus();
+    normalizeResolution(info);
+    quint32 width = info.width;
+    quint32 height = info.height;
 
-    return qMakePair(0, 0);
+    qCDebug(log_hid_poll) << "getResolution: Read values --> " << width << "x" << height;
+
+    return qMakePair(static_cast<int>(width), static_cast<int>(height));
 }
 
 float VideoHid::getFps() {
-    // HID functionality disabled - return default value
-    qCDebug(log_hid_poll) << "getFps: HID disabled - returning default FPS (0.0)";
+    VideoHidResolutionInfo info = getInputStatus();
+    normalizeResolution(info);
+    float fps = info.fps;
 
-    return 0.0f;
+    qCDebug(log_hid_poll) << "getFps: Read FPS:" << fps;
+
+    return fps;
 }
 
 /*
@@ -43,17 +50,30 @@ bool VideoHid::getGpio0() {
 }
 
 float VideoHid::getPixelclk() {
-    // HID functionality disabled - return default value
-    qCDebug(log_hid_poll) << "getPixelclk: HID disabled - returning default pixel clock (0.0)";
+    qCDebug(log_hid_poll) << "getPixelclk: Using registers from chip impl" << (m_chipImpl ? m_chipImpl->name() : QString("Unknown"));
 
-    return 0.0f;
+    VideoHidResolutionInfo info = getInputStatus();
+    normalizeResolution(info);
+    qCDebug(log_hid_poll) << "getPixelclk: Returning Pixel Clock=" << info.pixclk << "MHz (from registers)";
+    return info.pixclk;
 }
 
 bool VideoHid::getSpdifout() {
-    // HID functionality disabled - return default value to save power
-    qCDebug(log_hid_firmware)  << "getSpdifout: HID disabled - returning default (false)";
+    int bit = 1;
+    int mask = 0xFE;  // Mask for potential future use
+    uint16_t spdifout_addr = ADDR_SPDIFOUT;
 
-    return false;
+    if (m_chipImpl) spdifout_addr = m_chipImpl->addrSpdifout();
+
+    if (GlobalVar::instance().getCaptureCardFirmwareVersion() < "24081309") {
+        qCDebug(log_hid_firmware)  << "Firmware version is less than 24081309";
+        bit = 0x10;
+        mask = 0xEF;
+    }
+    Q_UNUSED(mask)  // Suppress unused variable warning
+
+    bool result = readRegisterSafe(spdifout_addr, 0, "spdifout") & bit;
+    return result;
 }
 
 void VideoHid::switchToHost() {
@@ -214,10 +234,32 @@ QString VideoHid::pickFirmwareFileNameFromIndex(const QString& indexContent, Vid
  * Address: 0xFA8C bit0 indicates the HDMI connection status
  */
 bool VideoHid::isHdmiConnected() {
-    // HID functionality disabled - return default value
-    qCDebug(log_hid_poll) << "isHdmiConnected: HID disabled - returning default (false)";
+    uint16_t status_addr;
 
-    return false;
+    // Use the appropriate register based on chip implementation
+    if (m_chipImpl && m_chipImpl->type() == VideoChipType::MS2130S) {
+        status_addr = MS2130S_ADDR_HDMI_CONNECTION_STATUS;
+        qCDebug(log_hid_poll) << "Using" << m_chipImpl->name() << "HDMI status register:" << QString::number(status_addr, 16);
+    } else if (m_chipImpl && m_chipImpl->type() == VideoChipType::MS2109S) {
+        // MS2109S uses its own HDMI status register
+        status_addr = MS2109S_ADDR_HDMI_CONNECTION_STATUS;
+        qCDebug(log_hid_poll) << "Using" << m_chipImpl->name() << "HDMI status register (MS2109S):" << QString::number(status_addr, 16);
+    } else {
+        // Default to MS2109 register
+        status_addr = ADDR_HDMI_CONNECTION_STATUS;
+        qCDebug(log_hid_poll) << "Using" << (m_chipImpl ? m_chipImpl->name() : QString("MS2109")) << "HDMI status register:" << QString::number(status_addr, 16);
+    }
+
+    QPair<QByteArray, bool> result = usbXdataRead4Byte(status_addr);
+
+    if (!result.second || result.first.isEmpty()) {
+        qCWarning(log_hid_poll) << "Failed to read HDMI connection status from address:" << QString::number(status_addr, 16);
+        return false;
+    }
+
+    bool connected = result.first.at(0) & 0x01;
+    // qCDebug(log_hid_poll) << "HDMI connected:" << connected << ", raw value:" << (int)result.first.at(0);
+    return connected;
 }
 
 // Get register set for current chip

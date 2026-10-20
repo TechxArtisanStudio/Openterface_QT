@@ -18,7 +18,7 @@
 class DeviceManager;
 class SerialPortManager;
 class CameraManager;
-class VideoHid;  // Restored for USB switching functionality
+class VideoHid;  // For HID device status tracking in device selector UI
 
 class DeviceSelectorDialog : public QDialog
 {

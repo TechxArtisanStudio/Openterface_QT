@@ -37,7 +37,7 @@ Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
  * - Requires command-based configuration for baudrate switching
  * - Supports reset command (CMD_RESET)
  * - Supports factory reset command (CMD_SET_DEFAULT_CFG)
- * - Supports USB switch via serial command (0x17)
+ * - Supports USB switch via serial command + DTR toggle
  */
 class CH9329Strategy : public IChipStrategy
 {
@@ -58,7 +58,7 @@ public:
     // ========== Configuration ==========
     int determineInitialBaudrate(int storedBaudrate) const override;
     bool supportsCommandBasedConfiguration() const override { return true; }
-    bool supportsUsbSwitchCommand() const override { return true; }  // CH9329 supports USB switch via 0x17 command
+    bool supportsUsbSwitchCommand() const override { return true; }  // CH9329 uses serial command + DTR toggle for USB switch
     
     // ========== Reset Operations ==========
     bool performReset(
