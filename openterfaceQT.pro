@@ -127,6 +127,9 @@ SOURCES += main.cpp \
     ui/advance/edid/edidresolutionparser.cpp \
     ui/advance/edid/resolutionmodel.cpp \
     ui/advance/edid/edidprocessor.cpp \
+    ui/advance/edid/edididentity.cpp \
+    ui/advance/edid/edidsettingsmanager.cpp \
+    ui/advance/edid/edididentitycache.cpp \
     ui/advance/recordingsettingsdialog.cpp \
     ui/advance/diagnostics/SupportEmailDialog.cpp \
     ui/advance/wchflash/WCHFlashWorker.cpp \
@@ -331,6 +334,9 @@ HEADERS  += \
     ui/advance/edid/edidresolutionparser.h \
     ui/advance/edid/resolutionmodel.h \
     ui/advance/edid/edidprocessor.h \
+    ui/advance/edid/edididentity.h \
+    ui/advance/edid/edidsettingsmanager.h \
+    ui/advance/edid/edididentitycache.h \
     ui/advance/recordingsettingsdialog.h \
     ui/advance/diagnostics/SupportEmailDialog.h \
     ui/advance/wchflash/WCHFlashWorker.h \
