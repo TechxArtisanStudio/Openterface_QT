@@ -27,6 +27,7 @@
 #include "SerialStatistics.h"
 #include "serial_hotplug_handler.h"
 #include "../ui/globalsetting.h"
+#include "../global.h"
 #include "../host/cameramanager.h"
 #include "../device/DeviceManager.h"
 #include "../device/HotplugMonitor.h"
@@ -2060,8 +2061,45 @@ bool SerialPortManager::openPort(const QString &portName, int baudRate) {
         qCDebug(log_core_serial_conn) << "Serial port: " << portName << ", baudrate: " << baudRate << "opened";
         return true;
     } else {
+        // Convert lastError enum to string manually
+        QString errorString;
+        switch (lastError) {
+            case QSerialPort::NoError:
+                errorString = "No error";
+                break;
+            case QSerialPort::DeviceNotFoundError:
+                errorString = "Device not found";
+                break;
+            case QSerialPort::PermissionError:
+                errorString = "Permission denied";
+                break;
+            case QSerialPort::OpenError:
+                errorString = "Device already open";
+                break;
+            case QSerialPort::NotOpenError:
+                errorString = "Device not open";
+                break;
+            case QSerialPort::WriteError:
+                errorString = "Write error";
+                break;
+            case QSerialPort::ReadError:
+                errorString = "Read error";
+                break;
+            case QSerialPort::ResourceError:
+                errorString = "Resource error";
+                break;
+            case QSerialPort::UnsupportedOperationError:
+                errorString = "Unsupported operation";
+                break;
+            case QSerialPort::TimeoutError:
+                errorString = "Timeout";
+                break;
+            default:
+                errorString = "Unknown error";
+                break;
+        }
         QString errorMsg = QString("Open port failure: %1 (Error: %2)")
-                          .arg(serialPort->errorString())
+                          .arg(errorString)
                           .arg(static_cast<int>(lastError));
         qCWarning(log_core_serial_conn) << errorMsg;
 
@@ -2082,6 +2120,10 @@ void SerialPortManager::openSerialPortInThread(bool& openResult, QSerialPort::Se
     for (int attempt = 0; attempt < maxRetries; ++attempt) {
         openResult = serialPort->open(QIODevice::ReadWrite);
         if (openResult) {
+            // Disable DTR immediately after open to prevent CH9329/CH340 from
+            // triggering USB bus reset (which causes USB drive to drop on shared hub).
+            // RTS is kept enabled — used by factory reset and hardware recovery.
+            serialPort->setDataTerminalReady(false);
             break;
         }
         
@@ -3038,26 +3080,35 @@ void SerialPortManager::restartSwitchableUSB(){
  */
 void SerialPortManager::switchUsbToHostViaSerial() {
     qCDebug(log_core_serial_usbswitch) << "Switching USB to host via serial command (async)...";
-    
+
     if (!serialPort || !serialPort->isOpen()) {
         qCWarning(log_core_serial_usbswitch) << "Serial port not open, cannot switch USB to host";
         return;
     }
-    
+
     // Use chip strategy to check if USB switch is supported
     if (m_chipStrategy && !m_chipStrategy->supportsUsbSwitchCommand()) {
         qCDebug(log_core_serial_usbswitch) << m_chipStrategy->chipName() << "does not support serial-based USB switch";
         return;
     }
-    
-    // Fallback: Only use this method for CH32V208 chips
-    if (!m_chipStrategy && !isChipTypeCH32V208()) {
-        qCDebug(log_core_serial_usbswitch) << "Not CH32V208 chip, skipping serial-based USB switch";
-        return;
+
+    // For CH9329: Send serial command first, then toggle DTR to reset USB
+    if (m_chipStrategy && m_chipStrategy->chipName() == "CH9329") {
+        qCInfo(log_core_serial_usbswitch) << "CH9329: Sending USB switch command + DTR toggle";
+        // Send command to set switch state
+        sendAsyncCommand(CMD_SWITCH_USB_TO_HOST, true);
+        // Wait for command to be processed
+        QThread::msleep(200);
+        // Toggle DTR to reset USB and apply new switch state
+        restartSwitchableUSB();
+    } else {
+        // For CH32V208: Use serial command only
+        sendAsyncCommand(CMD_SWITCH_USB_TO_HOST, true);
+        qCInfo(log_core_serial_usbswitch) << "USB switch to host command sent asynchronously";
     }
-    
-    sendAsyncCommand(CMD_SWITCH_USB_TO_HOST, true);
-    qCInfo(log_core_serial_usbswitch) << "USB switch to host command sent asynchronously";
+
+    // Sync global state — other components (UI, watchdog) read this to know current switch position
+    GlobalVar::instance().setSwitchOnTarget(false);
 }
 
 /*
@@ -3067,26 +3118,35 @@ void SerialPortManager::switchUsbToHostViaSerial() {
  */
 void SerialPortManager::switchUsbToTargetViaSerial() {
     qCDebug(log_core_serial_usbswitch) << "Switching USB to target via serial command (async)...";
-    
+
     if (!serialPort || !serialPort->isOpen()) {
         qCWarning(log_core_serial_usbswitch) << "Serial port not open, cannot switch USB to target";
         return;
     }
-    
+
     // Use chip strategy to check if USB switch is supported
     if (m_chipStrategy && !m_chipStrategy->supportsUsbSwitchCommand()) {
         qCDebug(log_core_serial_usbswitch) << m_chipStrategy->chipName() << "does not support serial-based USB switch";
         return;
     }
-    
-    // Fallback: Only use this method for CH32V208 chips
-    if (!m_chipStrategy && !isChipTypeCH32V208()) {
-        qCDebug(log_core_serial_usbswitch) << "Not CH32V208 chip, skipping serial-based USB switch";
-        return;
+
+    // For CH9329: Send serial command first, then toggle DTR to reset USB
+    if (m_chipStrategy && m_chipStrategy->chipName() == "CH9329") {
+        qCInfo(log_core_serial_usbswitch) << "CH9329: Sending USB switch command + DTR toggle";
+        // Send command to set switch state
+        sendAsyncCommand(CMD_SWITCH_USB_TO_TARGET, true);
+        // Wait for command to be processed
+        QThread::msleep(200);
+        // Toggle DTR to reset USB and apply new switch state
+        restartSwitchableUSB();
+    } else {
+        // For CH32V208: Use serial command only
+        sendAsyncCommand(CMD_SWITCH_USB_TO_TARGET, true);
+        qCInfo(log_core_serial_usbswitch) << "USB switch to target command sent asynchronously";
     }
-    
-    sendAsyncCommand(CMD_SWITCH_USB_TO_TARGET, true);
-    qCInfo(log_core_serial_usbswitch) << "USB switch to target command sent asynchronously";
+
+    // Sync global state — other components (UI, watchdog) read this to know current switch position
+    GlobalVar::instance().setSwitchOnTarget(true);
 }
 
 /*

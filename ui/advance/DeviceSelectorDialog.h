@@ -18,12 +18,12 @@
 class DeviceManager;
 class SerialPortManager;
 class CameraManager;
-class VideoHid;
+class VideoHid;  // For HID device status tracking in device selector UI
 
 class DeviceSelectorDialog : public QDialog
 {
     Q_OBJECT
-    
+
 public:
     explicit DeviceSelectorDialog(CameraManager *cameraManager, VideoHid *videoHid = nullptr, QWidget *parent = nullptr);
     ~DeviceSelectorDialog();

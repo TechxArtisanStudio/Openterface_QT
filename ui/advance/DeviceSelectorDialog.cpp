@@ -6,7 +6,7 @@
 #endif
 #include "../../serial/SerialPortManager.h"
 #include "../../host/cameramanager.h"
-#include "../../video/videohid.h"
+#include "../../video/videohid.h"  // For HID device status tracking
 #include "edid/edididentity.h"
 #include "edid/edididentitycache.h"
 #include "../globalsetting.h"
@@ -24,7 +24,7 @@ DeviceSelectorDialog::DeviceSelectorDialog(CameraManager *cameraManager, VideoHi
     : QDialog(parent)
     , m_serialPortManager(&SerialPortManager::getInstance())
     , m_cameraManager(cameraManager)
-    , m_videoHid(videoHid)
+    , m_videoHid(videoHid)  // For HID device status tracking in device selector UI
     , m_autoRefreshTimer(new QTimer(this))
     , m_autoRefreshEnabled(false)
     , m_totalHotplugEvents(0)
@@ -371,10 +371,10 @@ QString DeviceSelectorDialog::formatDeviceDetails(const DeviceInfo& device)
             currentHIDPath = m_videoHid->getCurrentHIDDevicePath();
             currentHIDPortChain = m_videoHid->getCurrentHIDPortChain();
         }
-        
+
         bool isActiveHID = (!currentHIDPortChain.isEmpty() && currentHIDPortChain == device.portChain) ||
                           (!currentHIDPath.isEmpty() && currentHIDPath == device.hidDevicePath);
-        
+
         QString activeStatus = isActiveHID ? tr(" (Active)") : "";
         details << QString(tr("\U0001f5b1\ufe0f <b>HID Interface:</b> Available%1")).arg(activeStatus);
         details << QString(tr("   Device Path: %1")).arg(device.hidDevicePath);
@@ -526,21 +526,6 @@ void DeviceSelectorDialog::onSelectDevice()
     if (reply != QMessageBox::Yes) {
         return;
     }
-    
-    // bool success = m_serialPortManager->selectCompleteDevice(m_selectedDevice.portChain);
-    // if (success) {
-    //     qCInfo(log_device_selector) << "Complete device selection successful";
-        
-    //     // Show success message with device capabilities
-    //     showDeviceSelectionSuccess();
-        
-    //     populateDeviceList(); // Refresh to show current selection
-    //     updateStatusInfo();
-    // } else {
-    //     qCWarning(log_device_selector) << "Complete device selection failed";
-    //     QMessageBox::warning(this, "Device Selection Failed", 
-    //                         "Failed to select the device. Please try again or check device connection.");
-    // }
 }
 
 void DeviceSelectorDialog::onSwitchToDevice()

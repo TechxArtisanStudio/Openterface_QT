@@ -183,6 +183,12 @@ bool FactoryResetManager::handleFactoryResetSyncInternal(int timeoutMs)
     QString currentPortName = m_owner->serialPort->portName();
     qCInfo(log_core_serial) << "FactoryResetManager sync: Factory reset on port:" << currentPortName;
 
+    // Clear stored baudrate - consistent with async version (handleFactoryResetInternal)
+    // Factory reset restores device to defaults (9600 baud), so stored baudrate must be cleared.
+    // Without this, the baudrate recovery mechanism (attemptCH9329Connection) detects mode=0x82
+    // and restores the old stored baudrate (e.g. 115200), causing communication verification to fail.
+    m_owner->clearStoredBaudrate();
+
     // Step 1: Set RTS low
     qCDebug(log_core_serial) << "  - Step 1: Setting RTS to low...";
     if (!m_owner->serialPort->setRequestToSend(true)) {
@@ -288,6 +294,10 @@ bool FactoryResetManager::handleFactoryResetV191SyncInternal(int timeoutMs)
 
     QString currentPortName = m_owner->serialPort->portName();
     qCInfo(log_core_serial) << "V191 Factory reset on port:" << currentPortName;
+
+    // Clear stored baudrate - consistent with async V191 version (handleFactoryResetV191Internal)
+    // Factory reset restores device to defaults (9600 baud), so stored baudrate must be cleared.
+    m_owner->clearStoredBaudrate();
 
     // Send CMD_SET_DEFAULT_CFG
     qCDebug(log_core_serial) << "  - Sending CMD_SET_DEFAULT_CFG command...";

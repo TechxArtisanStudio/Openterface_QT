@@ -30,14 +30,14 @@ Q_DECLARE_LOGGING_CATEGORY(log_core_serial)
 
 /**
  * @brief Strategy implementation for CH9329 HID controller chip
- * 
+ *
  * CH9329 Characteristics:
  * - VID:PID = 1A86:7523
  * - Supports both 9600 and 115200 baudrates
  * - Requires command-based configuration for baudrate switching
  * - Supports reset command (CMD_RESET)
  * - Supports factory reset command (CMD_SET_DEFAULT_CFG)
- * - Does NOT support USB switch via serial command
+ * - Supports USB switch via serial command + DTR toggle
  */
 class CH9329Strategy : public IChipStrategy
 {
@@ -58,7 +58,7 @@ public:
     // ========== Configuration ==========
     int determineInitialBaudrate(int storedBaudrate) const override;
     bool supportsCommandBasedConfiguration() const override { return true; }
-    bool supportsUsbSwitchCommand() const override { return false; }
+    bool supportsUsbSwitchCommand() const override { return true; }  // CH9329 uses serial command + DTR toggle for USB switch
     
     // ========== Reset Operations ==========
     bool performReset(
