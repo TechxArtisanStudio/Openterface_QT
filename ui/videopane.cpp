@@ -788,6 +788,54 @@ QRectF VideoPane::getGStreamerVideoContentRect() const
     return QRectF();
 }
 
+QRectF VideoPane::computeActiveContentRectNormalized(const QSize& frameSize, const QSize& inputSize)
+{
+    const QRectF fullFrame(0.0, 0.0, 1.0, 1.0);
+
+    if (frameSize.width() <= 0 || frameSize.height() <= 0 ||
+        inputSize.width() <= 0 || inputSize.height() <= 0) {
+        return fullFrame;
+    }
+
+    const double frameAspect = static_cast<double>(frameSize.width()) / frameSize.height();
+    const double inputAspect = static_cast<double>(inputSize.width()) / inputSize.height();
+
+    // Within rounding tolerance there is no padding to compensate.
+    if (qAbs(frameAspect - inputAspect) < 0.01) {
+        return fullFrame;
+    }
+
+    double width = 1.0;
+    double height = 1.0;
+    if (inputAspect < frameAspect) {
+        // Signal is narrower than the frame: pillarboxed (bars left/right).
+        width = inputAspect / frameAspect;
+    } else {
+        // Signal is wider than the frame: letterboxed (bars top/bottom).
+        height = frameAspect / inputAspect;
+    }
+
+    return QRectF((1.0 - width) / 2.0, (1.0 - height) / 2.0, width, height);
+}
+
+QRectF VideoPane::getActiveContentRectNormalized() const
+{
+    QSize frameSize = m_originalVideoSize;
+
+    // FFmpeg and GStreamer keep m_originalVideoSize up to date; the Qt video
+    // item knows the native frame size itself.
+    if (!m_directFFmpegMode && !m_directGStreamerMode && m_videoItem) {
+        const QSizeF nativeSize = m_videoItem->nativeSize();
+        if (!nativeSize.isEmpty()) {
+            frameSize = nativeSize.toSize();
+        }
+    }
+
+    const QSize inputSize(GlobalVar::instance().getInputWidth(),
+                          GlobalVar::instance().getInputHeight());
+    return computeActiveContentRectNormalized(frameSize, inputSize);
+}
+
 QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
 {
     // qCDebug(log_ui_video) << "      [getTransformed] Input viewportPos:" << viewportPos;

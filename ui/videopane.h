@@ -87,6 +87,13 @@ public:
     void setOriginalVideoSize(const QSize& size) { m_originalVideoSize = size; }
     QSize getOriginalVideoSize() const { return m_originalVideoSize; }
     QRectF getGStreamerVideoContentRect() const;
+
+    // Active (non-black) area of the displayed video, normalized to 0..1 of the
+    // frame. Capture chips pad signals whose aspect ratio differs from the USB
+    // stream (e.g. 4:3 source in a 16:9 frame) with black bars that are not
+    // part of the target desktop.
+    QRectF getActiveContentRectNormalized() const;
+    static QRectF computeActiveContentRectNormalized(const QSize& frameSize, const QSize& inputSize);
     
     // Debug helper to validate coordinate transformation consistency
     void validateMouseCoordinates(const QPoint& original, const QString& eventType);

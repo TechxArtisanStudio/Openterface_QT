@@ -114,6 +114,7 @@ private:
     
     // Helper methods for coordinate transformation
     QPoint transformMousePosition(QMouseEvent *event, QWidget* sourceWidget);
+    QPoint mapVideoPositionToAbsolute(const QPointF& videoPos, int targetWidth, int targetHeight) const;
     QWidget* getEffectiveVideoWidget() const;
     
     // Timer slot for processing pending mouse move

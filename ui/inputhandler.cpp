@@ -155,14 +155,9 @@ MouseEventDTO* InputHandler::calculateAbsolutePosition(QMouseEvent *event) {
     
     // Direct calculation: viewport position → absolute (0-4096) in ONE step
     // This eliminates intermediate rounding errors
-    qreal absoluteX = (static_cast<qreal>(videoPos.x()) * 4096.0)  / targetWidth;
-    qreal absoluteY = (static_cast<qreal>(videoPos.y()) * 4096.0) / targetHeight;
-    
-    // qCDebug(log_ui_input) << "    [calcAbsolute] Before rounding - absoluteX/Y:" << absoluteX << absoluteY;
-    
-    // Single rounding step at the end - no intermediate conversions
-    int absX = qBound(0, qRound(absoluteX), 4096);
-    int absY = qBound(0, qRound(absoluteY), 4096);
+    const QPoint absolutePos = mapVideoPositionToAbsolute(videoPos, targetWidth, targetHeight);
+    int absX = absolutePos.x();
+    int absY = absolutePos.y();
     
     // qCDebug(log_ui_input) << "    [calcAbsolute] absX:" << absX << "absY:" << absY;
     
@@ -606,11 +601,9 @@ void InputHandler::handleWheelEvent(QWheelEvent *event)
         }
         
         // Calculate absolute coordinates (0-4096 range)
-        qreal absoluteX = (static_cast<qreal>(videoPos.x()) * 4096.0) / targetWidth;
-        qreal absoluteY = (static_cast<qreal>(videoPos.y()) * 4096.0) / targetHeight;
-        
-        int absX = qBound(0, qRound(absoluteX), 4096);
-        int absY = qBound(0, qRound(absoluteY), 4096);
+        const QPoint absolutePos = mapVideoPositionToAbsolute(videoPos, targetWidth, targetHeight);
+        int absX = absolutePos.x();
+        int absY = absolutePos.y();
         
         eventDto.reset(new MouseEventDTO(absX, absY, true));
         
@@ -781,6 +774,33 @@ QPoint InputHandler::transformMousePosition(QMouseEvent *event, QWidget* sourceW
     }
     
     return pos;
+}
+
+QPoint InputHandler::mapVideoPositionToAbsolute(const QPointF &videoPos, int targetWidth, int targetHeight) const
+{
+    if (targetWidth <= 0 || targetHeight <= 0) {
+        return QPoint(0, 0);
+    }
+
+    qreal normalizedX = videoPos.x() / targetWidth;
+    qreal normalizedY = videoPos.y() / targetHeight;
+
+    // Capture chips pad the frame with black bars when the signal aspect ratio
+    // differs from the USB stream (e.g. 4:3 source, 16:9 stream). Those bars are
+    // not part of the target desktop, so map onto the active content area only.
+    const QRectF contentRect = m_videoPane
+        ? m_videoPane->getActiveContentRectNormalized()
+        : QRectF(0.0, 0.0, 1.0, 1.0);
+
+    if (contentRect.width() > 0.0) {
+        normalizedX = (normalizedX - contentRect.x()) / contentRect.width();
+    }
+    if (contentRect.height() > 0.0) {
+        normalizedY = (normalizedY - contentRect.y()) / contentRect.height();
+    }
+
+    return QPoint(qBound(0, qRound(normalizedX * 4096.0), 4096),
+                  qBound(0, qRound(normalizedY * 4096.0), 4096));
 }
 
 QWidget* InputHandler::getEffectiveVideoWidget() const
