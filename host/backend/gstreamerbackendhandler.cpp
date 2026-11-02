@@ -1006,16 +1006,21 @@ GstElement* GStreamerBackendHandler::findOverlaySinkInPipeline() const
 
     GstElement* videoSink = gst_bin_get_by_name(GST_BIN(m_pipeline), "videosink");
     GstElement* overlaySink = nullptr;
+
     if (videoSink) {
         if (GST_IS_VIDEO_OVERLAY(videoSink)) {
-            overlaySink = videoSink;
+            // videoSink itself supports overlay - return it directly
+            // The caller takes ownership of the reference from gst_bin_get_by_name
+            return videoSink;
         } else if (GST_IS_BIN(videoSink)) {
+            // videoSink is a bin (like autovideosink), iterate to find overlay-capable child
             GstIterator* iter = gst_bin_iterate_sinks(GST_BIN(videoSink));
             GValue item = G_VALUE_INIT;
             while (gst_iterator_next(iter, &item) == GST_ITERATOR_OK) {
                 GstElement* childSink = GST_ELEMENT(g_value_get_object(&item));
                 if (childSink && GST_IS_VIDEO_OVERLAY(childSink)) {
                     overlaySink = childSink;
+                    gst_object_ref(overlaySink);
                     g_value_unset(&item);
                     break;
                 }
@@ -1023,21 +1028,15 @@ GstElement* GStreamerBackendHandler::findOverlaySinkInPipeline() const
             }
             gst_iterator_free(iter);
         }
+        gst_object_unref(videoSink);
     }
 
+    // Fallback: search entire pipeline for any overlay-capable element
     if (!overlaySink) {
         overlaySink = gst_bin_get_by_interface(GST_BIN(m_pipeline), GST_TYPE_VIDEO_OVERLAY);
     }
 
-    if (!overlaySink) {
-        // Return a reference to the element
-        overlaySink = gst_bin_get_by_interface(GST_BIN(m_pipeline), GST_TYPE_VIDEO_OVERLAY);
-        if (videoSink && overlaySink != videoSink) gst_object_unref(videoSink);
-        return overlaySink;
-    }
-
-    if (videoSink) gst_object_unref(videoSink);
-    return nullptr;
+    return overlaySink;
 }
 
 void GStreamerBackendHandler::refreshVideoOverlay()

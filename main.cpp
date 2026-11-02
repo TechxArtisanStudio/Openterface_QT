@@ -193,26 +193,35 @@ void applyMediaBackendSetting(){
     
     // Handle GStreamer-specific environment settings
     if (mediaBackend == "gstreamer") {
-        // Set GStreamer debug level to lowest (0 = GST_LEVEL_NONE) to suppress all messages
-        qputenv("GST_DEBUG", "0");
+        // Set GStreamer debug level - respect user's GST_DEBUG environment variable
+        // If not set, default to 0 (silent). Users can set GST_DEBUG=3 for troubleshooting
+        if (qgetenv("GST_DEBUG").isEmpty()) {
+            qputenv("GST_DEBUG", "0");
+        }
         
-        // Disable color output for cleaner logs
-        qputenv("GST_DEBUG_NO_COLOR", "1");
+        // Disable color output for cleaner logs (unless user wants color)
+        if (qgetenv("GST_DEBUG_NO_COLOR").isEmpty()) {
+            qputenv("GST_DEBUG_NO_COLOR", "1");
+        }
         
         // Ensure proper GStreamer registry handling
         qputenv("GST_REGISTRY_REUSE_PLUGIN_SCANNER", "no");
         
         // Set GStreamer to handle object lifecycle more carefully
-        qputenv("GST_DEBUG_DUMP_DOT_DIR", "");
-        
-        // Suppress non-critical GStreamer log messages from the start
-        qputenv("GST_DEBUG", "0");  // Complete silence - no GStreamer debug messages
+        if (qgetenv("GST_DEBUG_DUMP_DOT_DIR").isEmpty()) {
+            qputenv("GST_DEBUG_DUMP_DOT_DIR", "");
+        }
         
         // Suppress GLib critical messages that occur during device enumeration
-        qputenv("G_MESSAGES_DEBUG", "");  // Disable all GLib debug messages
+        // (unless user has set G_MESSAGES_DEBUG for troubleshooting)
+        if (qgetenv("G_MESSAGES_DEBUG").isNull()) {
+            qputenv("G_MESSAGES_DEBUG", "");
+        }
         
         // Prevent GStreamer from using problematic plugins that might cause object ref issues
-        qputenv("GST_PLUGIN_FEATURE_RANK", "autovideosink:MAX,autoaudiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
+        if (qgetenv("GST_PLUGIN_FEATURE_RANK").isEmpty()) {
+            qputenv("GST_PLUGIN_FEATURE_RANK", "autovideosink:MAX,autoaudiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
+        }
         
         // Force proper cleanup timing
         qputenv("G_DEBUG", "gc-friendly");
@@ -227,7 +236,9 @@ void applyMediaBackendSetting(){
         qputenv("GST_AUDIO_SYSTEM_PULSE", "1");
         
         // Reduce audio device scanning verbosity
-        qputenv("PULSE_DEBUG", "0");
+        if (qgetenv("PULSE_DEBUG").isEmpty()) {
+            qputenv("PULSE_DEBUG", "0");
+        }
         
         // Additional GStreamer environment variables for better video handling
         qputenv("GST_V4L2_USE_LIBV4L2", "1");
@@ -236,11 +247,7 @@ void applyMediaBackendSetting(){
         // The launcher script has already set it correctly for the package type:
         // - RPM packages: /usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
         // - AppImage packages: appDir/../lib/gstreamer-1.0
-        // Overriding it here causes version conflicts on Fedora
-        
-        if (!qgetenv("GST_PLUGIN_PATH").isEmpty()) {
-        } else {
-        }
+        // Overriding it causes version conflicts on Fedora
         
         // Ensure video output works correctly
         qputenv("GST_VIDEO_OVERLAY", "1");

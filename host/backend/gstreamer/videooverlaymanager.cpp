@@ -461,19 +461,11 @@ bool VideoOverlayManager::completePendingOverlaySetup(void* pipeline,
             }
 
             const bool supportsOverlay = GST_IS_VIDEO_OVERLAY(videoSink);
-            const bool looksLikeXSink = sinkNameBA.contains("xvimage") || sinkNameBA.contains("ximage");
 
             if (!supportsOverlay) {
                 qCWarning(log_gstreamer_videooverlaymanager) << "Deferred overlay skipped: sink does not support overlay interface (" << sinkName << ")";
                 gst_object_unref(videoSink);
-                pendingFlag = false;
-                return false;
-            }
-
-            if (!looksLikeXSink) {
-                qCWarning(log_gstreamer_videooverlaymanager) << "Deferred overlay skipped: sink is not an X sink (" << sinkName << ") on platform" << QGuiApplication::platformName();
-                gst_object_unref(videoSink);
-                pendingFlag = false;
+                // Keep pendingFlag true so we can retry later when sink may change
                 return false;
             }
 
