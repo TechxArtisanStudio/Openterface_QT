@@ -636,7 +636,7 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
         return candidates;
     };
 
-    auto tryCandidates = [this](const QStringList &candidates, QString &lastErr) -> bool {
+    auto tryCandidates = [this, &onPipelineStarted](const QStringList &candidates, QString &lastErr) -> bool {
         for (const QString &trySink : candidates) {
             qCDebug(log_gstreamer_backend) << "Attempting to start pipeline using sink:" << trySink;
 
