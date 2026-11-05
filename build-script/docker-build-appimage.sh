@@ -234,7 +234,13 @@ declare -a APPIMAGE_LIBRARY_CONFIGS=(
     "GSTCOREELEMENTS|GStreamer core elements|libgstcoreelements.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
     "GSTAPP|GStreamer app|libgstapp.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
     "GSTPLAYBACK|GStreamer playback|libgstplayback.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
-    "GSTVIDEOCONVERT|GStreamer video convert/scale|libgstvideoconvertscale.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    # GStreamer >= 1.22 ships videoconvert/videoscale in libgstvideoconvertscale.so,
+    # older releases ship them as separate plugins - bundle whichever exists.
+    "GSTVIDEOCONVERTSCALE|GStreamer video convert/scale|libgstvideoconvertscale.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTVIDEOCONVERT|GStreamer video convert|libgstvideoconvert.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTVIDEOSCALE|GStreamer video scale|libgstvideoscale.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTVIDEOTESTSRC|GStreamer video test source|libgstvideotestsrc.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
+    "GSTVIDEOFILTER|GStreamer video filters|libgstvideofilter.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
     "GSTVIDEORATE|GStreamer video rate|libgstvideorate.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
     "GSTXIMAGESINK|GStreamer X image sink|libgstximagesink.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
     "GSTXVIMAGESINK|GStreamer XV image sink|libgstxvimagesink.so|WARNING|gstreamer-1.0|/opt/gstreamer/lib/${ARCH}-linux-gnu/gstreamer-1.0 /opt/gstreamer/lib/gstreamer-1.0 /usr/lib/${ARCH}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0"
@@ -271,6 +277,25 @@ for config in "${APPIMAGE_LIBRARY_CONFIGS[@]}"; do
 done
 
 echo '✅ All GLIBC, critical, GPU, and GStreamer libraries copied'
+
+# Without videoconvert/videoscale GStreamer cannot build the capture pipeline at all
+# (the QImage fallback branch needs videoconvert too). Fail packaging instead of
+# silently shipping an AppImage that shows a black video pane.
+GST_BUNDLE_DIR="${APPDIR}/usr/lib/gstreamer-1.0"
+GST_MISSING=""
+if [ ! -e "${GST_BUNDLE_DIR}/libgstvideoconvert.so" ] && [ ! -e "${GST_BUNDLE_DIR}/libgstvideoconvertscale.so" ]; then
+    GST_MISSING="${GST_MISSING} videoconvert"
+fi
+if [ ! -e "${GST_BUNDLE_DIR}/libgstvideoscale.so" ] && [ ! -e "${GST_BUNDLE_DIR}/libgstvideoconvertscale.so" ]; then
+    GST_MISSING="${GST_MISSING} videoscale"
+fi
+[ -e "${GST_BUNDLE_DIR}/libgstvideotestsrc.so" ] || GST_MISSING="${GST_MISSING} videotestsrc"
+if [ -n "${GST_MISSING}" ]; then
+    echo "❌ ERROR: Bundled GStreamer plugin directory is missing required elements:${GST_MISSING}"
+    echo "   Expected videoconvert/videoscale/videotestsrc from gstreamer1.0-plugins-base."
+    exit 1
+fi
+echo "✅ Verified videoconvert/videoscale/videotestsrc plugins in AppImage bundle"
 
 # Diagnostic: Verify critical libraries were actually copied
 echo ""

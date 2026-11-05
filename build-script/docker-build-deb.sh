@@ -293,7 +293,13 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     # GStreamer plugins -> ${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
     "GSTPLUGIN_VIDEO4LINUX2|GStreamer V4L2 video capture|libgstvideo4linux2.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/${UNAME_M}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/${UNAME_M}-linux-gnu/gstreamer-1.0"
     "GSTPLUGIN_V4L2CODECS|GStreamer V4L2 hardware codecs|libgstv4l2codecs.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/${UNAME_M}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/${UNAME_M}-linux-gnu/gstreamer-1.0"
+    # GStreamer >= 1.22 ships videoconvert/videoscale in libgstvideoconvertscale.so,
+    # older releases (e.g. Ubuntu 22.04 / 1.20) ship them as separate plugins.
     "GSTPLUGIN_VIDEOCONVERTSCALE|GStreamer video format conversion|libgstvideoconvertscale.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/${UNAME_M}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/${UNAME_M}-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_VIDEOCONVERT|GStreamer video convert|libgstvideoconvert.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/${UNAME_M}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/${UNAME_M}-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_VIDEOSCALE|GStreamer video scale|libgstvideoscale.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/${UNAME_M}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/${UNAME_M}-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_VIDEOTESTSRC|GStreamer video test source|libgstvideotestsrc.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/${UNAME_M}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/${UNAME_M}-linux-gnu/gstreamer-1.0"
+    "GSTPLUGIN_VIDEOFILTER|GStreamer video filters|libgstvideofilter.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/${UNAME_M}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/${UNAME_M}-linux-gnu/gstreamer-1.0"
     "GSTPLUGIN_VIDEORATE|GStreamer video frame rate conversion|libgstvideorate.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/${UNAME_M}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/${UNAME_M}-linux-gnu/gstreamer-1.0"
     "GSTPLUGIN_COREELEMENTS|GStreamer core elements|libgstcoreelements.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/${UNAME_M}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/${UNAME_M}-linux-gnu/gstreamer-1.0"
     "GSTPLUGIN_TYPEFIND|GStreamer type detection|libgsttypefindfunctions.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/${UNAME_M}-linux-gnu/gstreamer-1.0 /usr/lib/gstreamer-1.0 /opt/gstreamer/lib/${UNAME_M}-linux-gnu/gstreamer-1.0"
@@ -344,6 +350,25 @@ for config in "${UNIFIED_LIBRARY_CONFIGS[@]}"; do
     
     copy_libraries "$var_name" "$display_name" "$lib_pattern" "$severity" "$target_dir" "${search_dirs[@]}"
 done
+
+# Without videoconvert/videoscale GStreamer cannot build the capture pipeline at all
+# (the QImage fallback branch needs videoconvert too). Fail packaging instead of
+# silently shipping a deb that shows a black video pane.
+GST_BUNDLE_DIR="${PKG_ROOT}/usr/lib/openterfaceqt/gstreamer/gstreamer-1.0"
+GST_MISSING=""
+if [ ! -e "${GST_BUNDLE_DIR}/libgstvideoconvert.so" ] && [ ! -e "${GST_BUNDLE_DIR}/libgstvideoconvertscale.so" ]; then
+    GST_MISSING="${GST_MISSING} videoconvert"
+fi
+if [ ! -e "${GST_BUNDLE_DIR}/libgstvideoscale.so" ] && [ ! -e "${GST_BUNDLE_DIR}/libgstvideoconvertscale.so" ]; then
+    GST_MISSING="${GST_MISSING} videoscale"
+fi
+[ -e "${GST_BUNDLE_DIR}/libgstvideotestsrc.so" ] || GST_MISSING="${GST_MISSING} videotestsrc"
+if [ -n "${GST_MISSING}" ]; then
+    echo "❌ ERROR: Bundled GStreamer plugin directory is missing required elements:${GST_MISSING}"
+    echo "   Expected videoconvert/videoscale/videotestsrc from gstreamer1.0-plugins-base."
+    exit 1
+fi
+echo "✅ Verified videoconvert/videoscale/videotestsrc plugins in DEB bundle"
 
 echo "📋 DEB: Final library contents in ${PKG_ROOT}/usr/lib/openterfaceqt:"
 find "${PKG_ROOT}/usr/lib/openterfaceqt" -type f -name "*.so*" | sort | head -30
