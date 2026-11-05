@@ -1480,9 +1480,11 @@ QString CameraManager::extractShortIdentifier(const QString& fullId) const
         return shortId;
     }
     
-    // Look for Windows patterns with format: digit&hexdigits&digit&hexdigits
-    // Examples: "7&1FF4451E&2&0000", "6&2ABC123F&1&0001", etc.
-    QRegularExpression windowsRegex(R"((\d+&[A-F0-9]+&\d+&[A-F0-9]+))", QRegularExpression::CaseInsensitiveOption);
+    // Look for Windows patterns with format: hexdigits&hexdigits&hexdigits&hexdigits
+    // Examples: "7&1FF4451E&2&0000", "6&2ABC123F&1&0001", "A&1FF4451E&3&0000", etc.
+    // The first field tracks the device's depth in the PnP tree and is hexadecimal,
+    // so it becomes a letter once a device sits behind enough cascaded USB hubs.
+    QRegularExpression windowsRegex(R"(([A-F0-9]+&[A-F0-9]+&[A-F0-9]+&[A-F0-9]+))", QRegularExpression::CaseInsensitiveOption);
     QRegularExpressionMatch windowsMatch = windowsRegex.match(fullId);
     
     if (windowsMatch.hasMatch()) {
