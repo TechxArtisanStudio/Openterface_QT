@@ -42,6 +42,9 @@ case "${ARCH}" in
 	*) RPM_ARCH=${ARCH};;
 esac
 
+# Debian/Ubuntu multiarch directory name (x86_64-linux-gnu, aarch64-linux-gnu, ...)
+MULTIARCH="$(uname -m)-linux-gnu"
+
 # Copy build output and resources to SOURCES
 if [ ! -f "${BUILD}/openterfaceQT" ]; then
 	echo "Error: built binary not found at ${BUILD}/openterfaceQT" >&2
@@ -228,19 +231,19 @@ mkdir -p "${RPMTOP}/SOURCES/qt6/plugins/platforminputcontexts"
 
 
 # Common search directories for Qt6 libraries
-QT_LIB_SEARCH_DIRS="/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+QT_LIB_SEARCH_DIRS="/opt/Qt6/lib|/usr/lib/${MULTIARCH}|/usr/lib"
 
 # Common search directories for Qt6 plugins
 QT_PLUGIN_SEARCH_DIRS="/opt/Qt6/plugins|/opt/Qt6/plugins/imageformats|/opt/Qt6/plugins/iconengines|/opt/Qt6/plugins"
 
 # Common search directories for FFmpeg libraries
-FFMPEG_LIB_SEARCH_DIRS="/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+FFMPEG_LIB_SEARCH_DIRS="/opt/ffmpeg/lib|/usr/lib/${MULTIARCH}|/usr/lib"
 
 # Common search directories for GStreamer libraries
-GSTREAMER_LIB_SEARCH_DIRS="/opt/gstreamer/lib/x86_64-linux-gnu|/usr/lib/x86_64-linux-gnu|/usr/lib"
+GSTREAMER_LIB_SEARCH_DIRS="/opt/gstreamer/lib/${MULTIARCH}|/usr/lib/${MULTIARCH}|/usr/lib"
 
 # Common search directories for GStreamer plugins
-GSTREAMER_PLUGIN_SEARCH_DIRS="/opt/gstreamer/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/x86_64-linux-gnu/gstreamer-1.0|/usr/lib/gstreamer-1.0"
+GSTREAMER_PLUGIN_SEARCH_DIRS="/opt/gstreamer/lib/${MULTIARCH}/gstreamer-1.0|/usr/lib/${MULTIARCH}/gstreamer-1.0|/usr/lib/gstreamer-1.0"
 
 # Unified library configurations with target subdirectories
 declare -a UNIFIED_LIBRARY_CONFIGS=(
@@ -303,31 +306,31 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "QTPLUGIN_IBUS|Qt6 IBus platform input context|libibusplatforminputcontextplugin.so|WARNING|qt6/plugins/platforminputcontexts|${QT_PLUGIN_SEARCH_DIRS}/platforminputcontexts"
     
     # GPU/Rendering libraries (CRITICAL for display)
-    "EGL|libEGL|libEGL.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
-    "GL|libGL|libGL.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
-    "GLX|libGLX|libGLX.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
-    "GLESV2|libGLESv2|libGLESv2.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
-    "GLVND|libglvnd|libglvnd.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
-    "GLDISPATCH|libGLdispatch|libGLdispatch.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
-    "OPENGL|libOpenGL|libOpenGL.so|WARNING||/lib/x86_64-linux-gnu|/opt/Qt6/lib|/usr/lib/x86_64-linux-gnu|/usr/lib|/usr/lib64|/lib"
+    "EGL|libEGL|libEGL.so|WARNING||/lib/${MULTIARCH}|/opt/Qt6/lib|/usr/lib/${MULTIARCH}|/usr/lib|/usr/lib64|/lib"
+    "GL|libGL|libGL.so|WARNING||/lib/${MULTIARCH}|/opt/Qt6/lib|/usr/lib/${MULTIARCH}|/usr/lib|/usr/lib64|/lib"
+    "GLX|libGLX|libGLX.so|WARNING||/lib/${MULTIARCH}|/opt/Qt6/lib|/usr/lib/${MULTIARCH}|/usr/lib|/usr/lib64|/lib"
+    "GLESV2|libGLESv2|libGLESv2.so|WARNING||/lib/${MULTIARCH}|/opt/Qt6/lib|/usr/lib/${MULTIARCH}|/usr/lib|/usr/lib64|/lib"
+    "GLVND|libglvnd|libglvnd.so|WARNING||/lib/${MULTIARCH}|/opt/Qt6/lib|/usr/lib/${MULTIARCH}|/usr/lib|/usr/lib64|/lib"
+    "GLDISPATCH|libGLdispatch|libGLdispatch.so|WARNING||/lib/${MULTIARCH}|/opt/Qt6/lib|/usr/lib/${MULTIARCH}|/usr/lib|/usr/lib64|/lib"
+    "OPENGL|libOpenGL|libOpenGL.so|WARNING||/lib/${MULTIARCH}|/opt/Qt6/lib|/usr/lib/${MULTIARCH}|/usr/lib|/usr/lib64|/lib"
     
     # Core media libraries
-    "LIBUSB|libusb|libusb*.so|ERROR||/opt/libusb/lib|/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "GUDEV|GUdev device|libgudev-1.0.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "JPEG|libjpeg|libjpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "TURBOJPEG|libturbojpeg|libturbojpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "LIBUSB|libusb|libusb*.so|ERROR||/opt/libusb/lib|/opt/ffmpeg/lib|/usr/lib/${MULTIARCH}|/usr/lib"
+    "GUDEV|GUdev device|libgudev-1.0.so|WARNING||/usr/lib/${MULTIARCH}|/usr/lib"
+    "JPEG|libjpeg|libjpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/${MULTIARCH}|/usr/lib"
+    "TURBOJPEG|libturbojpeg|libturbojpeg.so|ERROR||/opt/ffmpeg/lib|/usr/lib/${MULTIARCH}|/usr/lib"
     # Hardware acceleration libraries are NOT bundled - use system libraries instead
     # Bundling libva causes symbol incompatibilities with system libavutil (e.g., vaMapBuffer2)
     # Users must install system libva packages: libva, libva-drm, libva-x11
-    # "VA|VA-API|libva.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
-    # "VADRM|VA-API DRM|libva-drm.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
-    # "VAX11|VA-API X11|libva-x11.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "VDPAU|VDPAU|libvdpau.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    # "VA|VA-API|libva.so|WARNING||/usr/lib/${MULTIARCH}|/usr/lib"
+    # "VADRM|VA-API DRM|libva-drm.so|WARNING||/usr/lib/${MULTIARCH}|/usr/lib"
+    # "VAX11|VA-API X11|libva-x11.so|WARNING||/usr/lib/${MULTIARCH}|/usr/lib"
+    "VDPAU|VDPAU|libvdpau.so|WARNING||/usr/lib/${MULTIARCH}|/usr/lib"
 
     # Compression libraries (FFmpeg dependencies)
-    "BZ2|libbz2|libbz2.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "Z|zlib|libz.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "LZMA|liblzma|liblzma.so|WARNING||/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "BZ2|libbz2|libbz2.so|WARNING||/usr/lib/${MULTIARCH}|/usr/lib"
+    "Z|zlib|libz.so|WARNING||/usr/lib/${MULTIARCH}|/usr/lib"
+    "LZMA|liblzma|liblzma.so|WARNING||/usr/lib/${MULTIARCH}|/usr/lib"
     
     # FFmpeg libraries -> ${RPMTOP}/SOURCES/ffmpeg
     # Using common FFmpeg library search directories
@@ -357,10 +360,10 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "GSTSDP|GStreamer SDP|libgstsdp-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
     "GSTALLOCATORS|GStreamer allocators|libgstallocators-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
     "GSTGL|GStreamer OpenGL|libgstgl-1.0.so|WARNING|gstreamer|${GSTREAMER_LIB_SEARCH_DIRS}"
-    "ORC|ORC optimization|liborc-0.4.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "V4L|v4l-utils|libv4l*.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "V4L1|v4l1 compatibility|libv4l1.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "V4LCONVERT|v4l format conversion|libv4lconvert.so|WARNING|gstreamer|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "ORC|ORC optimization|liborc-0.4.so|WARNING|gstreamer|/usr/lib/${MULTIARCH}|/usr/lib"
+    "V4L|v4l-utils|libv4l*.so|WARNING|gstreamer|/usr/lib/${MULTIARCH}|/usr/lib"
+    "V4L1|v4l1 compatibility|libv4l1.so|WARNING|gstreamer|/usr/lib/${MULTIARCH}|/usr/lib"
+    "V4LCONVERT|v4l format conversion|libv4lconvert.so|WARNING|gstreamer|/usr/lib/${MULTIARCH}|/usr/lib"
     
     # GStreamer plugins -> ${RPMTOP}/SOURCES/gstreamer/gstreamer-1.0
     # Using common GStreamer plugin search directories
@@ -387,10 +390,10 @@ declare -a UNIFIED_LIBRARY_CONFIGS=(
     "GSTPLUGIN_AUDIOPARSERS|GStreamer audio parsers|libgstaudioparsers.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
     "GSTPLUGIN_AUDIOCONVERT|GStreamer audio conversion|libgstaudioconvert.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
     "GSTPLUGIN_AUDIORESAMPLE|GStreamer audio resampling|libgstaudioresample.so|WARNING|gstreamer/gstreamer-1.0|${GSTREAMER_PLUGIN_SEARCH_DIRS}"
-    "LIBDW|DW support library|libdw.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "XCBCURSOR|XCB cursor support|libxcb-cursor.so|ERROR|qt6|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "XCB|X11 XCB|libxcb.so|ERROR|qt6|/usr/lib/x86_64-linux-gnu|/usr/lib"
-    "XCBUTIL|XCB utilities|libxcb-util.so|WARNING|qt6|/usr/lib/x86_64-linux-gnu|/usr/lib"
+    "LIBDW|DW support library|libdw.so|WARNING|gstreamer/gstreamer-1.0|/usr/lib/${MULTIARCH}|/usr/lib"
+    "XCBCURSOR|XCB cursor support|libxcb-cursor.so|ERROR|qt6|/usr/lib/${MULTIARCH}|/usr/lib"
+    "XCB|X11 XCB|libxcb.so|ERROR|qt6|/usr/lib/${MULTIARCH}|/usr/lib"
+    "XCBUTIL|XCB utilities|libxcb-util.so|WARNING|qt6|/usr/lib/${MULTIARCH}|/usr/lib"
 )
 
 # Process all library configurations
