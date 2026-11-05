@@ -318,6 +318,9 @@ void GStreamerBackendHandler::stopCamera()
 
     stopFrameRenderingFallback();
     m_frameRenderingFallback = false;
+    m_selectedCapsProfile = 0;
+    m_noFrameHealthTicks = 0;
+    m_capsFallbackExhausted = false;
     // fakesink is only valid while frames are painted by VideoPane. Drop a
     // stale selection so the next start retries the real display sinks.
     if (m_selectedSink == QStringLiteral("fakesink")) {
@@ -429,7 +432,7 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     QString err;
     for (const QString &trySink : candidateSinks) {
         qCDebug(log_gstreamer_backend) << "Trying to create pipeline with sink:" << trySink;
-        GstElement* pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(device, resolution, framerate, trySink, err, displaySize);
+        GstElement* pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(device, resolution, framerate, trySink, err, displaySize, m_selectedCapsProfile);
         if (!pipeline) {
             qCWarning(log_gstreamer_backend) << "Pipeline creation failed for sink" << trySink << ":" << err;
             continue; // try the next sink
@@ -600,29 +603,6 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
 #ifdef HAVE_GSTREAMER
     const QString platform = QGuiApplication::platformName();
 
-    // Common post-start work: overlay setup when available, FPS probe, capture
-    // appsink and (in fallback mode) the QImage frame pull timer.
-    auto onPipelineStarted = [this](const QString &trySink) {
-        m_pipelineRunning = true;
-        qCDebug(log_gstreamer_backend) << "Pipeline started successfully with sink:" << trySink;
-
-        if (!m_frameRenderingFallback) {
-            qCDebug(log_gstreamer_backend) << "Attempting overlay setup after pipeline start (sink:" << trySink << ")";
-            setupVideoOverlayForCurrentPipeline();
-            if (m_overlaySetupPending) completePendingOverlaySetup();
-        }
-
-        // Attach frame probe to count buffers and show realtime FPS
-        m_frameCount.store(0, std::memory_order_relaxed);
-        attachFrameProbe();
-        if (m_healthCheckTimer && !m_healthCheckTimer->isActive()) m_healthCheckTimer->start(1000);
-
-        // Pre-initialize capture appsink for AI screen capture (also the frame
-        // source for the QImage rendering fallback).
-        createCaptureAppSink();
-        if (m_frameRenderingFallback) startFrameRenderingFallback();
-    };
-
     auto candidatesForMode = [this, &platform]() {
         if (m_frameRenderingFallback) {
             // No display sink is needed when VideoPane paints the frames.
@@ -636,63 +616,82 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
         return candidates;
     };
 
-    auto tryCandidates = [this, &onPipelineStarted](const QStringList &candidates, QString &lastErr) -> bool {
+    auto tryCandidates = [this](const QStringList &candidates, const QList<int> &profiles, QString &lastErr) -> bool {
         for (const QString &trySink : candidates) {
-            qCDebug(log_gstreamer_backend) << "Attempting to start pipeline using sink:" << trySink;
+            for (int profile : profiles) {
+                qCDebug(log_gstreamer_backend) << "Attempting to start pipeline using sink:" << trySink
+                                               << "caps profile:" << profile;
 
-            // If we don't have a pipeline or pipeline sink doesn't match trySink, (re)create it
-            if (!m_pipeline || m_selectedSink != trySink) {
-                cleanupGStreamer();
+                // If the pipeline, its sink or its source caps don't match the
+                // attempt, (re)create it.
+                if (!m_pipeline || m_selectedSink != trySink || m_selectedCapsProfile != profile) {
+                    cleanupGStreamer();
 
-                QString createErr;
-                m_pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(
-                    m_currentDevicePath, m_currentResolution, m_currentFramerate, trySink, createErr,
-                    m_frameRenderingFallback ? QSize() : getDisplaySizeForPipeline());
-                if (!m_pipeline) {
-                    qCWarning(log_gstreamer_backend) << "Failed to create pipeline with sink" << trySink << ":" << createErr;
-                    lastErr = createErr;
-                    continue; // try next sink
-                }
-                m_selectedSink = trySink;
-                // get bus for error diagnostics
-                m_bus = gst_element_get_bus(m_pipeline);
-            }
-
-            // Try start in-process first
-            if (m_inProcessRunner) {
-                QString err;
-                bool ok = m_inProcessRunner->start(m_pipeline, 5000, &err);
-                if (ok) {
-                    onPipelineStarted(trySink);
-                    return true;
+                    QString createErr;
+                    m_pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(
+                        m_currentDevicePath, m_currentResolution, m_currentFramerate, trySink, createErr,
+                        m_frameRenderingFallback ? QSize() : getDisplaySizeForPipeline(), profile);
+                    if (!m_pipeline) {
+                        qCWarning(log_gstreamer_backend) << "Failed to create pipeline with sink" << trySink
+                                                         << "caps profile" << profile << ":" << createErr;
+                        lastErr = createErr;
+                        continue; // try next profile/sink
+                    }
+                    m_selectedSink = trySink;
+                    m_selectedCapsProfile = profile;
+                    // get bus for error diagnostics
+                    m_bus = gst_element_get_bus(m_pipeline);
                 }
 
-                qCWarning(log_gstreamer_backend) << "In-process runner failed with sink" << trySink << ":" << err;
-                Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "START_PIPELINE");
-                lastErr = err;
-                cleanupGStreamer();
-                continue;
-            }
+                // Try start in-process first
+                if (m_inProcessRunner) {
+                    QString err;
+                    bool ok = m_inProcessRunner->start(m_pipeline, 5000, &err);
+                    if (ok) {
+                        handlePipelineStarted(trySink);
+                        return true;
+                    }
 
-            // Fallback to gst_element_set_state
-            GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
-            if (ret == GST_STATE_CHANGE_FAILURE) {
-                qCWarning(log_gstreamer_backend) << "gst_element_set_state PLAYING failed for sink" << trySink;
-                Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "START_PIPELINE");
-                lastErr = QStringLiteral("gst_element_set_state failed");
-                cleanupGStreamer();
-                continue;
-            }
+                    qCWarning(log_gstreamer_backend) << "In-process runner failed with sink" << trySink
+                                                     << "caps profile" << profile << ":" << err;
+                    Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "START_PIPELINE");
+                    lastErr = err;
+                    cleanupGStreamer();
+                    continue;
+                }
 
-            onPipelineStarted(trySink);
-            return true;
+                // Fallback to gst_element_set_state
+                GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
+                if (ret == GST_STATE_CHANGE_FAILURE) {
+                    qCWarning(log_gstreamer_backend) << "gst_element_set_state PLAYING failed for sink" << trySink
+                                                     << "caps profile" << profile;
+                    Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "START_PIPELINE");
+                    lastErr = QStringLiteral("gst_element_set_state failed");
+                    cleanupGStreamer();
+                    continue;
+                }
+
+                handlePipelineStarted(trySink);
+                return true;
+            }
         }
         return false;
     };
 
     QString lastErr;
-    if (tryCandidates(candidatesForMode(), lastErr)) {
+    if (tryCandidates(candidatesForMode(), {0}, lastErr)) {
         return true;
+    }
+
+    // The preferred sink did not come up with the configured mode. Cameras do
+    // not always advertise it exactly (framerate expressed as 30000/1001, a
+    // subset of sizes, or raw formats only), so retry it with looser caps
+    // before giving up on native rendering.
+    {
+        const QStringList preferred = candidatesForMode();
+        if (!preferred.isEmpty() && tryCandidates({preferred.first()}, {1, 2, 3}, lastErr)) {
+            return true;
+        }
     }
 
     // No native display sink could be started. Deliver decoded frames to
@@ -702,7 +701,7 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
         m_frameRenderingFallback = true;
         m_videoPane->enableDirectFFmpegMode(true);
         cleanupGStreamer();
-        if (tryCandidates(QStringList{QStringLiteral("fakesink")}, lastErr)) {
+        if (tryCandidates(QStringList{QStringLiteral("fakesink")}, {0, 1, 2, 3}, lastErr)) {
             return true;
         }
     }
@@ -744,6 +743,89 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
 }
 
 // startExternalGstProcess removed: ExternalGstRunner is used instead
+
+void GStreamerBackendHandler::handlePipelineStarted(const QString& sink)
+{
+    m_pipelineRunning = true;
+    m_noFrameHealthTicks = 0;
+    m_capsFallbackExhausted = false;
+    qCDebug(log_gstreamer_backend) << "Pipeline started successfully with sink:" << sink;
+
+    if (!m_frameRenderingFallback) {
+        qCDebug(log_gstreamer_backend) << "Attempting overlay setup after pipeline start (sink:" << sink << ")";
+        setupVideoOverlayForCurrentPipeline();
+        if (m_overlaySetupPending) completePendingOverlaySetup();
+    }
+
+    // Attach frame probe to count buffers and show realtime FPS
+    m_frameCount.store(0, std::memory_order_relaxed);
+    attachFrameProbe();
+    if (m_healthCheckTimer && !m_healthCheckTimer->isActive()) m_healthCheckTimer->start(1000);
+
+    // Pre-initialize capture appsink for AI screen capture (also the frame
+    // source for the QImage rendering fallback).
+    createCaptureAppSink();
+    if (m_frameRenderingFallback) startFrameRenderingFallback();
+}
+
+bool GStreamerBackendHandler::retryWithRelaxedCaps()
+{
+#ifdef HAVE_GSTREAMER
+    if (m_isDestructing || !m_pipeline || !m_inProcessRunner || m_capsFallbackExhausted
+        || m_selectedCapsProfile >= 3) {
+        return false;
+    }
+
+    const QString sink = m_selectedSink;
+    if (sink.isEmpty()) {
+        return false;
+    }
+
+    qCWarning(log_gstreamer_backend) << "Pipeline produced no frames for" << m_noFrameHealthTicks
+                                     << "second(s); retrying sink" << sink << "with looser source caps";
+
+    m_pipelineRunning = false;
+    m_healthCheckTimer->stop();
+
+    const QSize displaySize = m_frameRenderingFallback ? QSize()
+        : (m_pipelineDisplaySize.isValid() ? m_pipelineDisplaySize : getDisplaySizeForPipeline());
+    for (int profile = m_selectedCapsProfile + 1; profile <= 3; ++profile) {
+        cleanupGStreamer();
+
+        QString createErr;
+        m_pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(
+            m_currentDevicePath, m_currentResolution, m_currentFramerate, sink, createErr, displaySize, profile);
+        if (!m_pipeline) {
+            qCWarning(log_gstreamer_backend) << "Relaxed caps profile" << profile << "could not create a pipeline:"
+                                             << createErr;
+            continue;
+        }
+        m_selectedSink = sink;
+        m_selectedCapsProfile = profile;
+        m_bus = gst_element_get_bus(m_pipeline);
+
+        QString err;
+        if (!m_inProcessRunner->start(m_pipeline, 5000, &err)) {
+            qCWarning(log_gstreamer_backend) << "Relaxed caps profile" << profile << "failed to start:" << err;
+            Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "RELAXED_CAPS");
+            cleanupGStreamer();
+            continue;
+        }
+
+        qCInfo(log_gstreamer_backend) << "Pipeline restarted with caps profile" << profile;
+        handlePipelineStarted(sink);
+        return true;
+    }
+
+    qCWarning(log_gstreamer_backend) << "No relaxed caps profile produced a working pipeline";
+    // Stop retrying; the camera manager's frame-timeout watchdog takes over.
+    m_noFrameHealthTicks = 0;
+    m_capsFallbackExhausted = true;
+    return false;
+#else
+    return false;
+#endif
+}
 
 void GStreamerBackendHandler::stopGStreamerPipeline()
 {
@@ -1589,12 +1671,23 @@ void GStreamerBackendHandler::checkPipelineHealth()
             qCDebug(log_gstreamer_backend) << "Realtime GStreamer FPS (last interval):" << framesSinceLast;
             emit fpsChanged(static_cast<double>(framesSinceLast));
             if (framesSinceLast > 0) {
+                m_noFrameHealthTicks = 0;
                 // Notify CameraManager that frames are flowing. GStreamer
                 // renders via the X11 video overlay and never calls
                 // VideoPane::updateVideoFrame(), so without this signal
                 // the frame-timeout watchdog would falsely report
                 // "no video signal".
                 emit frameReceived();
+            } else {
+                ++m_noFrameHealthTicks;
+                // A pipeline that stays PLAYING without producing buffers
+                // usually means the source caps do not match any mode the
+                // camera advertises. Relax them before the UI reports a lost
+                // signal.
+                if (m_noFrameHealthTicks >= 3 && !m_capsFallbackExhausted
+                    && m_selectedCapsProfile < 3 && retryWithRelaxedCaps()) {
+                    return;
+                }
             }
         }
     }

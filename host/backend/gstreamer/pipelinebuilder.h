@@ -14,7 +14,10 @@ public:
     // Flexible pipeline - recording-enabled template using v4l2src + jpegdec and scaling
     // widgetSize: optional target display size; if provided and valid, videoscale output
     // is constrained to fit the widget so video isn't clipped on small screens
-    static QString buildFlexiblePipeline(const QString& device, const QSize& resolution, int framerate, const QString& videoSink, const QSize& widgetSize = QSize());
+    // capsProfile: 0 = exact width/height/framerate, 1 = drop framerate,
+    // 2 = any JPEG mode, 3 = raw formats. Later profiles are used when a camera
+    // does not advertise the configured mode, which otherwise yields no frames.
+    static QString buildFlexiblePipeline(const QString& device, const QSize& resolution, int framerate, const QString& videoSink, const QSize& widgetSize = QSize(), int capsProfile = 0);
 
     // Fallback pipelines (videotestsrc, v4l2 + jpeg, v4l2 raw)
     static QString buildVideotestMjpegFallback(const QSize& resolution, int framerate, const QString& videoSink);

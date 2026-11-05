@@ -9,11 +9,29 @@ OPF_LOGGING_CATEGORY(log_gstreamer_pipelinebuilder, "opf.backend.gstreamer.pipel
 
 using namespace Openterface::GStreamer;
 
-QString PipelineBuilder::buildFlexiblePipeline(const QString& device, const QSize& resolution, int framerate, const QString& videoSink, const QSize& widgetSize)
+QString PipelineBuilder::buildFlexiblePipeline(const QString& device, const QSize& resolution, int framerate, const QString& videoSink, const QSize& widgetSize, int capsProfile)
 {
     // Keep the same structure as old generatePipelineString to preserve recording/tee names
     QString sourceElement = "v4l2src device=%DEVICE% do-timestamp=true";
     QString decoderElement = "image/jpeg,width=%WIDTH%,height=%HEIGHT%,framerate=%FRAMERATE%/1 ! jpegdec";
+
+    // Cameras do not always advertise the configured mode exactly (e.g. 30/1 vs
+    // 30000/1001, or only some sizes). Pinning all three fields makes v4l2src
+    // fail to negotiate, which leaves the video pane black, so the caller can
+    // retry with progressively looser caps.
+    switch (capsProfile) {
+    case 1:
+        decoderElement = "image/jpeg,width=%WIDTH%,height=%HEIGHT% ! jpegdec";
+        break;
+    case 2:
+        decoderElement = "image/jpeg ! jpegdec";
+        break;
+    case 3:
+        decoderElement = "video/x-raw";
+        break;
+    default:
+        break;
+    }
 
     // Calculate the output size for videoscale: output EXACTLY the display size with
     // black borders (letterbox/pillarbox) to fill the screen. This is critical on

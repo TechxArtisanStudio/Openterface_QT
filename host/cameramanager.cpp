@@ -1346,11 +1346,28 @@ bool CameraManager::switchToCameraDevice(const QCameraDevice &cameraDevice, cons
         #ifndef Q_OS_WIN
         if (GStreamerBackendHandler* gstHandler = qobject_cast<GStreamerBackendHandler*>(m_backendHandler.get())) {
             gstHandler->setCurrentDevicePortChain(portChain);
-            // Set the current device path for GStreamer backend
-            QString devicePath = convertCameraDeviceToPath(cameraDevice);
+            // Prefer the V4L2 node recorded by the device manager: the Qt
+            // camera id is not guaranteed to be a /dev/video path, and parsing
+            // digits out of it can resolve to a node that does not exist.
+            QString devicePath;
+            for (const DeviceInfo& info : DeviceManager::getInstance().getDevicesByPortChain(portChain)) {
+                if (!info.cameraDevicePath.isEmpty()) {
+                    devicePath = info.cameraDevicePath;
+                    break;
+                }
+            }
+            if (devicePath.isEmpty()) {
+                const DeviceInfo selected = DeviceManager::getInstance().getCurrentSelectedDevice();
+                if (selected.isValid() && !selected.cameraDevicePath.isEmpty()) {
+                    devicePath = selected.cameraDevicePath;
+                }
+            }
+            if (devicePath.isEmpty()) {
+                devicePath = convertCameraDeviceToPath(cameraDevice);
+            }
             gstHandler->setCurrentDevice(devicePath);
             // Ensure the GStreamer backend has sensible defaults for resolution and framerate
-            // if none were explicitly set by the caller. Use 1280x720@30 as a safe default.
+            // if none were explicitly set by the caller. Use 1920x1080@30 as a safe default.
             QSize defaultResolution(1920, 1080);
             int defaultFramerate = 30;
             gstHandler->setResolutionAndFramerate(defaultResolution, defaultFramerate);
