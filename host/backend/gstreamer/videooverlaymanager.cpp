@@ -273,7 +273,11 @@ bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, co
                 XCloseDisplay(display);
 
                 if (x11_overlay_error_occurred_local) {
-                    qCWarning(log_gstreamer_videooverlaymanager) << "X11 error occurred during overlay setup - continuing without embedding";
+                    // Report failure so the caller can fall back to QImage rendering.
+                    // Previously this only logged and returned true, leaving the user
+                    // with a black pane and no indication that embedding failed.
+                    qCWarning(log_gstreamer_videooverlaymanager) << "X11 error occurred during overlay setup - embedding failed";
+                    return false;
                 } else {
                     qCDebug(log_gstreamer_videooverlaymanager) << "Video overlay setup completed successfully";
                 }

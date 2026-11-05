@@ -1599,6 +1599,13 @@ void VideoPane::enableDirectFFmpegMode(bool enable)
     if (enable) {
         qCDebug(log_ui_video) << "VideoPane: Enabling FFmpeg mode";
         
+        // Disable GStreamer mode first: it restores the (empty) Qt video item,
+        // which must not stay visible on top of the pixmap path.
+        if (m_directGStreamerMode) {
+            qCDebug(log_ui_video) << "VideoPane: Disabling GStreamer mode for FFmpeg";
+            enableDirectGStreamerMode(false);
+        }
+
         // Hide the Qt video item when using direct FFmpeg mode
         if (m_videoItem) {
             m_videoItem->setVisible(false);
@@ -1618,12 +1625,6 @@ void VideoPane::enableDirectFFmpegMode(bool enable)
         if (m_pixmapItem) {
             m_pixmapItem->setVisible(true);
             qCDebug(log_ui_video) << "VideoPane: Forced pixmap item visibility to true";
-        }
-        
-        // Disable GStreamer mode if it was enabled
-        if (m_directGStreamerMode) {
-            qCDebug(log_ui_video) << "VideoPane: Disabling GStreamer mode for FFmpeg";
-            enableDirectGStreamerMode(false);
         }
         
     } else {

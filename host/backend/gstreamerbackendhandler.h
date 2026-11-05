@@ -226,6 +226,11 @@ private:
     
     // Overlay setup state
     bool m_overlaySetupPending;
+    // Native GstVideoOverlay embedding is unavailable (Wayland, no overlay-capable
+    // sink, or an X11 embedding error). Frames are then delivered to VideoPane as
+    // QImages through the appsink capture branch instead.
+    bool m_frameRenderingFallback{false};
+    QTimer* m_framePullTimer{nullptr};
     // Cached display size used when creating the current pipeline (for resize-triggered rebuilds)
     QSize m_pipelineDisplaySize;
     // Flag to prevent multiple post-layout rebuilds
@@ -265,6 +270,12 @@ private:
     bool embedVideoInVideoPane(VideoPane* videoPane);
     void handleGStreamerMessage(GstMessage* message);
     void completePendingOverlaySetup();
+
+    // Frame-based rendering fallback (used when native video overlay is unavailable)
+    void enableFrameRenderingFallback(const QString& reason);
+    void startFrameRenderingFallback();
+    void stopFrameRenderingFallback();
+    void pullFrameForDisplay();
     
     // Helper methods for image capture
     GstSample* getLatestSampleFromPipeline();

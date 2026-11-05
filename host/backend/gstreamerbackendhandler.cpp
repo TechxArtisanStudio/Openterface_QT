@@ -81,6 +81,26 @@ static const char* qEventTypeName(QEvent::Type t)
     }
 }
 
+// GstVideoOverlay embedding needs a real X11 window handle. Wayland sessions
+// (including XWayland, where Qt runs as xcb but the X server is nested) either
+// expose no XID at all or lack the Xv extension used by xvimagesink, so the
+// pipeline can run without anything ever reaching the screen. In those
+// environments frames are rendered through VideoPane's QImage path instead.
+static bool platformRequiresFrameRenderingFallback()
+{
+    const QString platform = QGuiApplication::platformName();
+    if (platform.isEmpty()) {
+        return false;
+    }
+
+    const bool isWaylandSession = platform.contains("wayland", Qt::CaseInsensitive)
+                                  || !qgetenv("WAYLAND_DISPLAY").isEmpty();
+    const bool isXcb = platform.contains("xcb", Qt::CaseInsensitive);
+    const bool hasXDisplay = !qgetenv("DISPLAY").isEmpty();
+
+    return isWaylandSession || !isXcb || !hasXDisplay;
+}
+
 QList<int> GStreamerBackendHandler::getSupportedFrameRates(const QCameraFormat& format) const
 {
     if (m_config.useStandardFrameRatesOnly) {
@@ -296,6 +316,14 @@ void GStreamerBackendHandler::stopCamera()
 {
     qCDebug(log_gstreamer_backend) << "GStreamer: stopCamera called";
 
+    stopFrameRenderingFallback();
+    m_frameRenderingFallback = false;
+    // fakesink is only valid while frames are painted by VideoPane. Drop a
+    // stale selection so the next start retries the real display sinks.
+    if (m_selectedSink == QStringLiteral("fakesink")) {
+        m_selectedSink.clear();
+    }
+
 #ifdef HAVE_GSTREAMER
     if (m_pipeline) {
         stopGStreamerPipeline();
@@ -370,13 +398,26 @@ bool GStreamerBackendHandler::createGStreamerPipeline(const QString& device, con
     const QString platform = QGuiApplication::platformName();
     const bool hasXDisplay = !qgetenv("DISPLAY").isEmpty();
     const bool hasWaylandDisplay = !qgetenv("WAYLAND_DISPLAY").isEmpty();
-    
-    // Get candidate sinks (env override first then preferred list). We'll try each sink until pipeline creation succeeds.
-    QStringList candidateSinks = Openterface::GStreamer::SinkSelector::candidateSinks(platform);
-    qCDebug(log_gstreamer_backend) << "Candidate sinks to try:" << candidateSinks << "(platform:" << platform
-                                   << ", X DISPLAY:" << hasXDisplay << ", WAYLAND_DISPLAY:" << hasWaylandDisplay << ")";
 
-    QSize displaySize = getDisplaySizeForPipeline();
+    // Do not clear a fallback decision made earlier in this session (e.g. an
+    // overlay embedding failure), only decide it when none has been made yet.
+    if (!m_frameRenderingFallback) {
+        m_frameRenderingFallback = m_videoPane && platformRequiresFrameRenderingFallback();
+    }
+
+    // Without native overlay support no display sink is required: frames are
+    // pulled from the appsink branch and painted by VideoPane. A fakesink keeps
+    // the tee's display branch linked without depending on X11/Wayland sinks.
+    QStringList candidateSinks = m_frameRenderingFallback
+        ? QStringList{QStringLiteral("fakesink")}
+        : Openterface::GStreamer::SinkSelector::candidateSinks(platform);
+    qCDebug(log_gstreamer_backend) << "Candidate sinks to try:" << candidateSinks << "(platform:" << platform
+                                   << ", X DISPLAY:" << hasXDisplay << ", WAYLAND_DISPLAY:" << hasWaylandDisplay
+                                   << ", frame fallback:" << m_frameRenderingFallback << ")";
+
+    // In fallback mode keep the camera's native frame size and let VideoPane
+    // scale it, matching the FFmpeg/Media Foundation rendering path.
+    QSize displaySize = m_frameRenderingFallback ? QSize() : getDisplaySizeForPipeline();
     m_pipelineDisplaySize = displaySize;
 
     qCDebug(log_gstreamer_backend) << "Pipeline display size determined:" << displaySize
@@ -557,94 +598,113 @@ bool GStreamerBackendHandler::startGStreamerPipeline()
 {
     qCDebug(log_gstreamer_backend) << "Starting GStreamer pipeline";
 #ifdef HAVE_GSTREAMER
-    // Build a list of candidate sinks and attempt to start the pipeline using each
     const QString platform = QGuiApplication::platformName();
-    QStringList candidates = Openterface::GStreamer::SinkSelector::candidateSinks(platform);
 
-    // If we already have a selected sink, make sure it is tried first
-    if (!m_selectedSink.isEmpty()) {
-        // move the current sink to front if present
-        if (candidates.contains(m_selectedSink)) {
+    // Common post-start work: overlay setup when available, FPS probe, capture
+    // appsink and (in fallback mode) the QImage frame pull timer.
+    auto onPipelineStarted = [this](const QString &trySink) {
+        m_pipelineRunning = true;
+        qCDebug(log_gstreamer_backend) << "Pipeline started successfully with sink:" << trySink;
+
+        if (!m_frameRenderingFallback) {
+            qCDebug(log_gstreamer_backend) << "Attempting overlay setup after pipeline start (sink:" << trySink << ")";
+            setupVideoOverlayForCurrentPipeline();
+            if (m_overlaySetupPending) completePendingOverlaySetup();
+        }
+
+        // Attach frame probe to count buffers and show realtime FPS
+        m_frameCount.store(0, std::memory_order_relaxed);
+        attachFrameProbe();
+        if (m_healthCheckTimer && !m_healthCheckTimer->isActive()) m_healthCheckTimer->start(1000);
+
+        // Pre-initialize capture appsink for AI screen capture (also the frame
+        // source for the QImage rendering fallback).
+        createCaptureAppSink();
+        if (m_frameRenderingFallback) startFrameRenderingFallback();
+    };
+
+    auto candidatesForMode = [this, &platform]() {
+        if (m_frameRenderingFallback) {
+            // No display sink is needed when VideoPane paints the frames.
+            return QStringList{QStringLiteral("fakesink")};
+        }
+        QStringList candidates = Openterface::GStreamer::SinkSelector::candidateSinks(platform);
+        if (!m_selectedSink.isEmpty()) {
             candidates.removeAll(m_selectedSink);
             candidates.prepend(m_selectedSink);
-        } else {
-            candidates.prepend(m_selectedSink);
         }
-    }
+        return candidates;
+    };
+
+    auto tryCandidates = [this](const QStringList &candidates, QString &lastErr) -> bool {
+        for (const QString &trySink : candidates) {
+            qCDebug(log_gstreamer_backend) << "Attempting to start pipeline using sink:" << trySink;
+
+            // If we don't have a pipeline or pipeline sink doesn't match trySink, (re)create it
+            if (!m_pipeline || m_selectedSink != trySink) {
+                cleanupGStreamer();
+
+                QString createErr;
+                m_pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(
+                    m_currentDevicePath, m_currentResolution, m_currentFramerate, trySink, createErr,
+                    m_frameRenderingFallback ? QSize() : getDisplaySizeForPipeline());
+                if (!m_pipeline) {
+                    qCWarning(log_gstreamer_backend) << "Failed to create pipeline with sink" << trySink << ":" << createErr;
+                    lastErr = createErr;
+                    continue; // try next sink
+                }
+                m_selectedSink = trySink;
+                // get bus for error diagnostics
+                m_bus = gst_element_get_bus(m_pipeline);
+            }
+
+            // Try start in-process first
+            if (m_inProcessRunner) {
+                QString err;
+                bool ok = m_inProcessRunner->start(m_pipeline, 5000, &err);
+                if (ok) {
+                    onPipelineStarted(trySink);
+                    return true;
+                }
+
+                qCWarning(log_gstreamer_backend) << "In-process runner failed with sink" << trySink << ":" << err;
+                Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "START_PIPELINE");
+                lastErr = err;
+                cleanupGStreamer();
+                continue;
+            }
+
+            // Fallback to gst_element_set_state
+            GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
+            if (ret == GST_STATE_CHANGE_FAILURE) {
+                qCWarning(log_gstreamer_backend) << "gst_element_set_state PLAYING failed for sink" << trySink;
+                Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "START_PIPELINE");
+                lastErr = QStringLiteral("gst_element_set_state failed");
+                cleanupGStreamer();
+                continue;
+            }
+
+            onPipelineStarted(trySink);
+            return true;
+        }
+        return false;
+    };
 
     QString lastErr;
-    for (const QString &trySink : candidates) {
-        qCDebug(log_gstreamer_backend) << "Attempting to start pipeline using sink:" << trySink;
+    if (tryCandidates(candidatesForMode(), lastErr)) {
+        return true;
+    }
 
-        // If we don't have a pipeline or pipeline sink doesn't match trySink, (re)create it
-        if (!m_pipeline || m_selectedSink != trySink) {
-            // Cleanup any existing pipeline first
-            cleanupGStreamer();
-
-            QString createErr;
-            m_pipeline = Openterface::GStreamer::PipelineFactory::createPipeline(m_currentDevicePath, m_currentResolution, m_currentFramerate, trySink, createErr, getDisplaySizeForPipeline());
-            if (!m_pipeline) {
-                qCWarning(log_gstreamer_backend) << "Failed to create pipeline with sink" << trySink << ":" << createErr;
-                lastErr = createErr;
-                continue; // try next sink
-            }
-            m_selectedSink = trySink;
-            // get bus for error diagnostics
-            m_bus = gst_element_get_bus(m_pipeline);
+    // No native display sink could be started. Deliver decoded frames to
+    // VideoPane through the appsink branch instead of showing nothing.
+    if (!m_frameRenderingFallback && m_videoPane) {
+        qCWarning(log_gstreamer_backend) << "All native display sinks failed; switching to QImage frame rendering fallback";
+        m_frameRenderingFallback = true;
+        m_videoPane->enableDirectFFmpegMode(true);
+        cleanupGStreamer();
+        if (tryCandidates(QStringList{QStringLiteral("fakesink")}, lastErr)) {
+            return true;
         }
-
-        // Try start in-process first
-        if (m_inProcessRunner) {
-            QString err;
-            bool ok = m_inProcessRunner->start(m_pipeline, 5000, &err);
-            if (ok) {
-                m_pipelineRunning = true;
-                qCDebug(log_gstreamer_backend) << "Pipeline started successfully with sink:" << trySink;
-                // Try to bind overlay now that pipeline is running
-                qCDebug(log_gstreamer_backend) << "Attempting overlay setup after in-process pipeline start (sink:" << trySink << ")";
-                setupVideoOverlayForCurrentPipeline();
-                if (m_overlaySetupPending) completePendingOverlaySetup();
-                // Attach frame probe to count buffers and show realtime FPS
-                m_frameCount.store(0, std::memory_order_relaxed);
-                attachFrameProbe();
-                if (m_healthCheckTimer && !m_healthCheckTimer->isActive()) m_healthCheckTimer->start(1000);
-                // Pre-initialize capture appsink for AI screen capture
-                // This avoids lazy initialization latency during first capture request
-                createCaptureAppSink();
-                return true;
-            }
-
-            qCWarning(log_gstreamer_backend) << "In-process runner failed with sink" << trySink << ":" << err;
-            Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "START_PIPELINE");
-            lastErr = err;
-            // Try next sink
-            cleanupGStreamer();
-            continue;
-        }
-
-        // Fallback to gst_element_set_state
-        GstStateChangeReturn ret = gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
-        if (ret == GST_STATE_CHANGE_FAILURE) {
-            qCWarning(log_gstreamer_backend) << "gst_element_set_state PLAYING failed for sink" << trySink;
-            Openterface::GStreamer::GstHelpers::parseAndLogGstErrorMessage(m_bus, "START_PIPELINE");
-            lastErr = QStringLiteral("gst_element_set_state failed");
-            // try next sink
-            cleanupGStreamer();
-            continue;
-        }
-
-    m_pipelineRunning = true;
-    qCDebug(log_gstreamer_backend) << "Pipeline set to PLAYING with sink:" << trySink;
-    // Attempt overlay binding now that the pipeline is playing
-    qCDebug(log_gstreamer_backend) << "Attempting overlay setup after gst_element_set_state (sink:" << trySink << ")";
-    setupVideoOverlayForCurrentPipeline();
-    // Attach frame probe and start health check timer
-    m_frameCount.store(0, std::memory_order_relaxed);
-    attachFrameProbe();
-    if (m_healthCheckTimer && !m_healthCheckTimer->isActive()) m_healthCheckTimer->start(1000);
-    // Pre-initialize capture appsink for AI screen capture
-    createCaptureAppSink();
-    return true;
     }
 
     qCCritical(log_gstreamer_backend) << "Failed to start any pipeline using candidate sinks. Last error:" << lastErr;
@@ -689,6 +749,7 @@ void GStreamerBackendHandler::stopGStreamerPipeline()
 {
     qCDebug(log_gstreamer_backend) << "Stopping GStreamer pipeline";
     
+    stopFrameRenderingFallback();
     m_healthCheckTimer->stop();
     m_pipelineRunning = false;
     
@@ -903,6 +964,19 @@ void GStreamerBackendHandler::setVideoOutput(VideoPane* videoPane)
 
     if (!videoPane) return;
 
+    if (platformRequiresFrameRenderingFallback()) {
+        qCInfo(log_gstreamer_backend) << "Native video overlay unavailable on platform"
+                                      << QGuiApplication::platformName()
+                                      << "- delivering GStreamer frames through VideoPane QImage rendering";
+        m_frameRenderingFallback = true;
+        m_overlaySetupPending = false;
+        // enableDirectFFmpegMode() tears down the GStreamer overlay widget and
+        // activates the QGraphicsPixmapItem path shared with the FFmpeg backend.
+        videoPane->enableDirectFFmpegMode(true);
+        if (m_pipelineRunning) startFrameRenderingFallback();
+        return;
+    }
+
     qCDebug(log_gstreamer_backend) << "Configuring VideoPane as video output";
     // If the VideoPane exposes an overlay widget, install event filter
     if (QWidget* ov = videoPane->getOverlayWidget()) {
@@ -924,6 +998,11 @@ void GStreamerBackendHandler::setVideoOutput(VideoPane* videoPane)
 
 void GStreamerBackendHandler::completePendingOverlaySetup()
 {
+    if (m_frameRenderingFallback) {
+        m_overlaySetupPending = false;
+        return;
+    }
+
     qCDebug(log_gstreamer_backend) << "Completing pending overlay setup (pendingFlag=" << m_overlaySetupPending << ")";
     bool ok = Openterface::GStreamer::VideoOverlayManager::completePendingOverlaySetup(m_pipeline,
                                                                               m_videoWidget,
@@ -931,16 +1010,130 @@ void GStreamerBackendHandler::completePendingOverlaySetup()
                                                                               m_videoPane,
                                                                               m_overlaySetupPending);
     qCDebug(log_gstreamer_backend) << "completePendingOverlaySetup result:" << ok << "pendingFlag now=" << m_overlaySetupPending;
+
+#ifdef HAVE_GSTREAMER
+    if (!ok && !m_frameRenderingFallback) {
+        // The pipeline has no overlay-capable sink at all, so retrying will
+        // never succeed. Switch to QImage rendering.
+        GstElement* overlaySink = findOverlaySinkInPipeline();
+        if (!overlaySink) {
+            enableFrameRenderingFallback(QStringLiteral("pipeline has no GstVideoOverlay-capable sink"));
+        } else {
+            gst_object_unref(overlaySink);
+        }
+    }
+#endif
+}
+
+void GStreamerBackendHandler::enableFrameRenderingFallback(const QString& reason)
+{
+    if (m_isDestructing || !m_videoPane) {
+        return;
+    }
+
+    if (!m_frameRenderingFallback) {
+        qCInfo(log_gstreamer_backend) << "GStreamer switching to QImage frame rendering:" << reason;
+        m_frameRenderingFallback = true;
+    }
+    m_overlaySetupPending = false;
+
+#ifdef HAVE_GSTREAMER
+    // Detach any sink that was already pointed at the native overlay window,
+    // otherwise it keeps drawing into a widget that is about to be destroyed.
+    if (m_currentOverlaySink) {
+        if (GST_IS_VIDEO_OVERLAY(m_currentOverlaySink)) {
+            gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(m_currentOverlaySink), 0);
+        }
+        gst_object_unref(m_currentOverlaySink);
+        m_currentOverlaySink = nullptr;
+    }
+#endif
+
+    // Replaces the native overlay widget with the QGraphicsPixmapItem path that
+    // the FFmpeg backend already uses.
+    if (!m_videoPane->isDirectFFmpegModeEnabled() || m_videoPane->isDirectGStreamerModeEnabled()) {
+        m_videoPane->enableDirectFFmpegMode(true);
+    }
+
+    if (m_pipelineRunning) {
+        startFrameRenderingFallback();
+    }
+}
+
+void GStreamerBackendHandler::startFrameRenderingFallback()
+{
+#ifdef HAVE_GSTREAMER
+    if (!m_frameRenderingFallback || !m_pipelineRunning || !m_videoPane || m_isDestructing) {
+        return;
+    }
+
+    if (!m_captureAppSink && !createCaptureAppSink()) {
+        qCWarning(log_gstreamer_backend) << "Frame rendering fallback unavailable: capture appsink creation failed";
+        return;
+    }
+
+    if (!m_framePullTimer) {
+        m_framePullTimer = new QTimer(this);
+        m_framePullTimer->setTimerType(Qt::PreciseTimer);
+        connect(m_framePullTimer, &QTimer::timeout, this, &GStreamerBackendHandler::pullFrameForDisplay);
+    }
+
+    if (!m_framePullTimer->isActive()) {
+        const int fps = m_currentFramerate > 0 ? qBound(5, m_currentFramerate, 60) : 30;
+        const int intervalMs = qMax(10, 1000 / fps);
+        m_framePullTimer->start(intervalMs);
+        qCInfo(log_gstreamer_backend) << "Started GStreamer QImage frame pull timer:" << fps
+                                      << "fps (interval" << intervalMs << "ms)";
+    }
+#endif
+}
+
+void GStreamerBackendHandler::stopFrameRenderingFallback()
+{
+    if (m_framePullTimer && m_framePullTimer->isActive()) {
+        m_framePullTimer->stop();
+        qCDebug(log_gstreamer_backend) << "Stopped GStreamer QImage frame pull timer";
+    }
+}
+
+void GStreamerBackendHandler::pullFrameForDisplay()
+{
+#ifdef HAVE_GSTREAMER
+    if (!m_frameRenderingFallback || !m_pipelineRunning || !m_captureAppSink
+        || !m_videoPane || m_isDestructing) {
+        return;
+    }
+
+    // Non-blocking pull: the timer drives presentation, so a missing frame just
+    // skips this tick instead of stalling the GUI thread.
+    GstSample* sample = gst_app_sink_try_pull_sample(GST_APP_SINK(m_captureAppSink), 0);
+    if (!sample) {
+        return;
+    }
+
+    const QImage image = gstSampleToQImage(sample);
+    gst_sample_unref(sample);
+    if (image.isNull()) {
+        return;
+    }
+
+    m_videoPane->updateVideoFrameFromImage(image);
+    emit frameReceived();
+#endif
 }
 
 bool GStreamerBackendHandler::setupVideoOverlay(GstElement* videoSink, WId windowId)
 {
     return Openterface::GStreamer::VideoOverlayManager::setupVideoOverlay(static_cast<void*>(videoSink), windowId, m_currentResolution);
-    return false;
 }
 
 void GStreamerBackendHandler::setupVideoOverlayForCurrentPipeline()
 {
+    if (m_frameRenderingFallback) {
+        m_overlaySetupPending = false;
+        return;
+    }
+
     if (!m_pipeline) {
         qCDebug(log_gstreamer_backend) << "No pipeline available for overlay setup";
         return;
@@ -993,6 +1186,10 @@ void GStreamerBackendHandler::setupVideoOverlayForCurrentPipeline()
                 gst_object_unref(videoSink);
             }
 #endif
+            // A valid window handle was available but the sink could not embed
+            // (no GstVideoOverlay support or an X11 error). Rendering frames as
+            // QImages keeps the video visible instead of leaving a black pane.
+            enableFrameRenderingFallback(QStringLiteral("native video overlay setup failed"));
         }
     } else {
         qCWarning(log_gstreamer_backend) << "No valid window ID available for overlay setup";
@@ -1760,6 +1957,9 @@ bool GStreamerBackendHandler::initializeGStreamer()
 void GStreamerBackendHandler::cleanupGStreamer()
 {
     qCDebug(log_gstreamer_backend) << "cleanupGStreamer invoked";
+
+    stopFrameRenderingFallback();
+
 #ifdef HAVE_GSTREAMER
     // Clean up capture appsink first
     destroyCaptureAppSink();
@@ -2465,16 +2665,28 @@ QImage GStreamerBackendHandler::gstSampleToQImage(GstSample* sample)
     qCDebug(log_gstreamer_backend) << "gstSampleToQImage: format=" << GST_VIDEO_INFO_FORMAT(&videoInfo)
                                     << "size=" << width << "x" << height;
 
+    // GStreamer buffers are not necessarily tightly packed: rowstride may be
+    // larger than width * bytes-per-pixel. Honour it or the image is skewed.
+    const int rowStride = videoInfo.stride[0] > 0 ? videoInfo.stride[0] : 0;
+
     // Handle common video formats
     if (GST_VIDEO_INFO_FORMAT(&videoInfo) == GST_VIDEO_FORMAT_RGB) {
-        image = QImage(mapInfo.data, width, height, QImage::Format_RGB888).copy();
+        image = rowStride > 0
+            ? QImage(mapInfo.data, width, height, rowStride, QImage::Format_RGB888).copy()
+            : QImage(mapInfo.data, width, height, QImage::Format_RGB888).copy();
     } else if (GST_VIDEO_INFO_FORMAT(&videoInfo) == GST_VIDEO_FORMAT_BGR) {
-        image = QImage(mapInfo.data, width, height, QImage::Format_RGB888).copy();
+        image = rowStride > 0
+            ? QImage(mapInfo.data, width, height, rowStride, QImage::Format_RGB888).copy()
+            : QImage(mapInfo.data, width, height, QImage::Format_RGB888).copy();
         image = image.rgbSwapped(); // Convert BGR to RGB
     } else if (GST_VIDEO_INFO_FORMAT(&videoInfo) == GST_VIDEO_FORMAT_RGBA) {
-        image = QImage(mapInfo.data, width, height, QImage::Format_RGBA8888).copy();
+        image = rowStride > 0
+            ? QImage(mapInfo.data, width, height, rowStride, QImage::Format_RGBA8888).copy()
+            : QImage(mapInfo.data, width, height, QImage::Format_RGBA8888).copy();
     } else if (GST_VIDEO_INFO_FORMAT(&videoInfo) == GST_VIDEO_FORMAT_BGRA) {
-        image = QImage(mapInfo.data, width, height, QImage::Format_RGBA8888).copy();
+        image = rowStride > 0
+            ? QImage(mapInfo.data, width, height, rowStride, QImage::Format_RGBA8888).copy()
+            : QImage(mapInfo.data, width, height, QImage::Format_RGBA8888).copy();
         image = image.rgbSwapped(); // Convert BGRA to RGBA
     } else if (GST_VIDEO_INFO_FORMAT(&videoInfo) == GST_VIDEO_FORMAT_I420) {
         // For I420/YUV420, convert to RGB
