@@ -125,6 +125,11 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     setAlignment(Qt::AlignCenter);
 
     this->setMouseTracking(true);
+    // QGraphicsView delivers mouse events to its viewport child, not to the
+    // view itself. Tracking must be enabled on the viewport, otherwise Qt only
+    // sends MouseMove while a button is held and hover movement never reaches
+    // InputHandler (clicks keep working, absolute cursor tracking does not).
+    viewport()->setMouseTracking(true);
     this->installEventFilter(m_inputHandler);
     this->setFocusPolicy(Qt::StrongFocus);
     relativeModeEnable = false;

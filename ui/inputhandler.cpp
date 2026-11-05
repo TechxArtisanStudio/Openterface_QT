@@ -263,7 +263,9 @@ bool InputHandler::eventFilter(QObject *watched, QEvent *event)
     // PERFORMANCE: Fast path for mouse move events - avoid expensive logging and checks
     if (event->type() == QEvent::MouseMove) {
         QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+        m_processingInEventFilter = true;
         handleMouseMoveEvent(mouseEvent);
+        m_processingInEventFilter = false;
         return false;  // Allow VideoPane to process the event for status bar updates
     }
     
