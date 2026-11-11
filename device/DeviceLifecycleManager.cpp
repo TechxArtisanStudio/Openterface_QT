@@ -344,8 +344,43 @@ void DeviceLifecycleManager::onDeviceChangesDetected(const DeviceChangeEvent& ev
         QString key = findSessionKeyForDevice(newDev);
         if (!key.isEmpty() && m_sessions.contains(key)) {
             auto& session = m_sessions[key];
+
+            // The serial chip is powered by the target, so its tty comes and
+            // goes with the target (power off, reboot) while video/HID stay.
+            // A short power cut can be missed by the poll: the tty is then just
+            // renamed (ttyACM1 -> ttyACM0) and the open fd is dead.
+            if (!session.serial.path.isEmpty()
+                && newDev.serialPortPath != session.serial.path) {
+                qCInfo(log_lifecycle) << "Serial interface vanished from session" << key
+                                      << "path:" << session.serial.path
+                                      << "now:" << newDev.serialPortPath;
+                session.serial.path.clear();
+                if (session.serial.state == InterfaceState::Connected
+                    || session.serial.state == InterfaceState::Connecting) {
+                    emit shouldDisconnectSerial(key);
+                }
+            }
+
+            const bool serialWasMissing = session.serial.path.isEmpty();
             updateSessionFromDeviceInfo(session, newDev);
             qCInfo(log_lifecycle) << "Session" << key << "updated from device modification";
+
+            // Nothing else opens a tty that shows up once the session is up.
+            // The session may still be Connecting (e.g. audio never settles).
+            const bool active = session.state == DeviceSessionState::Ready
+                             || session.state == DeviceSessionState::Degraded
+                             || session.state == DeviceSessionState::Connecting;
+            if (serialWasMissing && newDev.hasSerialPort()
+                && active
+                && DeviceManager::getInstance().mayAdoptUnit(session.portChain)) {
+                qCInfo(log_lifecycle) << "Serial interface appeared on session" << key
+                                      << "path:" << session.serial.path << "- connecting it";
+                if (session.state != DeviceSessionState::Connecting) {
+                    session.state = DeviceSessionState::Connecting;
+                    emit sessionStateChanged(key, DeviceSessionState::Connecting);
+                }
+                startConnectingInterfaces(key);
+            }
         }
     }
 }
