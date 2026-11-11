@@ -358,10 +358,16 @@ void DeviceLifecycleManager::onDeviceChangesDetected(const DeviceChangeEvent& ev
                 if (session.serial.state == InterfaceState::Connected
                     || session.serial.state == InterfaceState::Connecting) {
                     emit shouldDisconnectSerial(key);
+                    // The close runs later on the serial thread; mark it now or
+                    // a reconnect in this same event skips it as still Connected.
+                    setInterfaceState(session, InterfaceType::Serial,
+                                      InterfaceState::Disconnected);
                 }
             }
 
-            const bool serialWasMissing = session.serial.path.isEmpty();
+            // Absent with a path = retries exhausted while the chip was gone.
+            const bool serialWasMissing = session.serial.path.isEmpty()
+                || session.serial.state == InterfaceState::Absent;
             updateSessionFromDeviceInfo(session, newDev);
             qCInfo(log_lifecycle) << "Session" << key << "updated from device modification";
 
@@ -896,6 +902,19 @@ void DeviceLifecycleManager::handleSerialRecoveryFailed()
 #ifdef __linux__
     qCWarning(log_lifecycle) << "Serial recovery failed signal received —"
                               << "SerialPortManager reports CH32V208 is not truly present on USB bus";
+
+    // The tty died under the open port (e.g. target power-up drops the chip
+    // for ~1 s and it comes back with the same name): the hotplug poll may
+    // never see it, so hand the serial interface to the retry policy.
+    for (auto it = m_sessions.begin(); it != m_sessions.end(); ++it) {
+        const QString key = it.key();
+        auto& serial = it.value().serial;
+        if (serial.state == InterfaceState::Connected
+            || serial.state == InterfaceState::Connecting) {
+            serial.retryCount = 0;
+            notifyInterfaceFailed(key, InterfaceType::Serial, "serial device I/O error");
+        }
+    }
 
     if (m_usbPortResetAttempted) {
         qCInfo(log_lifecycle) << "USB port reset already attempted in this recovery window — skipping";
