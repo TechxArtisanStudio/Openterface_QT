@@ -114,10 +114,12 @@ QString LogHandler::formatMessage(QtMsgType type,
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
 
     QThread *currentThread = QThread::currentThread();
+    // Static destructors can log after QCoreApplication is gone (exit()).
+    QCoreApplication *app = QCoreApplication::instance();
     QString threadName;
     if (!currentThread->objectName().isEmpty()) {
         threadName = currentThread->objectName();
-    } else if (currentThread == QCoreApplication::instance()->thread()) {
+    } else if (app && currentThread == app->thread()) {
         threadName = "MainThread";
     } else {
         threadName = QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId()));
