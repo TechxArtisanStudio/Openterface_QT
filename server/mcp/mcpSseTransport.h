@@ -134,6 +134,11 @@ private:
     void sendSseEvent(Session* session,
                       const QString& eventType,
                       const QJsonObject& data);
+    // Same framing, but the data line is written as-is (used for the
+    // "endpoint" event, whose data is a plain URI per the MCP SSE spec).
+    void sendSseEventRaw(Session* session,
+                         const QString& eventType,
+                         const QByteArray& payload);
 
     // -----------------------------------------------------------------------
     // Data members
