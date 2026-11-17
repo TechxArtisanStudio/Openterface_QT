@@ -58,12 +58,17 @@ qt_add_resources(openterfaceQT "mainwindow"
 set(keyboard_layouts_resource_files
     "config/keyboards/azerty_fr.json"
     "config/keyboards/azerty_be.json"
+    "config/keyboards/azerty_ch_fr.json"
     "config/keyboards/japanese.json"
     "config/keyboards/qwerty_dk.json"
     "config/keyboards/qwerty_uk.json"
     "config/keyboards/qwerty_us.json"
     "config/keyboards/qwertz_de.json"
+    "config/keyboards/qwertz_ch.json"
     "config/keyboards/qwerty_es.json"
+    "config/keyboards/qwerty_fi.json"
+    "config/keyboards/qwerty_it.json"
+    "config/keyboards/qwerty_no.json"
     "config/keyboards/qwerty_se.json"
 )
  
