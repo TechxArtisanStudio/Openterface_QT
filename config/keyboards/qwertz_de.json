@@ -89,7 +89,7 @@
         "b": "Key_B", "B": "Key_B",
         "c": "Key_C", "C": "Key_C",
         "d": "Key_D", "D": "Key_D",
-        "e": "Key_E", "E": "Key_E", "U+20AC": "Key_E",
+        "e": "Key_E", "E": "Key_E", "€": "Key_E",
         "f": "Key_F", "F": "Key_F",
         "g": "Key_G", "G": "Key_G",
         "h": "Key_H", "H": "Key_H",

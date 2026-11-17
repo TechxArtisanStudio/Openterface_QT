@@ -2,6 +2,7 @@
 #define KEYBOARD_LAYOUTS_H
 
 #include <QMap>
+#include <QList>
 #include <QString>
 #include <QDir>
 #include <QFile>
@@ -13,10 +14,16 @@
 
 Q_DECLARE_LOGGING_CATEGORY(log_keyboard_layouts)
 
+struct KeyboardInputStep {
+    int keyCode;
+    int modifiers;
+};
+
 struct KeyboardLayoutConfig {
     QString name;
     QMap<int, uint8_t> keyMap;
     QMap<int, int> charMapping;
+    QMap<int, QList<KeyboardInputStep>> charSequences;
     QMap<uint32_t, uint8_t> unicodeMap;
     QList<int> needShiftKeys;
     QList<int> needAltGrKeys;
@@ -175,6 +182,8 @@ struct KeyboardLayoutConfig {
         // altgr keys
         
         keyNameToQt["degree"] = Qt::Key_degree;   // ¨
+        keyNameToQt["cent"] = Qt::Key_cent;         // ¢
+        keyNameToQt["EuroSign"] = 0x20AC;           // € (no Qt::Key enumerator)
         
 	// Spanish keys
 	keyNameToQt["Ntilde"] = Qt::Key_Ntilde;         // ñ

@@ -10,8 +10,9 @@ Keyboard layout configuration consists of two main components:
 
 ### Resource Configuration File
 
-All keyboard layout files must be registered in the name: "keyboard_layouts.qrc" path: "Openterface_QT\config\keyboards\keyboard_layouts.qrc" file:
+All keyboard layout files must be registered in **both** of the following files:
 
+1. **Qt Resource file** (`config/keyboards/keyboard_layouts.qrc`) — used by qmake builds:
 ```xml
 <!DOCTYPE RCC>
 <RCC version="1.0">
@@ -20,6 +21,16 @@ All keyboard layout files must be registered in the name: "keyboard_layouts.qrc"
     </qresource>
 </RCC>
 ```
+
+2. **CMake resource list** (`cmake/Resources.cmake`) — used by CMake builds:
+```cmake
+set(keyboard_layouts_resource_files
+    ...
+    "config/keyboards/your_keyboard_layout.json"
+)
+```
+
+> **Note:** If you only register in one file, the layout will be missing in builds using the other build system.
 
 ### Keyboard Layout JSON File
 
@@ -53,13 +64,24 @@ Defines the mapping between Qt keys and HID codes:
 ```
 
 ### 3. Character Mapping (`char_mapping`)
-Defines the mapping between characters and Qt keys:
+Defines the mapping between characters and Qt keys. Values can be:
+
+- **Single key name**: `"a": "Key_A"` — sends the key with Shift if the character is uppercase or listed in `need_shift_keys`, or AltGr if listed in `need_altgr_keys`.
+- **Key name with modifier prefix**: `"€": "AltGr+Key_E"` — explicitly sets modifiers (useful when the character requires AltGr but you don't want to list it in `need_altgr_keys`).
+- **Array of steps (dead key sequence)**: `"Ä": ["Key_Dead_Diaeresis", "Shift+Key_A"]` — sends each step as a separate key press/release. Used for characters that require a dead key followed by a base character (e.g., uppercase umlauts on Swiss German keyboards).
+
 ```json
 "char_mapping": {
     "a": "Key_A",
-    "A": "Key_A"
+    "A": "Key_A",
+    "€": "AltGr+Key_E",
+    "Ä": ["Key_Dead_Diaeresis", "Shift+Key_A"],
+    "Ö": ["Key_Dead_Diaeresis", "Shift+Key_O"],
+    "^": ["Key_Dead_Circumflex", "Key_Space"]
 }
 ```
+
+Modifier prefixes: `Shift+`, `AltGr+` (can be combined: `Shift+AltGr+Key_X`).
 
 ### 4. Unicode Mapping (`unicode_map`)
 Maps special (non-qtKey) Unicode characters to HID codes:
@@ -74,9 +96,10 @@ Maps special (non-qtKey) Unicode characters to HID codes:
 - `need_shift_keys`: A list of characters that require the Shift key to be pressed.
 - `need_altgr_keys`: A list of characters that require the AltGr key to be pressed.
 
-## Example File
+## Example Files
 
-Refer to name: "qwertz_de.json" path: "Openterface_QT\config\keyboards\qwertz_de.json" for a complete implementation of the German QWERTZ keyboard layout.
+- **German QWERTZ**: `config/keyboards/qwertz_de.json` — standard PC layout with AltGr characters.
+- **Swiss German QWERTZ**: `config/keyboards/qwertz_ch.json` — includes dead key sequences for uppercase umlauts (Ä, Ö, Ü) and dead key literals (^, `, ´, ~, ¨).
 
 ## Notes
 
