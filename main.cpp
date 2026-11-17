@@ -271,6 +271,13 @@ int main(int argc, char *argv[])
         outs.flush();
     }
 
+    // DEBUG: Print to stderr immediately
+    fprintf(stderr, "DEBUG: main() called with %d args\n", argc);
+    for (int i = 0; i < argc; i++) {
+        fprintf(stderr, "DEBUG: argv[%d] = %s\n", i, argv[i]);
+    }
+    fflush(stderr);
+
     #ifdef Q_OS_WIN
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_CHECK_ALWAYS_DF | _CRTDBG_LEAK_CHECK_DF);
     #endif
