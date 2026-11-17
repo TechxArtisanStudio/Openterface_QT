@@ -21,8 +21,11 @@
 */
 
 #include "devicecoordinator.h"
+#include "../advance/edid/edididentitycache.h"
 #include "host/cameramanager.h"
 #include "device/HotplugMonitor.h"
+#include "device/DeviceLifecycleManager.h"
+#include "serial/SerialPortManager.h"
 #include "ui/globalsetting.h"
 #include <QAction>
 #include <QMap>
@@ -31,6 +34,7 @@
 #include <QMetaObject>
 #include <QPointer>
 #include <QThread>
+#include <QTimer>
 #include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_ui_devicecoordinator, "opf.ui.devicecoordinator")
@@ -42,6 +46,12 @@ DeviceCoordinator::DeviceCoordinator(QMenu *deviceMenu, CameraManager *cameraMan
     , m_deviceMenuGroup(nullptr)
     , m_deviceAutoSelected(false)
 {
+    // Re-label the menu when a unit's EDID name becomes known.
+    connect(&edid::EdidIdentityCache::instance(), &edid::EdidIdentityCache::identityChanged,
+            this, [this](const QString &, const edid::EdidIdentity &) { updateDeviceMenu(); });
+    connect(&edid::EdidIdentityCache::instance(), &edid::EdidIdentityCache::currentChanged,
+            this, [this](const QString &) { updateDeviceMenu(); });
+
     qCDebug(log_ui_devicecoordinator) << "DeviceCoordinator created";
 }
 
@@ -85,64 +95,63 @@ void DeviceCoordinator::updateDeviceMenu()
     m_deviceMenu->clear();
     qDeleteAll(m_deviceMenuGroup->actions());
     
-    // Get available devices from DeviceManager
+    // One entry per unit, shared with the selector dialog and MCP device_list
     DeviceManager& deviceManager = DeviceManager::getInstance();
-    QList<DeviceInfo> devices = deviceManager.discoverDevices(); // Force discovery for up-to-date list
-    
+    QList<DeviceInfo> selectable = deviceManager.listSelectableDevices();
+
     // Get currently selected device port chain
     QString currentPortChain = GlobalSetting::instance().getOpenterfacePortChain();
-    
-    qCDebug(log_ui_devicecoordinator) << "Updating device menu with" << devices.size() 
+    qCDebug(log_ui_devicecoordinator) << "Updating device menu with" << selectable.size()
                                       << "devices. Current port chain:" << currentPortChain;
-    
-    if (devices.isEmpty()) {
+
+    if (selectable.isEmpty()) {
         // Add "No devices available" placeholder
         QAction *noDevicesAction = new QAction(tr("No devices available"), this);
         noDevicesAction->setEnabled(false);
         m_deviceMenu->addAction(noDevicesAction);
         return;
     }
-    
-    // Deduplicate devices by port chain (similar to DeviceSelectorDialog)
-    // First, collect all companion port chains to skip companion devices
-    QSet<QString> companionPortChains;
-    for (const auto& device : devices) {
-        if (!device.companionPortChain.isEmpty()) {
-            companionPortChains.insert(device.companionPortChain);
-            qCDebug(log_ui_devicecoordinator) << "Companion port chain found:" << device.companionPortChain << "for device:" << device.portChain;
-        } else {
-            qCDebug(log_ui_devicecoordinator) << "No companion port chain for device:" << device.portChain;
-        }
-    }
-    
     QMap<QString, DeviceInfo> uniqueDevicesByPortChain;
-    for (const auto& device : devices) {
-        if (!device.portChain.isEmpty()) {
-            // Skip companion devices that are represented by their main device
-            if (companionPortChains.contains(device.portChain)) {
-                qCDebug(log_ui_devicecoordinator) << "Skipping companion device:" << device.portChain;
-                continue;
-            }
-            // Only keep first occurrence of each port chain
-            if (!uniqueDevicesByPortChain.contains(device.portChain)) {
-                uniqueDevicesByPortChain.insert(device.portChain, device);
-                qCDebug(log_ui_devicecoordinator) << "Added device:" << device.portChain;
-            } else {
-                qCDebug(log_ui_devicecoordinator) << "Skipping duplicate port chain:" << device.portChain;
-            }
-        }
+    for (const auto& device : selectable) {
+        uniqueDevicesByPortChain.insert(device.portChain, device);
     }
-    
+
     // Device-type merging removed: we only deduplicate by companion port chain
-    
+
     // Auto-select first device if there's exactly one device and not already auto-selected
     if (uniqueDevicesByPortChain.size() == 1 && !m_deviceAutoSelected) {
-        // Immediately set the selection in settings so the UI can reflect it
         QString firstPortChain = uniqueDevicesByPortChain.firstKey();
-        GlobalSetting::instance().setOpenterfacePortChain(firstPortChain);
-        currentPortChain = firstPortChain;
-        m_deviceAutoSelected = true; // mark scheduled so we don't schedule multiple times
-        scheduleAutoSelectFirstDevice(firstPortChain);
+
+        // HOTPLUG FIX: Skip auto-select if DeviceLifecycleManager is already managing
+        // this session. During rapid hotplug, DeviceLifecycleManager detects the device
+        // change first and starts the connection sequence (shouldConnectSerial → ...).
+        // If we also call scheduleAutoSelectFirstDevice here, it triggers a second
+        // switchToDeviceByPortChainWithCamera which races with the lifecycle-managed
+        // path. Both paths call switchSerialPortByPortChain, causing the serial port
+        // to enter CLOSING state and then reject the second open attempt.
+        auto& lifecycle = DeviceLifecycleManager::getInstance();
+        bool lifecycleManaging = false;
+        for (const auto& session : lifecycle.getAllSessions()) {
+            if (session.portChain == firstPortChain
+                && session.state != DeviceSessionState::Disconnected) {
+                lifecycleManaging = true;
+                break;
+            }
+        }
+
+        if (lifecycleManaging) {
+            qCDebug(log_ui_devicecoordinator) << "Skipping auto-select: DeviceLifecycleManager already managing session for" << firstPortChain;
+            // Still set the port chain in settings so the UI reflects the selection
+            GlobalSetting::instance().setOpenterfacePortChain(firstPortChain);
+            currentPortChain = firstPortChain;
+            m_deviceAutoSelected = true;
+        } else {
+            // Immediately set the selection in settings so the UI can reflect it
+            GlobalSetting::instance().setOpenterfacePortChain(firstPortChain);
+            currentPortChain = firstPortChain;
+            m_deviceAutoSelected = true; // mark scheduled so we don't schedule multiple times
+            scheduleAutoSelectFirstDevice(firstPortChain);
+        }
     }
     
     // Add action for each unique device
@@ -161,6 +170,10 @@ void DeviceCoordinator::updateDeviceMenu()
         if (!serialInfo.isEmpty()) {
             displayText += QString(" (%1)").arg(serialInfo);
         }
+        // Prefix the EDID display name when this unit has been identified
+        // (see EdidIdentityCache): "BRAIN-G4-KVM - Port 1-3 (/dev/ttyACM0)".
+        displayText = edid::decorateLabel(
+            displayText, edid::EdidIdentityCache::instance().displayName(device.portChain));
 
         QAction *deviceAction = new QAction(displayText, this);
         deviceAction->setCheckable(true);
@@ -203,19 +216,30 @@ void DeviceCoordinator::connectHotplugMonitor(HotplugMonitor *hotplugMonitor)
 
 void DeviceCoordinator::onDeviceSelected(QAction *action)
 {
-    QString portChain = action->data().toString();
-    qCDebug(log_ui_devicecoordinator) << "Device selected from menu:" << portChain;
-    
+    selectDevice(action->data().toString());
+}
+
+DeviceManager::DeviceSwitchResult DeviceCoordinator::selectDevice(const QString &portChain)
+{
+    qCDebug(log_ui_devicecoordinator) << "Device selected:" << portChain;
+    DeviceManager::DeviceSwitchResult result{};
     if (portChain.isEmpty()) {
         qCWarning(log_ui_devicecoordinator) << "Empty port chain selected";
-        emit deviceSelected("", false, "Empty port chain");
-        return;
+        result.statusMessage = "Empty port chain";
+        emit deviceSelected("", false, result.statusMessage);
+        return result;
     }
-    
+
+    // HOTPLUG FIX: Clear any stale m_openInProgress lock before the legacy switch.
+    // Without this, if DeviceLifecycleManager has a concurrent operation (e.g., a hotplug
+    // reconnect in progress), switchSerialPortByPortChain rejects the menu's switch with
+    // "Open already in progress" → menu selection fails silently.
+    SerialPortManager::getInstance().forceResetSerialOpen();
+
     // Use the centralized device switching function
     DeviceManager& deviceManager = DeviceManager::getInstance();
-    auto result = deviceManager.switchToDeviceByPortChainWithCamera(portChain, m_cameraManager);
-    
+    result = deviceManager.switchToDeviceByPortChainWithCamera(portChain, m_cameraManager);
+
     // Log the result
     if (result.success) {
         qCInfo(log_ui_devicecoordinator) << "✓ Device switch successful:" << result.statusMessage;
@@ -224,56 +248,64 @@ void DeviceCoordinator::onDeviceSelected(QAction *action)
         qCWarning(log_ui_devicecoordinator) << "Device switch failed or partial:" << result.statusMessage;
         emit deviceSelected(portChain, false, result.statusMessage);
     }
-    
-    // Update device menu to reflect current selection
-    updateDeviceMenu();
+    // The unit's identity follows the HID device, so refresh the cache
+    // whenever that part of the switch succeeded -- also on "partial" results
+    // (e.g. units without an audio interface). VideoHid does not always emit
+    // hidDeviceConnected on a switch (it returns early when it is already on
+    // the matching hidraw), hence the explicit refresh.
+    if (result.hidSuccess) {
+        edid::EdidIdentityCache::instance().refresh(portChain);
+    }
+    return result;
 }
 
 void DeviceCoordinator::onDevicePluggedIn(const DeviceInfo &device)
 {
     qCDebug(log_ui_devicecoordinator) << "Device plugged in:" << device.portChain;
-    
-    // Update device menu when new device is plugged in
-    updateDeviceMenu();
-    emit deviceMenuUpdateRequested();
+
+    // FIX: Defer updateDeviceMenu() to next event loop iteration.
+    // updateDeviceMenu() calls discoverDevices() which performs expensive USB
+    // enumeration (SetupAPI across 5 device classes) on the main thread. During
+    // hotplug, Windows USB subsystem is busy installing drivers, making this
+    // enumeration extremely slow and freezing the entire UI.
+    QTimer::singleShot(0, this, [this]() {
+        updateDeviceMenu();
+        emit deviceMenuUpdateRequested();
+    });
 }
 
 void DeviceCoordinator::onDeviceUnplugged(const DeviceInfo &device)
 {
     qCDebug(log_ui_devicecoordinator) << "Device unplugged:" << device.portChain;
-    
-    // Update device menu when device is unplugged
-    updateDeviceMenu();
-    
-    // Reset auto-selection flag if no devices are left
-    DeviceManager& deviceManager = DeviceManager::getInstance();
-    QList<DeviceInfo> devices = deviceManager.discoverDevices();
-    if (devices.isEmpty()) {
-        m_deviceAutoSelected = false;
-    }
-    
-    emit deviceMenuUpdateRequested();
+
+    // FIX: Defer updateDeviceMenu() to next event loop iteration.
+    // updateDeviceMenu() calls discoverDevices() which performs expensive USB
+    // enumeration on the main thread. During hotplug, Windows USB subsystem is
+    // busy installing drivers, making this enumeration extremely slow and
+    // freezing the entire UI.
+    QTimer::singleShot(0, this, [this, device]() {
+        updateDeviceMenu();
+
+        // Use HotplugMonitor's cached snapshot instead of calling discoverDevices()
+        // which performs expensive USB enumeration on the main thread.
+        DeviceManager& deviceManager = DeviceManager::getInstance();
+        HotplugMonitor* monitor = deviceManager.getHotplugMonitor();
+        if (monitor) {
+            QList<DeviceInfo> cachedDevices = monitor->getLastSnapshot();
+            if (cachedDevices.isEmpty()) {
+                m_deviceAutoSelected = false;
+            }
+        } else {
+            qCWarning(log_ui_devicecoordinator) << "HotplugMonitor not available, skipping device check";
+        }
+
+        emit deviceMenuUpdateRequested();
+    });
 }
 
 QString DeviceCoordinator::formatPortChain(const QString &portChain)
 {
-    // Remove any '0' characters and then place '-' between remaining digits.
-    // For example: "010203" -> remove zeros -> "123" -> "1-2-3"
-    QString filtered;
-    for (QChar c : portChain) {
-        if (c.isDigit() && c != QChar('0')) {
-            filtered.append(c);
-        }
-    }
-    if (filtered.isEmpty()) {
-        // Fallback: if nothing remains after removing zeros, return the original
-        return portChain;
-    }
-    QStringList parts;
-    for (QChar c : filtered) {
-        parts.append(QString(c));
-    }
-    return parts.join('-');
+    return DeviceInfo::displayPortChain(portChain);
 }
 
 bool DeviceCoordinator::autoSelectFirstDevice()
@@ -307,28 +339,35 @@ bool DeviceCoordinator::autoSelectFirstDevice()
     
     QString firstPortChain = uniqueDevicesByPortChain.firstKey();
     qCDebug(log_ui_devicecoordinator) << "Auto-selecting first device with port chain:" << firstPortChain;
-    
+
     // Set the first device as current
     GlobalSetting::instance().setOpenterfacePortChain(firstPortChain);
-    
+
+    // HOTPLUG FIX: Clear stale m_openInProgress before legacy switch (same reason as onDeviceSelected)
+    SerialPortManager::getInstance().forceResetSerialOpen();
+
     // Use the centralized device switching function to actually switch to the first device
     auto result = deviceManager.switchToDeviceByPortChainWithCamera(firstPortChain, m_cameraManager);
-    
+
     if (result.success) {
         qCInfo(log_ui_devicecoordinator) << "✓ Auto-selected device successfully:" << result.statusMessage;
         emit deviceSelected(firstPortChain, true, result.statusMessage);
         emit deviceSwitchCompleted();
+        edid::EdidIdentityCache::instance().refresh(firstPortChain);
         return true;
     } else {
         qCWarning(log_ui_devicecoordinator) << "Auto-selection failed, retrying in 2 seconds:" << result.statusMessage;
         // Retry after 2 seconds in case serial/audio becomes available
         QTimer::singleShot(500, this, [this, firstPortChain]() {
             DeviceManager& deviceManager = DeviceManager::getInstance();
+            // HOTPLUG FIX: Reset lock again before retry
+            SerialPortManager::getInstance().forceResetSerialOpen();
             auto retryResult = deviceManager.switchToDeviceByPortChainWithCamera(firstPortChain, m_cameraManager);
             if (retryResult.success) {
                 qCInfo(log_ui_devicecoordinator) << "✓ Auto-selected device successfully on retry:" << retryResult.statusMessage;
                 emit deviceSelected(firstPortChain, true, retryResult.statusMessage);
                 emit deviceSwitchCompleted();
+                edid::EdidIdentityCache::instance().refresh(firstPortChain);
             } else {
                 qCWarning(log_ui_devicecoordinator) << "Auto-selection failed on retry:" << retryResult.statusMessage;
                 emit deviceSelected(firstPortChain, false, retryResult.statusMessage);
@@ -391,6 +430,8 @@ void DeviceCoordinator::scheduleAutoSelectFirstDevice(const QString &portChain)
                 }
                 qCDebug(log_ui_devicecoordinator) << "Queued auto-select switch to port chain:" << portChain;
                 DeviceManager &dm = DeviceManager::getInstance();
+                // HOTPLUG FIX: Reset lock before each retry attempt
+                SerialPortManager::getInstance().forceResetSerialOpen();
                 auto result = dm.switchToDeviceByPortChainWithCamera(portChain, safeCameraManager.data());
                 success = result.success || result.hidSuccess;
             }, Qt::BlockingQueuedConnection);

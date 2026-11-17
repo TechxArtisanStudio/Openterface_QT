@@ -290,6 +290,64 @@ Same as headless SSE but uses stdin/stdout transport for local CLI clients.
 
 ---
 
+### 4.5 One Instance Per Device (Parallel, Instead of Switching)
+
+With several Openterface units attached, the usual approach is to run one
+instance and switch it between units. A switch is not a pointer update: it tears
+down and rebuilds the serial port, the HID handle, the camera and the audio
+device. That is real work, and it is where most multi-device trouble lives —
+each switch re-enumerates the USB interfaces on the GUI thread, and while that
+runs the instance cannot accept a new SSE session, so a client may time out on a
+request the server never received.
+
+An alternative is to **run one instance per unit, each bound to its own device
+and its own MCP port**, and switch by choosing which port to talk to:
+
+```bash
+openterfaceQT --backend ffmpeg --mcp-sse-port 8091 --device 1-3 &
+openterfaceQT --backend ffmpeg --mcp-sse-port 8092 --device 1-6 &
+openterfaceQT --backend ffmpeg --mcp-sse-port 8093 --device 1-9 &
+openterfaceQT --backend ffmpeg --mcp-sse-port 8094 --device 1-12 &
+```
+
+Each unit exposes its own device nodes (`/dev/ttyACM*`, `/dev/hidraw*`,
+`/dev/video*`), so the single-consumer constraint is per node, not global, and
+the instances do not contend.
+
+What this buys:
+
+- **No device switching at all.** No serial close/reopen, no camera teardown, no
+  re-enumeration storm — so the failure modes that belong to switching simply do
+  not arise.
+- **Near-instantaneous unit selection.** Choosing a unit is choosing a TCP port.
+- **Simultaneous video from every unit.** All instances stream at once, so you
+  can record or watch several targets in parallel rather than one at a time.
+
+Measured on four units on one hub, 20 minutes per configuration, driving all
+four consoles continuously (type, capture, verify against the target's own
+console): switching produced 7–11 failed operations per ~120–160, while one
+instance per unit produced **0 failures in 300 operations** at roughly 2.5x the
+throughput. Every switching failure was a refused MCP session during
+post-switch re-enumeration.
+
+Costs and caveats:
+
+- **Memory.** Roughly 180–360 MB RSS per instance.
+- **Bring the devices up first.** Start the instances only once every unit is
+  attached and the bus has settled. A binding survives only while nothing else
+  re-enumerates: powering another unit afterwards can renumber device nodes
+  underneath a running instance, which then drives a different unit than
+  intended, silently.
+- **A port chain is not a stable identity.** It can change across
+  re-enumeration, so do not treat `--device 1-3` as a durable name for a
+  particular physical unit. Verify which unit an instance actually drives — for
+  example by typing a marker through it and reading it back on that target —
+  rather than trusting the argument.
+
+Note: `--device <port chain>` is proposed in PR #598 (`device_list` /
+`device_select` MCP tools and headless `--device`). Without it an instance binds
+the first unit it discovers, which is sufficient only when one unit is attached.
+
 ## 5. Prerequisites & Setup
 
 ### 5.1 Hardware

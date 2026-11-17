@@ -273,7 +273,11 @@ bool VideoOverlayManager::setupVideoOverlay(void* videoSinkPtr, WId windowId, co
                 XCloseDisplay(display);
 
                 if (x11_overlay_error_occurred_local) {
-                    qCWarning(log_gstreamer_videooverlaymanager) << "X11 error occurred during overlay setup - continuing without embedding";
+                    // Report failure so the caller can fall back to QImage rendering.
+                    // Previously this only logged and returned true, leaving the user
+                    // with a black pane and no indication that embedding failed.
+                    qCWarning(log_gstreamer_videooverlaymanager) << "X11 error occurred during overlay setup - embedding failed";
+                    return false;
                 } else {
                     qCDebug(log_gstreamer_videooverlaymanager) << "Video overlay setup completed successfully";
                 }
@@ -461,19 +465,11 @@ bool VideoOverlayManager::completePendingOverlaySetup(void* pipeline,
             }
 
             const bool supportsOverlay = GST_IS_VIDEO_OVERLAY(videoSink);
-            const bool looksLikeXSink = sinkNameBA.contains("xvimage") || sinkNameBA.contains("ximage");
 
             if (!supportsOverlay) {
                 qCWarning(log_gstreamer_videooverlaymanager) << "Deferred overlay skipped: sink does not support overlay interface (" << sinkName << ")";
                 gst_object_unref(videoSink);
-                pendingFlag = false;
-                return false;
-            }
-
-            if (!looksLikeXSink) {
-                qCWarning(log_gstreamer_videooverlaymanager) << "Deferred overlay skipped: sink is not an X sink (" << sinkName << ") on platform" << QGuiApplication::platformName();
-                gst_object_unref(videoSink);
-                pendingFlag = false;
+                // Keep pendingFlag true so we can retry later when sink may change
                 return false;
             }
 

@@ -34,8 +34,6 @@
 #include <QTimer>
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
-#include <thread>
-#include <chrono>
 #include <cmath>
 
 #ifdef Q_OS_LINUX
@@ -127,6 +125,11 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     setAlignment(Qt::AlignCenter);
 
     this->setMouseTracking(true);
+    // QGraphicsView delivers mouse events to its viewport child, not to the
+    // view itself. Tracking must be enabled on the viewport, otherwise Qt only
+    // sends MouseMove while a button is held and hover movement never reaches
+    // InputHandler (clicks keep working, absolute cursor tracking does not).
+    viewport()->setMouseTracking(true);
     this->installEventFilter(m_inputHandler);
     this->setFocusPolicy(Qt::StrongFocus);
     relativeModeEnable = false;
@@ -790,6 +793,54 @@ QRectF VideoPane::getGStreamerVideoContentRect() const
     return QRectF();
 }
 
+QRectF VideoPane::computeActiveContentRectNormalized(const QSize& frameSize, const QSize& inputSize)
+{
+    const QRectF fullFrame(0.0, 0.0, 1.0, 1.0);
+
+    if (frameSize.width() <= 0 || frameSize.height() <= 0 ||
+        inputSize.width() <= 0 || inputSize.height() <= 0) {
+        return fullFrame;
+    }
+
+    const double frameAspect = static_cast<double>(frameSize.width()) / frameSize.height();
+    const double inputAspect = static_cast<double>(inputSize.width()) / inputSize.height();
+
+    // Within rounding tolerance there is no padding to compensate.
+    if (qAbs(frameAspect - inputAspect) < 0.01) {
+        return fullFrame;
+    }
+
+    double width = 1.0;
+    double height = 1.0;
+    if (inputAspect < frameAspect) {
+        // Signal is narrower than the frame: pillarboxed (bars left/right).
+        width = inputAspect / frameAspect;
+    } else {
+        // Signal is wider than the frame: letterboxed (bars top/bottom).
+        height = frameAspect / inputAspect;
+    }
+
+    return QRectF((1.0 - width) / 2.0, (1.0 - height) / 2.0, width, height);
+}
+
+QRectF VideoPane::getActiveContentRectNormalized() const
+{
+    QSize frameSize = m_originalVideoSize;
+
+    // FFmpeg and GStreamer keep m_originalVideoSize up to date; the Qt video
+    // item knows the native frame size itself.
+    if (!m_directFFmpegMode && !m_directGStreamerMode && m_videoItem) {
+        const QSizeF nativeSize = m_videoItem->nativeSize();
+        if (!nativeSize.isEmpty()) {
+            frameSize = nativeSize.toSize();
+        }
+    }
+
+    const QSize inputSize(GlobalVar::instance().getInputWidth(),
+                          GlobalVar::instance().getInputHeight());
+    return computeActiveContentRectNormalized(frameSize, inputSize);
+}
+
 QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
 {
     // qCDebug(log_ui_video) << "      [getTransformed] Input viewportPos:" << viewportPos;
@@ -1015,6 +1066,13 @@ void VideoPane::keyPressEvent(QKeyEvent *event)
         m_inputHandler->handleKeyPress(event);
     }
 
+    // Tab is a guest key, not a Qt focus-navigation key.  Do not pass it to
+    // QGraphicsView, otherwise Qt may move focus away before the key release.
+    if (event->key() == Qt::Key_Tab || event->key() == Qt::Key_Backtab) {
+        event->accept();
+        return;
+    }
+
     // Handle Shift + Arrow keys for panning in zoomed mode
     if (m_scaleFactor > 1.0 && event->modifiers() == Qt::ShiftModifier) {
         // Define scroll step size (in pixels)
@@ -1104,6 +1162,19 @@ void VideoPane::keyReleaseEvent(QKeyEvent *event)
     if (event->key() != Qt::Key_Tab && event->key() != Qt::Key_Backtab) {
         QGraphicsView::keyReleaseEvent(event);
     }
+}
+
+void VideoPane::focusOutEvent(QFocusEvent *event)
+{
+    qCInfo(log_ui_video) << "VideoPane::focusOutEvent called - releasing all keys";
+
+    // When the VideoPane loses focus (e.g., Alt+Tab, clicking outside the window),
+    // we need to release all currently held keys on the target machine.
+    // Otherwise, the target will think keys are still being held down.
+    HostManager::getInstance().releaseAllKeys();
+
+    // Pass the event to base class
+    QGraphicsView::focusOutEvent(event);
 }
 
 void VideoPane::mousePressEvent(QMouseEvent *event)
@@ -1349,11 +1420,6 @@ void VideoPane::setupForGStreamerOverlay()
         qCDebug(log_ui_video) << "VideoPane: GStreamer overlay widget already exists, ensuring visibility";
         m_overlayWidget->show();
         m_overlayWidget->raise(); // Ensure it's on top
-        // // Schedule fitToWindow() after a short delay using a background thread
-        // std::thread([this]() {
-        //     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        //     QMetaObject::invokeMethod(this, [this]() { this->fitToWindow(); }, Qt::QueuedConnection);
-        // }).detach();
     }
 }
 
@@ -1538,6 +1604,13 @@ void VideoPane::enableDirectFFmpegMode(bool enable)
     if (enable) {
         qCDebug(log_ui_video) << "VideoPane: Enabling FFmpeg mode";
         
+        // Disable GStreamer mode first: it restores the (empty) Qt video item,
+        // which must not stay visible on top of the pixmap path.
+        if (m_directGStreamerMode) {
+            qCDebug(log_ui_video) << "VideoPane: Disabling GStreamer mode for FFmpeg";
+            enableDirectGStreamerMode(false);
+        }
+
         // Hide the Qt video item when using direct FFmpeg mode
         if (m_videoItem) {
             m_videoItem->setVisible(false);
@@ -1557,12 +1630,6 @@ void VideoPane::enableDirectFFmpegMode(bool enable)
         if (m_pixmapItem) {
             m_pixmapItem->setVisible(true);
             qCDebug(log_ui_video) << "VideoPane: Forced pixmap item visibility to true";
-        }
-        
-        // Disable GStreamer mode if it was enabled
-        if (m_directGStreamerMode) {
-            qCDebug(log_ui_video) << "VideoPane: Disabling GStreamer mode for FFmpeg";
-            enableDirectGStreamerMode(false);
         }
         
     } else {
@@ -1629,13 +1696,13 @@ void VideoPane::onCameraActiveChanged(bool active)
     }else{
         // Camera activated — defer fitToWindow to allow the first frames to arrive
         // and let the sizing logic work with actual video dimensions.
-        std::thread([this]() {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            QMetaObject::invokeMethod(this, [this]() {
-                qCInfo(log_ui_video) << "VideoPane: Calling fitToWindow after camera activation";
-                this->fitToWindow();
-            }, Qt::QueuedConnection);
-        }).detach();
+        // Use a context-bound single-shot timer: Qt cancels it automatically if
+        // this VideoPane is destroyed before it fires, so there is no dangling
+        // 'this' (a detached std::thread here previously caused a use-after-free).
+        QTimer::singleShot(1000, this, [this]() {
+            qCInfo(log_ui_video) << "VideoPane: Calling fitToWindow after camera activation";
+            fitToWindow();
+        });
     }
 }
 
@@ -1693,4 +1760,3 @@ void VideoPane::startZoomHintFadeOut()
     
     fadeAnimation->start(QAbstractAnimation::DeleteWhenStopped);
 }
-

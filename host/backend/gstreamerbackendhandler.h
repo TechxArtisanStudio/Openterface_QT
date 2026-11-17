@@ -221,11 +221,23 @@ private:
     // Pipeline state
     bool m_pipelineRunning;
     QString m_selectedSink; // textual name of the selected video sink element
+    // Caps strictness of the current pipeline (see PipelineBuilder): 0 pins
+    // resolution and framerate, later profiles relax the source caps.
+    int m_selectedCapsProfile{0};
+    // Consecutive health-check ticks where the PLAYING pipeline produced no
+    // buffers; used to retry with looser caps before the UI gives up.
+    int m_noFrameHealthTicks{0};
+    bool m_capsFallbackExhausted{false};
     QSize m_currentResolution;
     int m_currentFramerate;
     
     // Overlay setup state
     bool m_overlaySetupPending;
+    // Native GstVideoOverlay embedding is unavailable (Wayland, no overlay-capable
+    // sink, or an X11 embedding error). Frames are then delivered to VideoPane as
+    // QImages through the appsink capture branch instead.
+    bool m_frameRenderingFallback{false};
+    QTimer* m_framePullTimer{nullptr};
     // Cached display size used when creating the current pipeline (for resize-triggered rebuilds)
     QSize m_pipelineDisplaySize;
     // Flag to prevent multiple post-layout rebuilds
@@ -265,6 +277,19 @@ private:
     bool embedVideoInVideoPane(VideoPane* videoPane);
     void handleGStreamerMessage(GstMessage* message);
     void completePendingOverlaySetup();
+
+    // Common post-start work for a pipeline that reached PLAYING (overlay setup,
+    // frame probe, health timer, capture appsink / frame pull timer).
+    void handlePipelineStarted(const QString& sink);
+    // Recreate the pipeline with successively looser source caps when it runs
+    // but produces no buffers. Returns true when a new pipeline was started.
+    bool retryWithRelaxedCaps();
+
+    // Frame-based rendering fallback (used when native video overlay is unavailable)
+    void enableFrameRenderingFallback(const QString& reason);
+    void startFrameRenderingFallback();
+    void stopFrameRenderingFallback();
+    void pullFrameForDisplay();
     
     // Helper methods for image capture
     GstSample* getLatestSampleFromPipeline();

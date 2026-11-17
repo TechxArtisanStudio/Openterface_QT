@@ -173,10 +173,10 @@
 
 		"å": "Key_Aring",
 		"Å": "Key_Aring",
-		"ä": "Key_Adiaresis",
-		"Ä": "Key_Adiaresis",
-		"ö": "Key_Odiaresis",
-		"Ö": "Key_Odiaresis",
+		"ä": "Key_Adiaeresis",
+		"Ä": "Key_Adiaeresis",
+		"ö": "Key_Odiaeresis",
+		"Ö": "Key_Odiaeresis",
 
 		"½": "Key_onehalf",
 		"1": "Key_1",

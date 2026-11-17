@@ -193,26 +193,35 @@ void applyMediaBackendSetting(){
     
     // Handle GStreamer-specific environment settings
     if (mediaBackend == "gstreamer") {
-        // Set GStreamer debug level to lowest (0 = GST_LEVEL_NONE) to suppress all messages
-        qputenv("GST_DEBUG", "0");
+        // Set GStreamer debug level - respect user's GST_DEBUG environment variable
+        // If not set, default to 0 (silent). Users can set GST_DEBUG=3 for troubleshooting
+        if (qgetenv("GST_DEBUG").isEmpty()) {
+            qputenv("GST_DEBUG", "0");
+        }
         
-        // Disable color output for cleaner logs
-        qputenv("GST_DEBUG_NO_COLOR", "1");
+        // Disable color output for cleaner logs (unless user wants color)
+        if (qgetenv("GST_DEBUG_NO_COLOR").isEmpty()) {
+            qputenv("GST_DEBUG_NO_COLOR", "1");
+        }
         
         // Ensure proper GStreamer registry handling
         qputenv("GST_REGISTRY_REUSE_PLUGIN_SCANNER", "no");
         
         // Set GStreamer to handle object lifecycle more carefully
-        qputenv("GST_DEBUG_DUMP_DOT_DIR", "");
-        
-        // Suppress non-critical GStreamer log messages from the start
-        qputenv("GST_DEBUG", "0");  // Complete silence - no GStreamer debug messages
+        if (qgetenv("GST_DEBUG_DUMP_DOT_DIR").isEmpty()) {
+            qputenv("GST_DEBUG_DUMP_DOT_DIR", "");
+        }
         
         // Suppress GLib critical messages that occur during device enumeration
-        qputenv("G_MESSAGES_DEBUG", "");  // Disable all GLib debug messages
+        // (unless user has set G_MESSAGES_DEBUG for troubleshooting)
+        if (qgetenv("G_MESSAGES_DEBUG").isNull()) {
+            qputenv("G_MESSAGES_DEBUG", "");
+        }
         
         // Prevent GStreamer from using problematic plugins that might cause object ref issues
-        qputenv("GST_PLUGIN_FEATURE_RANK", "autovideosink:MAX,autoaudiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
+        if (qgetenv("GST_PLUGIN_FEATURE_RANK").isEmpty()) {
+            qputenv("GST_PLUGIN_FEATURE_RANK", "autovideosink:MAX,autoaudiosink:MAX,alsasink:NONE,pulsesink:PRIMARY");
+        }
         
         // Force proper cleanup timing
         qputenv("G_DEBUG", "gc-friendly");
@@ -227,7 +236,9 @@ void applyMediaBackendSetting(){
         qputenv("GST_AUDIO_SYSTEM_PULSE", "1");
         
         // Reduce audio device scanning verbosity
-        qputenv("PULSE_DEBUG", "0");
+        if (qgetenv("PULSE_DEBUG").isEmpty()) {
+            qputenv("PULSE_DEBUG", "0");
+        }
         
         // Additional GStreamer environment variables for better video handling
         qputenv("GST_V4L2_USE_LIBV4L2", "1");
@@ -236,11 +247,7 @@ void applyMediaBackendSetting(){
         // The launcher script has already set it correctly for the package type:
         // - RPM packages: /usr/lib/openterfaceqt/gstreamer/gstreamer-1.0
         // - AppImage packages: appDir/../lib/gstreamer-1.0
-        // Overriding it here causes version conflicts on Fedora
-        
-        if (!qgetenv("GST_PLUGIN_PATH").isEmpty()) {
-        } else {
-        }
+        // Overriding it causes version conflicts on Fedora
         
         // Ensure video output works correctly
         qputenv("GST_VIDEO_OVERLAY", "1");
@@ -283,6 +290,7 @@ int main(int argc, char *argv[])
     int mcpSsePort = 0;  // 0 = disabled
     QString overrideBackend;
     bool listBackends = false;
+    QString headlessDevice;   // --device <port chain>: unit to bind to in headless MCP mode
 
     for (int i = 1; i < argc; i++) {
         QString arg = QString::fromUtf8(argv[i]);
@@ -309,6 +317,9 @@ int main(int argc, char *argv[])
         } else if (arg == "--backend" && i + 1 < argc) {
             overrideBackend = QString::fromUtf8(argv[++i]);
             qInfo() << "Override media backend from command line:" << overrideBackend;
+        } else if (arg == "--device" && i + 1 < argc) {
+            headlessDevice = QString::fromUtf8(argv[++i]);
+            qInfo() << "Headless MCP mode will bind to device at port chain:" << headlessDevice;
         } else if (arg == "--list-backends") {
             listBackends = true;
         }
@@ -372,37 +383,19 @@ int main(int argc, char *argv[])
         // interface so the HDMI input is routed to the USB capture device. Without this,
         // the capture device produces valid but black frames. GUI mode does the same in
         // MainWindowInitializer::deferredInitializeCamera().
-        qCDebug(log_app_main) << "Starting VideoHid...";
-        qCDebug(log_app_main) << "Current port chain:" << GlobalSetting::instance().getOpenterfacePortChain();
+        // Enable HID for USB switching functionality (needed for CH9329 boards)
+        // Power-saving measures are implemented in VideoHid::start() to skip unnecessary operations
+        qCDebug(log_app_main) << "Enabling HID for USB switching functionality";
         VideoHid::getInstance().start();
-        qCDebug(log_app_main) << "VideoHid started, HID device opened:" << (VideoHid::getInstance().isOpen() ? "yes" : "no");
-        qCDebug(log_app_main) << "VideoHid currentHIDDevicePath:" << VideoHid::getInstance().getCurrentHIDDevicePath();
-        // Check HDMI connection status
-        QThread::msleep(200);  // Brief delay for HID to stabilize
-        bool hdmiConnected = VideoHid::getInstance().isHdmiConnected();
-        qCDebug(log_app_main) << "HDMI connected:" << (hdmiConnected ? "yes" : "no");
 
-        // Read input resolution from MS2109
+        // Get initial values after HID initialization
         auto resolution = VideoHid::getInstance().getResolution();
         qCDebug(log_app_main) << "MS2109 detected input resolution:" << resolution.first << "x" << resolution.second;
 
-        qCDebug(log_app_main) << "GPIO0 (hard switch):" << (VideoHid::getInstance().getGpio0() ? "target" : "host");
-        qCDebug(log_app_main) << "SPDIFOUT (soft switch):" << (VideoHid::getInstance().getSpdifout() ? "target" : "host");
+        qCDebug(log_app_main) << "GPIO0 (hard switch):" << VideoHid::getInstance().getGpio0();
+        qCDebug(log_app_main) << "SPDIFOUT (soft switch):" << VideoHid::getInstance().getSpdifout();
         QString fw = QString::fromStdString(VideoHid::getInstance().getFirmwareVersion());
         qCDebug(log_app_main) << "Firmware version:" << fw;
-
-        // CRITICAL: Explicitly set the SPDIFOUT register in stdio mode.
-        // GUI mode does this via setupEventCallbacks() -> VideoHid::setEventCallback(m_mainWindow)
-        // which triggers setSpdifout() in the async firmware read block. Without this,
-        // the MS2109 chip may not output valid video.
-        qCDebug(log_app_main) << "Explicitly setting SPDIFOUT register...";
-        bool spdifout = VideoHid::getInstance().getSpdifout();
-        qCDebug(log_app_main) << "Current SPDIFOUT=" << spdifout;
-        VideoHid::getInstance().setSpdifout(spdifout);
-        qCDebug(log_app_main) << "SPDIFOUT register set";
-        QThread::msleep(100);
-
-        qInfo() << "VideoHid started";
 
         // Discover and connect to device hardware
         qInfo() << "Discovering Openterface devices...";
@@ -411,6 +404,23 @@ int main(int argc, char *argv[])
         if (!devices.isEmpty()) {
             qInfo() << "Found" << devices.size() << "device(s)";
             DeviceInfo device = devices.first();
+            // One entry per unit (discoverDevices() returns one per interface)
+            const QList<DeviceInfo> units = selectableDevices(devices);
+            if (!headlessDevice.isEmpty()) {
+                bool found = false;
+                QStringList chains;
+                for (const DeviceInfo& d : units) {
+                    chains << d.portChain;
+                    if (d.portChain == headlessDevice) { device = d; found = true; }
+                }
+                if (!found) {
+                    qCritical() << "--device" << headlessDevice << "is not attached. Attached port chains:" << chains.join(", ");
+                    return 2;
+                }
+            } else if (units.size() > 1) {
+                qWarning() << "Several units attached and no --device given; using the first one:" << device.portChain
+                           << "(use device_list / device_select over MCP to change)";
+            }
             qCDebug(log_app_main) << "First device: portChain=" << device.portChain
                                   << "hidDevicePath=" << device.hidDevicePath
                                   << "cameraDevicePath=" << device.cameraDevicePath;
@@ -575,7 +585,7 @@ int main(int argc, char *argv[])
         return 0;
     }
     setupEnv();
-    
+
     qInfo() << "Creating QApplication...";
     QApplication app(argc, argv);
 
@@ -608,7 +618,7 @@ int main(int argc, char *argv[])
         "  border: 1px solid palette(dark);"
         "}"
     );
-    
+
     QCoreApplication::setApplicationName("Openterface Mini-KVM");
     QCoreApplication::setOrganizationName("TechxArtisan");
     QCoreApplication::setApplicationVersion(APP_VERSION);
@@ -624,22 +634,22 @@ int main(int argc, char *argv[])
         pixmap = QPixmap(800, 600);
         pixmap.fill(QColor(15, 9, 9)); // Dark background from Openterface branding
     }
-    
+
     // Create and show the splash screen as a pointer so it persists
     SplashScreen* splash = new SplashScreen(pixmap);
     splash->show();
     splash->raise();
     splash->activateWindow();
-    
+
     qInfo() << "Splash screen shown, starting initialization";
-    
+
     // Start the loading animation
     splash->showLoadingMessage();
     qInfo() << "Animation started";
-    
+
     // Process events to show splash screen
     app.processEvents();
-    
+
     // Load settings immediately (fast operation)
     qInfo() << "Loading settings...";
     GlobalSetting::instance().loadLogSettings();
@@ -653,17 +663,17 @@ int main(int argc, char *argv[])
 
     applyMediaBackendSetting();
     LogHandler::instance().enableLogStore();
-    
+
     // Load keyboard layouts immediately - required for keyboard functionality
     qInfo() << "Loading keyboard layouts...";
     QString keyboardConfigPath = ":/config/keyboards";
     KeyboardLayoutManager::getInstance().loadLayouts(keyboardConfigPath);
-    
+
     // Process events to keep UI responsive
     app.processEvents();
-    
+
     qInfo() << "Creating main window...";
-    
+
     // Create main window and language manager
     LanguageManager* languageManager = new LanguageManager(&app);
     languageManager->initialize("en");
@@ -690,8 +700,8 @@ int main(int argc, char *argv[])
         window->deferredSetupCoordinators();
         qInfo() << "Device menu setup complete";
     });
-    
-    // Defer camera, audio, and VideoHid initialization (improves startup time)
+
+    // Defer camera and audio initialization (improves startup time)
     // This was blocking startup for ~500ms
     QTimer::singleShot(150, window, [window]() {
         qInfo() << "Initializing camera and audio...";
@@ -823,7 +833,7 @@ int main(int argc, char *argv[])
     #ifdef HAVE_GSTREAMER
     gst_deinit();
     #endif
-    
+
     qInfo() << "Application cleanup complete, returning" << result;
     return result;
 }

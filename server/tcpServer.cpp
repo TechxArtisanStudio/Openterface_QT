@@ -21,11 +21,38 @@ OPF_LOGGING_CATEGORY(log_server_tcp, "opf.server.tcp")
 
 TcpServer::TcpServer(QObject *parent) : QTcpServer(parent), currentClient(nullptr), m_cameraManager(nullptr), actionStatus(Finish) {}
 
-void TcpServer::startServer(quint16 port) {
-    if (this->listen(QHostAddress::Any, port)) {
-        connect(this, &QTcpServer::newConnection, this, &TcpServer::onNewConnection);
-    } else {
+QHostAddress TcpServer::defaultBindAddress() {
+    const QByteArray env = qgetenv("OPENTERFACE_TCP_BIND_ADDRESS").trimmed();
+    if (!env.isEmpty()) {
+        if (env.compare("any", Qt::CaseInsensitive) == 0) {
+            return QHostAddress::Any;
+        }
+        const QHostAddress addr(QString::fromUtf8(env));
+        if (!addr.isNull()) {
+            return addr;
+        }
+        qCWarning(log_server_tcp) << "Ignoring invalid OPENTERFACE_TCP_BIND_ADDRESS:" << env;
     }
+    return QHostAddress::LocalHost;
+}
+
+bool TcpServer::startServer(quint16 port, const QHostAddress& address) {
+    if (isListening()) {
+        qCWarning(log_server_tcp) << "Server already listening on" << serverAddress().toString() << "port" << serverPort();
+        return true;
+    }
+    if (!listen(address, port)) {
+        qCWarning(log_server_tcp) << "Server could not start on" << address.toString()
+                                  << "port" << port << ":" << errorString();
+        return false;
+    }
+    connect(this, &QTcpServer::newConnection, this, &TcpServer::onNewConnection, Qt::UniqueConnection);
+    qCInfo(log_server_tcp) << "Server started on" << address.toString() << "port" << port;
+    if (!address.isLoopback()) {
+        qCWarning(log_server_tcp) << "TCP server is reachable from other hosts and has no authentication:"
+                                  << "anyone who can connect can control the target device.";
+    }
+    return true;
 }
 
 void TcpServer::setCameraManager(CameraManager* cameraManager) {
@@ -38,14 +65,37 @@ void TcpServer::setCameraManager(CameraManager* cameraManager) {
 }
 
 void TcpServer::onNewConnection() {
-    currentClient = this->nextPendingConnection();
-    connect(currentClient, &QTcpSocket::readyRead, this, &TcpServer::onReadyRead);
-    connect(currentClient, &QTcpSocket::disconnected, currentClient, &QTcpSocket::deleteLater);
-    qCDebug(log_server_tcp) << "New client connected!";
+    while (hasPendingConnections()) {
+        QTcpSocket* socket = nextPendingConnection();
+        if (!socket) {
+            break;
+        }
+        connect(socket, &QTcpSocket::readyRead, this, &TcpServer::onReadyRead);
+        connect(socket, &QTcpSocket::disconnected, this, [this, socket]() {
+            if (currentClient == socket) {
+                currentClient = nullptr;
+            }
+            socket->deleteLater();
+        });
+        if (currentClient && currentClient != socket) {
+            qCWarning(log_server_tcp) << "New client connected while another is active;"
+                                      << "responses will go to the most recently active client";
+        }
+        currentClient = socket;
+        qCDebug(log_server_tcp) << "New client connected from" << socket->peerAddress().toString();
+    }
 }
 
 void TcpServer::onReadyRead() {
-    QByteArray data = currentClient->readAll();
+    QTcpSocket* socket = qobject_cast<QTcpSocket*>(sender());
+    if (!socket) {
+        return;
+    }
+    if (currentClient != socket) {
+        // Route responses to whichever client is actually talking to us.
+        currentClient = socket;
+    }
+    QByteArray data = socket->readAll();
     
     qCDebug(log_server_tcp) << "Received data:" << data;
     ActionCommand cmd = parseCommand(data);

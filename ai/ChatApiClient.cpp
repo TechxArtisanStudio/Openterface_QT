@@ -260,8 +260,29 @@ void ChatApiClient::doPost(
             return;
         }
 
-        QString content = choices.first().toObject()["message"].toObject()["content"].toString();
-        if (content.isEmpty()) {
+        QJsonObject message = choices.first().toObject()["message"].toObject();
+        QString content = message["content"].toString();
+
+        // Extract tool_calls from OpenAI function calling format
+        QList<QJsonObject> toolCalls;
+        if (message.contains("tool_calls") && message["tool_calls"].isArray()) {
+            QJsonArray toolCallsArray = message["tool_calls"].toArray();
+            for (const auto &toolCallVal : toolCallsArray) {
+                QJsonObject toolCallObj = toolCallVal.toObject();
+                if (toolCallObj.contains("function") && toolCallObj["function"].isObject()) {
+                    QJsonObject functionObj = toolCallObj["function"].toObject();
+                    QJsonObject toolCall;
+                    toolCall["id"] = toolCallObj["id"].toString();
+                    toolCall["name"] = functionObj["name"].toString();
+                    toolCall["arguments"] = functionObj["arguments"].toString();
+                    toolCalls.append(toolCall);
+                }
+            }
+            qCDebug(log_ai_chat) << "Extracted" << toolCalls.size() << "tool_calls from API response";
+        }
+
+        // Only treat empty content as error if there are also no tool_calls
+        if (content.isEmpty() && toolCalls.isEmpty()) {
             QString errStr = "Empty assistant content";
             qCWarning(log_ai_chat) << "AI Chat:" << errStr;
             ChatCompletionResult empty;
@@ -272,6 +293,7 @@ void ChatApiClient::doPost(
         // Extract usage
         ChatCompletionResult result;
         result.content = content;
+        result.toolCalls = toolCalls;
         QJsonObject usage = respObj["usage"].toObject();
         if (!usage.isEmpty()) {
             result.inputTokenCount = usage["prompt_tokens"].toInt(-1);
@@ -279,6 +301,7 @@ void ChatApiClient::doPost(
         }
 
         qCDebug(log_ai_chat) << "AI Chat response received: chars=" << content.length()
+                             << "toolCalls=" << toolCalls.size()
                              << "inputTokens=" << result.inputTokenCount
                              << "outputTokens=" << result.outputTokenCount;
 

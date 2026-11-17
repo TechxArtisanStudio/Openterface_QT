@@ -60,6 +60,7 @@ signals:
     void floatingWindowEnabledChanged(bool enabled);
     void floatingWindowOpacityChanged(double opacity);
     void systemKeyBlockerToggled(bool enabled);
+    void shortcutsEnabledChanged(bool enabled);
 
 private:
     void populateCategoryTree();
@@ -84,6 +85,7 @@ private:
     QSlider *floatingWindowOpacitySlider;
     QLabel *floatingWindowOpacityLabel;
     QCheckBox *systemKeyBlockerCheckBox;
+    QCheckBox *shortcutsEnabledCheckBox;
 
     // Snapshot for revert
     bool m_snap_storeLog;
@@ -93,6 +95,7 @@ private:
     bool m_snap_floatingWindow;
     int m_snap_floatingWindowOpacity;
     bool m_snap_systemKeyBlocker;
+    bool m_snap_shortcutsEnabled;
     // Tree state snapshot: map of category -> {enabled, level}
     QMap<QString, QPair<bool, QString>> m_snap_categoryStates;
 

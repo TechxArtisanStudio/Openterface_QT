@@ -146,7 +146,14 @@ private:
     // ── Session management ──
     DeviceSession& createSession(const DeviceInfo& device);
     void removeSession(const QString& sessionKey);
-    void updateSessionFromDeviceInfo(DeviceSession& session, const DeviceInfo& device);
+    // HOTPLUG FIX: Added isInitialDiscovery parameter.
+    // During initial discovery (createSession), missing interfaces are marked Absent.
+    // During device reappearance (onDeviceDetected for existing sessions), missing
+    // interfaces are NOT marked Absent — they stay in their current state. This prevents
+    // the common hotplug issue where the composite device re-enumerates before the serial
+    // adapter, causing serial to be wrongly marked Absent and never reconnected.
+    void updateSessionFromDeviceInfo(DeviceSession& session, const DeviceInfo& device,
+                                      bool isInitialDiscovery = false);
     void cleanupStaleSessions();
 
     // ── Interface helpers ──

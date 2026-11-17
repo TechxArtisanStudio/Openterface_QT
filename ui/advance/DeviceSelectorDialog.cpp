@@ -6,7 +6,9 @@
 #endif
 #include "../../serial/SerialPortManager.h"
 #include "../../host/cameramanager.h"
-#include "../../video/videohid.h"
+#include "../../video/videohid.h"  // For HID device status tracking
+#include "edid/edididentity.h"
+#include "edid/edididentitycache.h"
 #include "../globalsetting.h"
 #include <QLoggingCategory>
 #include <QHeaderView>
@@ -22,7 +24,7 @@ DeviceSelectorDialog::DeviceSelectorDialog(CameraManager *cameraManager, VideoHi
     : QDialog(parent)
     , m_serialPortManager(&SerialPortManager::getInstance())
     , m_cameraManager(cameraManager)
-    , m_videoHid(videoHid)
+    , m_videoHid(videoHid)  // For HID device status tracking in device selector UI
     , m_autoRefreshTimer(new QTimer(this))
     , m_autoRefreshEnabled(false)
     , m_totalHotplugEvents(0)
@@ -205,35 +207,9 @@ void DeviceSelectorDialog::populateDeviceList()
     
     qCDebug(log_device_selector) << "Populating list with" << m_currentDevices.size() << "devices";
     
-    // Additional safeguard: ensure only one device per port chain is displayed
-    QMap<QString, DeviceInfo> uniqueDevicesByPortChain;
-    for (const auto& device : m_currentDevices) {
-        if (!device.portChain.isEmpty()) {
-            // If we already have a device for this port chain, choose the one with more interfaces
-            if (uniqueDevicesByPortChain.contains(device.portChain)) {
-                const DeviceInfo& existing = uniqueDevicesByPortChain[device.portChain];
-                if (device.getInterfaceCount() > existing.getInterfaceCount()) {
-                    uniqueDevicesByPortChain[device.portChain] = device;
-                    qCDebug(log_device_selector) << "Replaced device for port chain" << device.portChain 
-                                                << "with more complete device (" << device.getInterfaceCount() << "vs" << existing.getInterfaceCount() << "interfaces)";
-                } else {
-                    qCDebug(log_device_selector) << "Keeping existing device for port chain" << device.portChain 
-                                                << "(" << existing.getInterfaceCount() << "vs" << device.getInterfaceCount() << "interfaces)";
-                }
-            } else {
-                uniqueDevicesByPortChain[device.portChain] = device;
-            }
-        }
-    }
-    
-    // Update m_currentDevices to only contain the deduplicated devices
-    m_currentDevices.clear();
-    for (auto it = uniqueDevicesByPortChain.begin(); it != uniqueDevicesByPortChain.end(); ++it) {
-        m_currentDevices.append(it.value());
-    }
-    
-    qCDebug(log_device_selector) << "After deduplication:" << m_currentDevices.size() << "unique devices";
-    
+    // One entry per unit (shared rule with the device menu and MCP device_list)
+    m_currentDevices = selectableDevices(m_currentDevices);
+
     for (const auto& device : m_currentDevices) {
         QString itemText = formatCompleteDeviceListItem(device);
         QListWidgetItem* item = new QListWidgetItem(itemText, m_deviceList);
@@ -266,7 +242,11 @@ QString DeviceSelectorDialog::formatDeviceListItem(const DeviceInfo& device)
 QString DeviceSelectorDialog::formatCompleteDeviceListItem(const DeviceInfo& device)
 {
     QStringList parts;
-    
+    // EDID display name first when the unit has been identified
+    const QString edidName = edid::EdidIdentityCache::instance().displayName(device.portChain);
+    if (!edidName.isEmpty()) {
+        parts << edidName << "-";
+    }
     // Make port chain more prominent at the start with cleaner format
     parts << QString(tr("Port %1")).arg(device.portChain);
     parts << tr("- Openterface Mini KVM");
@@ -391,10 +371,10 @@ QString DeviceSelectorDialog::formatDeviceDetails(const DeviceInfo& device)
             currentHIDPath = m_videoHid->getCurrentHIDDevicePath();
             currentHIDPortChain = m_videoHid->getCurrentHIDPortChain();
         }
-        
+
         bool isActiveHID = (!currentHIDPortChain.isEmpty() && currentHIDPortChain == device.portChain) ||
                           (!currentHIDPath.isEmpty() && currentHIDPath == device.hidDevicePath);
-        
+
         QString activeStatus = isActiveHID ? tr(" (Active)") : "";
         details << QString(tr("\U0001f5b1\ufe0f <b>HID Interface:</b> Available%1")).arg(activeStatus);
         details << QString(tr("   Device Path: %1")).arg(device.hidDevicePath);
@@ -546,21 +526,6 @@ void DeviceSelectorDialog::onSelectDevice()
     if (reply != QMessageBox::Yes) {
         return;
     }
-    
-    // bool success = m_serialPortManager->selectCompleteDevice(m_selectedDevice.portChain);
-    // if (success) {
-    //     qCInfo(log_device_selector) << "Complete device selection successful";
-        
-    //     // Show success message with device capabilities
-    //     showDeviceSelectionSuccess();
-        
-    //     populateDeviceList(); // Refresh to show current selection
-    //     updateStatusInfo();
-    // } else {
-    //     qCWarning(log_device_selector) << "Complete device selection failed";
-    //     QMessageBox::warning(this, "Device Selection Failed", 
-    //                         "Failed to select the device. Please try again or check device connection.");
-    // }
 }
 
 void DeviceSelectorDialog::onSwitchToDevice()

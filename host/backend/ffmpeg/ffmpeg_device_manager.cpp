@@ -31,6 +31,8 @@
 #include <QDebug>
 #include <QThread>
 #include <QElapsedTimer>
+#include <QFile>
+#include <QFileInfo>
 #include <thread>
 
 extern "C" {
@@ -308,30 +310,118 @@ bool FFmpegDeviceManager::InitializeInputStream(const QString& device_path, cons
     
 #else
     // LINUX/MACOS: Use V4L2 for video capture
-    // RESPONSIVENESS OPTIMIZATION: Configure device for minimal latency
     fprintf(stderr, "[DEBUG-FFMPEG] Opening video device: %s (%dx%d @ %d fps)\n",
             device_path.toUtf8().constData(), resolution.width(), resolution.height(), framerate);
+
+    // HOTPLUG FIX (Linux): Wait for the device node to become ready after hotplug.
+    // After USB re-enumeration, the kernel creates /dev/videoN but the V4L2 subsystem
+    // may not be fully initialized yet. Poll until the device file exists and is readable,
+    // or timeout after 3 seconds.
+#ifdef Q_OS_LINUX
+    {
+        QFileInfo devInfo(device_path);
+        if (!devInfo.exists()) {
+            qCInfo(log_ffmpeg_backend) << "Device" << device_path << "not yet present, waiting...";
+            QElapsedTimer waitTimer;
+            waitTimer.start();
+            while (waitTimer.elapsed() < 3000) {
+                QThread::msleep(200);
+                devInfo.refresh();
+                if (devInfo.exists()) {
+                    // Brief extra delay for permissions and udev rules to settle
+                    QThread::msleep(200);
+                    break;
+                }
+                if (waitTimer.elapsed() % 1000 < 200) {
+                    qCInfo(log_ffmpeg_backend) << "  Still waiting for" << device_path
+                                               << "(" << waitTimer.elapsed() << "ms)...";
+                }
+            }
+            if (!devInfo.exists()) {
+                qCCritical(log_ffmpeg_backend) << "Device" << device_path
+                                               << "did not appear after 3s — aborting";
+                return false;
+            }
+            qCInfo(log_ffmpeg_backend) << "Device" << device_path << "appeared after"
+                                       << waitTimer.elapsed() << "ms";
+        }
+    }
+#endif
+
     qCDebug(log_ffmpeg_backend) << "Pre-configuring device for low-latency MJPEG capture...";
-    
+
+    // HOTPLUG FIX (Linux): Retry v4l2-ctl commands after hotplug.
+    // The device node may exist but the driver might not be fully initialized.
+    // Retry up to 5 times with 300ms intervals (total max ~1.5s wait).
+#ifdef Q_OS_LINUX
+    constexpr int kV4l2MaxRetries = 5;
+    constexpr int kV4l2RetryDelayMs = 300;
+    int configResult = -1;
+    int framerateResult = -1;
+    int bufferResult = -1;
+
+    for (int attempt = 1; attempt <= kV4l2MaxRetries; attempt++) {
+        QString configCommand = QString("v4l2-ctl --device=%1 --set-fmt-video=width=%2,height=%3,pixelformat=MJPG")
+                               .arg(device_path).arg(resolution.width()).arg(resolution.height());
+        configResult = system(configCommand.toUtf8().constData());
+
+        QString framerateCommand = QString("v4l2-ctl --device=%1 --set-parm=%2")
+                                  .arg(device_path).arg(framerate);
+        framerateResult = system(framerateCommand.toUtf8().constData());
+
+        if (configResult == 0 && framerateResult == 0) {
+            break;  // Success — no more retries needed
+        }
+
+        if (attempt < kV4l2MaxRetries) {
+            qCInfo(log_ffmpeg_backend) << "v4l2-ctl attempt" << attempt << "/" << kV4l2MaxRetries
+                                       << "failed (config=" << configResult
+                                       << "fps=" << framerateResult << "), retrying in"
+                                       << kV4l2RetryDelayMs << "ms...";
+            QThread::msleep(kV4l2RetryDelayMs);
+        }
+    }
+
+    // Optional: try to configure minimal buffering for lower latency (don't retry — best effort)
+    QString bufferCommand = QString("v4l2-ctl --device=%1").arg(device_path);
+    bufferResult = system(bufferCommand.toUtf8().constData());
+
+    if (configResult == 0 && framerateResult == 0) {
+        qCDebug(log_ffmpeg_backend) << "Device pre-configured successfully for low-latency MJPEG"
+                                    << resolution << "at" << framerate << "fps";
+    } else {
+        qCWarning(log_ffmpeg_backend) << "Device pre-configuration failed after" << kV4l2MaxRetries
+                                      << "attempts (config=" << configResult
+                                      << "fps=" << framerateResult
+                                      << "), continuing with FFmpeg initialization";
+    }
+#else
+    // macOS / non-Linux: simple v4l2-ctl call (no retry needed)
     QString configCommand = QString("v4l2-ctl --device=%1 --set-fmt-video=width=%2,height=%3,pixelformat=MJPG")
                            .arg(device_path).arg(resolution.width()).arg(resolution.height());
     int configResult = system(configCommand.toUtf8().constData());
-    
+
     QString framerateCommand = QString("v4l2-ctl --device=%1 --set-parm=%2")
                               .arg(device_path).arg(framerate);
     int framerateResult = system(framerateCommand.toUtf8().constData());
-    
-    // RESPONSIVENESS: Try to configure minimal buffering for lower latency
-    QString bufferCommand = QString("v4l2-ctl --device=%1")
-                           .arg(device_path);
-    [[maybe_unused]] auto bufferResult = system(bufferCommand.toUtf8().constData()); // Don't check result - optional optimization
-    
+
+    QString bufferCommand = QString("v4l2-ctl --device=%1").arg(device_path);
+    [[maybe_unused]] auto bufferResult = system(bufferCommand.toUtf8().constData());
+
     if (configResult == 0 && framerateResult == 0) {
-        qCDebug(log_ffmpeg_backend) << "Device pre-configured successfully for low-latency MJPEG" << resolution << "at" << framerate << "fps";
+        qCDebug(log_ffmpeg_backend) << "Device pre-configured successfully for low-latency MJPEG"
+                                    << resolution << "at" << framerate << "fps";
     } else {
         qCWarning(log_ffmpeg_backend) << "Device pre-configuration failed, continuing with FFmpeg initialization";
     }
+#endif
     
+    // Make sure the device actually produces frames before the blocking open
+    // below: a dark capture chip would otherwise hang this thread in DQBUF.
+    if (!ProbeDeviceDeliversFrames(device_path, resolution, framerate)) {
+        return false;
+    }
+
     // Allocate format context
     format_context_ = avformat_alloc_context();
     if (!format_context_) {
@@ -474,6 +564,78 @@ bool FFmpegDeviceManager::InitializeInputStream(const QString& device_path, cons
     qCDebug(log_ffmpeg_backend) << "Stream info found successfully";
     
     return true;
+}
+
+bool FFmpegDeviceManager::ProbeDeviceDeliversFrames(const QString& device_path, const QSize& resolution, int framerate)
+{
+#ifdef Q_OS_WIN
+    Q_UNUSED(device_path); Q_UNUSED(resolution); Q_UNUSED(framerate);
+    return true;
+#else
+    // The blocking open path (avformat_open_input + avformat_find_stream_info on a
+    // V4L2 device opened without O_NONBLOCK) ends in VIDIOC_DQBUF, which sleeps in
+    // the kernel until a frame arrives. FFmpeg cannot poll our interrupt callback
+    // while it sleeps there, so a capture chip that produces no frames -- HDMI
+    // input dark, or the chip never initialised because the unit was powered up
+    // while the app was bound to another one -- parks the caller forever. On a
+    // device switch that caller is the GUI thread.
+    //
+    // Open the device non-blocking first: DQBUF then returns EAGAIN, and
+    // avformat_find_stream_info polls the interrupt callback between attempts,
+    // so the wait for the first frame is bounded by kProbeTimeoutMs. Then close
+    // it again; the real open below stays blocking, because the capture loop's
+    // live-edge logic relies on av_read_frame blocking until a fresh frame.
+    const AVInputFormat* inputFormat = av_find_input_format("v4l2");
+    if (!inputFormat) {
+        return true;   // the real open reports this properly
+    }
+    AVFormatContext* probe = avformat_alloc_context();
+    if (!probe) {
+        return true;
+    }
+    probe->interrupt_callback.callback = FFmpegDeviceManager::InterruptCallback;
+    probe->interrupt_callback.opaque = this;
+    probe->flags |= AVFMT_FLAG_NONBLOCK;
+
+    AVDictionary* options = nullptr;
+    av_dict_set(&options, "video_size", QString("%1x%2").arg(resolution.width()).arg(resolution.height()).toUtf8().constData(), 0);
+    av_dict_set(&options, "framerate", QString::number(framerate).toUtf8().constData(), 0);
+    av_dict_set(&options, "input_format", "mjpeg", 0);
+
+    // Dedicated interrupt window for the probe (InterruptCallback measures from
+    // operation_start_time_ against kOperationTimeoutMs; back-date accordingly).
+    const qint64 savedStart = operation_start_time_;
+    operation_start_time_ = QDateTime::currentMSecsSinceEpoch() - (kOperationTimeoutMs - kProbeTimeoutMs);
+
+    QElapsedTimer timer;
+    timer.start();
+    int ret = avformat_open_input(&probe, device_path.toUtf8().constData(), inputFormat, &options);
+    av_dict_free(&options);
+    bool delivered = false;
+    char errbuf[AV_ERROR_MAX_STRING_SIZE] = {0};
+    if (ret >= 0) {
+        probe->probesize = 1024 * 32;
+        probe->max_analyze_duration = 0;
+        ret = avformat_find_stream_info(probe, nullptr);
+        delivered = (ret >= 0);
+        avformat_close_input(&probe);
+    }
+    // (on open failure avformat_open_input has already freed the context)
+    if (ret < 0) {
+        av_strerror(ret, errbuf, AV_ERROR_MAX_STRING_SIZE);
+    }
+    operation_start_time_ = savedStart;
+
+    if (!delivered) {
+        qCCritical(log_ffmpeg_backend) << "Capture device" << device_path << "delivered no frames within"
+                                       << timer.elapsed() << "ms (" << QString::fromUtf8(errbuf) << ")."
+                                       << "The video chip may be uninitialised (unit powered up while another unit was active)"
+                                       << "or the HDMI input dark. Power-cycle the unit's USB port and select it again.";
+        return false;
+    }
+    qCInfo(log_ffmpeg_backend) << "Device" << device_path << "delivered its first frame after" << timer.elapsed() << "ms (probe)";
+    return true;
+#endif
 }
 
 bool FFmpegDeviceManager::FindVideoStream()

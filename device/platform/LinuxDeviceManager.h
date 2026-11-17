@@ -104,7 +104,7 @@ private:
     mutable QMutex m_cacheMutex;  // Protects m_cachedDevices and m_lastCacheUpdate
     QList<DeviceInfo> m_cachedDevices;
     QDateTime m_lastCacheUpdate;
-    static const int CACHE_TIMEOUT_MS = 5000; // 1 second cache
+    static const int CACHE_TIMEOUT_MS = 500; // Optimized: 500ms for faster hotplug detection (was 5000ms)
 
     // Async discovery
     QFutureWatcher<QList<DeviceInfo>>* m_futureWatcher;

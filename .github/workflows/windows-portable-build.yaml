@@ -41,7 +41,6 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-make
             mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-yasm
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-bzip2
             mingw-w64-x86_64-xz
@@ -51,13 +50,53 @@ jobs:
             mingw-w64-x86_64-libb2
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
-            mingw-w64-x86_64-libusb
             mingw-w64-x86_64-pcre2
+            mingw-w64-x86_64-lld
+            mingw-w64-x86_64-zstd
             diffutils
             make
             libtool
             git
             perl
+
+      - name: Verify OpenSSL and zstd installation
+        id: verify-deps
+        shell: msys2 {0}
+        run: |
+          echo "Verifying OpenSSL installation in MSYS2..."
+          if [ -f "/mingw64/lib/libssl.a" ] && [ -f "/mingw64/lib/libcrypto.a" ]; then
+            echo "✓ OpenSSL static libraries found:"
+            echo "  libssl.a: $(ls -la /mingw64/lib/libssl.a)"
+            echo "  libcrypto.a: $(ls -la /mingw64/lib/libcrypto.a)"
+          else
+            echo "✗ OpenSSL static libraries NOT found in /mingw64/lib/"
+            echo "Checking what OpenSSL files are available:"
+            ls -la /mingw64/lib/libssl* /mingw64/lib/libcrypto* 2>/dev/null || echo "No OpenSSL* files found in /mingw64/lib/"
+            echo "Available files in /mingw64/lib/ related to SSL:"
+            ls -la /mingw64/lib/ | grep -i ssl || echo "No SSL-related files found"
+            echo "Available files in /mingw64/lib/ related to crypto:"
+            ls -la /mingw64/lib/ | grep -i crypto || echo "No crypto-related files found"
+          fi
+
+          # Check for OpenSSL headers
+          if [ -f "/mingw64/include/openssl/ssl.h" ]; then
+            echo "✓ OpenSSL headers found: /mingw64/include/openssl/ssl.h"
+          else
+            echo "✗ OpenSSL headers NOT found in /mingw64/include/openssl/"
+            echo "Available files in /mingw64/include/openssl/:"
+            ls -la /mingw64/include/openssl/ 2>/dev/null || echo "No openssl directory found"
+          fi
+
+          echo ""
+          echo "Verifying zstd installation..."
+          if [ -f "/mingw64/lib/libzstd.a" ]; then
+            echo "✓ zstd static library found:"
+            echo "  libzstd.a: $(ls -la /mingw64/lib/libzstd.a)"
+          else
+            echo "✗ zstd static library NOT found in /mingw64/lib/"
+            ls -la /mingw64/lib/libzstd* 2>/dev/null || echo "No zstd files found in /mingw64/lib/"
+          fi
+        continue-on-error: true
 
       - name: Cache Qt static build
         id: cache-qt
@@ -97,7 +136,6 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-make
             mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-yasm
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-bzip2
             mingw-w64-x86_64-xz
@@ -107,9 +145,9 @@ jobs:
             mingw-w64-x86_64-libb2
             mingw-w64-x86_64-brotli
             mingw-w64-x86_64-libjpeg-turbo
-            mingw-w64-x86_64-libusb
             mingw-w64-x86_64-pcre2
             mingw-w64-x86_64-lld
+            mingw-w64-x86_64-zstd
             diffutils
             make
             libtool
@@ -175,15 +213,18 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-make
             mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-yasm
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-bzip2
             mingw-w64-x86_64-xz
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-libmfx
             mingw-w64-x86_64-libiconv
-            mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-libb2
+            mingw-w64-x86_64-brotli
+            mingw-w64-x86_64-libjpeg-turbo
             mingw-w64-x86_64-pcre2
+            mingw-w64-x86_64-lld
+            mingw-w64-x86_64-zstd
             diffutils
             make
             libtool
@@ -243,16 +284,18 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-make
             mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-yasm
             mingw-w64-x86_64-zlib
             mingw-w64-x86_64-bzip2
             mingw-w64-x86_64-xz
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-libmfx
             mingw-w64-x86_64-libiconv
-            mingw-w64-x86_64-libusb
-            mingw-w64-x86_64-pcre2
+            mingw-w64-x86_64-libb2
             mingw-w64-x86_64-brotli
+            mingw-w64-x86_64-libjpeg-turbo
+            mingw-w64-x86_64-pcre2
+            mingw-w64-x86_64-lld
+            mingw-w64-x86_64-zstd
             diffutils
             make
             libtool
@@ -308,9 +351,9 @@ jobs:
                 }
                 
                 # Replace absolute library paths with linker flags to let the linker search
-                $systemLibs = @('libz.a', 'libbz2.a', 'libb2.a', 'liblzma.a', 'libmfx.a', 
+                $systemLibs = @('libz.a', 'libbz2.a', 'libb2.a', 'liblzma.a', 'libmfx.a',
                                 'libwinpthread.a', 'libiconv.a', 'libbrotlidec.a', 'libbrotlicommon.a',
-                                'libusb-1.0.a', 'libzstd.a', 'libcrypto.a', 'libssl.a')
+                                'libzstd.a', 'libcrypto.a', 'libssl.a')
                 
                 foreach ($lib in $systemLibs) {
                   $libName = $lib -replace '^lib', '' -replace '\.a$', ''
@@ -453,7 +496,6 @@ jobs:
             mingw-w64-x86_64-cmake \
             mingw-w64-x86_64-make \
             mingw-w64-x86_64-nasm \
-            mingw-w64-x86_64-yasm \
             mingw-w64-x86_64-zlib \
             mingw-w64-x86_64-bzip2 \
             mingw-w64-x86_64-xz \
@@ -463,7 +505,6 @@ jobs:
             mingw-w64-x86_64-libb2 \
             mingw-w64-x86_64-brotli \
             mingw-w64-x86_64-libjpeg-turbo \
-            mingw-w64-x86_64-libusb \
             mingw-w64-x86_64-pcre2 \
             mingw-w64-x86_64-zstd
           
@@ -551,7 +592,7 @@ jobs:
           
           # Verify critical static libraries exist
           echo "Verifying static libraries in ${MSYS_MINGW_PATH}/lib:"
-          for lib in libz.a libbz2.a libb2.a liblzma.a libmfx.a libwinpthread.a libiconv.a libbrotlidec.a libbrotlicommon.a libbrotlienc.a libusb-1.0.a libzstd.a libcrypto.a libssl.a; do
+          for lib in libz.a libbz2.a libb2.a liblzma.a libmfx.a libwinpthread.a libiconv.a libbrotlidec.a libbrotlicommon.a libbrotlienc.a libzstd.a libcrypto.a libssl.a; do
             if [ -f "${MSYS_MINGW_PATH}/lib/$lib" ]; then
               echo "  ✓ $lib"
             else
@@ -574,7 +615,7 @@ jobs:
           # List actual library files to confirm they exist
           echo ""
           echo "=== Listing actual MSYS2 libraries ==="
-          ls -lh /mingw64/lib/libz.a /mingw64/lib/libbz2.a /mingw64/lib/libusb-1.0.a 2>&1 || echo "Some libraries not found!"
+          ls -lh /mingw64/lib/libz.a /mingw64/lib/libbz2.a 2>&1 || echo "Some libraries not found!"
           
           echo ""
           echo "=== Checking Windows path accessibility from MSYS2 ==="
@@ -710,4 +751,4 @@ jobs:
         with:
           name: openterfaceQT-portable.exe
           path: build/openterfaceQT-portable.exe
-          retention-days: 30
+          retention-days: 7

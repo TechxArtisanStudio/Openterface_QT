@@ -101,6 +101,7 @@ SOURCES += main.cpp \
     ui/inputhandler.cpp \
     ui/loghandler.cpp \
     ui/mainwindow.cpp \
+    ui/ShortcutManager.cpp \
     ui/videopane.cpp \
     ui/languagemanager.cpp \
     ui/screensavermanager.cpp \
@@ -126,6 +127,9 @@ SOURCES += main.cpp \
     ui/advance/edid/edidresolutionparser.cpp \
     ui/advance/edid/resolutionmodel.cpp \
     ui/advance/edid/edidprocessor.cpp \
+    ui/advance/edid/edididentity.cpp \
+    ui/advance/edid/edidsettingsmanager.cpp \
+    ui/advance/edid/edididentitycache.cpp \
     ui/advance/recordingsettingsdialog.cpp \
     ui/advance/diagnostics/SupportEmailDialog.cpp \
     ui/advance/wchflash/WCHFlashWorker.cpp \
@@ -138,6 +142,8 @@ SOURCES += main.cpp \
     ui/windowcontrolmanager.cpp \
     ui/toolbar/toggleswitch.cpp \
     ui/toolbar/toolbarmanager.cpp \
+    ui/virtualkeyboard/VirtualKeyboardDialog.cpp \
+    ui/virtualkeyboard/ShiftedKeyButton.cpp \
     ui/recording/recordingcontroller.cpp \
     ui/splashscreen.cpp \
     ui/preferences/cameraadjust.cpp \
@@ -299,6 +305,7 @@ HEADERS  += \
     ui/inputhandler.h \
     ui/loghandler.h \
     ui/mainwindow.h \
+    ui/ShortcutManager.h \
     ui/splashscreen.h \
     ui/videopane.h \
     ui/statusevents.h \
@@ -327,6 +334,9 @@ HEADERS  += \
     ui/advance/edid/edidresolutionparser.h \
     ui/advance/edid/resolutionmodel.h \
     ui/advance/edid/edidprocessor.h \
+    ui/advance/edid/edididentity.h \
+    ui/advance/edid/edidsettingsmanager.h \
+    ui/advance/edid/edididentitycache.h \
     ui/advance/recordingsettingsdialog.h \
     ui/advance/diagnostics/SupportEmailDialog.h \
     ui/advance/wchflash/WCHFlashWorker.h \
@@ -339,6 +349,8 @@ HEADERS  += \
     ui/windowcontrolmanager.h \
     ui/toolbar/toggleswitch.h \
     ui/toolbar/toolbarmanager.h \
+    ui/virtualkeyboard/VirtualKeyboardDialog.h \
+    ui/virtualkeyboard/ShiftedKeyButton.h \
     ui/recording/recordingcontroller.h \
     ui/preferences/cameraadjust.h \
     ui/preferences/fpsspinbox.h \

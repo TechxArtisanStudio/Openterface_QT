@@ -37,14 +37,12 @@
 #include <memory>
 #include <functional>
 
-// DEBUG: File-based logging for MCP keyboard issue
-#define DEBUG_LOG(msg) { \
-    QFile f("/tmp/keyboard-debug.log"); \
-    if (f.open(QIODevice::Append | QIODevice::Text)) { \
-        QTextStream out(&f); \
-        out << msg << "\n"; \
-    } \
-}
+// Diagnostics for the keyboard path. This used to append to
+// /tmp/keyboard-debug.log unconditionally, opening and closing the file on
+// every key event; route it through the project's logging categories instead
+// so it is off by default and selectable with QT_LOGGING_RULES, e.g.
+//   QT_LOGGING_RULES='opf.host.keyboard.state.debug=true'
+#define DEBUG_LOG(msg) qCDebug(log_host_kb_state) << (msg)
 
 OPF_LOGGING_CATEGORY(log_host_kb_mapping, "opf.host.keyboard.mapping")
 OPF_LOGGING_CATEGORY(log_host_kb_modifiers, "opf.host.keyboard.modifiers")
@@ -828,7 +826,7 @@ bool KeyboardManager::isLockKey(int keycode) {
     return keycode == Qt::Key_NumLock || keycode == Qt::Key_CapsLock || keycode == Qt::Key_ScrollLock;
 }
 
-void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<uint8_t, int>& charMapping) {
+void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<int, int>& charMapping) {
     qCDebug(log_host_kb_special) << "Handle pasting characters now:" << text.length() << "chars, text=\"" << text << "\"";
 
     // Use shared state + shared std::function so the recursive tick
@@ -836,7 +834,7 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
     // automatically when no more ticks are pending.
     struct PasteState {
         QString remaining;
-        QMap<uint8_t, int> mapping;
+        QMap<int, int> mapping;
         int totalChars;
         int typedChars;
     };
@@ -864,7 +862,7 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<ui
         // Process up to batchSize characters
         for (int i = 0; i < batchSize && !state->remaining.isEmpty(); ++i) {
             QChar ch = state->remaining.at(0);
-            uint8_t charString = ch.unicode();
+            int charString = ch.unicode();
             int key = state->mapping.value(charString, 0);
 
             bool needShift = needShiftWhenPaste(ch);

@@ -411,6 +411,9 @@ struct ChatCompletionResult {
     QString content;
     int inputTokenCount = -1;
     int outputTokenCount = -1;
+    // Tool calls from OpenAI function calling format
+    // Each entry: {"id": "call_xxx", "name": "tool_name", "arguments": "..."}
+    QList<QJsonObject> toolCalls;
 };
 
 // ============================================================================
@@ -419,6 +422,7 @@ struct ChatCompletionResult {
 struct AgentToolCall {
     QString tool;
     QVariantMap args;
+    QString toolCallId;  // OpenAI function calling format: unique ID for the tool call
 };
 
 // ============================================================================

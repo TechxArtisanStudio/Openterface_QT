@@ -95,9 +95,17 @@ fi
 # Convert to Windows paths if needed (cygpath available)
 winpath() {
   if command -v cygpath >/dev/null 2>&1; then
-    cygpath -w "$1"
+    cygpath -m "$1"
   else
-    echo "$1"
+    # Manual conversion for MSYS2 paths (accounting for msys64/ prefix in actual paths)
+    local path="$1"
+    if [[ "$path" == /mingw64/* ]]; then
+      echo "C:/msys64/msys64/mingw64${path#/mingw64}"
+    elif [[ "$path" == /clangarm64/* ]]; then
+      echo "C:/msys64/msys64/clangarm64${path#/clangarm64}"
+    else
+      echo "$path"
+    fi
   fi
 }
 
@@ -377,8 +385,6 @@ cmake_args=(
   -DOPENSSL_INCLUDE_DIR="${OPENSSL_INCLUDE_DIR}"
   -DOPENSSL_CRYPTO_LIBRARY="${OPENSSL_LIB_DIR}/libcrypto.a"
   -DOPENSSL_SSL_LIBRARY="${OPENSSL_LIB_DIR}/libssl.a"
-  -DCMAKE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC"
-  -DCMAKE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC"
   ..
 )
 
@@ -390,13 +396,31 @@ if [ -n "${VCPKG_ROOT:-}" ] && [ -n "${VCPKG_TRIPLET:-}" ] && [ -f "${VCPKG_ROOT
   )
 fi
 
+# Set C/CXX flags for non-Windows platforms (Windows flags are set below)
+if [ "$PLATFORM" != "windows" ]; then
+  cmake_args+=(
+    -DCMAKE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC"
+    -DCMAKE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include algorithm"
+  )
+fi
+
 # Add windows-specific linker flags
 if [ "$PLATFORM" = "windows" ]; then
+  # On Windows with MinGW/clang, POSIX error codes (EPERM, EACCES, etc.) are only
+  # exposed in errno.h when _POSIX_C_SOURCE or _GNU_SOURCE is defined.
+  # Qt's qsystemsemaphore.cpp and qsharedmemory.cpp use these without including errno.h.
+  # Add the feature test macro to C_FLAGS and CXX_FLAGS.
+  POSIX_C_SOURCE_DEFINE="_POSIX_C_SOURCE=200809L"
+  cmake_args+=(
+    -DCMAKE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -D_CRT_RAND_S -include errno.h -include stdlib.h"
+    -DCMAKE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -D_CRT_RAND_S -include algorithm -include errno.h -include exception -include stdlib.h"
+  )
+
   # Force static linking of zstd from MSYS2 instead of vcpkg
   ZSTD_STATIC_LIB="${MINGW_PATH}/lib/libzstd.a"
   if [ -f "$ZSTD_STATIC_LIB" ]; then
     echo "Using static zstd from: $ZSTD_STATIC_LIB"
-    cmake_args+=( -DZSTD_LIBRARY="$ZSTD_STATIC_LIB" -DZSTD_INCLUDE_DIR="${MINGW_PATH}/include" )
+    cmake_args+=( -DZSTD_LIBRARY="$(winpath "$ZSTD_STATIC_LIB")" -DZSTD_INCLUDE_DIR="$(winpath "${MINGW_PATH}/include")" )
   else
     echo "WARNING: Static zstd library not found at $ZSTD_STATIC_LIB"
     echo "Installing zstd static library via pacman..."
@@ -409,17 +433,17 @@ if [ "$PLATFORM" = "windows" ]; then
   for lib in zstd brotlidec brotlienc brotlicommon z bz2 lzma; do
     lib_path="${MINGW_PATH}/lib/lib${lib}.a"
     if [ -f "$lib_path" ]; then
-      STATIC_COMPRESSION_LIBS="${STATIC_COMPRESSION_LIBS} ${lib_path}"
+      STATIC_COMPRESSION_LIBS="${STATIC_COMPRESSION_LIBS} $(winpath "$lib_path")"
       echo "Found static library: $lib_path"
     else
       echo "WARNING: Static library not found: $lib_path"
     fi
   done
-  
-  cmake_args+=( 
-    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L${OPENSSL_LIB_DIR} -L${MINGW_PATH}/lib -static-libgcc -static-libstdc++" 
-    -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}" 
-    -DCMAKE_REQUIRED_LIBRARIES="ws2_32;crypt32;advapi32;user32;gdi32" 
+
+  cmake_args+=(
+    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L$(winpath "$OPENSSL_LIB_DIR") -L$(winpath "$MINGW_PATH/lib") ${STATIC_COMPRESSION_LIBS} -static-libgcc -static-libstdc++"
+    -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}"
+    -DCMAKE_REQUIRED_LIBRARIES="ws2_32;crypt32;advapi32;user32;gdi32"
   )
 fi
 
@@ -437,11 +461,26 @@ for m in "${MODULES[@]}"; do
   echo "Building module $m..."
   mkdir -p "$m/build"
   pushd "$m/build" >/dev/null
+
+  # Set C/CXX flags based on platform
+  if [ "$PLATFORM" = "windows" ]; then
+    # On Windows with MinGW/clang, POSIX error codes (EPERM, EACCES, etc.) are only
+    # exposed in errno.h when _POSIX_C_SOURCE or _GNU_SOURCE is defined.
+    # Qt's qsystemsemaphore.cpp and qsharedmemory.cpp use these without including errno.h.
+    # Add the feature test macro to C_FLAGS and CXX_FLAGS.
+    POSIX_C_SOURCE_DEFINE="_POSIX_C_SOURCE=200809L"
+    MODULE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -D_CRT_RAND_S -include errno.h -include stdlib.h"
+    MODULE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -D_CRT_RAND_S -include algorithm -include errno.h -include exception -include stdlib.h"
+  else
+    MODULE_C_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC"
+    MODULE_CXX_FLAGS="-I${OPENSSL_INCLUDE_DIR} -DPCRE2_STATIC -include algorithm"
+  fi
+
   module_cmake_args=(
     -G "Ninja"
     -DCMAKE_C_COMPILER="${CC_BIN}"
     -DCMAKE_CXX_COMPILER="${CXX_BIN}"
-    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS}"
+    -DCMAKE_EXE_LINKER_FLAGS="${LLD_FLAGS} -L$(winpath "$OPENSSL_LIB_DIR") -L$(winpath "$MINGW_PATH/lib") ${STATIC_COMPRESSION_LIBS} -static-libgcc -static-libstdc++"
     -DCMAKE_SHARED_LINKER_FLAGS="${LLD_FLAGS}"
     -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
     -DCMAKE_PREFIX_PATH="${INSTALL_PREFIX}"
@@ -455,10 +494,12 @@ for m in "${MODULES[@]}"; do
     -DINPUT_libclang=no
     -DCMAKE_DISABLE_FIND_PACKAGE_Clang=TRUE
     -DCMAKE_DISABLE_FIND_PACKAGE_LLVM=TRUE
-    -DOPENSSL_ROOT_DIR="${OPENSSL_ROOT}"
-    -DOPENSSL_INCLUDE_DIR="${OPENSSL_INCLUDE_DIR}"
-    -DOPENSSL_CRYPTO_LIBRARY="${OPENSSL_LIB_DIR}/libcrypto.a"
-    -DOPENSSL_SSL_LIBRARY="${OPENSSL_LIB_DIR}/libssl.a"
+    -DOPENSSL_ROOT_DIR="$(winpath "$OPENSSL_ROOT")"
+    -DOPENSSL_INCLUDE_DIR="$(winpath "$OPENSSL_INCLUDE_DIR")"
+    -DOPENSSL_CRYPTO_LIBRARY="$(winpath "$OPENSSL_LIB_DIR/libcrypto.a")"
+    -DOPENSSL_SSL_LIBRARY="$(winpath "$OPENSSL_LIB_DIR/libssl.a")"
+    -DCMAKE_C_FLAGS="${MODULE_C_FLAGS}"
+    -DCMAKE_CXX_FLAGS="${MODULE_CXX_FLAGS}"
     ..
   )
   if [ -n "${VCPKG_ROOT:-}" ] && [ -n "${VCPKG_TRIPLET:-}" ] && [ -f "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" ]; then

@@ -16,7 +16,7 @@ Q_DECLARE_LOGGING_CATEGORY(log_keyboard_layouts)
 struct KeyboardLayoutConfig {
     QString name;
     QMap<int, uint8_t> keyMap;
-    QMap<uint8_t, int> charMapping;
+    QMap<int, int> charMapping;
     QMap<uint32_t, uint8_t> unicodeMap;
     QList<int> needShiftKeys;
     QList<int> needAltGrKeys;
@@ -214,7 +214,7 @@ public:
     // Merge corrections into a base layout
     KeyboardLayoutConfig mergeCorrections(const KeyboardLayoutConfig& base, 
                                          const QMap<int, uint8_t>& keyMapCorrections,
-                                         const QMap<uint8_t, int>& charMapCorrections);
+                                         const QMap<int, int>& charMapCorrections);
     
     // Export layout to JSON string
     QString exportLayoutToJson(const KeyboardLayoutConfig& config) const;

@@ -40,9 +40,18 @@ public:
     // Force device checking (replaces SerialPortManager functionality)
     void checkForChanges();
     void forceRefresh();
+
+    // HOTPLUG FIX: Clear the platform device cache without emitting signals.
+    // Use this during hotplug recovery to get fresh device paths (e.g. /dev/videoN
+    // after replug on Linux) without triggering devicesChanged re-entrancy.
+    void invalidateDeviceCache();
     
     // Device discovery
     QList<DeviceInfo> discoverDevices();
+    // One entry per unit (see selectableDevices()). rediscover=true runs a full
+    // discoverDevices() scan (seconds on Linux); false uses the list the hotplug
+    // monitor keeps current and only scans when that list is empty.
+    QList<DeviceInfo> listSelectableDevices(bool rediscover = true);
     void discoverDevicesAsync(); // Non-blocking async discovery
     QList<DeviceInfo> getDevicesByPortChain(const QString& portChain);
     QStringList getAvailablePortChains();
@@ -118,6 +127,10 @@ public:
     }
     
     // Helper methods for component switching
+    // Whether a hotplug of the unit at portChain may connect it in this process:
+    // only if no unit has been selected here yet, or it is the selected unit
+    // coming back. A hotplug of ANOTHER unit must never take over the selection.
+    bool mayAdoptUnit(const QString& portChain) const;
     bool switchSerialPortByPortChain(const QString& portChain);
     bool switchHIDDeviceByPortChain(const QString& portChain);
     bool switchAudioDeviceByPortChain(const QString& portChain);

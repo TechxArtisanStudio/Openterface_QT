@@ -21,14 +21,14 @@
 */
 
 #include "screenAnalyzer.h"
-#include <QLoggingCategory>
 #include <QDebug>
 #include <QRegularExpression>
 
 #include <cstdlib>
 #include <cstring>
 
-#include "bios_focus_detector.h"
+#include "ai/bios_focus_detector/bios_focus_detector.h"
+#include "log/opflogging.h"
 
 #ifdef HAVE_TESSERACT
 #include <tesseract/baseapi.h>
@@ -38,9 +38,15 @@
 #ifdef HAVE_OPENCV
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
+#if CV_VERSION_MAJOR >= 5
+// OpenCV 5 moved cv::boundingRect(InputArray) from imgproc to the new
+// opencv2/geometry module, and imgproc.hpp no longer provides it
+// transitively. The module does not exist in OpenCV 4, hence the guard.
+#include <opencv2/geometry/2d.hpp>
+#endif
 #endif
 
-Q_LOGGING_CATEGORY(log_screen_analyzer, "opf.screen.analyzer")
+OPF_LOGGING_CATEGORY(log_screen_analyzer, "opf.screen.analyzer")
 
 ScreenAnalyzer::ScreenAnalyzer()
     : m_tesseract(nullptr)

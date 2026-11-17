@@ -349,10 +349,25 @@ void FloatingWindow::clampToScreen()
     int x = winGeo.x();
     int y = winGeo.y();
 
-    if (x < geo.left()) x = geo.left();
-    if (y < geo.top()) y = geo.top();
-    if (x + winGeo.width() > geo.right()) x = geo.right() - winGeo.width();
-    if (y + winGeo.height() > geo.bottom()) y = geo.bottom() - winGeo.height();
+    // For X coordinate - prevent negative results when window is wider than screen
+    int maxX = geo.right() - winGeo.width();
+    if (geo.left() > maxX) {
+        // Window is wider than screen, just position at screen left edge
+        x = geo.left();
+    } else {
+        if (x < geo.left()) x = geo.left();
+        else if (x > maxX) x = maxX;
+    }
+
+    // For Y coordinate - prevent negative results when window is taller than screen
+    int maxY = geo.bottom() - winGeo.height();
+    if (geo.top() > maxY) {
+        // Window is taller than screen, just position at screen top edge
+        y = geo.top();
+    } else {
+        if (y < geo.top()) y = geo.top();
+        else if (y > maxY) y = maxY;
+    }
 
     move(x, y);
 }
@@ -363,18 +378,29 @@ void FloatingWindow::repositionNearMainWindow(const QRect &mainGeometry)
     int targetX = mainGeometry.right() + 10;
     int targetY = mainGeometry.top() + 10;
 
-    // Ensure within screen bounds
-    if (targetX + width() > screen.right()) {
-        targetX = mainGeometry.left() - width() - 10;
+    int w = width();
+    int h = height();
+
+    // For X coordinate - prevent negative results
+    int maxX = screen.right() - w - 10;  // 10px margin
+    if (targetX + w > screen.right()) {
+        targetX = mainGeometry.left() - w - 10;  // Try left side of main window
     }
     if (targetX < screen.left()) {
-        targetX = screen.right() - width() - 10;
+        targetX = screen.left();  // Can't go negative, clamp to screen left
+    } else if (targetX > maxX) {
+        targetX = maxX;
     }
-    if (targetY + height() > screen.bottom()) {
-        targetY = screen.bottom() - height() - 10;
+
+    // For Y coordinate - prevent negative results
+    int maxY = screen.bottom() - h - 10;  // 10px margin
+    if (targetY + h > screen.bottom()) {
+        targetY = screen.bottom() - h - 10;
     }
     if (targetY < screen.top()) {
-        targetY = screen.top();
+        targetY = screen.top();  // Can't go negative, clamp to screen top
+    } else if (targetY > maxY) {
+        targetY = maxY;
     }
 
     move(targetX, targetY);
@@ -394,7 +420,11 @@ void FloatingWindow::moveToTopRight()
     int x = geo.right() - width() - 10;
     int y = geo.top() + 10;
 
-    if (x < geo.left()) x = geo.left() + 10;
+    // For X coordinate - prevent negative results when window is wider than screen
+    if (x < geo.left()) {
+        x = geo.left();  // Window too wide, just position at screen left edge
+    }
+    // For Y coordinate
     if (y < geo.top()) y = geo.top() + 10;
 
     move(x, y);

@@ -16,10 +16,11 @@ GstElement* PipelineFactory::createPipeline(const QString &device,
                                             int framerate,
                                             const QString &videoSink,
                                             QString &outErrorMsg,
-                                            const QSize& widgetSize)
+                                            const QSize& widgetSize,
+                                            int capsProfile)
 {
     // Primary
-    QString primary = PipelineBuilder::buildFlexiblePipeline(device, resolution, framerate, videoSink, widgetSize);
+    QString primary = PipelineBuilder::buildFlexiblePipeline(device, resolution, framerate, videoSink, widgetSize, capsProfile);
     qCDebug(log_pipeline_factory) << "PipelineFactory: trying primary pipeline" << primary;
 
     GError* error = nullptr;

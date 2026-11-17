@@ -923,7 +923,33 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
         }
 
         // Agentic mode: check for tool calls
-        QList<AgentToolCall> toolCalls = toolExec.parseToolCalls(result.content);
+        // First check for tool_calls from OpenAI function calling format
+        QList<AgentToolCall> toolCalls;
+        if (!result.toolCalls.isEmpty()) {
+            // Convert OpenAI format to internal AgentToolCall format
+            for (const auto &toolCallObj : result.toolCalls) {
+                AgentToolCall call;
+                call.tool = toolCallObj["name"].toString();
+                // Parse arguments JSON string into QVariantMap
+                QString argsStr = toolCallObj["arguments"].toString();
+                QJsonParseError parseError;
+                QJsonDocument argsDoc = QJsonDocument::fromJson(argsStr.toUtf8(), &parseError);
+                if (parseError.error == QJsonParseError::NoError && argsDoc.isObject()) {
+                    QJsonObject argsObj = argsDoc.object();
+                    for (auto it = argsObj.begin(); it != argsObj.end(); ++it) {
+                        call.args[it.key()] = it.value().toVariant();
+                    }
+                }
+                // Store the tool call ID for later reference (needed for tool response)
+                call.toolCallId = toolCallObj["id"].toString();
+                toolCalls.append(call);
+            }
+            qCDebug(log_ai_chat) << "Extracted" << toolCalls.size() << "tool_calls from API function calling format";
+        } else {
+            // Fallback: parse tool calls from content text (legacy format)
+            toolCalls = toolExec.parseToolCalls(result.content);
+        }
+
         if (toolCalls.isEmpty()) {
             QString textLower = result.content.toLower();
 
@@ -1165,9 +1191,14 @@ void ChatManager::performStandardSend(const ChatAPIConfiguration &config, bool a
         }
 
         ChatMessage toolMsg(ChatRole::Tool, toolResultContent, toolResult.attachmentFilePath);
-        // Generate a tool_call_id for the OpenAI API format. Tool messages
-        // require this field to link back to the assistant's tool call.
-        toolMsg.toolCallId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        // Use the tool_call_id from the first tool call for the OpenAI API format.
+        // Tool messages require this field to link back to the assistant's tool call.
+        if (!toolCalls.isEmpty() && !toolCalls.first().toolCallId.isEmpty()) {
+            toolMsg.toolCallId = toolCalls.first().toolCallId;
+        } else {
+            // Fallback: generate a UUID if no toolCallId was provided
+            toolMsg.toolCallId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        }
         m_messages.append(toolMsg);
         emit messageAppended(toolMsg);
 

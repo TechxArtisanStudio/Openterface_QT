@@ -69,9 +69,15 @@ openterfaceQT
 - [x] Paste text to Target device
 - [x] AI Chat Assistant with agentic control
 - [x] OCR text from Target device
+- [x] MCP Server for external AI integration (Claude, GPT, etc.)
+- [x] Native OpenAI function calling support
+- [x] Web search integration for AI Chat
+- [x] Advanced terminal detection (cursor blink analysis)
 - [ ] Other feature request? Please join the [Discord channel](https://discord.gg/sFTJD6a3R8) and tell me
 
-> For a detailed list of features, please refer to the [Features Documentation](doc/feature.md).
+> For a detailed list of features, please refer to the [Features Documentation](docs/feature.md).
+> 
+> For advanced features and architecture details, see [Advanced Features](docs/ADVANCED_FEATURES.md).
 
 ## Supported OS
 

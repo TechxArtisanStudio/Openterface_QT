@@ -205,16 +205,25 @@ MultimediaBackendConfig MultimediaBackendHandler::getDefaultConfig() const
 
 MultimediaBackendType MultimediaBackendFactory::detectBackendType()
 {
+    // HOTPLUG FIX (2026-09): Force FFmpeg backend on Windows.
+    // Media Foundation backend fails with "Failed to set any media type" for the
+    // Openterface camera, causing complete video failure and broken hotplug recovery.
+    // FFmpeg backend is the only one that works reliably with this camera on Windows.
+#ifdef Q_OS_WIN
+    qCDebug(log_multimedia_backend) << "Windows platform: forcing FFmpeg backend (MF is incompatible)";
+    return MultimediaBackendType::FFmpeg;
+#else
     QString backendName = GlobalSetting::instance().getMediaBackend();
     MultimediaBackendType type = parseBackendType(backendName);
-    
+
     // If no specific backend is configured or unknown, auto-detect FFmpeg
     if (type == MultimediaBackendType::Unknown) {
         qCDebug(log_multimedia_backend) << "Auto-detected FFmpeg backend";
         return MultimediaBackendType::FFmpeg;
     }
-    
+
     return type;
+#endif
 }
 
 MultimediaBackendType MultimediaBackendFactory::parseBackendType(const QString& backendName)

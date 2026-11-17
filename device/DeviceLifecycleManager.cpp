@@ -28,9 +28,9 @@
 #include "serial/SerialPortManager.h"
 
 #include <QDateTime>
-#include <QLoggingCategory>
+#include "log/opflogging.h"
 
-Q_LOGGING_CATEGORY(log_lifecycle, "opf.device.lifecycle")
+OPF_LOGGING_CATEGORY(log_lifecycle, "opf.device.lifecycle")
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Construction / Singleton
@@ -374,6 +374,14 @@ void DeviceLifecycleManager::onDeviceDetected(const DeviceInfo& device)
             return;
         }
 
+        // Another unit than the one this instance drives: leave it alone.
+        // It still shows up in the device list, which comes from HotplugMonitor.
+        if (!DeviceManager::getInstance().mayAdoptUnit(device.portChain)) {
+            qCInfo(log_lifecycle) << "Device" << device.portChain
+                                  << "is not the selected unit — not connecting it";
+            return;
+        }
+
         // New device — create session
         auto& session = createSession(device);
         qCInfo(log_lifecycle) << "New session created:" << key
@@ -394,7 +402,10 @@ void DeviceLifecycleManager::onDeviceDetected(const DeviceInfo& device)
         updateSessionFromDeviceInfo(session, device);
         session.lastActivity = QDateTime::currentDateTime();
 
-        if (session.state == DeviceSessionState::Recovering
+        if (!DeviceManager::getInstance().mayAdoptUnit(session.portChain)) {
+            qCInfo(log_lifecycle) << "Device reappeared in session" << key
+                                  << "but is not the selected unit — not reconnecting it";
+        } else if (session.state == DeviceSessionState::Recovering
             || session.state == DeviceSessionState::Disconnected) {
             qCInfo(log_lifecycle) << "Device reappeared in session" << key
                                   << "(state was" << sessionStateToString(session.state) << ")";
@@ -899,7 +910,7 @@ void DeviceLifecycleManager::removeSession(const QString& sessionKey)
 }
 
 void DeviceLifecycleManager::updateSessionFromDeviceInfo(
-    DeviceSession& session, const DeviceInfo& device)
+    DeviceSession& session, const DeviceInfo& device, bool isInitialDiscovery)
 {
     qCInfo(log_lifecycle) << "updateSessionFromDeviceInfo for session" << session.sessionKey
                           << "camera path:" << device.cameraDevicePath
@@ -922,7 +933,24 @@ void DeviceLifecycleManager::updateSessionFromDeviceInfo(
         } else {
             // Interface not present on this device
             if (iface.state == InterfaceState::Absent) return;  // Already absent
-            // If it was present before but path is now gone, mark absent
+
+            // HOTPLUG FIX: Only mark as Absent during initial discovery.
+            // During device reappearance (hotplug), a missing interface path likely means
+            // the USB component hasn't re-enumerated yet (common with composite devices
+            // where the serial adapter takes longer than the HID/camera part). Marking it
+            // Absent here would prevent connectNextInterface from ever trying to reconnect it.
+            // Instead, we keep it in its current state (Disconnected/Connecting/Error) so
+            // that a later hotplug event (device modification or separate addition) can
+            // still reconnect it.
+            if (!isInitialDiscovery) {
+                qCDebug(log_lifecycle) << "Interface" << interfaceTypeToString(type)
+                                       << "path missing during reconnect — keeping state as"
+                                       << interfaceStateToString(iface.state)
+                                       << "(not marking Absent)";
+                return;
+            }
+
+            // Initial discovery: mark absent
             qCWarning(log_lifecycle) << "Interface" << interfaceTypeToString(type) 
                                      << "path became empty, marking as absent";
             iface.state = InterfaceState::Absent;

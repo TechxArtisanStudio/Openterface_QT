@@ -21,6 +21,7 @@
 */
 
 #include "mainwindowinitializer.h"
+#include "../advance/edid/edididentitycache.h"
 #include "../mainwindow.h"
 #include "mainwindow_ui_access.h"
 #include "../../global.h"
@@ -53,6 +54,8 @@
 #include "../../server/tcpServer.h"
 #include "../../SysKeyBlocker/SystemKeyBlocker.h"
 #include "../customkey/customkeymanager.h"
+#include "../ShortcutManager.h"
+#include "../virtualkeyboard/VirtualKeyboardDialog.h"
 
 #include <QTimer>
 #include <QStackedLayout>
@@ -71,6 +74,7 @@ MainWindowInitializer::MainWindowInitializer(MainWindow *mainWindow, QObject *pa
     , m_cameraManager(mainWindow->m_cameraManager)
     , m_statusBarManager(nullptr)  // Will be created during initialization
     , m_cornerWidgetManager(mainWindow->m_cornerWidgetManager)
+    , m_virtualKeyboardDialog(nullptr)
     , m_windowLayoutCoordinator(mainWindow->m_windowLayoutCoordinator)
     , m_toolbarManager(mainWindow->toolbarManager)
     , m_windowControlManager(nullptr)  // Will be created during initialization
@@ -247,6 +251,47 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     connect(m_cornerWidgetManager, &CornerWidgetManager::screensaverClicked, m_mainWindow, &MainWindow::onActionScreensaver);
     connect(m_cornerWidgetManager, &CornerWidgetManager::toggleSwitchChanged, m_mainWindow, &MainWindow::onToggleSwitchStateChanged);
     connect(m_cornerWidgetManager, &CornerWidgetManager::keyboardLayoutChanged, m_mainWindow, &MainWindow::onKeyboardLayoutCombobox_Changed);
+
+    // Also update virtual keyboard when layout changes from main header dropdown
+    connect(m_cornerWidgetManager, &CornerWidgetManager::keyboardLayoutChanged, this, [this](const QString& layoutName) {
+        qCInfo(log_ui_mainwindowinitializer) << "Corner widget layout changed to:" << layoutName;
+        if (m_virtualKeyboardDialog) {
+            qCInfo(log_ui_mainwindowinitializer) << "Recreating virtual keyboard dialog with layout:" << layoutName;
+
+            // Disconnect the destroyed signal from the old dialog to prevent it from nulling out our pointer
+            disconnect(m_virtualKeyboardDialog, &QObject::destroyed, this, nullptr);
+
+            // Hide and delete the old dialog
+            m_virtualKeyboardDialog->hide();
+            m_virtualKeyboardDialog->deleteLater();
+            m_virtualKeyboardDialog = nullptr;
+
+            // Create new dialog with the new layout
+            m_virtualKeyboardDialog = new VirtualKeyboardDialog(m_mainWindow, layoutName);
+            // Connect physical keyboard input to virtual keyboard feedback
+            if (m_videoPane && m_videoPane->getInputHandler()) {
+                connect(m_videoPane->getInputHandler(), &InputHandler::keyPressed,
+                        m_virtualKeyboardDialog, [this](int keyCode) {
+                            m_virtualKeyboardDialog->showKeyPressFeedback(keyCode, 150);
+                        });
+            }
+            // Connect to destroyed signal to null out our pointer when dialog is deleted
+            connect(m_virtualKeyboardDialog, &QObject::destroyed, this, [this]() {
+                m_virtualKeyboardDialog = nullptr;
+            });
+
+            // Show the new dialog
+            m_virtualKeyboardDialog->show();
+            m_virtualKeyboardDialog->raise();
+            m_virtualKeyboardDialog->activateWindow();
+        }
+        // Also update toolbar's layout combo box to stay in sync
+        if (m_toolbarManager) {
+            qCInfo(log_ui_mainwindowinitializer) << "Syncing toolbar layout to:" << layoutName;
+            m_toolbarManager->setCurrentLayout(layoutName);
+        }
+    });
+
     connect(m_cornerWidgetManager, &CornerWidgetManager::recordingToggled, m_mainWindow, &MainWindow::toggleRecording);
     connect(m_cornerWidgetManager, &CornerWidgetManager::muteToggled, m_mainWindow, &MainWindow::toggleMute);
     connect(m_cornerWidgetManager, &CornerWidgetManager::aiChatToggled, m_mainWindow, [this]() {
@@ -307,56 +352,45 @@ void MainWindowInitializer::connectDeviceManagerSignals()
         CameraManager* cameraManager = m_cameraManager;
         QStackedLayout* stackedLayout = m_stackedLayout;
         VideoPane* videoPane = m_videoPane;
-        
-        connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn, 
+
+        connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
                 m_statusBarManager, [statusBarManager](const DeviceInfo& device) {
                     if (statusBarManager) {
                         qCDebug(log_ui_mainwindowinitializer) << "Received newDevicePluggedIn for port:" << device.portChain;
                         statusBarManager->showNewDevicePluggedIn(device.portChain);
                     }
                 });
-        connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged, 
+        connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
                 m_statusBarManager, [statusBarManager](const DeviceInfo& device) {
                     if (statusBarManager) {
                         qCDebug(log_ui_mainwindowinitializer) << "Received deviceUnplugged for port:" << device.portChain;
                         statusBarManager->showDeviceUnplugged(device.portChain);
                     }
                 });
-                
-        connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
-                m_mainWindow, [cameraManager, stackedLayout](const DeviceInfo& device) {
-                    if (!device.hasCameraDevice()) return;
-                    if (!cameraManager || !stackedLayout) return;
-                    bool deactivated = cameraManager->deactivateCameraByPortChain(device.portChain);
-                    if (deactivated) {
-                        qCInfo(log_ui_mainwindowinitializer) << "✓ Camera deactivated for port:" << device.portChain;
-                        stackedLayout->setCurrentIndex(0);
-                    }
-                });
-                
-        connect(hotplugMonitor, &HotplugMonitor::newDevicePluggedIn,
-                m_mainWindow, [cameraManager, stackedLayout, videoPane](const DeviceInfo& device) {
-                    if (!device.hasCameraDevice()) return;
-                    if (!cameraManager || !stackedLayout || !videoPane) return;
-                    bool switchSuccess = cameraManager->tryAutoSwitchToNewDevice(device.portChain);
-                    if (switchSuccess) {
-                        qCInfo(log_ui_mainwindowinitializer) << "✓ Camera auto-switched to port:" << device.portChain;
-                        stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
-                    } else {
-                        // Fallback retry: CameraManager's built-in retry may be in progress,
-                        // but as a safety net, schedule one more retry attempt in 1000ms
-                        QTimer::singleShot(1000, [cameraManager, stackedLayout, videoPane, device]() {
-                            if (cameraManager && !cameraManager->hasActiveCameraDevice()) {
-                                qCDebug(log_ui_mainwindowinitializer) << "Fallback retry: attempting auto-switch again for port:" << device.portChain;
-                                bool retrySuccess = cameraManager->tryAutoSwitchToNewDevice(device.portChain);
-                                if (retrySuccess && stackedLayout && videoPane) {
-                                    qCInfo(log_ui_mainwindowinitializer) << "✓ Camera auto-switched on fallback retry for port:" << device.portChain;
-                                    stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
-                                }
-                            }
-                        });
-                    }
-                });
+
+        // FIX: Use cameraActiveChanged signal for display switching instead of
+        // duplicating CameraManager's auto-switch logic. Previously, both
+        // CameraManager and MainWindowInitializer called tryAutoSwitchToNewDevice()
+        // on newDevicePluggedIn, causing conflicts during rapid hotplug (e.g.,
+        // first deferred handler activates camera, second handler sees it's active
+        // and skips, but stackedLayout never updates → video stream hidden).
+        //
+        // Now CameraManager is the single owner of camera auto-switch (with
+        // debouncing). MainWindowInitializer only reacts to camera state changes
+        // to update the stackedLayout — a clean separation of concerns.
+        if (cameraManager && stackedLayout && videoPane) {
+            connect(cameraManager, &CameraManager::cameraActiveChanged,
+                    m_mainWindow, [stackedLayout, videoPane](bool active) {
+                        if (active) {
+                            qCDebug(log_ui_mainwindowinitializer) << "Camera active → showing video pane";
+                            stackedLayout->setCurrentIndex(stackedLayout->indexOf(videoPane));
+                        } else {
+                            qCDebug(log_ui_mainwindowinitializer) << "Camera inactive → showing placeholder";
+                            stackedLayout->setCurrentIndex(0);
+                        }
+                    });
+        }
+
         qCDebug(log_ui_mainwindowinitializer) << "Connected hotplug monitor signals";
     } else {
         qCWarning(log_ui_mainwindowinitializer) << "Failed to get hotplug monitor";
@@ -419,6 +453,73 @@ void MainWindowInitializer::setupToolbar()
         });
     });
 
+    // Connect virtual keyboard button to show/hide virtual keyboard dialog
+    connect(m_toolbarManager, &ToolbarManager::openVirtualKeyboard, m_mainWindow, [this]() {
+        if (!m_virtualKeyboardDialog) {
+            // Get current layout from toolbar manager
+            QString currentLayout = m_toolbarManager->getCurrentLayout();
+            qCInfo(log_ui_mainwindowinitializer) << "Creating virtual keyboard dialog with layout:" << currentLayout;
+            m_virtualKeyboardDialog = new VirtualKeyboardDialog(m_mainWindow, currentLayout);
+            // Connect physical keyboard input to virtual keyboard feedback
+            if (m_videoPane && m_videoPane->getInputHandler()) {
+                connect(m_videoPane->getInputHandler(), &InputHandler::keyPressed,
+                        m_virtualKeyboardDialog, [this](int keyCode) {
+                            m_virtualKeyboardDialog->showKeyPressFeedback(keyCode, 150);
+                        });
+            }
+            // Connect to destroyed signal to null out our pointer when dialog is deleted
+            connect(m_virtualKeyboardDialog, &QObject::destroyed, this, [this]() {
+                m_virtualKeyboardDialog = nullptr;
+            });
+        }
+        if (m_virtualKeyboardDialog->isVisible()) {
+            qCInfo(log_ui_mainwindowinitializer) << "Hiding virtual keyboard dialog";
+            m_virtualKeyboardDialog->hide();
+        } else {
+            qCInfo(log_ui_mainwindowinitializer) << "Showing virtual keyboard dialog";
+            m_virtualKeyboardDialog->show();
+            m_virtualKeyboardDialog->raise();
+            m_virtualKeyboardDialog->activateWindow();
+        }
+    });
+
+    // Connect layout changes to update virtual keyboard
+    connect(m_toolbarManager, &ToolbarManager::layoutChanged, m_mainWindow, [this](const QString& layoutName) {
+        qCInfo(log_ui_mainwindowinitializer) << "Toolbar layout changed to:" << layoutName;
+        if (m_virtualKeyboardDialog) {
+            qCInfo(log_ui_mainwindowinitializer) << "Recreating virtual keyboard dialog with layout:" << layoutName;
+
+            // Disconnect the destroyed signal from the old dialog to prevent it from nulling out our pointer
+            disconnect(m_virtualKeyboardDialog, &QObject::destroyed, this, nullptr);
+
+            // Hide and delete the old dialog
+            m_virtualKeyboardDialog->hide();
+            m_virtualKeyboardDialog->deleteLater();
+            m_virtualKeyboardDialog = nullptr;
+
+            // Create new dialog with the new layout
+            m_virtualKeyboardDialog = new VirtualKeyboardDialog(m_mainWindow, layoutName);
+            // Connect physical keyboard input to virtual keyboard feedback
+            if (m_videoPane && m_videoPane->getInputHandler()) {
+                connect(m_videoPane->getInputHandler(), &InputHandler::keyPressed,
+                        m_virtualKeyboardDialog, [this](int keyCode) {
+                            m_virtualKeyboardDialog->showKeyPressFeedback(keyCode, 150);
+                        });
+            }
+            // Connect to destroyed signal to null out our pointer when dialog is deleted
+            connect(m_virtualKeyboardDialog, &QObject::destroyed, this, [this]() {
+                m_virtualKeyboardDialog = nullptr;
+            });
+
+            // Show the new dialog
+            m_virtualKeyboardDialog->show();
+            m_virtualKeyboardDialog->raise();
+            m_virtualKeyboardDialog->activateWindow();
+        } else {
+            // Virtual keyboard dialog not open, no need to recreate
+        }
+    });
+
     // Connect CustomKeyManager signal to rebuild toolbar live
     connect(&CustomKeyManager::getInstance(), &CustomKeyManager::keysChanged,
             m_toolbarManager, &ToolbarManager::rebuildToolbar);
@@ -433,9 +534,7 @@ void MainWindowInitializer::setupToolbar()
     m_windowControlManager = new WindowControlManager(m_mainWindow, m_toolbarManager->getToolbar(), m_mainWindow);
     m_mainWindow->m_windowControlManager = m_windowControlManager;
     
-    // CRITICAL DEBUG: Temporarily disable WindowControlManager to test if it's blocking menus
-    // m_windowControlManager->setAutoHideEnabled(true);
-    
+    m_windowControlManager->setAutoHideEnabled(true);
     m_windowControlManager->setAutoHideDelay(5000);  // 5 seconds auto-hide delay
     m_windowControlManager->setEdgeDetectionThreshold(5);
     m_windowControlManager->setAnimationDuration(300);
@@ -534,6 +633,9 @@ void MainWindowInitializer::deferredInitializeCamera()
     QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
         VideoHid::getInstance().start();
         qInfo() << "VideoHid started (on HID thread)";
+        // start() does not emit hidDeviceConnected for an already-resolved
+        // device; ask the identity cache (main thread) to read it.
+        QMetaObject::invokeMethod(&edid::EdidIdentityCache::instance(), "refreshCurrent", Qt::QueuedConnection);
     }, Qt::QueuedConnection);
 
     qCDebug(log_ui_mainwindowinitializer) << "Deferred: Initializing camera...";
@@ -622,42 +724,56 @@ void MainWindowInitializer::setupEventCallbacks()
 void MainWindowInitializer::setupKeyboardShortcuts()
 {
     qCDebug(log_ui_mainwindowinitializer) << "Setting up keyboard shortcuts...";
-    
+
+    ShortcutManager &shortcutMgr = ShortcutManager::instance();
+
     // Alt+F11: Toggle fullscreen
     QShortcut *fullscreenShortcut = new QShortcut(QKeySequence(Qt::ALT | Qt::Key_F11), m_mainWindow);
-    
+    shortcutMgr.registerShortcut(fullscreenShortcut);
+
     // Ctrl+Shift+A: Open Screen Aspect Ratio dialog
     QShortcut *aspectRatioShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A), m_mainWindow);
-    
+    shortcutMgr.registerShortcut(aspectRatioShortcut);
+
     // Zoom shortcuts
     QShortcut *zoomInShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Plus), m_mainWindow);
+    shortcutMgr.registerShortcut(zoomInShortcut);
     QShortcut *zoomOutShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Minus), m_mainWindow);
+    shortcutMgr.registerShortcut(zoomOutShortcut);
     QShortcut *actualSizeShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_0), m_mainWindow);
-    
+    shortcutMgr.registerShortcut(actualSizeShortcut);
+
     // Screenshot shortcut
     QShortcut *screenshotShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S), m_mainWindow);
-    
+    shortcutMgr.registerShortcut(screenshotShortcut);
+
     // Paste to target shortcut
     QShortcut *pasteShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_V), m_mainWindow);
+    shortcutMgr.registerShortcut(pasteShortcut);
 
     // Ctrl+Shift+F10: Toggle mouse dance (screensaver)
     QShortcut *mouseDanceShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F10), m_mainWindow);
+    shortcutMgr.registerShortcut(mouseDanceShortcut);
 
     // Ctrl+Shift+F11: Toggle recording
     QShortcut *recordingShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F11), m_mainWindow);
+    shortcutMgr.registerShortcut(recordingShortcut);
 
     // Ctrl+Shift+F9: Toggle mute audio
     QShortcut *muteShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F9), m_mainWindow);
+    shortcutMgr.registerShortcut(muteShortcut);
 
     // Ctrl+Shift+K: Toggle function key and composite key toolbar
     QShortcut *virtualKeyboardShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_K), m_mainWindow);
-    
+    shortcutMgr.registerShortcut(virtualKeyboardShortcut);
+
     // // Ctrl+F: Find/Search or Fullscreen toggle
     // QKeySequence findSeq(Qt::CTRL | Qt::Key_F);
     // QShortcut *findShortcut = new QShortcut(findSeq, m_mainWindow);
-    
+
     // Ctrl+P: Open preferences/settings dialog (explicit shortcut — .ui file has this via auto-connect but add QShortcut for reliability)
     QShortcut *preferencesShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_P), m_mainWindow);
+    shortcutMgr.registerShortcut(preferencesShortcut);
 
     // CRITICAL FIX: Capture specific pointers instead of 'this' to avoid dangling reference
     // MainWindowInitializer is destroyed after constructor completes, so capturing 'this' causes crash
@@ -725,8 +841,19 @@ void MainWindowInitializer::setupKeyboardShortcuts()
 void MainWindowInitializer::finalize()
 {
     qCDebug(log_ui_mainwindowinitializer) << "Finalizing initialization...";
-    QString windowTitle = QString("Openterface - %1").arg(APP_VERSION);
-    m_mainWindow->setWindowTitle(windowTitle);
+    // "Openterface - <version>[ - <EDID name>]": the name of the current unit
+    // is learned asynchronously (EdidIdentityCache), so set the plain title
+    // now and follow identity/device changes.
+    MainWindow *mainWindow = m_mainWindow;
+    auto applyTitle = [mainWindow]() {
+        mainWindow->setWindowTitle(edid::windowTitle(
+            QString(APP_VERSION), edid::EdidIdentityCache::instance().currentDisplayName()));
+    };
+    applyTitle();
+    QObject::connect(&edid::EdidIdentityCache::instance(), &edid::EdidIdentityCache::identityChanged,
+                     m_mainWindow, [applyTitle](const QString &, const edid::EdidIdentity &) { applyTitle(); });
+    QObject::connect(&edid::EdidIdentityCache::instance(), &edid::EdidIdentityCache::currentChanged,
+                     m_mainWindow, [applyTitle](const QString &) { applyTitle(); });
 
     m_mainWindow->mouseEdgeTimer = new QTimer(m_mainWindow);
     connect(m_mainWindow->mouseEdgeTimer, &QTimer::timeout, m_mainWindow, &MainWindow::checkMousePosition);
@@ -748,6 +875,14 @@ void MainWindowInitializer::finalize()
                 m_videoPane, &VideoPane::handleCapturedKey);
         qCDebug(log_ui_mainwindowinitializer) << "SystemKeyBlocker keyCaptured signal connected to VideoPane (unified path)";
     }
+
+    connect(qApp, &QApplication::applicationStateChanged, m_mainWindow,
+        [](Qt::ApplicationState state) {
+            if (state != Qt::ApplicationActive) {
+                qCDebug(log_ui_mainwindowinitializer) << "Application became inactive; releasing guest keys";
+                HostManager::getInstance().releaseAllKeys();
+            }
+        });
 
     // SystemKeyBlocker is NOT started automatically on launch.
     // By default, keyboard events flow through VideoPane::keyPressEvent → InputHandler → HostManager.
@@ -792,4 +927,3 @@ void MainWindowInitializer::finalize()
     
     qCDebug(log_ui_mainwindowinitializer) << "Finalization complete";
 }
-

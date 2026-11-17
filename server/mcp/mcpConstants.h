@@ -68,10 +68,16 @@
 #define MCP_TOOL_SCREEN_TO_MARKDOWN        "screen_to_markdown"
 #define MCP_TOOL_FIRMWARE_CHECK            "firmware_check"
 #define MCP_TOOL_FIRMWARE_UPDATE           "firmware_update"
+#define MCP_TOOL_KEYMOD_SCAN               "keymod_scan"
+#define MCP_TOOL_KEYMOD_FLASH              "keymod_flash"
 #define MCP_TOOL_DETECT_CURSOR             "detect_cursor"
 #define MCP_TOOL_RUN_COMMAND_AND_WAIT      "run_command_and_wait"
 #define MCP_TOOL_SCREEN_DIFF               "screen_diff"
 #define MCP_TOOL_NAVIGATE_TO_MENU_ITEM     "navigate_to_menu_item"
+#define MCP_TOOL_EDID_INFO                 "edid_info"
+#define MCP_TOOL_EDID_SET                  "edid_set"
+#define MCP_TOOL_DEVICE_LIST               "device_list"
+#define MCP_TOOL_DEVICE_SELECT             "device_select"
 
 // Default Named Pipe Name
 #define MCP_DEFAULT_PIPE_NAME "openterface-mcp"

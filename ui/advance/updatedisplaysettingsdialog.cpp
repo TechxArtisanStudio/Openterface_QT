@@ -25,7 +25,7 @@
 #include "edid/edidresolutionparser.h"
 #include "edid/firmwareutils.h"
 #include "../../video/videohid.h"
-#include "../../video/firmwareoperationmanager.h"
+#include "edid/edidsettingsmanager.h"
 #include "../../video/ms2109.h"
 #include "../../serial/SerialPortManager.h"
 #include "../mainwindow.h"
@@ -73,8 +73,7 @@ UpdateDisplaySettingsDialog::UpdateDisplaySettingsDialog(QWidget *parent) :
     displayNameLayout(nullptr),
     serialNumberLayout(nullptr),
     buttonLayout(nullptr),
-    firmwareOperationManager(nullptr),
-    m_tempFirmwarePath(),
+    m_edidManager(nullptr),
     m_operationFinished(false),
     m_updateMode(false)
 {
@@ -87,10 +86,8 @@ UpdateDisplaySettingsDialog::UpdateDisplaySettingsDialog(QWidget *parent) :
 UpdateDisplaySettingsDialog::~UpdateDisplaySettingsDialog()
 {
 
-    if (firmwareOperationManager) {
-        firmwareOperationManager->cancel();
-        firmwareOperationManager->deleteLater();
-        firmwareOperationManager = nullptr;
+    if (m_edidManager) {
+        m_edidManager->cancel();   // child of this dialog; Qt deletes it
     }
 
     // Qt will automatically delete child widgets
@@ -125,64 +122,50 @@ void UpdateDisplaySettingsDialog::setupUI()
     displayNameLineEdit->setFocus();
 }
 
-void UpdateDisplaySettingsDialog::ensureFirmwareOperationManager()
+void UpdateDisplaySettingsDialog::ensureEdidManager()
 {
-    if (firmwareOperationManager) {
+    if (m_edidManager) {
         return;
     }
+    m_edidManager = new edid::EdidSettingsManager(this);
+    connect(m_edidManager, &edid::EdidSettingsManager::progress,
+            this, &UpdateDisplaySettingsDialog::onFirmwareReadProgress);
 
-    firmwareOperationManager = new FirmwareOperationManager(&VideoHid::getInstance(), ADDR_EEPROM, this);
-    connect(firmwareOperationManager, &FirmwareOperationManager::progress, this, &UpdateDisplaySettingsDialog::onFirmwareReadProgress);
-    connect(firmwareOperationManager, &FirmwareOperationManager::readFinished, this, [this](bool success, const QByteArray &firmwareData, const QString &errorMsg) {
-        if (!errorMsg.isEmpty()) {
-            onFirmwareReadError(errorMsg);
+    // Initial load: populate the fields and the resolution table.
+    connect(m_edidManager, &edid::EdidSettingsManager::identityRead, this,
+            [this](bool ok, const edid::EdidIdentity &id, const QString &error) {
+        setProgressState(false, tr(""));
+        if (!ok) {
+            onFirmwareReadError(error);
             return;
         }
-        // readFinished can occur before internal thread cleanup; handle initial success state.
-        if (success) {
-            m_pendingFirmwareData = firmwareData;
-        }
-        onFirmwareReadFinished(success);
-    });
-
-    connect(firmwareOperationManager, &FirmwareOperationManager::readCompleted, this, [this](bool success, const QByteArray &/*firmwareData*/, const QString &errorMsg) {
-        if (!success) {
-            onFirmwareReadError(errorMsg);
-            return;
-        }
-        // read operation fully done and thread finished, now continue with update path if active.
-        if (m_updateMode) {
-            // m_pendingFirmwareData was already filled and modified in onFirmwareReadFinished
-            if (!processAndWriteFirmware()) {
-                showErrorAndRestart(tr("Processing Error"), tr("Failed to process EDID settings."), tr("EDID processing error"));
-                return;
-            }
-            return;
-        }
-        // normal settings load path
+        m_pendingFirmwareData = id.rawImage;
         processFirmwareReadResult(true);
-        QPointer<UpdateDisplaySettingsDialog> selfPtr(this);
-        QTimer::singleShot(500, this, [this, selfPtr]() {
-            if (!selfPtr) return;
-            VideoHid::getInstance().start();
-        });
-    });    connect(firmwareOperationManager, &FirmwareOperationManager::writeFinished, this, [this](bool success, const QString &errorMsg) {
-        if (success) {
-            m_operationFinished = true;
-            setProgressState(false, tr(""));
-            QMessageBox::information(this, tr("Success"), tr("Display settings updated successfully!\n\nThe application will now exit.\nPlease disconnect and reconnect the entire device to apply the changes."));
-            QApplication::quit();
-        } else {
-            showErrorAndRestart(tr("Write Error"), errorMsg.isEmpty() ? tr("Failed to write firmware to device.") : errorMsg, tr("firmware write failure"));
-        }
     });
 
-    // No extra quit logic here, let writeFinished handle final success message + exit.
-    // connect(firmwareOperationManager, &FirmwareOperationManager::writeCompleted, this, [this](bool success) {
-    //     if (success) {
-    //         QApplication::quit();
-    //     }
-    // });
+    // Update path: the manager has read, written and read back.
+    connect(m_edidManager, &edid::EdidSettingsManager::settingsApplied, this,
+            [this](bool ok, bool verified, const edid::EdidIdentity &, const edid::EdidIdentity &, const QString &error) {
+        if (!ok) {
+            showErrorAndRestart(tr("Write Error"),
+                                error.isEmpty() ? tr("Failed to write firmware to device.") : error,
+                                tr("firmware write failure"));
+            return;
+        }
+        m_operationFinished = true;
+        setProgressState(false, tr(""));
+        if (!verified) {
+            QMessageBox::warning(this, tr("Not Verified"),
+                tr("The write completed but the read-back does not match what was written.\n\n%1\n\n"
+                   "A copy of the previous firmware image was saved to:\n%2")
+                    .arg(error, m_edidManager->backupPath()));
+            return;
+        }
+        QMessageBox::information(this, tr("Success"),
+            tr("Display settings updated and verified by read-back!\n\nThe application will now exit.\n"
+               "Please disconnect and reconnect the entire device to apply the changes."));
+        QApplication::quit();
+    });
 }
 
 QGroupBox* UpdateDisplaySettingsDialog::buildSettingsSection(QCheckBox *&checkBox,
@@ -301,8 +284,8 @@ void UpdateDisplaySettingsDialog::closeEvent(QCloseEvent *event)
     }
     
     // Cancel any active firmware operation (read/write)
-    if (firmwareOperationManager) {
-        firmwareOperationManager->cancel();
+    if (m_edidManager) {
+        m_edidManager->cancel();
     }
     
     event->accept();
@@ -372,8 +355,8 @@ void UpdateDisplaySettingsDialog::setProgressState(bool active, const QString &l
 void UpdateDisplaySettingsDialog::shutdownFirmwareOperation(bool closeDialog)
 {
     m_operationFinished = true;
-    if (firmwareOperationManager) {
-        firmwareOperationManager->cancel();
+    if (m_edidManager) {
+        m_edidManager->cancel();
     }
     setProgressState(false, tr(""));
 
@@ -384,24 +367,8 @@ void UpdateDisplaySettingsDialog::shutdownFirmwareOperation(bool closeDialog)
 
 bool UpdateDisplaySettingsDialog::validateAsciiInput(const QString &text, int maxLen, const QString &fieldName, QString &errorMessage) const
 {
-    if (text.isEmpty()) {
-        errorMessage = tr("%1 cannot be empty when enabled.").arg(fieldName);
-        return false;
-    }
-
-    if (text.length() > maxLen) {
-        errorMessage = tr("%1 cannot exceed %2 characters.").arg(fieldName).arg(maxLen);
-        return false;
-    }
-
-    for (const QChar &ch : text) {
-        if (ch.unicode() > 127) {
-            errorMessage = tr("%1 must contain only ASCII characters.").arg(fieldName);
-            return false;
-        }
-    }
-
-    return true;
+    Q_UNUSED(maxLen);   // the EDID descriptor length is fixed; the manager owns the rule
+    return edid::EdidSettingsManager::validateField(text, fieldName, errorMessage);
 }
 
 bool UpdateDisplaySettingsDialog::collectUpdateChanges(QString &newName, QString &newSerial, QStringList &changesSummary) const
@@ -527,78 +494,21 @@ void UpdateDisplaySettingsDialog::onResolutionItemChanged(QTableWidgetItem* item
 
 void UpdateDisplaySettingsDialog::loadCurrentEDIDSettings()
 {
-    
-    // Get VideoHid instance and stop polling to prevent conflicts
-    VideoHid& videoHid = VideoHid::getInstance();
-    videoHid.stopPollingOnly();
-    
-    // Give a moment for polling to stop
-    QThread::msleep(100);
-    
-    // Read firmware size
-    quint32 firmwareSize = videoHid.readFirmwareSize();
-    if (firmwareSize == 0) {
-        qWarning() << "Failed to read firmware size, cannot load current EDID settings";
-        displayNameLineEdit->setPlaceholderText(tr("Failed to read firmware - enter display name"));
-        serialNumberLineEdit->setPlaceholderText(tr("Failed to read firmware - enter serial number"));
-        
-        // Restart polling on failure
-        videoHid.start();
-        return;
-    }
-    
-    // Show embedded progress components
     setProgressState(true, tr("Reading firmware data..."));
-
-    // Disable main dialog controls while reading
     setDialogControlsEnabled(false);
-    
-    // Create temporary file path for firmware reading
-    m_tempFirmwarePath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/temp_firmware_read.bin";
-
     m_updateMode = false;
-    ensureFirmwareOperationManager();
-    firmwareOperationManager->readFirmware(firmwareSize, m_tempFirmwarePath);
+    ensureEdidManager();
+    m_edidManager->readIdentity();
 }
 
 void UpdateDisplaySettingsDialog::onFirmwareReadFinished(bool success)
 {
-    // Hide embedded progress components
+    // Kept for the slot table; the manager's identityRead/settingsApplied
+    // handlers in ensureEdidManager() do the work now.
     setProgressState(false, tr(""));
-
-    // For update flow we delay firmware write until readCompleted (thread stop) in readCompleted handler.
-    if (m_updateMode) {
-        if (!success) {
-            showErrorAndRestart(tr("Read Error"), tr("Failed to read firmware from device."), tr("firmware read failure"));
-            return;
-        }
-
-        QByteArray firmwareData = m_pendingFirmwareData;
-
-        EdidProcessor processor(resolutionModel);
-        QString newName = displayNameLineEdit->text().trimmed();
-        QString newSerial = serialNumberLineEdit->text().trimmed();
-        m_pendingFirmwareData = processor.processDisplaySettings(firmwareData, newName, newSerial);
-
-        if (m_pendingFirmwareData.isEmpty()) {
-            showErrorAndRestart(tr("Processing Error"), tr("Failed to process EDID settings."), tr("EDID processing error"));
-            return;
-        }
-
-        setProgressState(true, tr("Waiting for firmware thread to finish before write..."));
-        return;
+    if (!m_updateMode) {
+        processFirmwareReadResult(success);
     }
-
-    processFirmwareReadResult(success);
-
-    // Resume polling after a short delay
-    QPointer<UpdateDisplaySettingsDialog> selfPtr(this);
-    QTimer::singleShot(500, this, [this, selfPtr]() {
-        if (!selfPtr) {
-            return;
-        }
-        VideoHid::getInstance().start();
-    });
 }
 
 void UpdateDisplaySettingsDialog::processFirmwareReadResult(bool success)
@@ -754,49 +664,16 @@ bool UpdateDisplaySettingsDialog::hasResolutionChanges() const
     return resolutionModel.hasChanges();
 }
 
-bool UpdateDisplaySettingsDialog::processAndWriteFirmware()
+bool UpdateDisplaySettingsDialog::updateDisplaySettings(const QString &newName, const QString &newSerial)
 {
-    if (m_pendingFirmwareData.isEmpty()) {
-        qWarning() << "No pending firmware data to write";
-        return false;
-    }
-
-    // Disable update button while write is in progress
+    setProgressState(true, tr("Updating display settings..."));
     if (updateButton) {
         updateButton->setEnabled(false);
     }
-
-    setProgressState(true, tr("Writing modified firmware..."));
-    firmwareOperationManager->writeFirmware(m_pendingFirmwareData, m_tempFirmwarePath);
-    return true;
-}
-
-bool UpdateDisplaySettingsDialog::updateDisplaySettings(const QString &newName, const QString &newSerial)
-{
-    if (displayNameCheckBox->isChecked()) {
-    }
-    if (serialNumberCheckBox->isChecked()) {
-    }
-    
-    // Stop polling before starting firmware operations to prevent HID access conflicts
-    VideoHid& videoHid = VideoHid::getInstance();
-    videoHid.stopPollingOnly();
-    
-    setProgressState(true, tr("Updating display settings..."));
-    
-    // Step 2: Read firmware
-    quint32 firmwareSize = VideoHid::getInstance().readFirmwareSize();
-    if (firmwareSize == 0) {
-        showErrorAndRestart(tr("Firmware Error"), tr("Failed to read firmware size."), tr("firmware size read error"));
-        return false;
-    }
-    
-    // Create temporary file path for firmware reading during update flow
-    m_tempFirmwarePath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/temp_firmware_update.bin";
-
     m_updateMode = true;
-    ensureFirmwareOperationManager();
-    firmwareOperationManager->readFirmware(firmwareSize, m_tempFirmwarePath);
+    ensureEdidManager();
+    // Read -> edit -> write -> read back & verify, all inside the manager.
+    m_edidManager->applySettings(newName, newSerial, &resolutionModel);
     return true;
 }
 

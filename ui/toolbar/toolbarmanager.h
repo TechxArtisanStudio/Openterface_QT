@@ -19,10 +19,14 @@ public:
     void toggleToolbar();
     void updateStyles();
     void rebuildToolbar();
+    QString getCurrentLayout() const { return m_currentLayout; }
+    void setCurrentLayout(const QString& layoutName);
 
 signals:
     void toolbarVisibilityChanged(bool visible);
     void openCustomKeyConfig();
+    void openVirtualKeyboard();
+    void layoutChanged(const QString& layoutName);
 
 private:
     struct KeyInfo {
@@ -44,7 +48,10 @@ private:
     static const char *MODIFIER_PROPERTY;
 
     QToolBar *toolbar;
+    QComboBox *m_layoutComboBox;
+    QString m_currentLayout;
     void setupToolbar();
+    void populateLayoutSelector();
     QPushButton *addKeyButton(const QString& text, const QString& toolTip);
     void onCustomKeyButtonClicked();
 
@@ -52,6 +59,8 @@ private slots:
     void onKeyButtonClicked();
     void onCtrlAltDelClicked();
     void onRepeatingKeystrokeChanged(int index);
+    void onVirtualKeyboardClicked();
+    void onLayoutChanged(int index);
 
 };
 

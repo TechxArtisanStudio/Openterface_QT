@@ -32,6 +32,7 @@
 #include "host/cameramanager.h"
 #include "chat/ChatWindow.h"
 #include "ai/ChatManager.h"
+#include "ai/ChatTaskScheduler.h"
 #include "ai/ChatScreenCapture.h"
 #include "ai/SharedToolExecutor.h"
 #include "serial/SerialPortManager.h"
@@ -52,6 +53,7 @@
 #include "ui/advance/devicediagnosticsdialog.h"
 #include "ui/hotplug/HotplugTestDialog.h"
 #include "ui/customkey/customkeydialog.h"
+#include "ShortcutManager.h"
 
 #include <QCameraDevice>
 #include <QMediaDevices>
@@ -151,15 +153,18 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     , m_windowControlManager(nullptr)
 {
     qCDebug(log_ui_mainwindow) << "Initializing MainWindow...";
-    
+
     ui->setupUi(this);
-    
+
+    // Register all UI actions with ShortcutManager
+    registerUIActions();
+
     // Initialize WindowLayoutCoordinator early - needed before checkInitSize()
     m_windowLayoutCoordinator = new WindowLayoutCoordinator(this, videoPane, menuBar(), statusBar(), this);
-    
+
     // Initialize SystemKeyBlocker focus target — only swallow keys when VideoPane has focus
     SystemKeyBlocker::instance().setFocusTarget(videoPane);
-    
+
     // Delegate all initialization to initializer
     m_initializer = new MainWindowInitializer(this);
     m_initializer->initialize();
@@ -176,7 +181,7 @@ MainWindow::MainWindow(LanguageManager *languageManager, QWidget *parent)
     // Defer VideoHid start to avoid 500ms blocking sleep during startup
     // This will be started after the window is shown
     qCDebug(log_ui_mainwindow) << "VideoHid will be started after window is shown";
-    
+
     qCDebug(log_ui_mainwindow) << "MainWindow initialization complete, window ID:" << this->winId();
 }
 
@@ -204,7 +209,18 @@ void MainWindow::startServer(){
 
     // 1. create and start TCP server
     tcpServer = new TcpServer(this);
-    tcpServer->startServer(SERVER_PORT);
+    if (!tcpServer->startServer(SERVER_PORT)) {
+        qCWarning(log_ui_mainwindow) << "Failed to start TCP server on port" << SERVER_PORT;
+        if (m_statusBarManager) {
+            m_statusBarManager->setStatusUpdate(QString("TCP Server failed to start on port %1").arg(SERVER_PORT));
+        }
+        if (ui->actionTCPServer) {
+            ui->actionTCPServer->setChecked(false);
+        }
+        tcpServer->deleteLater();
+        tcpServer = nullptr;
+        return;
+    }
     tcpServer->setCameraManager(m_cameraManager);
 
     connect(m_cameraManager, &CameraManager::lastImagePath, tcpServer, &TcpServer::handleImgPath);
@@ -215,7 +231,9 @@ void MainWindow::startServer(){
     m_tcpServerRunning = true;
     if (m_statusBarManager) {
         m_statusBarManager->setTcpServerVisible(true);
-        m_statusBarManager->setStatusUpdate(QString("TCP Server running on port %1").arg(SERVER_PORT));
+        m_statusBarManager->setStatusUpdate(QString("TCP Server running on %1:%2")
+                                                .arg(tcpServer->serverAddress().toString())
+                                                .arg(tcpServer->serverPort()));
     }
 
     // 7. Update menu action to show server is running
@@ -223,7 +241,8 @@ void MainWindow::startServer(){
         ui->actionTCPServer->setChecked(true);
     }
 
-    qCDebug(log_ui_mainwindow) << "TCP Server started at port 12345 with auto image capture";
+    qCDebug(log_ui_mainwindow) << "TCP Server started on" << tcpServer->serverAddress().toString()
+                               << "port" << tcpServer->serverPort() << "with auto image capture";
 }
 
 void MainWindow::initMcpServer()
@@ -234,6 +253,10 @@ void MainWindow::initMcpServer()
     m_mcpServer->setCameraManager(m_cameraManager);
     m_mcpServer->setScriptRunner(scriptRunner.get());
     m_mcpServer->setScriptExecutor(scriptExecutor.get());
+    m_mcpServer->setDeviceCoordinator(m_deviceCoordinator);
+
+    // Also set CameraManager on SharedToolExecutor so detect_cursor works via MCP
+    SharedToolExecutor::instance().setCameraManager(m_cameraManager);
 
     // Also set CameraManager on SharedToolExecutor so detect_cursor works via MCP
     SharedToolExecutor::instance().setCameraManager(m_cameraManager);
@@ -677,36 +700,38 @@ void MainWindow::onActionResetSerialPortTriggered()
 
 void MainWindow::onActionSwitchToHostTriggered()
 {
-    bool isCH32V208 = SerialPortManager::getInstance().isChipTypeCH32V208();
-    if(isCH32V208){
+    qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
+
+    // CH9329: USB switch is controlled via MS2109 SPDIFOUT register (HID)
+    // CH32V208: USB switch is controlled via serial commands
+    if (SerialPortManager::getInstance().isChipTypeCH9329()) {
+        qCDebug(log_ui_mainwindow) << "CH9329: Using HID (SPDIFOUT) for USB switch";
+        VideoHid::getInstance().switchToHost();
+    } else {
+        qCDebug(log_ui_mainwindow) << "CH32V208: Using serial command for USB switch";
         SerialPortManager::getInstance().switchUsbToHostViaSerial();
-    }else{
-        qCDebug(log_ui_mainwindow) << "Switchable USB to host...";
-        // Post to VideoHid's dedicated thread so the HID I/O doesn't stall the UI.
-        QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
-            VideoHid::getInstance().switchToHost();
-        }, Qt::QueuedConnection);
-        ui->actionTo_Host->setChecked(true);
-        ui->actionTo_Target->setChecked(false);
     }
 
+    ui->actionTo_Host->setChecked(true);
+    ui->actionTo_Target->setChecked(false);
 }
 
 void MainWindow::onActionSwitchToTargetTriggered()
 {
-    bool isCH32V208 = SerialPortManager::getInstance().isChipTypeCH32V208();
-    if(isCH32V208){
+    qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
+
+    // CH9329: USB switch is controlled via MS2109 SPDIFOUT register (HID)
+    // CH32V208: USB switch is controlled via serial commands
+    if (SerialPortManager::getInstance().isChipTypeCH9329()) {
+        qCDebug(log_ui_mainwindow) << "CH9329: Using HID (SPDIFOUT) for USB switch";
+        VideoHid::getInstance().switchToTarget();
+    } else {
+        qCDebug(log_ui_mainwindow) << "CH32V208: Using serial command for USB switch";
         SerialPortManager::getInstance().switchUsbToTargetViaSerial();
-    }else{
-        qCDebug(log_ui_mainwindow) << "Switchable USB to target...";
-        // Post to VideoHid's dedicated thread so the HID I/O doesn't stall the UI.
-        QMetaObject::invokeMethod(&VideoHid::getInstance(), []() {
-            VideoHid::getInstance().switchToTarget();
-        }, Qt::QueuedConnection);
-        ui->actionTo_Host->setChecked(false);
-        ui->actionTo_Target->setChecked(true);
     }
 
+    ui->actionTo_Host->setChecked(false);
+    ui->actionTo_Target->setChecked(true);
 }
 
 void MainWindow::onToggleSwitchStateChanged(Qt::CheckState state)
@@ -954,6 +979,16 @@ void MainWindow::configureSettings() {
             // Re-sync shortcuts
             syncShortcutsState();
         });
+        // Connect shortcuts enabled toggle from LogPage
+        connect(logPage, &LogPage::shortcutsEnabledChanged, this, [this](bool enabled) {
+            if (enabled) {
+                ShortcutManager::instance().enableAll();
+                qCInfo(log_ui_mainwindow) << "Keyboard shortcuts enabled";
+            } else {
+                ShortcutManager::instance().disableAll();
+                qCInfo(log_ui_mainwindow) << "Keyboard shortcuts disabled";
+            }
+        });
         m_statusBarManager->setHideKeyboardInput(GlobalSetting::instance().getHideKeyboardInput());
         connect(videoPage, &VideoPage::videoSettingsChanged, this, &MainWindow::onVideoSettingsChanged);
 
@@ -1110,14 +1145,13 @@ void MainWindow::openKeyboardMapEditor() {
     
     KeyboardMapEditor* editor = new KeyboardMapEditor(this);
     
-    connect(editor, &QDialog::finished, this, [this, editor](int result) {
-        if (result == QDialog::Accepted) {
-            // Refresh keyboard layouts in main window
-            initializeKeyboardLayouts();
-        }
-        editor->deleteLater();
-    });
-    
+connect(editor, &QDialog::finished, this, [this, editor](int /*result*/) {
+    // Refresh keyboard layouts in main window. Layouts can be imported or
+    // saved without the dialog being accepted, so refresh in every case.
+    initializeKeyboardLayouts();
+    editor->deleteLater();
+});
+
     editor->show();
 }
 
@@ -1278,6 +1312,32 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
     return QMainWindow::eventFilter(watched, event);
 }
 
+void MainWindow::changeEvent(QEvent *event)
+{
+    QMainWindow::changeEvent(event);
+
+    // Handle application and window focus loss events to release all keys
+    if (event->type() == QEvent::ApplicationDeactivate ||
+        event->type() == QEvent::WindowDeactivate ||
+        event->type() == QEvent::FocusOut) {
+        // When application or window loses focus, release all keys to prevent stuck keys
+        qCInfo(log_ui_mainwindow) << "Application/window deactivated or focus out - releasing all keys";
+        HostManager::getInstance().releaseAllKeys();
+    }
+    // Also handle window state changes (like minimization)
+    else if (event->type() == QEvent::WindowStateChange) {
+        QWindowStateChangeEvent *windowStateEvent = static_cast<QWindowStateChangeEvent*>(event);
+        // Check if window is minimized
+        if (windowStateEvent->oldState() & Qt::WindowMinimized) {
+            // Window was minimized, now restored - no action needed
+        } else if (this->windowState() & Qt::WindowMinimized) {
+            // Window is now minimized - release keys
+            qCInfo(log_ui_mainwindow) << "Window minimized - releasing all keys";
+            HostManager::getInstance().releaseAllKeys();
+        }
+    }
+}
+
 void MainWindow::record()
 {
     // Use the recording controller if available, otherwise fall back to CameraManager
@@ -1412,13 +1472,16 @@ void MainWindow::stop(){
     // Note: Do NOT use wildcard disconnect() calls as they cause crashes during shutdown
     // when trying to disconnect from destroyed signals on partially-destroyed objects.
     // Qt will handle signal disconnections automatically when objects are destroyed.
-    
+
     m_cameraManager->stopCamera();
 
     // Don't call closePort() here because SerialPortManager::stop() will handle it
     // Calling it here causes queued close operations that execute during processEvents
     // qDebug() << "Closing serial port...";
     // SerialPortManager::getInstance().closePort();
+
+    // Stop ChatTaskScheduler timer to prevent "QObject::killTimer: Timers cannot be stopped from another thread"
+    ChatTaskScheduler::instance().stop();
 
 }
 
@@ -1522,7 +1585,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
         } catch (...) {
             qCWarning(log_ui_mainwindow) << "Exception while stopping VideoHid";
         }
-        
+
         // Stop serial port manager
         try {
             SerialPortManager::getInstance().stop();
@@ -2442,6 +2505,37 @@ void MainWindow::syncShortcutsState()
     qCDebug(log_ui_mainwindow) << "syncShortcutsState called (no-op: shortcuts always enabled)";
 }
 
+void MainWindow::registerUIActions()
+{
+    ShortcutManager &mgr = ShortcutManager::instance();
+
+    // Register all actions defined in mainwindow.ui
+    // For each action, we create a QShortcut with 'this' (MainWindow) as parent
+    if (ui->actionExit) mgr.registerAction(ui->actionExit, this);
+    if (ui->actionPreferences) mgr.registerAction(ui->actionPreferences, this);
+    if (ui->actionUpdate) mgr.registerAction(ui->actionUpdate, this);
+    if (ui->actionEnvironment) mgr.registerAction(ui->actionEnvironment, this);
+    if (ui->actionAbout) mgr.registerAction(ui->actionAbout, this);
+    if (ui->actionPaste) mgr.registerAction(ui->actionPaste, this);
+    if (ui->actionScriptTool) mgr.registerAction(ui->actionScriptTool, this);
+    if (ui->actionRecordingSettings) mgr.registerAction(ui->actionRecordingSettings, this);
+    if (ui->actionHardwareDiagnostics) mgr.registerAction(ui->actionHardwareDiagnostics, this);
+    if (ui->actionHotplugTest) mgr.registerAction(ui->actionHotplugTest, this);
+    if (ui->actionTCPServer) mgr.registerAction(ui->actionTCPServer, this);
+    if (ui->actionEnvironmentSetup) mgr.registerAction(ui->actionEnvironmentSetup, this);
+    if (ui->actionDeviceSelector) mgr.registerAction(ui->actionDeviceSelector, this);
+
+    // Mouse mode actions
+    if (ui->actionTo_Host) mgr.registerAction(ui->actionTo_Host, this);           // Ctrl+Shift+H
+    if (ui->actionTo_Target) mgr.registerAction(ui->actionTo_Target, this);       // Ctrl+Shift+T
+    if (ui->actionAbsolute) mgr.registerAction(ui->actionAbsolute, this);         // Ctrl+Alt+A
+    if (ui->actionRelative) mgr.registerAction(ui->actionRelative, this);         // Ctrl+T
+    if (ui->actionMouseAutoHide) mgr.registerAction(ui->actionMouseAutoHide, this);     // Ctrl+Alt+H
+    if (ui->actionMouseAlwaysShow) mgr.registerAction(ui->actionMouseAlwaysShow, this); // Ctrl+Alt+S
+
+    qCDebug(log_ui_mainwindow) << "Registered" << mgr.shortcutCount() << "shortcuts with ShortcutManager";
+}
+
 void MainWindow::adjustPositionToScreen()
 {
     // Determine the screen that the window is currently on (or the primary screen if not visible)
@@ -2454,8 +2548,26 @@ void MainWindow::adjustPositionToScreen()
     QRect windowRect = geometry();
 
     // Clamp the window position to be entirely within the screen
-    int newX = qBound(screenRect.left(), windowRect.x(), screenRect.right() - windowRect.width());
-    int newY = qBound(screenRect.top(), windowRect.y(), screenRect.bottom() - windowRect.height());
+    // Fix: Handle case where window is larger than screen or screen has non-zero offset
+    int newX, newY;
+
+    // For X coordinate
+    int maxX = screenRect.right() - windowRect.width();
+    if (screenRect.left() > maxX) {
+        // Window is wider than screen, just position at screen left edge
+        newX = screenRect.left();
+    } else {
+        newX = qBound(screenRect.left(), windowRect.x(), maxX);
+    }
+
+    // For Y coordinate
+    int maxY = screenRect.bottom() - windowRect.height();
+    if (screenRect.top() > maxY) {
+        // Window is taller than screen, just position at screen top edge
+        newY = screenRect.top();
+    } else {
+        newY = qBound(screenRect.top(), windowRect.y(), maxY);
+    }
 
     move(newX, newY);
 }

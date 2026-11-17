@@ -8,6 +8,7 @@
 #include <QLoggingCategory>
 #include <QThread>
 #include <QElapsedTimer>
+#include <QtConcurrent>
 
 #include "log/opflogging.h"
 
@@ -787,12 +788,54 @@ bool Ms2130sChip::flashBurstRead(quint32 address, quint32 length, QByteArray &ou
 
 bool Ms2130sChip::writeFirmware(quint16 address, const QByteArray &data)
 {
-    if (!m_transport) return false;
-
-    if (!m_transport->open()) {
-        qCWarning(log_chip_flash) << "MS2130S could not begin transaction for firmware write";
+    qCInfo(log_chip_flash) << "MS2130S writeFirmware: entered, m_transport=" << m_transport;
+    if (!m_transport) {
+        qCWarning(log_chip_flash) << "MS2130S writeFirmware: m_transport is null!";
         return false;
     }
+
+    qCInfo(log_chip_flash) << "MS2130S writeFirmware: calling m_transport->open()";
+
+    // Add timeout protection to prevent infinite hangs during device open
+    // Use a separate thread to run open() with timeout
+    std::atomic<bool> openCompleted{false};
+    std::atomic<bool> openSuccess{false};
+
+    QThread* openThread = QThread::create([&]() {
+        openSuccess.store(m_transport->open(), std::memory_order_release);
+        openCompleted.store(true, std::memory_order_release);
+    });
+
+    openThread->start();
+
+    // Wait up to 5 seconds for open() to complete
+    QElapsedTimer timer;
+    timer.start();
+    while (!openCompleted.load(std::memory_order_acquire) && timer.elapsed() < 5000) {
+        QThread::msleep(50);
+    }
+
+    if (!openCompleted.load(std::memory_order_acquire)) {
+        qCWarning(log_chip_flash) << "MS2130S open() timed out after 5 seconds";
+        // Don't terminate - let the thread continue in the background.
+        // It will eventually complete or be cleaned up by the OS.
+        // Terminating a thread that holds mutexes or is in the middle of USB I/O
+        // can cause deadlocks or data corruption.
+        openThread->requestInterruption();
+        // Detach the thread - don't wait or delete it.
+        // The thread will clean up when it finishes.
+        return false;
+    }
+
+    openThread->wait();
+    delete openThread;
+
+    if (!openSuccess.load(std::memory_order_acquire)) {
+        qCWarning(log_chip_flash) << "MS2130S could not begin transaction";
+        return false;
+    }
+
+    qCInfo(log_chip_flash) << "MS2130S writeFirmware: m_transport->open() returned true";
 
     // Re-detect connect mode at start of every flash session.
     connectMode = 0;

@@ -184,6 +184,7 @@ set(VIDEO_SOURCES
     video/videohid.cpp video/videohid.h
     video/videohid_register.cpp
     video/videohid_eeprom.cpp
+    video/deviceaccessguard.cpp video/deviceaccessguard.h
     video/firmwarewriter.cpp video/firmwarewriter.h
     video/firmwarereader.cpp video/firmwarereader.h
     video/firmwareoperationmanager.cpp video/firmwareoperationmanager.h
@@ -203,6 +204,7 @@ set(UI_CORE_SOURCES
     ui/inputhandler.cpp ui/inputhandler.h
     ui/loghandler.cpp ui/loghandler.h
     ui/mainwindow.cpp ui/mainwindow.h ui/mainwindow.ui
+    ui/ShortcutManager.cpp ui/ShortcutManager.h
     ui/videopane.cpp ui/videopane.h
     ui/languagemanager.cpp ui/languagemanager.h
     ui/screensavermanager.cpp ui/screensavermanager.h
@@ -239,6 +241,9 @@ set(UI_ADVANCE_SOURCES
     ui/advance/edid/edidresolutionparser.cpp ui/advance/edid/edidresolutionparser.h
     ui/advance/edid/resolutionmodel.cpp ui/advance/edid/resolutionmodel.h
     ui/advance/edid/edidprocessor.cpp ui/advance/edid/edidprocessor.h
+    ui/advance/edid/edididentity.cpp ui/advance/edid/edididentity.h
+    ui/advance/edid/edidsettingsmanager.cpp ui/advance/edid/edidsettingsmanager.h
+    ui/advance/edid/edididentitycache.cpp ui/advance/edid/edididentitycache.h
     ui/advance/recordingsettingsdialog.cpp ui/advance/recordingsettingsdialog.h
     ui/advance/firmwaremanagerdialog.cpp ui/advance/firmwaremanagerdialog.h
     ui/advance/firmwareupdatedialog.cpp ui/advance/firmwareupdatedialog.h
@@ -283,6 +288,12 @@ set(UI_TOOLBAR_SOURCES
     ui/toolbar/toolbarmanager.cpp ui/toolbar/toolbarmanager.h
 )
 
+# UI virtual keyboard sources
+set(UI_VIRTUALKEYBOARD_SOURCES
+    ui/virtualkeyboard/VirtualKeyboardDialog.cpp ui/virtualkeyboard/VirtualKeyboardDialog.h
+    ui/virtualkeyboard/ShiftedKeyButton.cpp ui/virtualkeyboard/ShiftedKeyButton.h
+)
+
 # UI recording sources
 set(UI_RECORDING_SOURCES
     ui/recording/recordingcontroller.cpp ui/recording/recordingcontroller.h
@@ -316,38 +327,6 @@ set(UI_PREFERENCES_SOURCES
     ui/preferences/edidconfigpage.cpp ui/preferences/edidconfigpage.h
 )
 
-# AI chat backend sources
-set(AI_SOURCES
-    ai/ChatTypes.h
-    ai/ChatApiClient.cpp ai/ChatApiClient.h
-    ai/ChatManager.cpp ai/ChatManager.h
-    ai/ChatInputRouter.cpp ai/ChatInputRouter.h
-    ai/ChatScreenCapture.cpp ai/ChatScreenCapture.h
-    ai/SharedToolExecutor.cpp ai/SharedToolExecutor.h
-    ai/ChatConversationBuilder.cpp ai/ChatConversationBuilder.h
-    ai/ChatToolExecution.cpp ai/ChatToolExecution.h
-    ai/ChatAgentTypes.cpp ai/ChatAgentTypes.h
-    ai/ChatPersistence.cpp ai/ChatPersistence.h
-    ai/ChatTracing.cpp ai/ChatTracing.h
-    ai/ChatSkillManager.cpp ai/ChatSkillManager.h
-    ai/ChatGuideMode.cpp ai/ChatGuideMode.h
-    ai/WebSearchProvider.h
-    ai/WebSearchProviders.cpp ai/WebSearchProviders.h
-    ai/WebSearchManager.cpp ai/WebSearchManager.h
-)
-
-# AI chat UI sources
-set(UI_CHAT_SOURCES
-    ui/chat/ChatWindow.cpp ui/chat/ChatWindow.h
-    ui/chat/ChatBubbleWidget.cpp ui/chat/ChatBubbleWidget.h
-    ui/chat/ChatInputWidget.cpp ui/chat/ChatInputWidget.h
-    ui/chat/ChatPlanCardWidget.cpp ui/chat/ChatPlanCardWidget.h
-    ui/chat/ChatSkillBar.cpp ui/chat/ChatSkillBar.h
-    ui/chat/ChatTraceDialog.cpp ui/chat/ChatTraceDialog.h
-    ui/chat/ChatSettingsPage.cpp ui/chat/ChatSettingsPage.h
-    ui/chat/QuickReplyWidget.h
-)
-
 # Log infrastructure
 set(LOG_SOURCES
     log/logcategoryregistry.cpp log/logcategoryregistry.h
@@ -369,9 +348,13 @@ set(AI_SOURCES
     ai/ChatTracing.cpp ai/ChatTracing.h
     ai/ChatSkillManager.cpp ai/ChatSkillManager.h
     ai/ChatGuideMode.cpp ai/ChatGuideMode.h
+    ai/ChatTaskScheduler.cpp ai/ChatTaskScheduler.h
+    ai/ChatSchedulerPersistence.cpp ai/ChatSchedulerPersistence.h
     ai/WebSearchProvider.h
     ai/WebSearchProviders.cpp ai/WebSearchProviders.h
     ai/WebSearchManager.cpp ai/WebSearchManager.h
+    ai/bios_focus_detector/bios_focus_detector.c
+    ai/bios_focus_detector/bios_focus_detector.h
 )
 
 # AI chat UI sources
@@ -384,6 +367,7 @@ set(UI_CHAT_SOURCES
     ui/chat/ChatEmptyStateWidget.cpp ui/chat/ChatEmptyStateWidget.h
     ui/chat/ChatTraceDialog.cpp ui/chat/ChatTraceDialog.h
     ui/chat/ChatSettingsPage.cpp ui/chat/ChatSettingsPage.h
+    ui/chat/ToolsSettingsPage.cpp ui/chat/ToolsSettingsPage.h
     ui/chat/QuickReplyWidget.h
 )
 
@@ -415,6 +399,7 @@ set(SOURCE_FILES
     ${UI_CORNERWIDGET_SOURCES}
     ${UI_WINDOWCONTROL_SOURCES}
     ${UI_TOOLBAR_SOURCES}
+    ${UI_VIRTUALKEYBOARD_SOURCES}
     ${UI_RECORDING_SOURCES}
     ${UI_PREFERENCES_SOURCES}
     ${UI_FLOATING_WINDOW_SOURCES}
