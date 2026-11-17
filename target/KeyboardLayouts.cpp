@@ -106,58 +106,73 @@ KeyboardLayoutConfig KeyboardLayoutConfig::fromJsonFile(const QString& filePath)
         }
     }
 
-    // Load char mapping
+    // Load char mapping. A value is either a key name ("Key_A"), a key name with
+    // modifier prefixes ("AltGr+Key_E"), or an array of those for dead key sequences
+    // (e.g. ["Key_Dead_Diaeresis", "Shift+Key_A"]).
     QJsonObject charMap = json["char_mapping"].toObject();
     qCDebug(log_keyboard_layouts) << "Loading" << charMap.size() << "character mappings";
-    
-    for (auto it = charMap.begin(); it != charMap.end(); ++it) {
-        QString charStr = it.key(); 
-        QChar character = charStr[0];
-        QString keyName = it.value().toString(); 
-        
-        // Special debug for | character
-        if (character.unicode() == 0x7C) {
-            qCWarning(log_keyboard_layouts) << "***** LOADING '|' CHARACTER *****";
-            qCWarning(log_keyboard_layouts) << "  charStr:" << charStr;
-            qCWarning(log_keyboard_layouts) << "  character:" << character;
-            qCWarning(log_keyboard_layouts) << "  character.unicode():" << QString::number(character.unicode(), 16);
-            qCWarning(log_keyboard_layouts) << "  keyName:" << keyName;
-        }
-        
-        qCDebug(log_keyboard_layouts) << "Processing char:" << charStr 
-                                      << "(U+" << QString::number(character.unicode(), 16) << ")"
-                                      << "mapped to" << keyName;
 
-        // Remove "Key_" prefix and get Qt key from keyNameToQt
-        if (keyName.startsWith("Key_")) {
-            keyName = keyName.mid(4); 
-        }
-        int qtKey = keyNameToQt.value(keyName, Qt::Key_unknown);
-        if (qtKey == Qt::Key_unknown) {
-            qCWarning(log_keyboard_layouts) << "Unknown key name in char_mapping:" << keyName << "for char:" << charStr;
+    for (auto it = charMap.begin(); it != charMap.end(); ++it) {
+        QString charStr = it.key();
+        if (charStr.size() != 1) {
+            qCWarning(log_keyboard_layouts) << "Ignoring char_mapping key that is not a single character:" << charStr;
             continue;
         }
+        QChar character = charStr[0];
+        qCDebug(log_keyboard_layouts) << "Processing char:" << charStr;
 
-        // Check if this unicode value already exists in charMapping
-        if (config.charMapping.contains(character.unicode())) {
-            qCWarning(log_keyboard_layouts) << "WARNING: Overwriting charMapping for character" 
-                                           << charStr << "(U+" << QString::number(character.unicode(), 16) << ")"
-                                           << "old Qt key: 0x" << QString::number(config.charMapping[character.unicode()], 16)
-                                           << "new Qt key: 0x" << QString::number(qtKey, 16);
+        auto parseStep = [&](const QString& rawKey, KeyboardInputStep& step) -> bool {
+            QString keyName = rawKey.trimmed();
+            int modifiers = 0;
+            while (true) {
+                if (keyName.startsWith("Shift+")) {
+                    modifiers |= Qt::ShiftModifier;
+                    keyName = keyName.mid(6);
+                } else if (keyName.startsWith("AltGr+")) {
+                    modifiers |= Qt::GroupSwitchModifier;
+                    keyName = keyName.mid(6);
+                } else {
+                    break;
+                }
+            }
+            if (keyName.startsWith("Key_")) {
+                keyName = keyName.mid(4);
+            }
+            int qtKey = keyNameToQt.value(keyName, Qt::Key_unknown);
+            if (qtKey == Qt::Key_unknown) {
+                qCWarning(log_keyboard_layouts) << "Unknown key name in char_mapping:" << rawKey << "for char:" << charStr;
+                return false;
+            }
+            step = {qtKey, modifiers};
+            return true;
+        };
+
+        QList<KeyboardInputStep> steps;
+        const QJsonValue value = it.value();
+        if (value.isArray()) {
+            const QJsonArray stepArray = value.toArray();
+            for (const QJsonValue& stepValue : stepArray) {
+                KeyboardInputStep step;
+                if (parseStep(stepValue.toString(), step)) {
+                    steps.append(step);
+                }
+            }
+        } else {
+            KeyboardInputStep step;
+            if (parseStep(value.toString(), step)) {
+                steps.append(step);
+            }
         }
 
-        config.charMapping[character.unicode()] = qtKey;
-        qCDebug(log_keyboard_layouts) << "Mapped char" << charStr 
-                                     << "(U+" << QString::number(character.unicode(), 16) << ")"
-                                     << "to QtKey 0x" << QString::number(qtKey, 16);
-        
-        // Special debug for | character
-        if (character.unicode() == 0x7C) {
-            qCWarning(log_keyboard_layouts) << "***** '|' CHARACTER MAPPED *****";
-            qCWarning(log_keyboard_layouts) << "  charMapping[0x7C] = Qt key 0x" << QString::number(qtKey, 16);
-            qCWarning(log_keyboard_layouts) << "  Now looking up HID for Qt key 0x" << QString::number(qtKey, 16);
-            uint8_t hid = config.keyMap.value(qtKey, 0);
-            qCWarning(log_keyboard_layouts) << "  Result: HID 0x" << QString::number(hid, 16);
+        if (steps.isEmpty()) {
+            continue;
+        }
+        if (steps.size() == 1 && steps.first().modifiers == 0) {
+            config.charMapping[character.unicode()] = steps.first().keyCode;
+            qCDebug(log_keyboard_layouts) << "Mapped char" << charStr << "to QtKey" << QString::number(steps.first().keyCode, 16);
+        } else {
+            config.charSequences[character.unicode()] = steps;
+            qCDebug(log_keyboard_layouts) << "Mapped char" << charStr << "to sequence of" << steps.size() << "step(s)";
         }
     }
 

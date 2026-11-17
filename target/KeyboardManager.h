@@ -89,7 +89,7 @@ public:
 private:
     QSet<unsigned int> currentMappedKeyCodes;
 
-    void handlePastingCharacters(const QString& text, const QMap<int, int>& charMapping);
+    void handlePastingCharacters(const QString& text);
     bool needShiftWhenPaste(const QChar character);
     bool needAltGrWhenPaste(const QChar character);
     

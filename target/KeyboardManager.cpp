@@ -751,16 +751,11 @@ void KeyboardManager::handlePasteChar(int key, int modifiers){
         uint32_t unicodeValue = key;
         mappedKey = currentLayout.unicodeMap.value(unicodeValue, 0);
     }
-    switch (modifiers){
-        case Qt::ShiftModifier:
-            control = 0x02;
-            break;
-        case Qt::GroupSwitchModifier:
-            control = 0x40;
-            break;
-        default:
-            control = 0x00;
-            break;
+    if (modifiers & Qt::ShiftModifier) {
+        control |= 0x02;
+    }
+    if (modifiers & Qt::GroupSwitchModifier) {
+        control |= 0x40;
     }
     keyData[5] = control;
     keyData[7] = mappedKey;
@@ -826,7 +821,7 @@ bool KeyboardManager::isLockKey(int keycode) {
     return keycode == Qt::Key_NumLock || keycode == Qt::Key_CapsLock || keycode == Qt::Key_ScrollLock;
 }
 
-void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<int, int>& charMapping) {
+void KeyboardManager::handlePastingCharacters(const QString& text) {
     qCDebug(log_host_kb_special) << "Handle pasting characters now:" << text.length() << "chars, text=\"" << text << "\"";
 
     // Use shared state + shared std::function so the recursive tick
@@ -835,12 +830,14 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<in
     struct PasteState {
         QString remaining;
         QMap<int, int> mapping;
+        QMap<int, QList<KeyboardInputStep>> sequences;
         int totalChars;
         int typedChars;
     };
     auto state = std::make_shared<PasteState>();
     state->remaining = text;
-    state->mapping = charMapping;
+    state->mapping = currentLayout.charMapping;
+    state->sequences = currentLayout.charSequences;
     state->totalChars = text.length();
     state->typedChars = 0;
 
@@ -863,18 +860,33 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<in
         for (int i = 0; i < batchSize && !state->remaining.isEmpty(); ++i) {
             QChar ch = state->remaining.at(0);
             int charString = ch.unicode();
-            int key = state->mapping.value(charString, 0);
+            const QList<KeyboardInputStep> steps = state->sequences.value(charString);
 
-            bool needShift = needShiftWhenPaste(ch);
-            bool needAltGr = needAltGrWhenPaste(ch);
+            if (!steps.isEmpty()) {
+                // Dead key sequence: each step is a separate press/release so
+                // the target OS composes the character (e.g. ¨ then Shift+A → Ä).
+                for (const KeyboardInputStep& step : steps) {
+                    handlePasteChar(step.keyCode, step.modifiers);
+                    QThread::msleep(GlobalSetting::instance().getChatTypingDelayMs());
+                    emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
+                }
+            } else {
+                int key = state->mapping.value(charString, 0);
+                if (key == 0) {
+                    qCDebug(log_host_kb_special) << "Skipping unmapped paste character:" << ch;
+                } else {
+                    bool needShift = needShiftWhenPaste(ch);
+                    bool needAltGr = needAltGrWhenPaste(ch);
 
-            int modifiers = 0;
-            if (needShift) modifiers |= Qt::ShiftModifier;
-            if (needAltGr) modifiers |= Qt::GroupSwitchModifier;
+                    int modifiers = 0;
+                    if (needShift) modifiers |= Qt::ShiftModifier;
+                    if (needAltGr) modifiers |= Qt::GroupSwitchModifier;
 
-            handlePasteChar(key, modifiers);
-            QThread::msleep(GlobalSetting::instance().getChatTypingDelayMs()); // delayBetweenChars
-            emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
+                    handlePasteChar(key, modifiers);
+                    QThread::msleep(GlobalSetting::instance().getChatTypingDelayMs()); // delayBetweenChars
+                    emit SerialPortManager::getInstance().sendCommandAsync(CMD_SEND_KB_GENERAL_DATA, false);
+                }
+            }
 
             state->typedChars++;
             state->remaining.remove(0, 1);
@@ -929,7 +941,7 @@ void KeyboardManager::handlePastingCharacters(const QString& text, const QMap<in
 }
 
 void KeyboardManager::pasteTextToTarget(const QString &text) {
-    handlePastingCharacters(text, currentLayout.charMapping);
+    handlePastingCharacters(text);
 }
 
 bool KeyboardManager::needShiftWhenPaste(const QChar character) {
