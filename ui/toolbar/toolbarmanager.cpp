@@ -12,6 +12,7 @@
 #include <QTimer>
 #include <QPropertyAnimation>
 #include <QSettings>
+#include <QSignalBlocker>
 
 OPF_LOGGING_CATEGORY(log_toolbar_keyboard, "opf.ui.keyboard")
 
@@ -79,6 +80,8 @@ void ToolbarManager::setupToolbar()
 
     // Add keyboard layout selector
     m_layoutComboBox = new QComboBox(toolbar);
+    // Never take keyboard focus: keys typed after picking a layout must keep going to the VideoPane.
+    m_layoutComboBox->setFocusPolicy(Qt::NoFocus);
     m_layoutComboBox->setToolTip(tr("Select Keyboard Layout"));
     m_layoutComboBox->setStyleSheet(
         "QComboBox { "
@@ -100,6 +103,7 @@ void ToolbarManager::setupToolbar()
 
     // Repeating keystroke combo box
     QComboBox *repeatingKeystrokeComboBox = new QComboBox(toolbar);
+    repeatingKeystrokeComboBox->setFocusPolicy(Qt::NoFocus);
     repeatingKeystrokeComboBox->setStyleSheet(
         "QComboBox { "
         "   border: 1px solid palette(mid); "
@@ -364,6 +368,10 @@ void ToolbarManager::populateLayoutSelector()
 
     // Get available layouts from KeyboardLayoutManager
     QStringList layouts = KeyboardLayoutManager::getInstance().getAvailableLayouts();
+
+    // Block signals while populating: adding the first item makes it current and
+    // would fire onLayoutChanged, overwriting the saved layout with the first entry.
+    const QSignalBlocker blocker(m_layoutComboBox);
 
     // Clear existing items
     m_layoutComboBox->clear();

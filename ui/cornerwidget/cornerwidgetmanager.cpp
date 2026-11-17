@@ -6,6 +6,7 @@
 #include <QPainter>
 #include <QFile>
 #include <QPalette>
+#include <QSignalBlocker>
 
 CornerWidgetManager::CornerWidgetManager(QWidget *parent)
     : QObject(parent),
@@ -67,6 +68,8 @@ void CornerWidgetManager::setMenuBar(QMenuBar *menuBar)
 void CornerWidgetManager::createWidgets()
 {
     keyboardLayoutComboBox = new QComboBox(cornerWidget);
+    // Never take keyboard focus: keys typed after picking a layout must keep going to the VideoPane.
+    keyboardLayoutComboBox->setFocusPolicy(Qt::NoFocus);
     keyboardLayoutComboBox->setObjectName("keyboardLayoutComboBox");
     keyboardLayoutComboBox->setFixedHeight(30);
     keyboardLayoutComboBox->setMinimumWidth(100);
@@ -238,6 +241,9 @@ bool CornerWidgetManager::eventFilter(QObject *obj, QEvent *event)
 
 void CornerWidgetManager::initializeKeyboardLayouts(const QStringList &layouts, const QString &defaultLayout)
 {
+    // Block signals while populating so the first item doesn't get persisted as
+    // the layout; MainWindow::initializeKeyboardLayouts applies the layout itself.
+    const QSignalBlocker blocker(keyboardLayoutComboBox);
     keyboardLayoutComboBox->clear();
     keyboardLayoutComboBox->addItems(layouts);
     if (layouts.contains(defaultLayout)) {
@@ -245,6 +251,13 @@ void CornerWidgetManager::initializeKeyboardLayouts(const QStringList &layouts, 
     } else if (!layouts.isEmpty()) {
         keyboardLayoutComboBox->setCurrentText(layouts.first());
     }
+}
+
+void CornerWidgetManager::setCurrentKeyboardLayout(const QString &layout)
+{
+    // Sync selection only; the caller has already applied the layout.
+    const QSignalBlocker blocker(keyboardLayoutComboBox);
+    keyboardLayoutComboBox->setCurrentText(layout);
 }
 
 void CornerWidgetManager::restoreMuteState(bool muted)
