@@ -230,6 +230,22 @@ DeviceManager::DeviceSwitchResult DeviceCoordinator::selectDevice(const QString 
         return result;
     }
 
+    // The switch stops and restarts serial, HID and camera and is not re-entrant.
+    // A second selection while this one is still running double-starts the camera,
+    // which used to deadlock the GUI thread.
+    if (m_switchInProgress) {
+        qCWarning(log_ui_devicecoordinator) << "Device switch already in progress, ignoring re-entrant selection:"
+                                            << portChain;
+        result.statusMessage = "Device switch already in progress";
+        return result;
+    }
+    m_switchInProgress = true;
+    struct SwitchGuard {
+        bool &flag;
+        explicit SwitchGuard(bool &f) : flag(f) {}
+        ~SwitchGuard() { flag = false; }
+    } switchGuard(m_switchInProgress);
+
     // HOTPLUG FIX: Clear any stale m_openInProgress lock before the legacy switch.
     // Without this, if DeviceLifecycleManager has a concurrent operation (e.g., a hotplug
     // reconnect in progress), switchSerialPortByPortChain rejects the menu's switch with

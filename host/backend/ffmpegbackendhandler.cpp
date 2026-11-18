@@ -356,6 +356,16 @@ void FFmpegBackendHandler::startCamera()
     // Skip availability check - just try to open the device directly
     // The checkCameraAvailable() opens the device which can interfere with immediate reopening
     // We'll rely on startDirectCapture() to handle device availability
+
+    // Duplicate start requests arrive from the lifecycle/hotplug and menu paths.
+    // Restarting an already running capture means close/open on a device that is
+    // still streaming, which can leave the camera dead until the USB unit is
+    // replugged. A running capture already satisfies the request.
+    if (m_captureRunning) {
+        qCDebug(log_ffmpeg_backend) << "FFmpeg capture already running, ignoring duplicate start";
+        emit deviceActivated(m_currentDevice);
+        return;
+    }
     
     // Use direct FFmpeg capture
     qCDebug(log_ffmpeg_backend) << "FFmpeg: Using direct capture";
@@ -485,11 +495,24 @@ bool FFmpegBackendHandler::getMaxCameraCapability(const QString& devicePath, Cam
 
 bool FFmpegBackendHandler::startDirectCapture(const QString& devicePath, const QSize& resolution, int framerate)
 {
-    QMutexLocker locker(&m_mutex);
-    
-    if (m_captureRunning) {
+    // stopDirectCapture() takes m_mutex itself. Calling it while holding the lock
+    // below would self-deadlock the caller (normally the GUI thread) and freeze the
+    // whole application, so stop any previous capture before taking the lock.
+    bool wasRunning = false;
+    {
+        QMutexLocker locker(&m_mutex);
+        wasRunning = m_captureRunning;
+    }
+    if (wasRunning) {
         qCDebug(log_ffmpeg_backend) << "Capture already running, stopping first";
         stopDirectCapture();
+    }
+
+    QMutexLocker locker(&m_mutex);
+
+    if (m_captureRunning) {
+        qCWarning(log_ffmpeg_backend) << "Capture still running after stop, aborting start";
+        return false;
     }
     
     // Set current device

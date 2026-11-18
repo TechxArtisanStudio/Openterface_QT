@@ -534,6 +534,16 @@ void GStreamerBackendHandler::startCamera()
     qCDebug(log_gstreamer_backend) << "Current resolution:" << m_currentResolution;
     qCDebug(log_gstreamer_backend) << "Current framerate:" << m_currentFramerate;
 
+    // Duplicate start requests arrive from the lifecycle/hotplug and menu paths.
+    // Rebuilding the pipeline while it is already streaming races with the V4L2
+    // node release of the previous instance; when the rebuild fails the video
+    // stays black until the USB unit is replugged. A running pipeline already
+    // satisfies the request.
+    if (m_pipelineRunning) {
+        qCDebug(log_gstreamer_backend) << "GStreamer pipeline already running, ignoring duplicate start";
+        return;
+    }
+
     // Prefer direct pipeline when we have a configured device
     if (!m_currentDevicePath.isEmpty()) {
 #else

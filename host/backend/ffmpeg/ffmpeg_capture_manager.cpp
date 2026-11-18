@@ -70,11 +70,23 @@ FFmpegCaptureManager::~FFmpegCaptureManager()
 
 bool FFmpegCaptureManager::StartCapture(const QString& devicePath, const QSize& resolution, int framerate)
 {
-    QMutexLocker locker(&mutex_);
-    
-    if (capture_running_) {
+    // StopCapture() locks mutex_ itself; calling it while holding the lock below
+    // would self-deadlock. Release the lock, stop any previous capture, then start.
+    bool wasRunning = false;
+    {
+        QMutexLocker locker(&mutex_);
+        wasRunning = capture_running_;
+    }
+    if (wasRunning) {
         qCDebug(log_ffmpeg_backend) << "Capture already running, stopping first";
         StopCapture();
+    }
+
+    QMutexLocker locker(&mutex_);
+
+    if (capture_running_) {
+        qCWarning(log_ffmpeg_backend) << "Capture still marked running after stop, refusing to start again";
+        return false;
     }
 
     // Cleanup any residual resources

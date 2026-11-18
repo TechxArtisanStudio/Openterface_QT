@@ -168,6 +168,7 @@ private:
     CameraManager *m_cameraManager;         ///< Pointer to camera manager (not owned)
     QActionGroup *m_deviceMenuGroup;        ///< Action group for exclusive device selection
     bool m_deviceAutoSelected;              ///< Flag to prevent multiple auto-selections
+    bool m_switchInProgress = false;        ///< Guard against re-entrant switches from nested event loops
     
     // No VID/PID or device-type detection here; display only formatted port chains
 };
