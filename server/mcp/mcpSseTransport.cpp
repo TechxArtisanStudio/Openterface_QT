@@ -411,11 +411,12 @@ void McpSseTransport::handleSseRequest(QTcpSocket* socket)
     // removes this very session. Keep only the id across the call and look
     // the session up again afterwards.
     const QString sessionId = session->id;
-    QJsonObject endpointData;
-    endpointData["endpoint"] = QString("%1?sessionId=%2")
-                                   .arg(QLatin1String(MCP_SSE_PATH_MESSAGES))
-                                   .arg(sessionId);
-    sendSseEvent(session, QStringLiteral("endpoint"), endpointData);
+    // Per the MCP SSE spec (2024-11-05) the endpoint event's data is the URI
+    // itself, not a JSON object.
+    const QByteArray endpointUri = QStringLiteral("%1?sessionId=%2")
+                                       .arg(QLatin1String(MCP_SSE_PATH_MESSAGES), sessionId)
+                                       .toUtf8();
+    sendSseEventRaw(session, QStringLiteral("endpoint"), endpointUri);
     session = nullptr;
     if (!m_sessions.contains(sessionId)) {
         qCInfo(log_server_mcp_sse) << "SSE client went away while the session was being created:" << sessionId;
@@ -638,14 +639,23 @@ void McpSseTransport::sendSseEvent(Session* session,
     //   event: <eventType>\n
     //   data: <json>\n
     //   \n
-    QByteArray json = McpProtocol::serialize(data);
+    sendSseEventRaw(session, eventType, McpProtocol::serialize(data));
+}
+
+void McpSseTransport::sendSseEventRaw(Session* session,
+                                      const QString& eventType,
+                                      const QByteArray& payload)
+{
+    if (!session || !session->socket) return;
+    if (session->socket->state() != QAbstractSocket::ConnectedState) return;
+
     QByteArray frame;
-    frame.reserve(eventType.size() + json.size() + 32);
+    frame.reserve(eventType.size() + payload.size() + 32);
     frame.append("event: ");
     frame.append(eventType.toUtf8());
     frame.append('\n');
     frame.append("data: ");
-    frame.append(json);
+    frame.append(payload);
     frame.append('\n');
     frame.append('\n');
 
