@@ -40,6 +40,20 @@
 #include <QCoreApplication>
 #include <QDebug>
 
+namespace {
+
+QString chipDisplayName(VideoChipType type)
+{
+    switch (type) {
+    case VideoChipType::MS2109:  return QStringLiteral("MS2109");
+    case VideoChipType::MS2109S: return QStringLiteral("MS2109S");
+    case VideoChipType::MS2130S: return QStringLiteral("MS2130S");
+    default:                     return QString();
+    }
+}
+
+} // namespace
+
 FirmwarePage::FirmwarePage(QWidget *parent)
     : QWidget(parent)
     , currentOperation(None)
@@ -109,6 +123,10 @@ void FirmwarePage::setupUI()
     titleLabel->setFont(titleFont);
     mainLayout->addWidget(titleLabel);
 
+    // Current chip display (above the firmware version)
+    chipLabel = new QLabel(tr("Current Chip: Detecting..."), this);
+    mainLayout->addWidget(chipLabel);
+
     // Current version display
     versionLabel = new QLabel(this);
     mainLayout->addWidget(versionLabel);
@@ -173,6 +191,12 @@ void FirmwarePage::updateVersionDisplay()
     // Show "Loading..." while reading firmware version from device
     versionLabel->setText(tr("Current Firmware Version: Loading..."));
 
+    // The chip type may already be known from earlier HID traffic; if not,
+    // the version read below triggers chip detection.
+    const QString chip = chipDisplayName(VideoHid::getInstance().getChipType());
+    chipLabel->setText(chip.isEmpty() ? tr("Current Chip: Detecting...")
+                                      : tr("Current Chip: ") + chip);
+
     // Run the synchronous USB HID read in a background thread so the GUI
     // is never blocked by USB timeouts. Pattern mirrors fetchLatestVersionAsync().
     // Don't start a new read if one is already in progress.
@@ -204,6 +228,10 @@ void FirmwarePage::updateVersionDisplay()
 void FirmwarePage::onVersionFetched(const QString &version)
 {
     versionLabel->setText(tr("Current Firmware Version: ") + version);
+
+    const QString chip = chipDisplayName(VideoHid::getInstance().getChipType());
+    chipLabel->setText(chip.isEmpty() ? tr("Current Chip: Unknown")
+                                      : tr("Current Chip: ") + chip);
 }
 
 void FirmwarePage::fetchLatestVersionAsync()

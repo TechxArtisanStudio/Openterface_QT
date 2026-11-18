@@ -58,6 +58,7 @@ private:
     enum OperationType { None, Update, Backup, Write };
 
     // UI components
+    QLabel *chipLabel;
     QLabel *versionLabel;
     QLabel *latestVersionLabel;
     QPushButton *updateButton;
