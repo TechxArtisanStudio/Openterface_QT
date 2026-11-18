@@ -23,6 +23,7 @@ public:
     void setMenuBar(QMenuBar *menuBar);
     void updatePosition(int windowWidth, int menuBarHeight, bool isFullScreen);
     void initializeKeyboardLayouts(const QStringList &layouts, const QString &defaultLayout);
+    void setCurrentKeyboardLayout(const QString &layout);
     void restoreMuteState(bool muted);
     void updateUSBStatus(bool isToTarget);
     void updateRecordingState(bool recording);

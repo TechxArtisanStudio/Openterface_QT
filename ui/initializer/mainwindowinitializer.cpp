@@ -486,6 +486,12 @@ void MainWindowInitializer::setupToolbar()
     // Connect layout changes to update virtual keyboard
     connect(m_toolbarManager, &ToolbarManager::layoutChanged, m_mainWindow, [this](const QString& layoutName) {
         qCInfo(log_ui_mainwindowinitializer) << "Toolbar layout changed to:" << layoutName;
+        // Apply to the physical keyboard path (HostManager) and keep the corner combo in sync;
+        // previously only the virtual keyboard picked up toolbar layout changes.
+        m_mainWindow->changeKeyboardLayout(layoutName);
+        if (m_cornerWidgetManager) {
+            m_cornerWidgetManager->setCurrentKeyboardLayout(layoutName);
+        }
         if (m_virtualKeyboardDialog) {
             qCInfo(log_ui_mainwindowinitializer) << "Recreating virtual keyboard dialog with layout:" << layoutName;
 
