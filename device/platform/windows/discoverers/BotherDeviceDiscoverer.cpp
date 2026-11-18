@@ -214,11 +214,11 @@ void BotherDeviceDiscoverer::findSerialPortFromSiblings(DeviceInfo& deviceInfo, 
             siblingHardwareId.toUpper().contains(SERIAL_PID.toUpper())) {
             
             qCDebug(log_device_discoverer) << "  ✓ Found serial port sibling:" << siblingDeviceId;
-            
+
             deviceInfo.serialPortId = siblingDeviceId;
-            // Set port chain path as per original logic - use the integrated device's port chain
-            deviceInfo.serialPortPath = integratedDevice.portChain;  
-            
+            // Don't set serialPortPath here - it will be resolved in matchDevicePathsToRealPaths
+            // deviceInfo.serialPortPath will be set to the actual COM port name (e.g., "COM18")
+
             qCDebug(log_device_discoverer) << "    Serial device ID:" << siblingDeviceId;
             qCDebug(log_device_discoverer) << "    Device location:" << integratedDevice.portChain;
             break;
@@ -243,9 +243,11 @@ void BotherDeviceDiscoverer::processGeneration2AsGeneration1(DeviceInfo& deviceI
     if (deviceInfo.portChain.isEmpty()) {
         deviceInfo.portChain = gen2Device.portChain;
     }
-    deviceInfo.serialPortPath = deviceInfo.portChain;
+    // serialPortPath will be resolved in matchDevicePathsToRealPaths
+    // Don't set it to portChain here
 
-    qCDebug(log_device_discoverer) << "  Serial assigned to integrated device location:" << deviceInfo.serialPortPath;
+    qCDebug(log_device_discoverer) << "  Serial device ID:" << deviceInfo.serialPortId;
+    qCDebug(log_device_discoverer) << "  Port chain:" << deviceInfo.portChain;
 }
 
 void BotherDeviceDiscoverer::findIntegratedDeviceFromSiblings(DeviceInfo& deviceInfo, const USBDeviceData& serialDevice)
@@ -339,7 +341,7 @@ void BotherDeviceDiscoverer::findIntegratedDeviceFromSiblings(DeviceInfo& device
 
                 // After the composite device is processed, attach the serial port (bother device)
                 deviceInfo.serialPortId = serialDevice.deviceInstanceId;
-                deviceInfo.serialPortPath = deviceInfo.portChain;
+                // serialPortPath will be resolved in matchDevicePathsToRealPaths (called after this)
                 qCDebug(log_device_discoverer) << "    Attached Gen2 serial port" << deviceInfo.serialPortId << "to composite portChain" << deviceInfo.portChain;
             } else {
                 qCWarning(log_device_discoverer) << "  ⚠ Could not get device instance for integrated device sibling";

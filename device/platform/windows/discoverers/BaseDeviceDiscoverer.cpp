@@ -178,12 +178,51 @@ void BaseDeviceDiscoverer::matchDevicePathsToRealPaths(DeviceInfo& deviceInfo)
         qCDebug(log_device_discoverer) << "  ✓ Audio path:" << deviceInfo.audioDevicePath;
     }
     
-    // Handle serial port separately
+    // Handle serial port separately - need to find COM port by looking at children of serial device
     if (!deviceInfo.serialPortId.isEmpty()) {
-        QString comPortPath = findComPortByDeviceId(deviceInfo.serialPortId);
-        if (!comPortPath.isEmpty()) {
-            deviceInfo.serialPortPath = comPortPath;
-            qCDebug(log_device_discoverer) << "  ✓ Serial port:" << deviceInfo.serialPortPath;
+        qCDebug(log_device_discoverer) << "  Looking for COM port for serial device:" << deviceInfo.serialPortId;
+
+        // Get the serial port device instance
+        DWORD serialDevInst = getDeviceInstanceFromId(deviceInfo.serialPortId);
+        if (serialDevInst != 0) {
+            // Get all child devices of the serial port device
+            QVector<QVariantMap> children = getAllChildDevices(serialDevInst);
+            qCDebug(log_device_discoverer) << "    Found" << children.size() << "children under serial device";
+
+            // Look for COM port in children
+            for (const QVariantMap& child : children) {
+                QString childDeviceId = child.value("deviceId").toString();
+                QString childClass = child.value("className").toString();
+                qCDebug(log_device_discoverer) << "      Checking child:" << childDeviceId << "class:" << childClass;
+
+                // Try to find COM port for this child device
+                QString comPort = findComPortByDeviceId(childDeviceId);
+                if (!comPort.isEmpty()) {
+                    deviceInfo.serialPortPath = comPort;
+                    qCDebug(log_device_discoverer) << "    ✓ Found COM port:" << comPort;
+                    break;
+                }
+            }
+
+            // If not found in children, try the serial device itself
+            if (deviceInfo.serialPortPath.isEmpty()) {
+                QString comPort = findComPortByDeviceId(deviceInfo.serialPortId);
+                if (!comPort.isEmpty()) {
+                    deviceInfo.serialPortPath = comPort;
+                    qCDebug(log_device_discoverer) << "    ✓ Found COM port (direct):" << comPort;
+                }
+            }
+        } else {
+            qCWarning(log_device_discoverer) << "    Could not get device instance for serial port";
+        }
+
+        // Fallback: try to find by port chain
+        if (deviceInfo.serialPortPath.isEmpty() && !deviceInfo.portChain.isEmpty()) {
+            QString comPort = findComPortByPortChain(deviceInfo.portChain);
+            if (!comPort.isEmpty()) {
+                deviceInfo.serialPortPath = comPort;
+                qCDebug(log_device_discoverer) << "    ✓ Found COM port (by port chain):" << comPort;
+            }
         }
     }
     
