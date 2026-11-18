@@ -38,14 +38,26 @@ float VideoHid::getFps() {
  * true means switchable usb connects to the target,
  * false means switchable usb connects to the host
  */
-bool VideoHid::getGpio0() {
+bool VideoHid::readGpio0(bool &isOnTarget) {
     // Read the actual GPIO0 register to detect physical switch position
     // bit0: 1 = switchable USB connects to target, 0 = connects to host
     quint16 gpio0_addr = m_chipImpl ? m_chipImpl->addrGpio0() : ADDR_GPIO0;
-    quint8 gpio0 = readRegisterSafe(gpio0_addr, 0, "gpio0");
-    bool isOnTarget = (gpio0 & 0x01) != 0;
+    auto result = usbXdataRead4Byte(gpio0_addr);
+    if (!result.second || result.first.isEmpty()) {
+        qCWarning(log_hid_poll) << "getGpio0: read FAILED from address:"
+                                << QString("0x%1").arg(gpio0_addr, 4, 16, QChar('0'));
+        return false;
+    }
+    quint8 gpio0 = static_cast<quint8>(result.first.at(0));
+    isOnTarget = (gpio0 & 0x01) != 0;
     qCDebug(log_hid_poll) << "getGpio0: register=0x" << QString::number(gpio0, 16)
                           << "isOnTarget=" << isOnTarget;
+    return true;
+}
+
+bool VideoHid::getGpio0() {
+    bool isOnTarget = false;
+    readGpio0(isOnTarget);
     return isOnTarget;
 }
 

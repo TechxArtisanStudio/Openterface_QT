@@ -273,24 +273,28 @@ void VideoHid::start() {
     qCDebug(log_hid_poll) << "Brief device stabilization (50ms) before starting polling thread...";
     QThread::msleep(50);
 
-    // CRITICAL: Sync software state with physical hardware switch at startup
-    // Read actual GPIO0 (physical switch position) and sync SPDIFOUT to match it
-    // This ensures software and hardware are consistent from the start
-    bool physicalSwitchOnTarget = getGpio0();
-    qCInfo(log_hid_device) << "Startup sync: physical switch (GPIO0) is on"
-                           << (physicalSwitchOnTarget ? "target" : "host")
-                           << "- syncing SPDIFOUT to match";
+    // Sync software state with physical hardware switch at startup. Only do
+    // this when the register read actually succeeded - a failed read looks
+    // like "switch on host" and would otherwise force the mux to host.
+    bool physicalSwitchOnTarget = false;
+    if (readGpio0(physicalSwitchOnTarget)) {
+        qCInfo(log_hid_device) << "Startup sync: physical switch (GPIO0) is on"
+                               << (physicalSwitchOnTarget ? "target" : "host")
+                               << "- syncing SPDIFOUT to match";
 
-    // Initialize tracking variable to actual hardware state
-    isHardSwitchOnTarget = physicalSwitchOnTarget;
+        // Initialize tracking variable to actual hardware state
+        isHardSwitchOnTarget = physicalSwitchOnTarget;
 
-    // Sync SPDIFOUT register to match physical switch position
-    // This ensures USB is routed to the correct side as indicated by the physical switch
-    setSpdifout(physicalSwitchOnTarget);
+        // Sync SPDIFOUT register to match physical switch position
+        // This ensures USB is routed to the correct side as indicated by the physical switch
+        setSpdifout(physicalSwitchOnTarget);
 
-    // Emit signal to update UI toggle switch to match physical switch
-    if (eventCallback) {
-        emit gpio0StatusChanged(physicalSwitchOnTarget);
+        // Emit signal to update UI toggle switch to match physical switch
+        if (eventCallback) {
+            emit gpio0StatusChanged(physicalSwitchOnTarget);
+        }
+    } else {
+        qCWarning(log_hid_device) << "Startup sync skipped: GPIO0 read failed, leaving SPDIFOUT untouched";
     }
 
     // Log the detected chip type
@@ -366,25 +370,39 @@ void VideoHid::pollDeviceStatus() {
 
     // Device is already open - no need for beginTransaction/endTransaction
     try {
-        // Read current physical switch position from GPIO0 register
-        bool currentSwitchOnTarget = getGpio0();
+        // Read current physical switch position from GPIO0 register. A failed
+        // read must not be taken as "switch is on host": readRegisterSafe()
+        // used to return 0 on failure, so one glitchy read right after a
+        // software switch was written back as a host switch.
+        bool currentSwitchOnTarget = false;
+        const bool gpio0Valid = readGpio0(currentSwitchOnTarget);
 
         // Check if physical switch position has changed
-        if (currentSwitchOnTarget != isHardSwitchOnTarget) {
-            qCInfo(log_hid_device) << "Physical switch detected: changed from"
-                                   << (isHardSwitchOnTarget ? "target" : "host")
-                                   << "to" << (currentSwitchOnTarget ? "target" : "host")
-                                   << "- syncing SPDIFOUT register";
+        if (gpio0Valid && currentSwitchOnTarget != isHardSwitchOnTarget) {
+            // Confirm the change before acting on it. The GPIO0 read is
+            // unreliable on the first hardware revisions; acting on a single
+            // sample makes the mux flip back a second after a software switch.
+            QThread::msleep(150);
+            bool confirmOnTarget = false;
+            if (!readGpio0(confirmOnTarget) || confirmOnTarget != currentSwitchOnTarget) {
+                qCDebug(log_hid_poll) << "GPIO0 reported" << (currentSwitchOnTarget ? "target" : "host")
+                                      << "once, ignoring (unstable reading)";
+            } else {
+                qCInfo(log_hid_device) << "Physical switch detected: changed from"
+                                       << (isHardSwitchOnTarget ? "target" : "host")
+                                       << "to" << (currentSwitchOnTarget ? "target" : "host")
+                                       << "- syncing SPDIFOUT register";
 
-            // Sync the SPDIFOUT register to match the physical switch position
-            handleSpdifToggle(currentSwitchOnTarget);
+                // Sync the SPDIFOUT register to match the physical switch position
+                handleSpdifToggle(currentSwitchOnTarget);
 
-            // Update our tracking of the last known physical switch state
-            isHardSwitchOnTarget = currentSwitchOnTarget;
+                // Update our tracking of the last known physical switch state
+                isHardSwitchOnTarget = currentSwitchOnTarget;
 
-            // Emit signal to update UI toggle switch
-            if (eventCallback) {
-                emit gpio0StatusChanged(currentSwitchOnTarget);
+                // Emit signal to update UI toggle switch
+                if (eventCallback) {
+                    emit gpio0StatusChanged(currentSwitchOnTarget);
+                }
             }
         }
 

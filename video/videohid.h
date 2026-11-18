@@ -234,6 +234,12 @@ private:
     // Normalize resolution based on chip specifics and pixel clock
     void normalizeResolution(VideoHidResolutionInfo &info);
 
+    // Reads the hard-switch register. Returns false when the register could not
+    // be read; isOnTarget is only meaningful then. Callers must not treat a
+    // failed read as "hard switch on host" - readRegisterSafe() reports 0 for
+    // failures, and acting on that silently resets a software switch.
+    bool readGpio0(bool &isOnTarget);
+
     // Safe single-byte register reader
     quint8 readRegisterSafe(quint16 addr, quint8 defaultValue = 0, const QString& tag = QString());
 
