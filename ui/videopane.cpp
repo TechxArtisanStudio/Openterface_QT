@@ -752,38 +752,87 @@ void VideoPane::updateScrollBarsAndSceneRect()
     }
 }
 
+namespace {
+
+// Picture area inside a display rectangle for content scaled with aspect ratio
+// preserved and centered (what GStreamer's videoscale does with the default
+// add-borders=true).
+QRectF aspectFitRect(const QRectF& displayRect, const QSize& videoSize)
+{
+    if (displayRect.isEmpty() || videoSize.width() <= 0 || videoSize.height() <= 0) {
+        return displayRect;
+    }
+
+    const double displayAspect = displayRect.width() / displayRect.height();
+    const double videoAspect = static_cast<double>(videoSize.width()) / videoSize.height();
+
+    if (qAbs(videoAspect - displayAspect) < 0.001) {
+        return displayRect;
+    }
+
+    if (videoAspect > displayAspect) {
+        // Video is wider than the display: bars above and below.
+        const double height = displayRect.width() / videoAspect;
+        return QRectF(displayRect.left(),
+                      displayRect.top() + (displayRect.height() - height) / 2.0,
+                      displayRect.width(), height);
+    }
+
+    // Video is narrower than the display: bars on the left and right.
+    const double width = displayRect.height() * videoAspect;
+    return QRectF(displayRect.left() + (displayRect.width() - width) / 2.0,
+                  displayRect.top(), width, displayRect.height());
+}
+
+} // namespace
+
 QRectF VideoPane::getGStreamerVideoContentRect() const
 {
     if (m_directGStreamerMode && m_overlayWidget && viewport()) {
-        // In direct GStreamer mode, mouse coordinates should map to the active
-        // visible overlay region, not the full widget geometry if part of the
-        // overlay is clipped by the screen or the parent window.
-        QRect overlayGeometry = m_overlayWidget->geometry();
+        // Full area covered by the overlay, in viewport coordinates.
+        const QRectF displayRect(QPointF(m_overlayWidget->mapTo(viewport(), QPoint(0, 0))),
+                                 QSizeF(m_overlayWidget->size()));
+
+        // In direct GStreamer mode, mouse coordinates should map to the part of
+        // the overlay that is actually on screen, not the full widget geometry
+        // if part of the overlay is clipped by the screen or the parent window.
+        QRectF visibleRect = displayRect;
+
         QRect visibleLocal = m_overlayWidget->visibleRegion().boundingRect();
-
         if (visibleLocal.isValid() && visibleLocal.size() != m_overlayWidget->size()) {
-            QPoint viewportTopLeft = m_overlayWidget->mapTo(viewport(), visibleLocal.topLeft());
-            return QRectF(viewportTopLeft, visibleLocal.size());
-        }
+            visibleRect = QRectF(QPointF(m_overlayWidget->mapTo(viewport(), visibleLocal.topLeft())),
+                                 QSizeF(visibleLocal.size()));
+        } else {
+            QRect globalOverlayRect(m_overlayWidget->mapToGlobal(QPoint(0, 0)), m_overlayWidget->size());
+            QScreen *screen = nullptr;
+            if (QWindow *topWindow = window() ? window()->windowHandle() : nullptr) {
+                screen = topWindow->screen();
+            }
+            if (!screen) {
+                screen = QGuiApplication::primaryScreen();
+            }
 
-        QRect globalOverlayRect(m_overlayWidget->mapToGlobal(QPoint(0, 0)), m_overlayWidget->size());
-        QScreen *screen = nullptr;
-        if (QWindow *topWindow = window() ? window()->windowHandle() : nullptr) {
-            screen = topWindow->screen();
-        }
-        if (!screen) {
-            screen = QGuiApplication::primaryScreen();
-        }
-
-        if (screen) {
-            QRect visibleGlobal = globalOverlayRect.intersected(screen->availableGeometry());
-            if (visibleGlobal.isValid() && visibleGlobal.size() != globalOverlayRect.size()) {
-                QPoint viewportTopLeft = viewport()->mapFromGlobal(visibleGlobal.topLeft());
-                return QRectF(viewportTopLeft, visibleGlobal.size());
+            if (screen) {
+                QRect visibleGlobal = globalOverlayRect.intersected(screen->availableGeometry());
+                if (visibleGlobal.isValid() && visibleGlobal.size() != globalOverlayRect.size()) {
+                    visibleRect = QRectF(QPointF(viewport()->mapFromGlobal(visibleGlobal.topLeft())),
+                                         QSizeF(visibleGlobal.size()));
+                }
             }
         }
 
-        return QRectF(overlayGeometry);
+        // The pipeline letterboxes/pillarboxes the camera picture inside the
+        // overlay whenever the camera aspect ratio differs from the overlay
+        // aspect ratio (typical in fullscreen). Those black bars are not part
+        // of the target desktop, so normalize mouse positions against the
+        // picture area only.
+        QSize videoSize = m_originalVideoSize;
+        if (videoSize.isEmpty()) {
+            videoSize = QSize(GlobalVar::instance().getCaptureWidth(),
+                              GlobalVar::instance().getCaptureHeight());
+        }
+
+        return aspectFitRect(displayRect, videoSize).intersected(visibleRect);
     }
 
     if (viewport()) {
