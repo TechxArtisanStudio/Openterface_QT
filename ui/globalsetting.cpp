@@ -359,7 +359,14 @@ void GlobalSetting::setHardwareAcceleration(const QString &hwAccel) {
 }
 
 QString GlobalSetting::getHardwareAcceleration() const {
-    return m_settings.value("video/hardwareAcceleration", "CPU").toString();
+    // "none" is the value the FFmpeg backend and the preferences page use for
+    // CPU decoding. Older defaults and the Media Foundation backend use
+    // "CPU"/"cpu", which the FFmpeg backend would otherwise treat as "auto".
+    const QString hwAccel = m_settings.value("video/hardwareAcceleration", "none").toString();
+    if (hwAccel.compare("cpu", Qt::CaseInsensitive) == 0) {
+        return QStringLiteral("none");
+    }
+    return hwAccel;
 }
 
 void GlobalSetting::setScalingQuality(const QString &quality) {
