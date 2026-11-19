@@ -24,6 +24,21 @@ QVector<DeviceInfo> Generation3Discoverer::discoverDevices()
         OPENTERFACE_PID_V2
     );
     qCDebug(log_device_discoverer) << "Found" << integratedDevices.size() << "integrated devices (345F:2132)";
+
+    // Pre-fetch the other lists so the lone-unit fallback can judge the whole
+    // system: a composite device may enumerate on the USB3 root hub while its
+    // serial companion enumerates on a separate USB2 root hub, which defeats
+    // every topology heuristic below.
+    QVector<USBDeviceData> v3IntegratedDevices = findUSBDevicesWithVidPid(
+        OPENTERFACE_VID_V3,
+        OPENTERFACE_PID_V3
+    );
+    QVector<USBDeviceData> gen2SerialDevices = findUSBDevicesWithVidPid(
+        SERIAL_VID_V2,
+        SERIAL_PID_V2
+    );
+    const bool loneUnitInSystem = (integratedDevices.size() + v3IntegratedDevices.size()) == 1;
+    QSet<QString> pairedSerialIds;
     
     for (int i = 0; i < integratedDevices.size(); ++i) {
         const USBDeviceData& integratedDevice = integratedDevices[i];
@@ -32,9 +47,19 @@ QVector<DeviceInfo> Generation3Discoverer::discoverDevices()
         
         // Find associated serial port through CompanionPortChain
         QString associatedSerialPortId = findSerialPortByIntegratedDevice(integratedDevice);
+        if (associatedSerialPortId.isEmpty() && loneUnitInSystem) {
+            QString loneSerialId = findUnpairedLoneSerial(gen2SerialDevices, pairedSerialIds);
+            if (!loneSerialId.isEmpty()) {
+                associatedSerialPortId = loneSerialId;
+                qCInfo(log_device_discoverer) << "No USB topology match, but the system has exactly one unit;"
+                                              << "pairing serial" << loneSerialId << "with integrated device"
+                                              << integratedDevice.portChain;
+            }
+        }
         QString associatedPortChain;
         
         if (!associatedSerialPortId.isEmpty()) {
+            pairedSerialIds.insert(associatedSerialPortId);
             qCDebug(log_device_discoverer) << "Found associated serial port:" << associatedSerialPortId;
             // Get the port chain of the serial port to use as the device identifier
             DWORD serialDevInst = getDeviceInstanceFromId(associatedSerialPortId);
@@ -117,10 +142,6 @@ QVector<DeviceInfo> Generation3Discoverer::discoverDevices()
     
     // Phase 2: Search for V3 generation USB 3.0 integrated devices (VID_345F&PID_2109)
     qCDebug(log_device_discoverer) << "Phase 2: Searching for V3 USB 3.0 integrated devices (345F:2109)";
-    QVector<USBDeviceData> v3IntegratedDevices = findUSBDevicesWithVidPid(
-        OPENTERFACE_VID_V3, 
-        OPENTERFACE_PID_V3
-    );
     qCDebug(log_device_discoverer) << "Found" << v3IntegratedDevices.size() << "V3 integrated devices (345F:2109)";
     
     for (int i = 0; i < v3IntegratedDevices.size(); ++i) {
@@ -130,9 +151,19 @@ QVector<DeviceInfo> Generation3Discoverer::discoverDevices()
         
         // Find associated serial port through CompanionPortChain
         QString associatedSerialPortId = findSerialPortByIntegratedDevice(integratedDevice);
+        if (associatedSerialPortId.isEmpty() && loneUnitInSystem) {
+            QString loneSerialId = findUnpairedLoneSerial(gen2SerialDevices, pairedSerialIds);
+            if (!loneSerialId.isEmpty()) {
+                associatedSerialPortId = loneSerialId;
+                qCInfo(log_device_discoverer) << "No USB topology match, but the system has exactly one unit;"
+                                              << "pairing serial" << loneSerialId << "with V3 integrated device"
+                                              << integratedDevice.portChain;
+            }
+        }
         QString associatedPortChain;
         
         if (!associatedSerialPortId.isEmpty()) {
+            pairedSerialIds.insert(associatedSerialPortId);
             qCDebug(log_device_discoverer) << "Found associated serial port:" << associatedSerialPortId;
             // Get the port chain of the serial port to use as the device identifier
             DWORD serialDevInst = getDeviceInstanceFromId(associatedSerialPortId);
@@ -294,6 +325,24 @@ QString Generation3Discoverer::findSerialPortByIntegratedDevice(const USBDeviceD
     }
     
     return bestMatchDeviceId;
+}
+
+QString Generation3Discoverer::findUnpairedLoneSerial(const QVector<USBDeviceData>& serialDevices,
+                                                       const QSet<QString>& alreadyPaired) const
+{
+    QString candidate;
+    for (const USBDeviceData& serialDevice : serialDevices) {
+        if (serialDevice.deviceInstanceId.isEmpty()
+            || alreadyPaired.contains(serialDevice.deviceInstanceId)) {
+            continue;
+        }
+        if (!candidate.isEmpty()) {
+            // More than one unpaired serial: pairing would be a guess.
+            return QString();
+        }
+        candidate = serialDevice.deviceInstanceId;
+    }
+    return candidate;
 }
 
 void Generation3Discoverer::processIntegratedDeviceInterfaces(DeviceInfo& deviceInfo, const USBDeviceData& integratedDevice)

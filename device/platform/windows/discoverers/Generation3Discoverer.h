@@ -3,6 +3,7 @@
 
 #include "BaseDeviceDiscoverer.h"
 #include "device/platform/DeviceConstants.h"
+#include <QSet>
 
 /**
  * @brief Generation 3 device discoverer (USB 3.0 integrated devices)
@@ -35,6 +36,19 @@ private:
      * @return Serial port device ID
      */
     QString findSerialPortByIntegratedDevice(const USBDeviceData& integratedDevice);
+
+    /**
+     * @brief Find a serial device that no integrated device has claimed yet
+     *
+     * Returns a device ID only when exactly one unpaired serial device exists,
+     * so a lone unit can still be paired when the USB topology heuristics fail.
+     *
+     * @param serialDevices All serial devices of the Gen2 VID/PID
+     * @param alreadyPaired Device IDs already associated with an integrated device
+     * @return Serial device ID, or an empty string when pairing is ambiguous
+     */
+    QString findUnpairedLoneSerial(const QVector<USBDeviceData>& serialDevices,
+                                   const QSet<QString>& alreadyPaired) const;
     
     /**
      * @brief Process integrated device interfaces (camera, HID, audio)
