@@ -33,15 +33,16 @@ QString PipelineBuilder::buildFlexiblePipeline(const QString& device, const QSiz
         break;
     }
 
-    // Calculate the output size for videoscale: output EXACTLY the display size with
-    // black borders (letterbox/pillarbox) to fill the screen. This is critical on
-    // small screens (e.g. 640x480 Pi touchscreens) where the camera resolution
-    // (e.g. 1280x720) exceeds the display.
-    // We use add-borders=true to fill the full display size with black bars.
+    // Calculate the output size for videoscale: output EXACTLY the display size.
+    // This is critical on small screens (e.g. 640x480 Pi touchscreens) where the
+    // camera resolution (e.g. 1280x720) exceeds the display.
+    // Note: with an exact width/height and pixel-aspect-ratio=1/1, videoscale
+    // scales the frame to exactly that size. add-borders only takes effect when
+    // videoscale is free to choose a size inside a range, so the sink output
+    // fills the widget (no letterbox/pillarbox bars are generated here).
     QString scaleCaps = "video/x-raw,pixel-aspect-ratio=1/1";
     if (widgetSize.width() > 0 && widgetSize.height() > 0 && resolution.width() > 0 && resolution.height() > 0) {
-        // Output exactly the display size; videoscale with add-borders=true will
-        // letterbox/pillarbox to preserve aspect ratio
+        // Exact display size: the picture is stretched to fill it.
         scaleCaps = QString("video/x-raw,width=%1,height=%2,pixel-aspect-ratio=1/1").arg(widgetSize.width()).arg(widgetSize.height());
     }
 

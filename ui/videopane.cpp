@@ -63,6 +63,11 @@ VideoPane::VideoPane(QWidget *parent) : QGraphicsView(parent),
     m_directFFmpegMode(false),
     m_lastViewportSize(QSize()),
     m_frameIsViewportSized(false),
+    m_activeContentRect(0.0, 0.0, 1.0, 1.0),
+    m_activeContentFrameSize(),
+    m_activeContentInputSize(),
+    m_activeContentDecided(false),
+    m_activeContentCheckCounter(0),
     m_zoomHintLabel(nullptr),
     m_zoomHintShown(false),
     m_zoomHintTimer(nullptr)
@@ -752,40 +757,6 @@ void VideoPane::updateScrollBarsAndSceneRect()
     }
 }
 
-namespace {
-
-// Picture area inside a display rectangle for content scaled with aspect ratio
-// preserved and centered (what GStreamer's videoscale does with the default
-// add-borders=true).
-QRectF aspectFitRect(const QRectF& displayRect, const QSize& videoSize)
-{
-    if (displayRect.isEmpty() || videoSize.width() <= 0 || videoSize.height() <= 0) {
-        return displayRect;
-    }
-
-    const double displayAspect = displayRect.width() / displayRect.height();
-    const double videoAspect = static_cast<double>(videoSize.width()) / videoSize.height();
-
-    if (qAbs(videoAspect - displayAspect) < 0.001) {
-        return displayRect;
-    }
-
-    if (videoAspect > displayAspect) {
-        // Video is wider than the display: bars above and below.
-        const double height = displayRect.width() / videoAspect;
-        return QRectF(displayRect.left(),
-                      displayRect.top() + (displayRect.height() - height) / 2.0,
-                      displayRect.width(), height);
-    }
-
-    // Video is narrower than the display: bars on the left and right.
-    const double width = displayRect.height() * videoAspect;
-    return QRectF(displayRect.left() + (displayRect.width() - width) / 2.0,
-                  displayRect.top(), width, displayRect.height());
-}
-
-} // namespace
-
 QRectF VideoPane::getGStreamerVideoContentRect() const
 {
     if (m_directGStreamerMode && m_overlayWidget && viewport()) {
@@ -821,18 +792,15 @@ QRectF VideoPane::getGStreamerVideoContentRect() const
             }
         }
 
-        // The pipeline letterboxes/pillarboxes the camera picture inside the
-        // overlay whenever the camera aspect ratio differs from the overlay
-        // aspect ratio (typical in fullscreen). Those black bars are not part
-        // of the target desktop, so normalize mouse positions against the
-        // picture area only.
-        QSize videoSize = m_originalVideoSize;
-        if (videoSize.isEmpty()) {
-            videoSize = QSize(GlobalVar::instance().getCaptureWidth(),
-                              GlobalVar::instance().getCaptureHeight());
-        }
-
-        return aspectFitRect(displayRect, videoSize).intersected(visibleRect);
+        // The pipeline scales the camera frame to the exact caps size
+        // (videoscale with fixed width/height and pixel-aspect-ratio=1/1
+        // stretches instead of adding borders), so the sink paints the whole
+        // picture across this rectangle. Do not shrink it towards the camera
+        // aspect ratio here: that would compress the mouse range and push the
+        // target cursor outwards on both sides in fullscreen. Black bars baked
+        // into the frame by the capture chip are compensated separately in
+        // InputHandler::mapVideoPositionToAbsolute.
+        return visibleRect;
     }
 
     if (viewport()) {
@@ -872,22 +840,201 @@ QRectF VideoPane::computeActiveContentRectNormalized(const QSize& frameSize, con
     return QRectF((1.0 - width) / 2.0, (1.0 - height) / 2.0, width, height);
 }
 
+namespace {
+
+// Working resolution for the border scan. Small enough to scan cheaply, large
+// enough to keep a couple of pixels of accuracy on the bars.
+constexpr int kBarSampleWidth = 240;
+constexpr int kBarDarkThreshold = 48;
+
+bool isBlackPixel(QRgb pixel)
+{
+    return qRed(pixel) <= kBarDarkThreshold
+        && qGreen(pixel) <= kBarDarkThreshold
+        && qBlue(pixel) <= kBarDarkThreshold;
+}
+
+// A line belongs to a padding bar when (almost) all of its pixels are black.
+// A few bright pixels are tolerated for compression noise.
+bool lineIsBlack(const QImage& image, int index, bool vertical, int maxBright)
+{
+    int bright = 0;
+    if (vertical) {
+        for (int y = 0; y < image.height(); ++y) {
+            const QRgb pixel = reinterpret_cast<const QRgb*>(image.constScanLine(y))[index];
+            if (!isBlackPixel(pixel) && ++bright > maxBright) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    const auto* line = reinterpret_cast<const QRgb*>(image.constScanLine(index));
+    for (int x = 0; x < image.width(); ++x) {
+        if (!isBlackPixel(line[x]) && ++bright > maxBright) {
+            return false;
+        }
+    }
+    return true;
+}
+
+double brightRatioInRect(const QImage& image, const QRect& rect)
+{
+    if (rect.isEmpty()) {
+        return 0.0;
+    }
+    qint64 total = 0;
+    qint64 bright = 0;
+    for (int y = rect.top(); y <= rect.bottom(); ++y) {
+        const auto* line = reinterpret_cast<const QRgb*>(image.constScanLine(y));
+        for (int x = rect.left(); x <= rect.right(); ++x) {
+            ++total;
+            if (!isBlackPixel(line[x])) {
+                ++bright;
+            }
+        }
+    }
+    return total > 0 ? static_cast<double>(bright) / total : 0.0;
+}
+
+QImage sampleFrameForBarScan(const QImage& image)
+{
+    QImage sample = image.width() > kBarSampleWidth
+        ? image.scaledToWidth(kBarSampleWidth, Qt::SmoothTransformation)
+        : image;
+    if (sample.format() != QImage::Format_RGB32) {
+        sample = sample.convertToFormat(QImage::Format_RGB32);
+    }
+    return sample;
+}
+
+} // namespace
+
+void VideoPane::updateActiveContentRectFromFrame(const QImage& image)
+{
+    if (image.isNull()) {
+        return;
+    }
+
+    const QRectF fullFrame(0.0, 0.0, 1.0, 1.0);
+    const QSize inputSize(GlobalVar::instance().getInputWidth(),
+                          GlobalVar::instance().getInputHeight());
+    const QRectF expected = computeActiveContentRectNormalized(image.size(), inputSize);
+
+    const bool sameInputs = (image.size() == m_activeContentFrameSize &&
+                             inputSize == m_activeContentInputSize);
+    if (!sameInputs) {
+        m_activeContentFrameSize = image.size();
+        m_activeContentInputSize = inputSize;
+        m_activeContentRect = fullFrame;
+        m_activeContentDecided = false;
+        m_activeContentCheckCounter = 0;
+    }
+
+    if (m_activeContentDecided) {
+        return;
+    }
+
+    if (expected == fullFrame) {
+        // Stream and target have the same aspect ratio, so frame fractions and
+        // desktop fractions coincide whatever the chip does.
+        m_activeContentRect = fullFrame;
+        m_activeContentDecided = true;
+        return;
+    }
+
+    // Retry every 15th frame while the picture is still black.
+    if (sameInputs && (m_activeContentCheckCounter++ % 15) != 0) {
+        return;
+    }
+
+    const QImage sample = sampleFrameForBarScan(image);
+    const int sw = sample.width();
+    const int sh = sample.height();
+    if (sw < 32 || sh < 32) {
+        return;
+    }
+
+    // The aspect difference tells us which axis can carry padding; only that
+    // axis is measured.
+    const bool pillarboxExpected = expected.width() < 1.0;
+    const double expectedBar = pillarboxExpected ? expected.left() : expected.top();
+    const int extent = pillarboxExpected ? sw : sh;
+    const int limit = extent / 3;
+    const int maxBright = qMax(1, (pillarboxExpected ? sh : sw) / 50);
+
+    int startBar = 0;
+    while (startBar < limit && lineIsBlack(sample, startBar, pillarboxExpected, maxBright)) {
+        ++startBar;
+    }
+    int endBar = 0;
+    while (endBar < limit && lineIsBlack(sample, extent - 1 - endBar, pillarboxExpected, maxBright)) {
+        ++endBar;
+    }
+
+    // An all-black frame says nothing about where the bars are (the target may
+    // still be booting), so wait for a picture before deciding. Bars alone
+    // would otherwise swallow the whole frame and be rejected as implausible.
+    if (brightRatioInRect(sample, sample.rect()) < 0.002) {
+        return; // retry later
+    }
+
+    const double nearFraction = static_cast<double>(startBar) / extent;
+    const double farFraction = static_cast<double>(endBar) / extent;
+
+    if (qAbs(nearFraction - farFraction) > 0.03) {
+        // Asymmetric border: that is target content, not chip padding.
+        m_activeContentRect = fullFrame;
+        m_activeContentDecided = true;
+        return;
+    }
+
+    const double measuredBar = (nearFraction + farFraction) / 2.0;
+    // The aspect-derived bar is only an estimate (the frame may be a stretched
+    // window), so allow it to be off by half its own size before distrusting
+    // the measurement.
+    const double barTolerance = qMax(0.05, expectedBar * 0.5);
+    if (measuredBar <= 0.005 || qAbs(measuredBar - expectedBar) > barTolerance) {
+        // No bars where the aspect difference predicted them (the chip
+        // stretches the signal), or bars that do not match the estimate.
+        m_activeContentRect = fullFrame;
+        m_activeContentDecided = true;
+        qCInfo(log_ui_video) << "Active content rect: no padding bars in frame, using full frame"
+                             << "frame:" << image.size() << "input:" << inputSize
+                             << "expected bar:" << expectedBar << "measured:" << measuredBar;
+        return;
+    }
+
+    const double width = pillarboxExpected ? 1.0 - 2.0 * measuredBar : 1.0;
+    const double height = pillarboxExpected ? 1.0 : 1.0 - 2.0 * measuredBar;
+    m_activeContentRect = QRectF((1.0 - width) / 2.0, (1.0 - height) / 2.0, width, height);
+    m_activeContentDecided = true;
+
+    qCInfo(log_ui_video) << "Active content rect: measured black padding bars"
+                         << m_activeContentRect << "frame:" << image.size() << "input:" << inputSize;
+}
+
 QRectF VideoPane::getActiveContentRectNormalized() const
 {
-    QSize frameSize = m_originalVideoSize;
+    if (m_activeContentDecided) {
+        return m_activeContentRect;
+    }
 
-    // FFmpeg and GStreamer keep m_originalVideoSize up to date; the Qt video
-    // item knows the native frame size itself.
+    // Frame-based rendering paths decide from the delivered pixels above and
+    // stay identity until then. The Qt video item path never sees frames here,
+    // so keep the aspect-based estimate for it.
     if (!m_directFFmpegMode && !m_directGStreamerMode && m_videoItem) {
+        QSize frameSize = m_originalVideoSize;
         const QSizeF nativeSize = m_videoItem->nativeSize();
         if (!nativeSize.isEmpty()) {
             frameSize = nativeSize.toSize();
         }
+        const QSize inputSize(GlobalVar::instance().getInputWidth(),
+                              GlobalVar::instance().getInputHeight());
+        return computeActiveContentRectNormalized(frameSize, inputSize);
     }
 
-    const QSize inputSize(GlobalVar::instance().getInputWidth(),
-                          GlobalVar::instance().getInputHeight());
-    return computeActiveContentRectNormalized(frameSize, inputSize);
+    return QRectF(0.0, 0.0, 1.0, 1.0);
 }
 
 QPointF VideoPane::getTransformedMousePosition(const QPoint& viewportPos)
@@ -1479,6 +1626,11 @@ void VideoPane::updateVideoFrameFromImage(const QImage& image)
         return;
     }
 
+    // Decide from the delivered pixels whether the capture chip padded the
+    // signal with black bars or stretched it. The absolute mouse mapping must
+    // not compensate for bars that are not actually there.
+    updateActiveContentRectFromFrame(image);
+
     // Use window/widget DPR to ensure consistent logical/physical pixel mapping
     qreal widgetDpr = 1.0;
     if (window()) widgetDpr = window()->devicePixelRatioF();
@@ -1652,7 +1804,13 @@ void VideoPane::enableDirectFFmpegMode(bool enable)
     
     if (enable) {
         qCDebug(log_ui_video) << "VideoPane: Enabling FFmpeg mode";
-        
+
+        // A new frame source may pad or stretch differently, so measure again.
+        m_activeContentFrameSize = QSize();
+        m_activeContentInputSize = QSize();
+        m_activeContentDecided = false;
+        m_activeContentCheckCounter = 0;
+
         // Disable GStreamer mode first: it restores the (empty) Qt video item,
         // which must not stay visible on top of the pixmap path.
         if (m_directGStreamerMode) {

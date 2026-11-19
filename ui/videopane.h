@@ -89,9 +89,11 @@ public:
     QRectF getGStreamerVideoContentRect() const;
 
     // Active (non-black) area of the displayed video, normalized to 0..1 of the
-    // frame. Capture chips pad signals whose aspect ratio differs from the USB
-    // stream (e.g. 4:3 source in a 16:9 frame) with black bars that are not
-    // part of the target desktop.
+    // frame. Capture chips either pad signals whose aspect ratio differs from
+    // the USB stream with black bars (which must be excluded) or stretch the
+    // signal to fill the stream (no bars). The value is measured from the
+    // delivered frames; guessing from aspect ratios only would over-compensate
+    // for stretching chips.
     QRectF getActiveContentRectNormalized() const;
     static QRectF computeActiveContentRectNormalized(const QSize& frameSize, const QSize& inputSize);
     
@@ -177,6 +179,15 @@ private:
     bool m_directFFmpegMode;
     QSize m_lastViewportSize;
     bool m_frameIsViewportSized;
+
+    // Measured active-content rect of the incoming frames (see
+    // getActiveContentRectNormalized). Decided once per frame/input size.
+    void updateActiveContentRectFromFrame(const QImage& image);
+    QRectF m_activeContentRect;
+    QSize m_activeContentFrameSize;
+    QSize m_activeContentInputSize;
+    bool m_activeContentDecided;
+    int m_activeContentCheckCounter;
 
     // rendering quality hint flag (true=antialiasing enabled)
     bool m_highQualityRendering;
