@@ -56,6 +56,8 @@ RUN echo "Downloading gst-plugins-base..." && \
     rm gst-plugins-base-${GSTREAMER_VERSION}.tar.xz
 
 # Build GStreamer core
+# tools=enabled is required: gst-plugin-scanner is gated behind the 'tools'
+# option, and without it the AppImage deadlocks in gst_init on plugin load.
 RUN echo "Building GStreamer core..." && \
     cd "${WORK_DIR}/gstreamer_sources/gstreamer-${GSTREAMER_VERSION}" && \
     meson setup build \
@@ -67,7 +69,7 @@ RUN echo "Building GStreamer core..." && \
         -Dexamples=disabled \
         -Dtests=disabled \
         -Dbenchmarks=disabled \
-        -Dtools=disabled \
+        -Dtools=enabled \
         -Dnls=disabled && \
     ninja -C build && \
     ninja -C build install && \

@@ -37,7 +37,7 @@ RUN mkdir -p "${WORK_DIR}/gstreamer_sources" "${GSTREAMER_PREFIX}" && \
         -Dexamples=disabled \
         -Dtests=disabled \
         -Dbenchmarks=disabled \
-        -Dtools=disabled \
+        -Dtools=enabled \
         -Dnls=disabled && \
     ninja -C build && \
     ninja -C build install

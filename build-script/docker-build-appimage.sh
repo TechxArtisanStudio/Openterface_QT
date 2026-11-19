@@ -297,6 +297,15 @@ if [ -n "${GST_MISSING}" ]; then
 fi
 echo "✅ Verified videoconvert/videoscale/videotestsrc plugins in AppImage bundle"
 
+# GStreamer >= 1.24 ships videoconvert/videoscale inside libgstvideoconvertscale.so.
+# Bundling the legacy libgstvideoconvert.so/libgstvideoscale.so alongside it (e.g.
+# picked up from an older system GStreamer) registers duplicate GTypes in-process,
+# which corrupts g_once_init and deadlocks gst_init at startup. Keep only one set.
+if [ -e "${GST_BUNDLE_DIR}/libgstvideoconvertscale.so" ]; then
+    rm -f "${GST_BUNDLE_DIR}/libgstvideoconvert.so" "${GST_BUNDLE_DIR}/libgstvideoscale.so"
+    echo "✅ Removed legacy videoconvert/videoscale plugins (superseded by videoconvertscale)"
+fi
+
 # Diagnostic: Verify critical libraries were actually copied
 echo ""
 echo "🔍 Diagnostic: Verifying GPU libraries in appimage/AppDir/usr/lib..."
@@ -362,8 +371,9 @@ echo ""
 # Copy gst-plugin-scanner if present on the build host/container
 # GStreamer needs a plugin scanner helper binary; many distributions
 # put it under libexec/gstreamer-1.0 or under <prefix>/libexec/gstreamer-1.0.
-# AppRun and main.cpp already look for it at usr/libexec/gstreamer-1.0/gst-plugin-scanner
-# so make sure to copy it into the AppDir if available.
+# AppRun looks for it at usr/libexec/gstreamer-1.0/gst-plugin-scanner.
+# Without a bundled scanner GStreamer scans plugins in-process, which can
+# deadlock gst_init at startup, so refuse to ship an AppImage without one.
 # ============================================================
 echo "🔍 Looking for gst-plugin-scanner on build host/container..."
 mkdir -p "${APPDIR}/usr/libexec/gstreamer-1.0"
@@ -388,7 +398,10 @@ for c in "${SCANNER_CANDIDATES[@]}"; do
 done
 
 if [ -z "$SCANNER_FOUND" ]; then
-	echo "   ⚠️  No gst-plugin-scanner found in common locations; GStreamer will use host scanner if available"
+	echo "   ❌ ERROR: No gst-plugin-scanner found in common locations."
+	echo "   The AppImage would deadlock at startup during in-process plugin scanning."
+	echo "   Build GStreamer core with -Dtools=enabled (see docker/Dockerfile.qt-gstreamer)."
+	exit 1
 else
 	echo "   ✅ gst-plugin-scanner bundled in AppImage at: usr/libexec/gstreamer-1.0/gst-plugin-scanner"
 fi

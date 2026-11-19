@@ -76,6 +76,10 @@ case ":${GST_PLUGIN_PATH}:" in
     *":${HERE}/usr/lib/gstreamer-1.0:"*) ;;
     *) export GST_PLUGIN_PATH="${HERE}/usr/lib/gstreamer-1.0${GST_PLUGIN_PATH:+:${GST_PLUGIN_PATH}}" ;;
 esac
+# Replace the system plugin search path with the bundled one so host plugins
+# (possibly an older GStreamer with conflicting element GTypes) are never mixed
+# with the bundled plugins, which can deadlock gst_init at startup.
+export GST_PLUGIN_SYSTEM_PATH_1_0="${HERE}/usr/lib/gstreamer-1.0"
 # If we have a bundled gst-plugin-scanner, make sure GStreamer uses it
 if [ -x "${HERE}/usr/libexec/gstreamer-1.0/gst-plugin-scanner" ]; then
     export GST_PLUGIN_SCANNER="${HERE}/usr/libexec/gstreamer-1.0/gst-plugin-scanner"
