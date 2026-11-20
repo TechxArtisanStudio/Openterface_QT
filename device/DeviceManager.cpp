@@ -10,6 +10,7 @@
 #include "../video/videohid.h"
 #include "../serial/SerialPortManager.h"
 #include "../host/audiomanager.h"
+#include <QSet>
 #include <QMutexLocker>
 #include <QtConcurrent>
 #include <QtSerialPort/QSerialPortInfo>
@@ -613,7 +614,25 @@ bool DeviceManager::switchAudioDeviceByPortChain(const QString& portChain)
 bool DeviceManager::mayAdoptUnit(const QString& portChain) const
 {
     const QString selected = GlobalSetting::instance().getProcessPortChain();
-    return selected.isEmpty() || selected == portChain;
+    if (selected.isEmpty() || selected == portChain) {
+        return true;
+    }
+
+    // A lone unit moved to another USB port: follow it instead of requiring
+    // a restart. With several units plugged in, keep the explicit selection.
+    QSet<QString> chains;
+    for (const DeviceInfo& device : getCurrentDevices()) {
+        if (!device.portChain.isEmpty()) {
+            chains.insert(device.portChain);
+        }
+    }
+    if (chains.size() == 1 && chains.contains(portChain)) {
+        qCInfo(log_device_manager) << "Selected unit" << selected
+                                   << "is gone, following the only unit at" << portChain;
+        GlobalSetting::instance().setOpenterfacePortChain(portChain);
+        return true;
+    }
+    return false;
 }
 
 bool DeviceManager::switchSerialPortByPortChain(const QString& portChain)
