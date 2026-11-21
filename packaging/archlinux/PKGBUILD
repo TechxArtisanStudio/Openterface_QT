@@ -85,9 +85,11 @@ package() {
     install -Dm644 "${pkgname}-${pkgver}/packaging/com.openterface.openterfaceQT.metainfo.xml" \
         "${pkgdir}/usr/share/metainfo/com.openterface.openterfaceQT.metainfo.xml"
 
-    # udev rules for USB device access
+    # udev rules for USB device access. The rules only add TAG+="uaccess";
+    # systemd applies the ACL in 73-seat-late.rules, so the file has to sort
+    # before 73 or the tag is set too late to have any effect.
     install -Dm644 "openterfaceqt-udev.rules" \
-        "${pkgdir}/usr/lib/udev/rules.d/99-openterfaceqt.rules"
+        "${pkgdir}/usr/lib/udev/rules.d/70-openterfaceqt.rules"
 
     # Translations (compiled .qm files, not installed by CMake)
     if [ -d "build/translations" ]; then
