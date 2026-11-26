@@ -53,7 +53,7 @@ env:
   ENABLE_NVENC: 1
   ENABLE_NVDEC: 1
   AUTO_INSTALL_FFNV: 1
-  ENABLE_LIBMFX: 1
+  ENABLE_LIBMFX: 0
 
 permissions:
   contents: write
@@ -284,7 +284,7 @@ jobs:
 
           export AUTO_INSTALL_FFNV=1
 
-          export ENABLE_LIBMFX=1  # QSV support (build-script will enable mjpeg,qsv decoders etc.)
+          export ENABLE_LIBMFX=0  # QSV support disabled (libmfx not available in MSYS2)
 
           cd "${{ env.SOURCE_DIR }}/build-script"
           ./build-shared-ffmpeg-windows.sh > "${{ github.workspace }}/ffmpeg_build.log" 2>&1

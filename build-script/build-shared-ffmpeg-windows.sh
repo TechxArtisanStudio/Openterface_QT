@@ -212,13 +212,11 @@ if [ "${ENABLE_LIBMFX:-0}" = "1" ]; then
         EXTRA_CFLAGS="${EXTRA_CFLAGS} $(pkg-config --cflags libmfx 2>/dev/null || true)"
         EXTRA_LDFLAGS="${EXTRA_LDFLAGS} $(pkg-config --libs libmfx 2>/dev/null || true)"
     else
-        echo "ERROR: ENABLE_LIBMFX=1 but libmfx pkg-config not found."
+        echo "WARNING: ENABLE_LIBMFX=1 but libmfx pkg-config not found."
         echo "       QSV decoders (mjpeg_qsv etc.) require libmfx at compile time."
-        echo "       Install the package: pacman -S mingw-w64-x86_64-libmfx"
-        echo "       Then ensure PKG_CONFIG_PATH includes /mingw64/lib/pkgconfig"
-        echo "       Current PKG_CONFIG_PATH: ${PKG_CONFIG_PATH:-<empty>}"
-        pkg-config --list-all 2>/dev/null | grep -i mfx || echo "(no mfx packages visible to pkg-config)"
-        exit 1
+        echo "       Disabling libmfx support and continuing build without QSV decoders."
+        ENABLE_LIBMFX=""
+        # Disable the specific decoders that require libmfx
     fi
 else
     echo "libmfx not enabled; QSV support will be attempted at runtime if available via drivers/SDK (dynamic loading by ffmpeg)."
