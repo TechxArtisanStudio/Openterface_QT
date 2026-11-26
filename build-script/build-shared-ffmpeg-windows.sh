@@ -537,7 +537,7 @@ set +e  # Temporarily disable exit on error
     --enable-zlib \
     --enable-bzlib \
     --enable-lzma \
-    ${ENABLE_LIBMFX} \
+    ${ENABLE_LIBMFX:-} \
     --enable-dxva2 \
     --enable-d3d11va \
     --enable-hwaccels \
