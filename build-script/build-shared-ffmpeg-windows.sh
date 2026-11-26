@@ -220,6 +220,7 @@ if [ "${ENABLE_LIBMFX:-0}" = "1" ]; then
     fi
 else
     echo "libmfx not enabled; QSV support will be attempted at runtime if available via drivers/SDK (dynamic loading by ffmpeg)."
+    ENABLE_LIBMFX=""
 fi
 
 # CUDA/NVENC: Auto-detect and enable when possible
