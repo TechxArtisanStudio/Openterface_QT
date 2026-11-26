@@ -347,7 +347,7 @@ jobs:
                 }
                 
                 # Replace absolute library paths with linker flags to let the linker search
-                $systemLibs = @('libz.a', 'libbz2.a', 'libb2.a', 'liblzma.a', 'libmfx.a',
+                $systemLibs = @('libz.a', 'libbz2.a', 'libb2.a', 'liblzma.a',
                                 'libwinpthread.a', 'libiconv.a', 'libbrotlidec.a', 'libbrotlicommon.a',
                                 'libzstd.a', 'libcrypto.a', 'libssl.a')
                 
@@ -495,8 +495,7 @@ jobs:
             mingw-w64-x86_64-zlib \
             mingw-w64-x86_64-bzip2 \
             mingw-w64-x86_64-xz \
-            mingw-w64-x86_64-openssl \
-            mingw-w64-x86_64-libmfx \
+            mingw-w64-x86_64-openssl
             mingw-w64-x86_64-libiconv \
             mingw-w64-x86_64-libb2 \
             mingw-w64-x86_64-brotli \
@@ -588,7 +587,7 @@ jobs:
           
           # Verify critical static libraries exist
           echo "Verifying static libraries in ${MSYS_MINGW_PATH}/lib:"
-          for lib in libz.a libbz2.a libb2.a liblzma.a libmfx.a libwinpthread.a libiconv.a libbrotlidec.a libbrotlicommon.a libbrotlienc.a libzstd.a libcrypto.a libssl.a; do
+          for lib in libz.a libbz2.a libb2.a liblzma.a libwinpthread.a libiconv.a libbrotlidec.a libbrotlicommon.a libbrotlienc.a libzstd.a libcrypto.a libssl.a; do
             if [ -f "${MSYS_MINGW_PATH}/lib/$lib" ]; then
               echo "  ✓ $lib"
             else

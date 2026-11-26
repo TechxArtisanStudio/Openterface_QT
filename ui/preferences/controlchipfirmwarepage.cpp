@@ -30,6 +30,7 @@
 #include <QDialogButtonBox>
 #include <QFontDatabase>
 #include <QLoggingCategory>
+#include <QPointer>
 
 Q_DECLARE_LOGGING_CATEGORY(log_core_serial_cmd)
 #include <QPlainTextEdit>
