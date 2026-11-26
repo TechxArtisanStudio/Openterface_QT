@@ -1,4 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
+
+# Set resource compiler before project() to avoid MSYS2 windres path issues
+if(WIN32)
+    set(CMAKE_RC_COMPILER "E:/Qt/Tools/mingw1120_64/bin/windres.exe" CACHE FILEPATH "Resource compiler")
+endif()
+
 project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
 
 # Option to control static vs dynamic linking
@@ -116,6 +122,10 @@ qt_add_executable(openterfaceQT WIN32 ${SOURCE_FILES})
 # Explicitly add Windows resource file with forward slash path
 if(WIN32)
     target_sources(openterfaceQT PRIVATE "${CMAKE_SOURCE_DIR}/openterfaceQT.rc")
+
+    # Fix windres path issue in MSYS2 environment
+    # Use proper Windows path format for MinGW windres
+    set(CMAKE_RC_COMPILER "E:/Qt/Tools/mingw1120_64/bin/windres.exe" CACHE FILEPATH "Path to the resource compiler")
 endif()
 
 # Force static linking of compression libraries (must be done early)
@@ -128,6 +138,15 @@ setup_translations(openterfaceQT)
 target_include_directories(openterfaceQT PRIVATE
     ${PROJECT_SOURCE_DIR}
 )
+
+if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Debug" AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # Compile MOC output separately so the combined source cannot exhaust MinGW's memory.
+    set(_moc_headers ${SOURCE_FILES})
+    list(FILTER _moc_headers INCLUDE REGEX "\\.h(pp)?$")
+    set_target_properties(openterfaceQT PROPERTIES AUTOMOC OFF)
+    qt6_wrap_cpp(_moc_sources ${_moc_headers} TARGET openterfaceQT OPTIONS -D_WIN32)
+    target_sources(openterfaceQT PRIVATE ${_moc_sources})
+endif()
 
 # Ensure Linux time feature macros are set per-target to avoid <ctime> visibility issues
 if(UNIX AND NOT APPLE)

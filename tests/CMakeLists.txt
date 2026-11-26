@@ -113,6 +113,37 @@ if(WCH_LIB OR UNIX)  # On Unix, we use libusb which should be available
     add_test(NAME RealFirmwareFlashing COMMAND test_real_firmware_flashing)
 endif()
 
+# Test 8: CH32 Firmware Version Reading Test
+# This test reads firmware version from a CH32 device in ISP mode
+if(WCH_LIB OR UNIX)
+    add_executable(test_ch32_version
+        ${PROJECT_ROOT}/tests/build/test_ch32_version.cpp
+        ${PROJECT_ROOT}/wch/WCHFlasher.cpp
+        ${PROJECT_ROOT}/wch/WCHUSBTransport.cpp
+        ${PROJECT_ROOT}/wch/WCHProtocol.cpp
+        ${PROJECT_ROOT}/wch/WCHHexParser.cpp
+        ${PROJECT_ROOT}/wch/WCHDevice.cpp
+        ${PROJECT_ROOT}/log/logcategoryregistry.cpp
+    )
+    target_link_libraries(test_ch32_version
+        PRIVATE Qt6::Core Qt6::Test Qt6::SerialPort)
+
+    # Link libusb on Linux/Mac, WCH driver on Windows
+    if(UNIX)
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(LIBUSB REQUIRED libusb-1.0)
+        target_include_directories(test_ch32_version PRIVATE ${LIBUSB_INCLUDE_DIRS})
+        target_link_libraries(test_ch32_version PRIVATE ${LIBUSB_LIBRARIES})
+    elseif(WIN32)
+        if(WCH_LIB)
+            target_link_libraries(test_ch32_version PRIVATE ${WCH_LIB})
+        endif()
+        target_link_libraries(test_ch32_version PRIVATE setupapi)
+    endif()
+
+    add_test(NAME CH32VersionTest COMMAND test_ch32_version)
+endif()
+
 # Test 8: Keyboard routing tests (SystemKeyBlocker ON/OFF)
 add_executable(test_keyboard_routing
     keyboard/test_keyboard_routing.cpp

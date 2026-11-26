@@ -2263,7 +2263,9 @@ void MainWindow::initializeKeyboardLayouts() {
     qCDebug(log_ui_mainwindow) << "Read layout" << defaultLayout;
 
     m_cornerWidgetManager->initializeKeyboardLayouts(layouts, defaultLayout);
-    m_cornerWidgetManager->updatePosition(width(), menuBar()->height(), m_windowLayoutCoordinator->isFullScreenMode());
+    double aspectRatio = GlobalSetting::instance().getScreenRatio();
+    bool isPortraitMode = (aspectRatio < 1.0);
+    m_cornerWidgetManager->updatePosition(width(), height(), menuBar()->height(), m_windowLayoutCoordinator->isFullScreenMode(), isPortraitMode);
     if (layouts.contains(defaultLayout)) {
         changeKeyboardLayout(defaultLayout);
     } else if (!layouts.isEmpty()) {

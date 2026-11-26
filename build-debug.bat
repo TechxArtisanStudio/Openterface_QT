@@ -204,6 +204,7 @@ if "%USE_SHARED%"=="1" (
 
 cmake -B "%OUTPUT_DIR%" -S . -G "MinGW Makefiles" ^
     -DCMAKE_BUILD_TYPE=Debug ^
+    -DCMAKE_CXX_FLAGS_DEBUG="-g1 -O0 --param=ggc-min-expand=5 --param=ggc-min-heapsize=16384" ^
     -DHAVE_LIBJPEG_TURBO=ON ^
     -DCMAKE_MAKE_PROGRAM=%CMAKE_MAKE_PROGRAM% ^
     -DCMAKE_C_COMPILER=%CMAKE_C_COMPILER% ^
@@ -223,8 +224,13 @@ echo.
 
 REM Build the project
 echo Building project...
-REM Run CMake build with limited parallelism to avoid memory issues
-cmake --build "%OUTPUT_DIR%" --config Debug -- -j 2
+powershell -NoProfile -Command "$os = Get-CimInstance Win32_OperatingSystem; if ($os.FreeVirtualMemory -lt 2097152) { Write-Host 'ERROR: Less than 2 GB of virtual memory is available. Close memory-heavy applications or enlarge the Windows page file, then run this script again.'; exit 1 }"
+if %errorlevel% neq 0 (
+    echo Build cancelled before compilation.
+    exit /b 1
+)
+REM Keep one compiler active at a time on memory-constrained Windows hosts.
+cmake --build "%OUTPUT_DIR%" --config Debug -- -j 1
 
 if %errorlevel% neq 0 (
     echo Build failed
@@ -263,7 +269,7 @@ if "%USE_SHARED%"=="1" (
     REM Copy libusb as msys-usb-1.0.dll (MSYS2 libusb exports as msys-usb-1.0.dll internally)
     if exist "%OUTPUT_DIR%\libusb-1.0.dll" (
         copy /Y "%OUTPUT_DIR%\libusb-1.0.dll" "%OUTPUT_DIR%\msys-usb-1.0.dll" >nul 2>nul
-        echo   Copied libusb-1.0.dll as msys-usb-1.0.dll (MSYS2 ABI compatibility)
+        echo   Copied libusb-1.0.dll as msys-usb-1.0.dll for MSYS2 ABI compatibility
     )
 
     REM Copy MSYS2/MinGW compression dependencies (non-C++ runtime)
@@ -325,10 +331,10 @@ if "%USE_SHARED%"=="1" (
     REM pthread_cond_timedwait64. We need the MSYS2 version (64KB, 2024) which has it.
     REM ============================================================================
     echo.
-    echo Ensuring correct libwinpthread-1.dll version (with pthread_cond_timedwait64)...
+    echo Ensuring correct libwinpthread-1.dll version with pthread_cond_timedwait64...
     if exist "C:\msys64\mingw64\bin\libwinpthread-1.dll" (
         xcopy /Y "C:\msys64\mingw64\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
-        echo   Copied libwinpthread-1.dll from MSYS2 MinGW (has 64-bit time_t support)
+        echo   Copied libwinpthread-1.dll from MSYS2 MinGW with 64-bit time_t support
     ) else (
         echo ERROR: MSYS2 libwinpthread-1.dll not found! Please install MSYS2 MinGW.
         exit /b 1
@@ -431,7 +437,7 @@ if "%USE_SHARED%"=="0" (
     del /Q "%OUTPUT_DIR%\libstdc++-6.dll" >nul 2>nul
     if exist "C:\msys64\mingw64\bin\libwinpthread-1.dll" (
         xcopy /Y "C:\msys64\mingw64\bin\libwinpthread-1.dll" "%OUTPUT_DIR%\" >nul 2>nul
-        echo   Using MSYS2 libwinpthread-1.dll (has pthread_cond_timedwait64 support)
+        echo   Using MSYS2 libwinpthread-1.dll with pthread_cond_timedwait64 support
     ) else (
         echo ERROR: MSYS2 libwinpthread-1.dll not found at C:\msys64\mingw64\bin\libwinpthread-1.dll
         echo Please install MSYS2 MinGW for proper pthread_cond_timedwait64 support

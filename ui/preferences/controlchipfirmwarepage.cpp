@@ -22,12 +22,16 @@
 
 #include "controlchipfirmwarepage.h"
 #include "../advance/wchflash/WCHFlashWorker.h"
+#include "../../serial/SerialPortManager.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
 #include <QDialogButtonBox>
 #include <QFontDatabase>
+#include <QLoggingCategory>
+
+Q_DECLARE_LOGGING_CATEGORY(log_core_serial_cmd)
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QComboBox>
@@ -44,6 +48,7 @@
 #include <QScrollBar>
 #include <QMetaObject>
 #include <QFont>
+#include <QTimer>
 
 // ---------------------------------------------------------------------------
 // Constructor
@@ -65,6 +70,8 @@ ControlChipFirmwarePage::ControlChipFirmwarePage(QWidget* parent)
             this, &ControlChipFirmwarePage::onDeviceConnected);
     connect(m_worker, &WCHFlashWorker::deviceDisconnected,
             this, &ControlChipFirmwarePage::onDeviceDisconnected);
+    connect(m_worker, &WCHFlashWorker::firmwareVersionRead,
+            this, &ControlChipFirmwarePage::onFirmwareVersionRead);
     connect(m_worker, &WCHFlashWorker::progress,
             this, &ControlChipFirmwarePage::onProgress);
     connect(m_worker, &WCHFlashWorker::finished,
@@ -78,6 +85,11 @@ ControlChipFirmwarePage::ControlChipFirmwarePage(QWidget* parent)
     m_thread->start();
 
     setConnectedState(false);
+
+    // Try to read firmware version immediately if serial is already open
+    QTimer::singleShot(500, this, [this]() {
+        tryAutoReadFirmwareVersion();
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -167,8 +179,33 @@ void ControlChipFirmwarePage::setupUi()
     m_chipInfoLabel->setFont(QFont("Monospace", 9));
     infoLayout->addWidget(m_chipInfoLabel);
 
+    // ---- Firmware version section ----
+    auto* versionGroup = new QGroupBox(tr("Firmware Version"), this);
+    auto* versionLayout = new QVBoxLayout(versionGroup);
+
+    // Current firmware version row
+    auto* currentVersionRow = new QHBoxLayout();
+    currentVersionRow->addWidget(new QLabel(tr("Current:"), versionGroup));
+    m_firmwareVersionLabel = new QLabel(tr("(not read)"), versionGroup);
+    m_firmwareVersionLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_firmwareVersionLabel->setWordWrap(false);
+    m_readVersionBtn = new QPushButton(tr("Read"), versionGroup);
+    m_readVersionBtn->setEnabled(false);
+    currentVersionRow->addWidget(m_firmwareVersionLabel, 1);
+    currentVersionRow->addWidget(m_readVersionBtn);
+    versionLayout->addLayout(currentVersionRow);
+
+    // Latest firmware version row (from file)
+    auto* latestVersionRow = new QHBoxLayout();
+    latestVersionRow->addWidget(new QLabel(tr("Selected file:"), versionGroup));
+    m_latestFirmwareLabel = new QLabel(tr("(no file selected)"), versionGroup);
+    m_latestFirmwareLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_latestFirmwareLabel->setWordWrap(false);
+    latestVersionRow->addWidget(m_latestFirmwareLabel, 1);
+    versionLayout->addLayout(latestVersionRow);
+
     // ---- Firmware section ----
-    auto* fwGroup = new QGroupBox(tr("Firmware"), this);
+    auto* fwGroup = new QGroupBox(tr("Firmware File"), this);
     auto* fwLayout = new QHBoxLayout(fwGroup);
     m_firmwareLabel = new QLabel(tr("(no file selected)"), fwGroup);
     m_firmwareLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -232,6 +269,7 @@ void ControlChipFirmwarePage::setupUi()
     // Assemble main layout (no close button — embedded widget)
     mainLayout->addWidget(deviceGroup);
     mainLayout->addWidget(infoGroup);
+    mainLayout->addWidget(versionGroup);
     mainLayout->addWidget(fwGroup);
     mainLayout->addWidget(m_flashBtn);
     mainLayout->addWidget(m_progressBar);
@@ -241,6 +279,7 @@ void ControlChipFirmwarePage::setupUi()
     connect(m_scanBtn,       &QPushButton::clicked, this, &ControlChipFirmwarePage::onScanClicked);
     connect(m_connectBtn,    &QPushButton::clicked, this, &ControlChipFirmwarePage::onConnectClicked);
     connect(m_disconnectBtn, &QPushButton::clicked, this, &ControlChipFirmwarePage::onDisconnectClicked);
+    connect(m_readVersionBtn, &QPushButton::clicked, this, &ControlChipFirmwarePage::onReadVersionClicked);
     connect(m_browseBtn,     &QPushButton::clicked, this, &ControlChipFirmwarePage::onBrowseClicked);
     connect(m_flashBtn,      &QPushButton::clicked, this, &ControlChipFirmwarePage::onFlashClicked);
 }
@@ -253,6 +292,7 @@ void ControlChipFirmwarePage::setConnectedState(bool connected)
     m_connected = connected;
     m_connectBtn->setEnabled(!connected && m_deviceCombo->count() > 0);
     m_disconnectBtn->setEnabled(connected);
+    m_readVersionBtn->setEnabled(connected);
     m_scanBtn->setEnabled(!m_busy);
     updateFlashButton();
 }
@@ -365,6 +405,35 @@ void ControlChipFirmwarePage::onDisconnectClicked()
     QMetaObject::invokeMethod(m_worker, "disconnectDevice", Qt::QueuedConnection);
 }
 
+void ControlChipFirmwarePage::onReadVersionClicked()
+{
+    m_readVersionBtn->setEnabled(false);
+    m_firmwareVersionLabel->setText(tr("Reading..."));
+    appendLog(tr("Reading firmware version via serial..."));
+
+    try {
+        auto& serialManager = SerialPortManager::getInstance();
+        if (serialManager.isPortOpen()) {
+            QString version = readFirmwareVersionViaSerial(serialManager);
+            if (!version.isEmpty()) {
+                onFirmwareVersionRead(version);
+            } else {
+                m_firmwareVersionLabel->setText(tr("(no response)"));
+                appendLog(tr("No response from device"));
+                m_readVersionBtn->setEnabled(true);
+            }
+        } else {
+            m_firmwareVersionLabel->setText(tr("(serial not open)"));
+            appendLog(tr("Serial port not open - connect target device first"));
+            m_readVersionBtn->setEnabled(true);
+        }
+    } catch (const std::exception& e) {
+        m_firmwareVersionLabel->setText(tr("(error)"));
+        appendLog(QString("Error reading version: %1").arg(e.what()));
+        m_readVersionBtn->setEnabled(true);
+    }
+}
+
 void ControlChipFirmwarePage::onBrowseClicked()
 {
     QString path = QFileDialog::getOpenFileName(
@@ -380,6 +449,9 @@ void ControlChipFirmwarePage::onBrowseClicked()
     m_firmwareLabel->setText(QFileInfo(path).fileName());
     m_firmwareLabel->setToolTip(path);
     appendLog(tr("Firmware selected: %1").arg(path));
+
+    // Parse firmware file to extract version information
+    parseFirmwareVersion(path);
     updateFlashButton();
 }
 
@@ -438,14 +510,241 @@ void ControlChipFirmwarePage::onDeviceConnected(const QString& chipInfo)
     m_chipInfoLabel->setText(chipInfo);
     setConnectedState(true);
     appendLog(tr("Connected."));
+
+    // Automatically read firmware version via serial port (CH9329 protocol 0x01 command)
+    m_firmwareVersionLabel->setText(tr("Reading..."));
+    appendLog(tr("Reading firmware version via serial..."));
+
+    try {
+        auto& serialManager = SerialPortManager::getInstance();
+        if (serialManager.isPortOpen()) {
+            QString version = readFirmwareVersionViaSerial(serialManager);
+            if (!version.isEmpty()) {
+                onFirmwareVersionRead(version);
+            } else {
+                m_firmwareVersionLabel->setText(tr("(no response)"));
+                appendLog(tr("No response from device"));
+            }
+        } else {
+            m_firmwareVersionLabel->setText(tr("(serial not open)"));
+            appendLog(tr("Serial port not open - connect target device first"));
+        }
+    } catch (const std::exception& e) {
+        m_firmwareVersionLabel->setText(tr("(error)"));
+        appendLog(QString("Error reading version: %1").arg(e.what()));
+    }
+}
+
+QString ControlChipFirmwarePage::readFirmwareVersionViaSerial(SerialPortManager& manager)
+{
+    // Send CMD_GET_INFO command (0x01) to get firmware version
+    // Command format: 57 AB 00 01 00 <checksum>
+    QByteArray cmd = QByteArray::fromHex("57AB000100");
+
+    // Calculate checksum
+    uint8_t sum = 0;
+    for (int i = 0; i < cmd.size(); i++) {
+        sum += static_cast<uint8_t>(cmd[i]);
+    }
+    cmd.append(static_cast<char>(sum));
+
+    appendLog(QString("Sending GET_INFO command: %1").arg(cmd.toHex(' ').toUpper()));
+
+    // Send synchronous command and wait for response
+    QByteArray response = manager.sendSyncCommand(cmd, true);
+
+    if (response.isEmpty()) {
+        appendLog(tr("Response is empty"));
+        return QString();
+    }
+
+    appendLog(QString("Response size: %1 bytes").arg(response.size()));
+    appendLog(QString("Response hex: %1").arg(response.toHex(' ').toUpper()));
+
+    // Debug: print each byte
+    QString byteDebug;
+    for (int i = 0; i < qMin(response.size(), 20); i++) {
+        byteDebug += QString("[%1]=0x%2 ").arg(i).arg(static_cast<uint8_t>(response[i]), 2, 16, QChar('0'));
+    }
+    appendLog(QString("Response bytes: %1").arg(byteDebug));
+
+    // Parse response: 57 AB 00 81 XX <payload> <checksum>
+    // Response command is 0x81 (0x01 | 0x80)
+    // Payload layout (8 bytes):
+    //   [0] Hardware selector
+    //   [1] Target USB enumeration state
+    //   [2] Keyboard LED bits
+    //   [3] Firmware version number ← This is what we want
+    //   [4-7] Reserved
+    // So firmware version is at response[5+3] = response[8]
+    if (response.size() >= 13) {
+        appendLog(QString("Checking header: [0]=0x%1 [1]=0x%2 [3]=0x%3")
+            .arg(static_cast<uint8_t>(response[0]), 2, 16, QChar('0'))
+            .arg(static_cast<uint8_t>(response[1]), 2, 16, QChar('0'))
+            .arg(static_cast<uint8_t>(response[3]), 2, 16, QChar('0')));
+
+        if (static_cast<uint8_t>(response[0]) == 0x57 &&
+            static_cast<uint8_t>(response[1]) == 0xAB &&
+            static_cast<uint8_t>(response[3]) == 0x81) {
+
+            uint8_t version = static_cast<uint8_t>(response[8]);
+            QString versionStr = QString("v%1").arg(version);
+            appendLog(QString("Parsed firmware version from byte[8]: %1").arg(versionStr));
+            return versionStr;
+        } else {
+            appendLog(tr("Header mismatch - not a valid GetInfo response"));
+        }
+    } else {
+        appendLog(QString("Response too short: %1 bytes (need at least 13)").arg(response.size()));
+    }
+
+    return QString();
 }
 
 void ControlChipFirmwarePage::onDeviceDisconnected()
 {
     m_busy = false;
     m_chipInfoLabel->setText(tr("(not connected)"));
+    m_firmwareVersionLabel->setText(tr("(not read)"));
     setConnectedState(false);
     appendLog(tr("Disconnected."));
+}
+
+void ControlChipFirmwarePage::onFirmwareVersionRead(const QString& version)
+{
+    appendLog(QString("DEBUG: onFirmwareVersionRead called with: '%1'").arg(version));
+    m_firmwareVersionLabel->setText(version);
+    m_readVersionBtn->setEnabled(m_connected);
+    appendLog(tr("Firmware version read: %1").arg(version));
+}
+
+void ControlChipFirmwarePage::onSerialFirmwareVersionReceived(const QString& version)
+{
+    m_firmwareVersionLabel->setText(version);
+    m_readVersionBtn->setEnabled(m_connected);
+    appendLog(tr("Firmware version from serial: %1").arg(version));
+}
+
+void ControlChipFirmwarePage::tryAutoReadFirmwareVersion()
+{
+    // 使用异步方式读取，避免阻塞 UI 线程
+    readFirmwareVersionAsync();
+}
+
+void ControlChipFirmwarePage::onAutoReadFinished(const QString& version)
+{
+    if (version.isEmpty()) {
+        appendLog(tr("Auto-read failed: no valid response"));
+        // 如果自动读取失败，尝试在稍后重试
+        QTimer::singleShot(2000, this, [this]() {
+            if (m_firmwareVersionLabel->text() == tr("(not read)")) {
+                appendLog(tr("Retrying auto-read..."));
+                readFirmwareVersionAsync();
+            }
+        });
+    } else if (version.startsWith("error:")) {
+        appendLog(tr("Auto-read error: %1").arg(version.mid(7)));
+    } else {
+        m_firmwareVersionLabel->setText(version);
+        appendLog(tr("Firmware version auto-read: %1").arg(version));
+    }
+}
+
+void ControlChipFirmwarePage::readFirmwareVersionAsync()
+{
+    // 在后台线程中读取，避免阻塞 UI
+    QThread* thread = new QThread();
+    QObject* worker = new QObject();
+
+    QPointer<ControlChipFirmwarePage> guard(this);
+    connect(thread, &QThread::started, worker, [guard, worker, thread]() {
+        try {
+            auto& serialManager = SerialPortManager::getInstance();
+            QString version;
+            if (serialManager.isPortOpen()) {
+                // 直接调用静态方法或复制逻辑
+                QByteArray cmd = QByteArray::fromHex("57AB000100");
+                uint8_t sum = 0;
+                for (int i = 0; i < cmd.size(); i++) {
+                    sum += static_cast<uint8_t>(cmd[i]);
+                }
+                cmd.append(static_cast<char>(sum));
+
+                QByteArray response = serialManager.sendSyncCommand(cmd, true);
+
+                if (!response.isEmpty() && response.size() >= 13 &&
+                    static_cast<uint8_t>(response[0]) == 0x57 &&
+                    static_cast<uint8_t>(response[1]) == 0xAB &&
+                    static_cast<uint8_t>(response[3]) == 0x81) {
+
+                    uint8_t fwVersion = static_cast<uint8_t>(response[8]);
+                    version = QString("v%1").arg(fwVersion);
+                }
+            }
+
+            if (guard) {
+                QMetaObject::invokeMethod(guard.data(), "onAutoReadFinished",
+                                          Qt::QueuedConnection,
+                                          Q_ARG(QString, version));
+            }
+        } catch (const std::exception& e) {
+            if (guard) {
+                QMetaObject::invokeMethod(guard.data(), "onAutoReadFinished",
+                                          Qt::QueuedConnection,
+                                          Q_ARG(QString, QString("error: ") + e.what()));
+            }
+        }
+        worker->deleteLater();
+        thread->quit();
+    });
+    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
+    worker->moveToThread(thread);
+    thread->start();
+}
+
+void ControlChipFirmwarePage::parseFirmwareVersion(const QString& filePath)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        m_latestFirmwareLabel->setText(tr("(cannot open file)"));
+        return;
+    }
+
+    QByteArray data = file.readAll();
+    file.close();
+
+    if (data.isEmpty()) {
+        m_latestFirmwareLabel->setText(tr("(empty file)"));
+        return;
+    }
+
+    // Check if it's Intel HEX format (starts with ':')
+    if (data.startsWith(':')) {
+        // Parse Intel HEX to find version at specific address
+        // For now, just show file size info
+        QFileInfo fi(filePath);
+        m_latestFirmwareLabel->setText(tr("HEX file, %1 bytes").arg(fi.size()));
+        appendLog(tr("Intel HEX firmware file selected, size: %1 bytes").arg(fi.size()));
+    } else {
+        // Binary format - try to read version from bytes 12-15
+        if (data.size() >= 16) {
+            uint8_t v0 = static_cast<uint8_t>(data[12]);
+            uint8_t v1 = static_cast<uint8_t>(data[13]);
+            uint8_t v2 = static_cast<uint8_t>(data[14]);
+            uint8_t v3 = static_cast<uint8_t>(data[15]);
+            QString version = QString("%1%2%3%4")
+                .arg(v0, 2, 10, QChar('0'))
+                .arg(v1, 2, 10, QChar('0'))
+                .arg(v2, 2, 10, QChar('0'))
+                .arg(v3, 2, 10, QChar('0'));
+            m_latestFirmwareLabel->setText(version);
+            appendLog(tr("Firmware version from file: %1").arg(version));
+        } else {
+            QFileInfo fi(filePath);
+            m_latestFirmwareLabel->setText(tr("Binary file, %1 bytes").arg(fi.size()));
+            appendLog(tr("Binary firmware file selected, size: %1 bytes").arg(fi.size()));
+        }
+    }
 }
 
 void ControlChipFirmwarePage::onProgress(int percent, const QString& /*message*/)

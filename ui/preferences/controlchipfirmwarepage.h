@@ -33,6 +33,7 @@ class QProgressBar;
 class QTextEdit;
 class QThread;
 class WCHFlashWorker;
+class SerialPortManager;
 
 // ---------------------------------------------------------------------------
 // ControlChipFirmwarePage
@@ -58,14 +59,22 @@ private slots:
     void onDevicesFound(const QStringList& devices);
     void onDeviceConnected(const QString& chipInfo);
     void onDeviceDisconnected();
+    void onFirmwareVersionRead(const QString& version);
     void onProgress(int percent, const QString& message);
     void onFinished(bool success, const QString& message);
     void onLogMessage(const QString& message);
+
+    // Auto-read result handler
+    void onAutoReadFinished(const QString& version);
+
+    // Serial port firmware version handler
+    void onSerialFirmwareVersionReceived(const QString& version);
 
     // UI button handlers
     void onScanClicked();
     void onConnectClicked();
     void onDisconnectClicked();
+    void onReadVersionClicked();
     void onBrowseClicked();
     void onFlashClicked();
 
@@ -74,6 +83,10 @@ private:
     void setConnectedState(bool connected);
     void updateFlashButton();
     void appendLog(const QString& text);
+    void parseFirmwareVersion(const QString& filePath);
+    void tryAutoReadFirmwareVersion();
+    void readFirmwareVersionAsync();
+    QString readFirmwareVersionViaSerial(SerialPortManager& manager);
 
     // UI elements
     QPushButton* m_scanBtn       = nullptr;
@@ -81,6 +94,9 @@ private:
     QPushButton* m_connectBtn    = nullptr;
     QPushButton* m_disconnectBtn = nullptr;
     QLabel*      m_chipInfoLabel = nullptr;
+    QLabel*      m_firmwareVersionLabel = nullptr;
+    QLabel*      m_latestFirmwareLabel = nullptr;
+    QPushButton* m_readVersionBtn = nullptr;
     QLabel*      m_firmwareLabel = nullptr;
     QPushButton* m_browseBtn     = nullptr;
     QPushButton* m_flashBtn      = nullptr;

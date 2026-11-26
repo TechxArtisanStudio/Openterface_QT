@@ -78,6 +78,9 @@ public:
     // Read data EEPROM / dump
     static std::vector<uint8_t> dataRead(uint32_t address, uint16_t length);
 
+    // Read OTP area
+    static std::vector<uint8_t> readOTP(uint32_t address, uint16_t length);
+
 private:
     static void appendU32LE(std::vector<uint8_t>& buf, uint32_t v);
     static void appendU16LE(std::vector<uint8_t>& buf, uint16_t v);

@@ -201,6 +201,58 @@ bool WCHFlasher::isCodeFlashProtected() const
 }
 
 // ---------------------------------------------------------------------------
+// readFirmwareVersion — read user firmware version from code flash.
+// For CH32V chips, the firmware version is typically stored at a fixed offset
+// in the code flash (often 0x08 or 0x10). The version format depends on the
+// specific firmware build convention.
+// Returns a hex string like "01020304" for 4 bytes.
+// First tries OTP, then falls back to reading via verify-like method.
+// ---------------------------------------------------------------------------
+std::string WCHFlasher::readFirmwareVersion(uint32_t address, uint16_t length)
+{
+    // First try OTP area
+    try {
+        return readOTPVersion(address, length);
+    } catch (...) {
+        // Fall through to next method
+    }
+
+    // If OTP fails, try reading via verify command
+    // For this we need to know the expected data at that address.
+    // This is a placeholder - real implementation would need more context.
+    // For now throw to let caller try bootloader version fallback
+    throw WCHFlashError("Code flash read not directly supported without known content");
+}
+
+// ---------------------------------------------------------------------------
+// readOTPVersion — read from OTP (One-Time Programmable) area
+// The OTP may contain firmware version information.
+// ---------------------------------------------------------------------------
+std::string WCHFlasher::readOTPVersion(uint32_t address, uint16_t length)
+{
+    // Read data from OTP using ReadOTP command
+    auto packet = WCHPacketBuilder::readOTP(address, length);
+    auto raw = doTransfer(packet, "readOTPVersion");
+
+    WCHResponse resp;
+    if (!WCHResponse::parse(raw, resp) || !resp.ok) {
+        throw WCHFlashError("Failed to read OTP");
+    }
+
+    if (resp.payload.empty()) {
+        throw WCHFlashError("Empty response when reading OTP");
+    }
+
+    // Convert to hex string
+    std::ostringstream oss;
+    for (size_t i = 0; i < resp.payload.size(); ++i) {
+        oss << std::hex << std::uppercase << std::setw(2) << std::setfill('0')
+            << static_cast<int>(resp.payload[i]);
+    }
+    return oss.str();
+}
+
+// ---------------------------------------------------------------------------
 // XOR encrypt/decrypt — rotating key window
 // ---------------------------------------------------------------------------
 std::vector<uint8_t> WCHFlasher::xorChunk(const std::vector<uint8_t>& data,

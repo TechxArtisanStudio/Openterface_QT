@@ -52,8 +52,12 @@
 #include <io.h>
 #define dup _dup
 #define dup2 _dup2
+#ifndef STDOUT_FILENO
 #define STDOUT_FILENO _fileno(stdout)
+#endif
+#ifndef STDERR_FILENO
 #define STDERR_FILENO _fileno(stderr)
+#endif
 #else
 #include <unistd.h>
 #endif

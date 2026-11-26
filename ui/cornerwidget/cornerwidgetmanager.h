@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QPushButton>
 #include <QComboBox>
 #include <QMenuBar>
@@ -21,7 +22,7 @@ public:
 
     QWidget* getCornerWidget() const;
     void setMenuBar(QMenuBar *menuBar);
-    void updatePosition(int windowWidth, int menuBarHeight, bool isFullScreen);
+    void updatePosition(int windowWidth, int windowHeight, int menuBarHeight, bool isFullScreen, bool isPortraitMode);
     void initializeKeyboardLayouts(const QStringList &layouts, const QString &defaultLayout);
     void setCurrentKeyboardLayout(const QString &layout);
     void restoreMuteState(bool muted);
@@ -56,12 +57,17 @@ private:
     void setupConnections();
     void setButtonIcon(QPushButton *button, const QString &iconPath);
     void updateAllIcons();
+    void updateThemeColors();
     QColor getIconColor() const;
+    void configureOrientationLayout(int windowWidth, bool isFullScreen, bool isPortraitMode);
+    void positionVerticalWidget();
+    void positionHorizontalWidget(bool floating, bool fullscreen);
 
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override;
 
     QWidget *cornerWidget;
+    QWidget *verticalCornerWidget;  // New vertical widget for portrait mode
     QComboBox *keyboardLayoutComboBox;
     QPushButton *screenScaleButton;
     QPushButton *zoomInButton;
@@ -74,11 +80,22 @@ protected:
     
     ToggleSwitch *toggleSwitch;
     QHBoxLayout *horizontalLayout;
+    QVBoxLayout *verticalLayout;  // New vertical layout
     bool isRecording;
     bool isMuted;
     QMenuBar *menuBar;
     int layoutThreshold;
     bool m_updatingFromStatus;  // New flag to track programmatic updates
+    bool m_isPortraitMode;  // Track portrait mode state
+    QPoint m_dragStartPos;
+    bool m_isDragging;
+    bool m_orientationInitialized = false;
+    bool m_verticalUserPositioned = false;
+    bool m_orientationFullScreen = false;
+    bool m_horizontalFloating = false;
+    bool m_dragPending = false;
+    QPoint m_dragWindowStartPos;
+    QPoint m_lastMainWindowPos;
 };
 
 #endif // CORNERWIDGETMANAGER_H

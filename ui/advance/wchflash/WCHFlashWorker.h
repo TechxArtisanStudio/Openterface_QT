@@ -35,6 +35,9 @@ public slots:
     // Close current device; emits disconnected()
     void disconnectDevice();
 
+    // Read current firmware version from the connected device; emits firmwareVersionRead()
+    void readFirmwareVersion();
+
     // Flash firmware file (.hex or .bin); emits progress() then finished()
     void flashFirmware(const QString& filePath);
 
@@ -44,6 +47,9 @@ signals:
 
     // Device connected; chipInfo is a multi-line info string
     void deviceConnected(const QString& chipInfo);
+
+    // Firmware version read from device
+    void firmwareVersionRead(const QString& version);
 
     // Device disconnected
     void deviceDisconnected();

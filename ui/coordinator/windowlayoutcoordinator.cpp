@@ -262,6 +262,11 @@ void WindowLayoutCoordinator::fullScreen()
         return;
     }
 
+    if (GlobalSetting::instance().getScreenRatio() < 1.0 && !isFullScreenMode()) {
+        qCWarning(log_ui_windowlayoutcoordinator) << "Fullscreen is disabled in portrait mode";
+        return;
+    }
+
     // Log current window state in detail
     Qt::WindowStates windowState = m_mainWindow->windowState();
     WId originalWinId = m_mainWindow->winId();

@@ -145,6 +145,17 @@ std::vector<uint8_t> WCHPacketBuilder::dataRead(uint32_t address, uint16_t lengt
 }
 
 // ---------------------------------------------------------------------------
+// readOTP  [cmd=0xC4][len=6][addr:u32LE][length:u16LE]
+// ---------------------------------------------------------------------------
+std::vector<uint8_t> WCHPacketBuilder::readOTP(uint32_t address, uint16_t length)
+{
+    std::vector<uint8_t> payload;
+    appendU32LE(payload, address);
+    appendU16LE(payload, length);
+    return makePacket(WCHCommands::ReadOTP, payload);
+}
+
+// ---------------------------------------------------------------------------
 // WCHResponse::parse
 // Response: [cmd:u8][status:u8][len_lo:u8][len_hi:u8][payload...]
 // ---------------------------------------------------------------------------

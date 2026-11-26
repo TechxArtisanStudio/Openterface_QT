@@ -27,6 +27,7 @@
 #include "host/multimediabackend.h"
 #include "host/backend/ffmpegbackendhandler.h"
 #include "ui/statusbar/statuswidget.h"
+#include "ui/screenscale.h"
 #include <QDebug>
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -123,6 +124,30 @@ void VideoPage::setupUI()
     formatLabel->setStyleSheet(smallLabelFontSize);
     pixelFormatBox = new QComboBox();
     pixelFormatBox->setObjectName("pixelFormatBox");
+
+    // Screen Aspect Ratio Setting
+    QLabel *screenRatioLabel = new QLabel(tr("Screen Aspect Ratio: "));
+    screenRatioLabel->setStyleSheet(smallLabelFontSize);
+
+    QComboBox *screenRatioBox = new QComboBox();
+    screenRatioBox->setObjectName("screenRatioBox");
+    screenRatioBox->addItem(tr("16:9 (Landscape)"), 16.0/9.0);
+    screenRatioBox->addItem(tr("4:3 (Standard)"), 4.0/3.0);
+    screenRatioBox->addItem(tr("16:10 (Widescreen)"), 16.0/10.0);
+    screenRatioBox->addItem(tr("5:3"), 5.0/3.0);
+    screenRatioBox->addItem(tr("5:4"), 5.0/4.0);
+    screenRatioBox->addItem(tr("21:9 (Ultrawide)"), 21.0/9.0);
+    screenRatioBox->addItem(tr("9:16 (Portrait)"), 9.0/16.0);
+    screenRatioBox->addItem(tr("9:19.5"), 9.0/19.5);
+    screenRatioBox->addItem(tr("9:20"), 9.0/20.0);
+    screenRatioBox->addItem(tr("9:21"), 9.0/21.0);
+
+    // Set current screen ratio from settings
+    double currentScreenRatio = GlobalSetting::instance().getScreenRatio();
+    int screenRatioIndex = screenRatioBox->findData(currentScreenRatio);
+    if (screenRatioIndex != -1) {
+        screenRatioBox->setCurrentIndex(screenRatioIndex);
+    }
 
     QLabel *hintLabel = new QLabel(tr("Note: On linx the video may go black after OK or Apply. Please unplug and re-plug the host cable."));
     hintLabel->setWordWrap(true);
@@ -279,6 +304,8 @@ void VideoPage::setupUI()
     videoLayout->addLayout(hBoxLayout);
     videoLayout->addWidget(formatLabel);
     videoLayout->addWidget(pixelFormatBox);
+    videoLayout->addWidget(screenRatioLabel);
+    videoLayout->addWidget(screenRatioBox);
     videoLayout->addWidget(scalingQualityLabel);
     videoLayout->addWidget(scalingQualityBox);
     videoLayout->addWidget(scalingQualityHintLabel);
@@ -615,6 +642,16 @@ void VideoPage::applySettings() {
     QCheckBox *smoothTransformCheckBox = this->findChild<QCheckBox*>("smoothTransformCheckBox");
     if (smoothTransformCheckBox) {
         GlobalSetting::instance().setVideoSmoothTransform(smoothTransformCheckBox->isChecked());
+    }
+
+    // Save screen aspect ratio setting
+    QComboBox *screenRatioBox = this->findChild<QComboBox*>("screenRatioBox");
+    if (screenRatioBox) {
+        double screenRatio = screenRatioBox->currentData().toDouble();
+        GlobalSetting::instance().setScreenRatio(screenRatio);
+
+        // Notify the window layout coordinator to recalculate video position
+        emit inputResolutionChanged(m_currentResolution);
     }
 
     // Emit the signal with the new width and height

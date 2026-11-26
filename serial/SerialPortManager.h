@@ -200,6 +200,9 @@ public:
     // Check if CH9329 USB device is present but CH340 driver is missing
     // Uses USB enumeration (not serial port) so it works even without driver
     static bool isCH9329PresentAndDriverMissing();
+
+    // Get firmware version from connected device (uses CMD_GET_PARA_CFG)
+    QString getFirmwareVersionSync();
     
     // New USB switch methods for CH32V208 serial port (firmware with new protocol)
     void switchUsbToHostViaSerial();      // Switch USB to host via serial command (57 AB 00 17...)

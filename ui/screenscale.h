@@ -22,11 +22,13 @@ signals:
 private slots:
     void onOkClicked();
     void onCancelClicked();
+    void onResetClicked();
 
 private:
     QComboBox *ratioComboBox;
     QPushButton *okButton;
     QPushButton *cancelButton;
+    QPushButton *resetButton;
     QVBoxLayout *layout;
     QHBoxLayout *layoutBtn;
     double converseRatio(QString ratio);

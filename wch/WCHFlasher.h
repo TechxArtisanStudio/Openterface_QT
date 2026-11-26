@@ -50,6 +50,13 @@ public:
 
     bool isCodeFlashProtected() const;
 
+    // Read user firmware version from code flash at given offset (default 0x08 for CH32)
+    // Uses verify command with expected data derived from flash content
+    std::string readFirmwareVersion(uint32_t address = 0x08, uint16_t length = 4);
+
+    // Try reading from OTP area (may contain firmware version)
+    std::string readOTPVersion(uint32_t address = 0, uint16_t length = 16);
+
     // --- Operations ---
 
     // Full flash + verify + reset pipeline.

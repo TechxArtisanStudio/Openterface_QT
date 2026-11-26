@@ -94,6 +94,14 @@ void WCHFlashWorker::connectDevice(int index)
         QString info = QString::fromStdString(m_impl->flasher->getChipInfo());
         emit deviceConnected(info);
         emit logMessage("Device connected successfully");
+
+        // Automatically read firmware version after successful connection
+        emit logMessage("Reading firmware version...");
+        std::string btver = m_impl->flasher->bootloaderVersion();
+        QString version = QString::fromStdString(btver);
+        emit logMessage(QString("DEBUG: bootloaderVersion returned: '%1'").arg(version));
+        emit firmwareVersionRead(version);
+        emit logMessage(tr("Firmware version: %1").arg(version));
     } catch (const std::exception& e) {
         m_impl->flasher.reset();
         if (m_impl->transport->isOpen())
@@ -113,6 +121,28 @@ void WCHFlashWorker::disconnectDevice()
         m_impl->transport->close();
     emit deviceDisconnected();
     emit logMessage("Device disconnected");
+}
+
+// ---------------------------------------------------------------------------
+// readFirmwareVersion
+// ---------------------------------------------------------------------------
+void WCHFlashWorker::readFirmwareVersion()
+{
+    if (!m_impl->flasher) {
+        emit firmwareVersionRead(tr("Not connected"));
+        return;
+    }
+
+    try {
+        // Get bootloader version from the device
+        std::string btver = m_impl->flasher->bootloaderVersion();
+        QString version = QString::fromStdString(btver);
+        emit firmwareVersionRead(version);
+        emit logMessage(tr("Firmware version: %1").arg(version));
+    } catch (const std::exception& e) {
+        emit firmwareVersionRead(tr("Error reading version"));
+        emit logMessage(QString("Error reading firmware version: %1").arg(e.what()));
+    }
 }
 
 // ---------------------------------------------------------------------------

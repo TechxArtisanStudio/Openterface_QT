@@ -24,7 +24,10 @@ ScreenScale::ScreenScale(QWidget *parent) : QDialog(parent)
     ratioComboBox->addItem("9:20");
     ratioComboBox->addItem("9:21");
 
-    setFixedSize(200, 150);
+    // Add reset to default button
+    resetButton = new QPushButton(tr("Reset to Default (16:9)"), this);
+
+    setFixedSize(250, 180);
     // Set up layout
     layout = new QVBoxLayout(this);
     layout->addWidget(ratioComboBox);
@@ -32,6 +35,7 @@ ScreenScale::ScreenScale(QWidget *parent) : QDialog(parent)
     layoutBtn->addWidget(okButton);
     layoutBtn->addWidget(cancelButton);
     layout->addLayout(layoutBtn);
+    layout->addWidget(resetButton);
 
     double savedRatio = GlobalSetting::instance().getScreenRatio();
     QString savedRatioStr = converseRatio(savedRatio);
@@ -41,6 +45,7 @@ ScreenScale::ScreenScale(QWidget *parent) : QDialog(parent)
     // Connect buttons to slots
     connect(okButton, &QPushButton::clicked, this, &ScreenScale::onOkClicked);
     connect(cancelButton, &QPushButton::clicked, this, &ScreenScale::onCancelClicked);
+    connect(resetButton, &QPushButton::clicked, this, &ScreenScale::onResetClicked);
 
     // Set layout to dialog
     setLayout(layout);
@@ -95,4 +100,14 @@ void ScreenScale::onOkClicked()
 void ScreenScale::onCancelClicked()
 {
     reject(); // Close dialog with QDialog::Rejected status
+}void ScreenScale::onResetClicked()
+{
+    // Reset to default 16:9 ratio
+    int index = ratioComboBox->findText("16:9");
+    if (index != -1) {
+        ratioComboBox->setCurrentIndex(index);
+    }
+    // Emit signal with default ratio
+    emit screenRatio(16.0 / 9.0);
+    accept(); // Close dialog with QDialog::Accepted status
 }

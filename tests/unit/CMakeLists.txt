@@ -32,3 +32,23 @@ target_include_directories(tst_deviceinfo PRIVATE ${OPF_REPO_ROOT})
 target_link_libraries(tst_deviceinfo PRIVATE Qt6::Core Qt6::Test)
 set_target_properties(tst_deviceinfo PROPERTIES AUTOMOC ON)
 add_test(NAME deviceinfo COMMAND tst_deviceinfo)
+
+add_executable(tst_cornerwidget_portrait
+    tst_cornerwidget_portrait.cpp
+    ${OPF_REPO_ROOT}/ui/cornerwidget/cornerwidgetmanager.cpp
+    ${OPF_REPO_ROOT}/ui/toolbar/toggleswitch.cpp
+    ${OPF_REPO_ROOT}/ui/toolbar/toggleswitch.h
+)
+target_include_directories(tst_cornerwidget_portrait PRIVATE ${OPF_REPO_ROOT})
+target_sources(tst_cornerwidget_portrait PRIVATE ${OPF_REPO_ROOT}/ui/mainwindow.qrc)
+target_link_libraries(tst_cornerwidget_portrait PRIVATE Qt6::Core Qt6::Test Qt6::Widgets Qt6::Gui Qt6::Svg)
+set_target_properties(tst_cornerwidget_portrait PROPERTIES AUTOMOC ON)
+add_test(NAME cornerwidget_portrait COMMAND tst_cornerwidget_portrait)
+
+add_executable(test_aspect_ratio_logic
+    test_aspect_ratio_logic.cpp
+)
+target_include_directories(test_aspect_ratio_logic PRIVATE ${OPF_REPO_ROOT})
+target_link_libraries(test_aspect_ratio_logic PRIVATE Qt6::Core Qt6::Test)
+set_target_properties(test_aspect_ratio_logic PROPERTIES AUTOMOC ON)
+add_test(NAME aspect_ratio_logic COMMAND test_aspect_ratio_logic)

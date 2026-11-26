@@ -324,7 +324,9 @@ void MainWindowInitializer::connectCornerWidgetSignals()
     CornerWidgetManager* cornerWidgetManager = m_cornerWidgetManager;
     QMenuBar* menuBar = m_ui->menubar;
     connect(coordinator, &WindowLayoutCoordinator::layoutChanged, cornerWidgetManager, [cornerWidgetManager, menuBar, coordinator](const QSize &size) {
-        cornerWidgetManager->updatePosition(size.width(), menuBar->height(), coordinator->isFullScreenMode());
+        double aspectRatio = GlobalSetting::instance().getScreenRatio();
+        bool isPortraitMode = (aspectRatio < 1.0);
+        cornerWidgetManager->updatePosition(size.width(), size.height(), menuBar->height(), coordinator->isFullScreenMode(), isPortraitMode);
     });
 }
 
