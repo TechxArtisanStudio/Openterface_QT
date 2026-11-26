@@ -228,12 +228,12 @@ QString FirmwareNetworkClient::pickFirmwareFileNameFromIndex(const QString& inde
 
         if (parts.size() == 1) {
             if (!parts[0].isEmpty()) {
-                candidates.append({ QStringLiteral("0"), parts[0], {} });
+                candidates.append(Candidate{ QStringLiteral("0"), parts[0], {} });
             }
             continue;
         }
         if (parts.size() < 2) continue;
-        candidates.append({
+        candidates.append(Candidate{
             parts[0],
             parts[1],
             parts.size() > 2 ? parts[2].toLower() : QString()
