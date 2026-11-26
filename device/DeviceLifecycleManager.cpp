@@ -28,6 +28,10 @@
 #include "serial/SerialPortManager.h"
 
 #include <QDateTime>
+#include <QMetaObject>
+#include <QPointer>
+#include <QtConcurrent>
+#include "global.h"
 #include "log/opflogging.h"
 
 OPF_LOGGING_CATEGORY(log_lifecycle, "opf.device.lifecycle")
@@ -116,19 +120,30 @@ void DeviceLifecycleManager::performInitialDiscovery()
 {
     qCInfo(log_lifecycle) << "Performing initial device discovery...";
 
-    // Use DeviceManager to get currently connected devices
-    QList<DeviceInfo> devices = DeviceManager::getInstance().discoverDevices();
-    qCInfo(log_lifecycle) << "Found" << devices.size() << "devices during initial discovery";
-
-    for (const auto& device : devices) {
-        qCInfo(log_lifecycle) << "  Initial device:" << device.portChain
-                              << "vid:" << device.vid << "pid:" << device.pid;
-        onDeviceDetected(device);
-    }
-
-    if (devices.isEmpty()) {
-        qCInfo(log_lifecycle) << "No devices found during initial discovery — waiting for hotplug events";
-    }
+    // Run the scan in a worker: USB enumeration can block for seconds inside the
+    // OS and must not freeze the GUI right after startup. Device handling itself
+    // stays on this object's thread.
+    QPointer<DeviceLifecycleManager> self(this);
+    (void)QtConcurrent::run([self]() {
+        const QList<DeviceInfo> devices = DeviceManager::getInstance().discoverDevices();
+        if (!self || g_applicationShuttingDown.loadAcquire() == 1) {
+            return;
+        }
+        QMetaObject::invokeMethod(self, [self, devices]() {
+            if (!self) {
+                return;
+            }
+            qCInfo(log_lifecycle) << "Found" << devices.size() << "devices during initial discovery";
+            for (const auto& device : devices) {
+                qCInfo(log_lifecycle) << "  Initial device:" << device.portChain
+                                      << "vid:" << device.vid << "pid:" << device.pid;
+                self->onDeviceDetected(device);
+            }
+            if (devices.isEmpty()) {
+                qCInfo(log_lifecycle) << "No devices found during initial discovery — waiting for hotplug events";
+            }
+        }, Qt::QueuedConnection);
+    });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

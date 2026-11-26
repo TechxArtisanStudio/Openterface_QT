@@ -95,9 +95,11 @@ void DeviceCoordinator::updateDeviceMenu()
     m_deviceMenu->clear();
     qDeleteAll(m_deviceMenuGroup->actions());
     
-    // One entry per unit, shared with the selector dialog and MCP device_list
+    // One entry per unit, shared with the selector dialog and MCP device_list.
+    // Use the list produced by the background hotplug scan: calling discoverDevices()
+    // here would run a full USB enumeration on the GUI thread.
     DeviceManager& deviceManager = DeviceManager::getInstance();
-    QList<DeviceInfo> selectable = deviceManager.listSelectableDevices();
+    QList<DeviceInfo> selectable = selectableDevices(deviceManager.getCurrentDevices());
 
     // Get currently selected device port chain
     QString currentPortChain = GlobalSetting::instance().getOpenterfacePortChain();
@@ -210,6 +212,12 @@ void DeviceCoordinator::connectHotplugMonitor(HotplugMonitor *hotplugMonitor)
             this, &DeviceCoordinator::onDevicePluggedIn);
     connect(hotplugMonitor, &HotplugMonitor::deviceUnplugged,
             this, &DeviceCoordinator::onDeviceUnplugged);
+
+    // The first snapshot is taken asynchronously after startup; refresh the menu
+    // once it is available (setupDeviceMenu() only reads the cached list).
+    connect(hotplugMonitor, &HotplugMonitor::initialSnapshotTaken, this, [this](int) {
+        QTimer::singleShot(0, this, [this]() { updateDeviceMenu(); });
+    });
     
     qCDebug(log_ui_devicecoordinator) << "Connected to hotplug monitor";
 }

@@ -66,6 +66,8 @@ signals:
     void monitoringStarted();
     void monitoringStopped();
     void errorOccurred(const QString& error);
+    // Emitted once after the first (background) snapshot has been taken.
+    void initialSnapshotTaken(int deviceCount);
 
     // Fast scan signals
     void fastScanStarted(int intervalMs);
@@ -85,6 +87,7 @@ private:
     QList<ChangeCallback> m_callbacks;
     QList<DeviceInfo> m_lastSnapshot;
     QList<DeviceInfo> m_initialSnapshot;
+    bool m_snapshotReady;  // false until the first background discovery primed the snapshots
     bool m_running;
     int m_pollInterval;
     int m_changeEventCount;

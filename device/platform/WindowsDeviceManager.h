@@ -7,6 +7,8 @@
 #include "windows/discoverers/DeviceDiscoveryManager.h"
 #include <QLoggingCategory>
 #include <QMap>
+#include <QMutex>
+#include <QDateTime>
 #include <memory>
 #if defined(_WIN32) && !defined(Q_MOC_RUN)
 #include <windows.h>
@@ -48,6 +50,7 @@ private:
     // Member variables for caching
     QVector<DeviceInfo> m_cachedDevices;
     QDateTime m_lastCacheUpdate;
+    mutable QMutex m_cacheMutex;
     static const int CACHE_TIMEOUT_MS = 500; // Optimized: 500ms for faster hotplug detection (was 2000ms)
 };
 

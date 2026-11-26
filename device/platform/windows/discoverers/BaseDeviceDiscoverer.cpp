@@ -36,43 +36,50 @@ QVector<BaseDeviceDiscoverer::USBDeviceData> BaseDeviceDiscoverer::findUSBDevice
     
     QString targetHwid = QString("VID_%1&PID_%2").arg(vid.toUpper()).arg(pid.toUpper());
     qCDebug(log_device_discoverer) << "Target Hardware ID pattern:" << targetHwid;
-    
-    // Use enumerator to get USB devices by interface
-    QVector<QVariantMap> usbDevices = m_enumerator->enumerateDevicesByInterface(GUID_DEVINTERFACE_USB_DEVICE);
-    
+
+    // Pre-filter on hardware IDs only. A full pass over every USB device costs
+    // five registry reads per device; this costs one. Details for the handful
+    // of matching devices are fetched below.
+    QVector<QVariantMap> usbDevices = m_enumerator->enumerateDeviceHardwareIdsByInterface(GUID_DEVINTERFACE_USB_DEVICE);
+
     for (const QVariantMap& deviceMap : usbDevices) {
         QString hardwareId = deviceMap.value("hardwareId").toString();
         
         // Check if this device matches our target VID/PID
-        if (hardwareId.toUpper().contains(targetHwid)) {
-            qCDebug(log_device_discoverer) << "Found matching USB device:" << hardwareId;
-            
-            DWORD devInst = deviceMap.value("devInst").toUInt();
-            
-            USBDeviceData usbData;
-            usbData.deviceInstanceId = deviceMap.value("deviceId").toString();
-            usbData.deviceInfo = deviceMap;
-            
-            qCDebug(log_device_discoverer) << "Device Instance ID:" << usbData.deviceInstanceId;
-            qCDebug(log_device_discoverer) << "Friendly Name:" << deviceMap.value("friendlyName").toString();
-            
-            // Build port chain
-            usbData.portChain = buildPythonCompatiblePortChain(devInst);
-            qCDebug(log_device_discoverer) << "Port Chain:" << usbData.portChain;
-            
-            // Get parent device for sibling enumeration
-            DWORD parentDevInst = m_enumerator->getParentDevice(devInst);
-            if (parentDevInst != 0) {
-                usbData.siblings = getSiblingDevicesByParent(parentDevInst);
-                qCDebug(log_device_discoverer) << "Found" << usbData.siblings.size() << "sibling devices";
-            }
-            
-            // Get child devices
-            usbData.children = getChildDevicesPython(devInst);
-            qCDebug(log_device_discoverer) << "Found" << usbData.children.size() << "child devices";
-            
-            devices.append(usbData);
+        if (!hardwareId.toUpper().contains(targetHwid)) {
+            continue;
         }
+        qCDebug(log_device_discoverer) << "Found matching USB device:" << hardwareId;
+
+        DWORD devInst = deviceMap.value("devInst").toUInt();
+        QVariantMap fullInfo = m_enumerator->getDeviceInfo(devInst);
+        if (fullInfo.isEmpty()) {
+            continue;
+        }
+
+        USBDeviceData usbData;
+        usbData.deviceInstanceId = fullInfo.value("deviceId").toString();
+        usbData.deviceInfo = fullInfo;
+
+        qCDebug(log_device_discoverer) << "Device Instance ID:" << usbData.deviceInstanceId;
+        qCDebug(log_device_discoverer) << "Friendly Name:" << fullInfo.value("friendlyName").toString();
+
+        // Build port chain
+        usbData.portChain = buildPythonCompatiblePortChain(devInst);
+        qCDebug(log_device_discoverer) << "Port Chain:" << usbData.portChain;
+
+        // Get parent device for sibling enumeration
+        DWORD parentDevInst = m_enumerator->getParentDevice(devInst);
+        if (parentDevInst != 0) {
+            usbData.siblings = getSiblingDevicesByParent(parentDevInst);
+            qCDebug(log_device_discoverer) << "Found" << usbData.siblings.size() << "sibling devices";
+        }
+
+        // Get child devices
+        usbData.children = getChildDevicesPython(devInst);
+        qCDebug(log_device_discoverer) << "Found" << usbData.children.size() << "child devices";
+
+        devices.append(usbData);
     }
     
     qCDebug(log_device_discoverer) << "Found" << devices.size() << "USB devices with VID/PID" << vid << "/" << pid;

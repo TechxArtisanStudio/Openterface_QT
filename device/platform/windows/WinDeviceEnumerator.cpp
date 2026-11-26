@@ -32,6 +32,7 @@ OPF_LOGGING_CATEGORY(log_win_enumerator, "opf.host.windows.enumerator")
 WinDeviceEnumerator::WinDeviceEnumerator(QObject* parent)
     : QObject(parent)
 {
+    m_clock.start();
     qCDebug(log_win_enumerator) << "Windows Device Enumerator initialized";
 }
 
@@ -586,6 +587,63 @@ QVector<QVariantMap> WinDeviceEnumerator::enumerateDevicesByInterface(const GUID
     
     SetupDiDestroyDeviceInfoList(hDevInfo);
     qCDebug(log_win_enumerator) << "Found" << devices.size() << "devices";
+    return devices;
+}
+
+QVector<QVariantMap> WinDeviceEnumerator::enumerateDeviceHardwareIdsByInterface(const GUID& interfaceGuid)
+{
+    const QByteArray cacheKey(reinterpret_cast<const char*>(&interfaceGuid), sizeof(interfaceGuid));
+    {
+        QMutexLocker locker(&m_lightCacheMutex);
+        const auto it = m_lightCache.constFind(cacheKey);
+        if (it != m_lightCache.constEnd()) {
+            const qint64 ageMs = m_clock.elapsed() - it->first;
+            if (ageMs >= 0 && ageMs < LIGHT_CACHE_TTL_MS) {
+                return it->second;
+            }
+        }
+    }
+
+    QElapsedTimer timer;
+    timer.start();
+    QVector<QVariantMap> devices;
+
+    HDEVINFO hDevInfo = SetupDiGetClassDevs(&interfaceGuid, nullptr, nullptr,
+                                            DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+    if (hDevInfo != INVALID_HANDLE_VALUE) {
+        SP_DEVINFO_DATA devInfoData;
+        devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+
+        for (DWORD i = 0; SetupDiEnumDeviceInfo(hDevInfo, i, &devInfoData); i++) {
+            WCHAR hardwareId[1024];
+            ULONG hardwareIdSize = sizeof(hardwareId);
+            if (CM_Get_DevNode_Registry_Property(devInfoData.DevInst, CM_DRP_HARDWAREID, nullptr,
+                                                hardwareId, &hardwareIdSize, 0) != CR_SUCCESS) {
+                continue;
+            }
+            QVariantMap deviceMap;
+            deviceMap["devInst"] = static_cast<uint>(devInfoData.DevInst);
+            deviceMap["hardwareId"] = wideToQString(hardwareId);
+            devices.append(deviceMap);
+        }
+
+        SetupDiDestroyDeviceInfoList(hDevInfo);
+    }
+
+    const qint64 elapsedMs = timer.elapsed();
+    if (elapsedMs > 250) {
+        qCInfo(log_win_enumerator) << "Hardware ID scan took" << elapsedMs << "ms for"
+                                   << devices.size() << "devices";
+    } else {
+        qCDebug(log_win_enumerator) << "Hardware ID scan took" << elapsedMs << "ms for"
+                                    << devices.size() << "devices";
+    }
+
+    {
+        QMutexLocker locker(&m_lightCacheMutex);
+        m_lightCache.insert(cacheKey, qMakePair(m_clock.elapsed(), devices));
+    }
+
     return devices;
 }
 

@@ -178,6 +178,15 @@ public:
      * @return Vector of device information maps
      */
     virtual QVector<QVariantMap> enumerateDevicesByInterface(const GUID& interfaceGuid) = 0;
+
+    /**
+     * @brief Enumerate devices by interface GUID, returning only devInst and hardwareId
+     *
+     * Much cheaper than enumerateDevicesByInterface(): one registry read per device
+     * instead of the full property set. Used as a pre-filter before reading details
+     * for the few devices that actually match a VID/PID.
+     */
+    virtual QVector<QVariantMap> enumerateDeviceHardwareIdsByInterface(const GUID& interfaceGuid) = 0;
     
     /**
      * @brief Enumerate all devices from all relevant classes

@@ -11,6 +11,7 @@
 #include "../serial/SerialPortManager.h"
 #include "../host/audiomanager.h"
 #include <QMutexLocker>
+#include <QElapsedTimer>
 #include <QtConcurrent>
 #include <QtSerialPort/QSerialPortInfo>
 #include <algorithm>
@@ -33,6 +34,21 @@ DeviceManager::DeviceManager()
 
     // Create HotplugMonitor instance
     m_hotplugMonitor = new HotplugMonitor(this, this);
+
+    // Keep the scan interval in sync with what the monitor actually finds.
+    connect(m_hotplugMonitor, &HotplugMonitor::initialSnapshotTaken, this, [this](int deviceCount) {
+        updateMonitoringInterval(deviceCount);
+        if (m_hotplugMonitor) {
+            m_hotplugMonitor->updateInterval(m_currentInterval);
+        }
+    });
+    connect(m_hotplugMonitor, &HotplugMonitor::deviceChangesDetected, this, [this](const DeviceChangeEvent& event) {
+        const int previousInterval = m_currentInterval;
+        updateMonitoringInterval(event.currentDevices.size());
+        if (m_currentInterval != previousInterval && m_hotplugMonitor) {
+            m_hotplugMonitor->updateInterval(m_currentInterval);
+        }
+    });
 
     // Create HotplugDebounceManager instance
     m_debounceManager = new device::HotplugDebounceManager(this);
@@ -73,17 +89,36 @@ void DeviceManager::initializePlatformManager()
 
 QList<DeviceInfo> DeviceManager::discoverDevices()
 {
-    QMutexLocker locker(&m_mutex);
-    
-    if (!m_platformManager) {
+    AbstractPlatformDeviceManager* platformManager = nullptr;
+    {
+        QMutexLocker locker(&m_mutex);
+        platformManager = m_platformManager;
+    }
+
+    if (!platformManager) {
         qCWarning(log_device_manager) << "No platform manager available";
         return QList<DeviceInfo>();
     }
-    
+
+    // Enumeration can block for seconds inside the OS (SetupAPI / Configuration
+    // Manager on Windows). Serialise enumerations here instead of holding m_mutex,
+    // which cheap readers such as getCurrentDevices() also need.
+    QMutexLocker discoveryLock(&m_discoveryMutex);
+
+    QElapsedTimer timer;
+    timer.start();
     try {
-        QList<DeviceInfo> devices = m_platformManager->discoverDevices();
-        m_currentDevices = devices;
-        qCDebug(log_device_manager) << "Discovered" << devices.size() << "devices";
+        QList<DeviceInfo> devices = platformManager->discoverDevices();
+        {
+            QMutexLocker locker(&m_mutex);
+            m_currentDevices = devices;
+        }
+        const qint64 elapsedMs = timer.elapsed();
+        if (elapsedMs > 250) {
+            qCInfo(log_device_manager) << "Discovered" << devices.size() << "devices in" << elapsedMs << "ms";
+        } else {
+            qCDebug(log_device_manager) << "Discovered" << devices.size() << "devices in" << elapsedMs << "ms";
+        }
         return devices;
     } catch (const std::exception& e) {
         qCWarning(log_device_manager) << "Error discovering devices:" << e.what();
@@ -342,22 +377,17 @@ void DeviceManager::startHotplugMonitoring(int intervalMs)
     
     // Store the normal interval (when devices are present)
     m_normalInterval = intervalMs;
-    
-    qCDebug(log_device_manager) << "Starting hotplug monitoring with normal interval:" << intervalMs << "ms, no-device interval:" << m_noDeviceInterval << "ms";
-    
-    // Take initial snapshot
-    m_lastSnapshot = discoverDevices();
-    // Initialize serial port snapshot to detect real changes before running discovery
-    m_lastSerialPorts.clear();
-    const auto initialPorts = QSerialPortInfo::availablePorts();
-    for (const QSerialPortInfo& port : initialPorts) {
-        m_lastSerialPorts.insert(port.systemLocation());
-    }
-    
-    // Determine initial interval based on current device count
-    updateMonitoringInterval(m_lastSnapshot.size());
-    
-    // Start monitoring with determined interval
+
+    // Start with the fast no-device interval. The first background scan
+    // (HotplugMonitor::initialSnapshotTaken) switches to the normal interval
+    // when a device is present.
+    updateMonitoringInterval(0);
+
+    qCDebug(log_device_manager) << "Starting hotplug monitoring with normal interval:" << intervalMs
+                                << "ms, initial interval:" << m_currentInterval << "ms";
+
+    // No device discovery here: HotplugMonitor primes its snapshot in the
+    // background so constructing the singleton never blocks the GUI thread.
     m_hotplugMonitor->start(m_currentInterval);
     m_monitoring = true;
     

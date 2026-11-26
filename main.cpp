@@ -33,11 +33,13 @@
 #include <QMetaType>
 #include <QCoreApplication>
 #include <QtPlugin>
+#include <QtConcurrent>
 #include <QPixmap>
 #include <QTime>
 #include <QEventLoop>
 #include <QThread>
 #include <QObject>
+#include <QPointer>
 #include <QFile>
 #include <QFileInfo>
 #include <QTimer>
@@ -798,8 +800,14 @@ int main(int argc, char *argv[])
     // Always check if CH9329 is present but CH340 driver is missing (independent of environment check)
     // Silent if driver is installed; prompts user only when driver is missing
     QTimer::singleShot(1000, [&app]() {
-        if (SerialPortManager::isCH9329PresentAndDriverMissing()) {
-            QMetaObject::invokeMethod(&app, []() {
+        // The probe enumerates serial ports and every device class through
+        // SetupAPI, which can take seconds; run it off the GUI thread.
+        QPointer<QApplication> appPtr(&app);
+        (void)QtConcurrent::run([appPtr]() {
+            if (!SerialPortManager::isCH9329PresentAndDriverMissing()) {
+                return;
+            }
+            QMetaObject::invokeMethod(appPtr, []() {
                 qInfo() << "CH9329 detected but CH340 driver is missing - showing install prompt";
                 QMessageBox msgBox;
                 msgBox.setWindowTitle(QObject::tr("Install Driver"));
@@ -815,7 +823,7 @@ int main(int argc, char *argv[])
                     clipboard->setText("https://www.wch.cn/downloads/CH341SER.EXE.html");
                 }
             }, Qt::QueuedConnection);
-        }
+        });
     });
 
     qInfo() << "Entering application event loop (app.exec())";

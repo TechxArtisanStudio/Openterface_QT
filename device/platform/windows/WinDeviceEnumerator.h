@@ -4,7 +4,10 @@
 
 #include "IDeviceEnumerator.h"
 #include <QObject>
+#include <QHash>
 #include <QLoggingCategory>
+#include <QMutex>
+#include <QElapsedTimer>
 #if defined(_WIN32) && !defined(Q_MOC_RUN)
 #include <windows.h>
 #include <setupapi.h>
@@ -49,6 +52,7 @@ public:
     QString findAudioDevicePathByDeviceId(const QString& deviceId) override;
     QString findComPortByDeviceId(const QString& deviceId) override;
     QVector<QVariantMap> enumerateDevicesByInterface(const GUID& interfaceGuid) override;
+    QVector<QVariantMap> enumerateDeviceHardwareIdsByInterface(const GUID& interfaceGuid) override;
     QVector<QVariantMap> enumerateAllDevices() override;
     QVector<QVariantMap> getChildDevicesPython(DWORD devInst) override;
     QString findHidDeviceForPortChain(const QString& portChain) override;
@@ -73,6 +77,14 @@ private:
      * @return QString
      */
     QString wideToQString(const wchar_t* wstr);
+
+    // Short-lived cache for enumerateDeviceHardwareIdsByInterface(). A single
+    // discovery pass asks for the same interface list several times in a row
+    // (once per VID/PID of interest); this collapses those into one scan.
+    QElapsedTimer m_clock;
+    mutable QMutex m_lightCacheMutex;
+    QHash<QByteArray, QPair<qint64, QVector<QVariantMap>>> m_lightCache;
+    static const qint64 LIGHT_CACHE_TTL_MS = 150;
 };
 
 #endif // WINDEVICEENUMERATOR_H

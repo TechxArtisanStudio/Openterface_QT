@@ -1,6 +1,7 @@
 #include "HotplugMonitor.h"
 #include "IDeviceDiscovery.h"
 #include <QLoggingCategory>
+#include <QElapsedTimer>
 #include <QMutexLocker>
 #include <QtConcurrent>
 #include "log/opflogging.h"
@@ -11,6 +12,7 @@ HotplugMonitor::HotplugMonitor(IDeviceDiscovery* deviceDiscovery, QObject *paren
     : QObject(parent)
     , m_deviceDiscovery(deviceDiscovery)
     , m_timer(new QTimer(this))
+    , m_snapshotReady(false)
     , m_running(false)
     , m_pollInterval(500)  // Optimized: 500ms for faster hotplug detection (was 2000ms)
     , m_changeEventCount(0)
@@ -33,7 +35,10 @@ HotplugMonitor::~HotplugMonitor()
     // Wait for any in-flight background check to complete before destroying
     if (m_checkWatcher && m_checkWatcher->isRunning()) {
         qCDebug(log_hotplug_monitor) << "Waiting for background check to finish before destruction";
+        QElapsedTimer timer;
+        timer.start();
         m_checkWatcher->waitForFinished();
+        qCDebug(log_hotplug_monitor) << "Background check finished after" << timer.elapsed() << "ms";
     }
     clearCallbacks();
     qCDebug(log_hotplug_monitor) << "Hotplug monitor destroyed";
@@ -70,27 +75,29 @@ void HotplugMonitor::start(int pollIntervalMs)
         return;
     }
 
+    if (pollIntervalMs <= 0) {
+        pollIntervalMs = m_pollInterval;
+    }
+
     qCDebug(log_hotplug_monitor) << "Starting hotplug monitor with interval:" << pollIntervalMs << "ms";
     m_pollInterval = pollIntervalMs;
     m_timer->setInterval(m_pollInterval);
 
-    // Take initial snapshot
     {
         QMutexLocker locker(&m_mutex);
-        m_lastSnapshot = m_deviceDiscovery->discoverDevices();
-        m_initialSnapshot = m_lastSnapshot;
+        m_snapshotReady = false;
     }
-    
-    qCDebug(log_hotplug_monitor) << "Initial snapshot contains" << m_lastSnapshot.size() << "devices";
-    for (const auto& device : m_lastSnapshot) {
-        qCDebug(log_hotplug_monitor) << "  - Device:" << device.portChain;
-    }
-    
+
     m_running = true;
     m_timer->start();
-    
+
     emit monitoringStarted();
     qCInfo(log_hotplug_monitor) << "Hotplug monitoring started with interval" << m_pollInterval << "ms";
+
+    // Prime the initial snapshot in the background. Device discovery can block for
+    // many seconds inside the OS (SetupAPI / Configuration Manager), so it must never
+    // run on the caller's thread - at startup that is the GUI thread.
+    checkForChangesSlot();
 }
 
 void HotplugMonitor::stop()
@@ -140,13 +147,40 @@ void HotplugMonitor::checkForChanges()
     }
 
     qCDebug(log_hotplug_monitor) << "Checking for device changes...";
+    QElapsedTimer timer;
+    timer.start();
     QList<DeviceInfo> currentDevices = m_deviceDiscovery->discoverDevices();
-    
+    const qint64 elapsedMs = timer.elapsed();
+    if (elapsedMs > 500) {
+        qCInfo(log_hotplug_monitor) << "Device discovery took" << elapsedMs << "ms";
+    } else {
+        qCDebug(log_hotplug_monitor) << "Device discovery took" << elapsedMs << "ms";
+    }
+
     // Get previous snapshot with mutex protection
     QList<DeviceInfo> previousSnapshot;
+    bool primed = false;
     {
         QMutexLocker locker(&m_mutex);
+        if (!m_snapshotReady) {
+            // First background scan after start(): adopt it as the baseline
+            // without emitting change events for devices that were already there.
+            m_lastSnapshot = currentDevices;
+            m_initialSnapshot = currentDevices;
+            m_snapshotReady = true;
+        } else {
+            primed = true;
+        }
         previousSnapshot = m_lastSnapshot;
+    }
+
+    if (!primed) {
+        qCInfo(log_hotplug_monitor) << "Initial snapshot contains" << currentDevices.size() << "devices";
+        for (const auto& device : currentDevices) {
+            qCDebug(log_hotplug_monitor) << "  - Device:" << device.portChain;
+        }
+        emit initialSnapshotTaken(currentDevices.size());
+        return;
     }
     
     qCDebug(log_hotplug_monitor) << "Checking for changes. Current devices:" << currentDevices.size() 

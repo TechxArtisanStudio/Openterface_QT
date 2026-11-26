@@ -1,6 +1,8 @@
 #include "loghandler.h"
 #include "globalsetting.h"
 
+#include <QCoreApplication>
+
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
@@ -114,10 +116,13 @@ QString LogHandler::formatMessage(QtMsgType type,
     QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
 
     QThread *currentThread = QThread::currentThread();
+    // Static objects (e.g. VideoHid) may log while being destroyed after
+    // QCoreApplication is gone; instance() is null by then.
+    const QCoreApplication *app = QCoreApplication::instance();
     QString threadName;
     if (!currentThread->objectName().isEmpty()) {
         threadName = currentThread->objectName();
-    } else if (currentThread == QCoreApplication::instance()->thread()) {
+    } else if (app && currentThread == app->thread()) {
         threadName = "MainThread";
     } else {
         threadName = QString::number(reinterpret_cast<quintptr>(currentThread->currentThreadId()));

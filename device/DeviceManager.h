@@ -201,9 +201,12 @@ private:
     QList<DeviceInfo> m_currentDevices;
     DeviceInfo m_selectedDevice;
     mutable QMutex m_mutex;
+    // Serializes device enumeration across threads without blocking readers of
+    // m_currentDevices: SetupAPI/CM calls can take seconds and must never be
+    // performed while holding m_mutex.
+    QMutex m_discoveryMutex;
     bool m_monitoring;
     QString m_platformName;
-    QSet<QString> m_lastSerialPorts; // track systemLocation() of last serial ports to avoid unnecessary discover
     int m_normalInterval; // normal monitoring interval when devices are present
     int m_noDeviceInterval; // faster monitoring interval when no devices are present
     int m_currentInterval; // current active monitoring interval

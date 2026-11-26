@@ -16,6 +16,7 @@
 #include <QNetworkReply>
 #include <QEventLoop>
 #include <QPointer>
+#include <QCoreApplication>
 #include <QtConcurrent>
 #include "firmware/FirmwareNetworkClient.h"
 
@@ -587,11 +588,20 @@ bool VideoHid::beginTransaction() {
         return true;  // Already in a transaction
     }
 
-    // We'll retry a few times in case of temporary device issues
-    const int MAX_RETRIES = 5;
+    // We'll retry a few times in case of temporary device issues. Sleeping on
+    // the GUI thread would freeze the window (5 x 500ms plus whatever
+    // findMatchingHIDDevice adds), so GUI-thread callers get a single attempt.
+    const bool allowWaitRetries =
+        QCoreApplication::instance()
+        && QThread::currentThread() != QCoreApplication::instance()->thread();
+    const int MAX_RETRIES = allowWaitRetries ? 5 : 1;
     bool success = false;
 
     for (int attempt = 0; attempt < MAX_RETRIES && !success; attempt++) {
+        if (g_applicationShuttingDown.loadAcquire() == 1) {
+            qCDebug(log_hid_device) << "Aborting HID open retries - application is shutting down";
+            break;
+        }
         if (attempt > 0) {
             qCDebug(log_hid_device) << "Retry attempt" << attempt << "to open HID device";
             // Wait between retries - longer delay to allow HID interface re-enumeration
@@ -796,10 +806,23 @@ QString VideoHid::findMatchingHIDDevice(const QString& portChain) const
     // Retry logic for HID device detection - HID devices may take time to enumerate after hotplug
     // After a firmware burn failure on MS2130S the chip may need several seconds to re-enumerate
     // its HID interface, so we use generous timeouts here.
-    const int maxRetries = 8;
+    //
+    // Waiting is only acceptable on a worker thread; on the GUI thread these
+    // retries freeze the whole window for many seconds when no unit is attached
+    // (EDID identity timer -> readEeprom -> open -> here). A single attempt keeps
+    // the UI responsive; the callers (EdidIdentityCache, hotplug monitor)
+    // retry on their own schedule.
+    const bool allowWaitRetries =
+        QCoreApplication::instance()
+        && QThread::currentThread() != QCoreApplication::instance()->thread();
+    const int maxRetries = allowWaitRetries ? 8 : 1;
     const int retryDelayMs = 500; // 500ms delay between retries (total ~4s)
     
     for (int retry = 0; retry < maxRetries; ++retry) {
+        if (g_applicationShuttingDown.loadAcquire() == 1) {
+            qCDebug(log_hid_device) << "Aborting HID device search - application is shutting down";
+            return QString();
+        }
         if (retry > 0) {
             qCDebug(log_hid_device) << "HID device not found, retrying in" << retryDelayMs << "ms (attempt" << (retry + 1) << "/" << maxRetries << ")";
             QThread::msleep(retryDelayMs);
