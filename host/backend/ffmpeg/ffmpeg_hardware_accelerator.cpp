@@ -47,9 +47,12 @@ bool FFmpegHardwareAccelerator::Initialize(const QString& preferred_hw_accel)
     qCDebug(log_ffmpeg_backend) << "Initializing hardware acceleration, preferred:" << preferred_hw_accel;
     
     preferred_hw_accel_ = preferred_hw_accel;
-    
-    // Explicitly handle CPU-only mode
-    if (preferred_hw_accel_ == "none") {
+
+    // Explicitly handle CPU-only mode. "cpu" is accepted as an alias so it is
+    // never mistaken for an unavailable hardware decoder and sent to auto.
+    if (preferred_hw_accel_.compare("none", Qt::CaseInsensitive) == 0 ||
+        preferred_hw_accel_.compare("cpu", Qt::CaseInsensitive) == 0) {
+        preferred_hw_accel_ = "none";
         qCInfo(log_ffmpeg_backend) << "Hardware acceleration disabled - using CPU decoding";
         hw_device_context_ = nullptr;
         hw_device_type_ = AV_HWDEVICE_TYPE_NONE;
