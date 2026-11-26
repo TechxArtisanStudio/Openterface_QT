@@ -2,7 +2,18 @@ cmake_minimum_required(VERSION 3.16)
 
 # Set resource compiler before project() to avoid MSYS2 windres path issues
 if(WIN32)
-    set(CMAKE_RC_COMPILER "E:/Qt/Tools/mingw1120_64/bin/windres.exe" CACHE FILEPATH "Resource compiler")
+    # Try to find windres from QT_MINGW_PATH environment variable or common locations
+    if(DEFINED ENV{QT_MINGW_PATH})
+        set(_mingw_root "$ENV{QT_MINGW_PATH}")
+        string(REPLACE "\\" "/" _mingw_root "${_mingw_root}")
+        if(EXISTS "${_mingw_root}/bin/windres.exe")
+            set(CMAKE_RC_COMPILER "${_mingw_root}/bin/windres.exe" CACHE FILEPATH "Resource compiler")
+        endif()
+    endif()
+    # Fallback: try to find windres in PATH
+    if(NOT CMAKE_RC_COMPILER)
+        find_program(CMAKE_RC_COMPILER NAMES windres.exe PATHS ENV MINGW_ROOT ENV QT_MINGW_PATH)
+    endif()
 endif()
 
 project(openterfaceQT VERSION 1.0 LANGUAGES C CXX)
@@ -125,7 +136,13 @@ if(WIN32)
 
     # Fix windres path issue in MSYS2 environment
     # Use proper Windows path format for MinGW windres
-    set(CMAKE_RC_COMPILER "E:/Qt/Tools/mingw1120_64/bin/windres.exe" CACHE FILEPATH "Path to the resource compiler")
+    if(DEFINED ENV{QT_MINGW_PATH})
+        set(_mingw_root "$ENV{QT_MINGW_PATH}")
+        string(REPLACE "\\" "/" _mingw_root "${_mingw_root}")
+        if(EXISTS "${_mingw_root}/bin/windres.exe" AND NOT CMAKE_RC_COMPILER)
+            set(CMAKE_RC_COMPILER "${_mingw_root}/bin/windres.exe" CACHE FILEPATH "Path to the resource compiler")
+        endif()
+    endif()
 endif()
 
 # Force static linking of compression libraries (must be done early)
